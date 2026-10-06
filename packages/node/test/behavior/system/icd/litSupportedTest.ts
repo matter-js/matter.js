@@ -7,10 +7,9 @@
 import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { IcdManagementServer } from "#behaviors/icd-management";
 import { ServerNode } from "#node/index.js";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { commission, LIT_CONFIG } from "../../../node/icd-helpers.js";
-import { MockSite } from "../../../node/mock-site.js";
-import { subscribedPeer } from "../../../node/node-helpers.js";
 
 const { litSupported, MIN_LIT_SPECIFICATION_VERSION } = IcdClient;
 

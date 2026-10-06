@@ -8,8 +8,8 @@ import { ColorControlServer } from "#behaviors/color-control";
 import { ExtendedColorLightDevice } from "#devices/extended-color-light";
 import { Agent } from "#endpoint/Agent.js";
 import { Duration, MaybePromise, Millis, Time, Timespan, Timestamp } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { ColorControl } from "@matter/types/clusters/color-control";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 const ColorLightDevice = ExtendedColorLightDevice.with(
     ColorControlServer.with("HueSaturation", "EnhancedHue", "ColorLoop", "Xy", "ColorTemperature"),

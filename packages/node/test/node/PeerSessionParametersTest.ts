@@ -5,8 +5,8 @@
  */
 
 import { Crypto, MockCrypto, Seconds } from "@matter/general";
+import { MockSite } from "@matter/node/testing";
 import { Peer, PeerSet } from "@matter/protocol";
-import { MockSite } from "./mock-site.js";
 
 describe("Peer session parameters", () => {
     before(() => {

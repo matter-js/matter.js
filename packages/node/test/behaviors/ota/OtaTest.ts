@@ -29,6 +29,7 @@ import {
     Seconds,
     Timestamp,
 } from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import {
     BdxProtocol,
     BdxSession,
@@ -44,8 +45,6 @@ import {
 import { FabricIndex, NodeId, VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
-import { MockSite } from "../../node/mock-site.js";
-import { subscribedPeer } from "../../node/node-helpers.js";
 import {
     addTestOtaImage,
     initOtaSite,

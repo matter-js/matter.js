@@ -5,10 +5,9 @@
  */
 
 import { AdministratorCommissioningServer } from "#behaviors/administrator-commissioning";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { commission } from "../../../node/icd-helpers.js";
-import { MockSite } from "../../../node/mock-site.js";
-import { subscribedPeer } from "../../../node/node-helpers.js";
 
 describe("A node taken offline and started again", () => {
     before(() => {

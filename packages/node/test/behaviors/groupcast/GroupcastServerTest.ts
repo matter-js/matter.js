@@ -22,12 +22,10 @@ import {
     NetworkError,
 } from "@matter/general";
 import { AccessLevel } from "@matter/model";
+import { MockExchange, MockServerNode, MockSite } from "@matter/node/testing";
 import { FabricManager, IANA_GROUPCAST_MULTICAST_ADDRESS, SessionManager } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, MATTER_EPOCH_OFFSET_US, NodeId } from "@matter/types";
 import { Groupcast } from "@matter/types/clusters/groupcast";
-import { MockExchange } from "../../node/mock-exchange.js";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { MockSite } from "../../node/mock-site.js";
 
 /** Root endpoint type with GroupcastServer (Listener+Sender+PerGroup), GKM (GCAST feature) and auxiliary ACLs. */
 const GroupcastRootEndpoint = MockServerNode.RootEndpoint.with(

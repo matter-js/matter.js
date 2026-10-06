@@ -7,8 +7,8 @@
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { Lifecycle } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import type { CommissionableDevice } from "@matter/protocol";
-import { MockServerNode } from "../mock-server-node.js";
 
 const DEVICE: CommissionableDevice = {
     deviceIdentifier: "device-a",

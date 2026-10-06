@@ -25,6 +25,7 @@ import {
     Time,
     Timestamp,
 } from "@matter/general";
+import { interaction, MockServerNode, MockSite, settled } from "@matter/node/testing";
 import {
     ClusterId,
     CommandId,
@@ -35,9 +36,6 @@ import {
     TlvOfModel,
 } from "@matter/types";
 import { DoorLock } from "@matter/types/clusters/door-lock";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { MockSite } from "../../node/mock-site.js";
-import { interaction, settled } from "../../node/node-helpers.js";
 
 import CredentialRule = DoorLock.CredentialRule;
 import CredentialType = DoorLock.CredentialType;

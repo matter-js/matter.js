@@ -20,6 +20,7 @@ import {
     Seconds,
     Time,
 } from "@matter/general";
+import { MockServerNode, MockSite } from "@matter/node/testing";
 import {
     ClientInteraction,
     ControllerCommissioningFlow,
@@ -29,8 +30,6 @@ import {
 import { StatusResponse } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
-import { MockServerNode } from "./mock-server-node.js";
-import { MockSite } from "./mock-site.js";
 
 const networkCalls = new Array<string>();
 

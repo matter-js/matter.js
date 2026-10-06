@@ -22,6 +22,7 @@ import {
     string,
     uint32,
 } from "@matter/model";
+import { interaction, MockServerNode, MockSite } from "@matter/node/testing";
 import {
     ClusterId,
     CommandId,
@@ -34,9 +35,6 @@ import {
     TypeFromSchema,
 } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { MockSite } from "../../node/mock-site.js";
-import { interaction } from "../../node/node-helpers.js";
 
 /**
  * Modern replacement for hand-writing a custom ClusterType: extend an existing generated server behavior with a

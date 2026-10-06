@@ -8,13 +8,14 @@ import {
     DnsRecordType,
     DnssdName,
     DnssdNames,
+    Duration,
     Environment,
     ImplementationError,
     Millis,
     Time,
     Timestamp,
 } from "@matter/main";
-import { CommissionableMdnsScanner, MdnsService } from "@matter/main/protocol";
+import { CommissionableMdnsScanner, MdnsService, type CommissionableDevice } from "@matter/main/protocol";
 import type { CertDevice, CheckRecord } from "@matter/testing";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -124,27 +125,53 @@ async function checkCommissionable(
     expected: boolean,
     timeoutMs: number,
 ): Promise<ExpectationResult> {
-    const identifier = { longDiscriminator: device.commissioning.discriminator };
+    const discriminator = device.commissioning.discriminator;
+    const seen = (await scanCommissionable(names, discriminator, Millis(timeoutMs))) !== undefined;
+    return {
+        matched: seen === expected,
+        detail: `commissionable (discriminator ${discriminator}): expected ${expected}, observed ${seen}`,
+    };
+}
+
+/**
+ * The first commissionable record for `discriminator` that `accept` takes, or `undefined` if none arrives
+ * within `timeout`. Records already in the shared cache are offered first, so `accept` is how a caller
+ * tells the device it means from an earlier one that advertised the same discriminator.
+ */
+export async function discoverCommissionable(
+    discriminator: number,
+    timeout: Duration,
+    accept: (device: CommissionableDevice) => boolean = () => true,
+): Promise<CommissionableDevice | undefined> {
+    const mdns = Environment.default.get(MdnsService);
+    await mdns.construction;
+    return scanCommissionable(mdns.names, discriminator, timeout, accept);
+}
+
+async function scanCommissionable(
+    names: DnssdNames,
+    discriminator: number,
+    timeout: Duration,
+    accept: (device: CommissionableDevice) => boolean = () => true,
+): Promise<CommissionableDevice | undefined> {
     const scanner = new CommissionableMdnsScanner(names);
     try {
-        let seen = false;
+        let found: CommissionableDevice | undefined;
         let resolveEarly!: () => void;
         const earlySignal = new Promise<void>(resolve => (resolveEarly = resolve));
 
         await scanner.findCommissionableDevicesContinuously(
-            identifier,
-            () => {
-                seen = true;
-                resolveEarly();
+            { longDiscriminator: discriminator },
+            device => {
+                if (found === undefined && accept(device)) {
+                    found = device;
+                    resolveEarly();
+                }
             },
-            Millis(timeoutMs),
+            timeout,
             earlySignal,
         );
-
-        return {
-            matched: seen === expected,
-            detail: `commissionable (discriminator ${identifier.longDiscriminator}): expected ${expected}, observed ${seen}`,
-        };
+        return found;
     } finally {
         await scanner.close();
     }
