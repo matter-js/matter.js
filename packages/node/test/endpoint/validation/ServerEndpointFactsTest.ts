@@ -12,7 +12,7 @@ import { SecondaryNetworkInterfaceEndpoint } from "#endpoints/secondary-network-
 import { ServerEndpointFacts } from "#node/server/ServerEndpointFacts.js";
 import { ImplementationError } from "@matter/general";
 import { Matter, NodeCondition } from "@matter/model";
-import { MockServerNode } from "../../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 import {
     addRefrigerator,
     createBleNode,

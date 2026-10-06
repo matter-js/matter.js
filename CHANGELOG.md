@@ -124,6 +124,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Enhancement: The commissioning test harness (`MockSite`, `MockServerNode`, `MockExchange` and the node helpers) is exported at `@matter/node/testing`, for tests that run under `@matter/testing`
     - Fix: A read that runs while a data report is still arriving no longer lets a descriptor in that report delete a cluster whose data came earlier in the same report
     - Fix: A peer's state drops the value of an attribute its `AttributeList` omits, such as one a firmware update removed, also when the value was cached before the list changed; such a cluster is read again in full after the controller starts. `Datasource.ExternallyMutableStore` has an optional `invalidateVersion()`
     - Fix: After a node restarts, the data reports of the client subscriptions it sets up again are no longer rejected, so changes arrive right away instead of only when a subscription times out and is re-established

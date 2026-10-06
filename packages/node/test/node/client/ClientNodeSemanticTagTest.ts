@@ -5,10 +5,8 @@
  */
 
 import { DescriptorServer } from "#behaviors/descriptor";
+import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import type { Semtag } from "@matter/types";
-import { MockServerNode } from "../mock-server-node.js";
-import { MockSite } from "../mock-site.js";
-import { subscribedPeer } from "../node-helpers.js";
 
 const TaggedDescriptorServer = DescriptorServer.with("TagList");
 const TaggedDevice = MockServerNode.RootEndpoint.with(TaggedDescriptorServer);

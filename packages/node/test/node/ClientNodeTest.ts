@@ -60,6 +60,7 @@ import {
     GeneratedCommandList,
     Specification,
 } from "@matter/model";
+import { clientStructureOf, MockSite, seedPeerCache, subscribedPeer } from "@matter/node/testing";
 import {
     ControllerCommissioner,
     FabricAuthority,
@@ -89,8 +90,6 @@ import { OnOff } from "@matter/types/clusters/on-off";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { captureErrorsOf } from "../endpoint/validation/validation-helpers.js";
-import { MockSite } from "./mock-site.js";
-import { clientStructureOf, seedPeerCache, subscribedPeer } from "./node-helpers.js";
 
 describe("ClientNode", function () {
     // Commissioning runs real crypto, which a loaded CI runner can stretch past the 2 s wall-clock default

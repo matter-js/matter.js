@@ -6,7 +6,7 @@
 
 import { DimmableLightDevice } from "#devices/dimmable-light";
 import { Timestamp } from "@matter/general";
-import { MockServerNode } from "../../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 
 async function transitioningLight() {
     MockTime.reset();

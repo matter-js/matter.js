@@ -6,8 +6,7 @@
 
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { Diagnostic, InternalError, Lifetime } from "@matter/general";
-import { MockSite } from "./mock-site.js";
-import { subscribedPeer } from "./node-helpers.js";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 
 function processLifetime() {
     // Lifetime.process is typed as an owner only, so reach the process lifetime through a sublifetime

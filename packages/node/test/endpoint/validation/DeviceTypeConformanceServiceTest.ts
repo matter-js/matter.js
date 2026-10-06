@@ -10,7 +10,7 @@ import { DeviceTypeConformanceService } from "#node/server/DeviceTypeConformance
 import { DeviceTypeValidation } from "#node/server/DeviceTypeValidation.js";
 import { Environment, ImplementationError, LogLevel } from "@matter/general";
 import { ClusterModel, DeviceTypeModel, Matter, MatterModel, RequirementModel } from "@matter/model";
-import { MockServerNode } from "../../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 import {
     captureLog,
     captureLogOf,

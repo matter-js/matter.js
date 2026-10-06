@@ -1938,6 +1938,29 @@ commissioning, for the node id the DUT just assigned.
 The compressed fabric id is never taken from the network: a probe cannot witness a transition (see
 "Freshness").
 
+## A TH advertisement the TH cannot produce (`TC-SC-4.2`)
+
+The plan has the TH add an unknown TXT key "by any means". A chip TH advertises only what its build
+does, so the harness publishes a second commissionable record from its own mDNS responder
+(`advertiseCommissionableAlias` in `src/cert/mdns-alias.ts`), pointing at the TH's own port and carrying
+`AB=12345`. CHIP's manual procedure also publishes a second record (`avahi-publish-service`), but as a
+distractor next to the TH's real record, on a dummy port. Ours is the only record that leads to the TH:
+
+- **It names a discriminator nothing else advertises** (the TH's own XOR `0xaaa`), and step 2 hands the
+  DUT the TH's QR payload with that discriminator. Step 0 (`recordDiscriminatorHonored`) establishes that
+  the DUT uses the discriminator at all; without it, a DUT that ignored it would reach the TH's own record
+  and pass. The value differs from the inverted one step 0 offers, which nothing may answer.
+- **It copies the TH's identity from the TH's QR payload**, and step 1 accepts only a discovered record
+  whose VP matches it. The shared cache can still hold a record an earlier device left for discriminator
+  3840; a matter.js DUT passes over an alias whose VP does not match its code.
+
+Step 1 reads `AB=12345` back from this process's DNS-SD cache (`cachedTxtValue`), which shows the record
+that went out. The alias advertises the harness's own addresses, so the TH must run on this host
+(`chip-local`, `matterjs`).
+
+**Cleanup decommissions before closing the alias.** The alias's goodbye expires the A/AAAA records of the
+host name this process shares, which an in-process matterjs TH also announces under.
+
 ## What a commissioning step owes its own evidence
 
 A step that commissions from an onboarding code used to record two things: that the commissioning
