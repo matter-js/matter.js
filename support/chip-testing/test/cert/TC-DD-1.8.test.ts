@@ -15,7 +15,7 @@ import {
     recordParse,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, runCleanups } from "./tc-support.js";
+import { CommissionedRefs, runCleanups, withChecks } from "./tc-support.js";
 
 /**
  * The plan's own example TLV payload (§ 5.1.5): an anonymous structure carrying serial number
@@ -96,7 +96,7 @@ certTest("TC-DD-1.8", {
         "Using the DUT, parse the TH's QR code to onboard the TH Device onto the Matter network.",
         async cx => {
             const payload = await thQrPayload(cx.devices.th);
-            await commissionByQr(cx, payload, commissioned);
+            await withChecks(cx, checks => commissionByQr(cx, payload, commissioned, checks));
         },
         { expected: "Verify the TH's QR code was parsed successfully by the DUT" },
     )
@@ -113,7 +113,7 @@ certTest("TC-DD-1.8", {
         "Using the DUT, parse the TH's QR code to onboard the TH Device onto the Matter network.",
         async cx => {
             const payload = withTlvData(await thQrPayload(cx.devices.th), PLAN_TLV_DATA);
-            await commissionByQr(cx, payload, commissioned);
+            await withChecks(cx, checks => commissionByQr(cx, payload, commissioned, checks));
         },
         {
             expected:
@@ -135,7 +135,7 @@ certTest("TC-DD-1.8", {
         "Using the DUT, parse the TH's QR code to onboard the TH Device onto the Matter network.",
         async cx => {
             const payload = largeQrPayload(await thQrPayload(cx.devices.th));
-            await commissionByQr(cx, payload, commissioned);
+            await withChecks(cx, checks => commissionByQr(cx, payload, commissioned, checks));
         },
         {
             expected:
