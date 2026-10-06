@@ -21,7 +21,7 @@ import {
     recordDiscriminatorHonored,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, expectSequence, record, runCleanups } from "./tc-support.js";
+import { attempt, CommissionedRefs, expectSequence, record, runCleanups, withChecks } from "./tc-support.js";
 
 /** The plan's own example of an unknown key/value pair. */
 const UNKNOWN_KEY = "AB";
@@ -149,42 +149,31 @@ certTest("TC-SC-4.2", {
 
             const dut = cx.controllers.dut;
             const [from, dutFrom] = await Promise.all([th.log.markSettled(), dut.log.markSettled()]);
-            let ref;
-            try {
-                ref = await dut.commission({ qrPairingCode: code });
-            } catch (e) {
-                cx.recorder.check({
-                    type: "response",
-                    verdict: "fail",
-                    detail: `commissioning from ${code} (discriminator ${discriminator}) failed: ${e}`,
-                });
-                throw e;
-            }
-            commissioned.set("dut", ref);
-            cx.recorder.check({
-                type: "response",
-                verdict: "pass",
-                detail: `commissioned as node ${ref} from ${code}, which only the record carrying ${UNKNOWN_KEY} matches`,
-            });
 
-            record(
-                cx,
-                await expectSequence(
+            await withChecks(cx, async checks => {
+                const commissioning = await attempt(
+                    () => dut.commission({ qrPairingCode: code }),
+                    ref =>
+                        `commissioned as node ${ref} from ${code}, which only the record carrying ${UNKNOWN_KEY} matches`,
+                );
+                if (commissioning.ok) {
+                    commissioned.set("dut", commissioning.value);
+                }
+                checks.push({ what: "DUT commissioned the TH", check: () => commissioning.check });
+
+                const completed = await expectSequence(
                     th.log,
                     th.flavor,
                     "commissioning complete",
                     { chip: [COMMISSIONED.chip], matterjs: [COMMISSIONED.matterjs] },
                     from,
                     COMMISSIONING_LOG_TIMEOUT,
-                ),
-                "TH commissioning",
-            );
+                );
+                checks.push({ what: "TH commissioning", check: () => completed });
 
-            // On chip-tool, where step 0 cannot run, this match is what shows the alias was used; on matter.js
-            // it repeats what step 0 established
-            record(
-                cx,
-                await expectSequence(
+                // On chip-tool, where step 0 cannot run, this match is what shows the alias was used; on
+                // matter.js it repeats what step 0 established
+                const discovered = await expectSequence(
                     dut.log,
                     resolveControllerImplementation() === "chip-tool" ? "chip" : "matterjs",
                     `the DUT discovering by discriminator ${discriminator}`,
@@ -196,9 +185,9 @@ certTest("TC-SC-4.2", {
                     },
                     dutFrom,
                     COMMISSIONING_LOG_TIMEOUT,
-                ),
-                "DUT used the alias's discriminator",
-            );
+                );
+                checks.push({ what: "DUT used the alias's discriminator", check: () => discovered });
+            });
         },
         {
             expected:
