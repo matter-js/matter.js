@@ -1152,7 +1152,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 continue;
             }
 
-            // § 5.2.4.1 associates every PIN with a user; one no user holds counts as a wrong code, as in CHIP
+            // § 5.2.4.1 associates every PIN with a user; one that no user holds counts as a wrong code, as in CHIP
             const userIndex = auth.findUserIndexForCredential(CredentialType.Pin, cred.credentialIndex);
             const user = userIndex === null ? undefined : auth.findUser(userIndex);
             if (user === undefined) {
