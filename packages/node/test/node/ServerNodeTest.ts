@@ -72,6 +72,7 @@ import {
     PeerAddress,
     PeerSet,
     ProtocolMocks,
+    SessionManager,
     Val,
 } from "@matter/protocol";
 import { EndpointNumber, FabricId, FabricIndex, NodeId, VendorId } from "@matter/types";
@@ -466,6 +467,163 @@ describe("ServerNode", () => {
         await commissioning.commission(node);
 
         await node.close();
+    });
+
+    describe("removes a fabric while another session holds the fail-safe", () => {
+        /** Records the factory resets of `node`; each entry settles when its reset is done. */
+        function watchErase(node: MockServerNode) {
+            const erase = node.erase.bind(node);
+            const resets = new Array<Promise<void>>();
+            node.erase = () => {
+                const reset = erase();
+                resets.push(reset);
+                return reset;
+            };
+            return resets;
+        }
+
+        async function armFailsafe(node: MockServerNode, expiryLengthSeconds = FAILSAFE_LENGTH_S) {
+            const exchange = await node.createExchange();
+            await node.online({ exchange, command: true }, async agent => {
+                await agent.generalCommissioning.armFailSafe({ expiryLengthSeconds, breadcrumb: 1 });
+            });
+            return exchange;
+        }
+
+        const OPERATIONAL_SESSION_ID = 50;
+
+        /** Opens a session that is not PASE and belongs to no fabric, so the pending reset waits for it. */
+        async function openOperationalSession(node: MockServerNode) {
+            await node.createExchange({
+                id: OPERATIONAL_SESSION_ID,
+                peerSessionId: OPERATIONAL_SESSION_ID,
+                peerNodeId: NodeId(OPERATIONAL_SESSION_ID),
+            });
+        }
+
+        async function closeOperationalSession(node: MockServerNode) {
+            for (const session of node.env.get(SessionManager).sessions) {
+                if (session.id === OPERATIONAL_SESSION_ID) {
+                    await session.handlePeerClose();
+                }
+            }
+        }
+
+        async function removeFabric(node: MockServerNode, contextOptions: { exchange: ProtocolMocks.Exchange }) {
+            const fabricIndex = await node.online(
+                contextOptions,
+                async agent => agent.operationalCredentials.state.currentFabricIndex,
+            );
+            const changes = new Array<[FabricIndex, string]>();
+            node.events.commissioning.fabricsChanged.on((index, action) => void changes.push([index, action]));
+
+            await node.online(contextOptions, async agent => {
+                await agent.operationalCredentials.removeFabric({ fabricIndex });
+            });
+
+            expect(changes).deep.equals([[fabricIndex, "deleted"]]);
+        }
+
+        it("decommissions on the last fabric and resets once the fail-safe ends", async () => {
+            const { node, contextOptions } = await commissioning.commission();
+            const resets = watchErase(node);
+            const commissionerExchange = await armFailsafe(node);
+
+            await removeFabric(node, contextOptions);
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+            expect(node.state.commissioning.commissioned).false;
+            expect(node.lifecycle.isCommissioned).false;
+            expect(resets.length).equals(0);
+
+            await node.online({ exchange: commissionerExchange, command: true }, async agent => {
+                await agent.generalCommissioning.armFailSafe({ expiryLengthSeconds: 0, breadcrumb: 0 });
+            });
+
+            expect(resets.length).equals(1);
+            await MockTime.resolve(resets[0], { macrotasks: true });
+
+            await node.close();
+        });
+
+        it("keeps a commissioning that completes under the fail-safe after the last fabric left", async () => {
+            const { node, contextOptions } = await commissioning.commission();
+            const resets = watchErase(node);
+            const commissionerExchange = await armFailsafe(node);
+
+            await removeFabric(node, contextOptions);
+            await commissioning.commission(node, 2, commissionerExchange);
+            for (const session of [...node.env.get(SessionManager).sessions]) {
+                await session.handlePeerClose();
+            }
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+            expect(node.state.commissioning.commissioned).true;
+            expect(node.env.get(FabricManager).fabrics.length).equals(1);
+            expect(resets.length).equals(0);
+
+            await node.close();
+        });
+
+        it("resets when the fail-safe rolls back a fabric it added after the last fabric left", async () => {
+            const { node, contextOptions } = await commissioning.commission();
+            const resets = watchErase(node);
+            const commissionerExchange = await armFailsafe(node);
+
+            await removeFabric(node, contextOptions);
+            await commissioning.almostCommission(node, 2, commissionerExchange);
+            await openOperationalSession(node);
+            await closeOperationalSession(node);
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            expect(resets.length).equals(0);
+
+            await node.online({ exchange: commissionerExchange, command: true }, async agent => {
+                await agent.generalCommissioning.armFailSafe({ expiryLengthSeconds: 0, breadcrumb: 0 });
+            });
+
+            expect(node.env.get(FabricManager).fabrics.length).equals(0);
+            expect(resets.length).equals(1);
+            await MockTime.resolve(resets[0], { macrotasks: true });
+
+            await node.close();
+        });
+
+        it("waits for a fail-safe armed after the last fabric left", async () => {
+            const { node, contextOptions } = await commissioning.commission();
+            const resets = watchErase(node);
+            await openOperationalSession(node);
+
+            await removeFabric(node, contextOptions);
+            const commissionerExchange = await armFailsafe(node);
+            await closeOperationalSession(node);
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+            expect(resets.length).equals(0);
+
+            await node.online({ exchange: commissionerExchange, command: true }, async agent => {
+                await agent.generalCommissioning.armFailSafe({ expiryLengthSeconds: 0, breadcrumb: 0 });
+            });
+
+            expect(resets.length).equals(1);
+            await MockTime.resolve(resets[0], { macrotasks: true });
+
+            await node.close();
+        });
+
+        it("stays commissioned when another fabric remains", async () => {
+            const { node, contextOptions } = await commissioning.commission();
+            (node.env.get(Crypto) as MockCrypto).index++;
+            await commissioning.commission(node, 2);
+            const resets = watchErase(node);
+            await armFailsafe(node);
+
+            await removeFabric(node, contextOptions);
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+            expect(node.state.commissioning.commissioned).true;
+            expect(resets.length).equals(0);
+
+            await node.close();
+        });
     });
 
     it("factory resets when offline after commission", async () => {
