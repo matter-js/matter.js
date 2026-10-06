@@ -6,6 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { DescriptorServer as BaseDescriptorServer } from "../behaviors/descriptor/DescriptorServer.js";
 import { CommodityPriceServer as BaseCommodityPriceServer } from "../behaviors/commodity-price/CommodityPriceServer.js";
 import {
     ElectricalGridConditionsServer as BaseElectricalGridConditionsServer
@@ -18,11 +19,18 @@ import { Identity } from "@matter/general";
 /**
  * A Electrical Energy Tariff is a device that defines a tariff for the consumption or production of electrical energy.
  *
- * @see {@link MatterSpecification.v16.Device} § 14.7
+ * @see {@link MatterSpecification.v161.Device} § 14.7
  */
 export interface ElectricalEnergyTariffDevice extends Identity<typeof ElectricalEnergyTariffDeviceDefinition> {}
 
 export namespace ElectricalEnergyTariffRequirements {
+    /**
+     * The Descriptor cluster is required by the Matter specification.
+     *
+     * This version of {@link DescriptorServer} is specialized per the specification.
+     */
+    export const DescriptorServer = BaseDescriptorServer.with("TagList");
+
     /**
      * The CommodityPrice cluster is optional per the Matter specification.
      *
@@ -48,12 +56,12 @@ export namespace ElectricalEnergyTariffRequirements {
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
+        mandatory: { Descriptor: DescriptorServer },
         optional: {
             CommodityPrice: CommodityPriceServer,
             ElectricalGridConditions: ElectricalGridConditionsServer,
             CommodityTariff: CommodityTariffServer
-        },
-        mandatory: {}
+        }
     };
 }
 
@@ -62,7 +70,7 @@ export const ElectricalEnergyTariffDeviceDefinition = MutableEndpoint({
     deviceType: 0x513,
     deviceRevision: 1,
     requirements: ElectricalEnergyTariffRequirements,
-    behaviors: SupportedBehaviors()
+    behaviors: SupportedBehaviors(ElectricalEnergyTariffRequirements.server.mandatory.Descriptor)
 });
 
 Object.freeze(ElectricalEnergyTariffDeviceDefinition);

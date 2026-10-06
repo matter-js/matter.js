@@ -29,11 +29,33 @@ Resource.add({
         "two device types.",
 
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§5.4.4" },
-        { tag: "requirement", name: "Groups", xref: "device§5.4.4" },
-        { tag: "requirement", name: "OnOff", xref: "device§5.4.4" },
-        { tag: "requirement", name: "LevelControl", xref: "device§5.4.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§5.4.4" },
-        { tag: "requirement", name: "OccupancySensing", xref: "device§5.4.4" }
+        { tag: "requirement", name: "GroupcastListenerCond", xref: "device§5.4.4" },
+        {
+            tag: "requirement", name: "Identify", xref: "device§5.4.5",
+            children: [{ tag: "requirement", name: "TriggerEffect", xref: "device§5.4.6" }]
+        },
+        { tag: "requirement", name: "Groups", xref: "device§5.4.5" },
+        {
+            tag: "requirement", name: "OnOff", xref: "device§5.4.5",
+            children: [{ tag: "requirement", name: "LT", xref: "device§5.4.6" }]
+        },
+
+        {
+            tag: "requirement", name: "LevelControl", xref: "device§5.4.5",
+
+            children: [
+                { tag: "requirement", name: "OO", xref: "device§5.4.6" },
+                { tag: "requirement", name: "LT", xref: "device§5.4.6" },
+                { tag: "requirement", name: "CurrentLevel", xref: "device§5.4.6" },
+                { tag: "requirement", name: "MinLevel", xref: "device§5.4.6" },
+                { tag: "requirement", name: "MaxLevel", xref: "device§5.4.6" }
+            ]
+        },
+
+        {
+            tag: "requirement", name: "ScenesManagement", xref: "device§5.4.5",
+            children: [{ tag: "requirement", name: "CopyScene", xref: "device§5.4.6" }]
+        },
+        { tag: "requirement", name: "OccupancySensing", xref: "device§5.4.5" }
     ]
 });

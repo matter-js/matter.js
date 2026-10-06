@@ -17,9 +17,11 @@ on:
   merge_group:
 
 # Cancel previous PR/branch runs when a new commit is pushed
+# Cancel a superseded run for the same ref, but keep the trigger in the group: a push must not cancel a manual
+# or scheduled run on the same ref, and those two queue rather than cancel each other.
 concurrency:
-  group: ${{ github.ref }}-chip-tool-tests
-  cancel-in-progress: true
+  group: ${{ github.ref }}-${{ github.event_name }}-chip-tool-tests
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 jobs:
   head-commit-message:
@@ -539,7 +541,7 @@ jobs:
           scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_DA_1_5.py'
           scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_DA_1_7.py'
           scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --app ../support/chip-testing/dist/esm/AllClustersTestApp.js --factory-reset --app-args "--discriminator 1234 --KVS kvs1" --script "src/python_testing/TC_DGGEN_3_2.py" --script-args "--storage-path admin_storage.json --commissioning-method on-network --discriminator 1234 --passcode 20202021 --bool-arg allow_sdk_dac:true --PICS src/app/tests/suites/certification/ci-pics-values --trace-to json:out/trace_data/test-{SCRIPT_BASE_NAME}.json --trace-to perfetto:out/trace_data/test-{SCRIPT_BASE_NAME}.perfetto"'
-          scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_DeviceBasicComposition.py --run 1'
+          scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_DeviceBasicComposition.py --run run1'
           scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_IDM_1_2.py'
           scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_IDM_1_4.py'
           scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --load-from-env /tmp/test_env.yaml --script src/python_testing/TC_IDM_4_2.py'

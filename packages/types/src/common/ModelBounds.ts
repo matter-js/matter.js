@@ -22,7 +22,7 @@ import {
     UINT64_MAX,
     UINT8_MAX,
 } from "@matter/general";
-import { Constraint, EncodedValue, FieldValue, ValueModel } from "@matter/model";
+import { Constraint, EncodedConstraint, FieldValue, ValueModel } from "@matter/model";
 
 /**
  * Helpers for generation of TLV schema from models.
@@ -31,16 +31,16 @@ import { Constraint, EncodedValue, FieldValue, ValueModel } from "@matter/model"
  */
 export namespace ModelBounds {
     export function createLengthBounds(model: ValueModel) {
-        const constraint = extractApplicableConstraint(model);
+        const constraint = EncodedConstraint(extractApplicableConstraint(model), model);
 
         // A length counts bytes or entries, which the size of a message bounds, so it is a number even where a value
         // of the same type would need more
-        const value = EncodedValue(model, constraint.value);
+        const value = numberOf(constraint.value);
         if (value !== undefined) {
             return { length: Number(value) };
         }
 
-        const bounds = createRangeBounds(model, constraint);
+        const bounds = createRangeBounds(constraint);
         if (bounds === undefined) {
             return;
         }
@@ -52,14 +52,14 @@ export namespace ModelBounds {
     }
 
     export function createNumberBounds(model: ValueModel) {
-        const constraint = model.effectiveConstraint;
+        const constraint = EncodedConstraint(model.effectiveConstraint, model);
 
-        const value = EncodedValue(model, constraint.value);
+        const value = numberOf(constraint.value);
         if (value !== undefined) {
             return { min: stated(value), max: stated(value) };
         }
 
-        return createRangeBounds(model, constraint, model.effectiveType);
+        return createRangeBounds(constraint, model.effectiveType);
     }
 
     /**
@@ -83,9 +83,12 @@ export namespace ModelBounds {
     };
 }
 
-function createRangeBounds(model: ValueModel, constraint: Constraint, type?: string) {
-    let min = EncodedValue(model, constraint.min);
-    let max = EncodedValue(model, constraint.max);
+/**
+ * Bounds from a constraint restated in encoding units, which computes a bound it states from numbers alone.
+ */
+function createRangeBounds(constraint: Constraint, type?: string) {
+    let min = numberOf(constraint.min);
+    let max = numberOf(constraint.max);
 
     const range = type === undefined ? undefined : ModelBounds.NumericRanges[type as keyof ModelBounds.NumericRanges];
 
@@ -102,6 +105,11 @@ function createRangeBounds(model: ValueModel, constraint: Constraint, type?: str
     }
 
     return { min: stated(min), max: stated(max) };
+}
+
+/** A bound that states a number; one computed from another value has none a static schema can carry */
+function numberOf(bound: Constraint.Expression | undefined) {
+    return typeof bound === "number" || typeof bound === "bigint" ? bound : undefined;
 }
 
 /** A safe integer is a number; a wider magnitude carries a bigint, as a number states it only approximately */

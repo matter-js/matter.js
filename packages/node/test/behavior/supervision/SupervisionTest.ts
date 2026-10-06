@@ -181,6 +181,23 @@ describe("Supervision", () => {
             expect(() => validateWith(supervisor, { value: 200 }, config)).not.throws();
         });
 
+        // A bitmap states its bound in the number its flags encode to, which is the same bound every other value
+        // states in itself
+        it("skips constraint validation of a bitmap when constraint is disabled", () => {
+            const supervisor = createValidator([
+                new FieldModel(
+                    { name: "value", type: "map8", constraint: "min 1" },
+                    new FieldModel({ name: "Flag", constraint: "0" }),
+                ),
+            ]);
+
+            expect(() => validateWith(supervisor, { value: { flag: false } })).throws(ConstraintError);
+
+            const config = new GlobalConfig();
+            config.child("value").supervision = { constraint: false };
+            expect(() => validateWith(supervisor, { value: { flag: false } }, config)).not.throws();
+        });
+
         it("skips conformance validation when conformance is disabled", () => {
             const supervisor = createValidator([new FieldModel({ name: "required", type: "uint8", conformance: "M" })]);
 
@@ -413,6 +430,18 @@ describe("Supervision", () => {
             // store write.  Real cluster schemas carry attributes as AttributeModel, which is what makes the tag
             // filter safe.
             expect(supervisor.persistentKeys("name").has("field")).true;
+        });
+    });
+
+    describe("RootSupervisor#cast", () => {
+        it("keeps null for a member whose base states the nullable quality", () => {
+            const nullable = new AttributeModel({ name: "mode", id: 5, type: "enum8", quality: "X" });
+            const inheriting = nullable.extend({ name: "inheritedMode", id: 6 });
+            expect(inheriting.quality.nullable).undefined;
+
+            const supervisor = RootSupervisor.for(new ClusterModel({ name: "TestCluster", children: [inheriting] }));
+
+            expect(supervisor.cast({ inheritedMode: null })).deep.equals({ inheritedMode: null });
         });
     });
 

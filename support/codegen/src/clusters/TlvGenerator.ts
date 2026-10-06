@@ -233,7 +233,7 @@ export class TlvGenerator {
         if (globalMapping?.category !== "datatype") {
             const bounds = ModelBounds.createNumberBounds(model);
             if (bounds) {
-                tlv = `${tlv}.bound(${serializeBounds(bounds)})`;
+                tlv = `${tlv}.bound(${serialize(bounds)})`;
             }
         }
 
@@ -343,7 +343,7 @@ export class TlvGenerator {
         const struct = this.definitions.expressions(`export const ${name} = TlvObject({`, "})");
         this.definitions.insertingBefore(struct, () => {
             model.members.forEach(field => {
-                if (field.isDisallowed || (field.isDeprecated && !field.type)) {
+                if (field.isDisallowed || ((field.isDeprecated || field.isObsolete) && !field.type)) {
                     return;
                 }
 
@@ -448,8 +448,7 @@ export class TlvGenerator {
     }
 
     #defineSpecificDatatype(model: ValueModel) {
-        // Special case for status codes.  "Status code" in door lock cluster seems to be the global status codes
-        // instead of the local one.  So always reference the global one until we see something different
+        // A cluster's own status codes are a separate definition; the "status" type itself is always the global one
         if (model.isGlobal && model.name === status.name && this.file.scope.owner !== model) {
             return this.#importGlobalStatus();
         }
@@ -555,18 +554,4 @@ export class TlvGenerator {
                 break;
         }
     }
-}
-
-/**
- * State a bound as the source that carries it.
- *
- * The general serializer states a bigint without the suffix a bigint literal needs, which would generate a bound the
- * model does not state — the very loss exact bounds exist to prevent.
- */
-function serializeBounds(bounds: { min?: number | bigint; max?: number | bigint }) {
-    const stated = Object.entries(bounds)
-        .filter(([, value]) => value !== undefined)
-        .map(([key, value]) => `${key}: ${value}${typeof value === "bigint" ? "n" : ""}`);
-
-    return `{ ${stated.join(", ")} }`;
 }

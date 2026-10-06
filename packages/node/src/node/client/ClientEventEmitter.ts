@@ -44,6 +44,14 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
     return emitClientEvent;
 
     async function emitClientEvent(occurrence: ReadResult.EventValue) {
+        // A report can still arrive while the node is deleted, also when a leave event triggered the deletion
+        if (node.lifecycle.isGone) {
+            logger.debug(
+                `Ignoring event ${occurrence.path.clusterId}/${occurrence.path.eventId} for ${node} because it is closing, being deleted or crashed`,
+            );
+            return;
+        }
+
         const names = getNames(node.matter, occurrence);
         if (!names) {
             return;
@@ -101,7 +109,7 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
 
         const event = events[eventName];
         if (event) {
-            logger.info(
+            logger.debug(
                 "Received event",
                 Diagnostic.strong(`${clusterName}.${eventName}`),
                 " on ",

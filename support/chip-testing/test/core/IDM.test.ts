@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { AllClustersFullMaxIntervalApp } from "../support.js";
+
 describe("IDM", () => {
     chip("IDM/*").exclude(
         // IDM 10.4 in TC_pics_checker.py appears to fail because it needs an endpoint ID specified
@@ -12,6 +14,8 @@ describe("IDM", () => {
         "IDM/10.4",
         // Our AllClustersApp has extra clusters on endpoints for testing; pass fail_on_extra_clusters:False below
         "IDM/10.5",
+        // Registered below on its own subject
+        "IDM/1.5",
     );
     chip("IDM/*/run1").exclude(
         // Spec issues for DoorLock, see https://github.com/CHIP-Specifications/connectedhomeip-spec/issues/11712
@@ -23,4 +27,7 @@ describe("IDM", () => {
     // AllClustersApp intentionally adds clusters beyond what OnOffLightDevice requires,
     // so disable strict extra-cluster checking
     chip("IDM/10.5").args("--bool-arg", "fail_on_extra_clusters:False");
+    // IDM 1.5 exercises DelayReportData, which the forward features enabled in support.ts switch on.  It asserts that the
+    // negotiated MaxInterval equals its requested ceiling of 3600 s, which the default subject does not grant
+    chip("IDM/1.5").subject(AllClustersFullMaxIntervalApp);
 });

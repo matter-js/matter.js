@@ -13,18 +13,25 @@ import { PaseServer } from "#session/pase/PaseServer.js";
 import { SessionManager } from "#session/SessionManager.js";
 import {
     CRYPTO_PBKDF_ITERATIONS_MIN,
+    Duration,
     Environment,
     Environmental,
-    InternalError,
     Lifecycle,
     Logger,
     MatterFlowError,
     MaybePromise,
+    Mutex,
     ObserverGroup,
     Time,
     Timer,
 } from "@matter/general";
-import { CommissioningOptions, STANDARD_COMMISSIONING_TIMEOUT, Status, StatusResponseError } from "@matter/types";
+import {
+    CommissioningOptions,
+    MAXIMUM_COMMISSIONING_TIMEOUT,
+    STANDARD_COMMISSIONING_TIMEOUT,
+    Status,
+    StatusResponseError,
+} from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { DeviceAdvertiser } from "./DeviceAdvertiser.js";
 
@@ -57,11 +64,13 @@ export interface DeviceCommissionerContext {
 export class DeviceCommissioner {
     #context: DeviceCommissionerContext;
     #failsafeContext?: FailsafeContext;
-    #windowStatus = AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen;
-    #activeDiscriminator?: number;
-    #activeCommissioningEndCallback?: () => MaybePromise;
+    #window?: CommissioningWindow;
+    #pendingAdministratorOpens = 0;
+    #isClosed = false;
     #observers = new ObserverGroup(this);
-    #commissioningTimeout?: Timer;
+
+    /** Serializes every change of {@link #window}. */
+    #windowMutex = new Mutex(this);
 
     constructor(context: DeviceCommissionerContext) {
         this.#context = context;
@@ -90,43 +99,59 @@ export class DeviceCommissioner {
         return this.#failsafeContext!;
     }
 
+    /**
+     * Open an Enhanced Commissioning Window.
+     *
+     * With {@link DeviceCommissioner.WindowOptions.byAdministrator} it replaces a window the node opened itself.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.19.8.1
+     */
     async allowEnhancedCommissioning(
         discriminator: number,
         paseServer: PaseServer,
-        commissioningEndCallback: () => MaybePromise,
+        options: DeviceCommissioner.WindowOptions = {},
     ) {
-        if (this.#windowStatus === AdministratorCommissioning.CommissioningWindowStatus.BasicWindowOpen) {
-            throw new MatterFlowError(
-                "Basic commissioning window is already open! Cannot set enhanced commissioning mode.",
-            );
-        }
-
-        this.#context.secureChannelProtocol.setPaseCommissioner(paseServer);
-        this.#becomeCommissionable(
+        await this.#open(
             AdministratorCommissioning.CommissioningWindowStatus.EnhancedWindowOpen,
-            commissioningEndCallback,
+            options,
+            () => paseServer,
             discriminator,
         );
     }
 
-    async allowBasicCommissioning(commissioningEndCallback?: () => MaybePromise) {
-        if (this.#windowStatus === AdministratorCommissioning.CommissioningWindowStatus.EnhancedWindowOpen) {
-            throw new MatterFlowError(
-                "Enhanced commissioning window is already open! Cannot set basic commissioning mode.",
-            );
-        }
-
-        this.#context.secureChannelProtocol.setPaseCommissioner(
-            await PaseServer.fromPin(this.#context.sessions, this.#context.commissioningConfig.values.passcode, {
+    /**
+     * Open a Basic Commissioning Window with the node's own passcode.
+     *
+     * With {@link DeviceCommissioner.WindowOptions.byAdministrator} it replaces a window the node opened itself.
+     * Without, it restarts a basic window the node opened itself.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.19.8.2
+     */
+    async allowBasicCommissioning(options: DeviceCommissioner.WindowOptions = {}) {
+        await this.#open(AdministratorCommissioning.CommissioningWindowStatus.BasicWindowOpen, options, () =>
+            PaseServer.fromPin(this.#context.sessions, this.#context.commissioningConfig.values.passcode, {
                 iterations: CRYPTO_PBKDF_ITERATIONS_MIN,
                 salt: this.#context.fabrics.crypto.randomBytes(32),
             }),
         );
+    }
 
-        this.#becomeCommissionable(
-            AdministratorCommissioning.CommissioningWindowStatus.BasicWindowOpen,
-            commissioningEndCallback,
-        );
+    /**
+     * The status of the commissioning window, whoever opened it.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.19.7.1
+     */
+    get windowStatus() {
+        return this.#window?.status ?? AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen;
+    }
+
+    /**
+     * Whether an Administrator's window is open or waiting to open, as opposed to a window the node opened itself.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.19.8.1
+     */
+    get isAdministratorWindowOpen() {
+        return this.#pendingAdministratorOpens > 0 || !!this.#window?.byAdministrator;
     }
 
     beginTimed(failsafeContext: FailsafeContext) {
@@ -153,119 +178,199 @@ export class DeviceCommissioner {
         );
     }
 
-    #enterCommissioningMode(
-        windowStatus: AdministratorCommissioning.CommissioningWindowStatus,
+    async #open(
+        status: CommissioningWindow["status"],
+        options: DeviceCommissioner.WindowOptions,
+        paseServer: () => MaybePromise<PaseServer>,
         discriminator?: number,
     ) {
-        this.#cancelTimeout();
+        const { byAdministrator = false } = options;
+        this.#assertNotClosed(status);
+        if (byAdministrator) {
+            this.#pendingAdministratorOpens++;
+        }
 
-        this.#windowStatus = windowStatus;
+        let replaced: CommissioningWindow | undefined;
+        try {
+            await this.#windowMutex.produce(async () => {
+                this.#assertNotClosed(status);
+
+                const current = this.#window;
+                if (current !== undefined) {
+                    if (current.byAdministrator || (!byAdministrator && current.status !== status)) {
+                        const { CommissioningWindowStatus } = AdministratorCommissioning;
+                        throw new MatterFlowError(
+                            `Cannot open ${CommissioningWindowStatus[status]} while ${CommissioningWindowStatus[current.status]} opened by ${current.byAdministrator ? "an administrator" : "the node"} is in place`,
+                        );
+                    }
+                    if (byAdministrator) {
+                        logger.info("Administrator replaces the commissioning window the node opened itself");
+                        replaced = await this.#closeWindow(current);
+                    } else {
+                        await this.#context.secureChannelProtocol.removePaseCommissioner();
+                    }
+                }
+
+                const server = await paseServer();
+                this.#assertNotClosed(status);
+
+                this.#context.secureChannelProtocol.setPaseCommissioner(server);
+                this.#openWindow(status, options, discriminator);
+            });
+        } finally {
+            if (byAdministrator) {
+                this.#pendingAdministratorOpens--;
+            }
+            await replaced?.onClose?.();
+        }
+    }
+
+    #assertNotClosed(status: CommissioningWindow["status"]) {
+        if (this.#isClosed) {
+            throw new MatterFlowError(
+                `Cannot open ${AdministratorCommissioning.CommissioningWindowStatus[status]} because the commissioner closed`,
+            );
+        }
+    }
+
+    #openWindow(
+        status: CommissioningWindow["status"],
+        { timeout, byAdministrator = false, onClose }: DeviceCommissioner.WindowOptions,
+        discriminator?: number,
+    ) {
+        // A window the node restarts is replaced without closing it
+        this.#window?.timer.stop();
+
         const commissioningConfig = this.#context.commissioningConfig.values;
-        const advertisementWindowS = commissioningConfig.advertisementWindow ?? STANDARD_COMMISSIONING_TIMEOUT;
-
-        const mode =
-            windowStatus === AdministratorCommissioning.CommissioningWindowStatus.EnhancedWindowOpen
-                ? CommissioningMode.Enhanced
-                : CommissioningMode.Basic;
-
         this.#context.advertiser.enterCommissioningMode(
             ServiceDescription.Commissionable({
                 ...commissioningConfig.productDescription,
-                mode,
+                mode:
+                    status === AdministratorCommissioning.CommissioningWindowStatus.EnhancedWindowOpen
+                        ? CommissioningMode.Enhanced
+                        : CommissioningMode.Basic,
                 discriminator: discriminator ?? commissioningConfig.discriminator,
             }),
         );
 
-        this.#commissioningTimeout = Time.getTimer(
-            "Commissioning timeout",
-            advertisementWindowS,
-            this.endCommissioning.bind(this),
-        );
+        const window: CommissioningWindow = {
+            status,
+            byAdministrator,
+            onClose,
+            timer: Time.getTimer("Commissioning timeout", timeout ?? this.#ownWindowTimeout, () =>
+                this.#close(() => window).catch(error => logger.error("Error closing the commissioning window", error)),
+            ),
+        };
+        this.#window = window;
+        window.timer.start();
     }
 
-    #becomeCommissionable(
-        windowStatus:
-            | AdministratorCommissioning.CommissioningWindowStatus.EnhancedWindowOpen
-            | AdministratorCommissioning.CommissioningWindowStatus.BasicWindowOpen,
-        activeCommissioningEndCallback?: () => MaybePromise,
-        discriminator?: number,
-    ) {
-        if (this.#windowStatus !== AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen) {
-            if (this.#windowStatus !== windowStatus) {
-                throw new InternalError(
-                    `Commissioning mode ${windowStatus} request but already in mode ${this.#windowStatus}`,
-                );
-            }
+    /**
+     * Closes the window {@link select} returns once the window mutex is free, then invokes its close callback.
+     *
+     * The callback runs outside the mutex so it may open or close a window itself.
+     */
+    async #close(select: () => CommissioningWindow | undefined) {
+        const closed = await this.#windowMutex.produce(() => this.#closeWindow(select()));
+        await closed?.onClose?.();
+    }
 
-            if (
-                this.#activeCommissioningEndCallback &&
-                this.#activeCommissioningEndCallback !== activeCommissioningEndCallback
-            ) {
-                throw new InternalError(`Already in commissioning mode with a different callback`);
-            }
-        }
-
-        if (
-            this.#windowStatus === windowStatus &&
-            (discriminator === undefined || discriminator === this.#activeDiscriminator)
-        ) {
-            this.#enterCommissioningMode(this.#windowStatus, this.#activeDiscriminator);
+    /**
+     * Closes {@link window} if it is still the open window.  Must run in the window mutex.
+     *
+     * @returns the closed window, whose close callback the caller invokes once outside the mutex
+     */
+    async #closeWindow(window: CommissioningWindow | undefined) {
+        if (window === undefined || this.#window !== window) {
             return;
         }
 
-        if (this.#windowStatus !== AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen) {
-            throw new InternalError(`Commissioning window already open with different mode (${this.#windowStatus})!`);
+        this.#window = undefined;
+        window.timer.stop();
+
+        try {
+            await this.#context.secureChannelProtocol.removePaseCommissioner();
+        } finally {
+            await this.#context.advertiser.exitCommissioningMode();
         }
-
-        if (this.#activeCommissioningEndCallback !== undefined) {
-            throw new InternalError("Commissioning window already open with different callback!");
-        }
-
-        this.#activeCommissioningEndCallback = activeCommissioningEndCallback;
-        this.#activeDiscriminator = discriminator;
-
-        // MDNS is sent in parallel
-        this.#enterCommissioningMode(windowStatus, discriminator);
-    }
-
-    async endCommissioning() {
-        if (this.#windowStatus === AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen) {
-            return;
-        }
-
-        this.#cancelTimeout();
-
-        await this.#context.secureChannelProtocol.removePaseCommissioner();
-
-        this.#windowStatus = AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen;
-
-        if (this.#activeCommissioningEndCallback !== undefined) {
-            const activeCommissioningEndCallback = this.#activeCommissioningEndCallback;
-            this.#activeCommissioningEndCallback = undefined;
-            await activeCommissioningEndCallback();
-        }
-
-        await this.#context.advertiser.exitCommissioningMode();
 
         logger.debug("No longer commissioning");
+        return window;
+    }
+
+    /**
+     * How long a window the node opens itself stays open.
+     *
+     * An uncommissioned node may announce for up to 48 hours with Extended Announcement, a commissioned node for the
+     * standard 15 minutes.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 5.4.2.3
+     */
+    get #ownWindowTimeout() {
+        if (this.#context.fabrics.length) {
+            return STANDARD_COMMISSIONING_TIMEOUT;
+        }
+        return this.#context.commissioningConfig.values.advertisementWindow ?? MAXIMUM_COMMISSIONING_TIMEOUT;
+    }
+
+    /**
+     * Close the open commissioning window, whoever opened it.
+     */
+    async endCommissioning() {
+        if (this.#isClosed) {
+            return;
+        }
+        await this.#close(() => this.#window);
     }
 
     async close() {
-        this.#cancelTimeout();
-        this.#observers.close();
-        await this.endCommissioning();
-        if (this.#failsafeContext) {
-            await this.#failsafeContext.close();
-            this.#failsafeContext = undefined;
-        }
-    }
-
-    #cancelTimeout() {
-        if (!this.#commissioningTimeout) {
+        if (this.#isClosed) {
             return;
         }
+        this.#isClosed = true;
+        this.#observers.close();
+        try {
+            await this.#close(() => this.#window);
+        } finally {
+            await this.#windowMutex.close();
+            if (this.#failsafeContext) {
+                await this.#failsafeContext.close();
+                this.#failsafeContext = undefined;
+            }
+        }
+    }
+}
 
-        this.#commissioningTimeout.stop();
-        this.#commissioningTimeout = undefined;
+interface CommissioningWindow {
+    status:
+        | AdministratorCommissioning.CommissioningWindowStatus.EnhancedWindowOpen
+        | AdministratorCommissioning.CommissioningWindowStatus.BasicWindowOpen;
+    byAdministrator: boolean;
+    onClose?: () => MaybePromise;
+    timer: Timer;
+}
+
+export namespace DeviceCommissioner {
+    /**
+     * Options for opening a commissioning window.
+     */
+    export interface WindowOptions {
+        /**
+         * How long the window stays open.  Defaults to the duration of a window the node opens itself.
+         */
+        timeout?: Duration;
+
+        /**
+         * Set when an Administrator opens the window by command.  Such a window replaces a window the node opened
+         * itself, and while it is open or waiting to open the Administrator Commissioning cluster answers further opens
+         * with Busy.
+         */
+        byAdministrator?: boolean;
+
+        /**
+         * Invoked once the window closes, whatever closes it.  It may open or close a window itself.  A window the node
+         * restarts takes the options of the restart instead.
+         */
+        onClose?: () => MaybePromise;
     }
 }

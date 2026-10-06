@@ -69,13 +69,14 @@ export class IndexBehavior extends Behavior {
     }
 
     #add(endpoint: Endpoint) {
-        if (endpoint.lifecycle.hasNumber) {
-            // Add to endpoint number index
-            this.internal.partsByNumber[endpoint.number] = endpoint;
+        const { maybeId: id, maybeNumber: number } = endpoint;
+
+        if (number !== undefined) {
+            this.internal.partsByNumber[number] = endpoint;
         }
 
-        if (endpoint.lifecycle.hasId) {
-            this.internal.partsById[endpoint.id] = endpoint;
+        if (id !== undefined) {
+            this.internal.partsById[id] = endpoint;
         }
 
         for (const child of endpoint.parts) {
@@ -84,12 +85,14 @@ export class IndexBehavior extends Behavior {
     }
 
     #remove(endpoint: Endpoint) {
-        if (endpoint.id && this.internal.partsById[endpoint.id] === endpoint) {
-            delete this.internal.partsById[endpoint.id];
+        const { maybeId: id, maybeNumber: number } = endpoint;
+
+        if (id !== undefined && this.internal.partsById[id] === endpoint) {
+            delete this.internal.partsById[id];
         }
 
-        if (endpoint.number !== undefined && this.internal.partsByNumber[endpoint.number] === endpoint) {
-            delete this.internal.partsByNumber[endpoint.number];
+        if (number !== undefined && this.internal.partsByNumber[number] === endpoint) {
+            delete this.internal.partsByNumber[number];
         }
 
         for (const child of endpoint.parts) {

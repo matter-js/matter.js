@@ -139,6 +139,7 @@ export class CommissioningClient extends Behavior {
         const node = this.endpoint as ClientNode;
         this.reactTo(node.lifecycle.partsReady, this.#initializeNode);
         this.reactTo(this.events.peerAddress$Changed, this.#peerAddressChanged);
+        this.reactTo(this.events.peerAddress$Changed, this.#deleteFormerPeer, { offline: true });
         this.reactTo(this.events.addresses$Changed, this.#operationalAddressesChanged);
         this.reactTo(this.events.caseAuthenticatedTags$Changed, this.#catsChanged);
     }
@@ -437,11 +438,11 @@ export class CommissioningClient extends Behavior {
      * The peer's BasicInformation must be seeded — its vendor/product IDs are encoded into the QR pairing code — so
      * this throws (before opening any window) if it is not.
      *
-     * @returns the manual and QR pairing codes encoding the generated passcode.
+     * @returns the pairing codes and the values they encode.
      */
     async openEnhancedCommissioningWindow(
         commissioningTimeout: Duration = Seconds(900),
-    ): Promise<{ manualPairingCode: string; qrPairingCode: string }> {
+    ): Promise<CommissioningClient.EnhancedCommissioningWindow> {
         const basicInformation = this.endpoint.maybeStateOf(BasicInformationClient);
         if (basicInformation === undefined) {
             throw new ImplementationError(
@@ -452,6 +453,7 @@ export class CommissioningClient extends Behavior {
         const adminCommissioning = this.agent.get(AdministratorCommissioningClient);
         await this.#revokeStaleCommissioningWindow(adminCommissioning);
 
+        const timeoutSeconds = Seconds.of(commissioningTimeout);
         const crypto = this.env.get(Crypto);
         const discriminator = PaseClient.generateRandomDiscriminator(crypto);
         const passcode = PaseClient.generateRandomPasscode(crypto);
@@ -463,7 +465,7 @@ export class CommissioningClient extends Behavior {
         });
 
         await adminCommissioning.openCommissioningWindow({
-            commissioningTimeout: Seconds.of(commissioningTimeout),
+            commissioningTimeout: timeoutSeconds,
             pakePasscodeVerifier,
             salt,
             iterations,
@@ -492,6 +494,11 @@ export class CommissioningClient extends Behavior {
                 flowType: CommissioningFlowType.Standard,
             }),
             qrPairingCode,
+            passcode,
+            discriminator,
+            vendorId,
+            productId,
+            commissioningTimeout: Seconds(timeoutSeconds),
         };
     }
 
@@ -597,8 +604,24 @@ export class CommissioningClient extends Behavior {
             this.#bindPeer(addr);
             node.lifecycle.commissioned.emit(this.context);
         } else if (oldAddr) {
-            this.#unbindPeer(oldAddr, true);
+            this.#unbindPeer(oldAddr);
             node.lifecycle.decommissioned.emit(this.context);
+        }
+    }
+
+    /**
+     * Close and forget the protocol peer of an address the node no longer has.
+     */
+    async #deleteFormerPeer(addr?: ProtocolPeerAddress, oldAddr?: ProtocolPeerAddress) {
+        if (addr !== undefined || oldAddr === undefined || this.state.peerAddress !== undefined) {
+            return;
+        }
+
+        const formerAddress = ProtocolPeerAddress(oldAddr);
+        try {
+            await this.env.maybeGet(PeerSet)?.get(formerAddress)?.delete();
+        } catch (error) {
+            logger.warn(`Error removing peer ${formerAddress} after its address was cleared:`, error);
         }
     }
 
@@ -681,7 +704,7 @@ export class CommissioningClient extends Behavior {
     /**
      * Uncouple my {@link ClientNode} from a {@link Peer}.
      */
-    #unbindPeer(addr: PeerAddress, remove = false) {
+    #unbindPeer(addr: PeerAddress) {
         const node = this.endpoint as ClientNode;
         const peer = node.env.maybeGet(Peer);
         if (!peer || !PeerAddress.is(peer.address, addr)) {
@@ -697,10 +720,6 @@ export class CommissioningClient extends Behavior {
         }
         if (peer.protocol === node.protocol) {
             peer.protocol = undefined;
-        }
-
-        if (remove) {
-            node.env.get(PeerSet).peers.delete(peer);
         }
     }
 }
@@ -721,6 +740,27 @@ const defaultCaseConnectionTiming: Partial<PeerTimingParameters> = {
 };
 
 export namespace CommissioningClient {
+    /**
+     * The pairing codes of an open Enhanced Commissioning Window and the values they encode.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 5.1
+     * @see {@link MatterSpecification.v161.Core} § 11.19.8.1
+     */
+    export interface EnhancedCommissioningWindow {
+        manualPairingCode: string;
+        qrPairingCode: string;
+        passcode: number;
+
+        /** The long (12-bit) discriminator the device advertises while the window is open. */
+        discriminator: number;
+
+        vendorId: VendorId;
+        productId: number;
+
+        /** How long the window stays open, in whole seconds as sent to the device. */
+        commissioningTimeout: Duration;
+    }
+
     /**
      * Concrete version of {@link ProtocolPeerAddress}.
      */
@@ -856,7 +896,7 @@ export namespace CommissioningClient {
          * Operational discovery does not report a host, so this stays what commissioning found while
          * {@link addresses} goes on being refreshed.
          *
-         * @see {@link MatterSpecification.v16.Core} § 4.3.1
+         * @see {@link MatterSpecification.v161.Core} § 4.3.1
          */
         @field(string, nonvolatile)
         hostname?: string;

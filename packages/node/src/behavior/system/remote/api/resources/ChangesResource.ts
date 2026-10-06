@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { StateStream } from "#node/integration/StateStream.js";
 import { ServerNode } from "#node/ServerNode.js";
@@ -41,7 +42,7 @@ export class ChangesResource extends ApiResource {
 
         let options: undefined | StateStream.Options;
         if (requestEnv.js) {
-            requestEnv.validate();
+            requestEnv.validate(LocalActorContext.ReadOnly);
             options = requestEnv.js as StateStream.Options;
         }
 

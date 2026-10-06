@@ -15,7 +15,9 @@ import {
     DerTag,
     DerType,
     EcdsaSignature,
+    ImplementationError,
     Key,
+    MlDsa,
     PublicKey,
     RawBytes,
     X509,
@@ -30,7 +32,18 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
-import { assertCertificateDerSize, MAX_DER_CERTIFICATE_SIZE, Unsigned } from "./common.js";
+import {
+    CertificatePublicKey,
+    CertificateSignature,
+    MlDsaSignature,
+    verifyCertificateSignature,
+} from "./CertificateSignature.js";
+import {
+    assertCertificateDerSize,
+    MAX_DER_CERTIFICATE_SIZE,
+    MAX_PQC_DER_CERTIFICATE_SIZE,
+    Unsigned,
+} from "./common.js";
 import {
     FabricId_Matter,
     FirmwareSigningId_Matter,
@@ -53,13 +66,16 @@ import { CertificateExtension } from "./definitions/operational.js";
  * from a CSR.
  */
 export abstract class Certificate<CT extends MatterCertificate> {
-    #signature?: EcdsaSignature;
+    #signature?: CertificateSignature;
     #cert: Unsigned<CT>;
 
     constructor(cert: CT | Unsigned<CT>) {
         this.#cert = cert;
         if ("signature" in cert) {
-            this.#signature = new EcdsaSignature(cert.signature);
+            this.#signature =
+                cert.mlDsaSignature === undefined
+                    ? new EcdsaSignature(cert.signature)
+                    : new MlDsaSignature(cert.mlDsaSignature, cert.signature);
         }
     }
 
@@ -75,7 +91,7 @@ export abstract class Certificate<CT extends MatterCertificate> {
      * Get the signature of the certificate.
      * If the certificate is not signed, it throws a CertificateError.
      */
-    get signature() {
+    get signature(): CertificateSignature {
         if (this.#signature === undefined) {
             throw new CertificateError("Certificate is not signed");
         }
@@ -86,19 +102,77 @@ export abstract class Certificate<CT extends MatterCertificate> {
      * Set the signature of the certificate.
      * If the certificate is already signed, it throws a CertificateError.
      */
-    set signature(signature: EcdsaSignature) {
+    set signature(signature: CertificateSignature) {
         if (this.isSigned) {
             throw new CertificateError("Certificate is already signed");
+        }
+        if ((signature instanceof MlDsaSignature ? signature.parameterSet : undefined) !== this.#cert.mlDsaSignature) {
+            throw new ImplementationError(
+                `Signature algorithm does not match the ${describeSignatureAlgorithm(this.#cert)} the certificate declares`,
+            );
         }
         this.#signature = signature;
     }
 
     /**
      * Sign the certificate using the provided crypto and key.
-     * It throws a CertificateError if the certificate is already signed.
+     *
+     * The key must match the signature algorithm the certificate declares: an EC key for ecdsa-with-SHA256, an ML-DSA
+     * key of the parameter set in {@link MatterCertificate.mlDsaSignature} otherwise.  It throws a CertificateError if
+     * the certificate is already signed.
      */
-    async sign(crypto: Crypto, key: JsonWebKey) {
+    async sign(crypto: Crypto, key: JsonWebKey | MlDsa.PrivateKey) {
+        const declared = this.#cert.mlDsaSignature;
+        if (MlDsa.isPrivateKey(key)) {
+            if (key.parameterSet !== declared) {
+                throw new ImplementationError(
+                    `Cannot sign a certificate that declares ${describeSignatureAlgorithm(this.#cert)} with an ${key.parameterSet} key`,
+                );
+            }
+            this.signature = new MlDsaSignature(declared, await crypto.signMlDsa(key, this.asUnsignedDer()));
+            return;
+        }
+
+        if (declared !== undefined) {
+            throw new ImplementationError(`Cannot sign a certificate that declares ${declared} with an EC key`);
+        }
         this.signature = await crypto.signEcdsa(key, this.asUnsignedDer());
+    }
+
+    /**
+     * The certificate's public key, tagged by algorithm.
+     *
+     * @throws CertificateError if the key algorithm is not supported
+     * @throws KeyInputError if an EC key is malformed
+     */
+    get publicKey(): CertificatePublicKey {
+        const { mlDsaPublicKey, ellipticCurvePublicKey, publicKeyAlgorithm, ellipticCurveIdentifier } = this.#cert;
+        if (mlDsaPublicKey !== undefined) {
+            return { algorithm: mlDsaPublicKey.parameterSet, key: mlDsaPublicKey.key };
+        }
+        // 1 is ecPublicKey and prime256v1 (Matter Core §6.5.8, §6.5.9)
+        if (publicKeyAlgorithm !== 1 || ellipticCurveIdentifier !== 1) {
+            throw new CertificateError("Certificate public key is neither EC P-256 nor ML-DSA");
+        }
+        return { algorithm: "ECDSA-P256", key: PublicKey(ellipticCurvePublicKey) };
+    }
+
+    /**
+     * Verify the issuer's signature over this certificate with the issuer's public key.
+     *
+     * @throws CertificateError if the signature algorithm is not supported, or the issuer's key algorithm cannot
+     *   have produced this certificate's signature
+     * @throws CryptoVerifyError if the signature does not verify
+     * @throws KeyInputError if the issuer key is malformed
+     * @see {@link https://csrc.nist.gov/pubs/fips/204/final FIPS 204} for ML-DSA
+     */
+    async verifySignature(crypto: Crypto, issuerKey: CertificatePublicKey) {
+        const signature = this.signature;
+        // 1 is ecdsa-with-SHA256 (Matter Core §6.5.5)
+        if (!(signature instanceof MlDsaSignature) && this.#cert.signatureAlgorithm !== 1) {
+            throw new CertificateError("Certificate signature algorithm is neither ecdsa-with-SHA256 nor ML-DSA");
+        }
+        return verifyCertificateSignature(crypto, issuerKey, this.asUnsignedDer(), signature);
     }
 
     /**
@@ -107,12 +181,12 @@ export abstract class Certificate<CT extends MatterCertificate> {
      * If no signature is present, throws an error.
      */
     asSignedDer() {
+        const signature = this.signature;
         const certBytes = X509.certificateToDer({
             ...matterToX509(this.cert),
-            signatureAlgorithm: X962.EcdsaWithSHA256,
-            signature: this.signature.der,
+            signature: signature instanceof MlDsaSignature ? signature.bytes : signature.der,
         });
-        assertCertificateDerSize(certBytes);
+        assertCertificateDerSize(certBytes, maxDerSize(this.cert));
         return certBytes;
     }
 
@@ -124,7 +198,7 @@ export abstract class Certificate<CT extends MatterCertificate> {
             return this.#cert.tbsDer;
         }
         const certBytes = X509.certificateToDer(matterToX509(this.cert));
-        assertCertificateDerSize(certBytes);
+        assertCertificateDerSize(certBytes, maxDerSize(this.cert));
         return certBytes;
     }
 
@@ -522,6 +596,15 @@ export namespace Certificate {
         return Math.floor(date.getTime() / 1000) - MATTER_EPOCH_OFFSET_S;
     }
 
+    export interface ParseOptions {
+        /**
+         * Raise the size limit to the one for ML-DSA attestation certificates (PQC Phase 1).  Traditional certificates
+         * stay bound to 600 bytes either way, and no ML-DSA certificate fits in 600 bytes, so without this option
+         * ML-DSA is rejected.
+         */
+        postQuantum?: boolean;
+    }
+
     /**
      * Parse an ASN.1/DER encoded certificate into the internal format.
      * This extracts the certificate data without the signature.
@@ -529,10 +612,12 @@ export namespace Certificate {
     export function parseAsn1Certificate(
         encodedCert: Bytes,
         requiredExtensions = REQUIRED_EXTENSIONS,
+        options: ParseOptions = {},
     ): MatterCertificate {
-        if (encodedCert.byteLength > MAX_DER_CERTIFICATE_SIZE) {
+        const sizeLimit = options.postQuantum ? MAX_PQC_DER_CERTIFICATE_SIZE : MAX_DER_CERTIFICATE_SIZE;
+        if (encodedCert.byteLength > sizeLimit) {
             throw new CertificateError(
-                `DER certificate of ${encodedCert.byteLength} bytes exceeds the ${MAX_DER_CERTIFICATE_SIZE} byte limit.`,
+                `DER certificate of ${encodedCert.byteLength} bytes exceeds the ${sizeLimit} byte limit.`,
             );
         }
 
@@ -544,7 +629,7 @@ export namespace Certificate {
             );
         }
 
-        const [certificateNode, , signatureNode] = rootElements;
+        const [certificateNode, outerSignatureAlgorithmNode, signatureNode] = rootElements;
         const tbsDer = Bytes.of(DerCodec.encode(certificateNode));
 
         // Parse TBSCertificate
@@ -565,12 +650,20 @@ export namespace Certificate {
         const serialNumber = certElements[idx++]._bytes;
 
         // Signature algorithm
-        const signatureAlgorithmOid = certElements[idx]._elements?.[0]?._bytes;
+        const signatureAlgorithmNode = certElements[idx++];
+        const signatureAlgorithmOid = objectIdentifierOf(signatureAlgorithmNode._elements?.[0]);
         if (!signatureAlgorithmOid) {
             throw new CertificateError("Invalid signature algorithm structure");
         }
+        // RFC 5280 §4.1.1.2
+        if (!Bytes.areEqual(DerCodec.encode(signatureAlgorithmNode), DerCodec.encode(outerSignatureAlgorithmNode))) {
+            throw new CertificateError("Signature algorithm differs between the certificate and its TBSCertificate");
+        }
+        const mlDsaSignature = MlDsa.parameterSetForOid(signatureAlgorithmOid);
+        if (mlDsaSignature !== undefined && signatureAlgorithmNode._elements?.length !== 1) {
+            throw new CertificateError(`${mlDsaSignature} signature algorithm must not carry parameters`);
+        }
         const signatureAlgorithm = Bytes.toHex(signatureAlgorithmOid) === "2a8648ce3d040302" ? 1 : 0;
-        idx++;
 
         // Issuer — retain raw DER for exact-match comparisons (CRL revocation lookup)
         const issuerDer = Bytes.of(DerCodec.encode(certElements[idx]));
@@ -584,30 +677,52 @@ export namespace Certificate {
         const notBefore = parseDate(validityElements[0]);
         const notAfter = parseDate(validityElements[1]);
 
-        // Subject
+        const subjectDer = Bytes.of(DerCodec.encode(certElements[idx]));
         const subject = parseSubjectOrIssuer(certElements[idx++]);
 
         // Public key
-        const { _elements: publicKeyElements } = certElements[idx++];
+        const publicKeyNode = certElements[idx++];
+        const { _elements: publicKeyElements } = publicKeyNode;
         if (!publicKeyElements || publicKeyElements.length !== 2) {
             throw new CertificateError("Invalid public key structure");
         }
 
         const { _elements: algorithmElements } = publicKeyElements[0];
-        if (!algorithmElements || algorithmElements.length !== 2) {
+        const publicKeyAlgorithmOid = objectIdentifierOf(algorithmElements?.[0]);
+        if (publicKeyAlgorithmOid === undefined) {
             throw new CertificateError("Invalid public key algorithm structure");
         }
+        const publicKeyParameterSet = MlDsa.parameterSetForOid(publicKeyAlgorithmOid);
 
-        const publicKeyAlgorithmOid = Bytes.toHex(algorithmElements[0]._bytes);
-        const publicKeyAlgorithm = publicKeyAlgorithmOid === "2a8648ce3d0201" ? 1 : 0;
+        let publicKeyAlgorithm = 0;
+        let ellipticCurveIdentifier = 0;
+        let ellipticCurvePublicKey: Bytes = new Uint8Array();
+        let mlDsaPublicKey: MatterCertificate["mlDsaPublicKey"];
+        if (publicKeyParameterSet !== undefined) {
+            try {
+                const { parameterSet, publicKey } = MlDsa.decodeSubjectPublicKeyInfo(DerCodec.encode(publicKeyNode));
+                mlDsaPublicKey = { parameterSet, key: publicKey };
+            } catch (cause) {
+                throw new CertificateError(`Invalid ${publicKeyParameterSet} public key`, { cause });
+            }
+        } else {
+            const ellipticCurveOid = objectIdentifierOf(algorithmElements?.[1]);
+            if (algorithmElements?.length !== 2 || ellipticCurveOid === undefined) {
+                throw new CertificateError("Invalid public key algorithm structure");
+            }
+            const keyNode = publicKeyElements[1];
+            if (keyNode._tag !== DerType.BitString || keyNode._padding !== 0) {
+                throw new CertificateError("Public key must be a BIT STRING without unused bits");
+            }
 
-        const ellipticCurveOid = Bytes.toHex(algorithmElements[1]._bytes);
-        const ellipticCurveIdentifier = ellipticCurveOid === "2a8648ce3d030107" ? 1 : 0;
+            publicKeyAlgorithm = Bytes.toHex(publicKeyAlgorithmOid) === "2a8648ce3d0201" ? 1 : 0;
+            ellipticCurveIdentifier = Bytes.toHex(ellipticCurveOid) === "2a8648ce3d030107" ? 1 : 0;
 
-        // Note: DerKey.Bytes for BIT STRING returns data without the padding byte
-        // EC public keys in Matter format include the 0x04 uncompressed point format byte
-        // followed by 64 bytes (32 bytes X + 32 bytes Y), totaling 65 bytes
-        const ellipticCurvePublicKey = Bytes.of(publicKeyElements[1]._bytes);
+            // Note: DerKey.Bytes for BIT STRING returns data without the padding byte
+            // EC public keys in Matter format include the 0x04 uncompressed point format byte
+            // followed by 64 bytes (32 bytes X + 32 bytes Y), totaling 65 bytes
+            ellipticCurvePublicKey = Bytes.of(publicKeyElements[1]._bytes);
+        }
 
         // Extensions (required, context-tagged [3])
         if (idx >= certElements.length || certElements[idx]._tag !== 0xa3) {
@@ -619,13 +734,34 @@ export namespace Certificate {
 
         // Extract signature from BIT STRING
         // Note: DerKey.Bytes for BIT STRING returns data without the padding byte
-        const signature = new EcdsaSignature(Bytes.of(signatureNode._bytes), "der").bytes;
+        let signature: Bytes;
+        if (mlDsaSignature === undefined) {
+            signature = new EcdsaSignature(Bytes.of(signatureNode._bytes), "der").bytes;
+        } else {
+            signature = Bytes.of(signatureNode._bytes);
+            if (signatureNode._tag !== DerType.BitString || signatureNode._padding !== 0) {
+                throw new CertificateError(`${mlDsaSignature} signature must be a BIT STRING without unused bits`);
+            }
+            try {
+                MlDsa.assertSignature(mlDsaSignature, signature);
+            } catch (cause) {
+                throw new CertificateError(`Invalid ${mlDsaSignature} signature`, { cause });
+            }
+        }
+
+        const traditional = mlDsaSignature === undefined && mlDsaPublicKey === undefined;
+        if (traditional && encodedCert.byteLength > MAX_DER_CERTIFICATE_SIZE) {
+            throw new CertificateError(
+                `DER certificate of ${encodedCert.byteLength} bytes exceeds the ${MAX_DER_CERTIFICATE_SIZE} byte limit.`,
+            );
+        }
 
         return {
             serialNumber,
             signatureAlgorithm,
             issuer,
             issuerDer,
+            subjectDer,
             tbsDer,
             notBefore,
             notAfter,
@@ -635,6 +771,8 @@ export namespace Certificate {
             ellipticCurvePublicKey,
             extensions,
             signature,
+            ...(mlDsaSignature === undefined ? {} : { mlDsaSignature }),
+            ...(mlDsaPublicKey === undefined ? {} : { mlDsaPublicKey }),
         };
     }
 
@@ -709,7 +847,17 @@ export namespace Certificate {
  * Convert from Matter TLV to x.509 DER semantics
  */
 function matterToX509(cert: Unsigned<MatterCertificate>): X509.UnsignedCertificate {
-    const { serialNumber, notBefore, notAfter, issuer, subject, ellipticCurvePublicKey, extensions } = cert;
+    const {
+        serialNumber,
+        notBefore,
+        notAfter,
+        issuer,
+        subject,
+        ellipticCurvePublicKey,
+        extensions,
+        mlDsaSignature,
+        mlDsaPublicKey,
+    } = cert;
 
     return {
         serialNumber,
@@ -720,9 +868,28 @@ function matterToX509(cert: Unsigned<MatterCertificate>): X509.UnsignedCertifica
         issuer: astOfDistinguishedName(issuer),
         subject: astOfDistinguishedName(subject),
         extensions,
-        signatureAlgorithm: X962.EcdsaWithSHA256,
-        publicKey: X962.PublicKeyEcPrime256v1(ellipticCurvePublicKey),
+        signatureAlgorithm:
+            mlDsaSignature === undefined ? X962.EcdsaWithSHA256 : MlDsa.AlgorithmIdentifier(mlDsaSignature),
+        publicKey:
+            mlDsaPublicKey === undefined
+                ? X962.PublicKeyEcPrime256v1(ellipticCurvePublicKey)
+                : MlDsa.SubjectPublicKeyInfo(mlDsaPublicKey.parameterSet, mlDsaPublicKey.key),
     };
+}
+
+/** The content of an OBJECT IDENTIFIER node, or undefined for any other node. */
+function objectIdentifierOf(node: DerNode | undefined) {
+    return node?._tag === DerType.ObjectIdentifier ? Bytes.of(node._bytes) : undefined;
+}
+
+function maxDerSize({ mlDsaSignature, mlDsaPublicKey }: Unsigned<MatterCertificate>) {
+    return mlDsaSignature === undefined && mlDsaPublicKey === undefined
+        ? MAX_DER_CERTIFICATE_SIZE
+        : MAX_PQC_DER_CERTIFICATE_SIZE;
+}
+
+function describeSignatureAlgorithm({ mlDsaSignature }: Unsigned<MatterCertificate>) {
+    return mlDsaSignature ?? "ecdsa-with-SHA256";
 }
 
 /**

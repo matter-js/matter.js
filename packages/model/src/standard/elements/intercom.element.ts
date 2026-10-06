@@ -15,24 +15,33 @@ export const IntercomDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 320, revision: 2 } ], element: "attribute" })
     ),
-    Requirement(
-        { name: "TlsCertificatesCond", type: "RootNode.TlsCertificatesCond", conformance: "M", element: "condition" }
-    ),
-    Requirement({ name: "PowerSourceCond", type: "RootNode.PowerSourceCond", conformance: "M", element: "condition" }),
-    Requirement(
-        { name: "TimeSyncWithNtpcCond", type: "RootNode.TimeSyncWithNtpcCond", conformance: "M", element: "condition" }
-    ),
-    Requirement({ name: "TimeSyncWithClientCond", type: "RootNode.TimeSyncWithClientCond", conformance: "M", element: "condition" }),
-    Requirement(
-        { name: "TimeSyncWithTzCond", type: "RootNode.TimeSyncWithTzCond", conformance: "M", element: "condition" }
-    ),
+    Requirement({
+        name: "TlsCertificatesCond", type: "RootNode.TlsCertificatesCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
+    Requirement({
+        name: "PowerSourceCond", type: "RootNode.PowerSourceCond", conformance: "M", element: "condition",
+        location: "Root"
+    }),
+    Requirement({
+        name: "TimeSyncWithNtpcCond", type: "RootNode.TimeSyncWithNtpcCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
+    Requirement({
+        name: "TimeSyncWithClientCond", type: "RootNode.TimeSyncWithClientCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
+    Requirement({
+        name: "TimeSyncWithTzCond", type: "RootNode.TimeSyncWithTzCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
 
     Requirement(
         { name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "AUDIO", conformance: "M", element: "feature" }),
-        Requirement({ name: "VIDEO", conformance: "O", element: "feature" }),
-        Requirement({ name: "SNAPSHOT", conformance: "X", element: "feature" })
+        Requirement({ name: "ADO", conformance: "M", element: "feature" }),
+        Requirement({ name: "VDO", conformance: "O", element: "feature" }),
+        Requirement({ name: "SNP", conformance: "X", element: "feature" })
     ),
 
     Requirement({ name: "CameraAvSettingsUserLevelManagement", id: 0x552, conformance: "O", element: "serverCluster" }),
@@ -43,10 +52,10 @@ export const IntercomDt = DeviceType(
     Requirement({ name: "Chime", id: 0x556, conformance: "O", element: "clientCluster" }),
 
     Requirement(
-        { name: "GenericSwitch", id: 0xf, conformance: "M", element: "deviceType" },
+        { name: "GenericSwitch", id: 0xf, conformance: "M", constraint: "min 1", element: "deviceType" },
         Requirement(
             { name: "Switch", id: 0x3b, element: "serverCluster" },
-            Requirement({ name: "MOMENTARYSWITCH", conformance: "M", element: "feature" })
+            Requirement({ name: "MS", conformance: "M", element: "feature" })
         )
     )
 );

@@ -6,6 +6,7 @@
 
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
+import { Diagnostic, LogDestination, Logger, LogLevel } from "@matter/general";
 import { SessionManager } from "@matter/protocol";
 import { MockSite } from "../mock-site.js";
 import { subscribedPeer } from "../node-helpers.js";
@@ -50,5 +51,40 @@ describe("Peers#instrumentBasicInformation", () => {
         } finally {
             sessionManager.handlePeerShutdown = original;
         }
+    });
+
+    // The observer that watches for seeding stays attached while a node has not seeded, and delete()
+    // emits lifecycle.changed after the behaviors are gone. Reading state from there throws
+    // uninitialized-dependency, which surfaced as an unhandled handler error when a case
+    // decommissioned a peer whose structure read had not finished.
+    it("does not read a closing node's state when it never seeded", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peerAddress = controller.peers.get("peer1")!.peerAddress!;
+        await MockTime.resolve(controller.peers.get("peer1")!.delete());
+
+        // A freshly recreated peer has no structure read yet, so the observer stays attached
+        const peer = await controller.peers.forAddress(peerAddress);
+        peer.behaviors.require(BasicInformationClient);
+        controller.env.get(ClientStructureEvents).emitCluster(peer, BasicInformationClient);
+        expect(peer.lifecycle.isSeeded).false;
+
+        const errors = new Array<string>();
+        Logger.destinations.capture = LogDestination({
+            add(message: Diagnostic.Message) {
+                if (message.level >= LogLevel.ERROR) {
+                    errors.push(message.values.map(String).join(" "));
+                }
+            },
+        });
+
+        try {
+            await MockTime.resolve(peer.delete());
+        } finally {
+            delete Logger.destinations.capture;
+        }
+
+        expect(errors).deep.equals([]);
     });
 });

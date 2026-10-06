@@ -7,13 +7,17 @@
 import { InternalError } from "@matter/main";
 import type {
     CertDevice,
+    CertGroupApi,
+    CertIcdClientApi,
     CertNodeApi,
     CertStepContext,
+    CertStepWiring,
     CertTestDefinition,
     CheckRecord,
     Container,
     ControllerAdapter,
     DeviceExitInfo,
+    DeviceFlavor,
     Docker,
     StepRecorder,
     StepVerdict,
@@ -21,19 +25,27 @@ import type {
     TestFileDescriptor,
 } from "@matter/testing";
 import {
+    certAppPicsOverridesFor,
+    certPicsFile,
     CertTest,
     EvidenceRecorder,
     LogFollower,
+    PicsExpression,
     PicsFile,
+    PicsUnansweredError,
     PicsUnavailableError,
+    registerCertAppPics,
     unmetTestPics,
+    unregisterCertAppPics,
     UnsupportedByControllerError,
+    CertStepNotApplicableError,
 } from "@matter/testing";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { env } from "node:process";
 import { CommissionedRefs } from "../cert/tc-support.js";
+import { fakeCertNode } from "./fake-cert-node.js";
 
 async function notImplemented(..._args: unknown[]): Promise<never> {
     throw new Error("Container access is not available in this unit test");
@@ -136,10 +148,10 @@ function stubSubjectWithThrowingPics(error: Error): Subject {
 
 async function* noLines(): AsyncGenerator<string> {}
 
-function stubCertDevice(exit: Promise<DeviceExitInfo>): CertDevice {
+function stubCertDevice(exit: Promise<DeviceExitInfo>, flavor: DeviceFlavor = "matterjs"): CertDevice {
     return {
         ...stubSubject(new PicsFile([])),
-        flavor: "matterjs",
+        flavor,
         log: new LogFollower(noLines(), "stub-device"),
         exit,
     };
@@ -160,6 +172,9 @@ function stubControllerAdapter(log: LogFollower): ControllerAdapter {
         async commission() {
             return "ref";
         },
+        group(): never {
+            throw new InternalError("not used by these tests");
+        },
         node() {
             throw new Error("not implemented in this test");
         },
@@ -179,7 +194,7 @@ function stubSubjectWithoutPics(): Subject {
  * Injects a stub {@link CertStepContext} without wiring the real controller/device plumbing later tasks add.
  */
 class TestCertTest extends CertTest {
-    #cx: CertStepContext;
+    #cx: CertStepWiring;
     #finalizationTimeoutMs?: number;
     #teardownErrors: unknown[];
     #beforeFlushError?: unknown;
@@ -189,7 +204,7 @@ class TestCertTest extends CertTest {
         definition: CertTestDefinition,
         descriptor: TestFileDescriptor,
         container: Container,
-        cx: CertStepContext,
+        cx: CertStepWiring,
         finalizationTimeoutMs?: number,
         teardownErrors: unknown[] = [],
         options: { beforeFlushError?: unknown; onTeardown?: () => Promise<void> } = {},
@@ -217,7 +232,7 @@ class TestCertTest extends CertTest {
         return this.#teardownErrors;
     }
 
-    protected override contextFor(_subject: Subject): CertStepContext {
+    protected override contextFor(_subject: Subject): CertStepWiring {
         return this.#cx;
     }
 
@@ -281,7 +296,7 @@ describe("CertTest", () => {
             },
         };
 
-        const cx: CertStepContext = { controllers: {}, devices: {}, recorder };
+        const cx: CertStepWiring = { controllers: {}, devices: {}, recorder };
         const subject = stubSubject(new PicsFile([]));
         const reportedTitles = new Array<string>();
 
@@ -320,7 +335,7 @@ describe("CertTest", () => {
             ],
         };
 
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -360,7 +375,7 @@ describe("CertTest", () => {
             ],
         };
 
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -397,7 +412,7 @@ describe("CertTest", () => {
         };
 
         const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -436,7 +451,7 @@ describe("CertTest", () => {
             ],
         };
 
-        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const cx: CertStepWiring = { controllers: {}, devices: {}, recorder: stubRecorder() };
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
         const subject = stubSubjectWithThrowingPics(new Error("PICS file is corrupt"));
 
@@ -465,7 +480,7 @@ describe("CertTest", () => {
         };
 
         const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -485,15 +500,108 @@ describe("CertTest", () => {
         expect(endStepVerdicts).deep.equal([{ number: 1, verdict: "pass" }]);
     });
 
+    it("answers a step's own PICS question against the run's PICS, as its gate would", async () => {
+        const answers = new Array<boolean>();
+
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step whose outcome depends on PICS",
+                    run: async cx => {
+                        for (const expression of ["CADMIN.C", "CADMIN.C.C00.Tx", "!CADMIN.C.C00.Tx", "CADMIN.S"]) {
+                            answers.push(cx.picsMet(expression));
+                        }
+                    },
+                },
+            ],
+        };
+
+        const cx: CertStepWiring = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await test.invoke(stubSubject(new PicsFile(["CADMIN.C=1", "CADMIN.C.C00.Tx=0"])), () => {}, [], false);
+
+        expect(answers).deep.equal([true, false, true, false]);
+    });
+
+    it("fails a step asking a PICS question when the run has no active PICS, where its gate would run it", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step whose outcome depends on PICS",
+                    pics: "CADMIN.S.SomeToken",
+                    run: async cx => {
+                        cx.picsMet("CADMIN.S.SomeToken");
+                    },
+                },
+            ],
+        };
+
+        const endStepVerdicts = new Array<StepVerdict>();
+        const cx: CertStepWiring = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep(_step, verdict) {
+                    endStepVerdicts.push(verdict);
+                    return [];
+                },
+            }),
+        };
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubjectWithoutPics(), () => {}, [], false)).rejectedWith(
+            PicsUnansweredError,
+            'No active PICS answers "CADMIN.S.SomeToken"',
+        );
+        expect(endStepVerdicts).deep.equal(["fail"]);
+    });
+
+    it("fails a step asking a malformed PICS question", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step whose outcome depends on PICS",
+                    run: async cx => {
+                        cx.picsMet("");
+                    },
+                },
+            ],
+        };
+
+        const cx: CertStepWiring = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile(["CADMIN.C=1"])), () => {}, [], false)).rejectedWith(
+            "Invalid PICS expression",
+        );
+    });
+
     for (const [controller, expectation] of [
         ["matterjs", { ran: true, verdict: "pass" }],
         ["chip-tool", { ran: false, verdict: "skipped" }],
     ] as const) {
-        it(`gates a step on what the ${controller} controller declares, over the device's own PICS`, async () => {
+        it(`gates and answers a step on what the ${controller} controller declares, over the device's own PICS`, async () => {
             const originalController = env.MATTER_CERT_CONTROLLER;
             env.MATTER_CERT_CONTROLLER = controller;
 
             let ran = false;
+            let answered: boolean | undefined;
 
             const definition: CertTestDefinition = {
                 tc: "TC-IDM-1.3",
@@ -509,11 +617,18 @@ describe("CertTest", () => {
                             ran = true;
                         },
                     },
+                    {
+                        number: 2,
+                        text: "Step asking the same question",
+                        run: async cx => {
+                            answered = cx.picsMet("MCORE.IDM.C.InvokeRequest.BatchCommands");
+                        },
+                    },
                 ],
             };
 
             const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
-            const cx: CertStepContext = {
+            const cx: CertStepWiring = {
                 controllers: {},
                 devices: {},
                 recorder: stubRecorder({
@@ -540,7 +655,11 @@ describe("CertTest", () => {
             }
 
             expect(ran).equal(expectation.ran);
-            expect(endStepVerdicts).deep.equal([{ number: 1, verdict: expectation.verdict }]);
+            expect(answered).equal(expectation.ran);
+            expect(endStepVerdicts).deep.equal([
+                { number: 1, verdict: expectation.verdict },
+                { number: 2, verdict: "pass" },
+            ]);
         });
     }
 
@@ -570,7 +689,7 @@ describe("CertTest", () => {
         };
 
         const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -623,7 +742,7 @@ describe("CertTest", () => {
         };
 
         const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: stubCertDevice(new Promise<DeviceExitInfo>(() => {})) },
             recorder: stubRecorder({
@@ -644,6 +763,52 @@ describe("CertTest", () => {
         expect(endStepCalls).deep.equal([
             { number: 1, verdict: "skipped", skipReason: 'unsupported on device flavor "matterjs"' },
             { number: 2, verdict: "pass", skipReason: undefined },
+        ]);
+    });
+
+    // No flavors list can name a device a wrapped script spawned for itself, so every list excludes
+    // one: a step written for a flavor this run is not must not run here by omission
+    it("skips a flavor-restricted step on a run whose device no flavors list can name", async () => {
+        let ran = false;
+
+        const definition: CertTestDefinition = {
+            tc: "TC-SC-3.5",
+            plan: "securechannel.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step restricted to matterjs",
+                    flavors: ["matterjs"],
+                    run: async () => {
+                        ran = true;
+                    },
+                },
+            ],
+        };
+
+        const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
+        const cx: CertStepWiring = {
+            controllers: {},
+            devices: {
+                th_server: stubCertDevice(new Promise<DeviceExitInfo>(() => {}), "python-wrapped"),
+            },
+            recorder: stubRecorder({
+                endStep(step, verdict, skipReason) {
+                    endStepCalls.push({ number: step.number, verdict, skipReason });
+                    return [];
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+
+        expect(ran).equal(false);
+        expect(endStepCalls).deep.equal([
+            { number: 1, verdict: "skipped", skipReason: 'unsupported on device flavor "python-wrapped"' },
         ]);
     });
 
@@ -668,7 +833,7 @@ describe("CertTest", () => {
         };
 
         const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -727,7 +892,7 @@ describe("CertTest", () => {
         const beginStepNumbers = new Array<number | string>();
         const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
         const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: stubRecorder({
@@ -796,7 +961,7 @@ describe("CertTest", () => {
         };
 
         const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -841,7 +1006,7 @@ describe("CertTest", () => {
             },
         };
 
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -873,7 +1038,7 @@ describe("CertTest", () => {
 
         const finalizationFailures = new Array<string>();
         const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: stubRecorder({
@@ -916,7 +1081,7 @@ describe("CertTest", () => {
         };
 
         const finalizationFailures = new Array<string>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -944,21 +1109,7 @@ describe("CertTest", () => {
         const commissioned = new CommissionedRefs<"dut">();
 
         function nodeFor(role: "dut"): CertNodeApi {
-            const unused = () => Promise.reject(new Error("not used by this test"));
-            return {
-                invoke: unused,
-                invokeBatch: unused,
-                readAttribute: unused,
-                readAttributes: unused,
-                writeAttribute: unused,
-                writeAttributes: unused,
-                subscribe: unused,
-                readEvents: unused,
-                subscribeEvents: unused,
-                openCommissioningWindow: unused,
-                operationalMdnsInstanceName: unused,
-                decommission: async () => void decommissioned.push(role),
-            };
+            return fakeCertNode({ decommission: async () => void decommissioned.push(role) });
         }
         const noLines = async function* (): AsyncGenerator<string> {};
         const controller: ControllerAdapter = {
@@ -974,6 +1125,9 @@ describe("CertTest", () => {
             },
             async parseManualPairingCode(): Promise<never> {
                 throw new InternalError("not used in this test");
+            },
+            group: (): never => {
+                throw new InternalError("not used by these tests");
             },
             node: () => nodeFor("dut"),
         };
@@ -1000,7 +1154,7 @@ describe("CertTest", () => {
             finalize: cx => commissioned.decommissionAll(cx),
         };
 
-        const cx: CertStepContext = { controllers: { dut: controller }, devices: {}, recorder: stubRecorder() };
+        const cx: CertStepWiring = { controllers: { dut: controller }, devices: {}, recorder: stubRecorder() };
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
 
         await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
@@ -1022,7 +1176,7 @@ describe("CertTest", () => {
         };
 
         const finalizationFailures = new Array<string>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -1064,7 +1218,7 @@ describe("CertTest", () => {
                 }),
         };
 
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: stubCertDevice(exitPromise) },
             recorder: stubRecorder(),
@@ -1073,7 +1227,7 @@ describe("CertTest", () => {
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
 
         await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
-            "a device exited before the run's cleanup finished",
+            'device "th" exited before the run\'s cleanup finished',
         );
     });
 
@@ -1091,7 +1245,7 @@ describe("CertTest", () => {
                 }),
         };
 
-        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const cx: CertStepWiring = { controllers: {}, devices: {}, recorder: stubRecorder() };
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, 10);
 
         const unhandled = new Array<unknown>();
@@ -1114,6 +1268,113 @@ describe("CertTest", () => {
         }
 
         expect(unhandled).deep.equal([]);
+    });
+
+    // A run declaring several devices must say which one died; "a device exited" sends the reader to
+    // the wrong log
+    it("names the role of the device that exited when the run declares more than one", async () => {
+        let exitProvider!: (info: DeviceExitInfo) => void;
+        const providerExit = new Promise<DeviceExitInfo>(resolve => {
+            exitProvider = resolve;
+        });
+
+        const definition: CertTestDefinition = {
+            tc: "TC-SU-2.7",
+            plan: "softwareupdate.adoc",
+            pics: [],
+            app: "ota-requestor",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step whose provider dies under it",
+                    run: () =>
+                        new Promise<void>(resolve => {
+                            exitProvider({ code: 134, signal: null });
+                            setTimeout(resolve, 0);
+                        }),
+                },
+            ],
+        };
+
+        const deviceExitedCalls = new Array<DeviceExitInfo & { role: string }>();
+        const cx: CertStepWiring = {
+            controllers: {},
+            devices: {
+                th: stubCertDevice(new Promise<DeviceExitInfo>(() => {})),
+                th2: stubCertDevice(providerExit),
+            },
+            recorder: stubRecorder({
+                deviceExited(role, info) {
+                    deviceExitedCalls.push({ role, ...info });
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            'Cert-test device "th2" exited unexpectedly while a step was running',
+        );
+
+        expect(deviceExitedCalls).deep.equal([{ role: "th2", code: 134, signal: null }]);
+    });
+
+    // The bundle holds one exit, so the run is what has to choose which. A watch that reported every
+    // device would leave it naming whichever died last — typically a device the first one took down
+    it("reports only the device that exited first when the rest follow it", async () => {
+        let exitProvider!: (info: DeviceExitInfo) => void;
+        let exitRequestor!: (info: DeviceExitInfo) => void;
+        const providerExit = new Promise<DeviceExitInfo>(resolve => {
+            exitProvider = resolve;
+        });
+        const requestorExit = new Promise<DeviceExitInfo>(resolve => {
+            exitRequestor = resolve;
+        });
+
+        const definition: CertTestDefinition = {
+            tc: "TC-SU-2.7",
+            plan: "softwareupdate.adoc",
+            pics: [],
+            app: "ota-requestor",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step whose provider dies and takes the requestor with it",
+                    run: () =>
+                        new Promise<void>(resolve => {
+                            exitProvider({ code: 134, signal: null });
+                            exitRequestor({ code: 1, signal: null });
+                            setTimeout(resolve, 0);
+                        }),
+                },
+            ],
+        };
+
+        const deviceExitedCalls = new Array<DeviceExitInfo & { role: string }>();
+        const cx: CertStepWiring = {
+            controllers: {},
+            devices: {
+                th: stubCertDevice(requestorExit),
+                th2: stubCertDevice(providerExit),
+            },
+            recorder: stubRecorder({
+                deviceExited(role, info) {
+                    deviceExitedCalls.push({ role, ...info });
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            'Cert-test device "th2" exited unexpectedly while a step was running',
+        );
+
+        // Both exits settled before the run rejected; give anything still watching them a turn, or a
+        // second report would land after the assertion rather than failing it
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        expect(deviceExitedCalls).deep.equal([{ role: "th2", code: 134, signal: null }]);
     });
 
     it("fails the run and reports deviceExited when a device exits mid-step", async () => {
@@ -1150,8 +1411,8 @@ describe("CertTest", () => {
         };
 
         const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
-        const deviceExitedCalls = new Array<DeviceExitInfo>();
-        const cx: CertStepContext = {
+        const deviceExitedCalls = new Array<DeviceExitInfo & { role: string }>();
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: stubCertDevice(exitPromise) },
             recorder: stubRecorder({
@@ -1159,8 +1420,8 @@ describe("CertTest", () => {
                     endStepVerdicts.push({ number: step.number, verdict });
                     return [];
                 },
-                deviceExited(info) {
-                    deviceExitedCalls.push(info);
+                deviceExited(role, info) {
+                    deviceExitedCalls.push({ role, ...info });
                 },
             }),
         };
@@ -1169,7 +1430,7 @@ describe("CertTest", () => {
         const subject = stubSubject(new PicsFile([]));
 
         await expect(test.invoke(subject, () => {}, [], false)).rejectedWith(
-            "device exited unexpectedly while a step was running",
+            'Cert-test device "th" exited unexpectedly while a step was running',
         );
 
         expect(step2Ran).equal(false);
@@ -1177,7 +1438,7 @@ describe("CertTest", () => {
             { number: 1, verdict: "fail" },
             { number: 2, verdict: "aborted" },
         ]);
-        expect(deviceExitedCalls).deep.equal([{ code: 1, signal: null }]);
+        expect(deviceExitedCalls).deep.equal([{ role: "th", code: 1, signal: null }]);
     });
 
     it("contains an orphaned step run's eventual rejection instead of letting it escape unhandled", async () => {
@@ -1205,7 +1466,7 @@ describe("CertTest", () => {
             ],
         };
 
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: stubCertDevice(exitPromise) },
             recorder: stubRecorder(),
@@ -1219,7 +1480,7 @@ describe("CertTest", () => {
         process.on("unhandledRejection", onUnhandledRejection);
         try {
             await expect(test.invoke(subject, () => {}, [], false)).rejectedWith(
-                "device exited unexpectedly while a step was running",
+                'Cert-test device "th" exited unexpectedly while a step was running',
             );
 
             // The step's own run() promise is still pending here — it's the orphaned loser of the
@@ -1263,9 +1524,9 @@ describe("CertTest", () => {
         };
 
         const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
-        const deviceExitedCalls = new Array<DeviceExitInfo>();
+        const deviceExitedCalls = new Array<DeviceExitInfo & { role: string }>();
         let flushed = false;
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: stubCertDevice(exitPromise) },
             recorder: stubRecorder({
@@ -1273,8 +1534,8 @@ describe("CertTest", () => {
                     endStepVerdicts.push({ number: step.number, verdict });
                     return [];
                 },
-                deviceExited(info) {
-                    deviceExitedCalls.push(info);
+                deviceExited(role, info) {
+                    deviceExitedCalls.push({ role, ...info });
                 },
                 async flush() {
                     // Give the exit scheduled by step 1 time to settle before the run concludes,
@@ -1294,7 +1555,7 @@ describe("CertTest", () => {
         );
 
         expect(endStepVerdicts).deep.equal([{ number: 1, verdict: "pass" }]);
-        expect(deviceExitedCalls).deep.equal([{ code: 1, signal: null }]);
+        expect(deviceExitedCalls).deep.equal([{ role: "th", code: 1, signal: null }]);
         expect(flushed).equal(true);
     });
 
@@ -1308,7 +1569,7 @@ describe("CertTest", () => {
         };
 
         const outcomes = new Array<{ failed: boolean; detail?: string; unproven?: boolean }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -1344,7 +1605,7 @@ describe("CertTest", () => {
             steps: [{ number: 1, text: "A step that passes", run: async () => {} }],
         };
 
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: stubCertDevice(exitPromise) },
             recorder: stubRecorder({
@@ -1386,13 +1647,13 @@ describe("CertTest", () => {
             ],
         };
 
-        const deviceExitedCalls = new Array<DeviceExitInfo>();
-        const cx: CertStepContext = {
+        const deviceExitedCalls = new Array<DeviceExitInfo & { role: string }>();
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: stubCertDevice(exitPromise) },
             recorder: stubRecorder({
-                deviceExited(info) {
-                    deviceExitedCalls.push(info);
+                deviceExited(role, info) {
+                    deviceExitedCalls.push({ role, ...info });
                 },
             }),
         };
@@ -1427,7 +1688,7 @@ describe("CertTest", () => {
 
         const deviceLog = new LogFollower(noLines(), "device");
         const controllerLog = new LogFollower(noLines(), "controller");
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: { dut: stubControllerAdapter(controllerLog) },
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: stubRecorder(),
@@ -1469,7 +1730,7 @@ describe("CertTest", () => {
         };
 
         const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: recordingRecorder(),
@@ -1517,7 +1778,7 @@ describe("CertTest", () => {
         };
 
         const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: recordingRecorder(),
@@ -1566,7 +1827,7 @@ describe("CertTest", () => {
         };
 
         const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: recordingRecorder(),
@@ -1599,7 +1860,7 @@ describe("CertTest", () => {
             ],
         };
 
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -1625,7 +1886,7 @@ describe("CertTest", () => {
             steps: [{ number: 1, text: "A step that passes", run: async () => {} }],
         };
 
-        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const cx: CertStepWiring = { controllers: {}, devices: {}, recorder: stubRecorder() };
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [
             new Error("controller would not close"),
         ]);
@@ -1650,7 +1911,7 @@ describe("CertTest", () => {
             ],
         };
 
-        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const cx: CertStepWiring = { controllers: {}, devices: {}, recorder: stubRecorder() };
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [
             new Error("controller would not close"),
         ]);
@@ -1675,7 +1936,7 @@ describe("CertTest", () => {
             ],
         };
 
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -1719,7 +1980,7 @@ describe("CertTest", () => {
         };
 
         const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -1744,6 +2005,109 @@ describe("CertTest", () => {
             },
             { number: 2, verdict: "pass", skipReason: undefined },
         ]);
+    });
+
+    it("records a step that finds itself not applicable as skipped with its reason, and still runs later steps", async () => {
+        let step2Ran = false;
+
+        const definition: CertTestDefinition = {
+            tc: "TC-BIND-2.3",
+            plan: "binding.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step for a branch this run's devices do not take",
+                    run: async () => {
+                        throw new CertStepNotApplicableError("the DUT's root endpoint has no Groupcast cluster");
+                    },
+                },
+                {
+                    number: 2,
+                    text: "Step after it",
+                    run: async () => {
+                        step2Ran = true;
+                    },
+                },
+            ],
+        };
+
+        const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
+        const planConditionSkips = new Array<number>();
+        const cx: CertStepWiring = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep(step, verdict, skipReason) {
+                    endStepCalls.push({ number: step.number, verdict, skipReason });
+                    return [];
+                },
+                recordPlanConditionSkips(count) {
+                    planConditionSkips.push(count);
+                },
+            }),
+        };
+
+        await new TestCertTest(definition, stubDescriptor(), stubContainer(), cx).invoke(
+            stubSubject(new PicsFile([])),
+            () => {},
+            [],
+            false,
+        );
+
+        expect(step2Ran).equal(true);
+        expect(endStepCalls).deep.equal([
+            { number: 1, verdict: "skipped", skipReason: "the DUT's root endpoint has no Groupcast cluster" },
+            { number: 2, verdict: "pass", skipReason: undefined },
+        ]);
+        expect(planConditionSkips).deep.equal([1]);
+    });
+
+    it("fails a step that declares itself not applicable after it recorded a check", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-BIND-2.3",
+            plan: "binding.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step that acts, then claims it did not apply",
+                    run: async cx => {
+                        cx.recorder.check({ type: "response", verdict: "pass", detail: "acted" });
+                        throw new CertStepNotApplicableError("too late");
+                    },
+                },
+            ],
+        };
+
+        const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict }>();
+        const planConditionSkips = new Array<number>();
+        const cx: CertStepWiring = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep(step, verdict) {
+                    endStepCalls.push({ number: step.number, verdict });
+                    return [];
+                },
+                recordPlanConditionSkips(count) {
+                    planConditionSkips.push(count);
+                },
+            }),
+        };
+
+        await expect(
+            new TestCertTest(definition, stubDescriptor(), stubContainer(), cx).invoke(
+                stubSubject(new PicsFile([])),
+                () => {},
+                [],
+                false,
+            ),
+        ).rejectedWith("declared itself not applicable after recording 1 check(s)");
+        expect(endStepCalls).deep.equal([{ number: 1, verdict: "fail" }]);
+        expect(planConditionSkips).deep.equal([]);
     });
 
     it("still fails the step and aborts the run for a generic error, unlike UnsupportedByControllerError", async () => {
@@ -1773,7 +2137,7 @@ describe("CertTest", () => {
         };
 
         const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -1818,7 +2182,7 @@ describe("CertTest", () => {
         };
 
         const endStepCalls = new Array<{ verdict: StepVerdict; skipReason?: string }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -1861,7 +2225,7 @@ describe("CertTest", () => {
         };
 
         const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: recordingRecorder(),
@@ -1886,6 +2250,317 @@ describe("CertTest", () => {
             "pass: read the data version",
             "-".repeat(70),
         ]);
+    });
+
+    describe("a controller refusal after a step changed the device without recording a check", () => {
+        const noLines = async function* (): AsyncGenerator<string> {};
+
+        function controllerWith(node: CertNodeApi): ControllerAdapter {
+            return {
+                ...stubControllerAdapter(new LogFollower(noLines(), "dut")),
+                node: () => node,
+            };
+        }
+
+        async function runStep(
+            nodeOrController: CertNodeApi | ControllerAdapter,
+            ...runs: ((cx: CertStepContext) => Promise<void>)[]
+        ) {
+            const controller = "commission" in nodeOrController ? nodeOrController : controllerWith(nodeOrController);
+            const endStepCalls = new Array<{ verdict: StepVerdict; skipReason?: string }>();
+            const definition: CertTestDefinition = {
+                tc: "TC-CADMIN-1.17",
+                plan: "multiplefabrics.adoc",
+                pics: [],
+                app: "all-clusters",
+                steps: runs.map((run, index) => ({ number: index + 1, text: "Step under test", run })),
+            };
+            const cx: CertStepWiring = {
+                controllers: { dut: controller },
+                devices: {},
+                recorder: stubRecorder({
+                    endStep(_step, verdict, skipReason) {
+                        endStepCalls.push({ verdict, skipReason });
+                        return [];
+                    },
+                }),
+            };
+            const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+            const outcome = await test
+                .invoke(stubSubject(new PicsFile([])), () => {}, [], false)
+                .then(
+                    () => undefined,
+                    (e: unknown) => e,
+                );
+            return { endStepCalls, outcome };
+        }
+
+        it("fails the run when the step wrote before the refusal", async () => {
+            const { endStepCalls, outcome } = await runStep(
+                fakeCertNode({ writeAttribute: async () => {} }),
+                async cx => {
+                    await cx.controllers.dut
+                        .node("ref")
+                        .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x");
+                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                },
+            );
+
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+            expect(outcome).instanceOf(Error);
+            expect(String(outcome)).match(
+                /refused "writeAttributes" after the step had already recorded 0 check\(s\) and made 1 controller call\(s\)/,
+            );
+        });
+
+        it("fails the run when a step that wrote declares itself not applicable", async () => {
+            const { endStepCalls, outcome } = await runStep(
+                fakeCertNode({ writeAttribute: async () => {} }),
+                async cx => {
+                    await cx.controllers.dut
+                        .node("ref")
+                        .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x");
+                    throw new CertStepNotApplicableError("the plan's condition does not hold");
+                },
+            );
+
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+            expect(String(outcome)).match(
+                /not applicable after recording 0 check\(s\) and making 1 controller call\(s\)/,
+            );
+        });
+
+        it("still skips when the step only read before the refusal", async () => {
+            const { endStepCalls, outcome } = await runStep(
+                fakeCertNode({ readAttribute: async () => 1 }),
+                async cx => {
+                    await cx.controllers.dut.node("ref").readAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 });
+                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                },
+            );
+
+            expect(outcome).undefined;
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
+        });
+
+        it("still skips when the refused call is the step's only action, since a refusal sends nothing", async () => {
+            const { endStepCalls, outcome } = await runStep(
+                fakeCertNode({
+                    writeAttribute: () =>
+                        Promise.reject(new UnsupportedByControllerError("writeAttribute", "chip-tool")),
+                }),
+                async cx => {
+                    await cx.controllers.dut
+                        .node("ref")
+                        .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x");
+                },
+            );
+
+            expect(outcome).undefined;
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
+        });
+
+        it("judges each step on its own calls, so an earlier step's write cannot fail a later clean skip", async () => {
+            const { endStepCalls, outcome } = await runStep(
+                fakeCertNode({ writeAttribute: async () => {} }),
+                async cx => {
+                    await cx.controllers.dut
+                        .node("ref")
+                        .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x");
+                    cx.recorder.check({ type: "response", verdict: "pass", detail: "written" });
+                },
+                async () => {
+                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                },
+            );
+
+            expect(outcome).undefined;
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["pass", "skipped"]);
+        });
+
+        it("does not count reads, subscriptions or other members that leave the device as it was", async () => {
+            const { endStepCalls } = await runStep(
+                fakeCertNode({
+                    readAttributes: async () => [],
+                    subscribe: async () => undefined,
+                    readEvents: async () => [],
+                    observeEvents: async () => [],
+                    sessions: async () => [],
+                }),
+                async cx => {
+                    const dut = cx.controllers.dut;
+                    const node = dut.node("ref");
+                    await node.readAttributes([]);
+                    await node.subscribe(
+                        { endpoint: 0 },
+                        { minIntervalFloorSeconds: 0, maxIntervalCeilingSeconds: 10 },
+                    );
+                    await node.readEvents([]);
+                    await node.observeEvents([], {});
+                    await node.sessions();
+                    expect(String(dut)).equal("[object Object]");
+                    expect(dut.valueOf()).property("id", "dut");
+                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                },
+            );
+
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
+        });
+
+        it("counts calls reached through a group or ICD client handle by that API's own members", async () => {
+            const icd: CertIcdClientApi = {
+                register: () => Promise.reject(new InternalError("no answer")),
+                unregister: async () => {},
+                stayActive: async () => 0,
+                stopSubscription: async () => {},
+                events: () => [],
+                waitFor: () => Promise.reject(new InternalError("not used by these tests")),
+            };
+            const group: CertGroupApi = { defineKeySet: async () => {}, invoke: async () => {} };
+            const controller = {
+                ...controllerWith(fakeCertNode({ icdClient: () => icd })),
+                group: () => group,
+            };
+            const keySet = {
+                groupKeySetId: 1,
+                groupKeySecurityPolicy: 0,
+                epochKey0: new Uint8Array(16),
+                epochStartTime0: 0n,
+            };
+
+            const onlyKeySet = await runStep(controller, async cx => {
+                await cx.controllers.dut.group(1).defineKeySet(keySet);
+                throw new UnsupportedByControllerError("invoke", "chip-tool");
+            });
+            const groupInvoke = await runStep(controller, async cx => {
+                await cx.controllers.dut.group(1).invoke(6, "on");
+                throw new UnsupportedByControllerError("invoke", "chip-tool");
+            });
+            const icdRegister = await runStep(controller, async cx => {
+                await expect(cx.controllers.dut.node("ref").icdClient().register()).rejectedWith("no answer");
+                throw new UnsupportedByControllerError("stayActive", "chip-tool");
+            });
+
+            expect(onlyKeySet.endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
+            expect(groupInvoke.endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+            expect(icdRegister.endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+        });
+
+        it("takes back a call refused synchronously", async () => {
+            const { endStepCalls } = await runStep(
+                fakeCertNode({
+                    writeAttribute: () => {
+                        throw new UnsupportedByControllerError("writeAttribute", "chip-tool");
+                    },
+                }),
+                async cx => {
+                    await cx.controllers.dut
+                        .node("ref")
+                        .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x");
+                },
+            );
+
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
+        });
+
+        it("counts a call still running when the step is refused", async () => {
+            const inFlight = new Array<Promise<unknown>>();
+            const { endStepCalls } = await runStep(fakeCertNode({ invoke: () => new Promise(() => {}) }), async cx => {
+                inFlight.push(cx.controllers.dut.node("ref").invoke(6, "on"));
+                throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+            });
+
+            expect(inFlight).length(1);
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+        });
+
+        it("takes a late refusal back only from the step that made the call", async () => {
+            let refuseEarlierWrite = () => {};
+            const earlierWrite = new Promise<void>((_resolve, reject) => {
+                refuseEarlierWrite = () => reject(new UnsupportedByControllerError("writeAttribute", "chip-tool"));
+            });
+            const inFlight = new Array<PromiseLike<unknown>>();
+            const path = { endpoint: 0, cluster: 0x28, attribute: 5 };
+            const { endStepCalls } = await runStep(
+                fakeCertNode({ writeAttribute: async () => {}, invoke: () => earlierWrite }),
+                async cx => {
+                    inFlight.push(
+                        expect(cx.controllers.dut.node("ref").invoke(6, "on")).rejectedWith(
+                            UnsupportedByControllerError,
+                        ),
+                    );
+                    cx.recorder.check({ type: "response", verdict: "pass", detail: "started" });
+                },
+                async cx => {
+                    await cx.controllers.dut.node("ref").writeAttribute(path, "x");
+                    refuseEarlierWrite();
+                    await Promise.all(inFlight);
+                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                },
+            );
+
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["pass", "fail"]);
+        });
+
+        it("runs every member on the adapter itself, so its private state stays reachable", async () => {
+            class PrivateController implements ControllerAdapter {
+                readonly id = "dut";
+                readonly log = new LogFollower(noLines(), "dut");
+                readonly #calls = new Array<string>();
+
+                async start() {}
+                async close() {}
+
+                async commission() {
+                    this.#calls.push("commission");
+                    return "ref";
+                }
+
+                async parseQrPayload(): Promise<never> {
+                    this.#calls.push("parse");
+                    throw new UnsupportedByControllerError("parseQrPayload", "test");
+                }
+
+                async parseManualPairingCode(): Promise<never> {
+                    throw new InternalError("not used in this test");
+                }
+
+                node(): CertNodeApi {
+                    this.#calls.push("node");
+                    return fakeCertNode();
+                }
+
+                group(): never {
+                    throw new InternalError("not used in this test");
+                }
+
+                get calls() {
+                    return this.#calls.join(",");
+                }
+            }
+            const controller = new PrivateController();
+
+            const { endStepCalls } = await runStep(controller, async cx => {
+                await cx.controllers.dut.commission({ passcode: 1, discriminator: 1 });
+                cx.controllers.dut.node("ref");
+                await cx.controllers.dut.parseQrPayload("MT:");
+            });
+
+            expect(controller.calls).equal("commission,node,parse");
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+        });
+
+        it("counts a call that failed otherwise, since its request may have reached the device", async () => {
+            const { endStepCalls } = await runStep(
+                fakeCertNode({ invoke: () => Promise.reject(new InternalError("timed out")) }),
+                async cx => {
+                    await expect(cx.controllers.dut.node("ref").invoke(6, "on")).rejectedWith("timed out");
+                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                },
+            );
+
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+        });
     });
 
     it("judges each step on its own evidence, so an earlier step's checks cannot fail a later clean skip", async () => {
@@ -1913,7 +2588,7 @@ describe("CertTest", () => {
         };
 
         const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: recordingRecorder(),
@@ -1952,7 +2627,7 @@ describe("CertTest", () => {
         };
 
         const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: recordingRecorder(),
@@ -1987,7 +2662,7 @@ describe("CertTest", () => {
         };
 
         const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: stubRecorder(),
@@ -2017,7 +2692,7 @@ describe("CertTest", () => {
             "device     : matterjs:all-clusters",
         ];
         const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: stubRecorder({ runHeaderLines: () => headerLines }),
@@ -2048,7 +2723,7 @@ describe("CertTest", () => {
         };
 
         const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: stubRecorder(),
@@ -2094,7 +2769,7 @@ describe("CertTest", () => {
         };
 
         const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: stubRecorder(),
@@ -2123,7 +2798,7 @@ describe("CertTest", () => {
         const deviceLog = new LogFollower(noLines(), "device");
         const picsSkips = new Array<number>();
         const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: stubRecorder({
@@ -2151,6 +2826,93 @@ describe("CertTest", () => {
         expect(banners).to.include("TC-CADMIN-1.17 — 2 steps skipped by their own PICS");
     });
 
+    async function runLongRunning(enabled: boolean) {
+        const previous = process.env.MATTER_CERT_LONG_RUNNING;
+        if (enabled) {
+            process.env.MATTER_CERT_LONG_RUNNING = "1";
+        } else {
+            delete process.env.MATTER_CERT_LONG_RUNNING;
+        }
+
+        const ran = new Array<number | string>();
+        const definition: CertTestDefinition = {
+            tc: "TC-SU-3.2",
+            plan: "softwareupdate.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step costing minutes",
+                    longRunning: "the TH waits out three minutes",
+                    run: async () => {
+                        ran.push(1);
+                    },
+                },
+                {
+                    number: 2,
+                    text: "Ordinary step",
+                    run: async () => {
+                        ran.push(2);
+                    },
+                },
+            ],
+        };
+
+        const deviceLog = new LogFollower(noLines(), "device");
+        const longRunningSkips = new Array<number>();
+        const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict; reason?: string }>();
+        const cx: CertStepWiring = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: stubRecorder({
+                endStep(step, verdict, skipReason) {
+                    endStepVerdicts.push({ number: step.number, verdict, reason: skipReason });
+                    return [];
+                },
+                recordLongRunningSkips(count) {
+                    longRunningSkips.push(count);
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        try {
+            await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+        } finally {
+            // Captured and put back rather than deleted: it may have been set before this ran
+            if (previous === undefined) {
+                delete process.env.MATTER_CERT_LONG_RUNNING;
+            } else {
+                process.env.MATTER_CERT_LONG_RUNNING = previous;
+            }
+        }
+
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        return { ran, longRunningSkips, endStepVerdicts, banners };
+    }
+
+    // Such a step costs minutes of real time on a flavor the harness cannot speed up, so every push
+    // would pay for it; the count is what tells a reader of the bundle that the run covered less
+    it("skips a long-running step, and counts it, when the run did not ask for one", async () => {
+        const { ran, longRunningSkips, endStepVerdicts, banners } = await runLongRunning(false);
+
+        expect(ran).deep.equal([2]);
+        expect(longRunningSkips).deep.equal([1]);
+        expect(endStepVerdicts[0].verdict).equal("skipped");
+        expect(endStepVerdicts[0].reason).contains("the TH waits out three minutes");
+        expect(endStepVerdicts[0].reason).contains("MATTER_CERT_LONG_RUNNING=1");
+        expect(banners).to.include("TC-SU-3.2 — 1 step skipped for costing minutes on this flavor");
+    });
+
+    it("runs it, and counts nothing, when the run asked for it", async () => {
+        const { ran, longRunningSkips, endStepVerdicts } = await runLongRunning(true);
+
+        expect(ran).deep.equal([1, 2]);
+        expect(longRunningSkips).deep.equal([]);
+        expect(endStepVerdicts.map(entry => entry.verdict)).deep.equal(["pass", "pass"]);
+    });
+
     it("reports no PICS-skip count for a run whose steps all ran", async () => {
         const definition: CertTestDefinition = {
             tc: "TC-CADMIN-1.17",
@@ -2161,7 +2923,7 @@ describe("CertTest", () => {
         };
 
         const picsSkips = new Array<number>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -2187,7 +2949,7 @@ describe("CertTest", () => {
         };
 
         const calls = new Array<string>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -2235,11 +2997,11 @@ describe("CertTest", () => {
                 timestamp: "2026-08-07T00:00:00.000Z",
                 controller: "dut",
                 controllerImplementation: "matterjs",
-                device: "matterjs:all-clusters",
+                devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
                 matterJsCommit: "abc1234",
             });
             const resultPath = join(outDir, "2026-08-07T00-00-00.000Z-TC-CADMIN-1.17", "result.json");
-            const cx: CertStepContext = { controllers: {}, devices: { th: stubCertDevice(exitPromise) }, recorder };
+            const cx: CertStepWiring = { controllers: {}, devices: { th: stubCertDevice(exitPromise) }, recorder };
 
             let verdictBeforeExit: string | undefined;
             const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [], {
@@ -2261,7 +3023,7 @@ describe("CertTest", () => {
 
             const resultJson = JSON.parse(await readFile(resultPath, "utf8"));
             expect(resultJson.verdict).equal("fail");
-            expect(resultJson.deviceExit).deep.equal({ code: 1 });
+            expect(resultJson.deviceExit).deep.equal({ role: "th", code: 1 });
             expect(resultJson.steps[0].verdict).equal("pass");
         } finally {
             await rm(outDir, { recursive: true, force: true });
@@ -2285,11 +3047,11 @@ describe("CertTest", () => {
                 timestamp: "2026-08-07T00:00:00.000Z",
                 controller: "dut",
                 controllerImplementation: "matterjs",
-                device: "matterjs:all-clusters",
+                devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
                 matterJsCommit: "abc1234",
             });
             const resultPath = join(outDir, "2026-08-07T00-00-00.000Z-TC-CADMIN-1.17", "result.json");
-            const cx: CertStepContext = { controllers: {}, devices: {}, recorder };
+            const cx: CertStepWiring = { controllers: {}, devices: {}, recorder };
 
             // A teardown that never returns is the case the pre-teardown write exists for, and the one
             // no later write can repair.
@@ -2326,11 +3088,11 @@ describe("CertTest", () => {
                 timestamp: "2026-08-07T00:00:00.000Z",
                 controller: "dut",
                 controllerImplementation: "matterjs",
-                device: "matterjs:all-clusters",
+                devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
                 matterJsCommit: "abc1234",
             });
             const resultPath = join(outDir, "2026-08-07T00-00-00.000Z-TC-CADMIN-1.17", "result.json");
-            const cx: CertStepContext = { controllers: {}, devices: {}, recorder };
+            const cx: CertStepWiring = { controllers: {}, devices: {}, recorder };
 
             let verdictBeforeConclusion: string | undefined;
             const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [], {
@@ -2385,11 +3147,11 @@ describe("CertTest", () => {
                 timestamp: "2026-08-07T00:00:00.000Z",
                 controller: "dut",
                 controllerImplementation: "matterjs",
-                device: "matterjs:all-clusters",
+                devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
                 matterJsCommit: "abc1234",
             });
             const resultPath = join(outDir, "2026-08-07T00-00-00.000Z-TC-CADMIN-1.17", "result.json");
-            const cx: CertStepContext = { controllers: {}, devices: {}, recorder };
+            const cx: CertStepWiring = { controllers: {}, devices: {}, recorder };
 
             const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
 
@@ -2431,10 +3193,10 @@ describe("CertTest", () => {
                 timestamp: "2026-08-07T00:00:00.000Z",
                 controller: "dut",
                 controllerImplementation: "matterjs",
-                device: "matterjs:all-clusters",
+                devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
                 matterJsCommit: "abc1234",
             });
-            const cx: CertStepContext = { controllers: {}, devices: {}, recorder };
+            const cx: CertStepWiring = { controllers: {}, devices: {}, recorder };
 
             const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [], {
                 beforeFlushError: new Error("log attach blew up"),
@@ -2464,7 +3226,7 @@ describe("CertTest", () => {
             steps: [{ number: 1, text: "Passing step", run: async () => {} }],
         };
 
-        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const cx: CertStepWiring = { controllers: {}, devices: {}, recorder: stubRecorder() };
 
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [], {
             beforeFlushError: new Error("log attach blew up"),
@@ -2492,7 +3254,7 @@ describe("CertTest", () => {
             ],
         };
 
-        const cx: CertStepContext = { controllers: {}, devices: {}, recorder: stubRecorder() };
+        const cx: CertStepWiring = { controllers: {}, devices: {}, recorder: stubRecorder() };
 
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx, undefined, [], {
             beforeFlushError: new Error("log attach blew up"),
@@ -2530,7 +3292,7 @@ describe("CertTest", () => {
         const unverified = new Array<number>();
         const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
         const outcomes = new Array<{ failed: boolean; detail?: string; unproven?: boolean }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: stubRecorder({
@@ -2592,7 +3354,7 @@ describe("CertTest", () => {
 
         const unverified = new Array<number>();
         const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -2641,7 +3403,7 @@ describe("CertTest", () => {
         };
 
         const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -2682,7 +3444,7 @@ describe("CertTest", () => {
         };
 
         const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -2725,7 +3487,7 @@ describe("CertTest", () => {
         };
 
         const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -2765,7 +3527,7 @@ describe("CertTest", () => {
         };
 
         const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -2810,7 +3572,7 @@ describe("CertTest", () => {
         };
 
         const outcomes = new Array<{ failed: boolean; detail?: string; unproven?: boolean }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: stubCertDevice(exitPromise) },
             recorder: stubRecorder({
@@ -2855,7 +3617,7 @@ describe("CertTest", () => {
         };
 
         const outcomes = new Array<{ failed: boolean; detail?: string; unproven?: boolean }>();
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: {},
             recorder: stubRecorder({
@@ -2894,7 +3656,7 @@ describe("CertTest", () => {
 
         const deviceLog = new LogFollower(noLines(), "device");
         let recorded = false;
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: stubRecorder({
@@ -2930,7 +3692,7 @@ describe("CertTest", () => {
         };
 
         const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepContext = {
+        const cx: CertStepWiring = {
             controllers: {},
             devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
             recorder: stubRecorder(),
@@ -2982,5 +3744,85 @@ describe("test-level PICS gate", () => {
 
     it("is met for a test declaring no PICS at all", () => {
         expect(unmetTestPics(definitionWith([]))).undefined;
+    });
+});
+
+describe("cert app PICS", () => {
+    const APP = "pics-registry-test-app";
+    const originalController = env.MATTER_CERT_CONTROLLER;
+    const originalDevice = env.MATTER_CERT_DEVICE;
+
+    function restore(name: "MATTER_CERT_CONTROLLER" | "MATTER_CERT_DEVICE", value: string | undefined) {
+        if (value === undefined) {
+            delete env[name];
+        } else {
+            env[name] = value;
+        }
+    }
+
+    afterEach(() => {
+        unregisterCertAppPics("matterjs", APP);
+        restore("MATTER_CERT_CONTROLLER", originalController);
+        restore("MATTER_CERT_DEVICE", originalDevice);
+    });
+
+    function definitionFor(pics: string[], dutIsDevice: boolean): CertTestDefinition {
+        return { tc: "TC-PICS-0.1", plan: "bdx.adoc", pics, app: APP, dutIsDevice, steps: [] };
+    }
+
+    it("answers nothing for an app that declared nothing", () => {
+        expect(certAppPicsOverridesFor("matterjs", APP)).deep.equal({});
+    });
+
+    it("refuses a second declaration for one app and flavor", () => {
+        registerCertAppPics("matterjs", APP, { "MCORE.BDX.Receiver": 1 });
+
+        expect(() => registerCertAppPics("matterjs", APP, { "MCORE.BDX.Receiver": 1 })).throw(/already registered/);
+    });
+
+    it("keeps one app's flavors apart", () => {
+        registerCertAppPics("matterjs", APP, { "MCORE.BDX.Receiver": 1 });
+
+        expect(certAppPicsOverridesFor("chip-local", APP)).deep.equal({});
+    });
+
+    it("admits a test the device's own PICS file would refuse", () => {
+        env.MATTER_CERT_DEVICE = "matterjs";
+        registerCertAppPics("matterjs", APP, { "MCORE.BDX.Receiver": 1 });
+
+        // The gate the runner applies before it starts a device, which is where a missing overlay
+        // shows up as a test that never ran rather than as a failure
+        expect(unmetTestPics(definitionFor(["MCORE.BDX.Receiver"], true), certPicsFile(definitionFor([], true))))
+            .undefined;
+    });
+
+    it("takes a device DUT's PICS from its own app where another device is started first", () => {
+        env.MATTER_CERT_DEVICE = "matterjs";
+        registerCertAppPics("matterjs", APP, { "MCORE.BDX.Receiver": 1 });
+
+        const definition: CertTestDefinition = {
+            ...definitionFor(["MCORE.BDX.Receiver"], true),
+            app: "all-clusters",
+            dutApp: APP,
+        };
+
+        expect(unmetTestPics(definition, certPicsFile(definition))).undefined;
+        expect(
+            unmetTestPics({ ...definition, dutApp: undefined }, certPicsFile({ ...definition, dutApp: undefined })),
+        ).equal("MCORE.BDX.Receiver");
+    });
+
+    it("lets the DUT's own side answer where both sides declare one key", () => {
+        env.MATTER_CERT_DEVICE = "matterjs";
+        env.MATTER_CERT_CONTROLLER = "matterjs";
+
+        // The controller declares this 0 about its own sending; the app declares 1 about the device
+        registerCertAppPics("matterjs", APP, { "MCORE.BDX.BlockQueryWithSkip": 1 });
+
+        const forDevice = certPicsFile(definitionFor([], true));
+        const forController = certPicsFile(definitionFor([], false));
+
+        expect(new PicsExpression("MCORE.BDX.BlockQueryWithSkip").evaluate(forDevice)).equal(true);
+        expect(new PicsExpression("MCORE.BDX.BlockQueryWithSkip").evaluate(forController)).equal(false);
     });
 });

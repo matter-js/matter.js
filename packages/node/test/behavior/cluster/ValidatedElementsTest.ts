@@ -385,6 +385,60 @@ describe("ValidatedElements", () => {
             expect(result.commands.has("cmdB")).false;
         });
 
+        it("excludes an implemented obsolete element as it does a disallowed one", () => {
+            const schema = makeCluster({
+                commands: {
+                    CmdA: { id: 1, conformance: "X" },
+                    CmdB: { id: 2, conformance: "Z" },
+                },
+            });
+
+            const type = makeBehaviorType({
+                schema,
+                implementedCommands: ["cmdA", "cmdB"],
+            });
+
+            const result = validate(type);
+            expect(result.commands.has("cmdA")).false;
+            expect(result.commands.has("cmdB")).false;
+        });
+
+        it("makes an element depending on an implemented obsolete element absent", () => {
+            const schema = makeCluster({
+                commands: {
+                    CmdA: { id: 1, conformance: "Z" },
+                    CmdB: { id: 2, conformance: "CmdA" },
+                },
+            });
+
+            const type = makeBehaviorType({
+                schema,
+                implementedCommands: ["cmdA", "cmdB"],
+            });
+
+            const result = validate(type);
+            expect(result.commands.has("cmdA")).false;
+            expect(result.commands.has("cmdB")).false;
+        });
+
+        it("reads a misplaced obsolete term in an otherwise list as it reads a disallowed one", () => {
+            // "Z, CmdA" is invalid and model validation reports it; the runtime must still not fail on it
+            function resultFor(flag: string) {
+                const schema = makeCluster({
+                    commands: {
+                        CmdA: { id: 1, conformance: "O" },
+                        CmdB: { id: 2, conformance: `${flag}, CmdA` },
+                    },
+                });
+
+                const result = validate(makeBehaviorType({ schema, implementedCommands: ["cmdA", "cmdB"] }));
+                return { cmdB: result.commands.has("cmdB"), fatal: !!result.errors?.some(e => e.fatal) };
+            }
+
+            expect(resultFor("Z")).deep.equal(resultFor("X"));
+            expect(resultFor("Z").fatal).false;
+        });
+
         it("handles attributes with element references", () => {
             const schema = makeCluster({
                 attributes: {
@@ -401,6 +455,22 @@ describe("ValidatedElements", () => {
             const result = validate(type);
             expect(result.attributes.has("attrA")).true;
             expect(result.attributes.has("attrB")).true;
+        });
+
+        it("keeps an attribute whose conformance names the revision, implemented or not", () => {
+            const schema = makeCluster({
+                attributes: {
+                    AttrA: { id: 1, conformance: "Rev >= v3" },
+                },
+            });
+
+            const implemented = validate(makeBehaviorType({ schema, implementedAttributes: { attrA: 1 } }));
+            expect(implemented.attributes.has("attrA")).true;
+            expect(implemented.errors?.some(e => e.fatal)).not.ok;
+
+            const unimplemented = validate(makeBehaviorType({ schema }));
+            expect(unimplemented.attributes.has("attrA")).false;
+            expect(unimplemented.errors?.some(e => e.fatal)).not.ok;
         });
 
         it("handles feature-gated elements correctly", () => {

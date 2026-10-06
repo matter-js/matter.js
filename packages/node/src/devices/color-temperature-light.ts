@@ -26,7 +26,7 @@ import { Identity } from "@matter/general";
  * light adjusted, and its color temperature adjusted by means of a bound controller device such as a Color Dimmer
  * Switch.
  *
- * @see {@link MatterSpecification.v16.Device} § 4.3
+ * @see {@link MatterSpecification.v161.Device} § 4.3
  */
 export interface ColorTemperatureLightDevice extends Identity<typeof ColorTemperatureLightDeviceDefinition> {}
 
@@ -62,8 +62,8 @@ export namespace ColorTemperatureLightRequirements {
         .alter({
             attributes: {
                 currentLevel: { min: 1, max: 254 },
-                minLevel: { default: 1, min: 1, max: 2 },
-                maxLevel: { default: 254, min: 254, max: 255 }
+                minLevel: { min: 1, max: 1, default: 1 },
+                maxLevel: { min: 254, max: 254, default: 254 }
             }
         });
 
@@ -108,13 +108,13 @@ export namespace ColorTemperatureLightRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { OccupancySensing: OccupancySensingClient }, mandatory: {} };
+    export const client = { optional: { OccupancySensing: OccupancySensingClient } };
 }
 
 export const ColorTemperatureLightDeviceDefinition = MutableEndpoint({
     name: "ColorTemperatureLight",
     deviceType: 0x10c,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: ColorTemperatureLightRequirements,
 
     behaviors: SupportedBehaviors(

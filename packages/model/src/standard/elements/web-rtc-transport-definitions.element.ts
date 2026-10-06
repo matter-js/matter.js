@@ -33,7 +33,7 @@ export const WebRtcTransportDefinitions = Cluster(
     Datatype(
         { name: "ICEServerStruct", type: "struct" },
         Field(
-            { name: "UrLs", id: 0x0, type: "list", conformance: "M", constraint: "max 10[max 2000]" },
+            { name: "Urls", id: 0x0, type: "list", conformance: "M", constraint: "max 10[max 2000]" },
             Field({ name: "entry", type: "string" })
         ),
         Field({ name: "Username", id: 0x1, type: "string", conformance: "O", constraint: "max 508" }),

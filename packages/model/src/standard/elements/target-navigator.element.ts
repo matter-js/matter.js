@@ -50,7 +50,7 @@ export const TargetNavigator = Cluster(
     Command(
         { name: "NavigateTargetResponse", id: 0x1, conformance: "M", direction: "response" },
         Field({ name: "Status", id: 0x0, type: "StatusEnum", conformance: "M" }),
-        Field({ name: "Data", id: 0x1, type: "string", conformance: "O", constraint: "any" })
+        Field({ name: "Data", id: 0x1, type: "string", conformance: "O" })
     ),
 
     Datatype(

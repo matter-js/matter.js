@@ -75,6 +75,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     #events = {} as SupportedBehaviors.EventsOf<T["behaviors"]>;
     #commands?: Commands<T>;
     #activity?: NodeActivity;
+    #deviceConditions: Set<string>;
 
     /**
      * A string that uniquely identifies an endpoint.
@@ -126,6 +127,15 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      */
     get owner(): Endpoint | undefined {
         return this.#owner;
+    }
+
+    /**
+     * Conditions this endpoint asserts, as stated at construction.
+     *
+     * @see {@link Endpoint.EndpointOptions.deviceConditions}
+     */
+    get deviceConditions(): ReadonlySet<string> {
+        return this.#deviceConditions;
     }
 
     /**
@@ -611,6 +621,8 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             this.number = config.number;
         }
 
+        this.#deviceConditions = new Set(config.deviceConditions);
+
         this.#behaviors = new Behaviors(this, config as Record<string, object | undefined>);
 
         if (config.owner) {
@@ -882,7 +894,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             this.#activity = this.env.get(NodeActivity);
         }
 
-        const clientPeerContext = this.#resolveClientPeerContext();
+        const { clientPeerContext } = this;
         return LocalActorContext.act(
             purpose,
             context => {
@@ -896,7 +908,12 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         );
     }
 
-    #resolveClientPeerContext(): { fabricIndexOnPeer?: FabricIndex } | undefined {
+    /**
+     * The peer context for actions on this endpoint if it belongs to a client node, otherwise undefined.
+     *
+     * @internal
+     */
+    get clientPeerContext(): { fabricIndexOnPeer?: FabricIndex } | undefined {
         const root = this.ownerOfType(RootEndpoint);
         if (root === undefined || (root as unknown as Node<any>).nodeType !== "client") {
             return undefined;
@@ -1056,8 +1073,10 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * Derivatives may override to perform async construction prior to full initialization.
      */
     protected initialize() {
+        const initializer = this.env.get(EndpointInitializer);
+
         // Configure the endpoint for the appropriate node type
-        this.env.get(EndpointInitializer).initializeDescendant(this);
+        initializer.initializeDescendant(this);
 
         // Initialize behaviors.  Success brings endpoint to "ready" state
         let promise = this.behaviors.initialize();
@@ -1069,7 +1088,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             promise = this.parts.initialize();
         }
 
-        return promise;
+        return MaybePromise.then(promise, () => initializer.partsInitialized(this));
     }
 
     /**
@@ -1402,6 +1421,19 @@ export namespace Endpoint {
          * Endpoints are essential by default but you may disable by setting this to false.
          */
         isEssential?: boolean;
+
+        /**
+         * Conditions of the product that this endpoint asserts, such as `PhysicalInputs` or `Cooler`.
+         *
+         * A device type's requirements may depend on a condition. matter.js derives the conditions that follow from
+         * the endpoint tree and the node's configuration; state here only those that describe the product. A stated
+         * condition holds in addition to the derived ones, and stating one never makes a condition false. An unknown
+         * name is reported as a violation wherever the endpoint is judged, which in mode `off` of
+         * `endpoint.validation` is only on request.
+         *
+         * @see {@link MatterSpecification.v161.Device} § 1.1.3
+         */
+        deviceConditions?: string[];
     }
 
     export type Options<

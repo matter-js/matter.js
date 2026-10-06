@@ -35,14 +35,14 @@ import { Schema } from "./Schema.js";
  * Counted over the whole code, `MT:` prefix included: § 5.1.3.2's own 255 characters yield 1208 bits,
  * of which 1120 (140 octets) are TLV data, which only works out with the prefix counted.
  *
- * See {@link MatterSpecification.v16.Core} §5.1.3.2.
+ * See {@link MatterSpecification.v161.Core} §5.1.3.2.
  */
 export const MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH = 255;
 
-/** See {@link MatterSpecification.v16.Core} §5.1.3.2. */
+/** See {@link MatterSpecification.v161.Core} §5.1.3.2. */
 export const MATTER_QR_CODE_ALL_PAYLOAD_MAX_LENGTH = 4296;
 
-/** See {@link MatterSpecification.v16.Core} § 5.1.3.1 Table 59 */
+/** See {@link MatterSpecification.v161.Core} § 5.1.3.1 Table 59 */
 export enum CommissioningFlowType {
     /** When not commissioned, the device always enters commissioning mode upon power-up. */
     Standard = 0,
@@ -54,7 +54,7 @@ export enum CommissioningFlowType {
     Custom = 2,
 }
 
-/** See {@link MatterSpecification.v16.Core} § 5.1.3.1 Table 60 */
+/** See {@link MatterSpecification.v161.Core} § 5.1.3.1 Table 60 */
 export const DiscoveryCapabilitiesBitmap = {
     /**
      * BLE
@@ -87,7 +87,7 @@ export const DiscoveryCapabilitiesBitmap = {
 };
 export const DiscoveryCapabilitiesSchema = BitmapSchema(DiscoveryCapabilitiesBitmap);
 
-/** See {@link MatterSpecification.v16.Core} § 5.1.3.1 Table 59 */
+/** See {@link MatterSpecification.v161.Core} § 5.1.3.1 Table 59 */
 const QrCodeDataSchema = ByteArrayBitmapSchema({
     version: BitField(0, 3),
     vendorId: BitField(3, 16),
@@ -108,7 +108,7 @@ export type QrCodeData = Omit<TypeFromBitmapSchema<typeof QrCodeDataSchema>, "ve
     productId?: number;
 } & {
     /**
-     * See {@link MatterSpecification.v16.Core} § 5.1.5
+     * See {@link MatterSpecification.v161.Core} § 5.1.5
      * Variable length TLV data. Zero length if TLV is not included. This data is byte-aligned.
      * All elements SHALL be housed within an anonymous top-level structure container.
      */
@@ -117,7 +117,7 @@ export type QrCodeData = Omit<TypeFromBitmapSchema<typeof QrCodeDataSchema>, "ve
 
 /**
  * Default field definition that can be enhanced with manufacturer specific Fields for the TlvSchema to use.
- * See {@link MatterSpecification.v16.Core} § 5.1.5
+ * See {@link MatterSpecification.v161.Core} § 5.1.5
  */
 export const QrCodeTlvDataDefaultFields = {
     /** Device Serial # */
@@ -143,19 +143,19 @@ export const QrCodeTlvDataDefaultFields = {
 
 /**
  * Inclusive lower bound of the valid passcode range `0x0000001..0x5F5E0FE`.
- * See {@link MatterSpecification.v16.Core} § 5.1.1.6.
+ * See {@link MatterSpecification.v161.Core} § 5.1.1.6.
  */
 export const PASSCODE_MIN = 0x0000001;
 
 /**
  * Inclusive upper bound of the valid passcode range `0x0000001..0x5F5E0FE`.
- * See {@link MatterSpecification.v16.Core} § 5.1.1.6.
+ * See {@link MatterSpecification.v161.Core} § 5.1.1.6.
  */
 export const PASSCODE_MAX = 0x5f5e0fe;
 
 /**
  * Trivial/insecure passcodes that SHALL NOT be used for PASE.
- * See {@link MatterSpecification.v16.Core} § 5.1.7.1.
+ * See {@link MatterSpecification.v161.Core} § 5.1.7.1.
  */
 export const INVALID_PASSCODES: readonly number[] = [
     0, 11111111, 22222222, 33333333, 44444444, 55555555, 66666666, 77777777, 88888888, 99999999, 12345678, 87654321,
@@ -166,7 +166,7 @@ export const INVALID_PASSCODES: readonly number[] = [
  * and not one of the {@link INVALID_PASSCODES}. Mirrors CHIP's `PayloadContents::IsValidSetupPIN`.
  *
  * The onboarding codecs round-trip arbitrary 27-bit passcodes; use this to validate a decoded payload at parse time
- * rather than deferring to the PASE layer. See {@link MatterSpecification.v16.Core} § 5.1.1.6 / § 5.1.7.1.
+ * rather than deferring to the PASE layer. See {@link MatterSpecification.v161.Core} § 5.1.1.6 / § 5.1.7.1.
  */
 export function isValidPasscode(passcode: number): boolean {
     return (
@@ -192,8 +192,8 @@ const UNSPECIFIED_ID = 0;
  * payload states nothing. The specification writes "unspecified" as 0, and a reader comparing that
  * against a real identifier would reject devices the payload never spoke about.
  *
- * @see {@link MatterSpecification.v16.Core} § 2.5.2
- * @see {@link MatterSpecification.v16.Core} § 2.5.3
+ * @see {@link MatterSpecification.v161.Core} § 2.5.2
+ * @see {@link MatterSpecification.v161.Core} § 2.5.3
  */
 export function statedIdentifier<T extends number>(id: T | undefined): T | undefined {
     return id === undefined || id === UNSPECIFIED_ID ? undefined : id;
@@ -211,8 +211,8 @@ const PRODUCT_ID_MAX = 0xffff;
  * Takes the pair as the payload carries it, so 0 and `undefined` mean the same thing here and no
  * caller has to normalise first. Mirrors CHIP's `PayloadContents::CheckPayloadCommonConstraints`.
  *
- * @see {@link MatterSpecification.v16.Core} § 2.5.2
- * @see {@link MatterSpecification.v16.Core} § 2.5.3
+ * @see {@link MatterSpecification.v161.Core} § 2.5.2
+ * @see {@link MatterSpecification.v161.Core} § 2.5.3
  */
 export function assertValidPayloadIdentity(rawVendorId?: number, rawProductId?: number): void {
     const vendorId = statedIdentifier(rawVendorId);
@@ -415,12 +415,12 @@ export type ManualPairingData = {
 
     /**
      * Commissioning flow type. When set to anything other than {@link CommissioningFlowType.Standard}, Vendor ID and
-     * Product ID SHALL be present. See {@link MatterSpecification.v13.Core} § 5.1.4.1.2.
+     * Product ID SHALL be present. See {@link MatterSpecification.v161.Core} § 5.1.4.1.2.
      */
     flowType?: CommissioningFlowType;
 };
 
-/** See {@link MatterSpecification.v16.Core} § 5.1.4.1 Table 62/63/64 */
+/** See {@link MatterSpecification.v161.Core} § 5.1.4.1 Table 62/63/64 */
 class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
     /**
      * Rejects an invalid passcode (§ 5.1.1.6 / § 5.1.7.1) and a non-standard commissioning flow missing VID/PID

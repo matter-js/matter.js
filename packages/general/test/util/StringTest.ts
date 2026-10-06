@@ -5,6 +5,7 @@
  */
 
 import { camelize, capitalize } from "#util/identifier-case.js";
+import { serializeToJs } from "#util/String.js";
 
 const CAMELIZE_TESTS = {
     foo: "Foo",
@@ -18,6 +19,16 @@ const CAMELIZE_TESTS = {
     hello$: "Hello$",
     hello$wOrLd: "Hello$wOrLd",
     "foo bar biz baz $ huhu": "FooBarBizBaz$ huhu",
+
+    // A pluralised acronym is one word, so it normalises the same way the singular does
+    TariffComponentID: "TariffComponentId",
+    TariffComponentIDs: "TariffComponentIds",
+    ZoneIDs: "ZoneIds",
+    IDs: "Ids",
+
+    // Controls: an uppercase run followed by a longer lowercase run is still two words
+    IPv6Address: "IPv6Address",
+    ACCurrent: "AcCurrent",
 };
 
 describe("String", () => {
@@ -41,5 +52,10 @@ describe("String", () => {
                 expect(camelize(k)).equal(v[0].toLowerCase() + v.slice(1));
             });
         }
+    });
+    describe("serializeToJs", () => {
+        it("writes a date as the instant it holds", () => {
+            expect(serializeToJs(new Date("2026-09-29T12:00:00.000Z"))).equals('new Date("2026-09-29T12:00:00.000Z")');
+        });
     });
 });

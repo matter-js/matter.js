@@ -87,7 +87,7 @@ export function astToFunction(
     supervisor: RootSupervisor,
     options?: astToFunction.Options,
 ): ValueSupervisor.Validate | undefined {
-    const ast = schema.conformance.ast;
+    const ast = schema.effectiveConformance.ast;
     const { featuresAvailable, featuresSupported } = FeatureSet.normalize(
         supervisor.featureMap,
         supervisor.supportedFeatures,
@@ -127,7 +127,7 @@ export function astToFunction(
     };
 
     // Compile the AST
-    const isNullable = schema.quality.nullable;
+    const isNullable = schema.effectiveQuality.nullable;
     const compiledNode = compile(ast);
 
     let validator: ValueSupervisor.Validate | undefined;
@@ -260,6 +260,7 @@ export function astToFunction(
                 return createValue(ast.param);
 
             case Conformance.Flag.Disallowed:
+            case Conformance.Flag.Obsolete:
                 return createDisallowed();
 
             case Conformance.Flag.Mandatory:
@@ -549,7 +550,7 @@ export function astToFunction(
     }
 
     /**
-     * "Disallowed" represents "X" in a conformance expression which explicitly disallows the property.
+     * "Disallowed" represents "X" or "Z" in a conformance expression, which explicitly disallow the property.
      */
     function createDisallowed(): StaticNode {
         return {
@@ -684,15 +685,8 @@ export function astToFunction(
                 const field =
                     siblingScope && supervisor.membersOf(siblingScope).find(model => model.propertyName === name);
                 if (field?.effectiveMetatype === Metatype.enum) {
-                    let enumValues: undefined | Record<string, number | undefined>;
                     createNameReference = (name: string) => {
-                        if (enumValues === undefined) {
-                            enumValues = {};
-                            for (const member of supervisor.membersOf(field)) {
-                                enumValues[camelize(member.name, true)] = member.id;
-                            }
-                        }
-                        const id = enumValues[camelize(name, true)];
+                        const id = field.memberNamed(name)?.effectiveId;
                         if (id !== undefined) {
                             return {
                                 code: Code.Value,
@@ -780,7 +774,7 @@ export function astToFunction(
             }
 
             // Enum choice indicates support for the value; it should not affect validation
-            let ast = member.conformance.ast;
+            let ast = member.effectiveConformance.ast;
             if (ast.type === Conformance.Special.Choice) {
                 ast = ast.param.expr;
             }

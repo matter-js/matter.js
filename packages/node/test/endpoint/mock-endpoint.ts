@@ -33,16 +33,9 @@ export namespace MockBehavior2 {
     }
 }
 
-const activeParts = new Set<MockEndpoint<any>>();
-
-// I think we can get by without this
-// afterEach(async () => {
-//     while (activeParts.size) {
-//         await activeParts[Symbol.iterator]().next().value?.close();
-//     }
-// });
-
 export class MockEndpoint<T extends EndpointType> extends Endpoint<T> {
+    readonly #ownedNode?: MockServerNode;
+
     constructor(definition: T | MockEndpoint.Configuration<T>);
 
     constructor(type: T, options: MockEndpoint.Options<T>);
@@ -50,8 +43,9 @@ export class MockEndpoint<T extends EndpointType> extends Endpoint<T> {
     constructor(definition: T | MockEndpoint.Configuration<T>, options?: MockEndpoint.Options<T>) {
         const config = Endpoint.configurationFor(definition, options);
 
+        let ownedNode: MockServerNode | undefined;
         if (!("owner" in config)) {
-            config.owner = new MockServerNode(MockServerNode.RootEndpoint, {
+            config.owner = ownedNode = new MockServerNode(MockServerNode.RootEndpoint, {
                 id: "node0",
                 environment: config.environment as Environment | undefined,
             });
@@ -59,12 +53,18 @@ export class MockEndpoint<T extends EndpointType> extends Endpoint<T> {
 
         super(config);
 
-        activeParts.add(this);
+        this.#ownedNode = ownedNode;
     }
 
+    /**
+     * Closes the endpoint and, if the endpoint created its own node, that node.
+     */
     override async close() {
-        activeParts.delete(this);
-        await super.close();
+        try {
+            await super.close();
+        } finally {
+            await this.#ownedNode?.close();
+        }
     }
 
     captureEvents<T extends Behavior.Type>(type: T, options?: { names?: Array<keyof InstanceType<T["Events"]>> }) {

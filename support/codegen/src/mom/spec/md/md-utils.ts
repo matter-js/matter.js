@@ -92,9 +92,13 @@ export function parseFrontmatter(content: string): { frontmatter: MarkdownFrontm
 export function stripMarkdown(text: string): string {
     return (
         text
+            // Images: remove the alt text too, because it names the figure rather than describing it
+            .replace(/!\[[^\]]*\]\([^)]*\)\s*/g, "")
             // HTML anchor tags: <a id="..."></a> or <a id="...">text</a>
             .replace(/<a\s+[^>]*>\s*<\/a>/gi, "")
             .replace(/<a\s+[^>]*>([^<]*)<\/a>/gi, "$1")
+            // Bracketed reference links: [[MatterCore]](#ref_MatterCore)
+            .replace(/\[\[([^\]]*)\]\]\([^)]*\)/g, "$1")
             // Markdown links: [text](url)
             .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
             // Bold markers: **text** and __text__

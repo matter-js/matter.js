@@ -88,16 +88,28 @@ function validate({ fields, features }: ClusterStructure, { supports, record, er
     const manager = root.get(cluster);
 
     // Perform validation
+    let thrown: unknown;
+    let threw = false;
     try {
         manager.validate?.(record ?? {}, LocalActorContext.ReadOnly, { path: new DataModelPath(cluster.path) });
-        expect(error, `Expected ${error?.constructor.name} but none thrown`);
     } catch (e) {
-        if (!error || (e as any).constructor.name === "AssertionError") {
-            throw e;
-        }
-        expect(e).instanceof(error.type);
-        expect((e as Error).message).equals(`${error.message} (${new error.type("", {}).code})`);
+        thrown = e;
+        threw = true;
     }
+
+    if (!threw) {
+        if (error) {
+            expect.fail(`Expected ${error.type.name} but none thrown`);
+        }
+        return;
+    }
+
+    if (!error || (thrown as Error).constructor.name === "AssertionError") {
+        throw thrown;
+    }
+
+    expect(thrown).instanceof(error.type);
+    expect((thrown as Error).message).equals(`${error.message} (${new error.type("", {}).code})`);
 }
 
 export function testValidation(description: string, what: Tests | Test, structure: ClusterStructure = {}) {

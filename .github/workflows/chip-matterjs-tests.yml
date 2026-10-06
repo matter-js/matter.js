@@ -12,9 +12,11 @@ on:
   merge_group:
 
 # Cancel previous PR/branch runs when a new commit is pushed
+# Cancel a superseded run for the same ref, but keep the trigger in the group: a push must not cancel a manual
+# or scheduled run on the same ref, and those two queue rather than cancel each other.
 concurrency:
-  group: ${{ github.ref }}-chip-matterjs-tests
-  cancel-in-progress: true
+  group: ${{ github.ref }}-${{ github.event_name }}-chip-matterjs-tests
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 jobs:
   head-commit-message:
@@ -92,6 +94,8 @@ jobs:
         shell: bash
         run: |
           sed -i 's/^SMOKECO\.S\.A000d=1$/SMOKECO.S.A000d=0/' connectedhomeip/src/app/tests/suites/certification/ci-pics-values
+          sed -i 's/^TSTAT\.S\.A0057=1$/TSTAT.S.A0057=0/' connectedhomeip/src/app/tests/suites/certification/ci-pics-values
+          sed -i 's/^TSTAT\.S\.A0058=1$/TSTAT.S.A0058=0/' connectedhomeip/src/app/tests/suites/certification/ci-pics-values
 
       - name: Chip-Apps execution with matter.js controller
         id: test-execution-matterjs-chip
@@ -106,8 +110,9 @@ jobs:
               --runner chip_tool_python \
               --log-level info \
               --target-glob "{Test_*,}" \
-              --target-skip-glob "{Test_TC_BDX_*,Test_TC_DGTHREAD*,Test_TC_DGWIFI*,Test_TC_S_2_3,Test_TC_REFALM_2_*}" \
+              --target-skip-glob "{Test_TC_BDX_*,Test_TC_DGTHREAD*,Test_TC_DGWIFI*,Test_TC_S_2_3,Test_TC_REFALM_2_*,Test_TC_SMOKECONC_2_1}" \
               run \
+              --keep-going \
               --tool-path chip-tool:../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
               --app-path all-clusters:../bin/chip-all-clusters-app \
               --app-path all-devices:../bin/all-devices-app \

@@ -6,7 +6,7 @@
 
 import { Duration, InternalError, Seconds } from "@matter/main";
 import type {
-    CertStepContext,
+    CertStepWiring,
     CertStepDefinition,
     CheckRecord,
     PromptHandler,
@@ -84,7 +84,7 @@ const COMMISSION_TIMEOUT = Seconds(60);
 function manualPairingCodeHandler(state: { attempts: number }): PromptHandler {
     return {
         pattern: /Manual Pairing Code:.*\(chip-tool: pairing onnetwork \d+ \d+\)/,
-        async action(cx: CertStepContext, promptText: string) {
+        async action(cx: CertStepWiring, promptText: string) {
             const attempt = state.attempts++;
             const expectSuccess = attempt === 0;
             const passcode = extractPasscode(promptText);
@@ -281,11 +281,13 @@ describe("TC-SC-3.5", () => {
             timestamp: new Date().toISOString(),
             controller: "dut",
             controllerImplementation: resolveControllerImplementation(),
-            device: `python-wrapped:${DESCRIPTOR.path}`,
+            // The script spawns TH_SERVER itself, so the binary the run was pointed at is the only
+            // provenance the harness can state for it.
+            devices: [{ role: "th_server", app: appPath, flavor: "python-wrapped" }],
             matterJsCommit: "(not recorded)",
         });
 
-        const cx: CertStepContext = { controllers: { dut }, devices: {}, recorder };
+        const cx: CertStepWiring = { controllers: { dut }, devices: {}, recorder };
         const test = new PromptDrivenPythonTest(DESCRIPTOR, chip.container, [manualPairingCodeHandler(state)], cx);
 
         try {

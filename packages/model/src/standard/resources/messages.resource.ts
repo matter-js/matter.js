@@ -52,7 +52,7 @@ Resource.add({
         },
 
         {
-            tag: "attribute", name: "ActiveMessageIDs", xref: "cluster§1.16.6.2",
+            tag: "attribute", name: "ActiveMessageIds", xref: "cluster§1.16.6.2",
             details: "Indicates a list of the MessageIDs of the Messages currently being presented. If this list is empty, " +
                 "no messages are currently being presented." +
                 "\n" +
@@ -176,7 +176,7 @@ Resource.add({
             details: "This command will cancel the message IDs specified.",
 
             children: [{
-                tag: "field", name: "MessageIDs", xref: "cluster§1.16.7.2.1",
+                tag: "field", name: "MessageIds", xref: "cluster§1.16.7.2.1",
 
                 details: "This field shall indicate the MessageIDs for the messages being cancelled." +
                     "\n" +
@@ -191,7 +191,7 @@ Resource.add({
         {
             tag: "datatype", name: "MessageID", xref: "cluster§1.16.5.1",
             details: "This data type is an octstr of fixed length 16, containing the binary encoding of a UUID as " +
-                "specified in RFC 4122."
+                "specified in RFC4122."
         },
 
         {

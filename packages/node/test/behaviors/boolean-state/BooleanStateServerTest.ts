@@ -10,14 +10,14 @@ import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("BooleanStateServer", () => {
     it("enables the ChangeEvent feature by default", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const ep = await node.add(ContactSensorDevice, { booleanState: { stateValue: false } });
         // The StateChange event only exists when the ChangeEvent feature is enabled
         expect(ep.eventsOf(BooleanStateServer).stateChange).not.equals(undefined);
     });
 
     it("emits StateChange when stateValue changes", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const ep = await node.add(ContactSensorDevice, { booleanState: { stateValue: false } });
 
         const emitted = new Array<boolean>();

@@ -259,7 +259,7 @@ Resource.add({
                         "  - Success: Scanning succeeded." +
                         "\n" +
                         "  - NetworkNotFound: No instance of an explicitly-provided network identifier was found during the " +
-                        "    scan. This error cannot occur if no network identifier was provided, such as when scanning for " +
+                        "scan. This error cannot occur if no network identifier was provided, such as when scanning for " +
                         "all available networks." +
                         "\n" +
                         "  - OutOfRange: Network identifier was invalid (e.g. empty, too long, etc)." +
@@ -325,9 +325,6 @@ Resource.add({
                 "The Credentials associated with the network are not readable after execution of this command, as " +
                 "they do not appear in the Networks attribute, for security reasons." +
                 "\n" +
-                "If this command contains a ClientIdentifier, and the Networks list does not contain an entry with a " +
-                "matching ClientIdentifier, then this command shall fail with a status of NOT_FOUND." +
-                "\n" +
                 "See Section 11.9.7.5, \"Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork\" for " +
                 "behavior of addition/update.",
 
@@ -364,8 +361,10 @@ Resource.add({
                         "\n" +
                         "  - 8..63 bytes: WPA/WPA2/WPA3 passphrase" +
                         "\n" +
-                        "  - 64 bytes: WPA/WPA2/WPA3 raw hex PSK These lengths shall be contextually interpreted based on the " +
-                        "security type of the BSSID where connection will occur." +
+                        "  - 64 bytes: WPA/WPA2/WPA3 raw hex PSK" +
+                        "\n" +
+                        "These lengths shall be contextually interpreted based on the security type of the BSSID where " +
+                        "connection will occur." +
                         "\n" +
                         "When the length of Credentials and available set of BSSID admits more than one option, such as the " +
                         "presence of both WPA2 and WPA security type within the result set, WPA2 shall be considered more " +
@@ -657,18 +656,18 @@ Resource.add({
                         "\n" +
                         "  - ErrorValue interpretation for Wi-Fi association errors:" +
                         "\n" +
-                        "  - On any association failure during enabling of a network, the ErrorValue field shall be set to " +
+                        "    - On any association failure during enabling of a network, the ErrorValue field shall be set to " +
                         "the Status Code value that was present in the last frame related to association where Status " +
-                        "Code was not equal to zero and which caused the failure of a final retry attempt, if this final " +
-                        "failure was due to one of the following Management frames:" +
+                        "Code was not equal to zero and which caused the failure of a final retry attempt, if this " +
+                        "final failure was due to one of the following Management frames:" +
                         "\n" +
-                        "  - Association Response (Type 0, Subtype 1)" +
+                        "      - Association Response (Type 0, Subtype 1)" +
                         "\n" +
-                        "  - Reassociation Response (Type 0, Subtype 3)" +
+                        "      - Reassociation Response (Type 0, Subtype 3)" +
                         "\n" +
-                        "  - Authentication (Type 0, Subtype 11)" +
+                        "      - Authentication (Type 0, Subtype 11)" +
                         "\n" +
-                        "  - Table 9-50 \"Status Codes\" in IEEE 802.11-2020 contains a description of all values possible, " +
+                        "    - Table 9-50 \"Status Codes\" in IEEE 802.11-2020 contains a description of all values possible, " +
                         "which can unambiguously be used to determine the cause, such as an invalid security type, " +
                         "unsupported rate, etc." +
                         "\n" +

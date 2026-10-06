@@ -5,6 +5,7 @@
  */
 
 import { InternalError, Millis, Seconds } from "@matter/main";
+import { ImplementationError } from "@matter/main";
 import type {
     CertDevice,
     CertNodeApi,
@@ -20,6 +21,7 @@ import { env } from "node:process";
 import type { SubscribeAndModifyTimeouts } from "../cert/tc-idm-4.1-support.js";
 import { subscribeAndModify } from "../cert/tc-idm-4.1-support.js";
 import { CertCheckFailedError } from "../cert/tc-support.js";
+import { fakeCertNode } from "./fake-cert-node.js";
 
 const SUBSCRIPTION_ID = 0x2a;
 
@@ -94,18 +96,7 @@ class Fixture {
     ) {
         this.#log = new LogFollower(this.#source, "th");
 
-        const unused = () => Promise.reject(new InternalError("not used by these tests"));
-        const node: CertNodeApi = {
-            invoke: unused,
-            invokeBatch: unused,
-            readAttribute: unused,
-            readAttributes: unused,
-            writeAttributes: unused,
-            readEvents: unused,
-            subscribeEvents: unused,
-            openCommissioningWindow: unused,
-            operationalMdnsInstanceName: unused,
-            decommission: unused,
+        const node: CertNodeApi = fakeCertNode({
             subscribe: async (_path, opts) => {
                 this.#onUpdate = opts.onUpdate;
                 this.push(...subscribeRequestLines(PATH), ...subscribeResponseLines(SUBSCRIPTION_ID));
@@ -123,7 +114,7 @@ class Fixture {
             writeAttribute: async (_path, value) => {
                 this.onWrite(this, this.#writes++, value);
             },
-        };
+        });
 
         const device: CertDevice = {
             ...stubSubject(),
@@ -146,12 +137,18 @@ class Fixture {
             async parseManualPairingCode(): Promise<never> {
                 throw new InternalError("not used in this test");
             },
+            group: (): never => {
+                throw new InternalError("not used by these tests");
+            },
             node: () => node,
         };
 
         this.cx = {
             devices: { th: device },
             controllers: { dut: controller },
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
             recorder: {
                 beginStep: () => {},
                 check: record => void this.checks.push(record),
@@ -215,7 +212,7 @@ class Fixture {
         this.#onUpdate?.(value);
     }
 
-    run(values: boolean[] = VALUES, timeouts: SubscribeAndModifyTimeouts = TIMEOUTS): Promise<void> {
+    run(values: unknown[] = VALUES, timeouts: SubscribeAndModifyTimeouts = TIMEOUTS): Promise<void> {
         return subscribeAndModify(this.cx, "ref", 3, PATH, values, timeouts);
     }
 
@@ -242,6 +239,23 @@ async function withFixture(fixture: Fixture, body: (fixture: Fixture) => Promise
 }
 
 describe("subscribeAndModify", () => {
+    it("refuses values a write would not change, which report nothing and would time out unexplained", async () => {
+        await withFixture(new Fixture("chip-local", () => {}), async fixture => {
+            await expect(fixture.run([true, true])).rejectedWith(ImplementationError);
+        });
+    });
+
+    it("refuses structurally equal values, which is what decides whether the attribute changed", async () => {
+        // Separately allocated and carrying a bigint: reference equality would let this through, and
+        // rendering the offending value with JSON.stringify would throw instead of naming it
+        await withFixture(new Fixture("chip-local", () => {}), async fixture => {
+            await expect(fixture.run([{ nodes: [1n, 2n] }, { nodes: [1n, 2n] }])).rejectedWith(
+                ImplementationError,
+                /repeats at index 1/,
+            );
+        });
+    });
+
     it("completes when each write is reported twice and other subscriptions report alongside", async () => {
         const fixture = new Fixture("chip-local", (f, _index, value) => {
             // The sibling report ahead of ours carries no ack of its own: a wait that anchored on

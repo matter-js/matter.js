@@ -42,9 +42,10 @@ export interface ClientRequest {
     /**
      * Override the wait applied to a one-shot interaction with an idle LIT (Long Idle Time) ICD peer.
      *
-     * A LIT peer is asleep most of the time, so matter.js holds the operation until the peer wakes (a Check-In re-arms
-     * the awake window) before transmitting. The default wait is the peer's idle window plus margin; set this to bound
-     * it per-call. On expiry the operation rejects with `IcdPeerAsleepError`. Ignored for non-LIT peers.
+     * A LIT peer is asleep most of the time, so matter.js holds the operation until the peer wakes (a Check-In or any
+     * other message from the peer re-arms the awake window) before transmitting. By default it waits until the peer's
+     * next Check-In is due, and at least the longest the peer may idle; set this to bound it per-call. On
+     * expiry the operation rejects with `IcdPeerAsleepError`. Ignored for non-LIT peers.
      */
     icdAwaitTimeout?: Duration;
 
@@ -60,4 +61,23 @@ export interface ClientRequest {
      * already in flight may still be acted on by the peer.
      */
     abort?: AbortSignal;
+
+    /**
+     * Require a session that permits payloads larger than the IPv6 MTU.
+     *
+     * Such a session runs over TCP, so this is a hard transport requirement rather than a preference:
+     * the interaction establishes a TCP-backed session or fails, and never falls back to MRP the way
+     * a peer's transport preference does. A peer that negotiates TCP and then denies supporting it
+     * fails with `TcpUnsupportedError`; one that simply cannot be reached over TCP fails however that
+     * connection attempt fails. Use it when the interaction's request or its response may exceed what
+     * MRP can carry — a command with Large Message Quality, or a read broad enough that the peer's
+     * report would otherwise be chunked.
+     *
+     * The requirement reaches only an exchange provider that resolves a session per interaction. One
+     * bound to a fixed session — `DedicatedChannelExchangeProvider`, which commissioning and the
+     * deprecated `InteractionClient` use — sends on the session it holds, whatever its transport.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.15
+     */
+    largeMessage?: boolean;
 }

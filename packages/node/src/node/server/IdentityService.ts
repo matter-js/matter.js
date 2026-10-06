@@ -19,7 +19,6 @@ export class IdentityConflictError extends ImplementationError {}
  * Provides NodeServer and Endpoint identification.
  */
 export class IdentityService {
-    #partsById?: Record<string, Endpoint | undefined>;
     #node: Endpoint;
     #reservedPeerAddresses = new Set<PeerAddress>();
 
@@ -42,10 +41,7 @@ export class IdentityService {
         if (this.#node.lifecycle.hasNumber && this.#node.number === number) {
             other = this.#node;
         } else {
-            if (this.#partsById === undefined) {
-                this.#partsById = this.#node.agentFor(LocalActorContext.ReadOnly).get(IndexBehavior).partsById;
-            }
-            other = this.#partsById?.[number];
+            other = this.#node.agentFor(LocalActorContext.ReadOnly).get(IndexBehavior).partsById[number];
         }
         if (other && other !== endpoint) {
             let owner;
@@ -56,6 +52,15 @@ export class IdentityService {
             }
             throw new IdentityConflictError(`Endpoint number ${number} is already assigned to ${owner}`);
         }
+    }
+
+    /**
+     * Release every address {@link reservePeerAddress} holds.
+     *
+     * A factory reset discards the fabrics those addresses belong to, and the service outlives the reset.
+     */
+    releaseReservedPeerAddresses() {
+        this.#reservedPeerAddresses.clear();
     }
 
     /**

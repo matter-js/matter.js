@@ -6,12 +6,15 @@
 
 // Side-effect imports — each module's top-level registerDeviceType() call runs.
 // Adding a future device type is a one-line edit here plus a new file.
+import "./AirQualitySensorEndpoint.js";
 import "./ChimeEndpoint.js";
+import "./ColorTemperatureLightEndpoint.js";
 import "./ContactSensorEndpoint.js";
 import "./CooktopEndpoint.js";
 import "./DimmableLightEndpoint.js";
 import "./DimmablePlugInUnitEndpoint.js";
 import "./DishwasherEndpoint.js";
+import "./ExtendedColorLightEndpoint.js";
 import "./ExtractorHoodEndpoint.js";
 import "./FlowSensorEndpoint.js";
 import "./GenericSwitchEndpoint.js";

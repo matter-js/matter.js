@@ -11,6 +11,7 @@ import {
     Crypto,
     Diagnostic,
     Duration,
+    Entropy,
     InternalError,
     Lifetime,
     Logger,
@@ -25,8 +26,10 @@ import {
     DataReport,
     DataReportPayloadIterator,
     ExchangeManager,
+    GroupSession,
     InteractionRecipient,
     InteractionServerMessenger,
+    Invoke,
     InvokeRequest,
     InvokeResponseForSend,
     InvokeResult,
@@ -41,6 +44,7 @@ import {
     Session,
     SessionManager,
     SessionType,
+    Subject,
     SubscribeRequest,
     Subscription,
     TimedRequest,
@@ -52,6 +56,8 @@ import {
     AttributeData,
     AttributePath,
     DEFAULT_MAX_PATHS_PER_INVOKE,
+    DelayReportData,
+    EndpointNumber,
     EventPath,
     GroupId,
     INTERACTION_PROTOCOL_ID,
@@ -291,16 +297,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         };
     }
 
-    #checkSenderRevision(interactionModelRevision: number | undefined) {
-        if (interactionModelRevision === undefined) {
-            logger.debug("Sender omitted interaction model revision");
-        } else if (interactionModelRevision > Specification.INTERACTION_MODEL_REVISION) {
-            logger.debug(
-                `Interaction model revision of sender ${interactionModelRevision} is higher than supported ${Specification.INTERACTION_MODEL_REVISION}`,
-            );
-        }
-    }
-
     /**
      * Returns an iterator that yields the data reports and events data for the given read request.
      */
@@ -319,14 +315,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         readRequest: ReadRequest,
         message: Message,
     ): Promise<{ dataReport: DataReport; payload?: DataReportPayloadIterator }> {
-        const {
-            attributeRequests,
-            eventRequests,
-            isFabricFiltered,
-            dataVersionFilters,
-            eventFilters,
-            interactionModelRevision,
-        } = readRequest;
+        const { attributeRequests, eventRequests, isFabricFiltered, dataVersionFilters, eventFilters } = readRequest;
 
         logger.debug(() => [
             "Read",
@@ -343,7 +332,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
         ]);
 
-        this.#checkSenderRevision(interactionModelRevision);
         if (attributeRequests === undefined && eventRequests === undefined) {
             return {
                 dataReport: {
@@ -386,7 +374,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         message: Message,
     ): Promise<void> {
         let { suppressResponse, writeRequests, moreChunkedMessages } = writeRequest;
-        const { timedRequest, interactionModelRevision } = writeRequest;
+        const { timedRequest } = writeRequest;
         const sessionType = message.packetHeader.sessionType;
 
         logger.info(() => [
@@ -403,8 +391,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 Status.InvalidAction,
             );
         }
-
-        this.#checkSenderRevision(interactionModelRevision);
 
         const receivedWithinTimedInteraction = exchange.hasActiveTimedInteraction();
 
@@ -576,7 +562,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             eventFilters,
             keepSubscriptions,
             isFabricFiltered,
-            interactionModelRevision,
         } = request;
 
         logger.info(() => [
@@ -589,8 +574,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 eventPaths: eventRequests?.length,
             }),
         ]);
-
-        this.#checkSenderRevision(interactionModelRevision);
 
         if (message.packetHeader.sessionType !== SessionType.Unicast) {
             throw new StatusResponseError("Subscriptions are only allowed on unicast sessions", Status.InvalidAction);
@@ -900,19 +883,51 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         return subscription;
     }
 
+    static #formatDelayReportData(delayReportData?: DelayReportData) {
+        if (delayReportData === undefined) {
+            return undefined;
+        }
+        const { delayMinMs, delayJitterWindowMs } = delayReportData;
+        return `${Duration.format(Millis(delayMinMs))}/${Duration.format(Millis(delayJitterWindowMs))}`;
+    }
+
+    /**
+     * Hold off the next report of every subscription, on any session, that selects one of the endpoints an invoke
+     * dispatches to.  The delay is {@link DelayReportData.delayMinMs} plus a random jitter below
+     * {@link DelayReportData.delayJitterWindowMs}.
+     */
+    #deferReports({ delayMinMs, delayJitterWindowMs }: DelayReportData, endpoints: ReadonlySet<EndpointNumber>) {
+        if (endpoints.size === 0) {
+            return;
+        }
+
+        const jitter = delayJitterWindowMs > 0 ? this.#node.env.get(Entropy).randomUint32 % delayJitterWindowMs : 0;
+        const delay = Millis(delayMinMs + jitter);
+
+        for (const session of this.#context.sessions.sessions) {
+            for (const subscription of session.subscriptions) {
+                if (subscription instanceof ServerSubscription && subscription.selectsAnyEndpoint(endpoints)) {
+                    subscription.deferReports(delay);
+                }
+            }
+        }
+    }
+
     async handleInvokeRequest(
         exchange: MessageExchange,
         request: InvokeRequest,
         messenger: InteractionServerMessenger,
         message: Message,
     ): Promise<void> {
-        const { invokeRequests, timedRequest, suppressResponse, interactionModelRevision } = request;
+        const { invokeRequests, timedRequest, suppressResponse, delayReportData } = request;
         logger.info(() => [
             "Invoke",
             Mark.INBOUND,
             exchange.via,
             Diagnostic.asFlags({ suppressResponse, timedRequest }),
             Diagnostic.dict({
+                group: message.packetHeader.destGroupId,
+                delayReport: InteractionServer.#formatDelayReportData(delayReportData),
                 invokes: invokeRequests
                     .map(({ commandPath: { endpointId, clusterId, commandId } }) =>
                         this.#node.protocol.inspectPath({ endpointId, clusterId, commandId }),
@@ -920,8 +935,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                     .join(", "),
             }),
         ]);
-
-        this.#checkSenderRevision(interactionModelRevision);
 
         const receivedWithinTimedInteraction = exchange.hasActiveTimedInteraction();
         if (exchange.hasExpiredTimedInteraction()) {
@@ -958,48 +971,79 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
 
         const isGroupSession = message.packetHeader.sessionType === SessionType.Group;
 
+        const invoke: Invoke =
+            delayReportData !== undefined && Specification.isForwardFeatureEnabled("delay-report-data")
+                ? { ...request, beforeDispatch: endpoints => this.#deferReports(delayReportData, endpoints) }
+                : request;
+
         // Get the invoke-results from the server interaction
-        const results = this.#serverInteraction.invoke(request, context);
+        const results = this.#serverInteraction.invoke(invoke, context);
 
         // For group sessions: consume iterator, report each dispatched command to SessionManager so
         // Groupcast testing (if enabled for the fabric) can emit the GroupcastTesting event
         if (isGroupSession) {
             const rawGroupId = message.packetHeader.destGroupId;
             const groupId = rawGroupId !== undefined ? GroupId(rawGroupId) : undefined;
-            const fabric = exchange.session.associatedFabric;
+            const session = exchange.session;
+            const fabric = session.associatedFabric;
+            // The destination is left to the listener, which derives it from the message's group id: one session
+            // serves every group that shares its key set
+            const sourceIp = message.receivedFrom;
+            const groupSession = GroupSession.is(session) ? session : undefined;
+            // The event's ClusterID/ElementID reflect the request; cmd-response paths carry the response command id
+            const requestPath = invokeRequests[0]?.commandPath;
             let emitted = false;
             for await (const chunk of results) {
                 for (const data of chunk) {
                     if (data.kind !== "cmd-response" && data.kind !== "cmd-status") {
                         continue;
                     }
-                    const accessAllowed = data.kind === "cmd-response" || data.status === Status.Success;
+                    // Emitted => access allowed (denied paths are dropped, see below); AccessAllowed is the
+                    // access-control outcome, not command success (Groupcast spec §11.27.7.6.3).
                     this.#context.sessions.emitGroupMessage({
                         result: Groupcast.GroupcastTestResult.Success,
                         fabric,
                         groupId,
+                        sourceIp,
                         endpointId: data.path.endpointId,
-                        clusterId: data.path.clusterId,
-                        elementId: data.path.commandId,
-                        accessAllowed,
+                        clusterId: requestPath?.clusterId ?? data.path.clusterId,
+                        elementId: requestPath?.commandId ?? data.path.commandId,
+                        accessAllowed: true,
                     });
                     emitted = true;
                 }
             }
-            // If wildcard expansion produced no dispatches (all paths filtered out by ACL or no
-            // endpoint mappings for the group), still emit one event per requested invoke path so
-            // observers see the message arrived. FailedAuth + accessAllowed=false signals denial.
             if (!emitted) {
-                for (const { commandPath } of invokeRequests) {
+                const subject = groupSession?.subjectFor(message);
+                if (subject !== undefined && Subject.isGroup(subject) && !subject.hasValidMapping) {
+                    // The authenticating key is not the one mapped for the group: improperly authenticated per
+                    // core§11.27.7.6.3, reported without the unauthenticated group id
                     this.#context.sessions.emitGroupMessage({
                         result: Groupcast.GroupcastTestResult.FailedAuth,
                         fabric,
-                        groupId,
-                        endpointId: commandPath.endpointId,
-                        clusterId: commandPath.clusterId,
-                        elementId: commandPath.commandId,
-                        accessAllowed: false,
+                        sourceIp,
                     });
+                } else {
+                    // Wildcard expansion produced no dispatches.  Still emit one event per requested invoke path so
+                    // observers see the message arrived: the message was authenticated and processed, so per
+                    // core§11.27.7.6.3 the result is Success.  When the group has receiving endpoints the expansion
+                    // was filtered by access control (AccessAllowed=false); without endpoints no access evaluation
+                    // took place and the field is omitted.
+                    const memberEndpoints = groupId !== undefined ? fabric.groups.endpoints.get(groupId) : undefined;
+                    const accessAllowed =
+                        memberEndpoints !== undefined && memberEndpoints.length > 0 ? false : undefined;
+                    for (const { commandPath } of invokeRequests) {
+                        this.#context.sessions.emitGroupMessage({
+                            result: Groupcast.GroupcastTestResult.Success,
+                            fabric,
+                            groupId,
+                            sourceIp,
+                            endpointId: commandPath.endpointId,
+                            clusterId: commandPath.clusterId,
+                            elementId: commandPath.commandId,
+                            accessAllowed,
+                        });
+                    }
                 }
             }
             return;
@@ -1116,7 +1160,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         }
     }
 
-    handleTimedRequest(exchange: MessageExchange, { timeout, interactionModelRevision }: TimedRequest) {
+    handleTimedRequest(exchange: MessageExchange, { timeout }: TimedRequest) {
         const interval = Millis(timeout);
 
         logger.debug(() => [
@@ -1127,8 +1171,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 interval: Duration.format(interval),
             }),
         ]);
-
-        this.#checkSenderRevision(interactionModelRevision);
 
         exchange.startTimedInteraction(interval);
     }

@@ -126,6 +126,39 @@ describe("DatasourceCache error handling", () => {
             expect(flushed).deep.equals(new Set(["__version__"]));
             expect(localWriter.persisted).deep.equals([{ __version__: 5 }]);
         });
+
+        // The cache marks dirty the keys its caller supplies and asks the consumer for those same keys at flush.  A
+        // consumer that stores a value under a different key than it was given leaves nothing to persist
+        it("persists a value the consumer stores under the key it was given", async () => {
+            const localWriter = trackingWriter();
+            const buffer = { markDirty: () => {}, removeDirty: () => {} } as any;
+            const cache = createCache({ buffer, localWriter });
+
+            const stored = {} as Val.Struct;
+            cache.consumer = {
+                readValues: (keys: Set<string>) => {
+                    const result = {} as Val.Struct;
+                    for (const key of keys) {
+                        if (key in stored) {
+                            result[key] = stored[key];
+                        }
+                    }
+                    return result;
+                },
+                snapshot: () => ({ ...stored }),
+                releaseValues: () => ({ ...stored }),
+                integrateExternalChange: async values => {
+                    for (const [key, value] of values) {
+                        stored[String(key)] = value;
+                    }
+                },
+            } satisfies Datasource.ExternallyMutableStore.Consumer;
+
+            await cache.externalSet(attrs({ "1": 42 }));
+            await cache.flush();
+
+            expect(localWriter.persisted).deep.equals([{ "1": 42, __version__: -1 }]);
+        });
     });
 
     describe("restoreDirtyKeys", () => {

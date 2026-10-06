@@ -59,6 +59,10 @@ const DISJUNCT_FEATURES = CONJUNCT_FEATURES.replace(/&/g, "[|,]");
 // Comma "otherwise" list of feature terms, each term a single feature or a conjunction, e.g. "HA, OI, AUD" or
 // "HA, OI, AUD, OC & OI" (separator is ", ", not " , ").  Requires 2+ terms.
 const COMMA_OTHERWISE = `(${FEATURE_NAME}(?: & ${FEATURE_NAME})*(?:, ${FEATURE_NAME}(?: & ${FEATURE_NAME})*)+)`;
+// Pipe "otherwise" list, each term a single feature or a (possibly parenthesized) conjunction, e.g.
+// "HA | OI | AUD | (OC & OI)".  Requires 2+ terms.
+const OTHERWISE_TERM = `(?:\\(${FEATURE_NAME}(?: & ${FEATURE_NAME})*\\)|${FEATURE_NAME}(?: & ${FEATURE_NAME})*)`;
+const PIPE_OTHERWISE = `(${OTHERWISE_TERM}(?: \\| ${OTHERWISE_TERM})+)`;
 const CHOICE = "\\.[a-z][0-9-]*[+\\-]?";
 const FIELD = "[A-Z][A-Za-z_$]*[a-z][A-Za-z_$]*";
 const CONJUNCT_FIELDS = `(${FIELD}(?: & ${FIELD})*)`;
@@ -72,6 +76,27 @@ function splitConjunction(conjunction: string) {
 
 function splitDisjunction(disjunction: string) {
     return disjunction.split(" | ");
+}
+
+// Adds one anyOf component for the single-feature terms of an "otherwise" list, plus one allOf component per
+// conjunction term
+function addOtherwiseList(
+    add: (optional?: boolean, condition?: VarianceCondition) => void,
+    list: string,
+    separator: string,
+) {
+    const terms = list.split(separator).map(t => t.replace(/^\(([^()]*)\)$/, "$1").split(" & "));
+    const singles = terms.filter(t => t.length === 1).map(t => t[0]);
+    if (singles.length === 1) {
+        add(false, { allOf: singles });
+    } else if (singles.length > 1) {
+        add(false, { anyOf: singles });
+    }
+    for (const term of terms) {
+        if (term.length > 1) {
+            add(false, { allOf: term });
+        }
+    }
 }
 
 /**
@@ -120,6 +145,14 @@ const VarianceMatchers: VarianceMatcher[] = [
     // fieldName > num (optional, unconditional).  Ignores field expression
     {
         pattern: pattern(FIELD, " > ", "\\d+"),
+        processor(add) {
+            add(true);
+        },
+    },
+
+    // fieldName > num, O (optional, unconditional).  Ignores field expression
+    {
+        pattern: pattern(FIELD, " > ", "\\d+", ", ", "O"),
         processor(add) {
             add(true);
         },
@@ -297,23 +330,19 @@ const VarianceMatchers: VarianceMatcher[] = [
         },
     },
 
-    // FOO, BAR<, BAZ>*<, BIZ & BAZ>* (comma "otherwise" list — mandatory if any listed term is satisfied).
-    // Single-feature terms collapse into one anyOf component; conjunction terms each get their own component.
+    // FOO, BAR<, BAZ>*<, BIZ & BAZ>* (comma "otherwise" list — mandatory if any listed term is satisfied)
     {
         pattern: pattern(COMMA_OTHERWISE),
         processor(add, match) {
-            const terms = match[0].split(", ").map(t => t.split(" & "));
-            const singles = terms.filter(t => t.length === 1).map(t => t[0]);
-            if (singles.length === 1) {
-                add(false, { allOf: singles });
-            } else if (singles.length > 1) {
-                add(false, { anyOf: singles });
-            }
-            for (const term of terms) {
-                if (term.length > 1) {
-                    add(false, { allOf: term });
-                }
-            }
+            addOtherwiseList(add, match[0], ", ");
+        },
+    },
+
+    // FOO | BAR<| BAZ>*<| (BIZ & BAZ)>* (pipe "otherwise" list — mandatory if any listed term is satisfied)
+    {
+        pattern: pattern(PIPE_OTHERWISE),
+        processor(add, match) {
+            addOtherwiseList(add, match[0], " | ");
         },
     },
 
@@ -342,11 +371,11 @@ function addElement(components: InferredComponents, element: ValueModel) {
         return;
     }
 
-    let text = element.conformance.toString();
-
-    if (text === "X") {
+    if (element.conformance.isDisallowed) {
         return;
     }
+
+    let text = element.conformance.toString();
 
     // The intended conformance of a provisional element contributes its condition but may not make it mandatory
     let provisional = false;
@@ -361,7 +390,7 @@ function addElement(components: InferredComponents, element: ValueModel) {
         }
     }
 
-    if (text === "D") {
+    if (text === "D" || text === "Z") {
         text = "O";
     } else if (text === "M, D") {
         text = "M";

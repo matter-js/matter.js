@@ -8,9 +8,11 @@ import {
     AdministratorCommissioningClient,
     AdministratorCommissioningServer,
 } from "#behaviors/administrator-commissioning";
+import { BasicInformationClient } from "#behaviors/basic-information";
 import type { ClientNode } from "#node/ClientNode.js";
-import { Bytes, ImplementationError } from "@matter/general";
-import { QrPairingCodeCodec } from "@matter/types";
+import { Bytes, Crypto, ImplementationError, Seconds } from "@matter/general";
+import { PaseClient } from "@matter/protocol";
+import { ManualPairingCodeCodec, QrPairingCodeCodec } from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { MockServerNode } from "../../../node/mock-server-node.js";
 import { MockSite } from "../../../node/mock-site.js";
@@ -89,6 +91,41 @@ describe("CommissioningClient commissioning-window helpers", () => {
                 // decode it to confirm the command was invoked with the same generated discriminator we return.
                 const [decodedQrData] = QrPairingCodeCodec.decode(result.qrPairingCode);
                 expect(decodedQrData.discriminator).equals(request.discriminator);
+            } finally {
+                spy.restore();
+            }
+        });
+
+        it("returns the values it sent to the device and encoded in the pairing codes", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer = await subscribedPeer(controller, "peer1");
+
+            const spy = await spyOnOpenCommissioningWindow(peer);
+            try {
+                const result = await MockTime.resolve(peer.openEnhancedCommissioningWindow(Seconds(300.5)));
+
+                const [request] = spy.calls;
+                expect(result.discriminator).equals(request.discriminator);
+                expect(result.commissioningTimeout).equals(Seconds(request.commissioningTimeout));
+                expect(result.commissioningTimeout).equals(Seconds(300));
+
+                const verifier = await PaseClient.generatePakePasscodeVerifier(peer.env.get(Crypto), result.passcode, {
+                    iterations: request.iterations,
+                    salt: request.salt,
+                });
+                expect(Bytes.areEqual(verifier, request.pakePasscodeVerifier)).true;
+
+                const [decodedQrData] = QrPairingCodeCodec.decode(result.qrPairingCode);
+                expect(decodedQrData.passcode).equals(result.passcode);
+                expect(decodedQrData.discriminator).equals(result.discriminator);
+                expect(decodedQrData.vendorId).equals(result.vendorId);
+                expect(decodedQrData.productId).equals(result.productId);
+                expect(ManualPairingCodeCodec.decode(result.manualPairingCode).passcode).equals(result.passcode);
+
+                const { vendorId, productId } = peer.stateOf(BasicInformationClient);
+                expect(result.vendorId).equals(vendorId);
+                expect(result.productId).equals(productId);
             } finally {
                 spy.restore();
             }

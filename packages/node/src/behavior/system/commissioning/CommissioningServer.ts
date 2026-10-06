@@ -106,6 +106,9 @@ export class CommissioningServer extends Behavior {
 
         // Wait for cleanup to finish
         await this.internal.mutex;
+
+        // Lives as long as the behavior: initialize() does not install it again when the node restarts
+        this.env.delete(CommissioningConfigProvider);
     }
 
     handleFabricChange(fabricIndex: FabricIndex, fabricAction: CommissioningServer.FabricAction) {
@@ -135,21 +138,7 @@ export class CommissioningServer extends Behavior {
             }
         }
 
-        const commissioned = !!this.env.get(FabricManager).fabrics.length;
-
-        let doFactoryReset = false;
-        if (commissioned !== this.state.commissioned) {
-            this.state.commissioned = commissioned;
-            if (commissioned) {
-                this.events.commissioned.emit(this.context);
-                (this.endpoint.lifecycle as NodeLifecycle).commissioned.emit(this.context);
-            } else {
-                this.events.decommissioned.emit(this.context);
-                (this.endpoint.lifecycle as NodeLifecycle).decommissioned.emit(this.context);
-
-                doFactoryReset = true;
-            }
-        }
+        const doFactoryReset = this.#syncCommissioned();
 
         this.events.fabricsChanged.emit(fabricIndex, fabricAction);
 
@@ -162,6 +151,30 @@ export class CommissioningServer extends Behavior {
                 this.#triggerFactoryReset();
             }
         }
+    }
+
+    /**
+     * Brings the commissioned state in line with the fabrics the node holds, emitting the transition.
+     *
+     * @returns whether the node just lost its last fabric and must be reset.
+     */
+    #syncCommissioned() {
+        const commissioned = !!this.env.get(FabricManager).fabrics.length;
+        if (commissioned === this.state.commissioned) {
+            return false;
+        }
+
+        this.state.commissioned = commissioned;
+        const lifecycle = this.endpoint.lifecycle as NodeLifecycle;
+        if (commissioned) {
+            this.events.commissioned.emit(this.context);
+            lifecycle.commissioned.emit(this.context);
+            return false;
+        }
+
+        this.events.decommissioned.emit(this.context);
+        lifecycle.decommissioned.emit(this.context);
+        return true;
     }
 
     #resetAfterSessionsClear() {
@@ -201,10 +214,18 @@ export class CommissioningServer extends Behavior {
     }
 
     async #enterOnlineMode() {
-        this.reactTo(this.env.get(FabricManager).events.added, this.enterOperationalMode);
+        const fabrics = this.env.get(FabricManager);
+        this.reactTo(fabrics.events.added, this.enterOperationalMode);
+
+        // A fabric added after initialization but before the node went online (a controller creating its own before
+        // start) is not seen by the reactor above, which only exists from here on
+        const lifecycle = this.endpoint.lifecycle as NodeLifecycle;
+        if (!lifecycle.isCommissioned && fabrics.length) {
+            this.#syncCommissioned();
+        }
 
         // If already commissioned, trigger operational announcement
-        if ((this.endpoint.lifecycle as NodeLifecycle).isCommissioned) {
+        if (lifecycle.isCommissioned) {
             // Restore subscriptions if we have some persisted
             await this.endpoint.act(agent => agent.get(SubscriptionsServer).reestablishFormerSubscriptions());
 
@@ -218,7 +239,7 @@ export class CommissioningServer extends Behavior {
         }
 
         // ...or if node is commissioned
-        if (this.env.get(FabricManager).fabrics.length) {
+        if (fabrics.length) {
             return;
         }
 
@@ -234,7 +255,6 @@ export class CommissioningServer extends Behavior {
     #enterOfflineMode() {
         this.internal.mutex.run(async () => {
             await this.env.close(DeviceCommissioner);
-            this.env.delete(CommissioningConfigProvider);
             this.internal.unregisterFailsafeListener?.();
             await this.env.close(FailsafeContext);
         });
@@ -245,6 +265,12 @@ export class CommissioningServer extends Behavior {
      *
      * The server normally invokes this method when the node starts and is not yet commissioned.  You can disable by
      * setting {@link CommissioningServer.State#enabled} to false.  Then you must invoke yourself.
+     *
+     * By default the window closes after 48 hours if the node is not commissioned and after 15 minutes if it is.
+     * Invoking this again restarts the window.  A window an Administrator opens by command replaces this one; while
+     * such a window is open this throws {@link MatterFlowError}.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 5.4.2.3
      */
     async enterCommissionableMode() {
         if (!this.#hasAdvertisableDeviceType) {

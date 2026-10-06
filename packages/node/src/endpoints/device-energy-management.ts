@@ -28,7 +28,7 @@ import { Identity } from "@matter/general";
  * default because you must select the features your device supports. You can add manually using
  * DeviceEnergyManagementEndpoint.with().
  *
- * @see {@link MatterSpecification.v16.Device} § 2.7
+ * @see {@link MatterSpecification.v161.Device} § 2.7
  */
 export interface DeviceEnergyManagementEndpoint extends Identity<typeof DeviceEnergyManagementEndpointDefinition> {}
 
@@ -65,7 +65,7 @@ export namespace DeviceEnergyManagementRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { ElectricalGridConditions: ElectricalGridConditionsClient }, mandatory: {} };
+    export const client = { optional: { ElectricalGridConditions: ElectricalGridConditionsClient } };
 }
 
 export const DeviceEnergyManagementEndpointDefinition = MutableEndpoint({

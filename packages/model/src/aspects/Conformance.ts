@@ -5,17 +5,13 @@
  */
 
 import { type Model } from "#models/Model.js";
-import { type ValueModel } from "#models/ValueModel.js";
-import { asError, camelize, InternalError } from "@matter/general";
-import { FeatureSet, FieldValue, Metatype } from "../common/index.js";
+import { asError, InternalError } from "@matter/general";
+import { FeatureSet, FieldValue } from "../common/index.js";
 import { BasicToken, Lexer, TokenStream } from "../parser/index.js";
 import { Aspect } from "./Aspect.js";
 
 /**
  * An operational view of conformance as defined by the Matter Specification.
- *
- * We extend the specification's syntax to add ">", "<", ">=" and "<=".  These are required to encode some portions of
- * the specification that are described in prose.
  *
  * "Conformance" controls when a data field or cluster element is allowed or required.
  */
@@ -55,6 +51,10 @@ export class Conformance extends Aspect<Conformance.Definition> {
         }
 
         this.isEmpty = this.type === Conformance.Special.Empty;
+
+        if (this.type !== Conformance.Flag.Obsolete && containsObsolete(this.ast)) {
+            this.error("INVALID_OBSOLETE", 'Obsolete conformance "Z" must stand alone');
+        }
 
         this.freeze();
     }
@@ -100,10 +100,42 @@ export class Conformance extends Aspect<Conformance.Definition> {
     }
 
     /**
+     * Is the associated element provisional?
+     *
+     * A provisional element reads as optional so an application can exercise it and still certify, so this is the only
+     * way to tell "the specification says this is optional" from "the specification has not finished it yet".
+     *
+     * @see {@link MatterSpecification.v161.Core} § 7.3.5
+     */
+    get isProvisional() {
+        const conformance = this.ast;
+        if (conformance.type === Conformance.Flag.Provisional) {
+            return true;
+        }
+        if (conformance.type === Conformance.Special.Otherwise) {
+            // The whole list: a provisional term states the element is unfinished wherever it appears
+            return conformance.param.some(c => c.type === Conformance.Flag.Provisional);
+        }
+        return false;
+    }
+
+    /**
      * Is the associated element disallowed?
      */
     get isDisallowed() {
         return this.ast.type === Conformance.Flag.Disallowed;
+    }
+
+    /**
+     * Is the associated element obsolete?
+     *
+     * An obsolete element stays in the model with its ID and name.  A server may not implement it and rejects values
+     * for it as it does for a disallowed element; a client may still send it and decode it, as it may a deprecated one.
+     *
+     * @see Matter Core Specification 1.7 § 14.3.9
+     */
+    get isObsolete() {
+        return this.ast.type === Conformance.Flag.Obsolete;
     }
 
     /**
@@ -113,8 +145,11 @@ export class Conformance extends Aspect<Conformance.Definition> {
      * This is useful for filtering elements at compile time.  For complete accuracy you then need to filter at runtime
      * once field values are known.
      */
-    applicabilityFor({ definedFeatures: features, supportedFeatures }: Conformance.FeatureContext) {
-        return computeApplicability(features, supportedFeatures, this);
+    applicabilityFor(
+        { definedFeatures: features, supportedFeatures }: Conformance.FeatureContext,
+        options?: Conformance.ApplicabilityOptions,
+    ) {
+        return computeApplicability(features, supportedFeatures, this, options);
     }
 
     override toString() {
@@ -133,10 +168,31 @@ export namespace Conformance {
         supportedFeatures: Set<string>;
     }
 
+    export interface ApplicabilityOptions {
+        /**
+         * Treat a deprecated ("D") or obsolete ("Z") element as optional instead of disallowed.
+         *
+         * A device may still implement such an element because earlier revisions allowed it.  A client judging the
+         * elements a device reports sets this; a server, which does not offer them, does not.  A list ending in ", D" is
+         * decided by the terms before the "D" either way.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 7.3.8
+         * @see Matter Core Specification 1.7 § 14.3.9
+         */
+        deprecatedIsOptional?: boolean;
+    }
+
     export enum Applicability {
+        /** The element may not appear */
         None = 0,
+
+        /** The implementation decides whether the element appears */
         Optional = 1,
+
+        /** Features alone do not decide; the record's own contents or the revision do */
         Conditional = 2,
+
+        /** The element must appear */
         Mandatory = 3,
     }
 
@@ -235,6 +291,7 @@ export namespace Conformance {
         Provisional = "P",
         Deprecated = "D",
         Disallowed = "X",
+        Obsolete = "Z",
     }
 
     export enum Operator {
@@ -256,6 +313,7 @@ export namespace Conformance {
     export const P = Flag.Provisional;
     export const D = Flag.Deprecated;
     export const X = Flag.Disallowed;
+    export const Z = Flag.Obsolete;
     export const EQ = Operator.EQ;
     export const NE = Operator.NE;
     export const OR = Operator.OR;
@@ -340,19 +398,16 @@ export namespace Conformance {
                 validateReferences(conformance, ast.param.lhs, errorTarget, resolver);
 
                 // Special case for comparison operators -- if LHS references an enum (or a field whose type is an enum),
-                // RHS may reference enum values using unqualified names.  Also handle boolean literals (True/False)
+                // RHS may reference enum values using unqualified names
                 let operatorResolver = resolver;
                 if (ast.param.lhs.type === "name") {
-                    const referenced = resolver(ast.param.lhs.param) as ValueModel | undefined;
-                    if (referenced?.effectiveMetatype === Metatype.enum) {
-                        // Find the actual enum definition with children (may be the referenced model itself,
-                        // or its defining type for fields typed as enums)
-                        const enumDef = referenced.definingModel ?? referenced;
+                    const referenced = resolver(ast.param.lhs.param);
+                    if (referenced !== undefined) {
                         operatorResolver = (name: string | string[]) => {
                             if (typeof name === "string") {
-                                const enumValue = enumDef.member(name) ?? enumDef.member(camelize(name, true));
+                                const enumValue = referenced.memberNamed(name);
                                 if (enumValue) {
-                                    return enumValue as ValueModel;
+                                    return enumValue;
                                 }
                             }
                             return resolver(name);
@@ -371,6 +426,14 @@ export namespace Conformance {
                 for (const a of ast.param) {
                     validateReferences(conformance, a, errorTarget, resolver);
                 }
+                break;
+
+            case Special.OptionalIf:
+                validateReferences(conformance, ast.param, errorTarget, resolver);
+                break;
+
+            case Special.Choice:
+                validateReferences(conformance, ast.param.expr, errorTarget, resolver);
                 break;
 
             case Operator.DOT: {
@@ -793,6 +856,51 @@ export function collectDotSegments(ast: Conformance.Ast): string[] | undefined {
     return undefined;
 }
 
+function containsObsolete(ast: Conformance.Ast): boolean {
+    switch (ast.type) {
+        case Conformance.Flag.Obsolete:
+            return true;
+
+        case Conformance.Operator.DOT:
+        case Conformance.Operator.OR:
+        case Conformance.Operator.XOR:
+        case Conformance.Operator.AND:
+        case Conformance.Operator.EQ:
+        case Conformance.Operator.NE:
+        case Conformance.Operator.GT:
+        case Conformance.Operator.LT:
+        case Conformance.Operator.GTE:
+        case Conformance.Operator.LTE:
+            return containsObsolete(ast.param.lhs) || containsObsolete(ast.param.rhs);
+
+        case Conformance.Operator.NOT:
+        case Conformance.Special.OptionalIf:
+            return containsObsolete(ast.param);
+
+        case Conformance.Special.Choice:
+            return containsObsolete(ast.param.expr);
+
+        case Conformance.Special.Otherwise:
+            return ast.param.some(containsObsolete);
+
+        case Conformance.Special.Empty:
+        case Conformance.Special.Desc:
+        case Conformance.Special.Name:
+        case Conformance.Special.Value:
+        case Conformance.Special.Revision:
+        case Conformance.Flag.Mandatory:
+        case Conformance.Flag.Optional:
+        case Conformance.Flag.Provisional:
+        case Conformance.Flag.Deprecated:
+        case Conformance.Flag.Disallowed:
+            return false;
+
+        default:
+            ast satisfies never;
+            return false;
+    }
+}
+
 namespace Parser {
     // Highest precedence first
     export const BinaryOperatorPrecedence = [[">", "<", ">=", "<="], ["==", "!="], ["&"], ["|", "^"]];
@@ -802,7 +910,12 @@ namespace Parser {
 
 const operators = new Set<string>(Object.values(Conformance.Operator));
 
-function computeApplicability(features: Set<string>, supportedFeatures: Set<string>, conformance: Conformance) {
+function computeApplicability(
+    features: Set<string>,
+    supportedFeatures: Set<string>,
+    conformance: Conformance,
+    options?: Conformance.ApplicabilityOptions,
+) {
     const { None, Optional, Conditional, Mandatory } = Conformance.Applicability;
 
     // Handle otherwise lists (must be at top level)
@@ -818,6 +931,11 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
         for (const node of ast.param) {
             if (node.type === Conformance.Flag.Provisional) {
                 provisional = true;
+                continue;
+            }
+
+            // A trailing "D" announces a future deprecation; the terms before it decide
+            if (node.type === Conformance.Flag.Deprecated && node === ast.param[ast.param.length - 1]) {
                 continue;
             }
 
@@ -862,8 +980,11 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
                 return applicability;
 
             case Conformance.Flag.Disallowed:
-            case Conformance.Flag.Deprecated:
                 return None;
+
+            case Conformance.Flag.Deprecated:
+            case Conformance.Flag.Obsolete:
+                return options?.deprecatedIsOptional ? Optional : None;
 
             case Conformance.Flag.Provisional:
                 return Optional;
@@ -934,7 +1055,9 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
 
             default:
                 if (operators.has(ast.type)) {
-                    return Optional;
+                    // A comparison names a value this computation does not have, so its applicability is decidable
+                    // only once the record is known
+                    return Conditional;
                 }
         }
 

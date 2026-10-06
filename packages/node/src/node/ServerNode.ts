@@ -13,6 +13,7 @@ import { ProductDescriptionServer } from "#behavior/system/product-description/P
 import { SessionsBehavior } from "#behavior/system/sessions/SessionsBehavior.js";
 import { SubscriptionsServer } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import type { Environment } from "@matter/general";
 import {
@@ -32,10 +33,14 @@ import {
     ServerInteraction,
     SessionManager,
 } from "@matter/protocol";
+import { AccessControlServer } from "../behaviors/access-control/AccessControlServer.js";
+import { GroupcastServer } from "../behaviors/groupcast/GroupcastServer.js";
 import { RootEndpoint as BaseRootEndpoint } from "../endpoints/root.js";
 import { Peers } from "./client/Peers.js";
 import { Node } from "./Node.js";
 import { Plugins } from "./Plugins.js";
+import { DeviceTypeConformanceService } from "./server/DeviceTypeConformanceService.js";
+import { IdentityService } from "./server/IdentityService.js";
 import { ServerEnvironment } from "./server/ServerEnvironment.js";
 
 /**
@@ -165,6 +170,10 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
             // Reset persistent state
             await this.resetStorage();
 
+            // The node's services outlive the reset, so what they hold for the state it discarded does not.  This is
+            // deliberately not part of resetStorage(), which an application may override
+            await this.resetServiceState();
+
             // Reset reverts node to inactive state; now reinitialize
             this.construction.start();
 
@@ -218,7 +227,7 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      * If this is inappropriate for your application, you may override to alter the behavior.  Matter requires that all
      * "security- and privacy-related data and key material" is removed on factory reset.
      *
-     * @see {@link MatterSpecification.v16.Core} § 13.4
+     * @see {@link MatterSpecification.v161.Core} § 13.4
      */
     protected async resetStorage() {
         await MatterAggregateError.settleSeries(
@@ -237,6 +246,15 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
     }
 
     /**
+     * Discard the in-memory state the node's services hold for what a factory reset erases.
+     */
+    private async resetServiceState() {
+        this.env.get(IdentityService).releaseReservedPeerAddresses();
+        this.env.get(DeviceTypeConformanceService).reset();
+        this.env.get(EndpointInitializer).variableService?.invalidate();
+    }
+
+    /**
      * Normal endpoints must have an owner to complete construction but server nodes have no such precondition for
      * construction.
      */
@@ -244,7 +262,13 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
 }
 
 export namespace ServerNode {
-    export const RootEndpoint = BaseRootEndpoint.with(
+    /**
+     * The root endpoint of a server node without the Groupcast cluster.
+     *
+     * A node with a Groups server on any endpoint does not conform to Matter 1.6.1 without Groupcast on its root, so
+     * use this only for nodes without Groups or that deliberately model a pre-Groupcast device.
+     */
+    export const RootEndpointWithoutGroupcast = BaseRootEndpoint.with(
         CommissioningServer,
         NetworkServer,
         ProductDescriptionServer,
@@ -253,7 +277,25 @@ export namespace ServerNode {
         EventsBehavior,
     );
 
-    export interface RootEndpoint extends Identity<typeof RootEndpoint> {}
+    export interface RootEndpointWithoutGroupcast extends Identity<typeof RootEndpointWithoutGroupcast> {}
+
+    /**
+     * The default root endpoint of a server node.
+     *
+     * @see {@link MatterSpecification.v161.Device} § 2.1
+     */
+    export const RootEndpoint: RootEndpoint = RootEndpointWithoutGroupcast.with(
+        // Groupcast Listener requires the Auxiliary ACL feature
+        AccessControlServer.with("Extension", "Auxiliary"),
+        GroupcastServer,
+    );
+
+    /**
+     * Typed without Groupcast so a node type may select any Groupcast features, or leave the cluster out, and still
+     * satisfy this type.  Use `node.stateOf(GroupcastServer)` for the Groupcast state of a default node.
+     */
+    export interface RootEndpoint extends Identity<typeof RootEndpointWithoutGroupcast> {}
 }
 
+Object.freeze(ServerNode.RootEndpointWithoutGroupcast);
 Object.freeze(ServerNode.RootEndpoint);

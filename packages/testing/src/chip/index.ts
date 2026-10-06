@@ -10,31 +10,46 @@
 // support/chip-testing's own cert-framework tests (a separate package, `@matter/testing` consumer)
 // need them and can only reach this module's `.` entrypoint.
 export type {
+    CertAppArgs,
     CertDevice,
     CertDeviceFactory,
     CertStepContext,
     CertStepDefinition,
+    CertStepWiring,
     CertTestDefinition,
     CheckRecord,
     DeviceExitInfo,
     DeviceFlavor,
     LogSource,
+    SelectableDeviceFlavor,
     StepRecorder,
     StepVerdict,
 } from "./cert/cert-context.js";
 export { certTest } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Per-device identity assignment for a multi-device run. */
 export { DeviceIdentityExhaustedError, identityFor } from "./cert/cert-dsl.js";
-export type { CertStepOptions, CertTestBuilder, CertTestOptions } from "./cert/cert-dsl.js";
+export type { CertAppVariant, CertStepOptions, CertTestBuilder, CertTestOptions } from "./cert/cert-dsl.js";
+/** @internal Test seam — not API. Which app build a flavor runs, given a per-source declaration. */
+export { appVariantFor } from "./cert/cert-dsl.js";
+/** @internal Test seam — not API. The provenance a run's evidence bundle states for each of its devices. */
+export { deviceRecordsFor } from "./cert/cert-dsl.js";
+/** @internal Test seam — not API. Selects the device a declared role runs. */
+export { subjectFactoryFor } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. The gate `certTest()` applies before a test's device starts. */
 export { certPicsFile, unmetTestPics } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Production cert tests go through the `certTest()` DSL, not this class directly. */
 export { CertTest } from "./cert/cert-test.js";
+export { CertStepNotApplicableError, PicsUnansweredError } from "./cert/cert-test.js";
+/** @internal Test seam — not API. The wired test a `certTest()` declaration registered. */
+export { createRegisteredCertTest } from "./cert/cert-test.js";
 export { ChipDockerSubject, ChipLocalSubject } from "./cert/chip-app-subject.js";
 /** @internal Test seam — not API. `ChipDockerDevice`'s own constructor, and its Docker collaborator types. */
 export { ChipDockerDevice, HARNESS_DBUS_CONTAINER } from "./cert/chip-app-subject.js";
 /** @internal Test seam — not API. */
 export type { CompositionHandle, DockerHandle } from "./cert/chip-app-subject.js";
+export { certAppPicsOverridesFor, registerCertAppPics } from "./cert/cert-app-pics.js";
+/** @internal Test seam — not API. Registration has no other way to be undone. */
+export { unregisterCertAppPics } from "./cert/cert-app-pics.js";
 export {
     controllerPicsOverridesFor,
     registerControllerAdapterFactory,
@@ -44,15 +59,31 @@ export {
 export { createControllerAdapter } from "./cert/controller-adapter.js";
 /** @internal Test seam — not API. */
 export { resetControllerAdapterFactoryForTesting } from "./cert/controller-adapter.js";
+/** @internal Test seam — not API. */
+export { StdinPacer } from "./cert/chip-app-subject.js";
+/** @internal Test seam — not API. */
+export { requiredAppArgs } from "./cert/chip-app-subject.js";
 export type {
+    AnnounceOtaProviderOptions,
     AttributePathSpec,
     AttributeReadEntry,
     AttributeWriteEntry,
     AttributeWriteStatus,
     BatchCommandResult,
     BatchCommandSpec,
+    BdxTransferAccept,
+    BdxTransferProposal,
+    CertGroupApi,
+    CertIcdClientApi,
+    CertIcdEvent,
+    CertIcdRegistration,
+    GroupKeySetSpec,
     CertNodeApi,
+    AttestationApi,
     CertNodeRef,
+    CertSessionInfo,
+    ClientAttributePath,
+    ClientEndpointEntry,
     CommissioningTarget,
     ControllerAdapter,
     ControllerAdapterFactory,
@@ -61,23 +92,44 @@ export type {
     EventPathSpec,
     EventReadEntry,
     ManualPairingCodeFields,
+    ObserveEventOptions,
     OnboardingPayloadFields,
+    OtaAnnouncement,
+    OtaAnnouncementRecord,
+    OtaApplyUpdateExchange,
+    OtaBdxTransfer,
+    OtaNotifyUpdateAppliedRecord,
+    OtaProviderExchanges,
+    OtaProviderScript,
+    OtaQueryImageExchange,
+    OtaQueryImageRequestRecord,
+    OtaQueryImageResponseRecord,
+    OtaScriptedApplyAnswer,
+    OtaScriptedQueryAnswer,
     ReadAttributeOptions,
     ReadEventOptions,
+    ServeOtaUpdateOptions,
     SubscribeEventOptions,
     SubscribeOptions,
     TimedInteractionOptions,
+    WebRtcIceCandidate,
+    WebRtcRequestorApi,
+    WebRtcSessionRecord,
+    WebRtcSessionSpec,
+    WebRtcSignalRecord,
 } from "./cert/controller-adapter.js";
-export { resolveControllerImplementation, resolveDeviceFlavor } from "./cert/device-config.js";
+export { CertConfigError, resolveControllerImplementation, resolveDeviceFlavor } from "./cert/device-config.js";
 export type { ControllerImplementation } from "./cert/device-config.js";
 export { EvidenceRecorder } from "./cert/evidence.js";
-export type { RunRecord, StepRecord } from "./cert/evidence.js";
-export { CertLogClosedError, CertLogTimeoutError, forFlavor, LogFollower } from "./cert/log-follower.js";
+export type { RunDeviceRecord, RunRecord, StepRecord } from "./cert/evidence.js";
+export { CertLogClosedError, CertLogTimeoutError, flavorFamily, forFlavor, LogFollower } from "./cert/log-follower.js";
 export type {
+    FlavorFamily,
     LogExpectOptions,
     LogExpectPatterns,
     LogExpectResult,
     LogExpectSequences,
+    LogFlavor,
     LogLine,
 } from "./cert/log-follower.js";
 export { registerMatterJsCertSubject } from "./cert/matterjs-subject-registry.js";
@@ -92,6 +144,7 @@ export {
     chipBinsDir,
     chipBinsExtractionDir,
     chipBinsPlatformSupported,
+    chipBinsSourceFor,
     DEFAULT_CERT_BINS_TAG,
     ensureChipBins,
     prepareChipBins,
@@ -104,6 +157,9 @@ export type { ChipBinsSource, EnsureChipBinsResult } from "./chip-bins.js";
 export { parseDockerHubTagsResponse, resetChipBinsPrepareCacheForTesting } from "./chip-bins.js";
 /** @internal Test seam — not API. */
 export type { ChipBinsDockerHandle } from "./chip-bins.js";
+export { HarnessBusyError } from "./harness-lock.js";
+/** @internal Test seam — not API. Exported for the Docker-backed lock test in support/chip-testing. */
+export { acquireHarnessLock } from "./harness-lock.js";
 export * from "./chip.js";
 export * from "./command-pipe.js";
 export * from "./pics/index.js";

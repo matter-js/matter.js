@@ -228,15 +228,40 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 // Unwrap if incoming value (or nested children) is managed
                 value = Internal.unmanage(value);
 
+                // Undo our change on error.  Rollback will take care of this when transactional but this handles the
+                // cases of 1.) no transaction, and 2.) error is caught within transaction.  A previously absent member
+                // must not leave a slot behind — consumers enumerate slot keys to discover which members hold values
+                const undo = () => {
+                    if (previousValue === undefined) {
+                        delete target[key];
+                    } else {
+                        target[key] = previousValue;
+                    }
+                };
+
                 // Modify the value
-                if (isFabricScopedList && Array.isArray(value) && Array.isArray(previousValue)) {
+                if (isFabricScopedList && Array.isArray(value)) {
+                    // The merge must run through the proxy even for an absent member; it is what filters by fabric
+                    // and supplies the accessing fabric
+                    if (previousValue === undefined) {
+                        target[key] = [];
+                        if (storedKey !== undefined && storedKey !== key) {
+                            delete target[storedKey];
+                        }
+                    }
+
                     // In the case of fabric-scoped write to established list we use the managed proxy to perform update
                     // as it will sort through values and only modify those with correct fabricIndex
                     const proxy = self[memberKeyFor(pk, name, id)] as Val.List;
-                    for (let i = 0; i < value.length; i++) {
-                        proxy[i] = value[i];
+                    try {
+                        for (let i = 0; i < value.length; i++) {
+                            proxy[i] = value[i];
+                        }
+                        proxy.length = value.length;
+                    } catch (e) {
+                        undo();
+                        throw e;
                     }
-                    proxy.length = value.length;
                 } else {
                     // Direct assignment
                     target[key] = value;
@@ -261,16 +286,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                             owner: this[Internal.reference].rootOwner,
                         });
                     } catch (e) {
-                        // Undo our change on error.  Rollback will take care of this when transactional but this
-                        // handles the cases of 1.) no transaction, and 2.) error is caught within transaction.
-                        // A previously absent member must not leave a slot behind — consumers enumerate slot keys to
-                        // discover which members hold values
-                        if (previousValue === undefined) {
-                            delete target[key];
-                        } else {
-                            target[key] = previousValue;
-                        }
-
+                        undo();
                         throw e;
                     }
                 }

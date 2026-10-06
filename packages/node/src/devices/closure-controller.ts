@@ -6,6 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import { ClosureControlClient as BaseClosureControlClient } from "../behaviors/closure-control/ClosureControlClient.js";
 import { IdentifyClient as BaseIdentifyClient } from "../behaviors/identify/IdentifyClient.js";
 import {
@@ -18,11 +19,34 @@ import { Identity } from "@matter/general";
 /**
  * A Closure Controller is capable of controlling a Closure.
  *
- * @see {@link MatterSpecification.v16.Device} § 8.7
+ * ### Introduction
+ *
+ * Two levels of control are available:
+ *
+ *   - Basic Level (Closure Control Cluster):
+ *
+ *     - Used for simple controller with buttons like wall switches.
+ *
+ *     - Also all the general status and information remain at this level.
+ *
+ *   - Advanced Level (Closure Dimension Cluster):
+ *
+ *     - Provides advanced information, controls and settings.
+ *
+ *     - Used for advanced controller.
+ *
+ * @see {@link MatterSpecification.v161.Device} § 8.7
  */
 export interface ClosureControllerDevice extends Identity<typeof ClosureControllerDeviceDefinition> {}
 
 export namespace ClosureControllerRequirements {
+    /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
+
     /**
      * The ClosureControl cluster is required by the Matter specification.
      *
@@ -45,6 +69,11 @@ export namespace ClosureControllerRequirements {
     export const ClosureDimensionClient = BaseClosureDimensionClient;
 
     /**
+     * An implementation for each server cluster supported by the endpoint per the Matter specification.
+     */
+    export const server = { mandatory: { Binding: BindingServer } };
+
+    /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
     export const client = {
@@ -56,9 +85,9 @@ export namespace ClosureControllerRequirements {
 export const ClosureControllerDeviceDefinition = MutableEndpoint({
     name: "ClosureController",
     deviceType: 0x23e,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: ClosureControllerRequirements,
-    behaviors: SupportedBehaviors()
+    behaviors: SupportedBehaviors(ClosureControllerRequirements.server.mandatory.Binding)
 });
 
 Object.freeze(ClosureControllerDeviceDefinition);

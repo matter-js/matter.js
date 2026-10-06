@@ -12,7 +12,15 @@ interface ValueTest {
     ok: boolean;
 }
 
-const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: string, valueTests?: ValueTest[]][] = [
+type NameResolver = (name: string) => unknown;
+
+const TEST_CONSTRAINTS: [
+    text: string,
+    ast: Constraint.Ast,
+    expectedText?: string,
+    valueTests?: ValueTest[],
+    resolver?: NameResolver,
+][] = [
     [
         "0",
         { value: 0 },
@@ -405,11 +413,47 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
                 },
             },
         },
+        undefined,
+        [
+            { test: 9, ok: false },
+            { test: 10, ok: true },
+            { test: 50, ok: true },
+            { test: 100, ok: true },
+            { test: 101, ok: false },
+            { test: 0, ok: false },
+            { test: 65535, ok: false },
+        ],
+        name => (name === "holdTimeLimits" ? { holdTimeMin: 10, holdTimeMax: 100 } : undefined),
+    ],
+    [
+        "soilMoistureMeasurementLimits.minMeasuredValue to soilMoistureMeasurementLimits.maxMeasuredValue",
+        {
+            min: {
+                type: ".",
+                lhs: { type: "reference", name: "soilMoistureMeasurementLimits" },
+                rhs: { type: "reference", name: "minMeasuredValue" },
+            },
+
+            max: {
+                type: ".",
+                lhs: { type: "reference", name: "soilMoistureMeasurementLimits" },
+                rhs: { type: "reference", name: "maxMeasuredValue" },
+            },
+        },
+        undefined,
+        [
+            { test: 19, ok: false },
+            { test: 20, ok: true },
+            { test: 80, ok: true },
+            { test: 81, ok: false },
+            { test: 255, ok: false },
+        ],
+        name => (name === "soilMoistureMeasurementLimits" ? { minMeasuredValue: 20, maxMeasuredValue: 80 } : undefined),
     ],
 ];
 
 describe("Constraint", () => {
-    TEST_CONSTRAINTS.forEach(([text, ast, expectedText, valueTests]) => {
+    TEST_CONSTRAINTS.forEach(([text, ast, expectedText, valueTests, resolver]) => {
         describe(text, () => {
             it("parses", () => {
                 expect(new Constraint(text)).deep.equal(new Constraint({ ...ast, definition: text }));
@@ -425,10 +469,65 @@ describe("Constraint", () => {
                 for (const vt of valueTests) {
                     const label = typeof vt.test === "bigint" ? `${vt.test}n` : `${vt.test}`;
                     it(`${vt.ok ? "accepts" : "rejects"} ${label}`, () => {
-                        expect(constraint.test(vt.test)).equal(vt.ok);
+                        expect(constraint.test(vt.test, resolver)).equal(vt.ok);
                     });
                 }
             }
+        });
+    });
+
+    describe("a bare word", () => {
+        it("states a name, including one the specification's tables use outside the constraint language", () => {
+            for (const [definition, name] of [
+                ["anyValue", "anyValue"],
+                ["any", "any"],
+                ["MS", "ms"],
+            ]) {
+                const constraint = new Constraint(definition);
+
+                expect(constraint.isEmpty, definition).false;
+                expect(constraint.value, definition).deep.equals({ type: "reference", name });
+            }
+        });
+    });
+
+    describe("constantOf", () => {
+        it("computes an expression of numbers", () => {
+            expect(Constraint.constantOf(new Constraint("max 2^62").max)).equal(4611686018427387904n);
+            expect(Constraint.constantOf(new Constraint("min -2^62").min)).equal(-4611686018427387904n);
+            expect(Constraint.constantOf(new Constraint("max (2^62) - 1").max)).equal(4611686018427387903n);
+            expect(Constraint.constantOf(new Constraint("max minOf(3, 2)").max)).equal(2);
+        });
+
+        it("computes nothing from a name", () => {
+            expect(Constraint.constantOf(new Constraint("max Limit - 1").max)).equal(undefined);
+            expect(Constraint.constantOf(new Constraint("max minOf(Limit, 2)").max)).equal(undefined);
+        });
+
+        it("computes nothing from a unit", () => {
+            expect(Constraint.constantOf(new Constraint("max 100% - 1%").max)).equal(undefined);
+        });
+
+        it("computes nothing that is no number", () => {
+            expect(Constraint.constantOf(new Constraint("max 1 / 0").max)).equal(undefined);
+            expect(Constraint.constantOf(new Constraint("max 0^-1").max)).equal(undefined);
+        });
+
+        it("compares a bigint with a number in a function", () => {
+            expect(Constraint.constantOf(new Constraint("max maxOf(2^62, 2)").max)).equal(4611686018427387904n);
+            expect(Constraint.constantOf(new Constraint("max minOf(2^62, 2)").max)).equal(2);
+        });
+
+        it("multiplies a bigint", () => {
+            expect(Constraint.constantOf(new Constraint("max 2^62 * 2").max)).equal(9223372036854775808n);
+        });
+
+        it("computes a fractional power beyond the safe integers as a number", () => {
+            expect(typeof Constraint.constantOf(new Constraint("max 1.5^100").max)).equal("number");
+        });
+
+        it("leaves a number as stated", () => {
+            expect(Constraint.constantOf(new Constraint("max 5").max)).equal(undefined);
         });
     });
 
@@ -518,6 +617,56 @@ describe("Constraint", () => {
 
         it("remains distinct from the keyword", () => {
             expect(`${new Constraint("min 1")}`).equal("min 1");
+        });
+    });
+
+    describe("the names it states", () => {
+        it("states the segments of a member access as one path", () => {
+            expect(Constraint.referencesOf(new Constraint("min A.B"))).deep.equals([
+                { path: ["a", "b"], position: "bound" },
+            ]);
+        });
+
+        it("states the operand of a membership set as one naming an element", () => {
+            expect(Constraint.referencesOf(new Constraint("in Supported"))).deep.equals([
+                { path: ["supported"], position: "set" },
+            ]);
+        });
+
+        // An access no evaluation can take states no name: the access itself is what is reported
+        it("states no name an access to a computed value holds", () => {
+            expect(Constraint.referencesOf(new Constraint("min minOf(A, B).C"))).deep.equals([]);
+            expect(Constraint.referencesOf(new Constraint("min A.minOf(B, C)"))).deep.equals([]);
+        });
+
+        it("reports an access to a computed value as unevaluable", () => {
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min minOf(A, B).C"))).true;
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min A.minOf(B, C)"))).true;
+        });
+
+        // An access takes one member of one element; the specification defines no member of a member
+        it("reports a nested access as unevaluable", () => {
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min A.B.C"))).true;
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min A.(B.C)"))).true;
+        });
+
+        it("reports a complete access as evaluable", () => {
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min A.B"))).false;
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min minOf(A, B)"))).false;
+        });
+
+        it("states a name each member of a membership set holds", () => {
+            expect(Constraint.referencesOf(new Constraint("0, 1, Add"))).deep.equals([
+                { path: ["add"], position: "bound" },
+            ]);
+        });
+
+        // The entry constraint bounds the entries, so its names belong to the type of the entry.  The alternative
+        // states one of its own, which does not
+        it("states no name an entry bound of an alternative holds", () => {
+            expect(Constraint.referencesOf(new Constraint("Foo to 4[min Alpha], 8 to 9[max Beta]"))).deep.equals([
+                { path: ["foo"], position: "bound" },
+            ]);
         });
     });
 });

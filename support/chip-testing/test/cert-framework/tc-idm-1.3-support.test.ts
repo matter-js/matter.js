@@ -196,11 +196,31 @@ describe("expectNoInjectedFault", () => {
 
         expect(check.verdict).equal("unverified");
     });
+
+    // Undrained on purpose: the TH announces the fault while answering the invoke, so the line is in
+    // the pump exactly when a step calls this. Counting without settling reports the window clean
+    it("settles the buffer before counting, so a fault still in the pump is not missed", async () => {
+        const check = await withFollower(
+            [...batchRequestLines(PATHS), ...faultLines(ChipFault.imInvokeSeparateResponses)],
+            follower => expectNoInjectedFault(follower, "chip-local", 0),
+        );
+
+        expect(check.verdict).equal("fail");
+    });
 });
 
 describe("expectInvokeCount", () => {
     it("passes on the expected number of invoke requests", async () => {
         const check = await withBufferedFollower([...batchRequestLines(PATHS), ...batchRequestLines(PATHS)], follower =>
+            expectInvokeCount(follower, "chip-local", 0, 2),
+        );
+
+        expect(check.verdict).equal("pass");
+    });
+
+    // Same trap as the fault counter's: the invokes are in the pump when a step calls this
+    it("settles the buffer before counting, so invokes still in the pump are counted", async () => {
+        const check = await withFollower([...batchRequestLines(PATHS), ...batchRequestLines(PATHS)], follower =>
             expectInvokeCount(follower, "chip-local", 0, 2),
         );
 

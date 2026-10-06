@@ -20,7 +20,7 @@ Resource.add({
         "This augments the Bridged Device Basic Information Cluster in the following ways:" +
         "\n" +
         "  - The Ecosystem Information Cluster adds support for providing a name and location for individual " +
-        "    endpoints. (The endpoints do not need to be present on the Bridge for their name and location " +
+        "endpoints. (The endpoints do not need to be present on the Bridge for their name and location " +
         "information to be present.)" +
         "\n" +
         "  - The Ecosystem Information Cluster adds metadata to support conflict resolution between multiple " +
@@ -117,13 +117,13 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "UniqueLocationIDs", xref: "core§9.17.4.2.6",
+                    tag: "field", name: "UniqueLocationIds", xref: "core§9.17.4.2.6",
                     details: "This field shall specify the EcosystemLocationStruct entries in the LocationDirectory attribute " +
                         "associated with this EcosystemDeviceStruct."
                 },
 
                 {
-                    tag: "field", name: "UniqueLocationIDsLastEdit", xref: "core§9.17.4.2.7",
+                    tag: "field", name: "UniqueLocationIdsLastEdit", xref: "core§9.17.4.2.7",
 
                     details: "This field shall indicate the timestamp of when the UniqueLocationIDs was last modified." +
                         "\n" +

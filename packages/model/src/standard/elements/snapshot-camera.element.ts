@@ -15,22 +15,26 @@ export const SnapshotCameraDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 325, revision: 1 } ], element: "attribute" })
     ),
-    Requirement({ name: "PowerSourceCond", type: "RootNode.PowerSourceCond", conformance: "M", element: "condition" }),
-    Requirement(
-        { name: "TimeSyncWithTzCond", type: "RootNode.TimeSyncWithTzCond", conformance: "M", element: "condition" }
-    ),
+    Requirement({
+        name: "PowerSourceCond", type: "RootNode.PowerSourceCond", conformance: "M", element: "condition",
+        location: "Root"
+    }),
+    Requirement({
+        name: "TimeSyncWithTzCond", type: "RootNode.TimeSyncWithTzCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "OccupancySensing", id: 0x406, conformance: "O", element: "serverCluster" }),
     Requirement(
         { name: "ZoneManagement", id: 0x550, conformance: "O", element: "serverCluster" },
-        Requirement({ name: "TWODIMENSIONALCARTESIANZONE", conformance: "M", element: "feature" })
+        Requirement({ name: "TWODCART", conformance: "M", element: "feature" })
     ),
 
     Requirement(
         { name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "SNAPSHOT", conformance: "M", element: "feature" }),
-        Requirement({ name: "VIDEO", conformance: "X", element: "feature" }),
-        Requirement({ name: "AUDIO", conformance: "X", element: "feature" })
+        Requirement({ name: "SNP", conformance: "M", element: "feature" }),
+        Requirement({ name: "VDO", conformance: "X", element: "feature" }),
+        Requirement({ name: "ADO", conformance: "X", element: "feature" })
     ),
 
     Requirement({ name: "CameraAvSettingsUserLevelManagement", id: 0x552, conformance: "O", element: "serverCluster" }),

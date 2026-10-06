@@ -15,24 +15,33 @@ export const CameraDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 322, revision: 1 } ], element: "attribute" })
     ),
-    Requirement(
-        { name: "TlsCertificatesCond", type: "RootNode.TlsCertificatesCond", conformance: "M", element: "condition" }
-    ),
-    Requirement({ name: "PowerSourceCond", type: "RootNode.PowerSourceCond", conformance: "M", element: "condition" }),
-    Requirement(
-        { name: "TimeSyncWithNtpcCond", type: "RootNode.TimeSyncWithNtpcCond", conformance: "M", element: "condition" }
-    ),
-    Requirement({ name: "TimeSyncWithClientCond", type: "RootNode.TimeSyncWithClientCond", conformance: "M", element: "condition" }),
-    Requirement(
-        { name: "TimeSyncWithTzCond", type: "RootNode.TimeSyncWithTzCond", conformance: "M", element: "condition" }
-    ),
-    Requirement({ name: "TlsClientCond", type: "RootNode.TlsClientCond", conformance: "M", element: "condition" }),
+    Requirement({
+        name: "TlsCertificatesCond", type: "RootNode.TlsCertificatesCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
+    Requirement({
+        name: "PowerSourceCond", type: "RootNode.PowerSourceCond", conformance: "M", element: "condition",
+        location: "Root"
+    }),
+    Requirement({
+        name: "TimeSyncWithNtpcCond", type: "RootNode.TimeSyncWithNtpcCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
+    Requirement({
+        name: "TimeSyncWithClientCond", type: "RootNode.TimeSyncWithClientCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
+    Requirement({
+        name: "TimeSyncWithTzCond", type: "RootNode.TimeSyncWithTzCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
+    Requirement({ name: "TlsClientCond", type: "RootNode.TlsClientCond", conformance: "M", element: "condition", location: "Root" }),
 
     Requirement(
         { name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "VIDEO", conformance: "M", element: "feature" }),
-        Requirement({ name: "AUDIO", conformance: "M", element: "feature" }),
-        Requirement({ name: "SNAPSHOT", conformance: "M", element: "feature" })
+        Requirement({ name: "VDO", conformance: "M", element: "feature" }),
+        Requirement({ name: "ADO", conformance: "M", element: "feature" }),
+        Requirement({ name: "SNP", conformance: "M", element: "feature" })
     ),
 
     Requirement({ name: "WebRtcTransportProvider", id: 0x553, conformance: "M", element: "serverCluster" }),
@@ -43,7 +52,7 @@ export const CameraDt = DeviceType(
     Requirement({ name: "CameraAvSettingsUserLevelManagement", id: 0x552, conformance: "O", element: "serverCluster" }),
     Requirement(
         { name: "ZoneManagement", id: 0x550, conformance: "O", element: "serverCluster" },
-        Requirement({ name: "TWODIMENSIONALCARTESIANZONE", conformance: "M", element: "feature" })
+        Requirement({ name: "TWODCART", conformance: "M", element: "feature" })
     ),
     Requirement({ name: "OccupancySensing", id: 0x406, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),

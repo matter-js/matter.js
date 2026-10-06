@@ -84,10 +84,10 @@ requests `linux/arm64` — `chip-cert-bins` has never published any other platfo
 architecture; on a non-arm64 host Docker runs the (harmless, `cp`-only) extraction step under
 emulation.
 
-Extraction has no cross-process lock: two runs racing to extract the *same* tag into the same
-`MATTER_CHIP_BINS_DIR` at once can still interleave their `rm -rf`/`cp -a`/stamp-write. Don't point
-concurrent test runs that might resolve to the same tag at one `MATTER_CHIP_BINS_DIR` — give each its
-own directory (or its own `MATTER_CHIP_BINS_TAG`) if they run at the same time.
+Runs on one Docker daemon extract one at a time, since extraction happens while a run holds the harness
+lock (see "Running" below). Runs on different Docker daemons that share one `MATTER_CHIP_BINS_DIR` have no
+such lock: two of them extracting the *same* tag at once can interleave their `rm -rf`/`cp -a`/stamp-write,
+so give each its own directory (or its own `MATTER_CHIP_BINS_TAG`).
 
 Running the extracted binaries afterwards is a different story per consumer, since architecture and
 OS constraints differ by how each one executes them:
@@ -104,8 +104,10 @@ Both mismatch cases above are checked directly (not just documented): `configure
 spawning. Either way you get an explicit, actionable error rather than a binary that silently fails
 to start.
 
-A cert-bins-sourced `chip-local` run's evidence `chipRef` (see "Evidence" below) is populated
-automatically from the extraction's own stamp file — no separate wiring needed.
+A cert-bins-sourced `chip-local` run populates the evidence `chipRef` (see "Evidence" below)
+automatically from the extraction's own stamp file — no separate wiring needed. That stamp describes
+the directory, not a single binary, so every device of a `chip-local` run reports the same revision;
+`chip-docker` is the only flavor whose `chipRef` distinguishes one role's binary from another's.
 
 ## Certification controller tests (`test/cert/`)
 
@@ -139,6 +141,10 @@ Which TH implementation a run uses is chosen by `MATTER_CERT_DEVICE`:
     reusing `chip/state.ts`'s harness sidecars — is resolved; publishing the per-app images is what
     remains.
 
+A fourth flavor, **`python-wrapped`**, appears in evidence but cannot be selected: a TC that lets a
+python script spawn its own TH (`TC-SC-3.5`) records its device that way, since the harness neither
+built nor started it and can state no more than the path the run was pointed at.
+
 `MATTER_CERT_DEVICE` unset defaults to `matterjs` (`resolveDeviceFlavor` in
 `packages/testing/src/chip/cert/device-config.ts`) — the only flavor that works without further
 configuration; the other two need `MATTER_CERT_APP_DIR`/`MATTER_CHIP_BINS_SOURCE` (`chip-local`)
@@ -166,10 +172,11 @@ directory of symlinks to each app's own build output).
 | Variable                     | Meaning                                                                                   | Default                        |
 | ----------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------- |
 | `MATTER_CERT_DEVICE`          | Flavor: `matterjs`, `chip-local`, or `chip-docker`.                                        | `matterjs`                      |
-| `MATTER_CERT_APP_DIR`         | Directory containing `chip-<app>-app` binaries (`chip-local` only, ignored when `MATTER_CHIP_BINS_SOURCE=cert-bins` — see "Choosing a CHIP binary source" above). | none (required for `chip-local`) |
+| `MATTER_CERT_APP_DIR`         | Directory containing the CHIP app binaries (`chip-<app>-app`, or CHIP's own name where it differs) (`chip-local` only, ignored when `MATTER_CHIP_BINS_SOURCE=cert-bins` — see "Choosing a CHIP binary source" above). | none (required for `chip-local`) |
 | `MATTER_CERT_CHIP_IMAGE_BASE` | Docker image base name for `chip-docker` (image pulled is `<base>-<app>:latest`).          | `ghcr.io/matter-js/chip`        |
 | `MATTER_CERT_EVIDENCE_DIR`    | Where `result.json`/`*.log` evidence bundles are written.                                  | `<package cwd>/cert-evidence`   |
 | `MATTER_CERT_TH_SERVER_APP_PATH` | Container-side path to a TH_SERVER binary for python-wrapped TCs (e.g. `TC-SC-3.5`); unset means the TC self-skips. | none |
+| `MATTER_CERT_CAMERA_APP_PATH` | Container-side path to `chip-camera-app`, the TH_SERVER of the WebRTC TCs (e.g. `TC-WEBRTCR-2.1`); unset means the TC self-skips. | none |
 
 ### Running
 
@@ -180,6 +187,13 @@ MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 npx matter-test --spec="test/cert/TC-IDM-2
 
 Both need the shared dbus/mdns/chip harness containers, so Docker still has to be running even for
 the `matterjs` flavor.
+
+Only one run at a time can use those containers: they run on the host network under fixed names. A run
+holds the lock container `matter.js-harness-lock` while it uses them, and a second run on the same Docker
+daemon waits for it, for up to `MATTER_CHIP_HARNESS_WAIT_MINUTES` (default 60; `0` fails at once when another run holds it). The
+lock ends with the process that holds it. A lock that does not run for 30 s (its process died between
+creating and starting it, for example) is left over: no run removes it on another run's behalf, so the
+run fails with the `docker rm -f matter.js-harness-lock` that clears it.
 
 `test-cert` sets `MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000` itself, giving decommissioning fabrics more
 than `matter-test`'s 5s package-wide default to finish closing (see `test/cert/AGENTS.md`'s "Resolved:
@@ -216,9 +230,8 @@ attached log stream (`device-<role>.log`, `controller-<name>.log`). Sketch of `r
     "run": {
         "timestamp": "2026-08-08T07:37:17.811Z",
         "controller": "dut",
-        "device": "chip-local:all-clusters",
-        "matterJsCommit": "25dd21a01533bd9434b0e8a42e6f96d9ba1ad878",
-        "chipRef": "..."
+        "devices": [{ "role": "th", "app": "all-clusters", "flavor": "chip-local", "chipRef": "..." }],
+        "matterJsCommit": "25dd21a01533bd9434b0e8a42e6f96d9ba1ad878"
     },
     "steps": [
         {

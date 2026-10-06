@@ -7,7 +7,7 @@
 import { ImplementationError, Millis } from "@matter/main";
 import { PeerCommunicationError } from "@matter/main/protocol";
 import { Status, StatusResponseError, ValidationError } from "@matter/main/types";
-import type { LogExpectPatterns } from "@matter/testing";
+import type { LogExpectPatterns, LogFlavor } from "@matter/testing";
 import { LineQueue, LogFollower } from "@matter/testing";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { NoCommissionedPeerError } from "../../src/cert/InProcessControllerAdapter.js";
@@ -30,10 +30,10 @@ const MATTERJS = {
     commissioned:
         "2026-08-23 22:41:11.299 NOTICE GeneralCommissioningClusterHandler Commissioned fabric: 0670b2d454b688b9 (#1) node: 0000000000000001",
     windowOpen:
-        "2026-08-23 22:41:11.766 DEBUG AdministratorCommissioningServer Commissioning window timer started for 3m for @1:d8845766d0bbb69f•d9ca.",
+        "2026-08-23 22:41:11.766 DEBUG AdministratorCommissioningServer Commissioning window opened for 3m by fabric 1",
 };
 
-async function check(flavor: string, patterns: LogExpectPatterns, lines: string[]) {
+async function check(flavor: LogFlavor, patterns: LogExpectPatterns, lines: string[]) {
     const source = new LineQueue();
     const follower = new LogFollower(source.follow(), "th");
     for (const text of lines) {
@@ -82,6 +82,15 @@ describe("TC-CADMIN-1.17's post-removal refusal predicate", () => {
     it("accepts a status the device answered with", () => {
         expect(isPostRemovalRefusal(new StatusResponseError("writeAttribute failed", Status.UnsupportedAccess))).equal(
             true,
+        );
+    });
+
+    it("does not accept a status the removal does not explain", () => {
+        expect(isPostRemovalRefusal(new StatusResponseError("writeAttribute failed", Status.ConstraintError))).equal(
+            false,
+        );
+        expect(isPostRemovalRefusal(new StatusResponseError("writeAttribute failed", Status.InvalidCommand))).equal(
+            false,
         );
     });
 

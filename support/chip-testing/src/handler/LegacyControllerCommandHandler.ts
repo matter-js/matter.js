@@ -324,7 +324,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
     }
 
     async handleWriteAttribute(data: WriteAttributeRequest): Promise<void> {
-        const { nodeId, endpointId, clusterId, attributeName, value, abort } = data;
+        const { nodeId, endpointId, clusterId, attributeName, value, timedInteractionTimeout, abort } = data;
 
         const client = await (await this.#controllerInstance.getNode(nodeId)).getInteractionClient();
         const clusterModel = Matter.clusters(clusterId);
@@ -346,6 +346,8 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                 attribute: nsAttr,
                 value,
             },
+            asTimedRequest: timedInteractionTimeout !== undefined,
+            timedRequestTimeout: timedInteractionTimeout,
         });
     }
 
@@ -451,7 +453,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
     }
 
     async handleWriteAttributeById(data: WriteAttributeByIdRequest): Promise<void> {
-        const { nodeId, endpointId, clusterId, attributeId, value, abort } = data;
+        const { nodeId, endpointId, clusterId, attributeId, value, timedInteractionTimeout, abort } = data;
 
         const client = await (await this.#controllerInstance.getNode(nodeId)).getInteractionClient();
 
@@ -468,6 +470,8 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                 attribute: { id: attributeId, name: attrModel.name, schema: attrModel },
                 value,
             },
+            asTimedRequest: timedInteractionTimeout !== undefined,
+            timedRequestTimeout: timedInteractionTimeout,
         });
     }
 

@@ -382,9 +382,9 @@ export class MessageExchange {
         return this.#lastActive;
     }
 
-    #notifyActivity(messageReceived: boolean) {
+    #notifySent() {
         this.#lastActive = Time.nowMs;
-        this.session.notifyActivity(messageReceived);
+        this.session.notifyActivity(false);
     }
 
     /**
@@ -465,7 +465,7 @@ export class MessageExchange {
             );
         }
 
-        this.#notifyActivity(true);
+        this.#lastActive = Time.nowMs;
         this.#onReceive?.(message, duplicate);
 
         if (duplicate) {
@@ -537,7 +537,7 @@ export class MessageExchange {
      * pending reply never reached it.  A backoff sized for an idle peer would otherwise spend a window we know is open,
      * which for a sleepy peer mid-transfer may not reopen for a long time.
      *
-     * This departs from the retransmission schedule of {@link MatterSpecification.v16.Core} § 4.12.2.1 and, when it
+     * This departs from the retransmission schedule of {@link MatterSpecification.v161.Core} § 4.12.2.1 and, when it
      * transmits, from the standalone ack of § 4.12.5.2.2 — the retransmission carries that ack instead.  Both are
      * confined to BDX, where transfers are long-running and lock-step makes the predicate unambiguous.
      *
@@ -669,7 +669,7 @@ export class MessageExchange {
 
         this.#used = true;
         this.#messageSendCounter++;
-        this.#notifyActivity(false);
+        this.#notifySent();
 
         let ackedMessageId = standaloneAckMessageId;
         if (ackedMessageId === undefined && this.session.usesMrp) {
@@ -929,7 +929,7 @@ export class MessageExchange {
         }
 
         this.#messageSendCounter++;
-        this.#notifyActivity(false);
+        this.#notifySent();
         this.#lastTransmissionAt = Time.nowMs;
 
         this.context.retry(this.#retransmissionCounter);
@@ -1192,7 +1192,7 @@ export class MessageExchange {
      * maxRetransmissionTime must not be retried faster than its own idle cadence.
      *
      * BDX overrides even that floor.  Its schedule has to fit the peer's response budget, and the idle cadence does not
-     * apply mid-transfer: per {@link MatterSpecification.v16.Core} § 4.12.2.1 a peer awaiting an acknowledgement is in
+     * apply mid-transfer: per {@link MatterSpecification.v161.Core} § 4.12.2.1 a peer awaiting an acknowledgement is in
      * active mode, because it holds an open exchange.
      */
     #backOffFor(retransmissionCount: number) {

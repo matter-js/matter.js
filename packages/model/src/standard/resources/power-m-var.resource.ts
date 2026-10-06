@@ -8,4 +8,7 @@
 
 import { Resource } from "#models/Resource.js";
 
-Resource.add({ tag: "datatype", name: "power-mVAR", description: "Reactive Power", xref: "core§7.19.2" });
+Resource.add({
+    tag: "datatype", name: "power-mVAR", description: "Reactive Power", xref: "core§7.19.2.16",
+    details: "This type represents reactive power measured in millivolt-amps reactive."
+});

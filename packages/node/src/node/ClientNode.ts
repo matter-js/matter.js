@@ -12,7 +12,6 @@ import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
 import { Agent } from "#endpoint/Agent.js";
 import { ClientNodeEndpoints } from "#endpoint/properties/ClientNodeEndpoints.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
@@ -45,6 +44,12 @@ const logger = Logger.get("ClientNode");
  *
  * Client nodes may be peers (commissioned into a shared fabric) or commissionable, in which they are not usable until
  * you invoke {@link commissioned}.
+ *
+ * A node's `id` names it locally and may be reissued after the node is removed. Persist a {@link PeerAddress} when you
+ * need to refer to the same logical fabric/node identity across local restarts. That address names one device for as
+ * long as the device stays commissioned. Once the node is removed the address may be handed to another
+ * device — `ControllerBehavior.allocatePeerAddress` documents when — so a reference kept for longer must cope
+ * both with finding nothing and with finding someone else.
  */
 export class ClientNode extends Node<ClientNode.RootEndpoint> {
     #matter?: MatterModel;
@@ -63,8 +68,9 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
         super(opts);
 
-        // Block the OccurrenceManager from the parent environment so we don't attempt to record events from peers
-        this.env.close(OccurrenceManager);
+        // Block the OccurrenceManager from the parent environment so we don't attempt to record events from peers.
+        // Deleting blocks it; closing would close the parent's manager
+        this.env.delete(OccurrenceManager);
 
         this.env.set(Node, this);
         this.env.set(ClientNode, this);
@@ -138,28 +144,44 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     /**
+     * {@link owner} throws {@link InternalError} once the node is destroyed; a gone node rejects with its lifecycle
+     * error instead.
+     */
+    get #peers() {
+        this.lifecycle.assertNotGone();
+        return this.owner.peers;
+    }
+
+    /**
      * Add this node to a fabric.
+     *
+     * Rejects as `Peers.runCommissioning()` describes if the node is gone or a commission or decommission of it is
+     * already in progress.
      */
     async commission(options: CommissioningClient.CommissioningOptions) {
-        await this.act("commission", agent => agent.commissioning.commission(options));
+        await this.#peers.runCommissioning(this, () =>
+            this.act("commission", agent => agent.commissioning.commission(options)),
+        );
     }
 
     /**
      * Remove this node from the fabric (if commissioned) and locally.
      * This method tries to communicate with the device to decommission it properly and will fail if the device is
-     * unreachable.
+     * unreachable.  If the device does not confirm the removal, the node is kept and stays usable.  Rejects as
+     * `Peers.runDecommissioning()` describes if the node is gone or a commission or decommission of it is already in
+     * progress.
      * If you cannot reach the device, use {@link delete} instead.
      */
     async decommission() {
-        this.lifecycle.change(EndpointLifecycle.Change.Destroying);
+        await this.#peers.runDecommissioning(this, async () => {
+            if (this.lifecycle.isCommissioned) {
+                this.statusUpdate("decommissioning");
 
-        if (this.lifecycle.isCommissioned) {
-            this.statusUpdate("decommissioning");
+                await this.act("decommission", agent => agent.commissioning.decommission());
+            }
 
-            await this.act("decommission", agent => agent.commissioning.decommission());
-        }
-
-        await this.delete();
+            await this.delete();
+        });
     }
 
     /**
@@ -175,7 +197,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     /**
      * Open an Enhanced Commissioning Window on this peer using a freshly generated random passcode.
      *
-     * @returns the manual and QR pairing codes encoding the generated passcode.
+     * @returns the pairing codes and the values they encode.
      */
     async openEnhancedCommissioningWindow(commissioningTimeout?: Duration) {
         return await this.act(agent => agent.commissioning.openEnhancedCommissioningWindow(commissioningTimeout));
@@ -292,6 +314,8 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         actor?: (agent: Agent.Instance<ClientNode.RootEndpoint>) => MaybePromise<R>,
     ): MaybePromise<R> {
         if (this.construction.status === Lifecycle.Status.Inactive) {
+            // Between the reset and the close of a deletion; restarting would revive a node that is going away
+            this.lifecycle.assertNotGone();
             this.construction.start();
         }
 

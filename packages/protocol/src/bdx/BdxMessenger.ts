@@ -7,6 +7,7 @@
 import { Message } from "#codec/MessageCodec.js";
 import { ExchangeProvider } from "#protocol/index.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
+import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import {
     Diagnostic,
     Duration,
@@ -99,9 +100,10 @@ export class BdxMessenger {
         return BdxMessage.decode(messageType, message.payload);
     }
 
-    async send(bdxMessage: BdxMessage<any>) {
+    async send(bdxMessage: BdxMessage<any>, logContext?: ExchangeLogContext) {
         await this.exchange.send(bdxMessage.kind, BdxMessage.encode(bdxMessage), {
             expectedProcessingTime: this.#messageTimeout,
+            logContext,
         });
     }
 
@@ -135,32 +137,61 @@ export class BdxMessenger {
 
     /** Encodes and sends a Bdx Block message. */
     async sendBlock(message: BdxBlock) {
-        await this.send({ kind: BdxMessageType.Block, message });
+        await this.send(
+            { kind: BdxMessageType.Block, message },
+            { cnt: message.blockCounter, len: message.data.byteLength },
+        );
     }
 
-    /** Encodes and sends a Bdx BlockQuery message. */
-    async sendBlockQuery(message: BdxBlockQuery) {
-        await this.send({ kind: BdxMessageType.BlockQuery, message });
+    /**
+     * Encodes and sends a Bdx BlockQuery message.
+     *
+     * `received` names the Block this query follows.  A driving receiver acks nothing until the transfer ends, so
+     * its next query is the only message that can carry what the last one delivered — and this query's own counter
+     * is the block being asked for, not the one that arrived.
+     */
+    async sendBlockQuery(message: BdxBlockQuery, received?: { blockCounter: number; dataLength: number }) {
+        await this.send(
+            { kind: BdxMessageType.BlockQuery, message },
+            { cnt: message.blockCounter, rcvdCnt: received?.blockCounter, rcvdLen: received?.dataLength },
+        );
     }
 
     /** Encodes and sends a Bdx BlockQueryWithSkip message. */
     async sendBlockQueryWithSkip(message: BdxBlockQueryWithSkip) {
-        await this.send({ kind: BdxMessageType.BlockQueryWithSkip, message });
+        await this.send(
+            { kind: BdxMessageType.BlockQueryWithSkip, message },
+            { cnt: message.blockCounter, skip: message.bytesToSkip },
+        );
     }
 
     /** Encodes and sends a Bdx BlockEof message. */
     async sendBlockEof(message: BdxBlockEof) {
-        await this.send({ kind: BdxMessageType.BlockEof, message });
+        await this.send(
+            { kind: BdxMessageType.BlockEof, message },
+            { cnt: message.blockCounter, len: message.data.byteLength },
+        );
     }
 
-    /** Encodes and sends a Bdx BlockAck message. */
-    async sendBlockAck(message: BdxBlockAck) {
-        await this.send({ kind: BdxMessageType.BlockAck, message });
+    /**
+     * Encodes and sends a Bdx BlockAck message.
+     *
+     * `acknowledgedLength` is the data length of the Block being acknowledged.  An inbound message is logged on
+     * arrival, before BDX decodes it, so the receiver's own ack is where a reader learns what arrived.
+     */
+    async sendBlockAck(message: BdxBlockAck, acknowledgedLength?: number) {
+        await this.send(
+            { kind: BdxMessageType.BlockAck, message },
+            { cnt: message.blockCounter, ackLen: acknowledgedLength },
+        );
     }
 
-    /** Encodes and sends a Bdx BlockAckEof message */
-    async sendBlockAckEof(message: BdxBlockAckEof) {
-        await this.send({ kind: BdxMessageType.BlockAckEof, message });
+    /** Encodes and sends a Bdx BlockAckEof message.  `acknowledgedLength` as for {@link sendBlockAck}. */
+    async sendBlockAckEof(message: BdxBlockAckEof, acknowledgedLength?: number) {
+        await this.send(
+            { kind: BdxMessageType.BlockAckEof, message },
+            { cnt: message.blockCounter, ackLen: acknowledgedLength },
+        );
     }
 
     /** Read the next Block message, accepts Block and BlockEof messages. Returns the decoded message and it's type. */

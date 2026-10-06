@@ -4,7 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FieldElement, MandatoryDefaultValue, Scope, SelectDefaultValue } from "#index.js";
+import {
+    FieldElement,
+    FieldValue,
+    MandatoryDefaultValue,
+    Scope,
+    SelectDefaultValue,
+    StoredDefaultValue,
+} from "#index.js";
 import { DatatypeModel, FieldModel } from "#models/index.js";
 
 function memberFor(definition: Parameters<typeof FieldElement>[0] & { children?: FieldElement[] }) {
@@ -109,5 +116,34 @@ describe("SelectDefaultValue", () => {
         );
         const scope = Scope(parent);
         expect(SelectDefaultValue(scope, parent.children[0] as FieldModel)).undefined;
+    });
+});
+
+// A model that was never validated, such as a schema handed to withClusters, still carries the marker
+describe("the no value marker", () => {
+    it("stores no value for a boolean", () => {
+        const { scope, member } = memberFor({ name: "Field", type: "bool", default: FieldValue.None });
+        expect(StoredDefaultValue(scope, member)).equals(undefined);
+    });
+
+    it("stores no value for a list, where no default would be an empty list", () => {
+        const { scope, member } = memberFor({ name: "Field", type: "list", default: FieldValue.None });
+        expect(StoredDefaultValue(scope, member)).equals(undefined);
+    });
+
+    it("falls back to null for a mandatory nullable struct rather than to its members' defaults", () => {
+        const { scope, member } = memberFor({
+            name: "Field",
+            type: "struct",
+            quality: "X",
+            default: FieldValue.None,
+            children: [FieldElement({ name: "Flag", type: "bool", conformance: "M", default: true })],
+        });
+        expect(MandatoryDefaultValue(scope, member)).equals(null);
+    });
+
+    it("falls back to the specification default for a mandatory boolean", () => {
+        const { scope, member } = memberFor({ name: "Field", type: "bool", default: FieldValue.None });
+        expect(MandatoryDefaultValue(scope, member)).equals(false);
     });
 });

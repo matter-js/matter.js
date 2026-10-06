@@ -6,13 +6,47 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { OnOffServer } from "#behaviors/on-off";
+import { WindowCoveringServer } from "#behaviors/window-covering";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { causeMessagesOf } from "../../node/node-helpers.js";
 import { MockEndpoint } from "../mock-endpoint.js";
 
 describe("Behaviors", () => {
+    it("rejects a second behavior for a cluster the endpoint already serves", async () => {
+        class SecondOnOffServer extends OnOffServer {}
+        // The id type is the literal "onOff", so a behavior serving OnOff under another id is only reachable at runtime
+        Object.defineProperty(SecondOnOffServer, "id", { value: "secondOnOff" });
+
+        expect(await causeMessagesOf(MockEndpoint.create(OnOffLightDevice.with(SecondOnOffServer)))).contains(
+            'two behaviors for cluster OnOff: "onOff" and "secondOnOff"',
+        );
+    });
+
+    describe("has", () => {
+        it("answers true for a behavior the endpoint supports", async () => {
+            await using light = await MockEndpoint.create(OnOffLightDevice);
+
+            expect(light.behaviors.has(OnOffServer)).equals(true);
+        });
+
+        it("answers false for a behavior the endpoint does not support at all", async () => {
+            await using light = await MockEndpoint.create(OnOffLightDevice);
+
+            // Not merely falsy: the declared return type is boolean
+            expect(light.behaviors.has(WindowCoveringServer)).equals(false);
+        });
+
+        it("answers false for a different behavior sharing the id of one it supports", async () => {
+            await using light = await MockEndpoint.create(OnOffLightDevice);
+            const Unrelated = OnOffServer.set({}).with();
+
+            expect(light.behaviors.has(class extends Unrelated {})).equals(false);
+        });
+    });
+
     it("transplants observers when a behavior is dropped and re-injected", async () => {
-        const light = await MockEndpoint.create(OnOffLightDevice);
+        await using light = await MockEndpoint.create(OnOffLightDevice);
 
         const changes = new Array<boolean>();
         light.eventsOf(OnOffServer).onOff$Changed.on(value => {
@@ -26,12 +60,10 @@ describe("Behaviors", () => {
         await light.set({ onOff: { onOff: true } });
 
         expect(changes).deep.equals([true]);
-
-        await light.close();
     });
 
     it("sets context on transplanted events", async () => {
-        const light = await MockEndpoint.create(OnOffLightDevice);
+        await using light = await MockEndpoint.create(OnOffLightDevice);
 
         light.eventsOf(OnOffServer).onOff$Changed.on(() => {});
 
@@ -40,8 +72,6 @@ describe("Behaviors", () => {
         light.behaviors.inject(installedType);
 
         expect(light.eventsOf(OnOffServer).endpoint).equals(light);
-
-        await light.close();
     });
 
     it("accepts different base class for cluster requirements", () => {

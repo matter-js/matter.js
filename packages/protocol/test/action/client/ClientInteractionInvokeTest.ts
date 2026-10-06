@@ -6,13 +6,23 @@
 
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { Invoke } from "#action/request/Invoke.js";
+import { MalformedRequestError } from "#action/request/MalformedRequestError.js";
 import { Read } from "#action/request/Read.js";
 import { InvokeResult } from "#action/response/InvokeResult.js";
 import { MessageType } from "#interaction/InteractionMessenger.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { ExchangeReceiveOptions, MessageExchange } from "#protocol/MessageExchange.js";
-import { AbortedError, ChannelType, ClosedError, createPromise, Duration, Environment, Seconds } from "@matter/general";
+import {
+    AbortedError,
+    ChannelType,
+    ClosedError,
+    createPromise,
+    Duration,
+    Environment,
+    InternalError,
+    Seconds,
+} from "@matter/general";
 import { Specification } from "@matter/model";
 import {
     ClusterId,
@@ -369,6 +379,26 @@ describe("ClientInteraction invoke commandRef wire handling", () => {
         ]);
     });
 
+    it("refuses to split an invoke for a provider reporting no usable path limit", async () => {
+        const sentRequests = new Array<InvokeRequest>();
+        const client = new ClientInteraction({
+            environment: Environment.default,
+            exchangeProvider: new RefLessDeviceExchangeProvider(0, sentRequests),
+        });
+
+        try {
+            await expect(
+                (async () => {
+                    for await (const _chunk of client.invoke(twoOnOffCommands()));
+                })(),
+            ).rejectedWith(InternalError);
+        } finally {
+            await client.close();
+        }
+
+        expect(sentRequests.length).equals(0);
+    });
+
     it("aborts an in-flight batch on close instead of awaiting its response", async () => {
         const provider = new HangingDeviceExchangeProvider();
         const client = new ClientInteraction({
@@ -696,5 +726,96 @@ describe("ClientInteraction invoke commandRef wire handling", () => {
         } finally {
             await client.close();
         }
+    });
+});
+
+describe("ClientInteraction invoke DelayReportData", () => {
+    before(MockTime.enable);
+
+    const delayReportData = { delayMinMs: 1000, delayJitterWindowMs: 500 };
+
+    const offOnEndpoint1 = () =>
+        Invoke.ConcreteCommandRequest({ endpoint: EndpointNumber(1), cluster: OnOff, command: "off" });
+
+    async function sentInvoke(request: ReturnType<typeof Invoke>) {
+        const sentRequests = new Array<InvokeRequest>();
+        // A peer that batches, so a request carrying DelayReportData must bypass the batcher
+        const client = new ClientInteraction({
+            environment: Environment.default,
+            exchangeProvider: new RefLessDeviceExchangeProvider(10, sentRequests),
+        });
+
+        try {
+            await MockTime.resolve(
+                (async () => {
+                    for await (const _chunk of client.invoke(request)) {
+                        // Only the request on the wire matters
+                    }
+                })(),
+            );
+        } finally {
+            await client.close();
+        }
+
+        expect(sentRequests.length).equals(1);
+        return sentRequests[0];
+    }
+
+    describe("with the delay-report-data forward feature", () => {
+        MockForwardFeatures.enable("delay-report-data");
+
+        it("sends DelayReportData in its own message", async () => {
+            const sent = await sentInvoke(Invoke({ commands: [offOnEndpoint1()], delayReportData }));
+
+            expect(sent.delayReportData).deep.equals(delayReportData);
+        });
+    });
+
+    describe("while forward Matter features are off", () => {
+        before(function () {
+            if (Specification.ENABLE_FORWARD_MATTER_FEATURES) this.skip();
+        });
+
+        it("refuses a request with DelayReportData before anything is sent", () => {
+            expect(() => Invoke({ commands: [offOnEndpoint1()], delayReportData })).throws(MalformedRequestError);
+        });
+
+        it("sends no DelayReportData", async () => {
+            const sent = await sentInvoke(Invoke({ commands: [offOnEndpoint1()] }));
+
+            expect(sent.delayReportData).undefined;
+        });
+    });
+});
+
+// Characterization test: InteractionModelRevision is optional in a received InvokeResponse
+describe("ClientInteraction invoke response without InteractionModelRevision", () => {
+    it("accepts the response", async () => {
+        const exchange = await createDummyMessageExchange(false, false, messageType => {
+            if (messageType === MessageType.InvokeRequest) {
+                return {
+                    messageType: MessageType.InvokeResponse,
+                    payload: TlvInvokeResponse.encode({
+                        suppressResponse: false,
+                        invokeResponses: [successStatus(ON_COMMAND_ID, 1)],
+                    }),
+                };
+            }
+        });
+        const client = new ClientInteraction({
+            environment: Environment.default,
+            exchangeProvider: new FakeExchangeProvider(exchange),
+        });
+
+        const entries = new Array<InvokeResult.Data>();
+        try {
+            for await (const chunk of client.invoke(twoOnOffCommands())) {
+                entries.push(...chunk);
+            }
+        } finally {
+            await client.close();
+        }
+
+        expect(entries[0]).deep.include({ kind: "cmd-status", commandRef: 1, status: Status.Success });
     });
 });

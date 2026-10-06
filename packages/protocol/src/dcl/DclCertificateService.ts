@@ -17,15 +17,15 @@ import {
     DerType,
     Diagnostic,
     Duration,
-    EcdsaSignature,
     Environment,
     Github,
     hashAlgorithmForId,
     Hours,
+    ImplementationError,
+    isObject,
     Logger,
     LogLevel,
     Pem,
-    PublicKey,
     Seconds,
     StorageContext,
     StorageManager,
@@ -36,12 +36,250 @@ import {
 import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "@matter/types";
 import { Paa, Pai } from "../certificate/kinds/AttestationCertificates.js";
 import { Certificate } from "../certificate/kinds/Certificate.js";
+import { certificateSignatureOf, verifyCertificateSignature } from "../certificate/kinds/CertificateSignature.js";
 import { DclClient, MatterDclError, MatterDclResponseError } from "./DclClient.js";
 import { DclConfig, DclGithubConfig } from "./DclConfig.js";
 import { DclPkiRootCertificateSubjectReference } from "./DclRestApiTypes.js";
 import type { CertSeedEntry, SeedSource } from "./SeedTypes.js";
 
 const logger = Logger.get("DclCertificateService");
+
+/** Parse a trust store certificate with the extensions and algorithms its kind admits. */
+function parseTrustStoreCertificate(der: Bytes, kind: DclCertificateService.CertificateKind) {
+    return kind === "PAA"
+        ? Paa.fromAsn1(der).cert
+        : Certificate.parseAsn1Certificate(der, Certificate.REQUIRED_EXTENSIONS);
+}
+
+function statedString(value: unknown, field: string, index: number) {
+    if (typeof value !== "string") {
+        throw new ImplementationError(`Revocation set entry ${index} states ${field} as something other than a string`);
+    }
+    return value;
+}
+
+/**
+ * A hex field, as the entry states it.
+ *
+ * An identifier or serial that is not hex matches no certificate, so a set that states one would be
+ * installed, reported as installed, and then answer "not revoked" for everything it names. It is
+ * refused instead.
+ */
+function statedHex(value: unknown, field: string, index: number) {
+    const stated = statedString(value, field, index).replace(/:/g, "");
+    if (stated === "" || stated.length % 2 !== 0 || !/^[0-9A-Fa-f]+$/.test(stated)) {
+        throw new ImplementationError(
+            `Revocation set entry ${index} states ${field} as "${stated}", which is not an even number of hex digits`,
+        );
+    }
+    return stated;
+}
+
+function statedSerials(value: unknown, index: number) {
+    if (!Array.isArray(value)) {
+        throw new ImplementationError(
+            `Revocation set entry ${index} states revoked_serial_numbers as something other than a list`,
+        );
+    }
+    return value.map((serial, position) => statedHex(serial, `revoked_serial_numbers[${position}]`, index));
+}
+
+/**
+ * The issuer name an entry states, as base64 of the DER it encodes. An entry that states none, or
+ * states an empty one, is matched on its key identifier alone.
+ */
+function statedIssuerName(value: unknown, index: number) {
+    if (value === undefined || value === "") {
+        return undefined;
+    }
+
+    const stated = statedString(value, "issuer_name", index);
+    try {
+        Bytes.fromBase64(stated);
+    } catch (error) {
+        throw new ImplementationError(
+            `Revocation set entry ${index} states an issuer_name that is not base64: ${asError(error).message}`,
+        );
+    }
+    return stated;
+}
+
+/** What the DCL's revocation sets state as their type, and the only kind of entry this reads. */
+const REVOCATION_SET_TYPE = "revocation_set";
+
+function statedType(value: unknown, index: number) {
+    if (value !== undefined && value !== REVOCATION_SET_TYPE) {
+        throw new ImplementationError(
+            `Revocation set entry ${index} states type "${String(value)}" rather than "${REVOCATION_SET_TYPE}"`,
+        );
+    }
+}
+
+/** The issuer name an entry states, as hex of the DER it encodes. */
+function issuerDnOf(issuerName: string | undefined) {
+    return issuerName === undefined ? undefined : Bytes.toHex(Bytes.fromBase64(issuerName)).toUpperCase();
+}
+
+/**
+ * The URI of a CRL's Issuing Distribution Point extension (RFC 5280 §5.2.5) when the extension is critical and its
+ * distributionPoint is a fullName of exactly one uniformResourceIdentifier, as Matter Core §6.2.6.1 step 7.2 requires.
+ */
+function issuingDistributionPointUriOf(extension: DerNode): string | undefined {
+    const [, critical, value] = extension._elements ?? [];
+    if (
+        critical?._tag !== DerType.Boolean ||
+        Bytes.of(critical._bytes)[0] === 0 ||
+        value?._tag !== DerType.OctetString
+    ) {
+        return;
+    }
+
+    const distributionPoint = DerCodec.decode(value._bytes)._elements?.[0];
+    if (distributionPoint?._tag !== CONTEXT_CONSTRUCTED_0) {
+        return;
+    }
+    const name = DerCodec.decode(distributionPoint._bytes);
+    if (name._tag !== CONTEXT_CONSTRUCTED_0) {
+        return;
+    }
+    const uri = DerCodec.decode(name._bytes);
+    if (uri._tag !== URI_GENERAL_NAME || DerCodec.encode(uri).byteLength !== name._bytes.byteLength) {
+        return;
+    }
+    return Bytes.toString(uri._bytes);
+}
+
+/** The DCL revocations of one issuer; incomplete when a distribution point failed transiently. */
+interface RevocationLookup {
+    entries: DclCertificateService.RevocationEntry[];
+    complete: boolean;
+}
+
+/** A distribution point's validated CRL signer and the authority (§6.2.6.1 step 9) its CRL speaks for. */
+interface CrlAuthority {
+    signer: Paa | Pai;
+    /** DER of the authority's subject Name, the CertificateAuthorityName of §6.2.6.1. */
+    name: Bytes;
+}
+
+/** A distribution point Matter Core §6.2.6.1 tells to skip; unlike a download failure, retrying cannot change it. */
+class CrlRejectedError extends MatterDclError {}
+
+function nameOf(certificate: Paa | Pai, field: "subject" | "issuer") {
+    const der = field === "subject" ? certificate.cert.subjectDer : certificate.cert.issuerDer;
+    if (der === undefined) {
+        throw new CrlRejectedError(`CRL signer chain certificate has no parsed ${field} name`);
+    }
+    return der;
+}
+
+/** DER string types whose values RFC 5280 §7.1 compares as characters rather than as encodings. */
+const DIRECTORY_STRING_TAGS = new Set<number>([
+    DerType.UTF8String,
+    DerType.PrintableString,
+    DerType.T16String,
+    DerType.IA5String,
+]);
+
+/**
+ * Whether two DER Names are the same name under RFC 5280 §7.1: string attributes compare ignoring case, surrounding and
+ * repeated whitespace, and whether they are encoded as PrintableString or UTF8String, as CAs mix those.
+ */
+function sameName(a: Bytes, b: Bytes) {
+    if (Bytes.areEqual(a, b)) {
+        return true;
+    }
+    const canonical = (der: Bytes) =>
+        (DerCodec.decode(der)._elements ?? []).map(rdn =>
+            (rdn._elements ?? [])
+                .map(attribute => {
+                    const [type, value] = attribute._elements ?? [];
+                    const text =
+                        value !== undefined && DIRECTORY_STRING_TAGS.has(value._tag)
+                            ? Bytes.toString(value._bytes).trim().replace(/\s+/g, " ").toLowerCase()
+                            : `${value?._tag}:${Bytes.toHex(value?._bytes ?? new Uint8Array())}`;
+                    return `${Bytes.toHex(type?._bytes ?? new Uint8Array())}=${text}`;
+                })
+                .sort()
+                .join("+"),
+        );
+    try {
+        const [left, right] = [canonical(a), canonical(b)];
+        return left.length === right.length && left.every((rdn, index) => rdn === right[index]);
+    } catch {
+        return false;
+    }
+}
+
+/** {@link sameName} for Names as hex of their DER; a value that is not hex names nothing. */
+function sameNameHex(a: string, b: string) {
+    const isHex = (value: string) => /^(?:[0-9a-f]{2})*$/i.test(value);
+    return isHex(a) && isHex(b) && sameName(Bytes.fromHex(a), Bytes.fromHex(b));
+}
+
+/** Whether an entry for the issuer names the serial; an entry or query without an issuer name matches any issuer. */
+function matchRevocation(
+    entries: readonly DclCertificateService.RevocationEntry[] | undefined,
+    serial: string,
+    issuerDnDerHex: string | undefined,
+) {
+    return (entries ?? []).some(
+        entry =>
+            (issuerDnDerHex === undefined ||
+                entry.issuerDnDerHex === undefined ||
+                sameNameHex(entry.issuerDnDerHex, issuerDnDerHex)) &&
+            entry.serials.has(serial),
+    );
+}
+
+/** Authority Key Identifier, Issuing Distribution Point and CRL Number, the CRL extensions this service reads. */
+const KNOWN_CRL_EXTENSIONS = new Set(["551d23", "551d1c", "551d14"]);
+
+/** Reason code, invalidity date and certificate issuer (RFC 5280 §5.3). */
+const KNOWN_CRL_ENTRY_EXTENSIONS = new Set(["551d15", "551d18", "551d1d"]);
+
+const CERTIFICATE_ISSUER_EXTENSION = "551d1d";
+
+function isCritical(extension: DerNode) {
+    const critical = extension._elements?.[1];
+    return critical?._tag === DerType.Boolean && Bytes.of(critical._bytes)[0] !== 0;
+}
+
+/** The single directoryName of a certificateIssuer CRL entry extension as Name DER, if it names exactly one. */
+function certificateIssuerOf(extension: DerNode) {
+    const value = extension._elements?.[extension._elements.length - 1];
+    if (value?._tag !== DerType.OctetString) {
+        return;
+    }
+    const names = DerCodec.decode(value._bytes)._elements;
+    if (names?.length !== 1 || names[0]._tag !== DIRECTORY_NAME) {
+        return;
+    }
+    return Bytes.of(names[0]._bytes);
+}
+
+/** [4] EXPLICIT Name: the directoryName choice of GeneralName. */
+const DIRECTORY_NAME = 0xa4;
+
+/** [0] IMPLICIT, constructed: distributionPoint and its fullName in an Issuing Distribution Point. */
+const CONTEXT_CONSTRUCTED_0 = 0xa0;
+
+/** [6] IMPLICIT IA5String: the uniformResourceIdentifier choice of GeneralName. */
+const URI_GENERAL_NAME = 0x86;
+
+/**
+ * A serial number as both sides of a revocation lookup can agree on it.
+ *
+ * A certificate states its serial as the content octets of a DER INTEGER, which carry a leading zero
+ * whenever the number's top bit is set, so the same serial reads as `00E1…` from a certificate and
+ * `E1…` in a revocation set, which states the number itself. Dropping leading zero bytes leaves one
+ * form both arrive at.
+ */
+function canonicalSerial(serial: Bytes | string) {
+    const hex = (typeof serial === "string" ? serial.replace(/:/g, "") : Bytes.toHex(serial)).toUpperCase();
+    const significant = hex.replace(/^(?:00)+/, "");
+    return significant === "" ? "00" : significant;
+}
 
 /**
  * Implements a service to manage DCL root certificates as a singleton in the environment and so will be shared by
@@ -62,7 +300,10 @@ export class DclCertificateService {
     #fetchPromise?: Promise<void>;
 
     /** Lazy CRL revocation cache: keyed by normalized AKID, fetches on-demand from DCL */
-    #revocationCache: AsyncCache<DclCertificateService.RevocationEntry>;
+    #revocationCache: AsyncCache<RevocationLookup>;
+
+    /** Revocation information supplied out of band rather than fetched, keyed by normalized AKID */
+    #installedRevocations = new Map<string, DclCertificateService.RevocationEntry[]>();
 
     constructor(environment: Environment, options: DclCertificateService.Options = {}) {
         environment.root.set(DclCertificateService, this);
@@ -84,6 +325,10 @@ export class DclCertificateService {
             Hours(1),
         );
 
+        if (options.revocations !== undefined) {
+            this.installRevocations(options.revocations);
+        }
+
         this.#construction = Construction(this, async () => {
             this.#storageManager = await environment.get(StorageService).open("certificates");
             this.#storage = this.#storageManager.createContext("root");
@@ -94,9 +339,10 @@ export class DclCertificateService {
             if (options.seed?.cdSigners) {
                 await this.#consumeCertSeed(options.seed.cdSigners, "CDSigner");
             }
+            // `update()` answers an offline service by doing nothing, so this needs no condition
             await this.update();
 
-            if (options.updateInterval !== null) {
+            if (!options.offline && options.updateInterval !== null) {
                 // Start periodic update timer
                 const updateInterval = options.updateInterval ?? Days.one;
                 this.#updateTimer = Time.getPeriodicTimer("DCL Certificate Update", updateInterval, () =>
@@ -224,14 +470,43 @@ export class DclCertificateService {
     /** Parse error of a DER certificate, or undefined if it parses, using the extension set for its kind. */
     #certificateParseError(der: Bytes, kind?: DclCertificateService.CertificateKind): Error | undefined {
         try {
-            Certificate.parseAsn1Certificate(
-                der,
-                (kind ?? "PAA") === "PAA" ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
-            );
+            parseTrustStoreCertificate(der, kind ?? "PAA");
             return undefined;
         } catch (error) {
             return asError(error);
         }
+    }
+
+    /**
+     * Parse a DER certificate and confirm its own SKID matches the id a source claims for it.
+     * Every trust-store entry is keyed by a certificate's own SKID, so a claimed id that disagrees
+     * with the certificate is refused rather than filed under the wrong lookup key. Returns the
+     * parsed certificate, or undefined if it does not parse as `kind` or its SKID does not match
+     * `statedSkid`; both cases are logged and left for the caller to skip.
+     */
+    #parseAndCheckSkid(der: Bytes, kind: DclCertificateService.CertificateKind, statedSkid: string, source: string) {
+        let parsed: ReturnType<typeof parseTrustStoreCertificate>;
+        try {
+            parsed = parseTrustStoreCertificate(der, kind);
+        } catch (error) {
+            logger.info(
+                `${source}: certificate cannot be used as a ${kind}, skipped`,
+                Diagnostic.dict({ skid: statedSkid }),
+                Diagnostic.errorMessage(asError(error)),
+            );
+            return undefined;
+        }
+
+        const skidFromDer = this.#normalizeSubjectKeyId(parsed.extensions.subjectKeyIdentifier);
+        if (skidFromDer !== statedSkid) {
+            logger.warn(
+                `${source}: SKID mismatch entry=${statedSkid} der-derived=${skidFromDer}, skipped`,
+                Diagnostic.dict({ kind }),
+            );
+            return undefined;
+        }
+
+        return parsed;
     }
 
     /**
@@ -245,6 +520,10 @@ export class DclCertificateService {
         isProduction: boolean,
         options?: DclCertificateService.GetCertificateOptions,
     ): Promise<Bytes | undefined> {
+        if (this.#options.offline) {
+            return undefined;
+        }
+
         if (this.#fetchPromise !== undefined) {
             await this.#fetchPromise;
         }
@@ -272,8 +551,8 @@ export class DclCertificateService {
 
     /**
      * Fetch a single root certificate from DCL by SubjectKeyIdentifier and store it. Returns true if
-     * a matching root certificate was found and stored, false if DCL has no such root certificate.
-     * Throws on DCL/network errors; callers decide how to handle them.
+     * a matching root certificate was found and stored, false if DCL has no such root certificate or it
+     * could not be fetched or used. Throws if the root certificate list cannot be fetched.
      */
     async #fetchAndStoreRootCertificateBySkid(
         normalizedId: string,
@@ -296,7 +575,7 @@ export class DclCertificateService {
             return false;
         }
 
-        await this.#fetchAndStoreCertificate(
+        const stored = await this.#fetchAndStoreCertificate(
             this.#storage!,
             dclClient,
             certRef,
@@ -305,7 +584,7 @@ export class DclCertificateService {
             options ?? this.#options,
         );
         await this.#saveIndex();
-        return true;
+        return stored;
     }
 
     /** Internal DER retrieval without construction assert (safe during init). */
@@ -325,11 +604,81 @@ export class DclCertificateService {
     }
 
     /**
+     * Install revocation information that did not come from the DCL.
+     *
+     * The DCL is the authority on revocation: it publishes distribution points, and {@link isRevoked}
+     * downloads and validates the CRL behind one the first time an authority is asked about. A set
+     * installed here is trusted as it stands — no signer chain, no CRL signature — because it is
+     * already the validated product of that process rather than an input to it. So this is for a
+     * deployment that cannot reach the DCL, and for certification against a PKI the DCL does not
+     * publish. Ordinary commissioning needs none of it.
+     *
+     * The entries live in memory for the life of this service and are never stored. A serial listed
+     * here is revoked; every other serial still goes to the DCL, so an installed set can only add
+     * revocations, never hide one. Installing the same set twice changes nothing.
+     *
+     * An entry that names no issuer is matched on its key identifier alone, which the specification's
+     * composite key does not license and chip's own reading refuses. A key identifier is a hash of the
+     * issuer's public key, so the widening is small, and it errs toward refusing a device rather than
+     * admitting one.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.2.4.1
+     */
+    installRevocations(entries: DclCertificateService.RevocationSetEntry[]) {
+        // Nothing is installed until every entry has been read, so a set with a bad entry in the middle
+        // does not leave half of itself in force
+        const read = entries.map((entry, index) => ({
+            akid: this.#normalizeSubjectKeyId(statedHex(entry.issuerSubjectKeyId, "issuerSubjectKeyId", index)),
+            issuerDnDerHex: issuerDnOf(statedIssuerName(entry.issuerName, index)),
+            serials: entry.revokedSerialNumbers.map((serial, position) =>
+                canonicalSerial(statedHex(serial, `revokedSerialNumbers[${position}]`, index)),
+            ),
+        }));
+
+        for (const { akid, issuerDnDerHex, serials } of read) {
+            let installed = this.#installedRevocations.get(akid);
+            if (installed === undefined) {
+                this.#installedRevocations.set(akid, (installed = new Array<DclCertificateService.RevocationEntry>()));
+            }
+
+            let entry = installed.find(candidate => candidate.issuerDnDerHex === issuerDnDerHex);
+            if (entry === undefined) {
+                installed.push((entry = { serials: new Set(), issuerDnDerHex }));
+            }
+
+            for (const serial of serials) {
+                entry.serials.add(serial);
+            }
+        }
+
+        if (read.length) {
+            logger.info(
+                "Installed revocation information from outside the DCL",
+                Diagnostic.dict({ entries: read.length, authorities: this.#installedRevocations.size }),
+            );
+        }
+    }
+
+    /**
+     * Revocation information installed from outside the DCL, by the key identifier it was stated for.
+     *
+     * A copy: what this service holds can only be added to, through {@link installRevocations}.
+     */
+    get installedRevocations(): ReadonlyMap<string, readonly DclCertificateService.InstalledRevocation[]> {
+        return new Map(
+            [...this.#installedRevocations].map(([akid, entries]) => [
+                akid,
+                entries.map(({ serials, issuerDnDerHex }) => ({ serials: new Set(serials), issuerDnDerHex })),
+            ]),
+        );
+    }
+
+    /**
      * Check if a certificate is revoked by looking up its serial number in the revocation set
      * for the given authority key identifier.
      *
      * Lazily fetches revocation data from DCL on first access per AKID, then caches for 1 hour.
-     * Per spec Section 6.2.4.2, the revocation set is indexed by (AuthorityKeyIdentifier, IssuerDN).
+     * Per spec Section 6.2.6.2, the revocation set is indexed by (AuthorityKeyIdentifier, IssuerDN).
      *
      * Returns true if the certificate is revoked, false otherwise.
      * If revocation data is not available for the given authority, returns false.
@@ -342,34 +691,33 @@ export class DclCertificateService {
         this.construction.assert();
 
         const akid = this.#normalizeSubjectKeyId(authorityKeyIdentifier);
-
-        let entry: DclCertificateService.RevocationEntry;
-        try {
-            entry = await this.#revocationCache.get(akid);
-        } catch {
-            // Underlying fetch already logged the cause; treat unreachable CRL as not-revoked
-            return false;
-        }
-
-        if (entry.serials.size === 0) {
-            return false;
-        }
-
-        // If issuerDnDerHex is provided, verify it matches the CRL's issuer DN
-        if (
-            issuerDnDerHex !== undefined &&
-            entry.issuerDnDerHex !== undefined &&
-            entry.issuerDnDerHex !== issuerDnDerHex
-        ) {
-            return false;
-        }
-
         const serialHex =
             typeof serialNumber === "string"
                 ? serialNumber.replace(/:/g, "").toUpperCase()
                 : Bytes.toHex(serialNumber).toUpperCase();
 
-        return entry.serials.has(serialHex);
+        if (matchRevocation(this.#installedRevocations.get(akid), canonicalSerial(serialHex), issuerDnDerHex)) {
+            return true;
+        }
+
+        if (this.#options.offline) {
+            return false;
+        }
+
+        let lookup: RevocationLookup;
+        try {
+            lookup = await this.#revocationCache.get(akid);
+        } catch {
+            // Underlying fetch already logged the cause; treat unreachable CRL as not-revoked
+            return false;
+        }
+
+        // A partition that failed transiently would stay missing for the cache's lifetime
+        if (!lookup.complete) {
+            await this.#revocationCache.delete(akid);
+        }
+
+        return matchRevocation(lookup.entries, serialHex, issuerDnDerHex);
     }
 
     /**
@@ -456,10 +804,7 @@ export class DclCertificateService {
     ): Promise<boolean> {
         this.construction.assert();
 
-        const cert = Certificate.parseAsn1Certificate(
-            derBytes,
-            kind === "PAA" ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
-        );
+        const cert = parseTrustStoreCertificate(derBytes, kind);
         const skid = this.#normalizeSubjectKeyId(cert.extensions.subjectKeyIdentifier);
 
         if (this.#certificateIndex.has(skid)) {
@@ -506,6 +851,10 @@ export class DclCertificateService {
             const derBytes = await this.#getCertificateDer(normalizedSkid);
             const cert = Certificate.parseAsn1Certificate(derBytes, Certificate.REQUIRED_EXTENSIONS);
             return { publicKey: cert.ellipticCurvePublicKey, isProduction: existing.isProduction };
+        }
+
+        if (this.#options.offline) {
+            return undefined;
         }
 
         // DCL fallback
@@ -589,7 +938,7 @@ export class DclCertificateService {
      * Update certificates from DCL and GitHub. Returns true if update succeeded, false if it failed.
      */
     async update(force = false) {
-        if (this.#closed || !this.#storage) {
+        if (this.#closed || !this.#storage || this.#options.offline) {
             return;
         }
         if (this.#fetchPromise !== undefined) {
@@ -693,7 +1042,10 @@ export class DclCertificateService {
         return this.#storage.set("index", indexArray);
     }
 
-    /** Fetch and store a single certificate from DCL by its subject reference. */
+    /**
+     * Fetch and store a single certificate from DCL by its subject reference.  Returns whether the trust store holds a
+     * usable certificate for it afterwards.
+     */
     async #fetchAndStoreCertificate(
         storage: StorageContext,
         dclClient: DclClient,
@@ -701,7 +1053,7 @@ export class DclCertificateService {
         isProduction: boolean,
         force: boolean,
         options?: DclClient.Options,
-    ) {
+    ): Promise<boolean> {
         try {
             // Strip colons from subject key ID for storage key (normalize to match GitHub format)
             const normalizedSubjectKeyId = this.#normalizeSubjectKeyId(certRef.subjectKeyId);
@@ -722,11 +1074,12 @@ export class DclCertificateService {
                         Diagnostic.dict({ skid: normalizedSubjectKeyId }),
                     );
                 }
-                return;
+                return true;
             }
 
             // Fetch the certificate details
             const certs = await dclClient.fetchRootCertificateBySubject(certRef, options);
+            let stored = false;
 
             for (const cert of certs) {
                 if (!cert.subjectKeyId) {
@@ -740,8 +1093,21 @@ export class DclCertificateService {
                 // Strip colons from subject key ID for storage key
                 const subjectKeyId = this.#normalizeSubjectKeyId(cert.subjectKeyId);
 
-                // Convert PEM to DER
-                const derBytes = Pem.asDer(cert.pemCert);
+                let derBytes: Bytes;
+                try {
+                    derBytes = Pem.asDer(cert.pemCert);
+                } catch (error) {
+                    logger.info(
+                        `DCL: certificate cannot be used as a PAA, skipped`,
+                        Diagnostic.dict({ skid: subjectKeyId }),
+                        Diagnostic.errorMessage(asError(error)),
+                    );
+                    continue;
+                }
+
+                if (this.#parseAndCheckSkid(derBytes, "PAA", subjectKeyId, "DCL") === undefined) {
+                    continue;
+                }
 
                 const { subject, subjectAsText, serialNumber, vid, isRoot } = cert;
                 // Store certificate with metadata (using normalized ID without colons)
@@ -757,12 +1123,15 @@ export class DclCertificateService {
                 });
 
                 logger.debug(`Stored certificate`, Diagnostic.dict({ skid: normalizedSubjectKeyId, vid: cert.vid }));
+                stored ||= subjectKeyId === normalizedSubjectKeyId;
             }
+            return stored;
         } catch (error) {
             logger.info(
                 `Failed to fetch certificate ${certRef.subject}/${certRef.subjectKeyId}`,
                 Diagnostic.errorMessage(asError(error)),
             );
+            return false;
         }
     }
 
@@ -999,31 +1368,22 @@ export class DclCertificateService {
                     }
 
                     const der = Bytes.fromHex(entry.derHex);
-                    const parsed = Certificate.parseAsn1Certificate(
-                        der,
-                        isPaa ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
-                    );
-                    const skidFromDer = this.#normalizeSubjectKeyId(parsed.extensions.subjectKeyIdentifier);
                     const entrySkid = this.#normalizeSubjectKeyId(entry.subjectKeyId);
-
-                    if (skidFromDer !== entrySkid) {
-                        logger.warn(
-                            `seed: SKID mismatch entry=${entrySkid} der-derived=${skidFromDer}, skipped`,
-                            Diagnostic.dict({ certKind }),
-                        );
+                    const parsed = this.#parseAndCheckSkid(der, certKind, entrySkid, "seed");
+                    if (parsed === undefined) {
                         continue;
                     }
 
-                    if (this.#certificateIndex.has(skidFromDer)) {
+                    if (this.#certificateIndex.has(entrySkid)) {
                         continue;
                     }
 
                     const isProduction = entry.kind === "production";
                     const vid = (parsed.subject as { vendorId?: number }).vendorId ?? 0;
 
-                    await this.#storeCertificate(this.#storage!, skidFromDer, Bytes.of(der), {
+                    await this.#storeCertificate(this.#storage!, entrySkid, Bytes.of(der), {
                         subject: (parsed.subject as { commonName?: string }).commonName,
-                        subjectKeyId: skidFromDer,
+                        subjectKeyId: entrySkid,
                         serialNumber: Bytes.toHex(parsed.serialNumber),
                         vid,
                         isRoot: isPaa,
@@ -1031,7 +1391,7 @@ export class DclCertificateService {
                         kind: certKind,
                         fetchedAt,
                     });
-                    inserted.push(skidFromDer);
+                    inserted.push(entrySkid);
                 } catch (err) {
                     logger.warn("seed: malformed entry, aborting stream", Diagnostic.errorMessage(asError(err)));
                     break;
@@ -1055,11 +1415,12 @@ export class DclCertificateService {
      * Called by AsyncCache on cache miss. Queries DCL by issuer, downloads the CRL,
      * validates the signer chain and CRL signature, then returns the parsed revocation entry.
      *
-     * Returns a RevocationEntry on success (cached for 1h). Throws on transient failures
-     * (network timeout, server error) so the result is NOT cached and the next call retries.
+     * Returns the revocations of every distribution point that authenticates (cached for 1h), which is empty when
+     * points are rejected as Matter Core §6.2.6.1 requires. Throws only when transient failures (network timeout,
+     * server error) left nothing usable, so the result is NOT cached and the next call retries.
      */
-    async #fetchAndValidateRevocation(akid: string): Promise<DclCertificateService.RevocationEntry> {
-        const empty: DclCertificateService.RevocationEntry = { serials: new Set() };
+    async #fetchAndValidateRevocation(akid: string): Promise<RevocationLookup> {
+        const empty: RevocationLookup = { entries: [], complete: true };
         const revocationTimeout = Seconds(3);
 
         const config = this.#options.dclConfig ?? DclConfig.production;
@@ -1084,49 +1445,68 @@ export class DclCertificateService {
             throw error;
         }
 
-        // Filter for CRL type only
-        const crlPoints = points.filter(p => p.revocationType === RevocationTypeEnum.Crl);
+        // CRL entries for exactly the issuer asked about (§11.23.11.7), whatever else the response holds
+        const crlPoints = points.filter(
+            p =>
+                p.revocationType === RevocationTypeEnum.Crl &&
+                this.#normalizeSubjectKeyId(p.issuerSubjectKeyId) === akid,
+        );
         if (crlPoints.length === 0) {
             return empty;
         }
 
-        // Use the first successfully processed CRL point (falls back to next on failure)
-        for (const point of crlPoints) {
-            try {
-                return await this.#processRevocationPoint(point, revocationTimeout);
-            } catch (error) {
-                logger.warn(
-                    `Failed to process revocation point for ${point.issuerSubjectKeyId} (will retry on next check):`,
-                    Diagnostic.errorMessage(asError(error)),
-                );
+        // Every entry contributes: an issuer may partition its revocations over several CRLs (§6.2.6.1)
+        const entries = new Array<DclCertificateService.RevocationEntry>();
+        let transientFailures = 0;
+        const results = await Promise.allSettled(
+            crlPoints.map(point =>
+                // Step 7.2 applies to entries that share both VendorID and IssuerSubjectKeyID (§11.23.11.8)
+                this.#processRevocationPoint(
+                    point,
+                    revocationTimeout,
+                    crlPoints.filter(other => other.vid === point.vid).length > 1,
+                ),
+            ),
+        );
+        results.forEach((result, index) => {
+            if (result.status === "fulfilled") {
+                entries.push(result.value);
+                return;
             }
-        }
+            const point = crlPoints[index];
+            const rejected = result.reason instanceof CrlRejectedError;
+            if (!rejected) {
+                transientFailures++;
+            }
+            logger.warn(
+                `${rejected ? "Ignoring" : "Failed to process"} revocation point for ${point.issuerSubjectKeyId} at ${point.dataUrl}:`,
+                Diagnostic.errorMessage(asError(result.reason)),
+            );
+        });
 
-        // All CRL points failed — throw so it's not cached and will retry
-        throw new MatterDclError(`All CRL downloads failed for AKID ${akid}`);
+        // Nothing usable because of transient failures — throw so it's not cached and will retry
+        if (entries.length === 0 && transientFailures > 0) {
+            throw new MatterDclError(`All CRL downloads failed for AKID ${akid}`);
+        }
+        return { entries, complete: transientFailures === 0 };
     }
 
     /**
-     * Process a single revocation distribution point: download the CRL, validate the signer chain
-     * and CRL signature per spec Section 6.2.4.1, then extract revoked serial numbers.
+     * Process a single revocation distribution point: validate the signer chain, download the CRL, authenticate it and
+     * extract the revoked serial numbers.  Throws where Matter Core §6.2.6.1 stops processing the entry.
      */
     async #processRevocationPoint(
         point: DeviceAttestationPkiRevocationDclSchema,
         timeout: Duration,
+        partitioned: boolean,
     ): Promise<DclCertificateService.RevocationEntry> {
-        // Steps 2-5: Parse and validate CRLSignerCertificate chain
-        // Per spec 6.2.4.1, the signer chain should be validated before trusting the CRL.
-        // If validation fails, we still process the CRL but skip signature verification.
-        let signerPublicKey: Bytes | undefined;
+        let authority: CrlAuthority;
         try {
-            signerPublicKey = await this.#validateCrlSigner(point);
+            authority = await this.#anchorCrlSigner(point);
         } catch (error) {
-            // Per spec 6.2.4.1: validation failure means skip the signer check for this entry.
-            // This is expected for entries with delegated signers or chains we can't verify.
-            logger.info(
-                `CRL signer validation failed for ${point.issuerSubjectKeyId}, skipping CRL signature check:`,
-                Diagnostic.errorMessage(asError(error)),
-            );
+            throw error instanceof CrlRejectedError
+                ? error
+                : new CrlRejectedError("CRL signer certificate is unusable", { cause: error });
         }
 
         // Download the CRL from dataUrl
@@ -1134,7 +1514,10 @@ export class DclCertificateService {
             signal: AbortSignal.timeout(timeout),
         });
         if (!response.ok) {
-            throw new MatterDclError(`Failed to fetch CRL from ${point.dataUrl}: ${response.status}`);
+            // A client error will not heal on retry; a server error, request timeout or rate limit may
+            const transient = response.status >= 500 || response.status === 408 || response.status === 429;
+            const Failure = transient ? MatterDclError : CrlRejectedError;
+            throw new Failure(`Failed to fetch CRL from ${point.dataUrl}: ${response.status}`);
         }
         const crlBytes = new Uint8Array(await response.arrayBuffer());
 
@@ -1143,7 +1526,7 @@ export class DclCertificateService {
             const expectedSize =
                 typeof point.dataFileSize === "bigint" ? Number(point.dataFileSize) : point.dataFileSize;
             if (expectedSize > 0 && crlBytes.length !== expectedSize) {
-                throw new MatterDclError(`CRL size mismatch: expected ${expectedSize} bytes, got ${crlBytes.length}`);
+                throw new CrlRejectedError(`CRL size mismatch: expected ${expectedSize} bytes, got ${crlBytes.length}`);
             }
         }
         if (point.dataDigest !== undefined && point.dataDigestType !== undefined) {
@@ -1151,130 +1534,245 @@ export class DclCertificateService {
             if (algorithm !== undefined) {
                 const actualDigest = Bytes.toBase64(await this.#crypto.computeHash(crlBytes, algorithm));
                 if (actualDigest !== point.dataDigest) {
-                    throw new MatterDclError(`CRL digest mismatch: expected ${point.dataDigest}, got ${actualDigest}`);
+                    throw new CrlRejectedError(
+                        `CRL digest mismatch: expected ${point.dataDigest}, got ${actualDigest}`,
+                    );
                 }
             } else {
                 logger.info(`Skipping CRL digest verification: unsupported digest type ${point.dataDigestType}`);
             }
         }
 
-        // Parse the CRL
-        const crlParsed = DclCertificateService.parseCrl(crlBytes);
-
-        // Validate CRL signature using CRLSignerCertificate public key (RFC 5280 Section 6.3)
-        if (
-            signerPublicKey !== undefined &&
-            crlParsed.tbsDer !== undefined &&
-            crlParsed.signatureValue !== undefined &&
-            Bytes.of(crlParsed.signatureValue).length > 0
-        ) {
-            try {
-                await this.#crypto.verifyEcdsa(
-                    PublicKey(signerPublicKey),
-                    crlParsed.tbsDer,
-                    new EcdsaSignature(crlParsed.signatureValue, "der"),
-                );
-            } catch {
-                throw new MatterDclError("CRL signature verification failed against CRLSignerCertificate");
-            }
+        try {
+            return await this.#authenticateCrl(point, crlBytes, authority, partitioned);
+        } catch (error) {
+            throw error instanceof CrlRejectedError
+                ? error
+                : new CrlRejectedError(`CRL from ${point.dataUrl} is malformed`, { cause: error });
         }
-
-        return {
-            serials: crlParsed.serials,
-            issuerDnDerHex: crlParsed.issuerDnDerHex,
-        };
     }
 
-    /**
-     * Validate the CRL signer certificate chain per spec Section 6.2.4.1 steps 2-5.
-     * Returns the signer's public key for CRL signature verification, or throws on failure.
-     */
-    async #validateCrlSigner(point: DeviceAttestationPkiRevocationDclSchema): Promise<Bytes> {
-        // Step 2: Parse CRLSignerCertificate from PEM
-        const signerDer = Pem.asDer(point.crlSignerCertificate);
-        const signerCert = point.isPAA ? Paa.fromAsn1(signerDer) : Pai.fromAsn1(signerDer);
+    /** Matter Core §6.2.6.1 steps 7-10 for a downloaded CRL. */
+    async #authenticateCrl(
+        point: DeviceAttestationPkiRevocationDclSchema,
+        crlBytes: Bytes,
+        { signer, name }: CrlAuthority,
+        partitioned: boolean,
+    ): Promise<DclCertificateService.RevocationEntry> {
+        const crl = DclCertificateService.parseCrl(crlBytes, name);
 
-        // Parse CRLSignerDelegator if present
-        let delegatorCert: Pai | undefined;
-        if (point.crlSignerDelegator) {
-            const delegatorDer = Pem.asDer(point.crlSignerDelegator);
-            delegatorCert = Pai.fromAsn1(delegatorDer);
-        }
-
-        // Steps 3-4: VendorID matching
-        if (point.isPAA) {
-            const signerVid = signerCert.cert.subject.vendorId;
-            if (signerVid !== undefined && signerVid !== point.vid) {
-                throw new MatterDclError(
-                    `CRLSignerCertificate VendorID ${signerVid} does not match entry VendorID ${point.vid}`,
-                );
-            }
-        } else {
-            const certToCheck = delegatorCert ?? signerCert;
-            const checkVid = certToCheck.cert.subject.vendorId;
-            if (checkVid !== undefined && checkVid !== point.vid) {
-                throw new MatterDclError(`CRL signer VendorID ${checkVid} does not match entry VendorID ${point.vid}`);
-            }
-            if (point.pid !== undefined) {
-                const checkPid = certToCheck instanceof Pai ? certToCheck.cert.subject.productId : undefined;
-                if (checkPid !== undefined && checkPid !== point.pid) {
-                    throw new MatterDclError(
-                        `CRL signer ProductID ${checkPid} does not match entry ProductID ${point.pid}`,
-                    );
-                }
-            }
-        }
-
-        // Step 5: Validate certification path against PAA trust store
-        const signerAkid = signerCert.cert.extensions.authorityKeyIdentifier;
-        if (signerAkid !== undefined) {
-            const signerAkidNorm = this.#normalizeSubjectKeyId(signerAkid);
-
-            // CRL signer trust anchor honors test PAAs that the validator already accepted upstream.
-            const trustAllPaas: DclCertificateService.GetCertificateOptions = { considerTestCertificates: true };
-            let issuerPublicKey: Bytes | undefined;
-            if (delegatorCert !== undefined) {
-                // Delegated signer: verify delegator is signed by a trusted PAA
-                const delegatorAkid = delegatorCert.cert.extensions.authorityKeyIdentifier;
-                if (
-                    delegatorAkid === undefined ||
-                    !this.#certificateIndex.has(this.#normalizeSubjectKeyId(delegatorAkid))
-                ) {
-                    throw new MatterDclError("CRLSignerDelegator chain cannot be anchored to trusted PAA");
-                }
-                const paaDer = await this.#getCertificateDer(delegatorAkid, trustAllPaas);
-                const paa = Paa.fromAsn1(paaDer);
-                await this.#crypto.verifyEcdsa(
-                    PublicKey(paa.cert.ellipticCurvePublicKey),
-                    delegatorCert.asUnsignedDer(),
-                    delegatorCert.signature,
-                );
-                issuerPublicKey = delegatorCert.cert.ellipticCurvePublicKey;
-            } else if (this.#certificateIndex.has(signerAkidNorm)) {
-                const paaDer = await this.#getCertificateDer(signerAkid, trustAllPaas);
-                const paa = Paa.fromAsn1(paaDer);
-                issuerPublicKey = paa.cert.ellipticCurvePublicKey;
-            }
-
-            if (issuerPublicKey === undefined) {
-                throw new MatterDclError(
-                    `CRLSignerCertificate chain cannot be anchored to trusted PAA (AKID: ${signerAkidNorm})`,
-                );
-            }
-
-            await this.#crypto.verifyEcdsa(
-                PublicKey(issuerPublicKey),
-                signerCert.asUnsignedDer(),
-                signerCert.signature,
+        // RFC 5280 §6.3.3: delta CRLs are unsupported and other unknown critical extensions forbid use
+        if (crl.unsupportedCriticalExtension !== undefined) {
+            throw new CrlRejectedError(
+                `CRL carries unsupported critical extension ${crl.unsupportedCriticalExtension}`,
             );
         }
 
-        return signerCert.cert.ellipticCurvePublicKey;
+        // Step 7.1
+        const signerSkid = this.#normalizeSubjectKeyId(signer.cert.extensions.subjectKeyIdentifier);
+        if (crl.authorityKeyId !== signerSkid) {
+            throw new CrlRejectedError(
+                `CRL authority key identifier ${crl.authorityKeyId ?? "(none)"} does not match CRL signer ${signerSkid}`,
+            );
+        }
+
+        // RFC 5280 §5.1.2.3: the CRL names the signer as its issuer
+        if (
+            crl.issuerDnDerHex === undefined ||
+            !sameName(Bytes.fromHex(crl.issuerDnDerHex), nameOf(signer, "subject"))
+        ) {
+            throw new CrlRejectedError("CRL issuer name is not the CRL signer's subject");
+        }
+
+        // Step 7.2
+        if (partitioned && crl.issuingDistributionPointUri !== point.dataUrl) {
+            throw new CrlRejectedError(
+                `CRL from ${point.dataUrl} is one of several for its issuer but its Issuing Distribution Point names ${crl.issuingDistributionPointUri ?? "no single URI"}`,
+            );
+        }
+
+        // Step 8, RFC 5280 §6.3 with the CRL signer as trust anchor
+        const { tbsDer, signatureAlgorithm, signatureValue } = crl;
+        if (tbsDer === undefined || signatureAlgorithm === undefined || signatureValue === undefined) {
+            throw new CrlRejectedError(`CRL from ${point.dataUrl} carries no valid signature`);
+        }
+        try {
+            await verifyCertificateSignature(
+                this.#crypto,
+                signer.publicKey,
+                tbsDer,
+                certificateSignatureOf(signatureAlgorithm, signatureValue),
+            );
+        } catch (cause) {
+            throw new CrlRejectedError("CRL signature verification failed against CRLSignerCertificate", { cause });
+        }
+
+        // Steps 9-10: the revocations belong to the authority, whatever issuer name an indirect CRL states
+        return { serials: crl.serials, issuerDnDerHex: Bytes.toHex(name).toUpperCase() };
+    }
+
+    /**
+     * Establish the CRL signer of a distribution point and the authority whose revocations it signs, per Matter Core
+     * §6.2.6.1 steps 2-5 and 9 and the signer forms of §11.23.11.6.
+     *
+     * @throws CrlRejectedError if the signer is not one the entry may name
+     */
+    async #anchorCrlSigner(point: DeviceAttestationPkiRevocationDclSchema): Promise<CrlAuthority> {
+        const entrySkid = this.#normalizeSubjectKeyId(point.issuerSubjectKeyId);
+
+        // Step 2
+        const signerDer = Pem.asDer(point.crlSignerCertificate);
+        const signer = point.isPAA ? Paa.fromAsn1(signerDer) : Pai.fromAsn1(signerDer);
+        const delegator = point.crlSignerDelegator ? Pai.fromAsn1(Pem.asDer(point.crlSignerDelegator)) : undefined;
+        const selfSigned =
+            sameName(nameOf(signer, "subject"), nameOf(signer, "issuer")) && (await this.#signsItself(signer));
+
+        // RFC 5280 §6.3.3(f) and the §11.23.11.6 formats: every signer may sign CRLs, and only a PAA or PAI signs as CA
+        if (!signer.cert.extensions.keyUsage.cRLSign) {
+            throw new CrlRejectedError("CRL signer certificate lacks the cRLSign key usage");
+        }
+        const signerIsCa = signer.cert.extensions.basicConstraints.isCa;
+        const delegated = point.isPAA ? !selfSigned : delegator !== undefined;
+        if (signerIsCa === delegated) {
+            throw new CrlRejectedError(
+                delegated
+                    ? "A delegated CRL signer must not be a CA certificate"
+                    : "A CRL signer that is not delegated must be the PAA or PAI itself",
+            );
+        }
+        if (delegator !== undefined && !delegator.cert.extensions.basicConstraints.isCa) {
+            throw new CrlRejectedError("CRLSignerDelegator is not a PAI");
+        }
+
+        // Steps 3-4
+        const vidHolder = point.isPAA ? signer : (delegator ?? signer);
+        const vid = vidHolder.cert.subject.vendorId;
+        // A PAA may omit its VendorID (step 3.1); a PAI states exactly one, which must match (step 4.1)
+        if ((vid !== undefined || !point.isPAA) && vid !== point.vid) {
+            throw new CrlRejectedError(`CRL signer VendorID ${vid} does not match entry VendorID ${point.vid}`);
+        }
+        const pid = vidHolder instanceof Pai ? vidHolder.cert.subject.productId : undefined;
+        // The DCL client reads an entry's ProductID 0 as absent, and a PAI may state 0 as well
+        if (pid !== undefined && pid !== (point.pid ?? 0)) {
+            throw new CrlRejectedError(`CRL signer ProductID ${pid} does not match entry ProductID ${point.pid}`);
+        }
+
+        // Step 5 and the step 9 authority
+        let authority: Paa | Pai;
+        if (point.isPAA && selfSigned) {
+            // An approved PAA, identified by exact byte equality
+            const approved = await this.#trustedPaaDer(
+                this.#normalizeSubjectKeyId(signer.cert.extensions.subjectKeyIdentifier),
+            );
+            if (!Bytes.areEqual(approved, signerDer)) {
+                throw new CrlRejectedError("Self-signed CRL signer is not an approved PAA");
+            }
+            authority = signer;
+        } else if (point.isPAA) {
+            // PAA-delegated signer: the entry names the PAA, which must have issued it
+            const paa = Paa.fromAsn1(await this.#trustedPaaDer(entrySkid));
+            await this.#assertIssuedBy(signer, paa);
+            authority = paa;
+        } else if (selfSigned) {
+            throw new CrlRejectedError("Self-signed CRL signer on an entry that is not for a PAA");
+        } else {
+            // A PAI, or a signer the delegating PAI issued; either way the entry names that PAI
+            const pai = delegator ?? signer;
+            if (delegator !== undefined) {
+                await this.#assertIssuedBy(signer, delegator);
+            }
+            const paaSkid: Bytes | undefined = pai.cert.extensions.authorityKeyIdentifier;
+            if (paaSkid === undefined) {
+                throw new CrlRejectedError("CRL signing PAI names no authority key identifier");
+            }
+            await this.#assertIssuedBy(
+                pai,
+                Paa.fromAsn1(await this.#trustedPaaDer(this.#normalizeSubjectKeyId(paaSkid))),
+            );
+            authority = pai;
+        }
+
+        const authoritySkid = this.#normalizeSubjectKeyId(authority.cert.extensions.subjectKeyIdentifier);
+        if (authoritySkid !== entrySkid) {
+            throw new CrlRejectedError(`CRL authority ${authoritySkid} is not the entry's issuer ${entrySkid}`);
+        }
+
+        return { signer, name: nameOf(authority, "subject") };
+    }
+
+    /** Whether a certificate verifies with its own key, which with equal names makes it self-signed. */
+    async #signsItself(certificate: Paa | Pai) {
+        try {
+            await certificate.verifySignature(this.#crypto, certificate.publicKey);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    #trustedPaaDer(skid: string) {
+        if ((this.#certificateIndex.get(skid)?.kind ?? "PAA") !== "PAA") {
+            throw new CrlRejectedError(`CRL signer chain names ${skid}, which is not a PAA`);
+        }
+        // The CRL chain honors test PAAs that the validator already accepted upstream
+        return this.#getCertificateDer(skid, { considerTestCertificates: true });
+    }
+
+    /** Verify that `issuer` issued `subject`: an issuer that may sign certificates, matching names and its signature. */
+    async #assertIssuedBy(subject: Paa | Pai, issuer: Paa | Pai) {
+        // RFC 5280 §6.1.4(n)
+        if (!issuer.cert.extensions.keyUsage.keyCertSign) {
+            throw new CrlRejectedError("CRL signer chain issuer lacks the keyCertSign key usage");
+        }
+        if (!sameName(nameOf(subject, "issuer"), nameOf(issuer, "subject"))) {
+            throw new CrlRejectedError("CRL signer chain names do not match");
+        }
+        try {
+            await subject.verifySignature(this.#crypto, issuer.publicKey);
+        } catch (cause) {
+            throw new CrlRejectedError("CRL signer chain signature does not verify", { cause });
+        }
+    }
+
+    /**
+     * Read a revocation set: the per-issuer list of revoked serial numbers that the CHIP SDK's
+     * `generate_revocation_set.py` writes by walking the DCL's revocation distribution points and the
+     * CRLs behind them. It is that tool's own format, not a DCL wire format. Fields beyond the ones
+     * {@link installRevocations} needs are ignored.
+     */
+    static parseRevocationSet(json: string): DclCertificateService.RevocationSetEntry[] {
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(json);
+        } catch (error) {
+            throw new ImplementationError(`Revocation set is not JSON: ${asError(error).message}`);
+        }
+
+        if (!Array.isArray(parsed)) {
+            throw new ImplementationError("Revocation set must be an array of entries");
+        }
+
+        const stated: unknown[] = parsed;
+
+        return stated.map((entry, index) => {
+            if (!isObject(entry)) {
+                throw new ImplementationError(`Revocation set entry ${index} is not an object`);
+            }
+
+            statedType(entry.type, index);
+
+            return {
+                issuerSubjectKeyId: statedHex(entry.issuer_subject_key_id, "issuer_subject_key_id", index),
+                issuerName: statedIssuerName(entry.issuer_name, index),
+                revokedSerialNumbers: statedSerials(entry.revoked_serial_numbers, index),
+            };
+        });
     }
 
     /** Result of parsing a CRL. */
-    static parseCrl(crlDer: Bytes): DclCertificateService.CrlParseResult {
+    static parseCrl(crlDer: Bytes, authorityName?: Bytes): DclCertificateService.CrlParseResult {
         const serials = new Set<string>();
+        let unsupportedCriticalExtension: string | undefined;
 
         const decoded = DerCodec.decode(crlDer);
         const certListElements = decoded._elements;
@@ -1295,9 +1793,22 @@ export class DclCertificateService {
         // Extract signatureValue (BIT STRING, last element)
         // signatureValue is the 3rd element (index 2) of the outer SEQUENCE
         let signatureValue: Bytes | undefined;
-        if (certListElements.length >= 3 && certListElements[2]._tag === 0x03) {
+        if (
+            certListElements.length >= 3 &&
+            certListElements[2]._tag === DerType.BitString &&
+            certListElements[2]._padding === 0
+        ) {
             // BIT STRING _bytes already has padding byte stripped by DerCodec.decode
             signatureValue = Bytes.of(certListElements[2]._bytes);
+        }
+
+        // RFC 5280 §5.1.1.2: the algorithm outside tbsCertList must equal the one inside it
+        let signatureAlgorithm: Bytes | undefined;
+        const outerAlgorithm = certListElements[1];
+        const innerAlgorithm = tbsElements.find(element => element._tag === DerTag.Sequence);
+        const outerAlgorithmDer = DerCodec.encode(outerAlgorithm);
+        if (innerAlgorithm !== undefined && Bytes.areEqual(outerAlgorithmDer, DerCodec.encode(innerAlgorithm))) {
+            signatureAlgorithm = Bytes.of(outerAlgorithmDer);
         }
 
         // tbsCertList fields: [version?, signature, issuer, thisUpdate, nextUpdate?, revokedCertificates?, crlExtensions?]
@@ -1353,6 +1864,7 @@ export class DclCertificateService {
         // Extract Authority Key Identifier from CRL extensions if present
         // crlExtensions is a context-tagged [0] EXPLICIT at the end of tbsCertList
         let authorityKeyId: string | undefined;
+        let issuingDistributionPointUri: string | undefined;
         for (const element of tbsElements) {
             // Context-tagged [0] EXPLICIT = tag 0xa0
             if (element._tag === 0xa0 && element._bytes) {
@@ -1362,6 +1874,14 @@ export class DclCertificateService {
                     for (const ext of extSequence._elements) {
                         if (!ext._elements || ext._elements.length < 2) continue;
                         const oid = Bytes.toHex(ext._elements[0]._bytes);
+                        if (isCritical(ext) && !KNOWN_CRL_EXTENSIONS.has(oid)) {
+                            unsupportedCriticalExtension ??= oid;
+                        }
+                        // Issuing Distribution Point OID: 2.5.29.28 = 551d1c
+                        if (oid === "551d1c") {
+                            issuingDistributionPointUri = issuingDistributionPointUriOf(ext);
+                            continue;
+                        }
                         // Authority Key Identifier OID: 2.5.29.35 = 551d23
                         if (oid === "551d23") {
                             // The value is an OCTET STRING containing a SEQUENCE
@@ -1379,7 +1899,7 @@ export class DclCertificateService {
                                     }
                                 }
                             }
-                            break;
+                            continue;
                         }
                     }
                 }
@@ -1404,18 +1924,65 @@ export class DclCertificateService {
         }
 
         if (!revokedCertsNode?._elements) {
-            return { serials, issuerDnDerHex, authorityKeyId, tbsDer, signatureValue, nextUpdateMs };
+            return {
+                serials,
+                issuerDnDerHex,
+                authorityKeyId,
+                tbsDer,
+                signatureAlgorithm,
+                signatureValue,
+                issuingDistributionPointUri,
+                unsupportedCriticalExtension,
+                nextUpdateMs,
+            };
         }
 
+        let certificateIssuer: Bytes | undefined;
         for (const entry of revokedCertsNode._elements) {
             if (entry._tag !== DerTag.Sequence || !entry._elements || entry._elements.length < 1) continue;
             const serialNode = entry._elements[0];
             if (serialNode._tag !== DerType.Integer) continue;
+
+            // §6.2.6.1 step 10.1: an indirect CRL's entry may name another issuer than the authority, which applies to
+            // the entries after it until another certificateIssuer (RFC 5280 §5.3.3)
+            const entryExtensions = entry._elements[2];
+            for (const ext of entryExtensions?._tag === DerTag.Sequence ? (entryExtensions._elements ?? []) : []) {
+                const oid = Bytes.toHex(ext._elements?.[0]?._bytes ?? new Uint8Array());
+                if (oid === CERTIFICATE_ISSUER_EXTENSION) {
+                    // RFC 5280 §5.3.3: critical, naming exactly one directoryName
+                    const named = isCritical(ext) ? certificateIssuerOf(ext) : undefined;
+                    if (named === undefined) {
+                        unsupportedCriticalExtension ??= oid;
+                    } else {
+                        certificateIssuer = named;
+                    }
+                } else if (isCritical(ext) && !KNOWN_CRL_ENTRY_EXTENSIONS.has(oid)) {
+                    unsupportedCriticalExtension ??= oid;
+                }
+            }
+            if (
+                certificateIssuer !== undefined &&
+                authorityName !== undefined &&
+                !sameName(certificateIssuer, authorityName)
+            ) {
+                continue;
+            }
+
             const serialHex = Bytes.toHex(Bytes.of(serialNode._bytes)).toUpperCase();
             serials.add(serialHex);
         }
 
-        return { serials, issuerDnDerHex, authorityKeyId, tbsDer, signatureValue, nextUpdateMs };
+        return {
+            serials,
+            issuerDnDerHex,
+            authorityKeyId,
+            tbsDer,
+            signatureAlgorithm,
+            signatureValue,
+            issuingDistributionPointUri,
+            unsupportedCriticalExtension,
+            nextUpdateMs,
+        };
     }
 
     /** Convenience wrapper that returns only the revoked serial numbers from a CRL. */
@@ -1472,6 +2039,35 @@ export namespace DclCertificateService {
             paaRoots?: SeedSource<CertSeedEntry>;
             cdSigners?: SeedSource<CertSeedEntry>;
         };
+
+        /** Revocation information from outside the DCL — see {@link DclCertificateService.installRevocations}. */
+        revocations?: RevocationSetEntry[];
+
+        /**
+         * Reaches no network at all: no update, no CRL, no certificate fetched on demand and no
+         * re-fetch of one that would not parse. The trust store is whatever `seed` carried, revocation
+         * is whatever {@link DclCertificateService.installRevocations} was given, and a certificate
+         * neither of those holds reads as absent.
+         *
+         * For a deployment with no route to the ledger, and for a test that must judge attestation
+         * against a stated PKI rather than against whatever the ledger holds today.
+         */
+        offline?: boolean;
+    }
+
+    /** One authority's revoked serial numbers, as a DCL revocation set states them. */
+    export interface RevocationSetEntry {
+        /** Subject key identifier of the certificate that issued the revoked ones, as hex. */
+        issuerSubjectKeyId: string;
+
+        /**
+         * Base64 of the DER-encoded issuer Name. With the key identifier this forms the composite key
+         * revocation is indexed by; an entry without one matches on the key identifier alone.
+         */
+        issuerName?: string;
+
+        /** The revoked serial numbers, as hex. */
+        revokedSerialNumbers: string[];
     }
 
     /** Kind of certificate stored in the trust store. */
@@ -1496,6 +2092,12 @@ export namespace DclCertificateService {
         fetchedAt?: number;
     };
 
+    /** Revocation information installed from outside the DCL, as {@link installedRevocations} reports it. */
+    export interface InstalledRevocation {
+        readonly serials: ReadonlySet<string>;
+        readonly issuerDnDerHex?: string;
+    }
+
     /** Cached revocation data for a single AKID. */
     export interface RevocationEntry {
         serials: Set<string>;
@@ -1516,8 +2118,26 @@ export namespace DclCertificateService {
         /** Raw DER bytes of tbsCertList for signature verification. */
         tbsDer?: Bytes;
 
-        /** Raw signature value bytes from the CRL. */
+        /**
+         * DER of the CRL's signature AlgorithmIdentifier; absent if it differs from the one inside tbsCertList.
+         */
+        signatureAlgorithm?: Bytes;
+
+        /** Raw signature value bytes from the CRL; absent unless it is a BIT STRING without unused bits. */
         signatureValue?: Bytes;
+
+        /**
+         * The single URI of a critical Issuing Distribution Point extension; absent if the extension is missing, not
+         * critical, or names anything but exactly one URI.
+         */
+        issuingDistributionPointUri?: string;
+
+        /**
+         * OID (hex) of a critical CRL or CRL entry extension the parser does not support, such as a delta CRL
+         * indicator, or of a certificateIssuer entry extension that is not critical or not a single directoryName;
+         * RFC 5280 §6.3.3 forbids using such a CRL.
+         */
+        unsupportedCriticalExtension?: string;
 
         /** Unix epoch ms of the CRL's nextUpdate field, if present. */
         nextUpdateMs?: number;

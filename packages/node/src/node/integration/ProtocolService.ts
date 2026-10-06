@@ -225,6 +225,7 @@ class EndpointState {
     readonly #node: NodeState;
     readonly #activeClusters = new Set<ClusterId>();
     readonly #clusters = new Set<ClusterProtocol>();
+    readonly #backings = new Map<ClusterId, BehaviorBacking>();
 
     constructor(node: NodeState, endpoint: Endpoint) {
         this.#node = node;
@@ -253,6 +254,15 @@ class EndpointState {
         if (!type) {
             return;
         }
+
+        // A second behavior for the same cluster would silently replace the first on the wire while both keep acting
+        const existing = this.#backings.get(type.id);
+        if (existing !== undefined && existing.type.id !== backing.type.id) {
+            throw new ImplementationError(
+                `Endpoint ${backing.endpoint} has two behaviors for cluster ${type.name}: "${existing.type.id}" and "${backing.type.id}"`,
+            );
+        }
+        this.#backings.set(type.id, backing);
 
         const cluster = new ClusterState(type, backing);
 
@@ -294,7 +304,11 @@ class EndpointState {
             delete this.protocol[id];
         }
 
-        this.#activeClusters.delete(id as ClusterId);
+        const clusterId = ClusterId(id);
+        this.#activeClusters.delete(clusterId);
+        if (this.#backings.get(clusterId) === backing) {
+            this.#backings.delete(clusterId);
+        }
 
         if (!this.#activeClusters.size) {
             this.#node.deleteEndpoint(this.protocol);
@@ -433,9 +447,9 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
             continue;
         }
 
-        // Deprecated and disallowed elements are excluded from the protocol layer and treated like unknown
-        // elements — invisible on both server and client side.  Some deprecated/disallowed members in the
-        // standard model also lack type information; including those would cause TLV generation to fail.
+        // Deprecated and disallowed elements are excluded and treated like unknown elements.  A client node's peer
+        // schema marks a deprecated element the device reports as optional, so it passes here.  Obsolete elements
+        // pass: a server never supports them, and a client may still see them.
         if (member.isDeprecated || member.isDisallowed) {
             continue;
         }

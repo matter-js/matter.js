@@ -19,7 +19,7 @@ export const IrrigationSystemDt = DeviceType(
     Requirement({ name: "OperationalState", id: 0x60, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "FlowMeasurement", id: 0x404, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "FlowMeasurement", id: 0x404, conformance: "O", element: "clientCluster" }),
-    Requirement({ name: "WaterValve", id: 0x42, conformance: "M", element: "deviceType" })
+    Requirement({ name: "WaterValve", id: 0x42, conformance: "M", constraint: "min 1", element: "deviceType" })
 );
 
 MatterDefinition.children.push(IrrigationSystemDt);

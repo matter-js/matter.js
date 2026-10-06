@@ -76,6 +76,8 @@ interface UpdateQueueEntry extends UpdateConsent {
     lastProgressUpdateTime?: Timestamp;
     lastProgressStatus?: OtaUpdateStatus;
     lastBdxTransferredBytes?: number;
+    /** With `Applying`, the delay the device waits out before it applies; progress is not expected meanwhile. */
+    applyDelay?: Duration;
 }
 
 interface UpdateConsentEntry extends DclOtaUpdateService.OtaUpdateListEntry {
@@ -234,6 +236,10 @@ export class SoftwareUpdateManager extends Behavior {
         // #nodeOnline installs a fresh instance.
         await this.internal.announcements?.close();
         this.internal.announcements = undefined;
+
+        // Bound to the ClientSubscriptions the stopping runtime closes; the getter creates a new armer for the next run
+        this.internal.rebootResubscribeArmer?.[Symbol.dispose]();
+        this.internal.rebootResubscribeArmer = undefined;
     }
 
     #updateAnnouncementSettings() {
@@ -291,7 +297,7 @@ export class SoftwareUpdateManager extends Behavior {
             if (entry.lastProgressUpdateTime === undefined) {
                 status = "queued";
             } else if (
-                entry.lastProgressUpdateTime + OTA_PROGRESS_TIMEOUT < now &&
+                entry.lastProgressUpdateTime + (entry.applyDelay ?? 0) + OTA_PROGRESS_TIMEOUT < now &&
                 !this.#isTransferring(entry, bdxSession?.transferredBytes)
             ) {
                 status = "stalled";
@@ -346,6 +352,7 @@ export class SoftwareUpdateManager extends Behavior {
         entry.lastProgressUpdateTime = undefined;
         entry.lastProgressStatus = OtaUpdateStatus.Unknown;
         entry.lastBdxTransferredBytes = undefined;
+        entry.applyDelay = undefined;
     }
 
     /** Validate that we know the peer the update is requested for and the details match to what we know */
@@ -884,7 +891,7 @@ export class SoftwareUpdateManager extends Behavior {
                 if (this.#refreshBdxProgress(entry, now)) {
                     continue;
                 }
-                if (entry.lastProgressUpdateTime! + OTA_PROGRESS_TIMEOUT < now) {
+                if (entry.lastProgressUpdateTime! + (entry.applyDelay ?? 0) + OTA_PROGRESS_TIMEOUT < now) {
                     logger.info(
                         `Resetting stalled OTA update state for node ${entry.peerAddress.toString()} due to inactivity`,
                     );
@@ -1185,8 +1192,11 @@ export class SoftwareUpdateManager extends Behavior {
      * This method processes OTA update status notifications received from a specified device.
      * Based on the status, it updates the internal state of the update queue, logs relevant
      * messages, and triggers the necessary events.
+     *
+     * With `Applying`, `applyDelay` is the `DelayedActionTime` the provider allowed the apply with, which the device
+     * waits out before it applies and restarts.
      */
-    onOtaStatusChange(peerAddress: PeerAddress, status: OtaUpdateStatus, toVersion?: number) {
+    onOtaStatusChange(peerAddress: PeerAddress, status: OtaUpdateStatus, toVersion?: number, applyDelay?: Duration) {
         if (this.internal.suppressUpdates) {
             // A post-dispose Applying would otherwise re-arm the already-disposed armer whose observers are
             // closed, leaving an entry that never gets a grace timer nor self-cleans.
@@ -1235,15 +1245,23 @@ export class SoftwareUpdateManager extends Behavior {
                     toVersion !== undefined ? ` for version ${toVersion}` : ""
                 }`,
             );
+            const wasApplying = entry.lastProgressStatus === OtaUpdateStatus.Applying;
             entry.lastProgressUpdateTime = Time.nowMs;
             entry.lastProgressStatus = status;
+            entry.applyDelay = status === OtaUpdateStatus.Applying ? applyDelay : undefined;
 
             // Once the device asked for (and we allowed) the final apply, it will reboot and return — arm fast
             // re-subscription so a non-persistent device is refreshed within the grace window rather than after the
             // full subscription timeout. notifyUpdateApplied (Done) must NOT disarm this — the subscription may
             // still be stale then; the armer resolves purely on new-session + data-flow.
             if (status === OtaUpdateStatus.Applying) {
-                this.#rebootResubscribeArmer.arm(peerAddress);
+                this.#rebootResubscribeArmer.arm(peerAddress, applyDelay);
+
+                // A retransmitted ApplyUpdateRequest re-enters the provider's handler and reports Applying
+                // again; the event says the peer reached this point, not how often it asked.
+                if (!wasApplying) {
+                    this.events.updateApplying.emit(peerAddress);
+                }
             }
         }
     }
@@ -1350,6 +1368,16 @@ export namespace SoftwareUpdateManager {
     export class Events extends EventEmitter {
         /** Emitted when an update is available for a Peer and there is no consent stored and contains update details */
         updateAvailable = Observable<[peer: PeerAddress, updateDetails: SoftwareUpdateInfo]>();
+
+        /**
+         * Emitted when a Peer has asked to apply the image it downloaded and this provider allowed it.
+         *
+         * This is the last thing a Peer needs from its provider: the download is complete, the
+         * `ApplyUpdateRequest` is answered, and what follows — applying and reporting back — is the
+         * Peer's own. {@link updateDone} is further off, because it waits for the `NotifyUpdateApplied`
+         * a device sends after it has restarted.
+         */
+        updateApplying = Observable<[peer: PeerAddress]>();
 
         /** Emitted when an update for a Peer is finished */
         updateDone = Observable<[peer: PeerAddress]>();

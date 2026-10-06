@@ -8,7 +8,7 @@ import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { ImplementationError, isDeepEqual, Logger } from "@matter/general";
-import { Matter } from "@matter/model";
+import { EndpointComposition, Matter } from "@matter/model";
 import { ClusterId, DeviceTypeId, EndpointNumber, Semtag } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { DescriptorBehavior } from "./DescriptorBehavior.js";
@@ -27,6 +27,7 @@ export class DescriptorServer extends DescriptorBehavior {
             // Note - do not use lock here because this reactor triggers frequently so it pollutes the logs.  Instead
             // lock manually as necessary
             this.reactTo(this.agent.get(IndexBehavior).events.change, this.#updatePartsList);
+            this.reactTo(this.events.deviceTypeList$Changed, this.#updatePartsList, { offline: true });
         } else if (this.endpoint.hasParts) {
             for (const endpoint of this.endpoint.parts) {
                 this.#monitorDestruction(endpoint);
@@ -198,20 +199,32 @@ export class DescriptorServer extends DescriptorBehavior {
      * Monitor endpoint for removal.
      */
     #monitorDestruction(endpoint: Endpoint) {
-        this.reactTo(endpoint.lifecycle.destroyed, this.#updatePartsList);
+        this.reactTo(endpoint.lifecycle.destroyed, this.#updatePartsList, { once: true });
     }
 
     /**
      * Update the parts list.
      */
     async #updatePartsList() {
+        // Skip the lock when nothing changed; beginning the transaction during synchronous initialization would
+        // suspend and collide with a sibling behavior's write on the shared transaction
+        if (isDeepEqual(this.state.partsList, this.#currentPartsListNumbers())) {
+            return;
+        }
+
+        await this.context.transaction.addResources(this);
+        await this.context.transaction.begin();
+
+        // Recompute under the lock so the write reflects membership at write time, not at reactor start
+        this.state.partsList = this.#currentPartsListNumbers() as EndpointNumber[];
+    }
+
+    #currentPartsListNumbers(): number[] {
         const endpoint = this.endpoint;
 
         let numbers: number[];
 
-        // The presence of IndexBehavior indicates a flat namespace as required by Matter standard for root and
-        // aggregator endpoints
-        if (this.agent.has(IndexBehavior)) {
+        if (this.agent.has(IndexBehavior) && this.#composesFullFamily) {
             const index = this.agent.get(IndexBehavior);
             numbers = Object.keys(index.partsByNumber).map(n => Number.parseInt(n));
 
@@ -223,33 +236,32 @@ export class DescriptorServer extends DescriptorBehavior {
         } else if (endpoint.hasParts) {
             // No IndexBehavior, just direct descendents
             numbers = [...endpoint.parts]
-                .map(endpoint => (endpoint.lifecycle.hasNumber ? endpoint.number : undefined))
-                .filter(n => n !== undefined) as number[];
+                .map(endpoint => endpoint.maybeNumber)
+                .filter((n): n is EndpointNumber => n !== undefined);
         } else {
             // No sub-parts
             numbers = [];
         }
 
-        numbers.sort();
+        numbers.sort((a, b) => a - b);
+        return numbers;
+    }
 
-        // Do a quick deep equal so we can avoid updating state since the filtering on events that trigger this function
-        // is rather lazy
-        if (this.state.partsList.length === numbers.length) {
-            let i = numbers.length;
-            for (; i < numbers.length; i++) {
-                if (this.state.partsList[i] !== numbers[i]) {
-                    break;
-                }
-            }
-            if (i === numbers.length) {
-                return;
-            }
-        }
+    /**
+     * Whether this endpoint's device type composes its `PartsList` of every descendant rather than of
+     * its own children (Matter Core § 9.2.3).
+     *
+     * {@link IndexBehavior} is how the flat list is obtained, not what decides it is wanted: the
+     * behavior is installed on bridged nodes too, which compose a tree.
+     */
+    get #composesFullFamily() {
+        const deviceTypes = this.state.deviceTypeList.length
+            ? this.state.deviceTypeList.map(entry => entry.deviceType)
+            : [this.endpoint.type.deviceType];
 
-        await this.context.transaction.addResources(this);
-        await this.context.transaction.begin();
-
-        this.state.partsList = numbers as EndpointNumber[];
+        return deviceTypes.some(
+            deviceType => Matter.deviceTypes(deviceType)?.effectiveComposition === EndpointComposition.FullFamily,
+        );
     }
 
     /**

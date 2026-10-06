@@ -8,6 +8,8 @@ import {
     Abort,
     CanceledError,
     causedBy,
+    CrashedDependencyError,
+    DestroyedDependencyError,
     Diagnostic,
     Logger,
     MatterAggregateError,
@@ -126,7 +128,15 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
                 // triggered by our own abort (i.e. another candidate won or discovery timed out).
                 if (causedBy(error, CanceledError)) {
                     logger.debug("Canceled parallel commissioning attempt:", Diagnostic.errorMessage(error));
-                } else if (causedBy(error, CommissioningError, PeerCommunicationError)) {
+                } else if (
+                    causedBy(
+                        error,
+                        CommissioningError,
+                        PeerCommunicationError,
+                        DestroyedDependencyError,
+                        CrashedDependencyError,
+                    )
+                ) {
                     this.#attemptErrors.push(error);
                     logger.debug("Failed parallel commissioning attempt:", Diagnostic.errorMessage(error));
                 } else {

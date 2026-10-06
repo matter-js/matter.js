@@ -10,10 +10,15 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add({
     tag: "deviceType", name: "CastingVideoClient", xref: "device§10.6",
+
     details: "This defines conformance to the Casting Video Client device type." +
         "\n" +
         "A Casting Video Client is a client that can launch content on a Casting Video Player, for example, a " +
-        "Smart Speaker or a Content Provider phone app.",
+        "Smart Speaker or a Content Provider phone app." +
+        "\n" +
+        "### Cluster Requirements" +
+        "\n" +
+        "See Section 1.1.7, \"Cluster Requirements\" for additional clusters including the Binding cluster.",
 
     children: [
         { tag: "requirement", name: "OnOff", xref: "device§10.6.4" },

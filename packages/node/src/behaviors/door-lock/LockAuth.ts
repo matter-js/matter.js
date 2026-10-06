@@ -4,8 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, type Cipher } from "@matter/general";
-import { fabricIdx, field, listOf, nullable, octstr, string, uint16, uint32, uint8 } from "@matter/model";
+import { Bytes, type Cipher, Timestamp } from "@matter/general";
+import {
+    DoorLock as DoorLockModel,
+    fabricIdx,
+    field,
+    listOf,
+    nullable,
+    octstr,
+    posixMs,
+    string,
+    uint16,
+    uint32,
+} from "@matter/model";
 import { FabricIndex } from "@matter/types";
 import { DoorLock } from "@matter/types/clusters/door-lock";
 
@@ -20,7 +31,7 @@ export namespace LockAuth {
      * Reference to a credential by type and index.
      */
     export class CredentialRef {
-        @field(uint8)
+        @field(DoorLockModel.datatypes.require("CredentialTypeEnum"))
         credentialType!: CredentialType;
 
         @field(uint16)
@@ -41,13 +52,13 @@ export namespace LockAuth {
         @field(uint32)
         userUniqueId: number | null = null;
 
-        @field(uint8)
+        @field(DoorLockModel.datatypes.require("UserStatusEnum"))
         userStatus: DoorLock.UserStatus = DoorLock.UserStatus.Available;
 
-        @field(uint8)
+        @field(DoorLockModel.datatypes.require("UserTypeEnum"))
         userType: DoorLock.UserType = DoorLock.UserType.UnrestrictedUser;
 
-        @field(uint8)
+        @field(DoorLockModel.datatypes.require("CredentialRuleEnum"))
         credentialRule: DoorLock.CredentialRule = DoorLock.CredentialRule.Single;
 
         @field(listOf(CredentialRef))
@@ -58,13 +69,23 @@ export namespace LockAuth {
 
         @field(fabricIdx)
         lastModifiedFabricIndex!: FabricIndex;
+
+        /**
+         * Wall-clock time at which an ExpiringUser is disabled, set on the first successful use of its PIN; null
+         * until then. Persisted so the timeout survives a reboot.
+         *
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.18.8
+         */
+        @nullable
+        @field(posixMs)
+        expiringUserExpiresAt: Timestamp | null = null;
     }
 
     /**
      * Stored credential record with encrypted data and fabric tracking.
      */
     export class Credential {
-        @field(uint8)
+        @field(DoorLockModel.datatypes.require("CredentialTypeEnum"))
         credentialType!: CredentialType;
 
         @field(uint16)

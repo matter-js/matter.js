@@ -122,12 +122,8 @@ export const ElectricalPowerMeasurement = Cluster(
 
     Event(
         { name: "MeasurementPeriodRanges", id: 0x0, access: "V", conformance: "Ranges", priority: "info" },
-
         Field(
-            {
-                name: "Ranges", id: 0x0, type: "list", access: "R V", conformance: "M",
-                constraint: "1 to numberOfMeasurementTypes", default: []
-            },
+            { name: "Ranges", id: 0x0, type: "list", conformance: "M", constraint: "1 to numberOfMeasurementTypes" },
             Field({ name: "entry", type: "MeasurementRangeStruct" })
         )
     ),

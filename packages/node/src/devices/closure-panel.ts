@@ -6,6 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { DescriptorServer as BaseDescriptorServer } from "../behaviors/descriptor/DescriptorServer.js";
 import {
     ClosureDimensionServer as BaseClosureDimensionServer
 } from "../behaviors/closure-dimension/ClosureDimensionServer.js";
@@ -28,14 +29,35 @@ import { Identity } from "@matter/general";
  * A Closure Panel shall use exactly one semantic tag from the ClosurePanel namespace (0x45) in the TagList attribute of
  * the Descriptor cluster to describe the spatial aspect of the dimension, e.g., "Lift", "Tilt", etc.
  *
+ * ### Cluster Requirements
+ *
+ * The Window Covering cluster shall NOT be present on the same endpoint for this device type. This restriction prevents
+ * conflicts between potential future standardized use of the Window Covering cluster and any existing non-standard
+ * implementations, until appropriate data dependency language is defined.
+ *
+ * ### Element Requirements
+ *
+ * The TagList in the Descriptor cluster of an endpoint with this device type shall meet the following constraints:
+ *
+ *   - There shall be exactly one tag from the ClosurePanel namespace (namespace 0x45).
+ *
+ *   - There shall NOT be any tag from the Closure namespace (namespace 0x44).
+ *
  * ClosurePanelDevice requires ClosureDimension cluster but ClosureDimension is not added by default because you must
  * select the features your device supports. You can add manually using ClosurePanelDevice.with().
  *
- * @see {@link MatterSpecification.v16.Device} § 8.6
+ * @see {@link MatterSpecification.v161.Device} § 8.6
  */
 export interface ClosurePanelDevice extends Identity<typeof ClosurePanelDeviceDefinition> {}
 
 export namespace ClosurePanelRequirements {
+    /**
+     * The Descriptor cluster is required by the Matter specification.
+     *
+     * This version of {@link DescriptorServer} is specialized per the specification.
+     */
+    export const DescriptorServer = BaseDescriptorServer.with("TagList");
+
     /**
      * The ClosureDimension cluster is required by the Matter specification.
      *
@@ -46,7 +68,7 @@ export namespace ClosurePanelRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { mandatory: { ClosureDimension: ClosureDimensionServer } };
+    export const server = { mandatory: { Descriptor: DescriptorServer, ClosureDimension: ClosureDimensionServer } };
 }
 
 export const ClosurePanelDeviceDefinition = MutableEndpoint({
@@ -54,7 +76,7 @@ export const ClosurePanelDeviceDefinition = MutableEndpoint({
     deviceType: 0x231,
     deviceRevision: 1,
     requirements: ClosurePanelRequirements,
-    behaviors: SupportedBehaviors()
+    behaviors: SupportedBehaviors(ClosurePanelRequirements.server.mandatory.Descriptor)
 });
 
 Object.freeze(ClosurePanelDeviceDefinition);

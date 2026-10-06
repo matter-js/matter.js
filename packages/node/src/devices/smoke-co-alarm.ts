@@ -34,10 +34,15 @@ import { Identity } from "@matter/general";
  * Some smoke alarms may be capable of adjusting sensitivity. Smoke CO Alarm may have the ability to detect and report
  * humidity levels, temperature levels, and contamination levels.
  *
+ * ### Device Type Requirements
+ *
+ * A Smoke CO Alarm device type shall support an instance of a Power Source device type on some endpoint. See the Power
+ * Source cluster for more information.
+ *
  * SmokeCoAlarmDevice requires SmokeCoAlarm cluster but SmokeCoAlarm is not added by default because you must select the
  * features your device supports. You can add manually using SmokeCoAlarmDevice.with().
  *
- * @see {@link MatterSpecification.v16.Device} § 7.9
+ * @see {@link MatterSpecification.v161.Device} § 7.9
  */
 export interface SmokeCoAlarmDevice extends Identity<typeof SmokeCoAlarmDeviceDefinition> {}
 
@@ -103,7 +108,7 @@ export namespace SmokeCoAlarmRequirements {
 export const SmokeCoAlarmDeviceDefinition = MutableEndpoint({
     name: "SmokeCoAlarm",
     deviceType: 0x76,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: SmokeCoAlarmRequirements,
     behaviors: SupportedBehaviors(SmokeCoAlarmRequirements.server.mandatory.Identify)
 });

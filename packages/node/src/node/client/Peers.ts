@@ -29,6 +29,7 @@ import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     Bytes,
     CancelablePromise,
+    createPromise,
     Diagnostic,
     Duration,
     ImplementationError,
@@ -70,6 +71,13 @@ const logger = Logger.get("Peers");
 const DEFAULT_TTL = Minutes(15);
 const EXPIRATION_INTERVAL = Minutes.one;
 
+type FabricOperation = "commission" | "decommission";
+
+/**
+ * Thrown when a commission or decommission of a {@link ClientNode} is requested while one is already in progress.
+ */
+export class FabricOperationInProgressError extends CommissioningError {}
+
 /**
  * Manages the set of known remote nodes.
  *
@@ -80,7 +88,7 @@ export class Peers extends EndpointContainer<ClientNode> {
     #installedSubscriptionHandler?: ClientSubscriptionHandler;
     #mutex = new Mutex(this);
     #closed = false;
-    #commissioning = new Set<ClientNode>();
+    #fabricOperations = new Map<ClientNode, { operation: FabricOperation; settled: Promise<void> }>();
     #instrumented = new WeakSet<ClientNode>();
     #bridgedInstrumented = new WeakSet<Endpoint>();
 
@@ -210,7 +218,8 @@ export class Peers extends EndpointContainer<ClientNode> {
      * {@link commission} does, so the peer is seeded rather than a blind commissioned node — then registers it.
      * `discoveryData` (from the hand-off) seeds operational discovery; `options` mirror the matching
      * {@link commission} options.  Throws {@link CommissioningError} and removes the peer entry if discovery,
-     * connection, or `CommissioningComplete` fails.
+     * connection, or `CommissioningComplete` fails; rejects as {@link runCommissioning} describes if the node is gone
+     * or busy.
      */
     async completeCommissioning(
         nodeId: NodeId,
@@ -334,13 +343,23 @@ export class Peers extends EndpointContainer<ClientNode> {
      * Find or create a {@link ClientNode} for a device described by {@link descriptor}.
      *
      * If a matching node already exists in the peer collection, returns it after refreshing its addresses and
-     * discovery data from the supplied descriptor.  Otherwise creates a new node using the descriptor.
+     * discovery data from the supplied descriptor.  Otherwise creates a new node using the descriptor.  A matching node
+     * that is being decommissioned is awaited first: if the decommission removes it, a new node is created, otherwise
+     * the kept node is returned.
      *
      * After calling {@link forDescriptor}, commission the returned node via {@link ClientNode.commission}.
      */
     async forDescriptor(descriptor: RemoteDescriptor): Promise<ClientNode> {
         const factory = this.owner.env.get(ClientNodeFactory);
         let node = factory.find(descriptor);
+        while (node !== undefined) {
+            const running = this.#fabricOperations.get(node);
+            if (running?.operation !== "decommission") {
+                break;
+            }
+            await running.settled;
+            node = factory.find(descriptor);
+        }
         if (node !== undefined) {
             // Refresh addresses and discovery data from the new descriptor
             await node.act(agent => {
@@ -377,6 +396,12 @@ export class Peers extends EndpointContainer<ClientNode> {
     /**
      * Look up a peer by numeric/string id or {@link PeerAddress}. A {@link PeerAddress} matches the commissioned
      * peer whose {@link CommissioningClient} peer address equals it; otherwise the container's id lookup is used.
+     *
+     * Look up by {@link PeerAddress} for anything held while a peer is commissioned: a local id may be reissued to a
+     * different device once the peer it named is gone, so the same string can resolve to a peer that never saw the
+     * work it is being used for. An address is stable for as long as its peer stays commissioned; afterwards it
+     * may name another device, under the rules `ControllerBehavior.allocatePeerAddress` documents. So a lookup
+     * that *succeeds* is not proof this is the peer the caller meant.
      */
     override get(id: number | string | PeerAddress) {
         if (typeof id !== "string" && typeof id !== "number") {
@@ -508,52 +533,68 @@ export class Peers extends EndpointContainer<ClientNode> {
      * If required, installs a listener in the environment's {@link InteractionServer} to handle subscription responses.
      */
     #configureInteractionServer() {
+        if (this.#closed || !this.owner.env.has(InteractionServer)) {
+            return;
+        }
+
+        // A node restart replaces the InteractionServer and ClientSubscriptions, so each new server needs a handler
+        // bound to the current subscriptions
+        const interactionServer = this.owner.env.get(InteractionServer);
         if (
-            this.#closed ||
-            this.#installedSubscriptionHandler !== undefined ||
-            !this.owner.env.has(InteractionServer)
+            this.#installedSubscriptionHandler !== undefined &&
+            interactionServer.clientHandler === this.#installedSubscriptionHandler
         ) {
             return;
         }
 
-        const subscriptions = this.owner.env.get(ClientSubscriptions);
-        const interactionServer = this.owner.env.get(InteractionServer);
-
-        this.#installedSubscriptionHandler = new ClientSubscriptionHandler(subscriptions);
+        this.#installedSubscriptionHandler = new ClientSubscriptionHandler(this.owner.env.get(ClientSubscriptions));
         interactionServer.clientHandler = this.#installedSubscriptionHandler;
     }
 
     /**
      * Run a commission attempt on {@link node} while protecting the node from the expired-node cull.
      *
-     * Serialization is done through the same {@link #mutex} the cull uses: the busy registration runs as a mutex task,
-     * which guarantees no cull is in flight when we register and that any subsequent cull observes the busy flag.
-     *
-     * Rejects with {@link CommissioningError} if the node is already mid-commission (parallel attempts on the same
-     * {@link ClientNode} would race on device-side state) or if a cull queued ahead of us already destroyed/crashed
-     * the node.  Either way the attempt fails fast instead of crashing later when the closed backing is accessed.
+     * Rejects with `DestroyedDependencyError` or `CrashedDependencyError` if the node is gone (its closing or deletion
+     * began, or it crashed), so the attempt fails fast instead of crashing later when the closed backing is accessed, and with {@link FabricOperationInProgressError} if a commission or decommission attempt on it
+     * is already in progress, as parallel attempts on the same {@link ClientNode} would race on device-side state.
+     * Calling {@link ClientNode.commission} inside {@link fn} therefore rejects.
      */
     async runCommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
+        return this.#runFabricOperation(node, "commission", fn);
+    }
+
+    /**
+     * Run a decommission attempt on {@link node}.  While it runs, the expired-node cull and leave events do not delete
+     * the node, and {@link forDescriptor} waits for it to end before handing out a node for the device.
+     *
+     * Rejects like {@link runCommissioning}: with `DestroyedDependencyError` or `CrashedDependencyError` if the node is
+     * gone, with {@link FabricOperationInProgressError} if a commission or decommission of it is already in progress.
+     */
+    async runDecommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
+        return this.#runFabricOperation(node, "decommission", fn);
+    }
+
+    /**
+     * Registration runs as a {@link #mutex} task, so no cull or leave handling is in flight for the node once
+     * {@link fn} starts, and every later one sees the registration.
+     */
+    async #runFabricOperation<T>(node: ClientNode, operation: FabricOperation, fn: () => MaybePromise<T>): Promise<T> {
+        const { promise: settled, resolver: settle } = createPromise<void>();
         await this.#mutex.produce(async () => {
-            const status = node.construction.status;
-            if (
-                status === Lifecycle.Status.Destroying ||
-                status === Lifecycle.Status.Destroyed ||
-                status === Lifecycle.Status.Crashed
-            ) {
-                throw new CommissioningError(`Cannot commission ${node.toString()} because the node is ${status}`);
-            }
-            if (this.#commissioning.has(node)) {
-                throw new CommissioningError(
-                    `Cannot commission ${node.toString()} because a commission attempt is already in progress`,
+            node.lifecycle.assertNotGone();
+            const running = this.#fabricOperations.get(node);
+            if (running !== undefined) {
+                throw new FabricOperationInProgressError(
+                    `Cannot ${operation} ${node.toString()} because a ${running.operation} attempt is already in progress`,
                 );
             }
-            this.#commissioning.add(node);
+            this.#fabricOperations.set(node, { operation, settled });
         });
         try {
             return await fn();
         } finally {
-            this.#commissioning.delete(node);
+            this.#fabricOperations.delete(node);
+            settle();
         }
     }
 
@@ -604,7 +645,7 @@ export class Peers extends EndpointContainer<ClientNode> {
                 if (!node.lifecycle.isReady) {
                     continue;
                 }
-                if (this.#commissioning.has(node)) {
+                if (this.#fabricOperations.has(node)) {
                     continue;
                 }
                 const state = node.maybeStateOf(CommissioningClient);
@@ -679,12 +720,12 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         this.#evaluateSeeded(node);
         if (!node.lifecycle.isSeeded) {
-            // Self-disposing: removes itself once seeding latches so no dead listener persists for the node's
-            // remaining lifetime.  Safe to call off() from within this callback because Observable#emit iterates a
-            // snapshot of its observers.
+            // Self-disposing: removes itself once seeding latches, or once the node goes away without ever
+            // seeding, so no dead listener persists for the node's remaining lifetime.  Safe to call off() from
+            // within this callback because Observable#emit iterates a snapshot of its observers.
             const onChanged = () => {
                 this.#evaluateSeeded(node);
-                if (node.lifecycle.isSeeded) {
+                if (node.lifecycle.isSeeded || node.lifecycle.isGone) {
                     node.lifecycle.changed.off(onChanged);
                 }
             };
@@ -697,7 +738,7 @@ export class Peers extends EndpointContainer<ClientNode> {
      * endpoint beyond the root is present.  Re-evaluated on BasicInformation install and on any endpoint tree change.
      */
     #evaluateSeeded(node: ClientNode) {
-        if (node.lifecycle.isSeeded) {
+        if (node.lifecycle.isSeeded || !node.lifecycle.isReadable) {
             return;
         }
         if (node.maybeStateOf(BasicInformationClient) === undefined || node.endpoints.size <= 1) {
@@ -736,7 +777,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         }
 
         this.#mutex.run(async () => {
-            if (!node.lifecycle.isReady) {
+            if (!node.lifecycle.isReady || this.#fabricOperations.get(node)?.operation === "decommission") {
                 return;
             }
 
@@ -835,7 +876,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         // Use the current session's createdAt as asOf so it (and newer sessions) are preserved
         // while older sessions (from before the reboot) are closed.  If the currentSession is
-        // undefined (no known session), asOf is undefined and handlePeerShutdown closes all sessions.
+        // undefined (no known session), handlePeerShutdown uses the current Time.nowUs value as its cutoff.
         const sessionManager = this.owner.env.get(SessionManager);
         await sessionManager.handlePeerShutdown(peerAddress, sessionManager.maybeSessionFor(peerAddress)?.createdAt);
     }
@@ -844,6 +885,11 @@ export class Peers extends EndpointContainer<ClientNode> {
 class Factory extends ClientNodeFactory {
     #owner: Peers;
     #groupIdCounter = 0;
+
+    /**
+     * Creation descriptors for {@link find}, which cannot read a node's state before its first construction completes.
+     */
+    #descriptorsUnderConstruction = new WeakMap<ClientNode, RemoteDescriptor>();
 
     constructor(owner: Peers) {
         super();
@@ -866,25 +912,29 @@ class Factory extends ClientNodeFactory {
             });
         }
 
+        const descriptor = options.commissioning?.descriptor;
+        if (descriptor !== undefined) {
+            this.#descriptorsUnderConstruction.set(node, descriptor);
+            const forget = (status: Lifecycle.Status) => {
+                if (status !== Lifecycle.Status.Initializing) {
+                    this.#descriptorsUnderConstruction.delete(node);
+                    node.construction.change.off(forget);
+                }
+            };
+            node.construction.change.on(forget);
+        }
+
         node.construction.start();
         return node;
     }
 
     find(descriptor: RemoteDescriptor) {
         for (const node of this.#owner) {
-            // Skip nodes whose construction will not deliver a working backing.  Destroying/Destroyed close (or have
-            // closed) the BehaviorBacking, which surfaces as "Datasource not yet initialized" the next time a caller
-            // touches state.  Crashed never finished initializeDataSource.  Inactive/Initializing/Active are all
-            // legitimate reuse targets — node.act will wait on construction.ready as needed.
-            const status = node.construction.status;
-            if (
-                status === Lifecycle.Status.Destroying ||
-                status === Lifecycle.Status.Destroyed ||
-                status === Lifecycle.Status.Crashed
-            ) {
+            if (!node.lifecycle.isReadable && node.construction.status !== Lifecycle.Status.Initializing) {
                 continue;
             }
-            if (RemoteDescriptor.is(node.state.commissioning, descriptor)) {
+            const known = this.#descriptorsUnderConstruction.get(node) ?? node.state.commissioning;
+            if (RemoteDescriptor.is(known, descriptor)) {
                 return node;
             }
         }

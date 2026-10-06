@@ -531,7 +531,7 @@ export class ControllerCommissioningFlow {
 
     /**
      * Initialize commissioning steps and add them in the default order as defined by
-     * @see {@link MatterSpecification.v16.Core} § 5.5
+     * @see {@link MatterSpecification.v161.Core} § 5.5
      */
     #initializeCommissioningSteps() {
         this.commissioningSteps.push({
@@ -1633,27 +1633,20 @@ export class ControllerCommissioningFlow {
         if (this.collectedCommissioningData.supportsConcurrentConnection !== false) {
             await this.#ensureFailsafeTimerFor(Seconds(scanMaxTimeSeconds));
 
-            const { networkingStatus, wiFiScanResults, debugText } = await this.#invokeCommand(
-                {
-                    endpoint: RootEndpointNumber,
-                    cluster: NetworkCommissioning,
-                    command: "scanNetworks",
-                    fields: {
-                        ssid,
-                        breadcrumb: this.lastBreadcrumb++,
-                    },
-                },
-                {
-                    expectedProcessingTime: Seconds(scanMaxTimeSeconds),
-                },
-            );
+            const scan = await this.#scanNetworks({ ssid, breadcrumb: this.lastBreadcrumb++ }, scanMaxTimeSeconds);
 
-            if (networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
+            if (typeof scan === "string") {
+                wifiScanFailureHint = `scan failed: ${scan}`;
+                logger.warn(
+                    `WiFi network scan for "${this.commissioningOptions.wifiNetwork.wifiSsid}" failed: ${scan} - attempting connection anyway`,
+                );
+            } else if (scan.networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
+                const { networkingStatus, debugText } = scan;
                 wifiScanFailureHint = `scan failed: status=${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? `, ${debugText}` : ""}`;
                 logger.warn(
                     `WiFi network scan for "${this.commissioningOptions.wifiNetwork.wifiSsid}" returned status ${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? `: ${debugText}` : ""} - attempting connection anyway`,
                 );
-            } else if (wiFiScanResults === undefined || wiFiScanResults.length === 0) {
+            } else if (scan.wiFiScanResults === undefined || scan.wiFiScanResults.length === 0) {
                 wifiScanFailureHint = `network not found in scan results`;
                 logger.warn(
                     `WiFi network "${this.commissioningOptions.wifiNetwork.wifiSsid}" not found in scan results - attempting connection anyway`,
@@ -1827,36 +1820,30 @@ export class ControllerCommissioningFlow {
             // Only Scan when the device supports concurrent connections
             await this.#ensureFailsafeTimerFor(Seconds(scanMaxTimeSeconds));
 
-            const { networkingStatus, threadScanResults, debugText } = (await this.#invokeCommand(
-                {
-                    endpoint: RootEndpointNumber,
-                    cluster: NetworkCommissioning,
-                    command: "scanNetworks",
-                    fields: { breadcrumb: this.lastBreadcrumb++ },
-                },
-                {
-                    expectedProcessingTime: Seconds(scanMaxTimeSeconds),
-                },
-            )) as NetworkCommissioning.ScanNetworksResponse;
+            const scan = await this.#scanNetworks({ breadcrumb: this.lastBreadcrumb++ }, scanMaxTimeSeconds);
 
-            if (networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
+            if (typeof scan === "string") {
+                threadScanFailureHint = `scan failed: ${scan}`;
+                logger.warn(`Thread network scan failed: ${scan} - attempting connection anyway`);
+            } else if (scan.networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
+                const { networkingStatus, debugText } = scan;
                 threadScanFailureHint = `scan failed: status=${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? `, ${debugText}` : ""}`;
                 logger.warn(
                     `Thread network scan returned status ${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? `: ${debugText}` : ""} - attempting connection anyway`,
                 );
-            } else if (threadScanResults === undefined || threadScanResults.length === 0) {
+            } else if (scan.threadScanResults === undefined || scan.threadScanResults.length === 0) {
                 threadScanFailureHint = `no Thread networks found in scan results`;
                 logger.warn(
                     `Thread network scan returned no results for "${networkName}" - attempting connection anyway`,
                 );
             } else {
-                const wantedNetworkFound = threadScanResults.find(
+                const wantedNetworkFound = scan.threadScanResults.find(
                     ({ networkName: scanned }) => scanned === networkName,
                 );
                 if (wantedNetworkFound === undefined) {
                     threadScanFailureHint = `network "${networkName}" not found in scan results`;
                     logger.warn(
-                        `Thread network "${networkName}" not found in scan results: ${Diagnostic.json(threadScanResults)} - attempting connection anyway`,
+                        `Thread network "${networkName}" not found in scan results: ${Diagnostic.json(scan.threadScanResults)} - attempting connection anyway`,
                     );
                 } else {
                     logger.debug(
@@ -1964,6 +1951,30 @@ export class ControllerCommissioningFlow {
             code: CommissioningStepResultCode.Success,
             breadcrumb: this.lastBreadcrumb,
         };
+    }
+
+    /**
+     * Invokes ScanNetworks on the root endpoint.  The scan result only feeds diagnostic hints into later network setup
+     * errors, so a device rejecting the command with an Interaction Model status, or answering without a
+     * ScanNetworksResponse, does not abort commissioning, as with the CHIP SDK commissioner.
+     *
+     * @returns the ScanNetworksResponse, or a description of why there is none
+     */
+    async #scanNetworks(
+        fields: NetworkCommissioning.ScanNetworksRequest,
+        scanMaxTimeSeconds: number,
+    ): Promise<NetworkCommissioning.ScanNetworksResponse | string> {
+        let response: NetworkCommissioning.ScanNetworksResponse | undefined;
+        try {
+            response = await this.#invokeCommand(
+                { endpoint: RootEndpointNumber, cluster: NetworkCommissioning, command: "scanNetworks", fields },
+                { expectedProcessingTime: Seconds(scanMaxTimeSeconds) },
+            );
+        } catch (error) {
+            StatusResponseError.accept(error);
+            return error.message;
+        }
+        return response ?? "no ScanNetworksResponse received";
     }
 
     /**

@@ -196,6 +196,10 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
         throw new InternalError("Datasource version must be set via externalSet");
     }
 
+    invalidateVersion() {
+        this.#version = Datasource.UNKNOWN_VERSION;
+    }
+
     get erased() {
         return this.#erased;
     }

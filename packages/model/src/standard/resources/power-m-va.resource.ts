@@ -8,4 +8,7 @@
 
 import { Resource } from "#models/Resource.js";
 
-Resource.add({ tag: "datatype", name: "power-mVA", description: "Apparent Power", xref: "core§7.19.2" });
+Resource.add({
+    tag: "datatype", name: "power-mVA", description: "Apparent Power", xref: "core§7.19.2.14",
+    details: "This type represents apparent power measured in millivolt-amps."
+});

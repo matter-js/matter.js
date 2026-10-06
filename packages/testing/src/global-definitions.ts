@@ -12,6 +12,7 @@ import * as ChaiAsPromised from "chai-as-promised";
 
 import { browserSetup, extendApi, generalSetup } from "./mocha.js";
 import { bootSetup } from "./mocks/boot.js";
+import { MockForwardFeatures } from "./mocks/forward-features.js";
 import { MockLogger, loggerSetup } from "./mocks/logging.js";
 import { timeSetup } from "./mocks/time.js";
 
@@ -26,9 +27,11 @@ Object.assign(globalThis, {
         bootSetup,
         loggerSetup,
         timeSetup,
+        forwardFeatureEnabled: MockForwardFeatures.isEnabled,
     },
 
     MockLogger,
+    MockForwardFeatures,
 });
 
 if (globalThis === (globalThis as any).window) {

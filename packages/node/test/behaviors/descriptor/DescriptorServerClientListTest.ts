@@ -15,22 +15,22 @@ import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
 
 describe("DescriptorServer clientList", () => {
     it("is empty when no client clusters declared", async () => {
-        const device = await MockEndpoint.create(TemperatureSensorDevice);
+        await using device = await MockEndpoint.create(TemperatureSensorDevice);
         expect(device.state.descriptor.clientList).deep.equals([]);
     });
 
     it("includes explicit .with(<Client>) entries", async () => {
-        const device = await MockEndpoint.create(OnOffLightDevice.with(OccupancySensingClient));
+        await using device = await MockEndpoint.create(OnOffLightDevice.with(OccupancySensingClient));
         expect(device.state.descriptor.clientList).contains(OccupancySensingClient.cluster.id);
     });
 
     it("includes auto-merged mandatory client clusters (Doorbell -> Chime)", async () => {
-        const device = await MockEndpoint.create(DoorbellDevice);
+        await using device = await MockEndpoint.create(DoorbellDevice);
         expect(device.state.descriptor.clientList).contains(ChimeClient.cluster.id);
     });
 
     it("lists same cluster id in both serverList and clientList (dimmer-switch / Identify)", async () => {
-        const device = await MockEndpoint.create(DimmerSwitchDevice);
+        await using device = await MockEndpoint.create(DimmerSwitchDevice);
         expect(device.state.descriptor.serverList).contains(Identify.id);
         expect(device.state.descriptor.clientList).contains(Identify.id);
     });

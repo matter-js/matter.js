@@ -199,7 +199,8 @@ export interface Construction<T> extends Promise<T>, Lifetime.Owner {
      * Manually force a specific {@link status}.
      *
      * This offers flexibility in component lifecycle management including resetting component to inactive state and
-     * broadcasting lifecycle changes.  On reset listeners are also reset and must be reinstalled.
+     * broadcasting lifecycle changes.  On reset to inactive, awaiters of the construction promise are dropped and must
+     * await again; observers of {@link change} stay registered.
      *
      * This method fails if initialization is ongoing; await completion first.
      */

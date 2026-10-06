@@ -19,6 +19,11 @@ function augmentDevice(device: DeviceReference, content: SpecReference) {
     }
 
     let what: string | undefined;
+
+    // A section whose prose only announces the table below it contributes nothing the generated model does not
+    // already state, and a section whose prose describes one element belongs to that element rather than the device
+    let documented = true;
+
     switch (name) {
         case "conditions":
             what = `conditions "${content.name}"`;
@@ -27,6 +32,7 @@ function augmentDevice(device: DeviceReference, content: SpecReference) {
             } else {
                 device.conditionSets = [content];
             }
+            documented = false;
             break;
 
         case "cluster requirements":
@@ -37,11 +43,13 @@ function augmentDevice(device: DeviceReference, content: SpecReference) {
         case "revision history":
             what = "revisions";
             device.revisions = content;
+            documented = false;
             break;
 
         case "classification":
             what = "classification";
             device.classification = content;
+            documented = false;
             break;
 
         case "element requirements":
@@ -70,7 +78,7 @@ function augmentDevice(device: DeviceReference, content: SpecReference) {
             device.conditionRequirements = content;
             break;
 
-        default:
+        default: {
             // Collect sub-sections of conditionRequirements as details (e.g. "ManagedAclAllowed Condition")
             if (
                 device.conditionRequirements &&
@@ -81,10 +89,35 @@ function augmentDevice(device: DeviceReference, content: SpecReference) {
                 }
                 device.conditionRequirements.details.push(content);
                 what = `conditionRequirements detail "${content.name}"`;
+                documented = false;
                 break;
             }
+
+            // Condition sets nest, so the innermost enclosing set owns the section
+            const conditionSet = device.conditionSets
+                ?.filter(set => content.xref.section.startsWith(set.xref.section + "."))
+                .sort((a, b) => b.xref.section.length - a.xref.section.length)[0];
+            if (conditionSet) {
+                if (!conditionSet.details) {
+                    conditionSet.details = [];
+                }
+                conditionSet.details.push(content);
+                what = `conditions detail "${content.name}"`;
+                documented = false;
+                break;
+            }
+
             logger.debug(`ignore ${content.name}`);
             break;
+        }
+    }
+
+    if (documented) {
+        if (device.subsections) {
+            device.subsections.push(content);
+        } else {
+            device.subsections = [content];
+        }
     }
 
     if (what) {
@@ -95,6 +128,21 @@ function augmentDevice(device: DeviceReference, content: SpecReference) {
 export function* loadDevices(devices: SpecReference) {
     let category: string | undefined;
     let device: DeviceReference | undefined;
+    let skipped: { chapter: SpecReference; sections: number } | undefined;
+
+    // An architecture chapter describes a family of device types rather than one, so it has no element to document.
+    // Report what it costs, because the alternative is a specification revision moving normative text under such a
+    // heading and nothing saying so
+    function reportSkipped() {
+        if (skipped === undefined) {
+            return;
+        }
+        const { chapter, sections } = skipped;
+        logger.info(
+            `ignored ${chapter.name} and the ${sections} section${sections === 1 ? "" : "s"} below it (${chapter.xref.document} § ${chapter.xref.section})`,
+        );
+        skipped = undefined;
+    }
 
     function* emit() {
         if (device) {
@@ -113,8 +161,10 @@ export function* loadDevices(devices: SpecReference) {
 
             case 2:
                 yield* emit();
+                reportSkipped();
 
                 if (section.name.match(/\s+architecture$/i)) {
+                    skipped = { chapter: section, sections: 0 };
                     break;
                 }
 
@@ -128,6 +178,10 @@ export function* loadDevices(devices: SpecReference) {
                 break;
 
             default:
+                if (skipped) {
+                    skipped.sections++;
+                    break;
+                }
                 Logger.nest(() => {
                     if (device) {
                         augmentDevice(device, section);
@@ -139,4 +193,5 @@ export function* loadDevices(devices: SpecReference) {
 
     // Emit final device
     yield* emit();
+    reportSkipped();
 }

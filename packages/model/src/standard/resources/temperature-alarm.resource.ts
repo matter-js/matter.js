@@ -99,9 +99,7 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> NOTE: The constraints related to the field values in the table above shall have the relationship " +
-                "as represented by the illustration below:" +
-                "\n" +
-                "!TemperatureAlarm Thresholds",
+                "as represented by the illustration below:",
 
             children: [
                 {
