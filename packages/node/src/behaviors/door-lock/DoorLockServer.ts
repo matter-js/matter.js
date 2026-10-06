@@ -131,6 +131,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
 
     override [Symbol.asyncDispose](): MaybePromise {
         this.#stopAutoRelockTimer();
+        this.internal.wrongCodeTimer?.stop();
         for (const timer of this.internal.expiryTimers.values()) {
             timer.stop();
         }
@@ -966,21 +967,22 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             this.events.doorLockAlarm.emit({ alarmCode: AlarmCode.WrongCodeEntryLimit }, this.context);
 
             if (this.state.userCodeTemporaryDisableTime !== undefined) {
-                Time.getTimer(
+                this.internal.wrongCodeTimer?.stop();
+                this.internal.wrongCodeTimer = Time.getTimer(
                     "wrong-code-disable",
                     Seconds(this.state.userCodeTemporaryDisableTime),
-                    this.callback(
-                        () => {
-                            this.internal.wrongCodeCount = 0;
-                        },
-                        { lock: true },
-                    ),
+                    this.callback(this.#resetWrongCodeCount, { lock: true }),
                 ).start();
             }
         }
 
         this.#emitLockOperationError(operationType, OperationError.InvalidCredential);
         throw new StatusResponseError("Invalid PIN code", Status.Failure);
+    }
+
+    #resetWrongCodeCount() {
+        this.internal.wrongCodeTimer = undefined;
+        this.internal.wrongCodeCount = 0;
     }
 
     // ── ExpiringUser Timeout (spec § 5.2.6.18.8) ─────────────────────────────────
@@ -1353,6 +1355,7 @@ export namespace DoorLockBaseServer {
     export class Internal {
         wrongCodeCount = 0;
         autoRelockTimer?: Timer;
+        wrongCodeTimer?: Timer;
         expiryTimers = new Map<number, Timer>();
         expireUser?: (userIndex: number) => void;
     }

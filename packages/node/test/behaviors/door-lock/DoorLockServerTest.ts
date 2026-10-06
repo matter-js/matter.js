@@ -884,6 +884,29 @@ describe("DoorLockServer", () => {
         });
     });
 
+    describe("wrong code entry limit (spec § 5.2.9.32, § 5.2.9.33)", () => {
+        it("refuses even the correct PIN after the limit and accepts it again once the disable time elapses", async () => {
+            const lock = await setUpScheduledLock({ users: [scheduledUser(UserType.UnrestrictedUser)] });
+            try {
+                for (let i = 0; i < 3; i++) {
+                    await expect(withMockTime(lock.cmds.unlockDoor({ pinCode: pin("9999") }))).rejected;
+                }
+
+                await expectScheduledDenial(lock, OperationError.InvalidCredential);
+
+                await MockTime.advance(Seconds(5));
+                await expectScheduledDenial(lock, OperationError.InvalidCredential);
+
+                await MockTime.advance(Seconds(6));
+                await settled(lock.device);
+
+                await unlockScheduled(lock);
+            } finally {
+                await lock.site.close();
+            }
+        });
+    });
+
     describe("ExpiringUser timeout (spec § 5.2.6.18.8)", () => {
         it("keeps granting access before the timeout elapses", async () => {
             const lock = await setUpScheduledLock({
