@@ -223,6 +223,23 @@ describe("FabricIcd", () => {
             expect(wakefulness.requiresAwait).true;
         });
 
+        it("gives a removed peer a fresh wakefulness when its node ID registers again", () => {
+            const icd = fabricIcd();
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
+            const removed = icd.wakefulnessFor(NodeId(11));
+            removed!.requiresAwait = true;
+            removed!.noteActive();
+
+            icd.removePeer(NodeId(11));
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_B, counterStart: 0, lastOffset: 0 }, () => {});
+
+            const fresh = icd.wakefulnessFor(NodeId(11));
+            expect(fresh).not.equal(removed);
+            fresh!.requiresAwait = true;
+            expect(fresh!.nextCheckInDue).undefined;
+            expect(removed!.nextCheckInDue).undefined;
+        });
+
         it("resumes the same wakefulness when a deleted peer registers again, and announces it", () => {
             const icd = fabricIcd();
             const fed = new Array<NodeId>();

@@ -262,7 +262,9 @@ export class NodeSession extends SecureSession {
 
     override notifyActivity(messageReceived: boolean) {
         super.notifyActivity(messageReceived);
-        this.#fabric?.notePeerActivity(this.#peerNodeId, messageReceived);
+        if (messageReceived) {
+            this.#fabric?.notePeerActive(this.#peerNodeId);
+        }
     }
 
     get associatedFabric(): Fabric {

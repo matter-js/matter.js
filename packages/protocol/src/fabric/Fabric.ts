@@ -295,9 +295,9 @@ export class Fabric {
         return this.#icd?.hasPeers === true;
     }
 
-    /** Record a message received from (`received`) or sent to a peer, for the ICD peers registered on this fabric. */
-    notePeerActivity(peerNodeId: NodeId, received: boolean) {
-        this.#icd?.notePeerActivity(peerNodeId, received);
+    /** Record a message received from a peer, for its ICD wakefulness. */
+    notePeerActive(peerNodeId: NodeId) {
+        this.#icd?.notePeerActive(peerNodeId);
     }
 
     get accessControl() {

@@ -11,7 +11,7 @@ import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-management";
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
-import { ImplementationError, Millis, Minutes, Seconds, ServerAddressIp, Time } from "@matter/general";
+import { Bytes, Hours, ImplementationError, Millis, Minutes, Seconds, ServerAddressIp, Time } from "@matter/general";
 import {
     ClientSubscribe,
     ClientSubscriptions,
@@ -761,16 +761,30 @@ describe("IcdClient", () => {
             expect(peer1.stateOf(IcdClient).available).true;
         });
 
-        it("exposes nextExpectedCheckin as the availability deadline for a registered LIT peer", async () => {
+        it("has no nextExpectedCheckin while subscribed", async () => {
+            await using site = new MockSite();
+            const { controller, peer1 } = await litOperatingPair(site);
+            // Let the subscription recreated for the registration establish
+            for (let i = 0; i < 10; i++) {
+                await MockTime.advance(Millis(200));
+                await settled(controller, peer1);
+            }
+
+            expect(await peer1.act(agent => agent.get(IcdClient).nextExpectedCheckin)).undefined;
+        });
+
+        it("exposes nextExpectedCheckin on the wall clock once no subscription is held", async () => {
             await using site = new MockSite();
             const { controller, peer1 } = await litOperatingPair(site);
 
-            await reRegisterWithSubject(peer1, SubjectId(NodeId(0xabcdn)));
+            await peer1.set({ network: { autoSubscribe: false } });
+            await settled(controller, peer1);
+            MockTime.stepWallClock(Hours(1));
 
             const nextExpectedCheckin = await peer1.act(agent => agent.get(IcdClient).nextExpectedCheckin);
             expect(nextExpectedCheckin).not.undefined;
-            expect(nextExpectedCheckin).equals(wakefulnessOf(controller, peer1)!.nextSignalDue);
-            expect(nextExpectedCheckin! > Time.nowMs).true;
+            expect(nextExpectedCheckin! >= Time.nowMs + Seconds(LIT_CONFIG.idleModeDuration)).true;
+            expect(nextExpectedCheckin! <= Time.nowMs + Seconds(LIT_CONFIG.idleModeDuration + 30)).true;
         });
 
         it("has no nextExpectedCheckin for an unregistered peer", async () => {
@@ -955,9 +969,10 @@ describe("IcdClient", () => {
             const peer1 = await subscribedPeer(controller, "peer1");
             await peer1.act(agent => agent.get(IcdClient).register());
 
-            const fabricIndex = peer1.stateOf(CommissioningClient).peerAddress!.fabricIndex;
+            const { fabricIndex, nodeId } = peer1.stateOf(CommissioningClient).peerAddress!;
             const fabric = controller.env.get(FabricManager).for(fabricIndex);
             expect(fabric.icd.hasPeers).true;
+            const wakefulness = fabric.icd.wakefulnessFor(nodeId);
 
             const unregistered = new Promise<void>(resolve =>
                 peer1.eventsOf(IcdClient).unregistered.once(() => resolve()),
@@ -968,6 +983,37 @@ describe("IcdClient", () => {
 
             expect(peer1.stateOf(IcdClient).registered).false;
             expect(fabric.icd.hasPeers).false;
+
+            // A later peer with the same node ID does not inherit the departed peer's wakefulness
+            fabric.icd.addPeer(
+                { peerNodeId: nodeId, key: Bytes.of(new Uint8Array(16)), counterStart: 0, lastOffset: 0 },
+                () => {},
+            );
+            expect(fabric.icd.wakefulnessFor(nodeId)).not.equal(wakefulness);
+        });
+    });
+
+    describe("peer removal", () => {
+        it("drops the wakefulness of a peer decommissioned after it was unregistered", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register());
+            const { fabricIndex, nodeId } = peer1.stateOf(CommissioningClient).peerAddress!;
+            const fabric = controller.env.get(FabricManager).for(fabricIndex);
+            const wakefulness = fabric.icd.wakefulnessFor(nodeId);
+
+            await peer1.act(agent => agent.get(IcdClient).unregister());
+            await peer1.act(agent => agent.get(CommissioningClient).decommission());
+            await settled(controller);
+
+            fabric.icd.addPeer(
+                { peerNodeId: nodeId, key: Bytes.of(new Uint8Array(16)), counterStart: 0, lastOffset: 0 },
+                () => {},
+            );
+            expect(fabric.icd.wakefulnessFor(nodeId)).not.equal(wakefulness);
         });
     });
 

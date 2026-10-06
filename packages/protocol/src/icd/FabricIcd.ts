@@ -34,8 +34,8 @@ export class FabricIcd {
 
     /**
      * Emits the peer node ID when a peer's registration starts ({@link addPeer} of an unregistered peer), i.e.
-     * {@link wakefulnessFor} starts returning its {@link IcdPeerWakefulness}.  A sustained subscription running without a
-     * wakefulness races this signal to observe the peer's mode from then on.
+     * {@link wakefulnessFor} starts returning its {@link IcdPeerWakefulness}.  A sustained subscription running without
+     * a wakefulness races this signal to observe the peer's mode from then on.
      */
     get peerFed() {
         return this.#peerFed;
@@ -98,8 +98,8 @@ export class FabricIcd {
     }
 
     /**
-     * Remove a peer's registration.  An unregistered peer sends no Check-Ins, so its wakefulness is suspended until the
-     * peer is registered again.
+     * Remove a peer's registration.  The controller no longer awaits its Check-Ins, so its wakefulness is suspended
+     * until the peer is registered again.
      */
     deletePeer(peerNodeId: NodeId): void {
         if (this.#peers.delete(peerNodeId)) {
@@ -107,14 +107,16 @@ export class FabricIcd {
         }
     }
 
-    /** Record a message received from (`received`) or sent to a peer, for its wakefulness. */
-    notePeerActivity(peerNodeId: NodeId, received: boolean): void {
-        const wakefulness = this.#wakefulness.get(peerNodeId);
-        if (received) {
-            wakefulness?.noteActive();
-        } else {
-            wakefulness?.noteSent();
-        }
+    /** Remove a peer that left the fabric, with its wakefulness; a later peer with the same node ID starts afresh. */
+    removePeer(peerNodeId: NodeId): void {
+        this.#peers.delete(peerNodeId);
+        this.#wakefulness.get(peerNodeId)?.close();
+        this.#wakefulness.delete(peerNodeId);
+    }
+
+    /** Record a message received from a peer, for its wakefulness. */
+    notePeerActive(peerNodeId: NodeId): void {
+        this.#wakefulness.get(peerNodeId)?.noteActive();
     }
 
     get hasPeers(): boolean {

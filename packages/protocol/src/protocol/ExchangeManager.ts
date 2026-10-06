@@ -286,8 +286,8 @@ export class ExchangeManager implements Transport.Provider {
                 isDuplicate = true;
             }
 
-            // Every decoded message proves the peer is active, also a duplicate or one that no exchange accepts; the CHIP
-            // SDK marks the session active before it drops a duplicate.
+            // Every decoded message proves the peer is active, also a duplicate or one that no exchange accepts; the
+            // CHIP SDK marks the session active before it drops a duplicate.
             session.notifyActivity(true);
         } else if (packet.header.sessionType === SessionType.Group) {
             if (this.#isClosing) return;

@@ -159,8 +159,8 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             // re-subscribing.
             icdWakefulness: () => this.#icdWakefulness(),
 
-            // A subscription established before its peer was fed holds no wakefulness to observe the first
-            // registration on; the feed signal lets it recreate then.
+            // A subscription running while its peer is not registered has no wakefulness to watch; the feed signal lets
+            // it recreate once the peer registers.
             icdPeerFed: () => this.#peerIcd()?.icd.peerFed,
         };
 
@@ -294,8 +294,9 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     /**
      * Resolve the peer wakefulness and whether an await-mode (LIT) ICD interaction should route through the
-     * unthrottled `icdLit` network profile, so a Check-In-triggered interaction is not queued behind bulk traffic and
-     * lands inside the peer's brief active window.  Non-LIT peers and a caller-pinned network keep their profile.
+     * unthrottled `icdLit` network profile, so an interaction released by a wake signal is not queued behind bulk
+     * traffic and lands inside the peer's brief active window.  Non-LIT peers and a caller-pinned network keep their
+     * profile.
      *
      * The caller applies the routing to a copy of its request rather than mutating the caller's object, so a reused
      * request never caches the decision across a DSLS SIT⇄LIT flip.  The wakefulness is returned so the caller hands
@@ -327,18 +328,18 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             return undefined;
         }
 
-        return this.#awaitWake(wakefulness, address, timeout ?? wakefulness.nextSignalWithin);
+        return this.#awaitWake(wakefulness, address, timeout ?? wakefulness.nextCheckInWithin);
     }
 
     async #awaitWake(wakefulness: IcdPeerWakefulness, address: PeerAddress, timeout: Duration) {
-        const nextCheckIn = wakefulness.nextSignalDue;
+        const nextCheckIn = wakefulness.nextCheckInDue;
         logger.info(
             "Peer is a LIT ICD in idle mode; holding interaction until it wakes",
             Diagnostic.dict({
                 peer: PeerAddress(address),
                 timeout: Duration.format(timeout),
                 nextCheckInWithin:
-                    nextCheckIn === undefined ? undefined : Duration.format(Millis(nextCheckIn - Time.nowMs)),
+                    nextCheckIn === undefined ? undefined : Duration.format(Millis(nextCheckIn - Time.nowUs)),
             }),
         );
         using abort = Abort.subtask(undefined, timeout);

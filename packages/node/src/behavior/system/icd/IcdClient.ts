@@ -71,11 +71,13 @@ export class IcdClient extends Behavior {
     }
 
     /**
-     * Deadline by which the next Check-In (or report, while subscribed) from a registered LIT peer is expected, or
-     * undefined when none is scheduled (no fed peer / not registered / not LIT).
+     * Wall-clock deadline by which the next Check-In from a registered LIT peer is expected, or undefined when none is
+     * scheduled: no fed peer, not registered, not LIT, or a subscription is held (the peer then reports instead).
      */
     get nextExpectedCheckin(): Timestamp | undefined {
-        return this.#fedWakefulness()?.nextSignalDue;
+        const due = this.#fedWakefulness()?.nextCheckInDue;
+        // The wakefulness runs on the monotonic clock; expose the deadline on the wall clock like other timestamps
+        return due === undefined ? undefined : Timestamp(due - Time.nowUs + Time.nowMs);
     }
 
     get #peerIsLongIdleTimeOperating() {
@@ -122,8 +124,8 @@ export class IcdClient extends Behavior {
     }
 
     /**
-     * The peer coming online is live proof it is awake, so re-arm its wakefulness like a Check-In would; a no-op for a
-     * non-LIT or unfed peer.
+     * The peer coming online is live proof it is awake, so note it as active in its wakefulness; a no-op for a non-LIT
+     * or unfed peer.
      */
     #onPeerOnline() {
         this.#fedWakefulness()?.noteActive();
@@ -236,7 +238,7 @@ export class IcdClient extends Behavior {
             return;
         }
         const { fabric, peerNodeId } = this.#fabricContext();
-        // Peer reachability is unknown after a controller restart, so do not seed the availability window.
+        // Peer reachability is unknown after a controller restart, so do not note it as active.
         this.#feedFabricIcd(fabric, peerNodeId, false);
     }
 
@@ -247,6 +249,12 @@ export class IcdClient extends Behavior {
     #onDecommissioned() {
         if (this.state.registered) {
             this.#clearRegistration();
+        }
+        // The peer left the fabric, also when it was unregistered before; a later peer with its node ID starts afresh
+        const icdPeer = this.internal.icdPeer;
+        if (icdPeer !== undefined) {
+            this.env.get(FabricManager).maybeFor(icdPeer.fabricIndex)?.icd.removePeer(icdPeer.nodeId);
+            this.internal.icdPeer = undefined;
         }
     }
 
@@ -470,7 +478,10 @@ export class IcdClient extends Behavior {
             this.internal.checkInHandler = this.callback(this.#onCheckIn, { offline: true, lock: true });
         }
         fabric.icd.addPeer({ peerNodeId, key, counterStart, lastOffset }, this.internal.checkInHandler);
-        this.internal.fedPeer = PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId: peerNodeId });
+        this.internal.fedPeer = this.internal.icdPeer = PeerAddress({
+            fabricIndex: fabric.fabricIndex,
+            nodeId: peerNodeId,
+        });
 
         const wakefulness = fabric.icd.wakefulnessFor(peerNodeId);
         if (wakefulness === undefined) {
@@ -492,8 +503,6 @@ export class IcdClient extends Behavior {
                 icdState?.idleModeDuration === undefined
                     ? defaults.idleModeDuration
                     : Seconds(icdState.idleModeDuration),
-            maximumCheckInBackoff:
-                icdState?.maximumCheckInBackoff === undefined ? undefined : Seconds(icdState.maximumCheckInBackoff),
         });
         wakefulness.requiresAwait = this.#peerIsLongIdleTimeOperating;
 
@@ -636,6 +645,9 @@ export namespace IcdClient {
         /** Address of the peer fed to {@link FabricIcd}; lets decommission drop it after peerAddress is already gone. */
         fedPeer?: PeerAddress;
 
+        /** The peer last fed to {@link FabricIcd}; kept after unregister so decommission can drop its wakefulness. */
+        icdPeer?: PeerAddress;
+
         /** The fed peer's wakefulness `available` observable we currently mirror. */
         availableSource?: AsyncObservableValue<[boolean]>;
 
@@ -693,7 +705,8 @@ export namespace IcdClient {
         lastCheckInReceivedAt?: Timestamp;
 
         /**
-         * Whether the peer is reachable (within its expected Check-In window). Non-LIT peers are always available.
+         * Whether the registered peer is reachable: a subscription to it is held, or its next Check-In is not yet
+         * overdue. Non-LIT peers are always available.
          */
         @field(bool)
         available: boolean = false;

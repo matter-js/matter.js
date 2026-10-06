@@ -9,15 +9,15 @@ import { IcdPeerAsleepError } from "#behavior/system/icd/IcdPeerAsleepError.js";
 import { IcdManagementServer } from "#behaviors/icd-management";
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
-import { Millis, Seconds } from "@matter/general";
+import { Seconds } from "@matter/general";
 import type { Peer } from "@matter/protocol";
-import { IcdPeerSchedule, NetworkProfiles, Read } from "@matter/protocol";
+import { NetworkProfiles, Read } from "@matter/protocol";
 import { EndpointNumber, NodeId, SubjectId } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
-import { commission, deviceLink, LIT_CONFIG, wakeDevice, wakefulnessOf } from "../icd-helpers.js";
+import { commission, LIT_CONFIG, wakeDevice, wakefulnessOf } from "../icd-helpers.js";
 import { MockSite } from "../mock-site.js";
-import { settled, subscribedPeer } from "../node-helpers.js";
+import { subscribedPeer } from "../node-helpers.js";
 
 const DslsIcdServer = IcdManagementServer.with(
     IcdManagement.Feature.CheckInProtocolSupport,
@@ -143,32 +143,6 @@ describe("ClientNodeInteraction ICD hold", () => {
         await MockTime.advance(Seconds(3700));
         await MockTime.resolve(read, { macrotasks: true });
 
-        expect(caught).instanceof(IcdPeerAsleepError);
-    });
-
-    it("holds a read until the subscribed peer's next report is due", async () => {
-        await using site = new MockSite();
-        const { controller, device, peer1 } = await registeredLitPair(site);
-        // Let the subscription re-establish after the re-registration, then let the silent peer go idle
-        await settled(controller, peer1);
-        deviceLink(device).silence();
-        await MockTime.advance(Seconds(6));
-        await MockTime.macrotask;
-        const wakefulness = wakefulnessOf(controller, peer1)!;
-        expect(wakefulness.awake.value).false;
-        const idleWait = Millis(Seconds(LIT_CONFIG.idleModeDuration) + IcdPeerSchedule.CHECK_IN_MARGIN);
-        const expectedWait = wakefulness.nextSignalWithin;
-        expect(expectedWait).greaterThan(idleWait);
-
-        let caught: unknown;
-        const read = drainRead(peer1).catch(e => (caught = e));
-
-        await MockTime.advance(Millis(idleWait + 1));
-        await MockTime.macrotask;
-        expect(caught).undefined;
-
-        await MockTime.advance(Millis(expectedWait - idleWait));
-        await MockTime.resolve(read, { macrotasks: true });
         expect(caught).instanceof(IcdPeerAsleepError);
     });
 

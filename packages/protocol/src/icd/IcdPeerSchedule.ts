@@ -7,18 +7,17 @@
 import { Duration, Millis, Seconds, Timestamp } from "@matter/general";
 
 /**
- * When a LIT (Long Idle Time) ICD peer is in Active Mode and by when it must next signal, derived from the peer's
+ * When a LIT (Long Idle Time) ICD peer is in Active Mode and when its next Check-In is due, derived from the peer's
  * timings and the activity the controller observed.
  *
  * The peer stays active for `activeModeDuration` after a Check-In (it sends one on entering Active Mode), for
- * `activeModeThreshold` after any other activity, and until a StayActive promise ends, whichever is last.  Afterwards it
- * idles for at most `idleModeDuration`, then checks in again — or, when the controller did not interact with it since
- * its last Check-In, after up to `maximumCheckInBackoff`.  A subscribed peer reports instead, at the latest when the
- * subscription's liveness timeout ends.
+ * `activeModeThreshold` after any other activity, and until a StayActive promise ends, whichever is last.  Afterwards
+ * it idles for at most `idleModeDuration` and checks in again.  The peer is assumed not to back off its Check-Ins, as
+ * the CHIP SDK's default back-off strategy does not.
  *
  * Callers pass the current time; the schedule holds no timers.
  *
- * @see {@link MatterSpecification.v161.Core} § 9.15.1.3.2.3 (Check-In cadence and back-off)
+ * @see {@link MatterSpecification.v161.Core} § 9.15.1.3.2.3 (Check-In cadence)
  * @see {@link MatterSpecification.v161.Core} § 9.16.6.2 (ActiveModeDuration) and § 9.16.6.3 (ActiveModeThreshold)
  */
 export class IcdPeerSchedule {
@@ -36,9 +35,6 @@ export class IcdPeerSchedule {
 
     #timings = IcdPeerSchedule.DEFAULT_TIMINGS;
     #activeUntil?: Timestamp;
-    #lastActivity?: Timestamp;
-    #sentSinceCheckIn = false;
-    #interacted = false;
 
     get timings() {
         return this.#timings;
@@ -53,63 +49,34 @@ export class IcdPeerSchedule {
         return this.#activeUntil;
     }
 
-    /** The peer sent a Check-In, entering Active Mode; its own `activeModeThreshold` overrides the configured one. */
-    noteCheckIn(now: Timestamp, activeModeThreshold?: Duration) {
-        this.#sentSinceCheckIn = false;
-        this.#interacted = false;
-        const threshold = activeModeThreshold ?? this.#timings.activeModeThreshold;
-        // The longer of the two, not their sum, as the CHIP SDK's ICDManager does; the specification is ambiguous
-        this.#noteActivity(now, Millis(Math.max(this.#timings.activeModeDuration, threshold)));
+    /** Deadline of the peer's next Check-In, or undefined before any activity. */
+    get nextCheckInDue(): Timestamp | undefined {
+        if (this.#activeUntil === undefined) {
+            return undefined;
+        }
+        return Timestamp(this.#activeUntil + this.idleWindow);
     }
 
-    /** The peer showed activity other than a Check-In.  After a message the controller sent, this is an interaction. */
+    /** The longest the peer may idle before its next Check-In, with the Check-In margin. */
+    get idleWindow(): Duration {
+        return Millis(this.#timings.idleModeDuration + IcdPeerSchedule.CHECK_IN_MARGIN);
+    }
+
+    /** The peer sent a Check-In, entering Active Mode; its own `activeModeThreshold` overrides the configured one. */
+    noteCheckIn(now: Timestamp, activeModeThreshold?: Duration) {
+        const threshold = activeModeThreshold ?? this.#timings.activeModeThreshold;
+        // The longer of the two, not their sum, as the CHIP SDK's ICDManager does; the specification is ambiguous
+        this.#extendActive(now, Millis(Math.max(this.#timings.activeModeDuration, threshold)));
+    }
+
+    /** The peer showed activity other than a Check-In. */
     noteActive(now: Timestamp) {
-        if (this.#sentSinceCheckIn) {
-            this.#interacted = true;
-        }
-        this.#noteActivity(now, this.#timings.activeModeThreshold);
+        this.#extendActive(now, this.#timings.activeModeThreshold);
     }
 
     /** The peer promised to stay active for `promised`. */
     noteStayActive(now: Timestamp, promised: Duration) {
         this.#extendActive(now, promised);
-    }
-
-    /** The controller sent the peer a message. */
-    noteSent() {
-        this.#sentSinceCheckIn = true;
-    }
-
-    /**
-     * Deadline for the peer's next signal, or undefined before any activity.  Pass the liveness timeout of the longest
-     * subscription the controller holds to the peer; without one, the deadline is the next Check-In.  Any activity
-     * restarts the report deadline, so a missed report may be noticed up to one timeout late, never early.
-     */
-    nextSignalDue(reportTimeout?: Duration): Timestamp | undefined {
-        if (this.#activeUntil === undefined || this.#lastActivity === undefined) {
-            return undefined;
-        }
-        if (reportTimeout !== undefined) {
-            return Timestamp(Math.max(this.#activeUntil, this.#lastActivity + reportTimeout));
-        }
-        return Timestamp(this.#activeUntil + this.longestIdle + IcdPeerSchedule.CHECK_IN_MARGIN);
-    }
-
-    /**
-     * The longest the peer may idle before its next Check-In: `idleModeDuration`, or `maximumCheckInBackoff` when the
-     * controller did not interact with the peer since its last Check-In.
-     */
-    get longestIdle(): Duration {
-        const { idleModeDuration, maximumCheckInBackoff } = this.#timings;
-        if (!this.#interacted && maximumCheckInBackoff !== undefined && maximumCheckInBackoff > idleModeDuration) {
-            return maximumCheckInBackoff;
-        }
-        return idleModeDuration;
-    }
-
-    #noteActivity(now: Timestamp, activeFor: Duration) {
-        this.#lastActivity = now;
-        this.#extendActive(now, activeFor);
     }
 
     #extendActive(now: Timestamp, activeFor: Duration) {
@@ -126,6 +93,5 @@ export namespace IcdPeerSchedule {
         activeModeThreshold: Duration;
         activeModeDuration: Duration;
         idleModeDuration: Duration;
-        maximumCheckInBackoff?: Duration;
     }
 }

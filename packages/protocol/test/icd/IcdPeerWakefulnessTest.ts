@@ -6,7 +6,7 @@
 
 import { IcdPeerSchedule } from "#icd/IcdPeerSchedule.js";
 import { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
-import { Millis, Seconds, Time } from "@matter/general";
+import { Hours, Millis, Seconds, Time } from "@matter/general";
 
 const TIMINGS: IcdPeerSchedule.Timings = {
     activeModeThreshold: Seconds(4),
@@ -31,14 +31,7 @@ describe("IcdPeerWakefulness", () => {
         return { w, missed };
     }
 
-    it("is always awake and available while the peer needs no awaiting", () => {
-        const w = new IcdPeerWakefulness();
-        expect(w.awake.value).equals(true);
-        expect(w.available.value).equals(true);
-        expect(w.nextSignalDue).undefined;
-    });
-
-    it("never arms timers for a peer that needs no awaiting", async () => {
+    it("is always awake and available while the peer needs no awaiting", async () => {
         const w = new IcdPeerWakefulness();
         w.setTimings(TIMINGS);
         let missed = 0;
@@ -50,32 +43,22 @@ describe("IcdPeerWakefulness", () => {
         await MockTime.advance(Millis(CHECK_IN_DUE + 1));
         expect(w.awake.value).equals(true);
         expect(w.available.value).equals(true);
+        expect(w.nextCheckInDue).undefined;
         expect(missed).equals(0);
-    });
-
-    it("applies new timings at once", async () => {
-        const { w } = lit();
-        w.noteActive();
-        await MockTime.advance(Seconds(20));
-
-        w.setTimings({ ...TIMINGS, idleModeDuration: Seconds(1) }); // due at 4s + 1s + 10s, already passed
-
-        expect(w.available.value).equals(false);
-        expect(w.nextSignalDue).undefined;
     });
 
     it("starts asleep and unavailable for a LIT peer without activity", () => {
         const { w } = lit();
         expect(w.awake.value).equals(false);
         expect(w.available.value).equals(false);
-        expect(w.nextSignalDue).undefined;
+        expect(w.nextCheckInDue).undefined;
     });
 
     it("is awake for the Active Mode and available until the next Check-In is due", async () => {
         const { w, missed } = lit();
         w.noteActive();
         expect(w.awake.value).equals(true);
-        expect(w.nextSignalDue).equals(Time.nowMs + CHECK_IN_DUE);
+        expect(w.nextCheckInDue).equals(Time.nowUs + CHECK_IN_DUE);
 
         await MockTime.advance(Millis(TIMINGS.activeModeThreshold + 1));
         expect(w.awake.value).equals(false);
@@ -83,6 +66,7 @@ describe("IcdPeerWakefulness", () => {
 
         await MockTime.advance(Millis(CHECK_IN_DUE - TIMINGS.activeModeThreshold));
         expect(w.available.value).equals(false);
+        expect(w.nextCheckInDue).undefined;
         expect(missed.count).equals(1);
     });
 
@@ -93,96 +77,109 @@ describe("IcdPeerWakefulness", () => {
         expect(w.awake.value).equals(true);
     });
 
-    it("stays awake for a StayActive promise", async () => {
+    it("stays awake for a StayActive promise and available for an idle period after it", async () => {
         const { w } = lit();
         w.noteActive();
         w.noteStayActive(Seconds(60));
         await MockTime.advance(Seconds(59));
         expect(w.awake.value).equals(true);
-        expect(w.available.value).equals(true);
+        expect(w.nextCheckInDue).equals(
+            Time.nowUs + Seconds(1) + TIMINGS.idleModeDuration + IcdPeerSchedule.CHECK_IN_MARGIN,
+        );
     });
 
-    it("lets a message the peer answered shorten a back-off deadline", () => {
-        const { w } = lit();
-        w.setTimings({ ...TIMINGS, maximumCheckInBackoff: Seconds(120) });
-        w.noteCheckIn();
-        const backedOff = w.nextSignalDue;
-        w.noteSent();
+    it("applies new timings at once", async () => {
+        const { w, missed } = lit();
         w.noteActive();
-        expect(w.nextSignalDue).lessThan(backedOff!);
+        await MockTime.advance(Seconds(20));
+
+        w.setTimings({ ...TIMINGS, idleModeDuration: Seconds(1) }); // due at 4s + 1s + 10s, already passed
+
+        expect(w.available.value).equals(false);
+        expect(missed.count).equals(1);
     });
 
-    describe("report cadence", () => {
-        it("makes the next report due when the longest held subscription times out", async () => {
-            const { w, missed } = lit();
-            using _long = w.reportCadence(Seconds(120));
-            using _short = w.reportCadence(Seconds(60));
+    describe("clock", () => {
+        it("keeps its deadline across a forward wall-clock step", () => {
+            const { w } = lit();
             w.noteActive();
-            expect(w.nextSignalDue).equals(Time.nowMs + Seconds(120));
+            MockTime.stepWallClock(Hours(1));
+            expect(w.nextCheckInDue).not.undefined;
+        });
 
-            await MockTime.advance(Seconds(119));
+        it("ends Active Mode on time across a backward wall-clock step", async () => {
+            const { w } = lit();
+            w.noteActive();
+            await MockTime.advance(Millis(TIMINGS.activeModeThreshold + 1));
+            MockTime.stepWallClock(Hours(-1));
+            w.noteStayActive(Millis(0));
+            expect(w.awake.value).equals(false);
+        });
+    });
+
+    describe("subscription", () => {
+        it("keeps the peer available without a deadline while a subscription is held", async () => {
+            const { w, missed } = lit();
+            using _subscription = w.holdSubscription();
+            w.noteActive();
+            expect(w.nextCheckInDue).undefined;
+
+            await MockTime.advance(Hours(5));
+            expect(w.available.value).equals(true);
             expect(missed.count).equals(0);
-            await MockTime.advance(Seconds(2));
+        });
+
+        it("keeps the peer available while any of several subscriptions is held", async () => {
+            const { w, missed } = lit();
+            using _remaining = w.holdSubscription();
+            const released = w.holdSubscription();
+            w.noteActive();
+            released[Symbol.dispose]();
+
+            await MockTime.advance(Hours(5));
+            expect(w.available.value).equals(true);
+            expect(missed.count).equals(0);
+        });
+
+        it("expects the next Check-In again once the last subscription is released", () => {
+            const { w } = lit();
+            const subscription = w.holdSubscription();
+            w.noteActive();
+            subscription[Symbol.dispose]();
+            expect(w.nextCheckInDue).equals(Time.nowUs + CHECK_IN_DUE);
+        });
+
+        it("reports a missed Check-In when the released subscription leaves it overdue", async () => {
+            const { w, missed } = lit();
+            const subscription = w.holdSubscription();
+            w.noteActive();
+            await MockTime.advance(Hours(1));
+            expect(missed.count).equals(0);
+
+            subscription[Symbol.dispose]();
+            expect(w.available.value).equals(false);
             expect(missed.count).equals(1);
         });
-
-        it("drops a released cadence's deadline at the next Check-In", () => {
-            const { w } = lit();
-            const cadence = w.reportCadence(Seconds(120));
-            w.noteActive();
-            cadence[Symbol.dispose]();
-
-            w.noteCheckIn();
-            expect(w.nextSignalDue).equals(Time.nowMs + CHECK_IN_DUE);
-        });
-
-        it("keeps the remaining subscription's cadence when another one is released", () => {
-            const { w } = lit();
-            using _remaining = w.reportCadence(Seconds(120));
-            const released = w.reportCadence(Seconds(60));
-            released[Symbol.dispose]();
-            w.noteActive();
-            expect(w.nextSignalDue).equals(Time.nowMs + Seconds(120));
-        });
-
-        it("keeps a released cadence's deadline until the peer shows activity again", async () => {
-            const { w } = lit();
-            const cadence = w.reportCadence(Seconds(120));
-            w.noteActive();
-            const due = w.nextSignalDue;
-            cadence[Symbol.dispose]();
-            expect(w.nextSignalDue).equals(due);
-
-            await MockTime.advance(Seconds(1));
-            w.noteActive();
-            expect(w.nextSignalDue).equals(Time.nowMs + CHECK_IN_DUE);
-        });
     });
 
-    it("has no deadline once it is overdue", async () => {
-        const { w } = lit();
-        w.noteActive();
-        await MockTime.advance(Millis(CHECK_IN_DUE + 1));
-        expect(w.nextSignalDue).undefined;
-    });
-
-    describe("nextSignalWithin", () => {
-        it("includes a Check-In back-off the peer may apply", () => {
+    describe("nextCheckInWithin", () => {
+        it("is the idle window without a deadline", () => {
             const { w } = lit();
-            w.setTimings({ ...TIMINGS, maximumCheckInBackoff: Seconds(120) });
-            expect(w.nextSignalWithin).equals(Millis(Seconds(120) + IcdPeerSchedule.CHECK_IN_MARGIN));
+            expect(w.nextCheckInWithin).equals(Millis(TIMINGS.idleModeDuration + IcdPeerSchedule.CHECK_IN_MARGIN));
         });
 
-        it("is the longest idle period without a deadline", () => {
+        it("is the idle window when the deadline is closer", async () => {
             const { w } = lit();
-            expect(w.nextSignalWithin).equals(Millis(TIMINGS.idleModeDuration + IcdPeerSchedule.CHECK_IN_MARGIN));
+            w.noteActive();
+            await MockTime.advance(Seconds(10));
+            expect(w.nextCheckInWithin).equals(Millis(TIMINGS.idleModeDuration + IcdPeerSchedule.CHECK_IN_MARGIN));
         });
 
         it("is the time to the deadline when that is longer", () => {
             const { w } = lit();
             w.noteActive();
             w.noteStayActive(Seconds(60));
-            expect(w.nextSignalWithin).equals(
+            expect(w.nextCheckInWithin).equals(
                 Millis(Seconds(60) + TIMINGS.idleModeDuration + IcdPeerSchedule.CHECK_IN_MARGIN),
             );
         });
@@ -224,6 +221,21 @@ describe("IcdPeerWakefulness", () => {
             expect(seen).deep.equals([true, false]);
         });
 
+        it("does not report a missed Check-In when awaiting starts with an overdue deadline", async () => {
+            const w = new IcdPeerWakefulness();
+            w.setTimings(TIMINGS);
+            let missed = 0;
+            w.checkInMissed.on(() => {
+                missed++;
+            });
+            w.noteActive();
+            await MockTime.advance(Millis(CHECK_IN_DUE + 1));
+
+            w.requiresAwait = true;
+            expect(w.available.value).equals(false);
+            expect(missed).equals(0);
+        });
+
         it("does not report a missed Check-In when the peer starts requiring await", async () => {
             const { w, missed } = lit();
             await MockTime.yield();
@@ -241,7 +253,8 @@ describe("IcdPeerWakefulness", () => {
 
             w.suspend();
             expect(w.awake.value).equals(true);
-            expect(w.nextSignalDue).undefined;
+            expect(w.available.value).equals(true);
+            expect(w.nextCheckInDue).undefined;
             await MockTime.advance(Millis(CHECK_IN_DUE));
             expect(missed.count).equals(0);
         });
@@ -267,28 +280,39 @@ describe("IcdPeerWakefulness", () => {
             expect(changes).equals(0);
         });
 
+        it("does not report a missed Check-In when resuming with an overdue deadline", async () => {
+            const { w, missed } = lit();
+            w.noteActive();
+            w.suspend();
+            await MockTime.advance(Millis(CHECK_IN_DUE + 1));
+
+            w.resume();
+            expect(w.available.value).equals(false);
+            expect(missed.count).equals(0);
+        });
+
         it("resumes from the observed activity", () => {
             const { w } = lit();
             w.noteActive();
-            const due = w.nextSignalDue;
+            const due = w.nextCheckInDue;
             w.suspend();
             w.resume();
-            expect(w.nextSignalDue).equals(due);
+            expect(w.nextCheckInDue).equals(due);
         });
     });
 
     describe("close", () => {
-        it("keeps the timers stopped when a report cadence is released afterwards", async () => {
+        it("keeps the timers stopped when a subscription is released afterwards", async () => {
             const { w, missed } = lit();
-            const cadence = w.reportCadence(Seconds(60));
+            const subscription = w.holdSubscription();
             w.noteActive();
             w.close();
-            cadence[Symbol.dispose]();
+            subscription[Symbol.dispose]();
             w.resume();
 
-            await MockTime.advance(Seconds(120));
+            await MockTime.advance(Hours(1));
             expect(missed.count).equals(0);
-            expect(w.nextSignalDue).undefined;
+            expect(w.nextCheckInDue).undefined;
         });
 
         it("does not report a missed Check-In", async () => {

@@ -61,7 +61,7 @@ export class SustainedSubscription extends ClientSubscription {
     #probe: (abort: AbortSignal) => Promise<boolean>;
     #wakefulness?: () => IcdPeerWakefulness | undefined;
     #peerFed?: () => Observable<[NodeId]> | undefined;
-    #reportCadence?: Disposable;
+    #subscriptionHold?: Disposable;
     #active = AsyncObservableValue(false);
     #inactive = AsyncObservableValue(true);
 
@@ -128,7 +128,7 @@ export class SustainedSubscription extends ClientSubscription {
                     request.closed = () => {
                         this.#subscription = undefined;
                         this.subscriptionId = ClientSubscription.NO_SUBSCRIPTION;
-                        this.#releaseReportCadence();
+                        this.#releaseSubscriptionHold();
                         sessionTrusted = false;
                         resolve();
                     };
@@ -205,8 +205,8 @@ export class SustainedSubscription extends ClientSubscription {
                         const subscription = await this.#subscribe(request, this.abort);
                         this.#subscription = subscription;
                         this.subscriptionId = subscription.subscriptionId;
-                        this.#releaseReportCadence();
-                        this.#reportCadence = this.#wakefulness?.()?.reportCadence(subscription.timeout);
+                        this.#releaseSubscriptionHold();
+                        this.#subscriptionHold = this.#wakefulness?.()?.holdSubscription();
                         sessionTrusted = true;
                         break;
                     } catch (e) {
@@ -282,7 +282,7 @@ export class SustainedSubscription extends ClientSubscription {
                     const subscription = this.#subscription;
                     this.#subscription = undefined;
                     this.subscriptionId = ClientSubscription.NO_SUBSCRIPTION;
-                    this.#releaseReportCadence();
+                    this.#releaseSubscriptionHold();
                     // We tear this down deliberately; the CASE session is untouched, so keep it trusted and
                     // re-subscribe without a probe. Detach the closed callback so its async fire cannot route this
                     // deliberate close back through the loss handler and flip sessionTrusted.
@@ -303,7 +303,7 @@ export class SustainedSubscription extends ClientSubscription {
             this.#subscription = undefined;
             if (subscription !== undefined) {
                 this.subscriptionId = ClientSubscription.NO_SUBSCRIPTION;
-                this.#releaseReportCadence();
+                this.#releaseSubscriptionHold();
                 await subscription.close();
             }
         }
@@ -315,9 +315,9 @@ export class SustainedSubscription extends ClientSubscription {
         await this.#inactive.emit(true);
     }
 
-    #releaseReportCadence() {
-        this.#reportCadence?.[Symbol.dispose]();
-        this.#reportCadence = undefined;
+    #releaseSubscriptionHold() {
+        this.#subscriptionHold?.[Symbol.dispose]();
+        this.#subscriptionHold = undefined;
     }
 
     /**
@@ -328,8 +328,8 @@ export class SustainedSubscription extends ClientSubscription {
     async #awaitClosedOrModeFlip(closed: Promise<void>): Promise<boolean> {
         const wakefulness = this.#wakefulness?.();
         if (wakefulness === undefined) {
-            // No wakefulness yet: the subscription established before its peer was fed. Race the feed signal so the
-            // first registration is not missed until a later loss.
+            // No wakefulness: the peer is not registered. Race the feed signal so a registration is not missed until a
+            // later loss.
             const peerFed = this.#peerFed?.();
             if (peerFed === undefined) {
                 await this.abort.race(closed);
@@ -467,9 +467,9 @@ export namespace SustainedSubscription {
         wakefulness?: () => IcdPeerWakefulness | undefined;
 
         /**
-         * Live provider of the fabric ICD registry's "peer fed" signal, emitting the peer node ID when a peer is fed for
-         * the first time.  A subscription established before that holds no wakefulness to observe a mode flip on, so it
-         * races this signal and recreates through the normal mode-flip path once the peer is fed.
+         * Live provider of the fabric ICD registry's "peer fed" signal, emitting the peer node ID whenever a peer's
+         * registration starts.  A subscription running without a wakefulness has no mode flip to observe, so it races
+         * this signal and recreates through the normal mode-flip path once the peer is registered.
          */
         peerFed?: () => Observable<[NodeId]> | undefined;
     }

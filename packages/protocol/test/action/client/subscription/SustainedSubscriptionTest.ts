@@ -13,7 +13,7 @@ import { IcdPeerSchedule } from "#icd/IcdPeerSchedule.js";
 import { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
-import { Entropy, Lifetime, Millis, Observable, RetrySchedule, Seconds, Time, Timestamp } from "@matter/general";
+import { Entropy, Hours, Lifetime, Millis, Observable, RetrySchedule, Seconds, Time, Timestamp } from "@matter/general";
 import { FabricIndex, NodeId } from "@matter/types";
 
 const LIT_TIMINGS: IcdPeerSchedule.Timings = {
@@ -323,7 +323,7 @@ describe("SustainedSubscription", () => {
             await MockTime.resolve(subscription.done!, { macrotasks: true });
         });
 
-        it("keeps active true when a subscribed LIT peer's availability window expires", async () => {
+        it("leaves a subscribed LIT peer's availability to the subscription", async () => {
             const wakefulness = litWakefulness();
 
             const subscription = build({
@@ -335,39 +335,11 @@ describe("SustainedSubscription", () => {
             await flush();
             expect(subscription.active.value).equal(true);
 
-            // Past the subscription's liveness timeout (fakePeerSub, 70s), so `available` lapses although subscribed.
-            await MockTime.advance(Seconds(75));
-            await flush();
-            expect(wakefulness.available.value).equal(false);
-
-            expect(subscription.active.value).equal(true);
-
-            subscription.close();
-            await MockTime.resolve(subscription.done!, { macrotasks: true });
-        });
-
-        it("does not lapse a subscribed LIT peer's availability before its negotiated report interval", async () => {
-            const wakefulness = litWakefulness();
-            let missed = 0;
-            wakefulness.checkInMissed.on(() => {
-                missed++;
-            });
-
-            const subscription = build({
-                wakefulness: () => wakefulness,
-                subscribe: async () => fakePeerSub(), // liveness timeout 70s > the 45s Check-In deadline
-            });
-
-            wakefulness.noteActive();
-            await flush();
-            expect(subscription.active.value).equal(true);
-
-            // Past the Check-In deadline but before the subscription's liveness timeout: a healthy subscribed peer whose
-            // reports arrive up to maxInterval must not blip offline every idle cycle.
-            await MockTime.advance(Seconds(50));
+            // Far past any Check-In deadline: only the subscription's own liveness can end it.
+            await MockTime.advance(Hours(2));
             await flush();
             expect(wakefulness.available.value).equal(true);
-            expect(missed).equal(0);
+            expect(subscription.active.value).equal(true);
 
             subscription.close();
             await MockTime.resolve(subscription.done!, { macrotasks: true });
@@ -387,7 +359,7 @@ describe("SustainedSubscription", () => {
                 },
             });
 
-            wakefulness.noteActive(); // arms the Check-In deadline; subscribe fails, so no report cadence is held
+            wakefulness.noteActive(); // arms the Check-In deadline; subscribe fails, so no subscription is held
             await flush();
 
             // idleModeDuration (30s) + activeModeThreshold (5s) + CHECK_IN_MARGIN (10s)
@@ -755,8 +727,8 @@ describe("SustainedSubscription", () => {
                 emissions.push(value);
             });
 
-            // A report-driven SIT→LIT flip in the fixed IcdClient order: the requiresAwait setter force-sleeps the
-            // window, then the live report re-arms it via noteActive. The recreate re-checks awake at the loop head and
+            // A report-driven SIT→LIT flip in the IcdClient order: the requiresAwait setter starts awaiting, then the live
+            // report notes the peer as active. The recreate re-checks awake at the loop head and
             // finds it armed, so it re-subscribes in-window with no not-live dip.
             wakefulness.requiresAwait = true;
             wakefulness.noteActive();
@@ -835,8 +807,8 @@ describe("SustainedSubscription", () => {
                 emissions.push(value);
             });
 
-            // Registration feeds the peer: mirror FabricIcd.addPeer creating an awake LIT wakefulness (register seeds
-            // noteActive) plus IcdClient.#feedFabricIcd, then emit the feed signal.
+            // Registration feeds the peer: mirror FabricIcd.addPeer plus IcdClient.#feedFabricIcd making the wakefulness
+            // LIT and noting the registration as activity, then emit the feed signal.
             const wakefulness = litWakefulness();
             wakefulness.noteActive();
             registered = wakefulness;
@@ -893,7 +865,7 @@ describe("SustainedSubscription", () => {
             await MockTime.resolve(subscription.done!, { macrotasks: true });
         });
 
-        describe("report cadence", () => {
+        describe("subscription hold", () => {
             async function subscribedLitPeer() {
                 const wakefulness = litWakefulness();
                 wakefulness.noteActive();
@@ -917,52 +889,52 @@ describe("SustainedSubscription", () => {
             /** The next Check-In deadline after activity now, without a subscription. */
             function checkInDue() {
                 return Timestamp(
-                    Time.nowMs +
+                    Time.nowUs +
                         LIT_TIMINGS.activeModeThreshold +
                         LIT_TIMINGS.idleModeDuration +
                         IcdPeerSchedule.CHECK_IN_MARGIN,
                 );
             }
 
-            it("makes the next report due when its subscription would time out", async () => {
+            it("has no Check-In deadline while subscribed", async () => {
                 const { wakefulness, subscription } = await subscribedLitPeer();
                 wakefulness.noteActive();
 
-                expect(wakefulness.nextSignalDue).equal(Timestamp(Time.nowMs + Seconds(70)));
+                expect(wakefulness.nextCheckInDue).undefined;
 
                 subscription.close();
                 await MockTime.resolve(subscription.done!, { macrotasks: true });
             });
 
-            it("releases the cadence when closed", async () => {
+            it("releases its hold when closed", async () => {
                 const { wakefulness, subscription } = await subscribedLitPeer();
                 subscription.close();
                 await MockTime.resolve(subscription.done!, { macrotasks: true });
 
                 wakefulness.noteActive();
-                expect(wakefulness.nextSignalDue).equal(checkInDue());
+                expect(wakefulness.nextCheckInDue).equal(checkInDue());
             });
 
-            it("releases the cadence of a lost subscription", async () => {
+            it("releases its hold when the subscription is lost", async () => {
                 const { wakefulness, subscription, lose } = await subscribedLitPeer();
                 lose();
                 await flush();
 
                 wakefulness.noteActive();
-                expect(wakefulness.nextSignalDue).equal(checkInDue());
+                expect(wakefulness.nextCheckInDue).equal(checkInDue());
 
                 subscription.close();
                 await MockTime.resolve(subscription.done!, { macrotasks: true });
             });
 
-            it("releases the cadence when the recreate after a mode change fails", async () => {
+            it("releases its hold when the recreate after a mode change fails", async () => {
                 const { wakefulness, subscription } = await subscribedLitPeer();
                 wakefulness.requiresAwait = false; // recreate for the new mode; the resubscribe fails
                 await flush();
                 wakefulness.requiresAwait = true;
 
                 wakefulness.noteActive();
-                expect(wakefulness.nextSignalDue).equal(checkInDue());
+                expect(wakefulness.nextCheckInDue).equal(checkInDue());
 
                 subscription.close();
                 await MockTime.resolve(subscription.done!, { macrotasks: true });

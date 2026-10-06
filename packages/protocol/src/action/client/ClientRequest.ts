@@ -44,7 +44,7 @@ export interface ClientRequest {
      *
      * A LIT peer is asleep most of the time, so matter.js holds the operation until the peer wakes (a Check-In or any
      * other message from the peer re-arms the awake window) before transmitting. By default it waits until the peer's
-     * next Check-In or report is due, and at least the longest the peer may idle; set this to bound it per-call. On
+     * next Check-In is due, and at least the longest the peer may idle; set this to bound it per-call. On
      * expiry the operation rejects with `IcdPeerAsleepError`. Ignored for non-LIT peers.
      */
     icdAwaitTimeout?: Duration;
