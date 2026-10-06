@@ -4,12 +4,36 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DoorLockBaseServer, DoorLockClient, DoorLockServer, LockAuth, LockSchedule } from "#behaviors/door-lock";
+import {
+    DoorLockBaseServer,
+    DoorLockClient,
+    DoorLockServer,
+    LockAuth,
+    LockOperationFailedError,
+    LockSchedule,
+} from "#behaviors/door-lock";
 import { DoorLockDevice } from "#devices/door-lock";
 import { Endpoint } from "#endpoint/index.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { Days, Hours, Minutes, Seconds, Time, Timestamp } from "@matter/general";
-import { ClusterId, CommandId, EndpointNumber, FabricIndex, Status, TlvOfModel } from "@matter/types";
+import {
+    Days,
+    Hours,
+    ImplementationError,
+    MatterAggregateError,
+    Minutes,
+    Seconds,
+    Time,
+    Timestamp,
+} from "@matter/general";
+import {
+    ClusterId,
+    CommandId,
+    EndpointNumber,
+    FabricIndex,
+    Status,
+    StatusResponseError,
+    TlvOfModel,
+} from "@matter/types";
 import { DoorLock } from "@matter/types/clusters/door-lock";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { MockSite } from "../../node/mock-site.js";
@@ -85,9 +109,49 @@ function pin(digits: string) {
 const TestScheduledDoorLockServer = DoorLockBaseServer.with(
     "PinCredential",
     "User",
+    "CredentialOverTheAirAccess",
+    "Unbolting",
     "WeekDayAccessSchedules",
     "YearDayAccessSchedules",
+    "HolidaySchedules",
 );
+
+interface TestHardware {
+    calls: (DoorLockBaseServer.LockOperation & { lockState: DoorLock.LockState | null })[];
+    failure?: Error;
+
+    /** Holds every lock operation until resolved */
+    gate?: Promise<void>;
+    release?: () => void;
+
+    /** Resolves on the next lock operation the hardware receives */
+    called?: () => void;
+}
+
+/** Stands in for lock hardware; each test's lock starts with a fresh one */
+const hardware: TestHardware = { calls: [] };
+
+/** Holds lock operations at the hardware until the returned function is called */
+function holdHardware() {
+    hardware.gate = new Promise(resolve => (hardware.release = resolve));
+    return () => hardware.release?.();
+}
+
+/** Resolves once the hardware receives its next lock operation */
+function nextHardwareCall() {
+    return withMockTime(new Promise<void>(resolve => (hardware.called = resolve)));
+}
+
+class TestHardwareDoorLockServer extends TestScheduledDoorLockServer {
+    override async handleLockOperation(operation: DoorLockBaseServer.LockOperation) {
+        hardware.calls.push({ ...operation, lockState: this.state.lockState });
+        hardware.called?.();
+        await hardware.gate;
+        if (hardware.failure) {
+            throw hardware.failure;
+        }
+    }
+}
 
 const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 
@@ -116,13 +180,11 @@ function scheduledUser(userType: UserType, expiringUserExpiresAt: Timestamp | nu
     };
 }
 
-async function setUpScheduledLock(doorLockState: {
-    users: ReturnType<typeof scheduledUser>[];
-    weekDaySchedules?: LockSchedule.WeekDay[];
-    yearDaySchedules?: LockSchedule.YearDay[];
-    expiringUserTimeout?: number;
-}) {
-    const lock = new Endpoint(DoorLockDevice.with(TestScheduledDoorLockServer), {
+async function setUpScheduledLock(doorLockState: Partial<DoorLockBaseServer.State> & { users: LockAuth.User[] }) {
+    hardware.calls = [];
+    hardware.failure = hardware.gate = hardware.release = hardware.called = undefined;
+
+    const lock = new Endpoint(DoorLockDevice.with(TestHardwareDoorLockServer), {
         id: "lock",
         doorLock: {
             lockType: LockType.Other,
@@ -133,6 +195,9 @@ async function setUpScheduledLock(doorLockState: {
             numberOfPinUsersSupported: 10,
             numberOfWeekDaySchedulesSupportedPerUser: 10,
             numberOfYearDaySchedulesSupportedPerUser: 10,
+            numberOfHolidaySchedulesSupported: 10,
+            numberOfCredentialsSupportedPerUser: 5,
+            requirePinForRemoteOperation: false,
             minPinCodeLength: 4,
             maxPinCodeLength: 8,
             credentials: [
@@ -149,15 +214,20 @@ async function setUpScheduledLock(doorLockState: {
     });
 
     const site = new MockSite();
-    const { controller, device } = await site.addCommissionedPair({
-        device: { type: ServerNode.RootEndpoint, device: lock },
-    });
-    const cmds = controller.peers.get("peer1")!.parts.get("ep1")!.commandsOf(DoorLockClient);
+    let pair;
+    try {
+        pair = await site.addCommissionedPair({ device: { type: ServerNode.RootEndpoint, device: lock } });
+    } catch (e) {
+        await site.close();
+        throw e;
+    }
+    const { controller, device } = pair;
+    const peer = controller.peers.get("peer1")!;
+    const cmds = peer.parts.get("ep1")!.commandsOf(DoorLockClient);
 
-    // The invoke response carries only a generic Failure, so the denial reason comes from LockOperationError
-    const operationErrors = new Array<DoorLock.OperationError>();
-    lock.events.doorLock.lockOperationError.on(({ operationError }) => {
-        operationErrors.push(operationError);
+    const errorEvents = new Array<DoorLock.LockOperationErrorEvent>();
+    lock.events.doorLock.lockOperationError.on(event => {
+        errorEvents.push(event);
     });
 
     const userChanges = new Array<DoorLock.LockUserChangeEvent>();
@@ -165,7 +235,32 @@ async function setUpScheduledLock(doorLockState: {
         userChanges.push(event);
     });
 
-    return { site, device, lock, cmds, operationErrors, userChanges };
+    const operations = new Array<DoorLock.LockOperationEvent>();
+    lock.events.doorLock.lockOperation.on(event => {
+        operations.push(event);
+    });
+
+    const alarms = new Array<DoorLock.AlarmCode>();
+    lock.events.doorLock.doorLockAlarm.on(({ alarmCode }) => {
+        alarms.push(alarmCode);
+    });
+
+    return {
+        site,
+        device,
+        lock,
+        peer,
+        cmds,
+        errorEvents,
+        userChanges,
+        operations,
+        alarms,
+        [Symbol.asyncDispose]: async () => {
+            // A test that fails while it holds the hardware would otherwise leave close waiting on the held command
+            hardware.release?.();
+            await site.close();
+        },
+    };
 }
 
 type ScheduledLock = Awaited<ReturnType<typeof setUpScheduledLock>>;
@@ -183,10 +278,17 @@ function unlockScheduled({ cmds }: ScheduledLock) {
     return withMockTime(cmds.unlockDoor({ pinCode: pin("1234") }));
 }
 
+/** The invoke response carries only a generic Failure, so the denial reason comes from LockOperationError */
+function operationErrorsOf({ errorEvents }: ScheduledLock) {
+    return errorEvents.map(({ operationError }) => operationError);
+}
+
 async function expectScheduledDenial(lock: ScheduledLock, expected: DoorLock.OperationError) {
-    lock.operationErrors.length = 0;
+    lock.errorEvents.length = 0;
     await expect(unlockScheduled(lock)).rejected;
-    expect(lock.operationErrors).deep.equals([expected]);
+    expect(lock.errorEvents.map(({ operationError, userIndex }) => ({ operationError, userIndex }))).deep.equals([
+        { operationError: expected, userIndex: 1 },
+    ]);
 }
 
 function modifyUser({ cmds }: ScheduledLock, change: { userName?: string; userStatus?: UserStatus }) {
@@ -722,12 +824,8 @@ describe("DoorLockServer", () => {
             UserType.ScheduleRestrictedUser,
         ]) {
             it(`denies a ${UserType[userType]} with no schedules configured`, async () => {
-                const lock = await setUpScheduledLock({ users: [scheduledUser(userType)] });
-                try {
-                    await expectScheduledDenial(lock, OperationError.Restricted);
-                } finally {
-                    await lock.site.close();
-                }
+                await using lock = await setUpScheduledLock({ users: [scheduledUser(userType)] });
+                await expectScheduledDenial(lock, OperationError.Restricted);
             });
         }
 
@@ -735,7 +833,7 @@ describe("DoorLockServer", () => {
             const { dayName, hour } = currentLocal();
             const otherDay = DAY_NAMES[(DAY_NAMES.indexOf(dayName) + 1) % 7];
 
-            const lock = await setUpScheduledLock({
+            await using lock = await setUpScheduledLock({
                 users: [scheduledUser(UserType.WeekDayScheduleUser)],
                 weekDaySchedules: [
                     {
@@ -749,59 +847,51 @@ describe("DoorLockServer", () => {
                     },
                 ],
             });
-            try {
-                await expectScheduledDenial(lock, OperationError.Restricted);
+            await expectScheduledDenial(lock, OperationError.Restricted);
 
-                await withMockTime(
-                    lock.cmds.setWeekDaySchedule({
-                        weekDayIndex: 1,
-                        userIndex: 1,
-                        daysMask: { [dayName]: true },
-                        startHour: hour,
-                        startMinute: 0,
-                        endHour: 23,
-                        endMinute: 59,
-                    }),
-                );
+            await withMockTime(
+                lock.cmds.setWeekDaySchedule({
+                    weekDayIndex: 1,
+                    userIndex: 1,
+                    daysMask: { [dayName]: true },
+                    startHour: hour,
+                    startMinute: 0,
+                    endHour: 23,
+                    endMinute: 59,
+                }),
+            );
 
-                await unlockScheduled(lock);
-            } finally {
-                await lock.site.close();
-            }
+            await unlockScheduled(lock);
         });
 
         it("grants a YearDayScheduleUser inside a matching time window and denies outside it", async () => {
             const { epochS } = currentLocal();
 
-            const lock = await setUpScheduledLock({
+            await using lock = await setUpScheduledLock({
                 users: [scheduledUser(UserType.YearDayScheduleUser)],
                 yearDaySchedules: [
                     { yearDayIndex: 1, userIndex: 1, localStartTime: epochS - 7200, localEndTime: epochS - 3600 },
                 ],
             });
-            try {
-                await expectScheduledDenial(lock, OperationError.Restricted);
+            await expectScheduledDenial(lock, OperationError.Restricted);
 
-                await withMockTime(
-                    lock.cmds.setYearDaySchedule({
-                        yearDayIndex: 1,
-                        userIndex: 1,
-                        localStartTime: epochS - 60,
-                        localEndTime: epochS + 3600,
-                    }),
-                );
+            await withMockTime(
+                lock.cmds.setYearDaySchedule({
+                    yearDayIndex: 1,
+                    userIndex: 1,
+                    localStartTime: epochS - 60,
+                    localEndTime: epochS + 3600,
+                }),
+            );
 
-                await unlockScheduled(lock);
-            } finally {
-                await lock.site.close();
-            }
+            await unlockScheduled(lock);
         });
 
         it("requires both WeekDay AND YearDay schedules to match for a ScheduleRestrictedUser once both are set", async () => {
             const { dayName, hour, epochS } = currentLocal();
             const otherDay = DAY_NAMES[(DAY_NAMES.indexOf(dayName) + 1) % 7];
 
-            const lock = await setUpScheduledLock({
+            await using lock = await setUpScheduledLock({
                 users: [scheduledUser(UserType.ScheduleRestrictedUser)],
                 weekDaySchedules: [
                     {
@@ -818,36 +908,32 @@ describe("DoorLockServer", () => {
                     { yearDayIndex: 1, userIndex: 1, localStartTime: epochS - 7200, localEndTime: epochS - 3600 },
                 ],
             });
-            try {
-                await expectScheduledDenial(lock, OperationError.Restricted);
+            await expectScheduledDenial(lock, OperationError.Restricted);
 
-                await withMockTime(
-                    lock.cmds.setYearDaySchedule({
-                        yearDayIndex: 1,
-                        userIndex: 1,
-                        localStartTime: epochS - 60,
-                        localEndTime: epochS + 3600,
-                    }),
-                );
+            await withMockTime(
+                lock.cmds.setYearDaySchedule({
+                    yearDayIndex: 1,
+                    userIndex: 1,
+                    localStartTime: epochS - 60,
+                    localEndTime: epochS + 3600,
+                }),
+            );
 
-                await unlockScheduled(lock);
+            await unlockScheduled(lock);
 
-                await withMockTime(
-                    lock.cmds.setWeekDaySchedule({
-                        weekDayIndex: 1,
-                        userIndex: 1,
-                        daysMask: { [otherDay]: true },
-                        startHour: 0,
-                        startMinute: 0,
-                        endHour: 23,
-                        endMinute: 59,
-                    }),
-                );
+            await withMockTime(
+                lock.cmds.setWeekDaySchedule({
+                    weekDayIndex: 1,
+                    userIndex: 1,
+                    daysMask: { [otherDay]: true },
+                    startHour: 0,
+                    startMinute: 0,
+                    endHour: 23,
+                    endMinute: 59,
+                }),
+            );
 
-                await expectScheduledDenial(lock, OperationError.Restricted);
-            } finally {
-                await lock.site.close();
-            }
+            await expectScheduledDenial(lock, OperationError.Restricted);
         });
 
         describe("week day window bounds", () => {
@@ -886,203 +972,163 @@ describe("DoorLockServer", () => {
 
     describe("ExpiringUser timeout (spec § 5.2.6.18.8)", () => {
         it("keeps granting access before the timeout elapses", async () => {
-            const lock = await setUpScheduledLock({
+            await using lock = await setUpScheduledLock({
                 expiringUserTimeout: 5,
                 users: [scheduledUser(UserType.ExpiringUser)],
             });
-            try {
-                await unlockScheduled(lock);
-                await MockTime.advance(60_000);
-                await unlockScheduled(lock);
-                expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
-            } finally {
-                await lock.site.close();
-            }
+            await unlockScheduled(lock);
+            await MockTime.advance(60_000);
+            await unlockScheduled(lock);
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
         });
 
         it("disables the user when the timeout elapses after first use, without a further access attempt", async () => {
-            const lock = await setUpScheduledLock({
+            await using lock = await setUpScheduledLock({
                 expiringUserTimeout: 1,
                 users: [scheduledUser(UserType.ExpiringUser)],
             });
-            try {
-                await unlockScheduled(lock);
-                expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
+            await unlockScheduled(lock);
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
 
-                lock.userChanges.length = 0;
-                await MockTime.advance(70_000);
-                await settled(lock.device);
+            lock.userChanges.length = 0;
+            await MockTime.advance(70_000);
+            await settled(lock.device);
 
-                expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
-                expect(lock.userChanges).deep.equals([
-                    {
-                        lockDataType: DoorLock.LockDataType.UserIndex,
-                        dataOperationType: DoorLock.DataOperationType.Modify,
-                        operationSource: DoorLock.OperationSource.Unspecified,
-                        userIndex: 1,
-                        fabricIndex: null,
-                        sourceNode: null,
-                        dataIndex: null,
-                    },
-                ]);
-                await expectScheduledDenial(lock, OperationError.DisabledUserDenied);
-            } finally {
-                await lock.site.close();
-            }
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
+            expect(lock.userChanges).deep.equals([
+                {
+                    lockDataType: DoorLock.LockDataType.UserIndex,
+                    dataOperationType: DoorLock.DataOperationType.Modify,
+                    operationSource: DoorLock.OperationSource.Unspecified,
+                    userIndex: 1,
+                    fabricIndex: null,
+                    sourceNode: null,
+                    dataIndex: 1,
+                },
+            ]);
+            await expectScheduledDenial(lock, OperationError.DisabledUserDenied);
         });
 
         it("does not arm the timeout before the first successful use", async () => {
-            const lock = await setUpScheduledLock({
+            await using lock = await setUpScheduledLock({
                 expiringUserTimeout: 1,
                 users: [scheduledUser(UserType.ExpiringUser)],
             });
-            try {
-                await MockTime.advance(70_000);
-                await settled(lock.device);
-                expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
-                await unlockScheduled(lock);
-            } finally {
-                await lock.site.close();
-            }
+            await MockTime.advance(70_000);
+            await settled(lock.device);
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
+            await unlockScheduled(lock);
         });
 
         it("keeps the deadline when a modification changes neither status nor type", async () => {
-            const lock = await setUpScheduledLock({
+            await using lock = await setUpScheduledLock({
                 expiringUserTimeout: 1,
                 users: [scheduledUser(UserType.ExpiringUser)],
             });
-            try {
-                await unlockScheduled(lock);
-                await MockTime.advance(30_000);
-                await modifyUser(lock, { userName: "renamed" });
+            await unlockScheduled(lock);
+            await MockTime.advance(30_000);
+            await modifyUser(lock, { userName: "renamed" });
 
-                await MockTime.advance(40_000);
-                await settled(lock.device);
+            await MockTime.advance(40_000);
+            await settled(lock.device);
 
-                expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
-            } finally {
-                await lock.site.close();
-            }
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
         });
 
         it("starts a new cycle when an expired user is enabled again", async () => {
-            const lock = await setUpScheduledLock({
+            await using lock = await setUpScheduledLock({
                 expiringUserTimeout: 1,
                 users: [scheduledUser(UserType.ExpiringUser)],
             });
-            try {
-                await unlockScheduled(lock);
-                await MockTime.advance(70_000);
-                await settled(lock.device);
-                expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
+            await unlockScheduled(lock);
+            await MockTime.advance(70_000);
+            await settled(lock.device);
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
 
-                await modifyUser(lock, { userStatus: UserStatus.OccupiedEnabled });
-                await unlockScheduled(lock);
-                await MockTime.advance(30_000);
-                await settled(lock.device);
-                expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
+            await modifyUser(lock, { userStatus: UserStatus.OccupiedEnabled });
+            await unlockScheduled(lock);
+            await MockTime.advance(30_000);
+            await settled(lock.device);
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
 
-                await MockTime.advance(40_000);
-                await settled(lock.device);
-                expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
-            } finally {
-                await lock.site.close();
-            }
+            await MockTime.advance(40_000);
+            await settled(lock.device);
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
         });
 
         it("denies and disables once the wall clock passes the deadline, before the timer fires", async () => {
-            const lock = await setUpScheduledLock({
+            await using lock = await setUpScheduledLock({
                 expiringUserTimeout: 1,
                 users: [scheduledUser(UserType.ExpiringUser)],
             });
+            await unlockScheduled(lock);
+            lock.userChanges.length = 0;
+
+            MockTime.stepWallClock(Minutes(2));
             try {
-                await unlockScheduled(lock);
-                lock.userChanges.length = 0;
+                await expectScheduledDenial(lock, OperationError.DisabledUserDenied);
+                await MockTime.advance(0);
+                await settled(lock.device);
 
-                MockTime.stepWallClock(Minutes(2));
-                try {
-                    await expectScheduledDenial(lock, OperationError.DisabledUserDenied);
-                    await MockTime.advance(0);
-                    await settled(lock.device);
-
-                    expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
-                    expect(
-                        lock.userChanges.map(({ userIndex, operationSource }) => ({ userIndex, operationSource })),
-                    ).deep.equals([{ userIndex: 1, operationSource: DoorLock.OperationSource.Unspecified }]);
-                } finally {
-                    MockTime.stepWallClock(Minutes(-2));
-                }
+                expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
+                expect(
+                    lock.userChanges.map(({ userIndex, operationSource }) => ({ userIndex, operationSource })),
+                ).deep.equals([{ userIndex: 1, operationSource: DoorLock.OperationSource.Unspecified }]);
             } finally {
-                await lock.site.close();
+                MockTime.stepWallClock(Minutes(-2));
             }
         });
 
         it("re-arms for the remaining time when the timer fires early after the wall clock stepped back", async () => {
-            const lock = await setUpScheduledLock({
+            await using lock = await setUpScheduledLock({
                 expiringUserTimeout: 1,
                 users: [scheduledUser(UserType.ExpiringUser)],
             });
+            await unlockScheduled(lock);
+
+            MockTime.stepWallClock(Seconds(-30));
             try {
-                await unlockScheduled(lock);
+                await MockTime.advance(Seconds(65));
+                await settled(lock.device);
+                expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
 
-                MockTime.stepWallClock(Seconds(-30));
-                try {
-                    await MockTime.advance(Seconds(65));
-                    await settled(lock.device);
-                    expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
-
-                    await MockTime.advance(Seconds(30));
-                    await settled(lock.device);
-                    expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
-                } finally {
-                    MockTime.stepWallClock(Seconds(30));
-                }
+                await MockTime.advance(Seconds(30));
+                await settled(lock.device);
+                expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
             } finally {
-                await lock.site.close();
+                MockTime.stepWallClock(Seconds(30));
             }
         });
 
         it("denies an ExpiringUser while ExpiringUserTimeout is not set", async () => {
-            const lock = await setUpScheduledLock({ users: [scheduledUser(UserType.ExpiringUser)] });
-            try {
-                await expectScheduledDenial(lock, OperationError.Restricted);
-            } finally {
-                await lock.site.close();
-            }
+            await using lock = await setUpScheduledLock({ users: [scheduledUser(UserType.ExpiringUser)] });
+            await expectScheduledDenial(lock, OperationError.Restricted);
         });
 
         it("disables at startup a user whose stored deadline has passed", async () => {
-            const lock = await setUpScheduledLock({
+            await using lock = await setUpScheduledLock({
                 expiringUserTimeout: 1,
                 users: [scheduledUser(UserType.ExpiringUser, Timestamp(Time.nowMs - Minutes(1)))],
             });
-            try {
-                await MockTime.advance(0);
-                await settled(lock.device);
-                expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
-            } finally {
-                await lock.site.close();
-            }
+            await MockTime.advance(0);
+            await settled(lock.device);
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
         });
 
         it("starts with a deadline beyond the timer range and still disables once it passes", async () => {
-            const lock = await setUpScheduledLock({
+            await using lock = await setUpScheduledLock({
                 expiringUserTimeout: 1,
                 users: [scheduledUser(UserType.ExpiringUser, Timestamp(Time.nowMs + Days(60)))],
             });
-            try {
-                expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
 
-                MockTime.stepWallClock(Days(60));
-                try {
-                    await MockTime.advance(Hours(24));
-                    await settled(lock.device);
-                    expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
-                } finally {
-                    MockTime.stepWallClock(Days(-60));
-                }
+            MockTime.stepWallClock(Days(60));
+            try {
+                await MockTime.advance(Hours(24));
+                await settled(lock.device);
+                expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
             } finally {
-                await lock.site.close();
+                MockTime.stepWallClock(Days(-60));
             }
         });
 
@@ -1112,20 +1158,755 @@ describe("DoorLockServer", () => {
         });
 
         it("disables a user when a deadline that was still pending at startup passes", async () => {
-            const lock = await setUpScheduledLock({
+            await using lock = await setUpScheduledLock({
                 expiringUserTimeout: 1,
                 users: [scheduledUser(UserType.ExpiringUser, Timestamp(Time.nowMs + Hours(1)))],
             });
-            try {
-                expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
 
-                await MockTime.advance(3_610_000);
-                await settled(lock.device);
+            await MockTime.advance(3_610_000);
+            await settled(lock.device);
 
-                expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
-            } finally {
-                await lock.site.close();
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
+        });
+    });
+
+    describe("authorization of lock operations", () => {
+        const privacySupported = { alwaysSet: 2047, vacation: true, passage: true };
+
+        const actuations = {
+            lockDoor: (cmds: ScheduledLock["cmds"]) => cmds.lockDoor({}),
+            unlockDoor: (cmds: ScheduledLock["cmds"]) => cmds.unlockDoor({}),
+            unlockWithTimeout: (cmds: ScheduledLock["cmds"]) => cmds.unlockWithTimeout({ timeout: 10 }),
+            unboltDoor: (cmds: ScheduledLock["cmds"]) => cmds.unboltDoor({}),
+        };
+
+        for (const mode of [OperatingMode.Privacy, OperatingMode.NoRemoteLockUnlock]) {
+            for (const [name, invoke] of Object.entries(actuations)) {
+                it(`refuses ${name} in ${OperatingMode[mode]}`, async () => {
+                    const initial = name === "lockDoor" ? DoorLock.LockState.Unlocked : DoorLock.LockState.Locked;
+                    await using lock = await setUpScheduledLock({
+                        users: [scheduledUser(UserType.UnrestrictedUser)],
+                        lockState: initial,
+                        operatingMode: mode,
+                        supportedOperatingModes: privacySupported,
+                    });
+                    await expect(withMockTime(invoke(lock.cmds))).rejected;
+                    expect(lock.lock.state.doorLock.lockState).equals(initial);
+                    expect(hardware.calls).deep.equals([]);
+                    expect(operationErrorsOf(lock)).deep.equals([OperationError.Unspecified]);
+                    expect(lock.operations).deep.equals([]);
+                });
             }
+        }
+
+        it("refuses a NonAccessUser and reports the access attempt", async () => {
+            await using lock = await setUpScheduledLock({
+                users: [scheduledUser(UserType.NonAccessUser)],
+                lockState: DoorLock.LockState.Locked,
+            });
+            await expect(unlockScheduled(lock)).rejected;
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Locked);
+            expect(hardware.calls).deep.equals([]);
+            expect(
+                lock.operations.map(({ lockOperationType, userIndex, credentials }) => ({
+                    lockOperationType,
+                    userIndex,
+                    credentials,
+                })),
+            ).deep.equals([
+                {
+                    lockOperationType: DoorLock.LockOperationType.NonAccessUserEvent,
+                    userIndex: 1,
+                    credentials: [{ credentialType: CredentialType.Pin, credentialIndex: 1 }],
+                },
+            ]);
+        });
+
+        it("keeps a DisposableUser enabled when it locks the door", async () => {
+            await using lock = await setUpScheduledLock({
+                users: [scheduledUser(UserType.DisposableUser)],
+                lockState: DoorLock.LockState.Unlocked,
+            });
+            await withMockTime(lock.cmds.lockDoor({ pinCode: pin("1234") }));
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
+            await unlockScheduled(lock);
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
+        });
+
+        it("disables a DisposableUser after one use", async () => {
+            await using lock = await setUpScheduledLock({ users: [scheduledUser(UserType.DisposableUser)] });
+            await unlockScheduled(lock);
+            expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
+            expect(
+                lock.userChanges.map(({ lockDataType, dataOperationType, userIndex, dataIndex }) => ({
+                    lockDataType,
+                    dataOperationType,
+                    userIndex,
+                    dataIndex,
+                })),
+            ).deep.equals([
+                {
+                    lockDataType: DoorLock.LockDataType.UserIndex,
+                    dataOperationType: DoorLock.DataOperationType.Modify,
+                    userIndex: 1,
+                    dataIndex: 1,
+                },
+            ]);
+
+            await expectScheduledDenial(lock, OperationError.DisabledUserDenied);
+        });
+
+        it("reports a ForcedUser operation and raises the silent alarm", async () => {
+            await using lock = await setUpScheduledLock({ users: [scheduledUser(UserType.ForcedUser)] });
+            await unlockScheduled(lock);
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Unlocked);
+            expect(lock.operations.map(({ lockOperationType }) => lockOperationType)).deep.equals([
+                DoorLock.LockOperationType.ForcedUserEvent,
+            ]);
+            expect(lock.alarms).deep.equals([DoorLock.AlarmCode.ForcedUser]);
+        });
+
+        it("reports the user and credential when refusing a disabled user", async () => {
+            await using lock = await setUpScheduledLock({
+                users: [{ ...scheduledUser(UserType.UnrestrictedUser), userStatus: UserStatus.OccupiedDisabled }],
+            });
+            await expect(unlockScheduled(lock)).rejected;
+            expect(
+                lock.errorEvents.map(({ operationError, userIndex, credentials }) => ({
+                    operationError,
+                    userIndex,
+                    credentials,
+                })),
+            ).deep.equals([
+                {
+                    operationError: OperationError.DisabledUserDenied,
+                    userIndex: 1,
+                    credentials: [{ credentialType: CredentialType.Pin, credentialIndex: 1 }],
+                },
+            ]);
+        });
+
+        describe("wrong-code lockout", () => {
+            async function enterLockout(lock: ScheduledLock) {
+                for (let i = 0; i < 3; i++) {
+                    await expect(withMockTime(lock.cmds.unlockDoor({ pinCode: pin("9999") }))).rejected;
+                }
+                expect(lock.alarms).deep.equals([DoorLock.AlarmCode.WrongCodeEntryLimit]);
+                expect(operationErrorsOf(lock)).deep.equals(new Array(3).fill(OperationError.InvalidCredential));
+                lock.errorEvents.length = 0;
+            }
+
+            it("refuses every lock operation during the lockout, with or without PIN, and reports none", async () => {
+                await using lock = await setUpScheduledLock({
+                    users: [scheduledUser(UserType.UnrestrictedUser)],
+                    lockState: DoorLock.LockState.Locked,
+                });
+                await enterLockout(lock);
+
+                await expect(withMockTime(lock.cmds.unlockDoor({}))).rejected;
+                await expect(unlockScheduled(lock)).rejected;
+                await expect(withMockTime(lock.cmds.unlockDoor({ pinCode: pin("9999") }))).rejected;
+                expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Locked);
+                expect(hardware.calls).deep.equals([]);
+                expect(operationErrorsOf(lock)).deep.equals([]);
+                expect(lock.alarms).deep.equals([DoorLock.AlarmCode.WrongCodeEntryLimit]);
+            });
+
+            it("ends the lockout after UserCodeTemporaryDisableTime with a fresh attempt count", async () => {
+                await using lock = await setUpScheduledLock({ users: [scheduledUser(UserType.UnrestrictedUser)] });
+                await enterLockout(lock);
+
+                await MockTime.advance(9_000);
+                await expect(unlockScheduled(lock)).rejected;
+
+                await MockTime.advance(1_000);
+                for (let i = 0; i < 2; i++) {
+                    await expect(withMockTime(lock.cmds.unlockDoor({ pinCode: pin("9999") }))).rejected;
+                }
+                await unlockScheduled(lock);
+                expect(lock.alarms).deep.equals([DoorLock.AlarmCode.WrongCodeEntryLimit]);
+            });
+
+            it("measures the lockout on the monotonic clock", async () => {
+                await using lock = await setUpScheduledLock({ users: [scheduledUser(UserType.UnrestrictedUser)] });
+                MockTime.stepWallClock(Minutes(1));
+                try {
+                    await enterLockout(lock);
+                    MockTime.stepWallClock(Seconds(20));
+
+                    await expect(unlockScheduled(lock)).rejected;
+
+                    await MockTime.advance(10_000);
+                    await unlockScheduled(lock);
+                } finally {
+                    MockTime.stepWallClock(Seconds(-80));
+                }
+            });
+
+            it("does not count PINs refused by the operating mode", async () => {
+                await using lock = await setUpScheduledLock({
+                    users: [scheduledUser(UserType.UnrestrictedUser)],
+                    operatingMode: OperatingMode.NoRemoteLockUnlock,
+                });
+                for (let i = 0; i < 3; i++) {
+                    await expect(withMockTime(lock.cmds.unlockDoor({ pinCode: pin("9999") }))).rejected;
+                }
+                expect(lock.alarms).deep.equals([]);
+            });
+
+            it("starts the attempt count again after a correct code", async () => {
+                await using lock = await setUpScheduledLock({ users: [scheduledUser(UserType.UnrestrictedUser)] });
+                for (const code of ["9999", "9999", "1234", "9999", "9999"]) {
+                    const unlock = withMockTime(lock.cmds.unlockDoor({ pinCode: pin(code) }));
+                    if (code === "1234") {
+                        await unlock;
+                    } else {
+                        await expect(unlock).rejected;
+                    }
+                }
+                expect(lock.alarms).deep.equals([]);
+            });
+
+            it("counts an omitted PIN as a wrong code when a PIN is required", async () => {
+                await using lock = await setUpScheduledLock({
+                    users: [scheduledUser(UserType.UnrestrictedUser)],
+                    requirePinForRemoteOperation: true,
+                });
+                for (let i = 0; i < 3; i++) {
+                    await expect(withMockTime(lock.cmds.unlockDoor({}))).rejected;
+                }
+                expect(lock.alarms).deep.equals([DoorLock.AlarmCode.WrongCodeEntryLimit]);
+                await expect(unlockScheduled(lock)).rejected;
+            });
+        });
+
+        describe("OperatingMode", () => {
+            it("refuses a write of an unsupported mode and accepts a supported one", async () => {
+                await using lock = await setUpScheduledLock({ users: [scheduledUser(UserType.UnrestrictedUser)] });
+                const endpoint = lock.peer.parts.get("ep1")!;
+                const error = await withMockTime(
+                    endpoint.setStateOf(DoorLockClient, { operatingMode: OperatingMode.Privacy }),
+                ).then(
+                    () => undefined,
+                    (e: unknown) => e,
+                );
+                expect(error).instanceof(StatusResponseError);
+                expect(error instanceof StatusResponseError ? error.code : undefined).equals(Status.ConstraintError);
+                expect(lock.lock.state.doorLock.operatingMode).equals(OperatingMode.Normal);
+
+                await withMockTime(
+                    endpoint.setStateOf(DoorLockClient, { operatingMode: OperatingMode.NoRemoteLockUnlock }),
+                );
+                expect(lock.lock.state.doorLock.operatingMode).equals(OperatingMode.NoRemoteLockUnlock);
+            });
+
+            it("switches a stored mode SupportedOperatingModes does not support to Normal", async () => {
+                await using lock = await setUpScheduledLock({
+                    users: [scheduledUser(UserType.UnrestrictedUser)],
+                    operatingMode: OperatingMode.Privacy,
+                });
+                expect(lock.lock.state.doorLock.operatingMode).equals(OperatingMode.Normal);
+            });
+
+            it("refuses SupportedOperatingModes without Normal", async () => {
+                const error = await setUpScheduledLock({
+                    users: [scheduledUser(UserType.UnrestrictedUser)],
+                    supportedOperatingModes: { alwaysSet: 2047, normal: true },
+                }).then(
+                    () => undefined,
+                    (e: unknown) => e,
+                );
+                expect(error).instanceof(MatterAggregateError);
+                const cause = error instanceof MatterAggregateError ? error.errors[0]?.cause : undefined;
+                expect(cause).instanceof(ImplementationError);
+            });
+
+            it("accepts every mode SupportedOperatingModes supports", async () => {
+                await using lock = await setUpScheduledLock({
+                    users: [scheduledUser(UserType.UnrestrictedUser)],
+                    supportedOperatingModes: { alwaysSet: 2047, privacy: true },
+                });
+                const endpoint = lock.peer.parts.get("ep1")!;
+                for (const mode of [OperatingMode.Vacation, OperatingMode.Passage, OperatingMode.NoRemoteLockUnlock]) {
+                    await withMockTime(endpoint.setStateOf(DoorLockClient, { operatingMode: mode }));
+                    expect(lock.lock.state.doorLock.operatingMode).equals(mode);
+                }
+            });
+        });
+    });
+
+    describe("lock hardware", () => {
+        it("moves the hardware after authorization and before the lock state changes", async () => {
+            await using lock = await setUpScheduledLock({
+                users: [scheduledUser(UserType.UnrestrictedUser)],
+                lockState: DoorLock.LockState.Locked,
+            });
+            await expect(withMockTime(lock.cmds.unlockDoor({ pinCode: pin("9999") }))).rejected;
+            await unlockScheduled(lock);
+            await withMockTime(lock.cmds.lockDoor({}));
+            await withMockTime(lock.cmds.unboltDoor({}));
+
+            const { Remote } = DoorLock.OperationSource;
+            expect(hardware.calls).deep.equals([
+                { actuation: "unlock", source: Remote, userIndex: 1, lockState: DoorLock.LockState.Locked },
+                { actuation: "lock", source: Remote, userIndex: null, lockState: DoorLock.LockState.Unlocked },
+                { actuation: "unbolt", source: Remote, userIndex: null, lockState: DoorLock.LockState.Locked },
+            ]);
+            expect(
+                lock.operations.map(({ fabricIndex, sourceNode }) => ({
+                    fabricIndex,
+                    hasSourceNode: sourceNode !== null,
+                })),
+            ).deep.equals(new Array(3).fill({ fabricIndex: FabricIndex(1), hasSourceNode: true }));
+        });
+
+        it("refuses a lock command invoked locally before the hardware moves", async () => {
+            await using lock = await setUpScheduledLock({
+                users: [scheduledUser(UserType.UnrestrictedUser)],
+                lockState: DoorLock.LockState.Locked,
+            });
+            let error: unknown;
+            try {
+                await lock.lock.act(agent => agent.get(TestHardwareDoorLockServer).unlockDoor({}));
+            } catch (e) {
+                error = e;
+            }
+            expect(error instanceof StatusResponseError ? error.code : error).equals(Status.UnsupportedAccess);
+            expect(hardware.calls).deep.equals([]);
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Locked);
+        });
+
+        it("starts the attempt count again only after the hardware succeeds", async () => {
+            await using lock = await setUpScheduledLock({
+                users: [scheduledUser(UserType.UnrestrictedUser)],
+                lockState: DoorLock.LockState.Locked,
+            });
+            for (let i = 0; i < 2; i++) {
+                await expect(withMockTime(lock.cmds.unlockDoor({ pinCode: pin("9999") }))).rejected;
+            }
+            hardware.failure = new LockOperationFailedError(OperationError.Unspecified);
+            await expect(unlockScheduled(lock)).rejected;
+
+            await expect(withMockTime(lock.cmds.unlockDoor({ pinCode: pin("9999") }))).rejected;
+            expect(lock.alarms).deep.equals([DoorLock.AlarmCode.WrongCodeEntryLimit]);
+        });
+
+        it("keeps the attempt count through an operation without PIN", async () => {
+            await using lock = await setUpScheduledLock({
+                users: [scheduledUser(UserType.UnrestrictedUser)],
+                lockState: DoorLock.LockState.Locked,
+            });
+            for (let i = 0; i < 2; i++) {
+                await expect(withMockTime(lock.cmds.unlockDoor({ pinCode: pin("9999") }))).rejected;
+            }
+            await withMockTime(lock.cmds.unlockDoor({}));
+
+            await expect(withMockTime(lock.cmds.unlockDoor({ pinCode: pin("9999") }))).rejected;
+            expect(lock.alarms).deep.equals([DoorLock.AlarmCode.WrongCodeEntryLimit]);
+        });
+
+        it("unlocks with a PIN that belongs to no user", async () => {
+            await using lock = await setUpScheduledLock({
+                users: [scheduledUser(UserType.UnrestrictedUser)],
+                lockState: DoorLock.LockState.Locked,
+                credentials: [
+                    {
+                        credentialType: CredentialType.Pin,
+                        credentialIndex: 2,
+                        credentialData: pin("5555"),
+                        creatorFabricIndex: FabricIndex(1),
+                        lastModifiedFabricIndex: FabricIndex(1),
+                    },
+                ],
+            });
+            await withMockTime(lock.cmds.unlockDoor({ pinCode: pin("5555") }));
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Unlocked);
+            expect(lock.operations.map(({ userIndex, credentials }) => ({ userIndex, credentials }))).deep.equals([
+                { userIndex: null, credentials: [{ credentialType: CredentialType.Pin, credentialIndex: 2 }] },
+            ]);
+        });
+
+        it("runs one lock operation at a time", async () => {
+            await using lock = await setUpScheduledLock({
+                users: [scheduledUser(UserType.UnrestrictedUser)],
+                lockState: DoorLock.LockState.Locked,
+            });
+            const release = holdHardware();
+            const called = nextHardwareCall();
+            const both = Promise.allSettled([
+                withMockTime(lock.cmds.unlockDoor({})),
+                withMockTime(lock.cmds.lockDoor({})),
+            ]);
+            await called;
+            await MockTime.advance(1_000);
+            expect(hardware.calls.map(({ actuation }) => actuation)).deep.equals(["unlock"]);
+
+            release();
+            expect((await both).map(({ status }) => status)).deep.equals(["fulfilled", "fulfilled"]);
+            expect(hardware.calls.map(({ actuation, lockState }) => ({ actuation, lockState }))).deep.equals([
+                { actuation: "unlock", lockState: DoorLock.LockState.Locked },
+                { actuation: "lock", lockState: DoorLock.LockState.Unlocked },
+            ]);
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Locked);
+        });
+
+        it("does not relock for a timer an unlock replaced while the relock waited", async () => {
+            await using lock = await setUpScheduledLock({
+                users: [scheduledUser(UserType.UnrestrictedUser)],
+                lockState: DoorLock.LockState.Locked,
+                autoRelockTime: 5,
+            });
+            await withMockTime(lock.cmds.unlockDoor({}));
+
+            const release = holdHardware();
+            const called = nextHardwareCall();
+            const unlock = Promise.allSettled([withMockTime(lock.cmds.unlockDoor({}))]);
+            await called;
+            await MockTime.advance(6_000);
+
+            release();
+            expect((await unlock).map(({ status }) => status)).deep.equals(["fulfilled"]);
+            await settled(lock.device);
+            expect(hardware.calls.map(({ actuation }) => actuation)).deep.equals(["unlock", "unlock"]);
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Unlocked);
+        });
+
+        it("fails the operation when the hardware fails", async () => {
+            await using lock = await setUpScheduledLock({
+                users: [scheduledUser(UserType.UnrestrictedUser)],
+                lockState: DoorLock.LockState.Locked,
+            });
+            hardware.failure = new Error("motor jammed");
+
+            await expect(unlockScheduled(lock)).rejected;
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Locked);
+            expect(lock.operations).deep.equals([]);
+            expect(
+                lock.errorEvents.map(({ lockOperationType, operationError, userIndex }) => ({
+                    lockOperationType,
+                    operationError,
+                    userIndex,
+                })),
+            ).deep.equals([
+                {
+                    lockOperationType: DoorLock.LockOperationType.Unlock,
+                    operationError: OperationError.Unspecified,
+                    userIndex: 1,
+                },
+            ]);
+        });
+
+        it("reports the reason the hardware gives for a failure", async () => {
+            await using lock = await setUpScheduledLock({
+                users: [scheduledUser(UserType.UnrestrictedUser)],
+                lockState: DoorLock.LockState.Locked,
+            });
+            hardware.failure = new LockOperationFailedError(OperationError.InsufficientBattery);
+
+            await expect(unlockScheduled(lock)).rejected;
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Locked);
+            expect(operationErrorsOf(lock)).deep.equals([OperationError.InsufficientBattery]);
+        });
+
+        it("relocks through the hardware and keeps the state when it fails", async () => {
+            await using lock = await setUpScheduledLock({
+                users: [scheduledUser(UserType.UnrestrictedUser)],
+                lockState: DoorLock.LockState.Locked,
+                autoRelockTime: 5,
+            });
+            await unlockScheduled(lock);
+            hardware.failure = new LockOperationFailedError(OperationError.InsufficientBattery);
+
+            await MockTime.advance(5_000);
+            await settled(lock.device);
+
+            expect(hardware.calls.map(({ actuation, source }) => ({ actuation, source }))).deep.equals([
+                { actuation: "unlock", source: DoorLock.OperationSource.Remote },
+                { actuation: "lock", source: DoorLock.OperationSource.Auto },
+            ]);
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Unlocked);
+            expect(
+                lock.errorEvents.map(({ lockOperationType, operationSource, operationError }) => ({
+                    lockOperationType,
+                    operationSource,
+                    operationError,
+                })),
+            ).deep.equals([
+                {
+                    lockOperationType: DoorLock.LockOperationType.Lock,
+                    operationSource: DoorLock.OperationSource.Auto,
+                    operationError: OperationError.InsufficientBattery,
+                },
+            ]);
+
+            hardware.failure = undefined;
+            await withMockTime(lock.cmds.unlockDoor({}));
+            await MockTime.advance(5_000);
+            await settled(lock.device);
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Locked);
+        });
+    });
+
+    describe("lock operation events", () => {
+        it("reports UnboltDoor as Unlock and leaves the latch alone", async () => {
+            await using lock = await setUpScheduledLock({
+                users: [scheduledUser(UserType.UnrestrictedUser)],
+                lockState: DoorLock.LockState.Locked,
+            });
+            await withMockTime(lock.cmds.unboltDoor({ pinCode: pin("1234") }));
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Unlocked);
+            expect(lock.operations.map(({ lockOperationType }) => lockOperationType)).deep.equals([
+                DoorLock.LockOperationType.Unlock,
+            ]);
+
+            await expect(withMockTime(lock.cmds.unboltDoor({ pinCode: pin("9999") }))).rejected;
+            expect(lock.errorEvents.map(({ lockOperationType }) => lockOperationType)).deep.equals([
+                DoorLock.LockOperationType.Unlock,
+            ]);
+        });
+    });
+
+    describe("LockUserChange", () => {
+        function summary(lock: ScheduledLock) {
+            return lock.userChanges.map(({ lockDataType, dataOperationType, userIndex, dataIndex }) => ({
+                lockDataType,
+                dataOperationType,
+                userIndex,
+                dataIndex,
+            }));
+        }
+
+        const { LockDataType, DataOperationType } = DoorLock;
+
+        it("reports schedule changes", async () => {
+            await using lock = await setUpScheduledLock({ users: [scheduledUser(UserType.WeekDayScheduleUser)] });
+            const { epochS } = currentLocal();
+            await withMockTime(
+                lock.cmds.setWeekDaySchedule({
+                    weekDayIndex: 2,
+                    userIndex: 1,
+                    daysMask: { monday: true },
+                    startHour: 8,
+                    startMinute: 0,
+                    endHour: 9,
+                    endMinute: 0,
+                }),
+            );
+            await withMockTime(lock.cmds.clearWeekDaySchedule({ weekDayIndex: 2, userIndex: 1 }));
+            await withMockTime(lock.cmds.clearWeekDaySchedule({ weekDayIndex: 0xfe, userIndex: 1 }));
+            await withMockTime(
+                lock.cmds.setYearDaySchedule({
+                    yearDayIndex: 3,
+                    userIndex: 1,
+                    localStartTime: epochS,
+                    localEndTime: epochS + 60,
+                }),
+            );
+            await withMockTime(lock.cmds.clearYearDaySchedule({ yearDayIndex: 3, userIndex: 1 }));
+            await withMockTime(
+                lock.cmds.setHolidaySchedule({
+                    holidayIndex: 4,
+                    localStartTime: epochS,
+                    localEndTime: epochS + 60,
+                    operatingMode: OperatingMode.Normal,
+                }),
+            );
+            await withMockTime(lock.cmds.clearHolidaySchedule({ holidayIndex: 4 }));
+
+            expect(summary(lock)).deep.equals([
+                {
+                    lockDataType: LockDataType.WeekDaySchedule,
+                    dataOperationType: DataOperationType.Add,
+                    userIndex: 1,
+                    dataIndex: 2,
+                },
+                {
+                    lockDataType: LockDataType.WeekDaySchedule,
+                    dataOperationType: DataOperationType.Clear,
+                    userIndex: 1,
+                    dataIndex: 2,
+                },
+                {
+                    lockDataType: LockDataType.WeekDaySchedule,
+                    dataOperationType: DataOperationType.Clear,
+                    userIndex: 1,
+                    dataIndex: 0xfe,
+                },
+                {
+                    lockDataType: LockDataType.YearDaySchedule,
+                    dataOperationType: DataOperationType.Add,
+                    userIndex: 1,
+                    dataIndex: 3,
+                },
+                {
+                    lockDataType: LockDataType.YearDaySchedule,
+                    dataOperationType: DataOperationType.Clear,
+                    userIndex: 1,
+                    dataIndex: 3,
+                },
+                {
+                    lockDataType: LockDataType.HolidaySchedule,
+                    dataOperationType: DataOperationType.Add,
+                    userIndex: null,
+                    dataIndex: 4,
+                },
+                {
+                    lockDataType: LockDataType.HolidaySchedule,
+                    dataOperationType: DataOperationType.Clear,
+                    userIndex: null,
+                    dataIndex: 4,
+                },
+            ]);
+        });
+
+        it("reports the user index as DataIndex for user changes", async () => {
+            await using lock = await setUpScheduledLock({ users: [scheduledUser(UserType.UnrestrictedUser)] });
+            await withMockTime(
+                lock.cmds.setUser({
+                    operationType: DataOperationType.Add,
+                    userIndex: 2,
+                    userName: null,
+                    userUniqueId: null,
+                    userStatus: null,
+                    userType: null,
+                    credentialRule: null,
+                }),
+            );
+            await modifyUser(lock, { userName: "x" });
+            await withMockTime(lock.cmds.clearUser({ userIndex: 2 }));
+            await withMockTime(lock.cmds.clearUser({ userIndex: 0xfffe }));
+
+            expect(summary(lock)).deep.equals([
+                {
+                    lockDataType: LockDataType.UserIndex,
+                    dataOperationType: DataOperationType.Add,
+                    userIndex: 2,
+                    dataIndex: 2,
+                },
+                {
+                    lockDataType: LockDataType.UserIndex,
+                    dataOperationType: DataOperationType.Modify,
+                    userIndex: 1,
+                    dataIndex: 1,
+                },
+                {
+                    lockDataType: LockDataType.UserIndex,
+                    dataOperationType: DataOperationType.Clear,
+                    userIndex: 2,
+                    dataIndex: 2,
+                },
+                {
+                    lockDataType: LockDataType.UserIndex,
+                    dataOperationType: DataOperationType.Clear,
+                    userIndex: 0xfffe,
+                    dataIndex: 0xfffe,
+                },
+            ]);
+        });
+
+        it("reports the owning user when the programming PIN is modified", async () => {
+            await using lock = await setUpScheduledLock({ users: [scheduledUser(UserType.UnrestrictedUser)] });
+            const programmingPin = { credentialType: CredentialType.ProgrammingPin, credentialIndex: 0 };
+            const added = await withMockTime(
+                lock.cmds.setCredential({
+                    operationType: DataOperationType.Add,
+                    credential: programmingPin,
+                    credentialData: pin("5678"),
+                    userIndex: 1,
+                    userStatus: null,
+                    userType: null,
+                }),
+            );
+            expect(added.status).equals(Status.Success);
+            lock.userChanges.length = 0;
+            const modified = await withMockTime(
+                lock.cmds.setCredential({
+                    operationType: DataOperationType.Modify,
+                    credential: programmingPin,
+                    credentialData: pin("8765"),
+                    userIndex: null,
+                    userStatus: null,
+                    userType: UserType.ProgrammingUser,
+                }),
+            );
+            expect(modified.status).equals(Status.Success);
+
+            expect(summary(lock)).deep.equals([
+                {
+                    lockDataType: LockDataType.ProgrammingCode,
+                    dataOperationType: DataOperationType.Modify,
+                    userIndex: 1,
+                    dataIndex: 0,
+                },
+            ]);
+        });
+
+        it("reports the owning user for credential changes", async () => {
+            await using lock = await setUpScheduledLock({ users: [scheduledUser(UserType.UnrestrictedUser)] });
+            await withMockTime(
+                lock.cmds.setCredential({
+                    operationType: DataOperationType.Add,
+                    credential: { credentialType: CredentialType.Pin, credentialIndex: 3 },
+                    credentialData: pin("5678"),
+                    userIndex: null,
+                    userStatus: null,
+                    userType: null,
+                }),
+            );
+            await withMockTime(
+                lock.cmds.setCredential({
+                    operationType: DataOperationType.Modify,
+                    credential: { credentialType: CredentialType.Pin, credentialIndex: 1 },
+                    credentialData: pin("4321"),
+                    userIndex: 1,
+                    userStatus: null,
+                    userType: null,
+                }),
+            );
+            await withMockTime(
+                lock.cmds.clearCredential({
+                    credential: { credentialType: CredentialType.Pin, credentialIndex: 1 },
+                }),
+            );
+            await withMockTime(
+                lock.cmds.clearCredential({
+                    credential: { credentialType: CredentialType.Pin, credentialIndex: 0xfffe },
+                }),
+            );
+
+            expect(summary(lock)).deep.equals([
+                {
+                    lockDataType: LockDataType.UserIndex,
+                    dataOperationType: DataOperationType.Add,
+                    userIndex: 2,
+                    dataIndex: 2,
+                },
+                {
+                    lockDataType: LockDataType.Pin,
+                    dataOperationType: DataOperationType.Add,
+                    userIndex: 2,
+                    dataIndex: 3,
+                },
+                {
+                    lockDataType: LockDataType.Pin,
+                    dataOperationType: DataOperationType.Modify,
+                    userIndex: 1,
+                    dataIndex: 1,
+                },
+                {
+                    lockDataType: LockDataType.Pin,
+                    dataOperationType: DataOperationType.Clear,
+                    userIndex: 1,
+                    dataIndex: 1,
+                },
+                {
+                    lockDataType: LockDataType.Pin,
+                    dataOperationType: DataOperationType.Clear,
+                    userIndex: 0xfffe,
+                    dataIndex: 0xfffe,
+                },
+            ]);
         });
     });
 });

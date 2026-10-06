@@ -14,6 +14,7 @@ import {
     ImplementationError,
     Instant,
     Logger,
+    MatterError,
     MaybePromise,
     Minutes,
     Seconds,
@@ -36,6 +37,7 @@ import DoorState = DoorLock.DoorState;
 import LockDataType = DoorLock.LockDataType;
 import LockOperationType = DoorLock.LockOperationType;
 import LockState = DoorLock.LockState;
+import OperatingMode = DoorLock.OperatingMode;
 import OperationError = DoorLock.OperationError;
 import OperationSource = DoorLock.OperationSource;
 import UserStatus = DoorLock.UserStatus;
@@ -45,6 +47,41 @@ const logger = Logger.get("DoorLockServer");
 
 /** Bounded below the timer maximum; a longer wait re-arms, so a wall clock far behind the deadline cannot overflow */
 const MAX_EXPIRY_DELAY = Hours(24);
+
+const OPERATING_MODE_BITS = {
+    [OperatingMode.Normal]: "normal",
+    [OperatingMode.Vacation]: "vacation",
+    [OperatingMode.Privacy]: "privacy",
+    [OperatingMode.NoRemoteLockUnlock]: "noRemoteLockUnlock",
+    [OperatingMode.Passage]: "passage",
+} satisfies Record<OperatingMode, keyof DoorLock.OperatingModes>;
+
+/** Who requests a lock operation, as far as its credential identifies them */
+interface LockRequester {
+    user: LockAuth.User | null;
+    credentials: DoorLock.Credential[] | null;
+}
+
+const ANONYMOUS: LockRequester = { user: null, credentials: null };
+
+/**
+ * Thrown by {@link DoorLockBaseServer.handleLockOperation} when the lock hardware cannot complete an operation.
+ *
+ * The server reports {@link reason} in the `LockOperationError` event and answers the command with FAILURE, for
+ * example `throw new LockOperationFailedError(DoorLock.OperationError.InsufficientBattery)`. The reason comes first
+ * because it is what the server reports; the message defaults to one naming it.
+ *
+ * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.14, § 5.2.11.4
+ */
+export class LockOperationFailedError extends MatterError {
+    constructor(
+        readonly reason: OperationError,
+        message = `Lock operation failed: ${OperationError[reason]}`,
+        options?: ErrorOptions,
+    ) {
+        super(message, options);
+    }
+}
 
 const DoorLockBaseServerClass = DoorLockBehavior.with(
     "PinCredential",
@@ -66,6 +103,9 @@ const DoorLockBaseServerClass = DoorLockBehavior.with(
  * The server stores users, credentials, and schedules in nonvolatile extension fields on the State class. Credential
  * data is encrypted at rest with AES-128-CCM by default. Override {@link cipher} for custom encryption (e.g. HSM) or
  * {@link auth} to replace the entire storage backend.
+ *
+ * To drive real lock hardware, override {@link handleLockOperation} instead of the lock commands, so the hardware moves
+ * only for an authorized operation.
  */
 export class DoorLockBaseServer extends DoorLockBaseServerClass {
     declare readonly state: DoorLockBaseServer.State;
@@ -83,6 +123,15 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                     ` specification about the meaning of this field because bits are inverted here!`,
             );
         }
+        if (!isOperatingModeSupported(state.supportedOperatingModes, OperatingMode.Normal)) {
+            throw new ImplementationError(`DoorLockServer: ${unsupportedOperatingMode(OperatingMode.Normal)}`);
+        }
+        // A controller may have stored a mode that a later SupportedOperatingModes no longer supports
+        if (!isOperatingModeSupported(state.supportedOperatingModes, state.operatingMode)) {
+            logger.warn(`${unsupportedOperatingMode(state.operatingMode)}; switching to Normal`);
+            state.operatingMode = OperatingMode.Normal;
+        }
+        this.reactTo(this.events.operatingMode$Changing, this.#assertOperatingModeSupported);
 
         // Initialize internal stores if empty
         if (!state.users) {
@@ -115,6 +164,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         }
 
         this.internal.expireUser = this.callback(this.#expireUser, { lock: true });
+        this.internal.autoRelock = this.callback(this.#autoRelock, { lock: true });
         for (const user of this.auth.users) {
             if (
                 user.userType === UserType.ExpiringUser &&
@@ -140,33 +190,50 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
 
     // ── Core Lock Operations ─────────────────────────────────────────────────
 
-    override lockDoor(request: DoorLock.LockDoorRequest): MaybePromise {
-        this.#validatePinIfRequired(request.pinCode, LockOperationType.Lock);
-        this.state.lockState = LockState.Locked;
+    override async lockDoor(request: DoorLock.LockDoorRequest) {
+        await this.#actuate("lock", request.pinCode);
         this.#stopAutoRelockTimer();
-        this.#emitLockOperation(LockOperationType.Lock, request.pinCode);
     }
 
-    override unlockDoor(request: DoorLock.UnlockDoorRequest): MaybePromise {
-        this.#validatePinIfRequired(request.pinCode, LockOperationType.Unlock);
-        this.state.lockState = LockState.Unlocked;
-        this.#emitLockOperation(LockOperationType.Unlock, request.pinCode);
+    override async unlockDoor(request: DoorLock.UnlockDoorRequest) {
+        await this.#actuate("unlock", request.pinCode);
         this.#scheduleAutoRelock();
     }
 
-    override unlockWithTimeout(request: DoorLock.UnlockWithTimeoutRequest): MaybePromise {
-        this.#validatePinIfRequired(request.pinCode, LockOperationType.Unlock);
-        this.state.lockState = LockState.Unlocked;
-        this.#emitLockOperation(LockOperationType.Unlock, request.pinCode);
+    override async unlockWithTimeout(request: DoorLock.UnlockWithTimeoutRequest) {
+        await this.#actuate("unlock", request.pinCode);
         this.#scheduleAutoRelock(request.timeout);
     }
 
-    override unboltDoor(request: DoorLock.UnboltDoorRequest): MaybePromise {
-        this.#validatePinIfRequired(request.pinCode, LockOperationType.Unlatch);
-        this.state.lockState = LockState.Unlatched;
-        this.#emitLockOperation(LockOperationType.Unlatch, request.pinCode);
+    /**
+     * Unbolting retracts the bolt without pulling the latch, so the lock ends up Unlocked and reports an Unlock.
+     *
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.25, § 5.2.11.3
+     */
+    override async unboltDoor(request: DoorLock.UnboltDoorRequest) {
+        await this.#actuate("unbolt", request.pinCode);
         this.#scheduleAutoRelock();
     }
+
+    /**
+     * Moves the lock hardware. Override to drive a real lock; the default implementation does nothing.
+     *
+     * The server calls this once a remote lock command is authorized, before it sets `lockState` and reports the
+     * operation, and for auto-relock. Both hold the lock of this behavior, so calls never overlap. Lock commands
+     * invoked locally, without a fabric, are refused before this runs.
+     *
+     * To fail the operation, throw. `lockState` stays unchanged and `LockOperationError` reports the reason of a
+     * {@link LockOperationFailedError}, or `Unspecified` for any other error, which is also logged as a warning. A
+     * failed command is answered with FAILURE and state written here is discarded; a failed auto-relock keeps such
+     * state and is not retried. Report a jam through the `doorLockAlarm` event.
+     *
+     * Override without `protected`: the {@link DoorLockBaseServer.ExtensionInterface} makes it public on the server
+     * types derived with `with()`.
+     *
+     * @param operation what the hardware has to do and who asked for it
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.1, § 5.2.10.2, § 5.2.10.3, § 5.2.10.25
+     */
+    protected handleLockOperation(_operation: DoorLockBaseServer.LockOperation): MaybePromise {}
 
     // ── Credential Storage (overridable) ─────────────────────────────────────
     //
@@ -222,7 +289,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             });
 
             this.#warnIfExpiryUnbounded(request.userType);
-            this.#emitLockUserChange(LockDataType.UserIndex, DataOperationType.Add, userIndex, fabricIndex, null);
+            this.#emitLockUserChange(LockDataType.UserIndex, DataOperationType.Add, userIndex, fabricIndex, userIndex);
         } else if (operationType === DataOperationType.Modify) {
             if (!existing) {
                 throw new StatusResponseError("User slot is available", Status.InvalidCommand);
@@ -259,7 +326,13 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             });
 
             this.#warnIfExpiryUnbounded(request.userType);
-            this.#emitLockUserChange(LockDataType.UserIndex, DataOperationType.Modify, userIndex, fabricIndex, null);
+            this.#emitLockUserChange(
+                LockDataType.UserIndex,
+                DataOperationType.Modify,
+                userIndex,
+                fabricIndex,
+                userIndex,
+            );
         } else {
             throw new StatusResponseError("Invalid operation type", Status.InvalidCommand);
         }
@@ -319,7 +392,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             }
             auth.clearUsers();
 
-            this.#emitLockUserChange(LockDataType.UserIndex, DataOperationType.Clear, 0xfffe, fabricIndex, null);
+            this.#emitLockUserChange(LockDataType.UserIndex, DataOperationType.Clear, 0xfffe, fabricIndex, 0xfffe);
             return;
         }
 
@@ -338,7 +411,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         this.#stopExpiryTimer(userIndex);
         auth.removeUser(userIndex);
 
-        this.#emitLockUserChange(LockDataType.UserIndex, DataOperationType.Clear, userIndex, fabricIndex, null);
+        this.#emitLockUserChange(LockDataType.UserIndex, DataOperationType.Clear, userIndex, fabricIndex, userIndex);
     }
 
     // ── Credential Management (USR) ──────────────────────────────────────────
@@ -411,7 +484,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                     DataOperationType.Add,
                     newUserIndex,
                     fabricIndex,
-                    credential.credentialIndex,
+                    newUserIndex,
                 );
             } else {
                 const user = auth.findUser(userIndex);
@@ -487,7 +560,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             this.#emitLockUserChange(
                 LockAuth.credentialTypeToLockDataType(credential.credentialType),
                 DataOperationType.Modify,
-                userIndex,
+                userIndex ?? auth.findUserIndexForCredential(credential.credentialType, credential.credentialIndex),
                 fabricIndex,
                 credential.credentialIndex,
             );
@@ -562,13 +635,14 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             throw new StatusResponseError("Credential not found", Status.InvalidCommand);
         }
 
+        const owner = auth.findUserIndexForCredential(credential.credentialType, credential.credentialIndex);
         this.#removeCredentialFromUsers(auth, credential.credentialType, credential.credentialIndex);
         auth.removeCredential(credential.credentialType, credential.credentialIndex);
 
         this.#emitLockUserChange(
             LockAuth.credentialTypeToLockDataType(credential.credentialType),
             DataOperationType.Clear,
-            null,
+            owner,
             fabricIndex,
             credential.credentialIndex,
         );
@@ -608,6 +682,13 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         };
 
         this.state.weekDaySchedules = [...schedules, schedule];
+        this.#emitLockUserChange(
+            LockDataType.WeekDaySchedule,
+            DataOperationType.Add,
+            userIndex,
+            this.#fabricIndex,
+            weekDayIndex,
+        );
     }
 
     override getWeekDaySchedule(request: DoorLock.GetWeekDayScheduleRequest): DoorLock.GetWeekDayScheduleResponse {
@@ -666,6 +747,13 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 s => !(s.weekDayIndex === weekDayIndex && s.userIndex === userIndex),
             );
         }
+        this.#emitLockUserChange(
+            LockDataType.WeekDaySchedule,
+            DataOperationType.Clear,
+            userIndex,
+            this.#fabricIndex,
+            weekDayIndex,
+        );
     }
 
     override setYearDaySchedule(request: DoorLock.SetYearDayScheduleRequest): MaybePromise {
@@ -694,6 +782,13 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         };
 
         this.state.yearDaySchedules = [...schedules, schedule];
+        this.#emitLockUserChange(
+            LockDataType.YearDaySchedule,
+            DataOperationType.Add,
+            userIndex,
+            this.#fabricIndex,
+            yearDayIndex,
+        );
     }
 
     override getYearDaySchedule(request: DoorLock.GetYearDayScheduleRequest): DoorLock.GetYearDayScheduleResponse {
@@ -749,6 +844,13 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 s => !(s.yearDayIndex === yearDayIndex && s.userIndex === userIndex),
             );
         }
+        this.#emitLockUserChange(
+            LockDataType.YearDaySchedule,
+            DataOperationType.Clear,
+            userIndex,
+            this.#fabricIndex,
+            yearDayIndex,
+        );
     }
 
     override setHolidaySchedule(request: DoorLock.SetHolidayScheduleRequest): MaybePromise {
@@ -763,16 +865,6 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             throw new StatusResponseError("End time must be after start time", Status.InvalidCommand);
         }
 
-        if (
-            request.operatingMode !== DoorLock.OperatingMode.Normal &&
-            request.operatingMode !== DoorLock.OperatingMode.Vacation &&
-            request.operatingMode !== DoorLock.OperatingMode.Privacy &&
-            request.operatingMode !== DoorLock.OperatingMode.NoRemoteLockUnlock &&
-            request.operatingMode !== DoorLock.OperatingMode.Passage
-        ) {
-            throw new StatusResponseError("Invalid operating mode", Status.InvalidCommand);
-        }
-
         const schedules = this.state.holidaySchedules.filter(s => s.holidayIndex !== holidayIndex);
 
         const schedule: LockSchedule.Holiday = {
@@ -783,6 +875,13 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         };
 
         this.state.holidaySchedules = [...schedules, schedule];
+        this.#emitLockUserChange(
+            LockDataType.HolidaySchedule,
+            DataOperationType.Add,
+            null,
+            this.#fabricIndex,
+            holidayIndex,
+        );
     }
 
     override getHolidaySchedule(request: DoorLock.GetHolidayScheduleRequest): DoorLock.GetHolidayScheduleResponse {
@@ -822,6 +921,13 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             }
             this.state.holidaySchedules = this.state.holidaySchedules.filter(s => s.holidayIndex !== holidayIndex);
         }
+        this.#emitLockUserChange(
+            LockDataType.HolidaySchedule,
+            DataOperationType.Clear,
+            null,
+            this.#fabricIndex,
+            holidayIndex,
+        );
     }
 
     // ── Private Helpers ────────────────────────────────────────────────────────
@@ -855,21 +961,31 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             return;
         }
 
-        this.internal.autoRelockTimer = Time.getTimer(
-            "auto-relock",
-            Seconds(timeout),
-            this.callback(this.#autoRelock, { lock: true }),
-        ).start();
+        const { internal } = this;
+        const timer = Time.getTimer("auto-relock", Seconds(timeout), () => internal.autoRelock?.(timer));
+        internal.autoRelockTimer = timer.start();
     }
 
-    #autoRelock() {
-        if (this.state.lockState !== LockState.Locked) {
-            this.state.lockState = LockState.Locked;
+    async #autoRelock(timer: Timer) {
+        // A lock operation that ran while this relock waited for the lock replaced or stopped its timer
+        if (timer !== this.internal.autoRelockTimer || this.state.lockState === LockState.Locked) {
+            return;
+        }
+        this.internal.autoRelockTimer = undefined;
 
-            this.events.lockOperation.emit(
+        const operation: DoorLockBaseServer.LockOperation = {
+            actuation: "lock",
+            source: OperationSource.Auto,
+            userIndex: null,
+        };
+        try {
+            await this.handleLockOperation(operation);
+        } catch (error) {
+            this.events.lockOperationError.emit(
                 {
                     lockOperationType: LockOperationType.Lock,
                     operationSource: OperationSource.Auto,
+                    operationError: hardwareFailureReason(operation, error),
                     userIndex: null,
                     fabricIndex: null,
                     sourceNode: null,
@@ -877,110 +993,205 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 },
                 this.context,
             );
-        }
-    }
-
-    // ── PIN Validation ─────────────────────────────────────────────────────────
-
-    #validatePinIfRequired(pinCode: Bytes | undefined, operationType: LockOperationType) {
-        const requirePin = this.state.requirePinForRemoteOperation;
-
-        if (pinCode !== undefined) {
-            this.#validatePin(pinCode, operationType);
             return;
         }
 
-        if (requirePin) {
-            this.#emitLockOperationError(operationType, OperationError.InvalidCredential);
-            throw new StatusResponseError("PIN required for remote operation", Status.Failure);
+        this.state.lockState = LockState.Locked;
+        this.events.lockOperation.emit(
+            {
+                lockOperationType: LockOperationType.Lock,
+                operationSource: OperationSource.Auto,
+                userIndex: null,
+                fabricIndex: null,
+                sourceNode: null,
+                credentials: null,
+            },
+            this.context,
+        );
+    }
+
+    // ── Authorization ──────────────────────────────────────────────────────────
+
+    async #actuate(actuation: DoorLockBaseServer.Actuation, pinCode: Bytes | undefined) {
+        // Events of a lock operation name the requesting fabric; without one the hardware must not move
+        if (this.context.fabric === undefined) {
+            throw new StatusResponseError(
+                "Lock commands need the fabric of a remote requester",
+                Status.UnsupportedAccess,
+            );
+        }
+
+        const locking = actuation === "lock";
+        const operationType = locking ? LockOperationType.Lock : LockOperationType.Unlock;
+        const requester = this.#authorize(operationType, pinCode);
+
+        const operation: DoorLockBaseServer.LockOperation = {
+            actuation,
+            source: OperationSource.Remote,
+            userIndex: requester.user?.userIndex ?? null,
+        };
+        try {
+            await this.handleLockOperation(operation);
+        } catch (error) {
+            this.#emitLockOperationError(operationType, hardwareFailureReason(operation, error), requester);
+            throw new StatusResponseError(`Lock hardware failed to ${actuation}`, Status.Failure);
+        }
+
+        this.state.lockState = locking ? LockState.Locked : LockState.Unlocked;
+        this.#completeOperation(operationType, requester);
+    }
+
+    /**
+     * The single decision every remote lock operation passes before the lock moves.
+     *
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.15, § 5.2.6.18, § 5.2.10.1
+     */
+    #authorize(operationType: LockOperationType, pinCode: Bytes | undefined): LockRequester {
+        const { operatingMode } = this.state;
+        if (operatingMode === OperatingMode.Privacy || operatingMode === OperatingMode.NoRemoteLockUnlock) {
+            this.#emitLockOperationError(operationType, OperationError.Unspecified);
+            throw new StatusResponseError(
+                `Remote lock operations are disabled in operating mode ${OperatingMode[operatingMode]}`,
+                Status.Failure,
+            );
+        }
+
+        if (this.#isLockedOut) {
+            throw new StatusResponseError("Lock operations are ignored during the wrong code lockout", Status.Failure);
+        }
+
+        if (pinCode === undefined) {
+            if (this.state.requirePinForRemoteOperation) {
+                this.#refuseWrongCode(operationType, "PIN required for remote operation");
+            }
+            return ANONYMOUS;
+        }
+
+        const requester = this.#identifyPin(pinCode);
+        if (requester === undefined) {
+            this.#refuseWrongCode(operationType, "Invalid PIN code");
+        }
+
+        if (requester.user !== null) {
+            this.#authorizeUser(operationType, requester, requester.user);
+        }
+
+        return requester;
+    }
+
+    #authorizeUser(operationType: LockOperationType, requester: LockRequester, user: LockAuth.User) {
+        const { userIndex } = user;
+        const expired = hasExpired(user);
+        if (expired && user.userStatus !== UserStatus.OccupiedDisabled) {
+            this.#armExpiryTimer(userIndex, user.expiringUserExpiresAt);
+        }
+
+        if (user.userStatus === UserStatus.OccupiedDisabled || expired) {
+            this.#emitLockOperationError(operationType, OperationError.DisabledUserDenied, requester);
+            throw new StatusResponseError("User is disabled", Status.Failure);
+        }
+
+        if (
+            !LockSchedule.isAccessGranted(
+                user.userType,
+                userIndex,
+                this.state.weekDaySchedules,
+                this.state.yearDaySchedules,
+                LockSchedule.localInstant(Time.now),
+            )
+        ) {
+            this.#emitLockOperationError(operationType, OperationError.Restricted, requester);
+            throw new StatusResponseError("Access denied by schedule", Status.Failure);
+        }
+
+        if (user.userType === UserType.ExpiringUser && this.state.expiringUserTimeout === undefined) {
+            this.#emitLockOperationError(operationType, OperationError.Restricted, requester);
+            throw new StatusResponseError(
+                "ExpiringUser cannot be granted access without ExpiringUserTimeout",
+                Status.Failure,
+            );
+        }
+
+        if (user.userType === UserType.NonAccessUser) {
+            this.#emitLockOperation(LockOperationType.NonAccessUserEvent, requester);
+            throw new StatusResponseError("NonAccessUser cannot operate the lock", Status.Failure);
         }
     }
 
-    #validatePin(pinCode: Bytes, operationType: LockOperationType) {
-        // Check if temporarily disabled due to wrong code entries
-        if (this.state.wrongCodeEntryLimit !== undefined && this.state.userCodeTemporaryDisableTime !== undefined) {
-            if (this.internal.wrongCodeCount >= this.state.wrongCodeEntryLimit) {
-                this.#emitLockOperationError(operationType, OperationError.InvalidCredential);
-                throw new StatusResponseError("User code temporarily disabled", Status.Failure);
-            }
+    #completeOperation(operationType: LockOperationType, requester: LockRequester) {
+        const { user, credentials } = requester;
+        if (credentials !== null) {
+            this.internal.wrongCodeCount = 0;
         }
 
-        // Search all PIN credentials for a match
+        if (user?.userType === UserType.ForcedUser) {
+            this.#emitLockOperation(LockOperationType.ForcedUserEvent, requester);
+            this.events.doorLockAlarm.emit({ alarmCode: AlarmCode.ForcedUser }, this.context);
+        } else {
+            this.#emitLockOperation(operationType, requester);
+        }
+
+        if (user === null) {
+            return;
+        }
+
+        // A DisposableUser may open the lock once; locking does not use that up
+        if (user.userType === UserType.DisposableUser && operationType === LockOperationType.Unlock) {
+            this.#disableUser(this.auth, user.userIndex, user);
+        }
+        this.#armExpiringUserOnFirstUse(this.auth, user.userIndex, user);
+    }
+
+    #identifyPin(pinCode: Bytes): LockRequester | undefined {
         const auth = this.auth;
         for (const cred of auth.credentials) {
-            if (cred.credentialType !== CredentialType.Pin) {
+            if (
+                cred.credentialType !== CredentialType.Pin ||
+                !Bytes.areEqual(auth.decrypt(cred.credentialData), pinCode)
+            ) {
                 continue;
             }
 
-            const decrypted = auth.decrypt(cred.credentialData);
-            if (Bytes.areEqual(decrypted, pinCode)) {
-                const userIndex = auth.findUserIndexForCredential(CredentialType.Pin, cred.credentialIndex);
-                if (userIndex !== null) {
-                    const user = auth.findUser(userIndex);
-                    if (user) {
-                        const expired = hasExpired(user);
-                        if (expired && user.userStatus !== UserStatus.OccupiedDisabled) {
-                            this.#armExpiryTimer(userIndex, user.expiringUserExpiresAt);
-                        }
-
-                        if (user.userStatus === UserStatus.OccupiedDisabled || expired) {
-                            this.#emitLockOperationError(operationType, OperationError.DisabledUserDenied);
-                            throw new StatusResponseError("User is disabled", Status.Failure);
-                        }
-
-                        if (
-                            !LockSchedule.isAccessGranted(
-                                user.userType,
-                                userIndex,
-                                this.state.weekDaySchedules,
-                                this.state.yearDaySchedules,
-                                LockSchedule.localInstant(Time.now),
-                            )
-                        ) {
-                            this.#emitLockOperationError(operationType, OperationError.Restricted);
-                            throw new StatusResponseError("Access denied by schedule", Status.Failure);
-                        }
-
-                        if (user.userType === UserType.ExpiringUser && this.state.expiringUserTimeout === undefined) {
-                            this.#emitLockOperationError(operationType, OperationError.Restricted);
-                            throw new StatusResponseError(
-                                "ExpiringUser cannot be granted access without ExpiringUserTimeout",
-                                Status.Failure,
-                            );
-                        }
-
-                        this.#armExpiringUserOnFirstUse(auth, userIndex, user);
-                    }
-                }
-
-                // Reset wrong code count on success
-                this.internal.wrongCodeCount = 0;
-                return;
-            }
+            const userIndex = auth.findUserIndexForCredential(CredentialType.Pin, cred.credentialIndex);
+            return {
+                user: (userIndex === null ? undefined : auth.findUser(userIndex)) ?? null,
+                credentials: [{ credentialType: CredentialType.Pin, credentialIndex: cred.credentialIndex }],
+            };
         }
+    }
 
-        // No match found — wrong code
-        const wrongCount = ++this.internal.wrongCodeCount;
-
-        if (this.state.wrongCodeEntryLimit !== undefined && wrongCount >= this.state.wrongCodeEntryLimit) {
+    /**
+     * Counts a wrong or missing code and starts the lockout once {@link State.wrongCodeEntryLimit} is reached; both
+     * lockout attributes must be set for either to happen.
+     *
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.32, § 5.2.9.33, § 5.2.10.1.1
+     */
+    #refuseWrongCode(operationType: LockOperationType, message: string): never {
+        const { wrongCodeEntryLimit, userCodeTemporaryDisableTime } = this.state;
+        const { internal } = this;
+        if (
+            wrongCodeEntryLimit !== undefined &&
+            userCodeTemporaryDisableTime !== undefined &&
+            ++internal.wrongCodeCount >= wrongCodeEntryLimit
+        ) {
+            internal.wrongCodeCount = 0;
+            internal.lockoutEndsAt = Timestamp(Time.nowUs + Seconds(userCodeTemporaryDisableTime));
             this.events.doorLockAlarm.emit({ alarmCode: AlarmCode.WrongCodeEntryLimit }, this.context);
-
-            if (this.state.userCodeTemporaryDisableTime !== undefined) {
-                Time.getTimer(
-                    "wrong-code-disable",
-                    Seconds(this.state.userCodeTemporaryDisableTime),
-                    this.callback(
-                        () => {
-                            this.internal.wrongCodeCount = 0;
-                        },
-                        { lock: true },
-                    ),
-                ).start();
-            }
         }
 
         this.#emitLockOperationError(operationType, OperationError.InvalidCredential);
-        throw new StatusResponseError("Invalid PIN code", Status.Failure);
+        throw new StatusResponseError(message, Status.Failure);
+    }
+
+    get #isLockedOut() {
+        const { lockoutEndsAt } = this.internal;
+        return lockoutEndsAt !== undefined && Time.nowUs < lockoutEndsAt;
+    }
+
+    #assertOperatingModeSupported(operatingMode: OperatingMode) {
+        if (!isOperatingModeSupported(this.state.supportedOperatingModes, operatingMode)) {
+            throw new StatusResponseError(unsupportedOperatingMode(operatingMode), Status.ConstraintError);
+        }
     }
 
     // ── ExpiringUser Timeout (spec § 5.2.6.18.8) ─────────────────────────────────
@@ -1047,6 +1258,10 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             return;
         }
 
+        this.#disableUser(auth, userIndex, user);
+    }
+
+    #disableUser(auth: LockAuth.Store, userIndex: number, user: LockAuth.User) {
         auth.replaceUser(userIndex, { ...user, userStatus: UserStatus.OccupiedDisabled });
 
         this.events.lockUserChange.emit(
@@ -1057,7 +1272,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 userIndex,
                 fabricIndex: null,
                 sourceNode: null,
-                dataIndex: null,
+                dataIndex: userIndex,
             },
             this.context,
         );
@@ -1065,28 +1280,12 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
 
     // ── Event Emission ─────────────────────────────────────────────────────────
 
-    #emitLockOperation(operationType: LockOperationType, pinCode?: Bytes) {
-        let userIndex: number | null = null;
-        let credentials: DoorLock.Credential[] | null = null;
-
-        if (pinCode !== undefined) {
-            const auth = this.auth;
-            for (const cred of auth.credentials) {
-                if (cred.credentialType !== CredentialType.Pin) continue;
-                const decrypted = auth.decrypt(cred.credentialData);
-                if (Bytes.areEqual(decrypted, pinCode)) {
-                    userIndex = auth.findUserIndexForCredential(CredentialType.Pin, cred.credentialIndex);
-                    credentials = [{ credentialType: CredentialType.Pin, credentialIndex: cred.credentialIndex }];
-                    break;
-                }
-            }
-        }
-
+    #emitLockOperation(operationType: LockOperationType, { user, credentials }: LockRequester) {
         this.events.lockOperation.emit(
             {
                 lockOperationType: operationType,
                 operationSource: OperationSource.Remote,
-                userIndex,
+                userIndex: user?.userIndex ?? null,
                 fabricIndex: this.#fabricIndex,
                 sourceNode: this.#sourceNode,
                 credentials,
@@ -1095,16 +1294,20 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         );
     }
 
-    #emitLockOperationError(operationType: LockOperationType, error: OperationError) {
+    #emitLockOperationError(
+        operationType: LockOperationType,
+        error: OperationError,
+        { user, credentials }: LockRequester = ANONYMOUS,
+    ) {
         this.events.lockOperationError.emit(
             {
                 lockOperationType: operationType,
                 operationSource: OperationSource.Remote,
                 operationError: error,
-                userIndex: null,
+                userIndex: user?.userIndex ?? null,
                 fabricIndex: this.#fabricIndex,
                 sourceNode: this.#sourceNode,
-                credentials: null,
+                credentials,
             },
             this.context,
         );
@@ -1254,7 +1457,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         this.#emitLockUserChange(
             LockAuth.credentialTypeToLockDataType(type),
             DataOperationType.Clear,
-            null,
+            0xfffe,
             fabricIndex,
             0xfffe,
         );
@@ -1312,6 +1515,20 @@ for (const fieldName of ["yearDayIndex", "userIndex"]) {
 Supervision(DoorLockBaseServer, "getHolidaySchedule", "holidayIndex").constraint = false;
 
 export namespace DoorLockBaseServer {
+    /** The movement a lock operation asks of the hardware; "unbolt" retracts the bolt without pulling the latch */
+    export type Actuation = "lock" | "unlock" | "unbolt";
+
+    /** A lock operation {@link DoorLockBaseServer.handleLockOperation} carries out */
+    export interface LockOperation {
+        actuation: Actuation;
+
+        /** `Remote` for a command, `Auto` for auto-relock */
+        source: DoorLock.OperationSource;
+
+        /** The user the PIN of a remote operation identifies */
+        userIndex: number | null;
+    }
+
     export class State extends DoorLockBaseServerClass.State {
         /**
          * Internal user database.
@@ -1352,10 +1569,16 @@ export namespace DoorLockBaseServer {
 
     export class Internal {
         wrongCodeCount = 0;
+        lockoutEndsAt?: Timestamp;
         autoRelockTimer?: Timer;
         expiryTimers = new Map<number, Timer>();
         expireUser?: (userIndex: number) => void;
+        autoRelock?: (timer: Timer) => void;
     }
+
+    export declare const ExtensionInterface: {
+        handleLockOperation(operation: LockOperation): MaybePromise;
+    };
 }
 
 /**
@@ -1366,4 +1589,29 @@ export class DoorLockServer extends DoorLockBaseServer.with() {}
 function hasExpired(user: LockAuth.User): user is LockAuth.User & { expiringUserExpiresAt: Timestamp } {
     const { userType, expiringUserExpiresAt } = user;
     return userType === UserType.ExpiringUser && expiringUserExpiresAt != null && expiringUserExpiresAt <= Time.nowMs;
+}
+
+/** A set bit marks the mode as not supported (§ 5.2.9.25) */
+function isOperatingModeSupported(supported: DoorLock.OperatingModes, mode: OperatingMode) {
+    return !supported[OPERATING_MODE_BITS[mode]];
+}
+
+function hardwareFailureReason({ actuation, source }: DoorLockBaseServer.LockOperation, error: unknown) {
+    if (!(error instanceof LockOperationFailedError)) {
+        logger.warn(`Lock hardware failed to ${actuation}:`, error);
+        return OperationError.Unspecified;
+    }
+
+    // A failed relock leaves the door unlocked until someone acts; a remote peer can repeat its refused command
+    const message = `Lock hardware could not ${actuation}: ${error.message}`;
+    if (source === OperationSource.Auto) {
+        logger.notice(message);
+    } else {
+        logger.info(message);
+    }
+    return error.reason;
+}
+
+function unsupportedOperatingMode(mode: OperatingMode) {
+    return `OperatingMode ${OperatingMode[mode]} is marked unsupported (bit set) in SupportedOperatingModes`;
 }
