@@ -59,6 +59,10 @@ export class BehaviorTimer implements Timer {
         return this.#timer.interval;
     }
 
+    set interval(interval: Duration) {
+        this.#timer.interval = interval;
+    }
+
     get isPeriodic() {
         return this.#timer.isPeriodic;
     }

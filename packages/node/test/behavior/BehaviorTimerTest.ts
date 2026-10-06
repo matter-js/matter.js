@@ -111,6 +111,19 @@ describe("Behavior timers", () => {
         expect(reactions).deep.equals([1, 2]);
     });
 
+    it("use an interval changed before the next start", async () => {
+        await using endpoint = await createEndpoint();
+        const timer = await timerOf(endpoint);
+
+        timer.interval = Millis(3000);
+        timer.start();
+        await MockTime.advance(2999);
+        expect(reactions).deep.equals([]);
+
+        await MockTime.advance(1);
+        expect(reactions).deep.equals([1]);
+    });
+
     it("react at each interval while periodic", async () => {
         await using endpoint = await createEndpoint();
         const timer = await periodicTimerOf(endpoint);
