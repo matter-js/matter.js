@@ -12,7 +12,7 @@ import { Read } from "#action/request/Read.js";
 import { Write } from "#action/request/Write.js";
 import { BleDisconnectedError } from "#ble/Ble.js";
 import { Certificate } from "#certificate/kinds/Certificate.js";
-import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
+import { PeerMessageMissingError, PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import { OperationalDataset } from "#thread/OperationalDataset.js";
 import {
     asError,
@@ -294,11 +294,11 @@ const BTP_IDLE_ALIVE_INTERVAL = Seconds(25);
 /** Expected maximum time for CASE session establishment over the operational network. */
 const CASE_RECONNECT_TIMEOUT = Minutes(5);
 
-/**
- * Send/retry slack added on top of the operation's own max wait when sizing the failsafe. Bounds the MRP worst-case
- * round-trip, which for an idle ICD peer (huge advertised idle interval) can otherwise exceed the uint16 armFailSafe field.
- */
+/** Failsafe left after the wait for a response ends. */
 const FAILSAFE_PROCESSING_MARGIN = Seconds(10);
+
+/** Most MRP send time counted into the wait for a response when sizing the failsafe. */
+const FAILSAFE_MAX_SEND_TIME = Seconds(10);
 
 /** Devices may report very low scan/connect timeouts that are not enough in practice */
 const MIN_NETWORK_SCAN_TIMEOUT_SECONDS = 60;
@@ -893,12 +893,14 @@ export class ControllerCommissioningFlow {
     }
 
     async #ensureFailsafeTimerFor(maxProcessingTime: Duration) {
-        // We never wait longer than maxProcessingTime for the operation, so the failsafe only needs to outlive that
-        // plus send slack. The raw MRP worst-case can be far larger for an idle ICD peer and would overflow uint16.
-        const minFailsafeTime = Duration.min(
+        // The failsafe must outlive our wait for the response.  The MRP worst case of an idle ICD peer would arm the
+        // device's maximum, which a failed commissioning leaves the device locked in, so send time counts only up to
+        // FAILSAFE_MAX_SEND_TIME.
+        const responseWait = Duration.min(
             this.interaction.maximumPeerResponseTime(maxProcessingTime, true),
-            Millis(maxProcessingTime + FAILSAFE_PROCESSING_MARGIN),
+            Millis(maxProcessingTime + FAILSAFE_MAX_SEND_TIME),
         );
+        const minFailsafeTime = Millis(responseWait + FAILSAFE_PROCESSING_MARGIN);
 
         if (this.interaction.channelType === ChannelType.BLE) {
             this.#armFailsafeInterval?.stop();
@@ -920,11 +922,13 @@ export class ControllerCommissioningFlow {
                         logger.debug(
                             `Re-Arm Failsafe Timer during longer actions with device. Time left: ${Duration.format(Timespan(now, this.#commissioningExpiryTime).duration)}`,
                         );
-                        this.#armFailsafe().catch(error => {
-                            logger.info("Error while re-arming failsafe during reconnect", error);
-                            this.#armFailsafeInterval?.stop();
-                            this.#armFailsafeInterval = undefined;
-                        });
+                        this.#armFailsafe(Duration.max(this.#defaultFailSafeTime, this.#failSafeTimeLeft)).catch(
+                            error => {
+                                logger.warn("Error while re-arming failsafe during reconnect", error);
+                                this.#armFailsafeInterval?.stop();
+                                this.#armFailsafeInterval = undefined;
+                            },
+                        );
                     } else {
                         // Stop as soon as we are over the maximum commissioning time
                         this.#armFailsafeInterval?.stop();
@@ -1631,9 +1635,10 @@ export class ControllerCommissioningFlow {
         // Only Scan when the device supports concurrent connections
         let wifiScanFailureHint: string | undefined;
         if (this.collectedCommissioningData.supportsConcurrentConnection !== false) {
-            await this.#ensureFailsafeTimerFor(Seconds(scanMaxTimeSeconds));
-
-            const scan = await this.#scanNetworks({ ssid, breadcrumb: this.lastBreadcrumb++ }, scanMaxTimeSeconds);
+            const scan = await this.#scanNetworks(
+                { ssid, breadcrumb: this.lastBreadcrumb++ },
+                Seconds(scanMaxTimeSeconds),
+            );
 
             if (typeof scan === "string") {
                 wifiScanFailureHint = `scan failed: ${scan}`;
@@ -1818,9 +1823,7 @@ export class ControllerCommissioningFlow {
             logger.info("Thread network name is not configured. Skip scanning for it.");
         } else if (this.collectedCommissioningData.supportsConcurrentConnection !== false) {
             // Only Scan when the device supports concurrent connections
-            await this.#ensureFailsafeTimerFor(Seconds(scanMaxTimeSeconds));
-
-            const scan = await this.#scanNetworks({ breadcrumb: this.lastBreadcrumb++ }, scanMaxTimeSeconds);
+            const scan = await this.#scanNetworks({ breadcrumb: this.lastBreadcrumb++ }, Seconds(scanMaxTimeSeconds));
 
             if (typeof scan === "string") {
                 threadScanFailureHint = `scan failed: ${scan}`;
@@ -1955,24 +1958,33 @@ export class ControllerCommissioningFlow {
 
     /**
      * Invokes ScanNetworks on the root endpoint.  The scan result only feeds diagnostic hints into later network setup
-     * errors, so a device rejecting the command with an Interaction Model status, or answering without a
-     * ScanNetworksResponse, does not abort commissioning, as with the CHIP SDK commissioner.
+     * errors, so as with the CHIP SDK commissioner a failed scan does not abort commissioning: the device rejecting the
+     * command with an Interaction Model status, answering without a ScanNetworksResponse, or not answering in time.
+     * Any other failure is rethrown.
      *
      * @returns the ScanNetworksResponse, or a description of why there is none
      */
     async #scanNetworks(
         fields: NetworkCommissioning.ScanNetworksRequest,
-        scanMaxTimeSeconds: number,
+        scanTime: Duration,
     ): Promise<NetworkCommissioning.ScanNetworksResponse | string> {
+        await this.#ensureFailsafeTimerFor(scanTime);
+
         let response: NetworkCommissioning.ScanNetworksResponse | undefined;
         try {
             response = await this.#invokeCommand(
                 { endpoint: RootEndpointNumber, cluster: NetworkCommissioning, command: "scanNetworks", fields },
-                { expectedProcessingTime: Seconds(scanMaxTimeSeconds) },
+                { expectedProcessingTime: scanTime },
             );
         } catch (error) {
-            StatusResponseError.accept(error);
-            return error.message;
+            if (error instanceof StatusResponseError) {
+                return error.message;
+            }
+            const missingResponse = PeerMessageMissingError.of(error);
+            if (missingResponse !== undefined) {
+                return missingResponse.message;
+            }
+            throw error;
         }
         return response ?? "no ScanNetworksResponse received";
     }

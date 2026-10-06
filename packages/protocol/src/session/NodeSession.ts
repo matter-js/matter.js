@@ -58,6 +58,7 @@ export class NodeSession extends SecureSession {
     #caseAuthenticatedTags: readonly CaseAuthenticatedTag[];
     readonly supportsMRP = true;
     readonly type = SessionType.Unicast;
+    readonly #suppressPeerLoss: boolean;
     readonly #closedByPeer = AsyncObservableValue();
     #rolloverCloseTimer?: Timer;
     readonly #rolloverClose = new Mutex(this);
@@ -108,6 +109,7 @@ export class NodeSession extends SecureSession {
             caseAuthenticatedTags,
             isInitiator,
             delayManagerRegistration,
+            suppressPeerLoss = false,
         } = config;
 
         super({
@@ -120,6 +122,7 @@ export class NodeSession extends SecureSession {
 
         this.#crypto = crypto;
         this.#id = id;
+        this.#suppressPeerLoss = suppressPeerLoss;
         this.#fabric = fabric;
         this.#peerNodeId = peerNodeId;
         this.#peerSessionId = peerSessionId;
@@ -299,6 +302,10 @@ export class NodeSession extends SecureSession {
         await this.initiateForceClose(context);
     }
 
+    override get suppressPeerLoss() {
+        return this.#suppressPeerLoss;
+    }
+
     get isPeerLost() {
         return this.#isPeerLost;
     }
@@ -446,6 +453,9 @@ export namespace NodeSession {
         peerNodeId: NodeId;
         peerSessionId: number;
         caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
+
+        /** @see {@link NodeSession.suppressPeerLoss} */
+        suppressPeerLoss?: boolean;
     }
 
     export interface Config extends CommonConfig {
