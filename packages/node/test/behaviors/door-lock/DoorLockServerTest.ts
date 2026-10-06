@@ -970,6 +970,28 @@ describe("DoorLockServer", () => {
         });
     });
 
+    describe("auto relock (spec § 5.2.9.22)", () => {
+        it("relocks once AutoRelockTime has passed since the latest unlock", async () => {
+            await using lock = await setUpScheduledLock({
+                autoRelockTime: 5,
+                users: [scheduledUser(UserType.UnrestrictedUser)],
+            });
+            await unlockScheduled(lock);
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Unlocked);
+
+            await MockTime.advance(Seconds(3));
+            await unlockScheduled(lock);
+
+            await MockTime.advance(Seconds(3));
+            await settled(lock.device);
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Unlocked);
+
+            await MockTime.advance(Seconds(3));
+            await settled(lock.device);
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Locked);
+        });
+    });
+
     describe("ExpiringUser timeout (spec § 5.2.6.18.8)", () => {
         it("keeps granting access before the timeout elapses", async () => {
             await using lock = await setUpScheduledLock({
