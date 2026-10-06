@@ -8,7 +8,7 @@ import { BleDisconnectedError } from "#ble/Ble.js";
 import { MatterBle } from "#ble/BleConsts.js";
 import { BtpFlowError, BtpProtocolError, BtpSessionHandler } from "#ble/BtpSessionHandler.js";
 import { BtpCodec } from "#codec/BtpCodec.js";
-import { Bytes, createPromise } from "@matter/general";
+import { Bytes, createPromise, ImplementationError } from "@matter/general";
 
 describe("BtpSessionHandler", () => {
     before(MockTime.enable);
@@ -496,30 +496,32 @@ describe("BtpSessionHandler", () => {
             }
         });
 
-        it("write failure during sendMatterMessage does not cause unhandled rejection and resets sendInProgress", async () => {
-            const { promise: secondWritePromise, resolver: secondWriteResolver } = createPromise<Bytes>();
-
-            let callCount = 0;
-            onWriteBleCallback = async (data: Bytes) => {
-                callCount++;
-                if (callCount === 1) {
-                    throw new BleDisconnectedError("Disconnected 19");
-                }
-                secondWriteResolver(data);
+        it("closes the session without raising when a data write fails because BLE disconnected", async () => {
+            let writes = 0;
+            onWriteBleCallback = async () => {
+                writes++;
+                throw new BleDisconnectedError("Disconnected 19");
             };
+            let disconnects = 0;
+            onDisconnectBleCallback = async () => {
+                disconnects++;
+            };
+            let closed = 0;
+            btpSessionHandler!.closed.on(() => {
+                closed++;
+            });
 
-            // First send: write fails internally, sendMatterMessage must not throw
             await btpSessionHandler!.sendMatterMessage(Bytes.fromHex("090807060504030201"));
 
-            // Second send: queue was cleared on failure so this message can be sent cleanly;
-            // it also proves sendInProgress was reset
-            await btpSessionHandler!.sendMatterMessage(Bytes.fromHex("0102030405060708"));
-
-            const result = await secondWritePromise;
-            expect(result).to.exist;
+            expect(closed).equal(1);
+            expect(disconnects).equal(1);
+            await expect(btpSessionHandler!.sendMatterMessage(Bytes.fromHex("0102030405060708"))).rejectedWith(
+                BtpFlowError,
+            );
+            expect(writes).equal(1);
         });
 
-        it("write failure during sendAckTimer does not cause unhandled rejection and does not advance prevAckedSequenceNumber", async () => {
+        it("closes the session without raising when a stand-alone ack write fails because BLE disconnected", async () => {
             const segmentPayload = Bytes.fromHex("010203040506070809");
             const incomingMsg = BtpCodec.encodeBtpPacket({
                 header: {
@@ -543,29 +545,24 @@ describe("BtpSessionHandler", () => {
                 handleResolver();
             };
 
-            let writeCount = 0;
-            const { promise: finalWritePromise, resolver: finalWriteResolver } = createPromise<Bytes>();
-            onWriteBleCallback = async (data: Bytes) => {
-                writeCount++;
-                if (writeCount === 1) {
-                    throw new BleDisconnectedError("Disconnected 19");
-                } // ACK timer write fails
-                finalWriteResolver(data);
+            let writes = 0;
+            onWriteBleCallback = async () => {
+                writes++;
+                throw new BleDisconnectedError("Disconnected 19");
             };
+            const { promise: closedPromise, resolver: closedResolver } = createPromise<void>();
+            btpSessionHandler!.closed.once(() => closedResolver());
 
             await btpSessionHandler!.handleIncomingBleData(incomingMsg);
             await handlePromise;
 
-            // Advance time to trigger the sendAckTimer – write fails, must not throw
             await MockTime.advance(MatterBle.BTP_SEND_ACK_TIMEOUT);
+            await closedPromise;
 
-            // Now send a Matter message; since prevAckedSequenceNumber was NOT advanced by the
-            // failed ACK write, the outgoing packet must still carry the pending hasAckNumber flag
-            await btpSessionHandler!.sendMatterMessage(Bytes.fromHex("090807060504030201"));
-
-            const packet = await finalWritePromise;
-            const decoded = BtpCodec.decodeBtpPacket(packet);
-            expect(decoded.header.hasAckNumber).to.equal(true);
+            expect(writes).equal(1);
+            await expect(btpSessionHandler!.sendMatterMessage(Bytes.fromHex("090807060504030201"))).rejectedWith(
+                BtpFlowError,
+            );
         });
     });
 
@@ -849,41 +846,61 @@ describe("BtpSessionHandler", () => {
             await peripheral.close();
         });
 
-        // A non-disconnect write error must re-raise but still roll back send state, so the session is not
-        // left wedged (sendInProgress stuck, queue half-applied).
-        it("re-raises a non-disconnect write error and resets send state", async () => {
-            let failNextWrite = true;
-            const writes = new Array<Bytes>();
+        it("closes the session and re-raises a non-disconnect write error", async () => {
+            let writes = 0;
+            let disconnects = 0;
             const central = await BtpSessionHandler.createAsCentral(
                 Bytes.fromHex("656c04f40005"), // window size 5
-                async data => {
-                    if (failNextWrite) {
-                        failNextWrite = false;
-                        throw new Error("boom");
-                    }
-                    writes.push(data);
+                async () => {
+                    writes++;
+                    throw new Error("boom");
                 },
-                async () => {},
+                async () => {
+                    disconnects++;
+                },
                 async () => {
                     throw new Error("Should not be called");
                 },
                 MatterBle.MAXIMUM_BTP_MTU,
             );
 
-            let raised: unknown;
-            try {
-                await central.sendMatterMessage(Bytes.fromHex("0102"));
-            } catch (error) {
-                raised = error;
+            await expect(central.sendMatterMessage(Bytes.fromHex("0102"))).rejectedWith("boom");
+            expect(disconnects).equal(1);
+
+            await expect(central.sendMatterMessage(Bytes.fromHex("0304"))).rejectedWith(BtpFlowError);
+            expect(writes).equal(1);
+        });
+
+        it("still raises the write error when closing after it fails as well", async () => {
+            const central = await BtpSessionHandler.createAsCentral(
+                Bytes.fromHex("656c04f40005"),
+                async () => {
+                    throw new Error("boom");
+                },
+                async () => {
+                    throw new Error("disconnect failed");
+                },
+                async () => {
+                    throw new Error("Should not be called");
+                },
+                MatterBle.MAXIMUM_BTP_MTU,
+            );
+
+            await expect(central.sendMatterMessage(Bytes.fromHex("0102"))).rejectedWith("boom");
+        });
+
+        it("rejects a requested segment size that is not an integer or below the minimum", async () => {
+            for (const requestedSegmentSize of [Number.NaN, MatterBle.MINIMUM_ATT_MTU - 1]) {
+                await expect(
+                    BtpSessionHandler.createAsCentral(
+                        Bytes.fromHex("656c04f40005"),
+                        async () => {},
+                        async () => {},
+                        async () => {},
+                        requestedSegmentSize,
+                    ),
+                ).rejectedWith(ImplementationError);
             }
-            expect(raised).instanceOf(Error);
-            expect((raised as Error).message).equal("boom");
-
-            // sendInProgress was reset, so a subsequent send proceeds and succeeds.
-            await central.sendMatterMessage(Bytes.fromHex("0304"));
-            expect(writes.length).equal(1);
-
-            await central.close();
         });
 
         // Regression: a stand-alone ack whose write is still in flight must not let a concurrent data send
@@ -1218,6 +1235,132 @@ describe("BtpSessionHandler", () => {
             central.closed.on(() => closedResolver());
 
             await central.sendMatterMessage(Bytes.fromHex("0102030405"));
+            await MockTime.advance(15000);
+            await closedPromise;
+
+            expect(stalled).equal(0);
+            expect(disconnected.value).equal(true);
+        });
+
+        it("closes on a failed write and never replays its message later", async () => {
+            let writes = 0;
+            const central = await BtpSessionHandler.createAsCentral(
+                BtpCodec.encodeBtpHandshakeResponse({ version: 4, attMtu: 244, windowSize: 8 }),
+                async () => {
+                    // The first write succeeds and arms the acknowledgement timer that would report the stall
+                    if (++writes > 1) {
+                        throw new Error("boom");
+                    }
+                },
+                async () => {},
+                async () => {
+                    throw new Error("Should not be called");
+                },
+                MatterBle.MAXIMUM_BTP_MTU,
+            );
+
+            let stalled = 0;
+            central.stalledAfterHandshake.on(() => {
+                stalled++;
+            });
+            let closed = 0;
+            central.closed.on(() => {
+                closed++;
+            });
+
+            await central.sendMatterMessage(Bytes.fromHex("0102030405"));
+            await expect(central.sendMatterMessage(Bytes.fromHex("060708"))).rejectedWith("boom");
+            expect(closed).equal(1);
+
+            await MockTime.advance(15000);
+
+            expect(stalled).equal(0);
+        });
+
+        it("sends no acknowledgement for a message whose handler closed the session", async () => {
+            const writes = new Array<Bytes>();
+            let central: BtpSessionHandler | undefined = undefined;
+            // A window of 3 runs low with the first received packet, so an acknowledgement would follow at once
+            central = await BtpSessionHandler.createAsCentral(
+                BtpCodec.encodeBtpHandshakeResponse({ version: 4, attMtu: 244, windowSize: 3 }),
+                async data => {
+                    writes.push(data);
+                },
+                async () => {},
+                async () => {
+                    await central?.close();
+                },
+                MatterBle.MAXIMUM_BTP_MTU,
+            );
+
+            const segmentPayload = Bytes.fromHex("0102");
+            await central.handleIncomingBleData(
+                BtpCodec.encodeBtpPacket({
+                    header: {
+                        isHandshakeRequest: false,
+                        hasManagementOpcode: false,
+                        hasAckNumber: false,
+                        isEndingSegment: true,
+                        isContinuingSegment: false,
+                        isBeginningSegment: true,
+                    },
+                    payload: {
+                        sequenceNumber: 1,
+                        messageLength: segmentPayload.byteLength,
+                        segmentPayload,
+                    },
+                }),
+            );
+
+            expect(writes.length).equal(0);
+        });
+
+        it("writes nothing more once the session closes while a stand-alone ack is being written", async () => {
+            const writes = new Array<Bytes>();
+            const { promise: ackWriting, resolver: ackWritingResolver } = createPromise<void>();
+            const { promise: ackWritten, resolver: ackWrittenResolver } = createPromise<void>();
+            const central = await BtpSessionHandler.createAsCentral(
+                BtpCodec.encodeBtpHandshakeResponse({ version: 4, attMtu: 244, windowSize: 8 }),
+                async data => {
+                    writes.push(data);
+                    if (writes.length === 1) {
+                        ackWritingResolver();
+                        await ackWritten;
+                    }
+                },
+                async () => {},
+                async () => {},
+                MatterBle.MAXIMUM_BTP_MTU,
+            );
+
+            await MockTime.advance(MatterBle.BTP_SEND_ACK_TIMEOUT);
+            await ackWriting;
+            // Queued behind the in-flight ack
+            await central.sendMatterMessage(Bytes.fromHex("0102030405"));
+            await central.close();
+
+            ackWrittenResolver();
+            await MockTime.macrotask;
+
+            expect(writes.length).equal(1);
+            expect(MockTime.timerCountFor("BTP ack timeout")).equal(0);
+        });
+
+        it("closes instead of reporting a stall when only a stand-alone ack went unanswered", async () => {
+            const written = new Array<Bytes>();
+            const disconnected = { value: false };
+            const central = await centralFor(244, written, disconnected);
+
+            let stalled = 0;
+            central.stalledAfterHandshake.on(() => {
+                stalled++;
+            });
+            const { promise: closedPromise, resolver: closedResolver } = createPromise<void>();
+            central.closed.once(() => closedResolver());
+
+            await MockTime.advance(MatterBle.BTP_SEND_ACK_TIMEOUT);
+            expect(written.length).equal(1);
+
             await MockTime.advance(15000);
             await closedPromise;
 

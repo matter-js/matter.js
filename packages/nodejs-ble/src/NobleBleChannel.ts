@@ -5,6 +5,7 @@
  */
 
 import {
+    Abort,
     Bytes,
     Channel,
     ChannelType,
@@ -30,7 +31,10 @@ import { nobleDisconnectReason } from "./NobleBleClient.js";
 
 const logger = Logger.get("BleChannel");
 
-/** noble waits for a disconnect event that a vanished peripheral never sends, so the wait needs its own bound. */
+/**
+ * noble waits for a disconnect or unsubscribe confirmation that a vanished peripheral never sends, so those waits need
+ * their own bound.
+ */
 const BLE_DISCONNECT_TIMEOUT = Seconds(5);
 
 /** How long to wait for a pending ATT_MTU exchange before deriving the BTP segment size without it. */
@@ -547,7 +551,7 @@ async function attMtuOf(peripheral: Peripheral) {
 }
 
 /**
- * Unsubscribe from C2, which is how a GATT client closes a BTP session (§4.19.3.3). Bounded because noble leaves the
+ * Unsubscribe from C2, which is how a GATT client closes a BTP session (§4.19.4.10). Bounded because noble leaves the
  * operation pending when the peripheral has vanished without a disconnect event.
  */
 async function unsubscribeC2(
@@ -578,22 +582,19 @@ async function performBtpHandshake(
     abort?: AbortSignal,
 ): Promise<Bytes> {
     const { address: peripheralAddress } = peripheral;
-    if (abort?.aborted) {
-        throw new AbortedError(`Peripheral ${peripheralAddress}: BTP handshake was aborted`);
-    }
 
-    const {
-        promise: handshakeResponseReceivedPromise,
-        resolver: handshakeResolver,
-        rejecter: handshakeRejecter,
-    } = createPromise<Buffer>();
+    // Every await below must end on abort or timeout: noble can leave a GATT operation pending forever
+    using handshake = new Abort({ abort });
+    const handshakeTimeout = Time.getTimer("BLE handshake timeout", MatterBle.BTP_CONN_RSP_TIMEOUT, () =>
+        handshake.abort(),
+    ).start();
 
+    const { promise: handshakeResponseReceived, resolver: handshakeResolver } = createPromise<Buffer>();
     const handshakeHandler = (data: Buffer, isNotification: boolean) => {
         if (BtpCodec.isHandshakeResponse(data)) {
             logger.info(
                 `Peripheral ${peripheralAddress}: Received Matter handshake response: ${data.toString("hex")}.`,
             );
-            btpHandshakeTimeout.stop();
             handshakeResolver(data);
         } else {
             logger.debug(
@@ -601,23 +602,6 @@ async function performBtpHandshake(
             );
         }
     };
-
-    const btpHandshakeTimeout = Time.getTimer("BLE handshake timeout", MatterBle.BTP_CONN_RSP_TIMEOUT, async () => {
-        logger.debug(`Peripheral ${peripheralAddress}: Handshake Response not received. Disconnect from peripheral`);
-
-        // Reject before unsubscribing: the caller's bound must not depend on an unsubscribe that can hang
-        handshakeRejecter(new BleError(`Peripheral ${peripheralAddress}: Handshake Response not received`));
-
-        if (peripheral.state === "connected") {
-            await unsubscribeC2(peripheral, characteristicC2ForSubscribe);
-        }
-    }).start();
-
-    const onAbort = () => {
-        btpHandshakeTimeout.stop();
-        handshakeRejecter(new AbortedError(`Peripheral ${peripheralAddress}: BTP handshake was aborted`));
-    };
-    abort?.addEventListener("abort", onAbort, { once: true });
 
     const btpHandshakeRequest = BtpCodec.encodeBtpHandshakeRequest({
         versions: MatterBle.BTP_SUPPORTED_VERSIONS,
@@ -630,26 +614,39 @@ async function performBtpHandshake(
     );
 
     try {
-        await characteristicC1ForWrite.writeAsync(Buffer.from(Bytes.of(btpHandshakeRequest)), false);
+        handshake.throwIfAborted();
+        await handshake.attempt(characteristicC1ForWrite.writeAsync(Buffer.from(Bytes.of(btpHandshakeRequest)), false));
 
         characteristicC2ForSubscribe.on("data", handshakeHandler);
 
         logger.debug(`Peripheral ${peripheralAddress}: Subscribing to C2 characteristic`);
-        // Awaited together: a subscribe noble leaves pending must not strand the handshake rejection
-        const [, response] = await Promise.all([
-            characteristicC2ForSubscribe.subscribeAsync(),
-            handshakeResponseReceivedPromise,
-        ]);
+        const [, response] = await handshake.attempt(
+            Promise.all([characteristicC2ForSubscribe.subscribeAsync(), handshakeResponseReceived]),
+        );
 
         return new Uint8Array(response);
     } catch (error) {
-        btpHandshakeTimeout.stop();
+        if (abort?.aborted) {
+            throw new AbortedError(`Peripheral ${peripheralAddress}: BTP handshake was aborted`, { cause: error });
+        }
+        if (handshake.aborted) {
+            logger.debug(
+                `Peripheral ${peripheralAddress}: Handshake Response not received. Disconnect from peripheral`,
+            );
+            if (peripheral.state === "connected") {
+                await Abort.race(abort, unsubscribeC2(peripheral, characteristicC2ForSubscribe));
+            }
+            if (abort?.aborted) {
+                throw new AbortedError(`Peripheral ${peripheralAddress}: BTP handshake was aborted`);
+            }
+            throw new BleError(`Peripheral ${peripheralAddress}: Handshake Response not received`);
+        }
         if (isNobleDisconnectError(error)) {
             throw new BleDisconnectedError(error.message, { cause: error });
         }
         throw error;
     } finally {
-        abort?.removeEventListener("abort", onAbort);
+        handshakeTimeout.stop();
         characteristicC2ForSubscribe.removeListener("data", handshakeHandler);
     }
 }
@@ -663,7 +660,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         _additionalCommissioningRelatedData?: Bytes,
         abort?: AbortSignal,
     ): Promise<NobleBleChannel> {
-        const attMtu = await attMtuOf(peripheral);
+        const attMtu = (await Abort.race(abort, attMtuOf(peripheral))) ?? undefined;
         const segmentSize =
             attMtu === undefined ? MatterBle.MINIMUM_ATT_MTU : MatterBle.btpSegmentSizeFromAttMtu(attMtu);
         if (attMtu === undefined) {
@@ -726,8 +723,6 @@ export class NobleBleChannel extends BleChannel<Bytes> {
                 `Disconnected from peripheral ${peripheral.address} (reason ${nobleDisconnectReason(reason)}). Closing BTP session`,
             );
             this.#connected = false;
-            // Same reason as in close(): a renegotiation parked on the handshake would otherwise hold its timer, and
-            // any send waiting on it, until the handshake times out
             this.#lifetime.abort();
             this.#detachDataHandler();
             this.#terminateIterator();
@@ -805,7 +800,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
 
         if (this.#closing || !this.connected) {
             // The disconnect that ended the channel ran before this session existed, so nothing else would stop its
-            // timers or remove a data listener we attached now
+            // timers
             session.suspend();
             throw new BleDisconnectedError(
                 `Peripheral ${peripheralAddress}: Channel was lost while establishing the BTP session`,
@@ -849,13 +844,20 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         if (this.#renegotiation !== undefined) {
             return;
         }
-        // A send must be able to observe the renegotiation before its first step runs, or it reaches the session that
-        // was just suspended
+        // Every send awaits this promise: it must exist before the first step runs, settle once the channel ends, and
+        // never settle rejected
         this.#renegotiation = Promise.resolve()
-            .then(() => this.#renegotiate(messagesToReplay))
+            .then(() => Abort.attempt(this.#lifetime, this.#renegotiate(messagesToReplay)))
             .catch(async error => {
-                logger.warn(`Peripheral ${this.peripheral.address}: Renegotiating the BTP session failed`, error);
-                // Every send awaits this promise, so it must not settle rejected
+                if (this.#closing) {
+                    logger.debug(`Peripheral ${this.peripheral.address}: Renegotiation ended by closing the channel`);
+                    return;
+                }
+                if (this.connected) {
+                    logger.warn(`Peripheral ${this.peripheral.address}: Renegotiating the BTP session failed`, error);
+                } else {
+                    logger.debug(`Peripheral ${this.peripheral.address}: Renegotiation ended by disconnect`, error);
+                }
                 await this.close().catch(closeError =>
                     logger.debug(
                         `Peripheral ${this.peripheral.address}: Error closing after a failed renegotiation`,
@@ -872,7 +874,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             `Peripheral ${this.peripheral.address}: Peer did not respond to any BTP packet, retrying with a ${MatterBle.MINIMUM_ATT_MTU} byte BTP segment size`,
         );
 
-        // §4.19.3.3: unsubscribing from C2 closes the BTP session for the peripheral; the BLE connection is unaffected.
+        // §4.19.4.10: unsubscribing from C2 closes the BTP session for the peripheral; the BLE connection is unaffected.
         // A failure here means the peer still holds the old session, so the new handshake would be rejected anyway
         await unsubscribeC2(this.peripheral, this.characteristicC2ForSubscribe, "throw");
         this.#assertRenegotiable();
@@ -908,6 +910,9 @@ export class NobleBleChannel extends BleChannel<Bytes> {
 
     /**
      * Send a Matter message to the connected device - need to do BTP assembly first.
+     *
+     * Waits for a pending renegotiation of the BTP session and fails with {@link BleDisconnectedError} if the channel
+     * is lost meanwhile.
      *
      * @param data
      */
@@ -977,7 +982,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         const wasConnected = this.connected;
         this.#closing = true;
         this.#connected = false;
-        // Interrupts a renegotiation parked on the handshake, whose timer would otherwise outlive the channel
+        // Ends a pending renegotiation, which every send waits for
         this.#lifetime.abort();
         this.#detachDataHandler();
         this.#terminateIterator();

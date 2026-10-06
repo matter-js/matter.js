@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { asError, Bytes, MatterError, ServerAddress } from "@matter/general";
+import { AbortedError, asError, Bytes, createPromise, MatterError, ServerAddress } from "@matter/general";
 import { BleDisconnectedError, BtpCodec, MatterBle } from "@matter/protocol";
 import type { Peripheral, PeripheralState, Service } from "@stoprocent/noble";
 import { EventEmitter } from "node:events";
 import type { BleScanner } from "../src/BleScanner.js";
-import { NobleBleCentralInterface } from "../src/NobleBleChannel.js";
+import { NobleBleCentralInterface, NobleBleChannel } from "../src/NobleBleChannel.js";
 
 const PERIPHERAL_ADDRESS = "c5:c3:4e:78:3c:6e";
 const ADDRESS = ServerAddress({ type: "ble", peripheralAddress: PERIPHERAL_ADDRESS });
@@ -216,7 +216,16 @@ function handshakeOnlyMatterService(onUnsubscribe?: () => void) {
     const dataWaiters = new Map<number, () => void>();
     const handshakeWaiters = new Map<number, () => void>();
     let unsubscribes = 0;
-    const state = { failUnsubscribe: false, withholdAfter: Infinity, onWithheld: () => {} };
+    const state = {
+        failUnsubscribe: false,
+        hangUnsubscribe: false,
+        withholdAfter: Infinity,
+        onWithheld: () => {},
+        hangWriteAfter: Infinity,
+        hangDataWriteAfter: Infinity,
+        onHung: () => {},
+        failHungWrite: (_error: Error) => {},
+    };
 
     const service = matterService({
         c1: {
@@ -224,12 +233,23 @@ function handshakeOnlyMatterService(onUnsubscribe?: () => void) {
             properties: [],
             async writeAsync(data: Buffer) {
                 const written = new Uint8Array(data);
-                if (BtpCodec.isHandshakeResponse(written) || written.length === 9) {
+                const isHandshakeRequest = written[0] === 0x65 && written[1] === 0x6c;
+                if (isHandshakeRequest) {
                     handshakeSegmentSizes.push(BtpCodec.decodeBtpHandshakeRequest(written).attMtu);
                     handshakeWaiters.get(handshakeSegmentSizes.length)?.();
+                    if (handshakeSegmentSizes.length > state.hangWriteAfter) {
+                        return new Promise<void>((_resolve, reject) => {
+                            state.failHungWrite = reject;
+                            queueMicrotask(() => state.onHung());
+                        });
+                    }
                 } else {
                     dataWrites.push(written);
                     dataWaiters.get(dataWrites.length)?.();
+                    if (dataWrites.length > state.hangDataWriteAfter) {
+                        queueMicrotask(() => state.onHung());
+                        return new Promise<void>(() => {});
+                    }
                 }
             },
         },
@@ -250,6 +270,9 @@ function handshakeOnlyMatterService(onUnsubscribe?: () => void) {
             async unsubscribeAsync() {
                 unsubscribes++;
                 onUnsubscribe?.();
+                if (state.hangUnsubscribe) {
+                    return new Promise<void>(() => {});
+                }
                 if (state.failUnsubscribe) {
                     throw new Error("Unsubscribe failed");
                 }
@@ -264,10 +287,26 @@ function handshakeOnlyMatterService(onUnsubscribe?: () => void) {
         set failUnsubscribe(fail: boolean) {
             state.failUnsubscribe = fail;
         },
+        set hangUnsubscribe(hang: boolean) {
+            state.hangUnsubscribe = hang;
+        },
         /** Leave every handshake past the given count unanswered, so the client waits out its handshake timer. */
         withholdHandshakeResponseAfter(count: number, onWithheld: () => void) {
             state.withholdAfter = count;
             state.onWithheld = onWithheld;
+        },
+        /** Leave the write of every handshake request past the given count pending until {@link failHungWrite}. */
+        hangHandshakeWriteAfter(count: number, onHung: () => void) {
+            state.hangWriteAfter = count;
+            state.onHung = onHung;
+        },
+        failHungWrite(error: Error) {
+            state.failHungWrite(error);
+        },
+        /** Leave every BTP data write past the given count pending forever. */
+        hangDataWriteAfter(count: number, onHung: () => void) {
+            state.hangDataWriteAfter = count;
+            state.onHung = onHung;
         },
         /** Resolves once the given number of handshake requests have been written. */
         whenHandshake(count: number) {
@@ -330,6 +369,8 @@ function centralInterfaceFor(peripheral: FakePeripheral) {
 
 describe("NobleBleCentralInterface", () => {
     describe("openChannel", () => {
+        afterEach(() => MockTime.disable());
+
         it("retries a connect reported as failed and gives up after three attempts", async () => {
             const peripheral = new FakePeripheral(p => p.failConnect());
             const central = centralInterfaceFor(peripheral);
@@ -581,7 +622,7 @@ describe("NobleBleCentralInterface", () => {
         });
 
         it("derives the segment size from an ATT_MTU that arrives after the interview", async () => {
-            MockTime.init();
+            MockTime.reset();
             const peripheral = new FakePeripheral(p => p.completeConnect());
             peripheral.mtu = null;
             // The exchange lands only once someone waits for it
@@ -603,7 +644,7 @@ describe("NobleBleCentralInterface", () => {
         });
 
         it("falls back to the minimum segment size when the ATT_MTU exchange never completes", async () => {
-            MockTime.init();
+            MockTime.reset();
             const peripheral = new FakePeripheral(p => p.completeConnect());
             peripheral.mtu = null;
             const peer = handshakeOnlyMatterService();
@@ -619,7 +660,7 @@ describe("NobleBleCentralInterface", () => {
         });
 
         it("renegotiates the BTP session with the minimum segment size when the peer answers no data packet", async () => {
-            MockTime.init();
+            MockTime.reset();
             const peripheral = new FakePeripheral(p => p.completeConnect());
             peripheral.mtu = MatterBle.MAXIMUM_ATT_MTU;
             const peer = handshakeOnlyMatterService();
@@ -654,7 +695,7 @@ describe("NobleBleCentralInterface", () => {
         });
 
         it("closes the channel when the renegotiation cannot close the peer's BTP session", async () => {
-            MockTime.init();
+            MockTime.reset();
             const peripheral = new FakePeripheral(p => p.completeConnect());
             peripheral.mtu = MatterBle.MAXIMUM_ATT_MTU;
             const peer = handshakeOnlyMatterService();
@@ -675,7 +716,7 @@ describe("NobleBleCentralInterface", () => {
         });
 
         it("closes the channel when the renegotiated session is not answered either", async () => {
-            MockTime.init();
+            MockTime.reset();
             const peripheral = new FakePeripheral(p => p.completeConnect());
             const peer = handshakeOnlyMatterService();
             peripheral.services = [peer.service];
@@ -694,7 +735,7 @@ describe("NobleBleCentralInterface", () => {
         });
 
         it("reports channel loss to a send parked on a renegotiation that fails", async () => {
-            MockTime.init();
+            MockTime.reset();
             const peripheral = new FakePeripheral(p => p.completeConnect());
 
             let parked: Promise<unknown> | undefined;
@@ -724,14 +765,14 @@ describe("NobleBleCentralInterface", () => {
         });
 
         it("abandons a renegotiation when the channel is closed while it waits for the handshake", async () => {
-            MockTime.init();
+            MockTime.reset();
             const peripheral = new FakePeripheral(p => p.completeConnect());
 
-            let closing: Promise<void> | undefined;
+            const { promise: closed, resolver: closedResolver, rejecter: closedRejecter } = createPromise<void>();
             const peer = handshakeOnlyMatterService();
             // The renegotiation parks here: the peer never answers the second handshake
             peer.withholdHandshakeResponseAfter(1, () => {
-                closing ??= channel.close();
+                channel.close().then(closedResolver, closedRejecter);
             });
             peripheral.services = [peer.service];
             const central = centralInterfaceFor(peripheral);
@@ -739,10 +780,7 @@ describe("NobleBleCentralInterface", () => {
             const channel = await central.openChannel(ADDRESS);
             await channel.send(Bytes.fromHex("00112233445566778899"));
 
-            await MockTime.resolve(
-                MockTime.resolve(peer.whenHandshake(2), { stepMs: 1000 }).then(() => closing),
-                { stepMs: 1000 },
-            );
+            await MockTime.resolve(closed, { stepMs: 1000 });
 
             // Without the abort the handshake timer would still be armed for its full BTP_CONN_RSP_TIMEOUT
             expect(MockTime.timerCountFor("BLE handshake timeout")).equal(0);
@@ -751,10 +789,11 @@ describe("NobleBleCentralInterface", () => {
         });
 
         it("abandons a renegotiation when the peripheral disconnects while it waits for the handshake", async () => {
-            MockTime.init();
+            MockTime.reset();
             const peripheral = new FakePeripheral(p => p.completeConnect());
 
             let parked: Promise<unknown> | undefined;
+            const { promise: withheld, resolver: withheldResolver } = createPromise<void>();
             const peer = handshakeOnlyMatterService();
             peer.withholdHandshakeResponseAfter(1, () => {
                 parked ??= channel.send(Bytes.fromHex("aabb")).then(
@@ -762,6 +801,7 @@ describe("NobleBleCentralInterface", () => {
                     (error: unknown) => error,
                 );
                 peripheral.dropConnection(undefined);
+                withheldResolver();
             });
             peripheral.services = [peer.service];
             const central = centralInterfaceFor(peripheral);
@@ -769,18 +809,150 @@ describe("NobleBleCentralInterface", () => {
             const channel = await central.openChannel(ADDRESS);
             await channel.send(Bytes.fromHex("00112233445566778899"));
 
-            await MockTime.resolve(peer.whenHandshake(2), { stepMs: 1000 });
+            await MockTime.resolve(withheld, { stepMs: 1000 });
 
             // No further time passes: the disconnect must settle this, not the handshake's own timeout
-            await MockTime.yield3();
+            expect(await parked).instanceOf(BleDisconnectedError);
             expect(MockTime.timerCountFor("BLE handshake timeout")).equal(0);
+
+            await central.close();
+        });
+
+        it("settles a send parked on a renegotiation whose handshake write never completes once the channel closes", async () => {
+            MockTime.reset();
+            const peripheral = new FakePeripheral(p => p.completeConnect());
+
+            let parked: Promise<unknown> | undefined;
+            let closing: Promise<void> | undefined;
+            const { promise: hung, resolver: hungResolver } = createPromise<void>();
+            const peer = handshakeOnlyMatterService();
+            peer.hangHandshakeWriteAfter(1, () => {
+                parked ??= channel.send(Bytes.fromHex("aabb")).then(
+                    () => undefined,
+                    (error: unknown) => error,
+                );
+                closing ??= channel.close();
+                hungResolver();
+            });
+            peripheral.services = [peer.service];
+            const central = centralInterfaceFor(peripheral);
+
+            const channel = await central.openChannel(ADDRESS);
+            await channel.send(Bytes.fromHex("00112233445566778899"));
+
+            await MockTime.resolve(hung, { stepMs: 1000 });
+            await closing;
+
+            expect(await parked).instanceOf(BleDisconnectedError);
+            expect(MockTime.timerCountFor("BLE handshake timeout")).equal(0);
+
+            await central.close();
+        });
+
+        it("abandons a renegotiation whose handshake write fails after the peripheral disconnected", async () => {
+            MockTime.reset();
+            const peripheral = new FakePeripheral(p => p.completeConnect());
+
+            let parked: Promise<unknown> | undefined;
+            const { promise: hung, resolver: hungResolver } = createPromise<void>();
+            const peer = handshakeOnlyMatterService();
+            peer.hangHandshakeWriteAfter(1, () => {
+                parked ??= channel.send(Bytes.fromHex("aabb")).then(
+                    () => undefined,
+                    (error: unknown) => error,
+                );
+                peripheral.dropConnection(undefined);
+                queueMicrotask(() => peer.failHungWrite(new Error("Write failed after disconnect")));
+                hungResolver();
+            });
+            peripheral.services = [peer.service];
+            const central = centralInterfaceFor(peripheral);
+
+            const channel = await central.openChannel(ADDRESS);
+            await channel.send(Bytes.fromHex("00112233445566778899"));
+
+            await MockTime.resolve(hung, { stepMs: 1000 });
+
+            expect(await parked).instanceOf(BleDisconnectedError);
+            expect(MockTime.timerCountFor("BLE handshake timeout")).equal(0);
+
+            await central.close();
+        });
+
+        it("closes the channel when the renegotiation handshake is never answered", async () => {
+            MockTime.reset();
+            const peripheral = new FakePeripheral(p => p.completeConnect());
+            const peer = handshakeOnlyMatterService();
+            peer.withholdHandshakeResponseAfter(1, () => {});
+            peripheral.services = [peer.service];
+            const central = centralInterfaceFor(peripheral);
+
+            const channel = await central.openChannel(ADDRESS);
+            const disconnected = peripheral.whenDisconnected();
+            await channel.send(Bytes.fromHex("00112233445566778899"));
+
+            await MockTime.resolve(disconnected, { stepMs: 1000 });
+
+            // One unsubscribe ends the stalled session, the second abandons the unanswered handshake
+            expect(peer.unsubscribes).equal(2);
+            expect(peer.handshakeSegmentSizes).deep.equal([MatterBle.MAXIMUM_BTP_MTU, MatterBle.MINIMUM_ATT_MTU]);
+
+            await central.close();
+        });
+
+        it("settles a send parked on a replay whose write never completes once the channel closes", async () => {
+            MockTime.reset();
+            const peripheral = new FakePeripheral(p => p.completeConnect());
+
+            let parked: Promise<unknown> | undefined;
+            const { promise: closed, resolver: closedResolver, rejecter: closedRejecter } = createPromise<void>();
+            const peer = handshakeOnlyMatterService();
+            // Write 1 is the stalled original, write 2 the first replayed segment
+            peer.hangDataWriteAfter(1, () => {
+                parked ??= channel.send(Bytes.fromHex("aabb")).then(
+                    () => undefined,
+                    (error: unknown) => error,
+                );
+                channel.close().then(closedResolver, closedRejecter);
+            });
+            peripheral.services = [peer.service];
+            const central = centralInterfaceFor(peripheral);
+
+            const channel = await central.openChannel(ADDRESS);
+            await channel.send(Bytes.fromHex("00112233445566778899"));
+
+            await MockTime.resolve(closed, { stepMs: 1000 });
+
             expect(await parked).instanceOf(BleDisconnectedError);
 
             await central.close();
         });
 
+        it("abandons opening a channel when aborted while the handshake write is pending", async () => {
+            MockTime.reset();
+            const peripheral = new FakePeripheral(p => p.completeConnect());
+            const aborter = new AbortController();
+            const peer = handshakeOnlyMatterService();
+            peer.hangHandshakeWriteAfter(0, () => aborter.abort());
+            peripheral.services = [peer.service];
+            const central = centralInterfaceFor(peripheral);
+
+            const opening = central.openChannel(ADDRESS, { abort: aborter.signal }).then(
+                () => undefined,
+                (error: unknown) => error,
+            );
+
+            expect(await opening).instanceOf(AbortedError);
+
+            // No virtual time passes, so only the abort can have ended the handshake
+            await MockTime.macrotask;
+            expect(MockTime.timerCountFor("BLE handshake timeout")).equal(0);
+
+            await central.close();
+        });
+
         it("holds a send issued while the BTP session is being renegotiated", async () => {
-            MockTime.init();
+            MockTime.reset();
             const peripheral = new FakePeripheral(p => p.completeConnect());
             peripheral.mtu = MatterBle.MAXIMUM_ATT_MTU;
 
@@ -806,7 +978,7 @@ describe("NobleBleCentralInterface", () => {
         });
 
         it("bounds a disconnect that never completes after a failed channel setup", async () => {
-            MockTime.init();
+            MockTime.reset();
             const peripheral = new FakePeripheral(p => p.completeConnect());
             peripheral.services = [unwritableMatterService()];
             peripheral.disconnectHangs = true;
@@ -822,5 +994,58 @@ describe("NobleBleCentralInterface", () => {
             );
             await central.close();
         });
+    });
+});
+
+describe("NobleBleChannel.create", () => {
+    afterEach(() => MockTime.disable());
+
+    async function characteristicsOf(service: Service) {
+        const [c1, c2] = await service.discoverCharacteristicsAsync();
+        return { c1, c2 };
+    }
+
+    it("raises an abort during the unsubscribe that follows a handshake timeout", async () => {
+        MockTime.reset();
+        const peripheral = new FakePeripheral(() => {});
+        peripheral.state = "connected";
+        const peer = handshakeOnlyMatterService();
+        peer.withholdHandshakeResponseAfter(0, () => {});
+        peer.hangUnsubscribe = true;
+        const { c1, c2 } = await characteristicsOf(peer.service);
+        const aborter = new AbortController();
+
+        const creating = NobleBleChannel.create(peripheral.asNoble, c1, c2, () => {}, undefined, aborter.signal).then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+
+        await peer.whenHandshake(1);
+        await MockTime.advance(MatterBle.BTP_CONN_RSP_TIMEOUT);
+        await MockTime.macrotask;
+        expect(peer.unsubscribes).equal(1);
+        aborter.abort();
+
+        expect(await creating).instanceOf(AbortedError);
+    });
+
+    it("raises an abort while the ATT_MTU exchange is still pending", async () => {
+        MockTime.reset();
+        const peripheral = new FakePeripheral(() => {});
+        peripheral.state = "connected";
+        peripheral.mtu = null;
+        const peer = handshakeOnlyMatterService();
+        const { c1, c2 } = await characteristicsOf(peer.service);
+        const aborter = new AbortController();
+
+        const creating = NobleBleChannel.create(peripheral.asNoble, c1, c2, () => {}, undefined, aborter.signal).then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+        aborter.abort();
+
+        // No virtual time passes, so the ATT_MTU wait cannot have ended on its own
+        expect(await creating).instanceOf(AbortedError);
+        expect(peer.handshakeSegmentSizes).deep.equal([]);
     });
 });
