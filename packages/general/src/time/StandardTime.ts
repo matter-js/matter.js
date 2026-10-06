@@ -8,6 +8,7 @@ import { ImplementationError } from "#MatterError.js";
 import { Boot } from "#util/Boot.js";
 import { decamelize } from "#util/identifier-case.js";
 import { Lifetime } from "#util/Lifetime.js";
+import { INT32_MAX } from "#util/Number.js";
 import { Duration } from "./Duration.js";
 import { Time, Timer } from "./Time.js";
 import { Instant } from "./TimeUnit.js";
@@ -48,10 +49,17 @@ export class StandardTime extends Time {
 }
 
 /**
+ * Longest delay `setTimeout` and `setInterval` accept; a longer interval runs as a chain of steps no longer than this.
+ */
+const MAX_STEP_MS = INT32_MAX;
+
+/**
  * A {@link Timer} implementation that uses standard JavaScript functions.
  */
 export class StandardTimer implements Timer {
     #timerId: unknown;
+    #usesInterval = false;
+    #armedInterval = Instant;
     #utility = false;
     #interval = Instant; // Real value installed in constructor
     isRunning = false;
@@ -75,9 +83,9 @@ export class StandardTimer implements Timer {
      * You can change this value but changes have no effect until the timer restarts.
      */
     set interval(interval: Duration) {
-        if (interval < 0 || interval > 2147483647) {
+        if (!Number.isFinite(interval) || interval < 0) {
             throw new ImplementationError(
-                `Invalid intervalMs: ${interval}. The value must be between 0 and 32-bit maximum value (2147483647)`,
+                `Invalid interval for timer "${this.name}": ${interval}; it must be finite and not negative`,
             );
         }
         this.#interval = interval;
@@ -113,22 +121,51 @@ export class StandardTimer implements Timer {
         if (this.isRunning) this.stop();
         Time.register(this);
         this.isRunning = true;
-        this.#timerId = (this.isPeriodic ? setInterval : setTimeout)(() => {
-            using lifetime = Lifetime(decamelize(this.name, " "));
-            if (!this.isPeriodic) {
-                Time.unregister(this);
-                this.isRunning = false;
-            }
-            this.callback(lifetime);
-        }, this.interval);
-        if (this.#utility) {
-            (this.#timerId as { unref?: () => void }).unref?.();
+        this.#armedInterval = this.interval;
+        if (this.isPeriodic && this.#armedInterval <= MAX_STEP_MS) {
+            this.#usesInterval = true;
+            this.#timerId = setInterval(() => this.#fire(), this.#armedInterval);
+            this.#applyUtility();
+        } else {
+            this.#usesInterval = false;
+            this.#arm(this.#armedInterval);
         }
         return this;
     }
 
+    #arm(remaining: number) {
+        this.#timerId = setTimeout(
+            () => {
+                if (remaining > MAX_STEP_MS) {
+                    this.#arm(remaining - MAX_STEP_MS);
+                } else {
+                    this.#fire();
+                }
+            },
+            Math.min(remaining, MAX_STEP_MS),
+        );
+        this.#applyUtility();
+    }
+
+    #fire() {
+        using lifetime = Lifetime(decamelize(this.name, " "));
+        if (!this.isPeriodic) {
+            Time.unregister(this);
+            this.isRunning = false;
+        } else if (!this.#usesInterval) {
+            this.#arm(this.#armedInterval);
+        }
+        this.callback(lifetime);
+    }
+
+    #applyUtility() {
+        if (this.#utility) {
+            (this.#timerId as { unref?: () => void }).unref?.();
+        }
+    }
+
     stop() {
-        (this.isPeriodic ? clearInterval : clearTimeout)(this.#timerId as ReturnType<typeof setTimeout>);
+        (this.#usesInterval ? clearInterval : clearTimeout)(this.#timerId as ReturnType<typeof setTimeout>);
         Time.unregister(this);
         this.isRunning = false;
         return this;

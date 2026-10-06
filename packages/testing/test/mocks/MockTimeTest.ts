@@ -183,15 +183,20 @@ describe("MockTime", () => {
             timer.stop();
         });
 
-        it("rejects out-of-range values", () => {
+        it("rejects negative and infinite values", () => {
             const timer = MockTime.getTimer("Test", 30, () => {});
 
-            expect(() => (timer.interval = -1)).throws("must be between");
-            expect(() => (timer.interval = 2_147_483_648)).throws("must be between");
-            expect(() => MockTime.getTimer("Test", -1, () => {})).throws("must be between");
-            expect(() => MockTime.getPeriodicTimer("Test periodic", 2_147_483_648, () => {})).throws("must be between");
+            expect(() => (timer.interval = -1)).throws("not negative");
+            expect(() => (timer.interval = Infinity)).throws("must be finite");
+            expect(() => MockTime.getTimer("Test", -1, () => {})).throws("not negative");
+            expect(() => MockTime.getPeriodicTimer("Test periodic", Infinity, () => {})).throws("must be finite");
 
             expect(timer.interval).equal(30);
+        });
+
+        it("accepts values beyond the setTimeout maximum", () => {
+            const timer = MockTime.getTimer("Test", 2_147_483_648, () => {});
+            expect(timer.interval).equal(2_147_483_648);
         });
     });
 

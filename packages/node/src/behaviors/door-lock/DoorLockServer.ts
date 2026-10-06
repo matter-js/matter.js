@@ -45,7 +45,7 @@ import UserType = DoorLock.UserType;
 
 const logger = Logger.get("DoorLockServer");
 
-/** Bounded below the timer maximum; a longer wait re-arms, so a wall clock far behind the deadline cannot overflow */
+/** Longest single wait; the expiry deadline is wall-clock time, so a longer wait re-arms and picks up clock corrections */
 const MAX_EXPIRY_DELAY = Hours(24);
 
 const OPERATING_MODE_BITS = {
