@@ -5,7 +5,7 @@
  */
 
 import { AbortedError, asError, Bytes, createPromise, MatterError, ServerAddress } from "@matter/general";
-import { BleDisconnectedError, BtpCodec, MatterBle } from "@matter/protocol";
+import { BleChannel, BleDisconnectedError, BtpCodec, MatterBle } from "@matter/protocol";
 import type { Peripheral, PeripheralState, Service } from "@stoprocent/noble";
 import { EventEmitter } from "node:events";
 import type { BleScanner } from "../src/BleScanner.js";
@@ -223,6 +223,8 @@ function handshakeOnlyMatterService(onUnsubscribe?: () => void) {
         onWithheld: () => {},
         hangWriteAfter: Infinity,
         hangDataWriteAfter: Infinity,
+        failDataWrite: 0,
+        onDataWriteFailed: () => {},
         onHung: () => {},
         failHungWrite: (_error: Error) => {},
     };
@@ -246,6 +248,10 @@ function handshakeOnlyMatterService(onUnsubscribe?: () => void) {
                 } else {
                     dataWrites.push(written);
                     dataWaiters.get(dataWrites.length)?.();
+                    if (dataWrites.length === state.failDataWrite) {
+                        state.onDataWriteFailed();
+                        throw new BleDisconnectedError("Peripheral gone");
+                    }
                     if (dataWrites.length > state.hangDataWriteAfter) {
                         queueMicrotask(() => state.onHung());
                         return new Promise<void>(() => {});
@@ -302,6 +308,11 @@ function handshakeOnlyMatterService(onUnsubscribe?: () => void) {
         },
         failHungWrite(error: Error) {
             state.failHungWrite(error);
+        },
+        /** Fail the given BTP data write, counted from 1, as a lost connection. */
+        failDataWrite(count: number, onFailed: () => void = () => {}) {
+            state.failDataWrite = count;
+            state.onDataWriteFailed = onFailed;
         },
         /** Leave every BTP data write past the given count pending forever. */
         hangDataWriteAfter(count: number, onHung: () => void) {
@@ -896,6 +907,62 @@ describe("NobleBleCentralInterface", () => {
             // One unsubscribe ends the stalled session, the second abandons the unanswered handshake
             expect(peer.unsubscribes).equal(2);
             expect(peer.handshakeSegmentSizes).deep.equal([MatterBle.MAXIMUM_BTP_MTU, MatterBle.MINIMUM_ATT_MTU]);
+
+            await central.close();
+        });
+
+        it("reports channel loss to a send parked on a renegotiation whose replay lost the connection", async () => {
+            MockTime.reset();
+            const peripheral = new FakePeripheral(p => p.completeConnect());
+
+            let parked: Promise<unknown> | undefined;
+            const peer = handshakeOnlyMatterService(() => {
+                parked ??= channel.send(Bytes.fromHex("aabb")).then(
+                    () => undefined,
+                    (error: unknown) => error,
+                );
+            });
+            // Write 1 is the stalled original, write 2 the replay. The cleanup unsubscribe hangs, so noble still reports
+            // the peripheral connected when the parked send resumes
+            peer.failDataWrite(2, () => (peer.hangUnsubscribe = true));
+            peripheral.services = [peer.service];
+            const central = centralInterfaceFor(peripheral);
+
+            const channel = await central.openChannel(ADDRESS);
+            await channel.send(Bytes.fromHex("00112233445566778899"));
+
+            await MockTime.resolve(peer.whenDataWrite(2), { stepMs: 1000 });
+            await MockTime.macrotask;
+
+            expect(await parked).instanceOf(BleDisconnectedError);
+
+            await central.close();
+        });
+
+        it("reports channel loss once its BTP session closed and still disconnects the peripheral on close", async () => {
+            MockTime.reset();
+            const peripheral = new FakePeripheral(p => p.completeConnect());
+            const peer = handshakeOnlyMatterService();
+            // The session's own cleanup hangs, so only the channel's close can release the peripheral
+            peer.failDataWrite(1, () => (peer.hangUnsubscribe = true));
+            peripheral.services = [peer.service];
+            const central = centralInterfaceFor(peripheral);
+
+            const channel = await central.openChannel(ADDRESS);
+            if (!(channel instanceof BleChannel)) {
+                expect.fail("openChannel must return a BleChannel");
+            }
+            const nextMessage = channel[Symbol.asyncIterator]().next();
+            await channel.send(Bytes.fromHex("00112233445566778899"));
+            expect(peripheral.state).equals("connected");
+
+            await expect(channel.send(Bytes.fromHex("aabb"))).rejectedWith(BleDisconnectedError);
+            expect((await nextMessage).done).equal(true);
+
+            const disconnected = peripheral.whenDisconnected();
+            await channel.close();
+            await disconnected;
+            expect(peripheral.state).equals("disconnected");
 
             await central.close();
         });

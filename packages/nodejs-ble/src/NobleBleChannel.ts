@@ -708,6 +708,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
     #c2DataHandler?: (data: Buffer, isNotification: boolean) => void;
     #renegotiation?: Promise<void>;
     #closing = false;
+    #sessionLost = false;
     readonly #lifetime = new AbortController();
     readonly #onPeripheralDisconnect: (reason: unknown) => void;
 
@@ -798,7 +799,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             requestedSegmentSize,
         );
 
-        if (this.#closing || !this.connected) {
+        if (!this.#usable) {
             // The disconnect that ended the channel ran before this session existed, so nothing else would stop its
             // timers
             session.suspend();
@@ -809,8 +810,12 @@ export class NobleBleChannel extends BleChannel<Bytes> {
 
         this.#btpSession = session;
 
-        // Forward BTP-initiated close (e.g. ack-receive timeout) to our Observable.
-        session.closed.once(() => this.emitClosed());
+        // A closed session ends the channel even while noble still reports the peripheral connected
+        session.closed.once(() => {
+            this.#sessionLost = true;
+            this.#terminateIterator();
+            this.emitClosed();
+        });
         session.stalledAfterHandshake.once(messagesToReplay => this.#startRenegotiation(messagesToReplay));
 
         const c2DataHandler = (data: Buffer, isNotification: boolean) => {
@@ -897,7 +902,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
     }
 
     #assertRenegotiable() {
-        if (this.#closing || !this.connected) {
+        if (!this.#usable) {
             throw new BleDisconnectedError(
                 `Peripheral ${this.peripheral.address}: Channel was lost while renegotiating the BTP session`,
             );
@@ -906,6 +911,10 @@ export class NobleBleChannel extends BleChannel<Bytes> {
 
     get connected() {
         return this.#connected && this.peripheral.state === "connected";
+    }
+
+    get #usable() {
+        return !this.#closing && !this.#sessionLost && this.connected;
     }
 
     /**
@@ -919,7 +928,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
     async send(data: Bytes) {
         // A renegotiation replaces the session, so sending into the outgoing one would be rejected as inactive
         await this.#renegotiation;
-        if (this.#closing || !this.connected) {
+        if (!this.#usable) {
             throw new BleDisconnectedError(
                 `Peripheral ${this.peripheral.address}: Cannot send data because not connected to peripheral.`,
             );
