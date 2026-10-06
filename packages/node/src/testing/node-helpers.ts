@@ -317,7 +317,7 @@ export namespace interaction {
         close: async () => {},
         sendWriteResponse: async (_response: WriteResponse) => {},
         readNextWriteRequest: async () => {
-            throw new Error("No more chunks expected");
+            throw new InternalError("Mock messenger received a request for another write chunk, but none is queued");
         },
         sendInvokeResponseChunk: async (_response: InvokeResponseForSend) => true,
         sendInvokeResponse: async (_response: InvokeResponseForSend) => {},
