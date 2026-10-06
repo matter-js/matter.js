@@ -74,9 +74,9 @@ export interface CommissioningTarget {
      *
      * Use it for a test case whose device cannot answer that subscription's priming read. The calls that go
      * straight to the device keep working: `invoke`, `invokeBatch`, `readAttribute`, `readAttributes`,
-     * `writeAttribute`, `subscribe` and `decommission`. The controller's copy of the peer stays empty, so the calls
-     * that answer from it — `clientEndpoints`, `clientAttribute`, event observation, `openCommissioningWindow`,
-     * the ICD and OTA helpers — answer wrongly or fail.
+     * `writeAttribute`, `subscribe` and `decommission`. The controller's copy of the peer starts empty and holds
+     * only what direct calls read, so the calls that answer from it — `clientEndpoints`, `clientAttribute`, event
+     * observation, `openCommissioningWindow`, the ICD and OTA helpers — answer wrongly or fail.
      *
      * Advisory. An adapter whose controller holds no such subscription has nothing to do.
      */
