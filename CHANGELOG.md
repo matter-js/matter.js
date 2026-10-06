@@ -76,6 +76,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status or does not answer it in time
+    - Fix: A missing response no longer closes the commissioning PASE session; commissioning closes it on every exit
+    - Feature: A `NodeSession` created with `suppressPeerLoss` stays open on communication failures of its exchanges; its owner closes it
+    - Fix: The periodic failsafe re-arm during BLE commissioning no longer shortens a longer failsafe armed for a network scan or connect
     - Fix: Ensure that a controller treats any message from a LIT ICD peer as a wake signal and resubscribes at once, instead of waiting for the next Check-In
     - Breaking: `IcdPeerWakefulness` API renamed (`noteActive()`, `nextCheckInDue`, `holdSubscription()`); ICD timing constants moved to `IcdPeerSchedule`
     - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status

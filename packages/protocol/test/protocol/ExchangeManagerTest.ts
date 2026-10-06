@@ -91,7 +91,7 @@ describe("ExchangeManager", () => {
     before(() => MockTime.init());
 
     /** A manager whose sole session fails every send, with a subscription recording its own teardown. */
-    async function failingPeer() {
+    async function failingPeer(options?: { suppressPeerLoss?: boolean }) {
         const environment = new Environment("test");
         const storage = new MemoryStorageDriver();
         storage.initialize();
@@ -111,7 +111,7 @@ describe("ExchangeManager", () => {
             sessions,
         });
 
-        const session = new ProtocolMocks.NodeSession({ manager: sessions });
+        const session = new ProtocolMocks.NodeSession({ manager: sessions, ...options });
         (session.channel as any).send = async (_message: Message): Promise<void> => {
             throw new NetworkError("Simulated network failure");
         };
@@ -156,6 +156,17 @@ describe("ExchangeManager", () => {
             const exchange = peer.exchanges.initiateExchangeForSession(peer.session, SECURE_CHANNEL_PROTOCOL_ID, {
                 suppressPeerLoss: true,
             });
+            await expect(exchange.send(0, Bytes.empty)).to.be.rejectedWith(NetworkError);
+
+            expect(peer.closedWith).is.empty;
+            expect(peer.session.isClosing).is.false;
+            expect(peer.session.isPeerLost).is.false;
+        });
+
+        it("leaves a session alone that suppresses peer loss", async () => {
+            await using peer = await failingPeer({ suppressPeerLoss: true });
+
+            const exchange = peer.exchanges.initiateExchangeForSession(peer.session, SECURE_CHANNEL_PROTOCOL_ID);
             await expect(exchange.send(0, Bytes.empty)).to.be.rejectedWith(NetworkError);
 
             expect(peer.closedWith).is.empty;
