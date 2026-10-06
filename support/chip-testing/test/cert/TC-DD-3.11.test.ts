@@ -19,7 +19,7 @@ import {
     STANDARD_VERSION,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, runCleanups } from "./tc-support.js";
+import { CommissionedRefs, runCleanups, withChecks } from "./tc-support.js";
 
 /**
  * Why the two transport-specific commissioning steps cannot be run rather than skipped.
@@ -192,7 +192,7 @@ certTest("TC-DD-3.11", {
                 discoveryCapabilities: ON_NETWORK_ONLY,
             });
             await recordCommissionable(cx);
-            await commissionByQr(cx, payload, commissioned);
+            await withChecks(cx, checks => commissionByQr(cx, payload, commissioned, checks));
         },
         { expected: "DUT parses QR code and DUT commissions TH to the Matter network" },
     )
