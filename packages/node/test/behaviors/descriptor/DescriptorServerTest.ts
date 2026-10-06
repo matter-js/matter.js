@@ -162,6 +162,27 @@ describe("DescriptorServer", () => {
         ]);
     });
 
+    describe("addDeviceTypes", () => {
+        it("keeps a listed device type at its listed revision", async () => {
+            const Device2Endpoint = MockEndpointType.set({
+                descriptor: { deviceTypeList: [{ deviceType: DeviceTypeId(2), revision: 1 }] },
+            });
+            await using endpoint = await MockEndpoint.create(Device2Endpoint);
+            await endpoint.act(agent =>
+                agent.descriptor.addDeviceTypes(
+                    { deviceType: DeviceTypeId(2), revision: 2 },
+                    { deviceType: DeviceTypeId(3), revision: 1 },
+                    { deviceType: DeviceTypeId(3), revision: 1 },
+                ),
+            );
+
+            expect(endpoint.state.descriptor.deviceTypeList).deep.equals([
+                { deviceType: 2, revision: 1 },
+                { deviceType: 3, revision: 1 },
+            ]);
+        });
+    });
+
     describe("addTags", () => {
         const TaggedEndpoint = MockEndpointType.with(DescriptorServer.with("TagList"));
 

@@ -83,7 +83,8 @@ export class DescriptorServer extends DescriptorBehavior {
     }
 
     /**
-     * Extend device type metadata.  This is a shortcut for deduped insert into the deviceTypeList cluster attribute.
+     * Extend device type metadata.  This is a shortcut for deduped insert into the deviceTypeList cluster attribute.  A
+     * device type that is already listed keeps its listed revision.
      *
      * @param deviceTypes an array of objects or named device types as defined in {@link Matter}
      */
@@ -101,7 +102,7 @@ export class DescriptorServer extends DescriptorBehavior {
             }
 
             for (const existingDeviceType of list) {
-                if (isDeepEqual(newDeviceType, existingDeviceType)) {
+                if (existingDeviceType.deviceType === newDeviceType.deviceType) {
                     continue nextInput;
                 }
             }
