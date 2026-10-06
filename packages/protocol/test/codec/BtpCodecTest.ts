@@ -231,6 +231,25 @@ describe("BtpCodec", () => {
         });
     });
 
+    describe("isHandshakeResponse", () => {
+        it("accepts a handshake response", () => {
+            expect(BtpCodec.isHandshakeResponse(Bytes.fromHex("656c04f40005"))).equal(true);
+        });
+
+        it("rejects a payload of another length", () => {
+            expect(BtpCodec.isHandshakeResponse(Bytes.fromHex("656c04f400"))).equal(false);
+            expect(BtpCodec.isHandshakeResponse(Bytes.fromHex("656c04000000b90006"))).equal(false);
+        });
+
+        it("rejects a payload without the handshake header", () => {
+            expect(BtpCodec.isHandshakeResponse(Bytes.fromHex("0d6c04f40005"))).equal(false);
+        });
+
+        it("rejects a payload without the handshake opcode", () => {
+            expect(BtpCodec.isHandshakeResponse(Bytes.fromHex("650004f40005"))).equal(false);
+        });
+    });
+
     describe("encode", () => {
         it("encodes a valid response handshake message", () => {
             const result = BtpCodec.encodeBtpHandshakeResponse(DECODED_HANDSHAKE_RESPONSE);
