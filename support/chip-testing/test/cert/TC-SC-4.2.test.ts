@@ -8,7 +8,7 @@ import { InternalError } from "@matter/main";
 import { CommissioningMode } from "@matter/main/protocol";
 import { VendorId } from "@matter/main/types";
 import type { CertStepContext } from "@matter/testing";
-import { certTest } from "@matter/testing";
+import { certTest, resolveControllerImplementation } from "@matter/testing";
 import { advertiseCommissionableAlias, cachedTxtValue, type CommissionableAlias } from "../../src/cert/mdns-alias.js";
 import { discoverCommissionable } from "../../src/cert/mdns-check.js";
 import {
@@ -147,10 +147,11 @@ certTest("TC-SC-4.2", {
             const { discriminator } = publishedAlias();
             const code = qrPayloadWith(await thQrPayload(th), { discriminator });
 
-            const from = await th.log.markSettled();
+            const dut = cx.controllers.dut;
+            const [from, dutFrom] = await Promise.all([th.log.markSettled(), dut.log.markSettled()]);
             let ref;
             try {
-                ref = await cx.controllers.dut.commission({ qrPairingCode: code });
+                ref = await dut.commission({ qrPairingCode: code });
             } catch (e) {
                 cx.recorder.check({
                     type: "response",
@@ -177,6 +178,26 @@ certTest("TC-SC-4.2", {
                     COMMISSIONING_LOG_TIMEOUT,
                 ),
                 "TH commissioning",
+            );
+
+            // On chip-tool, where step 0 cannot run, this match is what shows the alias was used; on matter.js
+            // it repeats what step 0 established
+            record(
+                cx,
+                await expectSequence(
+                    dut.log,
+                    resolveControllerImplementation() === "chip-tool" ? "chip" : "matterjs",
+                    `the DUT discovering by discriminator ${discriminator}`,
+                    {
+                        chip: [new RegExp(`Discovered device with discriminator ${discriminator} matches`)],
+                        matterjs: [
+                            new RegExp(`Initiating discovery of node with discriminator ${discriminator}(?!\\d)`),
+                        ],
+                    },
+                    dutFrom,
+                    COMMISSIONING_LOG_TIMEOUT,
+                ),
+                "DUT used the alias's discriminator",
             );
         },
         {
