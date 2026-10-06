@@ -382,9 +382,9 @@ export class MessageExchange {
         return this.#lastActive;
     }
 
-    #notifyActivity(messageReceived: boolean) {
+    #notifySent() {
         this.#lastActive = Time.nowMs;
-        this.session.notifyActivity(messageReceived);
+        this.session.notifyActivity(false);
     }
 
     /**
@@ -465,7 +465,7 @@ export class MessageExchange {
             );
         }
 
-        this.#notifyActivity(true);
+        this.#lastActive = Time.nowMs;
         this.#onReceive?.(message, duplicate);
 
         if (duplicate) {
@@ -674,7 +674,7 @@ export class MessageExchange {
 
         this.#used = true;
         this.#messageSendCounter++;
-        this.#notifyActivity(false);
+        this.#notifySent();
 
         let ackedMessageId = standaloneAckMessageId;
         if (ackedMessageId === undefined && this.session.usesMrp) {
@@ -934,7 +934,7 @@ export class MessageExchange {
         }
 
         this.#messageSendCounter++;
-        this.#notifyActivity(false);
+        this.#notifySent();
         this.#lastTransmissionAt = Time.nowMs;
 
         this.context.retry(this.#retransmissionCounter);

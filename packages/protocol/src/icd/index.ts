@@ -10,4 +10,5 @@ export * from "./IcdCheckInBackOff.js";
 export * from "./IcdCheckInSender.js";
 export * from "./IcdCheckInSuppression.js";
 export * from "./IcdCounter.js";
+export * from "./IcdPeerSchedule.js";
 export * from "./IcdPeerWakefulness.js";

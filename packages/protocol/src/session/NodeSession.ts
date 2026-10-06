@@ -263,6 +263,13 @@ export class NodeSession extends SecureSession {
         return this.#fabric !== undefined;
     }
 
+    override notifyActivity(messageReceived: boolean) {
+        super.notifyActivity(messageReceived);
+        if (messageReceived) {
+            this.#fabric?.notePeerActive(this.#peerNodeId);
+        }
+    }
+
     get associatedFabric(): Fabric {
         if (this.#fabric === undefined) {
             throw new NoAssociatedFabricError(
