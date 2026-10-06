@@ -93,11 +93,20 @@ after(() => {
     }
 });
 
+/**
+ * A {@link ServerNode} wired for tests: mock time, mock crypto, in-memory storage (unless the test configured storage) and a
+ * simulated network host.  Nodes created while a test runs are closed after it, and the run fails at the end if a test
+ * left one open.
+ */
 export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint> extends ServerNode<T> {
     #newExchanges = new DataReadQueue<MockExchange>();
     #simulator: NetworkSimulator;
     #matter?: MatterModel;
 
+    /**
+     * Creates the node without starting it.  Initializes {@link MockTime}, seeds mock crypto from `options.index` and sets up
+     * the environment, storage and simulated network host.
+     */
     constructor(type?: T, options?: MockServerNode.Options<T>);
     constructor(config: Partial<MockServerNode.Configuration<T>>);
     constructor(definition: T | MockServerNode.Configuration<T>, options?: MockServerNode.Options<T>) {
@@ -143,10 +152,16 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
         nodesOfCurrentTest?.add(this);
     }
 
+    /**
+     * The model the node validates against: `matter` from the options if given, otherwise the standard model.
+     */
     override get matter() {
         return this.#matter ?? super.matter;
     }
 
+    /**
+     * The network simulator this node's host is attached to.
+     */
     get simulator() {
         return this.#simulator;
     }
@@ -170,6 +185,12 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
         return RemoteActorContext(options as RemoteActorContext.Options).act(context => actor(this.agentFor(context)));
     }
 
+    /**
+     * Creates a node, adds the device and starts it, resolving once it is online.  If it fails, the node is closed and the error
+     * rethrown.  With `online: false` it only waits for construction; no exchange capture is installed then, so
+     * {@link handleExchange} never resolves.
+     * Outgoing exchanges are mock exchanges queued for {@link handleExchange}.
+     */
     static async createOnline<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint>(
         type?: T,
         options?: MockServerNode.Options<T>,
@@ -232,10 +253,16 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
         return node;
     }
 
+    /**
+     * Resolves with the next exchange the node initiates towards a peer.  Only available on nodes made by {@link createOnline}.
+     */
     async handleExchange(): Promise<MockExchange> {
         return await this.#newExchanges.read();
     }
 
+    /**
+     * Creates a mock secure session on this node and returns an exchange on it.  `options` override the session settings, for example `fabric`.
+     */
     async createExchange(options?: Partial<Parameters<SessionManager["createSecureSession"]>[0]>) {
         const session = await ProtocolMocks.NodeSession.create({
             manager: this.env.get(SessionManager),
@@ -249,14 +276,23 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
         });
     }
 
+    /**
+     * Stops the node, advancing mock time until it is offline.
+     */
     override async stop() {
         await MockTime.resolve(super.stop());
     }
 
+    /**
+     * Closes the node, advancing mock time until it is destroyed.  `stepMs` sets the time step used while waiting.
+     */
     override async close(stepMs?: number) {
         await MockTime.resolve(super.close(), { macrotasks: true, stepMs });
     }
 
+    /**
+     * Installs a test fabric in the node's fabric manager and returns it once the node has reported the change.
+     */
     async addFabric() {
         const fabric = await TestFabric({ fabrics: this.env.get(FabricManager) });
 
@@ -268,13 +304,31 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
 }
 
 export namespace MockServerNode {
+    /**
+     * Root endpoint type of mock nodes: the standard server root with {@link ControllerBehavior}.
+     */
     export const RootEndpoint = ServerNode.RootEndpoint.with(ControllerBehavior);
     export interface RootEndpoint extends Identity<typeof RootEndpoint> {}
 
+    /**
+     * Options specific to mock nodes, on top of the regular node options.
+     */
     export interface MockOptions extends Node.NodeOptions {
+        /**
+         * Set to `false` to build the node without starting it.  Defaults to starting it.
+         */
         online?: boolean;
+        /**
+         * Device added to the node.  Defaults to an On/Off Light; pass `undefined` explicitly to add none.
+         */
         device?: Endpoint.Definition;
+        /**
+         * Index of the simulated network host.  When set, the node id is `node` plus the index in hex.  Defaults to 0x80.
+         */
         index?: number;
+        /**
+         * Simulator to join, so nodes can talk to each other.  Defaults to a new one.
+         */
         simulator?: NetworkSimulator;
 
         /**
@@ -282,7 +336,13 @@ export namespace MockServerNode {
          */
         matter?: MatterModel;
     }
+    /**
+     * Options for creating a {@link MockServerNode}.
+     */
     export type Options<T extends RootEndpoint = RootEndpoint> = Endpoint.Options<T, MockOptions>;
 
+    /**
+     * Full configuration for creating a {@link MockServerNode}.
+     */
     export type Configuration<T extends RootEndpoint = RootEndpoint> = Endpoint.Configuration<T, MockOptions>;
 }
