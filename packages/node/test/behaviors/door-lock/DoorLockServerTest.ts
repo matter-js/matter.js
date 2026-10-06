@@ -1506,7 +1506,7 @@ describe("DoorLockServer", () => {
             expect(lock.alarms).deep.equals([DoorLock.AlarmCode.WrongCodeEntryLimit]);
         });
 
-        it("unlocks with a PIN that belongs to no user", async () => {
+        it("refuses a PIN that belongs to no user as a wrong code", async () => {
             await using lock = await setUpScheduledLock({
                 users: [scheduledUser(UserType.UnrestrictedUser)],
                 lockState: DoorLock.LockState.Locked,
@@ -1520,11 +1520,10 @@ describe("DoorLockServer", () => {
                     },
                 ],
             });
-            await withMockTime(lock.cmds.unlockDoor({ pinCode: pin("5555") }));
-            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Unlocked);
-            expect(lock.operations.map(({ userIndex, credentials }) => ({ userIndex, credentials }))).deep.equals([
-                { userIndex: null, credentials: [{ credentialType: CredentialType.Pin, credentialIndex: 2 }] },
-            ]);
+            await expect(withMockTime(lock.cmds.unlockDoor({ pinCode: pin("5555") }))).rejected;
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Locked);
+            expect(hardware.calls).deep.equals([]);
+            expect(operationErrorsOf(lock)).deep.equals([OperationError.InvalidCredential]);
         });
 
         it("runs one lock operation at a time", async () => {

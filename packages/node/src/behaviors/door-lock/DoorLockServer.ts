@@ -223,7 +223,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
      * invoked locally, without a fabric, are refused before this runs.
      *
      * To fail the operation, throw. `lockState` stays unchanged and `LockOperationError` reports the reason of a
-     * {@link LockOperationFailedError}, or `Unspecified` for any other error, which is also logged as a warning. A
+     * {@link LockOperationFailedError}, or `Unspecified` for any other error, which is also logged with its stack. A
      * failed command is answered with FAILURE and state written here is discarded; a failed auto-relock keeps such
      * state and is not retried. Report a jam through the `doorLockAlarm` event.
      *
@@ -1152,9 +1152,15 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 continue;
             }
 
+            // § 5.2.4.1 associates every PIN with a user; one no user holds counts as a wrong code, as in CHIP
             const userIndex = auth.findUserIndexForCredential(CredentialType.Pin, cred.credentialIndex);
+            const user = userIndex === null ? undefined : auth.findUser(userIndex);
+            if (user === undefined) {
+                return;
+            }
+
             return {
-                user: (userIndex === null ? undefined : auth.findUser(userIndex)) ?? null,
+                user,
                 credentials: [{ credentialType: CredentialType.Pin, credentialIndex: cred.credentialIndex }],
             };
         }
@@ -1597,14 +1603,19 @@ function isOperatingModeSupported(supported: DoorLock.OperatingModes, mode: Oper
 }
 
 function hardwareFailureReason({ actuation, source }: DoorLockBaseServer.LockOperation, error: unknown) {
+    // A failed relock leaves the door unlocked until someone acts; a remote peer can repeat its failing command
+    const relocking = source === OperationSource.Auto;
     if (!(error instanceof LockOperationFailedError)) {
-        logger.warn(`Lock hardware failed to ${actuation}:`, error);
+        if (relocking) {
+            logger.warn(`Lock hardware failed to ${actuation}:`, error);
+        } else {
+            logger.info(`Lock hardware failed to ${actuation}:`, error);
+        }
         return OperationError.Unspecified;
     }
 
-    // A failed relock leaves the door unlocked until someone acts; a remote peer can repeat its refused command
     const message = `Lock hardware could not ${actuation}: ${error.message}`;
-    if (source === OperationSource.Auto) {
+    if (relocking) {
         logger.notice(message);
     } else {
         logger.info(message);
