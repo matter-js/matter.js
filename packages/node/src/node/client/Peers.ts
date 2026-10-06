@@ -29,6 +29,7 @@ import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     Bytes,
     CancelablePromise,
+    createPromise,
     Diagnostic,
     Duration,
     ImplementationError,
@@ -70,6 +71,13 @@ const logger = Logger.get("Peers");
 const DEFAULT_TTL = Minutes(15);
 const EXPIRATION_INTERVAL = Minutes.one;
 
+type FabricOperation = "commission" | "decommission";
+
+/**
+ * Thrown when a commission or decommission of a {@link ClientNode} is requested while one is already in progress.
+ */
+export class FabricOperationInProgressError extends CommissioningError {}
+
 /**
  * Manages the set of known remote nodes.
  *
@@ -80,7 +88,7 @@ export class Peers extends EndpointContainer<ClientNode> {
     #installedSubscriptionHandler?: ClientSubscriptionHandler;
     #mutex = new Mutex(this);
     #closed = false;
-    #commissioning = new Set<ClientNode>();
+    #fabricOperations = new Map<ClientNode, { operation: FabricOperation; settled: Promise<void> }>();
     #instrumented = new WeakSet<ClientNode>();
     #bridgedInstrumented = new WeakSet<Endpoint>();
 
@@ -210,7 +218,8 @@ export class Peers extends EndpointContainer<ClientNode> {
      * {@link commission} does, so the peer is seeded rather than a blind commissioned node — then registers it.
      * `discoveryData` (from the hand-off) seeds operational discovery; `options` mirror the matching
      * {@link commission} options.  Throws {@link CommissioningError} and removes the peer entry if discovery,
-     * connection, or `CommissioningComplete` fails.
+     * connection, or `CommissioningComplete` fails; rejects as {@link runCommissioning} describes if the node is gone
+     * or busy.
      */
     async completeCommissioning(
         nodeId: NodeId,
@@ -334,13 +343,23 @@ export class Peers extends EndpointContainer<ClientNode> {
      * Find or create a {@link ClientNode} for a device described by {@link descriptor}.
      *
      * If a matching node already exists in the peer collection, returns it after refreshing its addresses and
-     * discovery data from the supplied descriptor.  Otherwise creates a new node using the descriptor.
+     * discovery data from the supplied descriptor.  Otherwise creates a new node using the descriptor.  A matching node
+     * that is being decommissioned is awaited first: if the decommission removes it, a new node is created, otherwise
+     * the kept node is returned.
      *
      * After calling {@link forDescriptor}, commission the returned node via {@link ClientNode.commission}.
      */
     async forDescriptor(descriptor: RemoteDescriptor): Promise<ClientNode> {
         const factory = this.owner.env.get(ClientNodeFactory);
         let node = factory.find(descriptor);
+        while (node !== undefined) {
+            const running = this.#fabricOperations.get(node);
+            if (running?.operation !== "decommission") {
+                break;
+            }
+            await running.settled;
+            node = factory.find(descriptor);
+        }
         if (node !== undefined) {
             // Refresh addresses and discovery data from the new descriptor
             await node.act(agent => {
@@ -535,31 +554,47 @@ export class Peers extends EndpointContainer<ClientNode> {
     /**
      * Run a commission attempt on {@link node} while protecting the node from the expired-node cull.
      *
-     * Serialization is done through the same {@link #mutex} the cull uses: the busy registration runs as a mutex task,
-     * which guarantees no cull is in flight when we register and that any subsequent cull observes the busy flag.
-     *
-     * Rejects with {@link CommissioningError} if the node is already mid-commission (parallel attempts on the same
-     * {@link ClientNode} would race on device-side state) or if a cull queued ahead of us already destroyed/crashed
-     * the node.  Either way the attempt fails fast instead of crashing later when the closed backing is accessed.
+     * Rejects with `DestroyedDependencyError` or `CrashedDependencyError` if the node is gone (its closing or deletion
+     * began, or it crashed), so the attempt fails fast instead of crashing later when the closed backing is accessed, and with {@link FabricOperationInProgressError} if a commission or decommission attempt on it
+     * is already in progress, as parallel attempts on the same {@link ClientNode} would race on device-side state.
+     * Calling {@link ClientNode.commission} inside {@link fn} therefore rejects.
      */
     async runCommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
+        return this.#runFabricOperation(node, "commission", fn);
+    }
+
+    /**
+     * Run a decommission attempt on {@link node}.  While it runs, the expired-node cull and leave events do not delete
+     * the node, and {@link forDescriptor} waits for it to end before handing out a node for the device.
+     *
+     * Rejects like {@link runCommissioning}: with `DestroyedDependencyError` or `CrashedDependencyError` if the node is
+     * gone, with {@link FabricOperationInProgressError} if a commission or decommission of it is already in progress.
+     */
+    async runDecommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
+        return this.#runFabricOperation(node, "decommission", fn);
+    }
+
+    /**
+     * Registration runs as a {@link #mutex} task, so no cull or leave handling is in flight for the node once
+     * {@link fn} starts, and every later one sees the registration.
+     */
+    async #runFabricOperation<T>(node: ClientNode, operation: FabricOperation, fn: () => MaybePromise<T>): Promise<T> {
+        const { promise: settled, resolver: settle } = createPromise<void>();
         await this.#mutex.produce(async () => {
-            if (node.lifecycle.isGone) {
-                throw new CommissioningError(
-                    `Cannot commission ${node.toString()} because the node is ${node.construction.status}`,
+            node.lifecycle.assertNotGone();
+            const running = this.#fabricOperations.get(node);
+            if (running !== undefined) {
+                throw new FabricOperationInProgressError(
+                    `Cannot ${operation} ${node.toString()} because a ${running.operation} attempt is already in progress`,
                 );
             }
-            if (this.#commissioning.has(node)) {
-                throw new CommissioningError(
-                    `Cannot commission ${node.toString()} because a commission attempt is already in progress`,
-                );
-            }
-            this.#commissioning.add(node);
+            this.#fabricOperations.set(node, { operation, settled });
         });
         try {
             return await fn();
         } finally {
-            this.#commissioning.delete(node);
+            this.#fabricOperations.delete(node);
+            settle();
         }
     }
 
@@ -610,7 +645,7 @@ export class Peers extends EndpointContainer<ClientNode> {
                 if (!node.lifecycle.isReady) {
                     continue;
                 }
-                if (this.#commissioning.has(node)) {
+                if (this.#fabricOperations.has(node)) {
                     continue;
                 }
                 const state = node.maybeStateOf(CommissioningClient);
@@ -742,7 +777,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         }
 
         this.#mutex.run(async () => {
-            if (!node.lifecycle.isReady) {
+            if (!node.lifecycle.isReady || this.#fabricOperations.get(node)?.operation === "decommission") {
                 return;
             }
 

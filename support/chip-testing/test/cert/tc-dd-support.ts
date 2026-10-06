@@ -45,6 +45,7 @@ import {
     RecordedCheck,
     removeFabricSucceeded,
     settleWithin,
+    theTh,
     withChecks,
 } from "./tc-support.js";
 
@@ -66,24 +67,6 @@ export type TransitionMark = number;
 /** Takes a {@link TransitionMark} on `th`, after letting its log pump settle. */
 export async function markTransition(cx: CertStepContext, th = theTh(cx)): Promise<TransitionMark> {
     return th.log.markSettled();
-}
-
-/**
- * The device these helpers act on where a plan names only one.
- *
- * A plan may now declare several devices under names of its own (`devices: { th1, th2 }`), and then
- * there is no `th` role at all. Reaching for one is a defect in the calling step rather than anything
- * the run can recover from, so it says so instead of failing later on a property of `undefined`.
- */
-function theTh(cx: CertStepContext): CertDevice {
-    const th = cx.devices.th;
-    if (th === undefined) {
-        throw new ImplementationError(
-            `This step's plan declares no "th" device (it has ${Object.keys(cx.devices).join(", ") || "none"}); ` +
-                "a helper acting on one device takes it as a parameter when the plan names more than one",
-        );
-    }
-    return th;
 }
 
 /** Bounds a wait for a line a device prints as it comes up, with a whole commissioning flow ahead of it. */
@@ -1164,14 +1147,18 @@ export async function recordVendorOutcome(
  * that flavor it says a fabric went, and only the session line says which. A caller with a second
  * admin on the TH would have another fabric's removal satisfy the first check.
  */
-export async function recordUnpair(cx: CertStepContext, commissioned: CommissionedRefs): Promise<TransitionMark> {
-    const th = theTh(cx);
+export async function recordUnpair(
+    cx: CertStepContext,
+    commissioned: CommissionedRefs,
+    /** The device being unpaired, where the plan names more than one. */
+    th = theTh(cx),
+): Promise<TransitionMark> {
     const ref = commissioned.require("dut");
     const node = cx.controllers.dut.node(ref);
 
     const fabricIndex = await readOwnFabricIndex(node);
 
-    const since = await markTransition(cx);
+    const since = await markTransition(cx, th);
     const from = since;
     await node.decommission();
     commissioned.clear("dut");
@@ -1183,10 +1170,10 @@ export async function recordUnpair(cx: CertStepContext, commissioned: Commission
 
     await withChecks(cx, async checks => {
         const removed = await expectDeviceLog(th.log, th.flavor, removeFabricSucceeded(fabricIndex), from, LOG_TIMEOUT);
-        checks.push({ check: () => removed.check, what: "TH reported a successful fabric removal" });
+        checks.push({ check: () => removed.check, what: `${th.id} reported a successful fabric removal` });
 
         const expired = await expectDeviceLog(th.log, th.flavor, fabricSessionsEnded(fabricIndex), from, LOG_TIMEOUT);
-        checks.push({ check: () => expired.check, what: "TH ended the DUT's fabric's sessions" });
+        checks.push({ check: () => expired.check, what: `${th.id} ended the DUT's fabric's sessions` });
     });
 
     return since;
@@ -1234,7 +1221,7 @@ export async function recordBackInCommissioningMode(
         throw new ImplementationError(`No means is known to return a ${th.flavor} TH to commissioning mode`);
     }
     const {
-        what = "TH advertising as commissionable again",
+        what = `${th.id} advertising as commissionable again`,
         // Bound to this device rather than to the plan's single-device role, which a multi-device
         // plan does not have
         probeCommissionable = (cx: CertStepContext, what: string) => recordCommissionable(cx, what, th),
@@ -1252,19 +1239,19 @@ export async function recordBackInCommissioningMode(
             await expectSequence(
                 th.log,
                 th.flavor,
-                "TH restarted",
+                `${th.id} restarted`,
                 { chip: [SETUP_QR_CODE] },
                 from,
                 COMMISSIONING_LOG_TIMEOUT,
             ),
-            "TH factory reset",
+            `${th.id} factory reset`,
         );
     }
 
     record(
         cx,
         (await expectDeviceLog(th.log, th.flavor, ADVERTISING_COMMISSIONABLE, from, COMMISSIONING_LOG_TIMEOUT)).check,
-        "TH announced it is advertising commissionable again",
+        `${th.id} announced it is advertising commissionable again`,
     );
 
     // Corroboration only. On its own this is answered by any live record for the TH's discriminator,
