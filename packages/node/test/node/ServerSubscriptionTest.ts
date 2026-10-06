@@ -18,6 +18,7 @@ import {
     Time,
 } from "@matter/general";
 import { Specification } from "@matter/model";
+import { interaction, MockServerNode } from "@matter/node/testing";
 import {
     ExchangeManager,
     InteractionServerMessenger,
@@ -31,8 +32,6 @@ import { AttributeId, AttributePath, ClusterId, EndpointNumber, EventPath } from
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { LIT_CONFIG } from "./icd-helpers.js";
-import { MockServerNode } from "./mock-server-node.js";
-import { interaction } from "./node-helpers.js";
 
 function activeSpanNames(lifetime: Lifetime): string[] {
     const names = new Array<string>();

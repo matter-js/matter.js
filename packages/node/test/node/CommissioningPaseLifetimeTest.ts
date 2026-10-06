@@ -6,8 +6,8 @@
 
 import { ServerNode } from "#node/ServerNode.js";
 import { asError, Crypto, MatterError, MockCrypto, Seconds } from "@matter/general";
+import { MockSite } from "@matter/node/testing";
 import { ControllerCommissioningFlow, NodeSession, SessionManager } from "@matter/protocol";
-import { MockSite } from "./mock-site.js";
 
 class FlowConstructionFailed extends MatterError {}
 

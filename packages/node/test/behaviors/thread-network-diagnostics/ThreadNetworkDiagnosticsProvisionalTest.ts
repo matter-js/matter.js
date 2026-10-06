@@ -5,8 +5,8 @@
  */
 
 import { ThreadNetworkDiagnosticsServer } from "#behaviors/thread-network-diagnostics";
+import { MockServerNode } from "@matter/node/testing";
 import { AttributeId } from "@matter/types";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 // ExtAddress (0x3f) and Rloc16 (0x40) are provisional ("P, M") in Matter 1.6 so they are absent until an application
 // implements them

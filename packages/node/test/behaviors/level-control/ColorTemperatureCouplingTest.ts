@@ -5,9 +5,9 @@
  */
 
 import { ColorTemperatureLightDevice } from "#devices/color-temperature-light";
+import { MockServerNode } from "@matter/node/testing";
 import { ColorControl } from "@matter/types/clusters/color-control";
 import { LevelControl } from "@matter/types/clusters/level-control";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 async function coupledLight(options: LevelControl.Options, managedTransitionTimeHandling = false) {
     MockTime.reset();

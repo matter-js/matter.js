@@ -8,6 +8,7 @@ import { IdentifyServer } from "#behaviors/identify";
 import { ContactSensorDevice } from "#devices/contact-sensor";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import type { Endpoint } from "#endpoint/Endpoint.js";
+import { interaction, MockServerNode } from "@matter/node/testing";
 import {
     ClusterId,
     CommandId,
@@ -20,8 +21,6 @@ import {
     TypeFromSchema,
 } from "@matter/types";
 import { Identify } from "@matter/types/clusters/identify";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { interaction } from "../../node/node-helpers.js";
 
 const TlvTriggerEffectRequest = TlvObject({
     effectIdentifier: TlvField(0, TlvEnum<Identify.EffectIdentifier>()),

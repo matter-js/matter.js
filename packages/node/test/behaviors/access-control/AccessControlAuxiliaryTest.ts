@@ -9,6 +9,7 @@ import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavi
 import { AccessControlClient, AccessControlServer } from "#behaviors/access-control";
 import { ServerNode } from "#node/ServerNode.js";
 import { Environment, InternalError, ObservableValue } from "@matter/general";
+import { MockServerNode, MockSite } from "@matter/node/testing";
 import {
     AclEndpointContext,
     AclEntry,
@@ -19,8 +20,6 @@ import {
 } from "@matter/protocol";
 import { ClusterId, EndpointNumber, FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { MockSite } from "../../node/mock-site.js";
 
 type Entry = AccessControl.AccessControlEntry;
 

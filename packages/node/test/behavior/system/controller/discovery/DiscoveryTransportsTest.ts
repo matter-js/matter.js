@@ -7,9 +7,9 @@
 import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { ChannelType, Diagnostic, LogDestination, Logger, LogLevel, Seconds } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { CommissionableDevice, CommissionableDeviceIdentifiers, Scanner, ScannerSet } from "@matter/protocol";
 import { VendorId } from "@matter/types";
-import { MockServerNode } from "../../../../node/mock-server-node.js";
 
 const DISCRIMINATOR = 1234;
 

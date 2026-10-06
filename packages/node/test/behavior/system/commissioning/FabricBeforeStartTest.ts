@@ -6,10 +6,9 @@
 
 import { CommissioningServer } from "#behavior/system/commissioning/CommissioningServer.js";
 import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
+import { MockServerNode, MockSite } from "@matter/node/testing";
 import { FabricAuthority } from "@matter/protocol";
 import { FabricId } from "@matter/types";
-import { MockServerNode } from "../../../node/mock-server-node.js";
-import { MockSite } from "../../../node/mock-site.js";
 
 let operational = 0;
 

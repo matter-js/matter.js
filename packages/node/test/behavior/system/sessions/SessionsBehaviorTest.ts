@@ -6,9 +6,9 @@
 
 import { SessionsBehavior } from "#behavior/system/sessions/SessionsBehavior.js";
 import { Hours, Millis, Seconds, Time } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { SessionIntervals, SessionManager } from "@matter/protocol";
 import { NodeId } from "@matter/types";
-import { MockServerNode } from "../../../node/mock-server-node.js";
 
 describe("SessionsBehavior", () => {
     describe("intervals configuration", () => {

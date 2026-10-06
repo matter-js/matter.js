@@ -8,6 +8,7 @@ import { OnOffServer } from "#behaviors/on-off";
 import { ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
 import { Crypto, Millis, Time } from "@matter/general";
 import { Specification } from "@matter/model";
+import { interaction, MockServerNode } from "@matter/node/testing";
 import { ExchangeManager, Invoke, ProtocolMocks } from "@matter/protocol";
 import {
     AttributeId,
@@ -23,8 +24,6 @@ import {
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { Identify } from "@matter/types/clusters/identify";
 import { OnOff } from "@matter/types/clusters/on-off";
-import { MockServerNode } from "./mock-server-node.js";
-import { interaction } from "./node-helpers.js";
 
 type Fabric = Awaited<ReturnType<MockServerNode["addFabric"]>>;
 
