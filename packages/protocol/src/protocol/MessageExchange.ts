@@ -629,7 +629,12 @@ export class MessageExchange {
      * answered earlier was reachable, and peer loss closes every session with it.
      */
     #reportsPeerLoss(suppressedForOperation?: boolean) {
-        return !this.#suppressPeerLoss && suppressedForOperation !== true && this.#messageReceivedCounter === 0;
+        return (
+            !this.#suppressPeerLoss &&
+            !this.session.suppressPeerLoss &&
+            suppressedForOperation !== true &&
+            this.#messageReceivedCounter === 0
+        );
     }
 
     async #send(messageType: number, payload: Bytes, standaloneAckMessageId?: number) {

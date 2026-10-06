@@ -294,10 +294,11 @@ const BTP_IDLE_ALIVE_INTERVAL = Seconds(25);
 /** Expected maximum time for CASE session establishment over the operational network. */
 const CASE_RECONNECT_TIMEOUT = Minutes(5);
 
-/**
- * Failsafe slack beyond the wait for a response, and the most MRP send time counted into that wait.
- */
+/** Failsafe left after the wait for a response ends. */
 const FAILSAFE_PROCESSING_MARGIN = Seconds(10);
+
+/** Most MRP send time counted into the wait for a response when sizing the failsafe. */
+const FAILSAFE_MAX_SEND_TIME = Seconds(10);
 
 /** Devices may report very low scan/connect timeouts that are not enough in practice */
 const MIN_NETWORK_SCAN_TIMEOUT_SECONDS = 60;
@@ -893,10 +894,11 @@ export class ControllerCommissioningFlow {
 
     async #ensureFailsafeTimerFor(maxProcessingTime: Duration) {
         // The failsafe must outlive our wait for the response.  The MRP worst case of an idle ICD peer would arm the
-        // device's maximum, which a failed commissioning leaves the device locked in, so it counts only up to the margin.
+        // device's maximum, which a failed commissioning leaves the device locked in, so send time counts only up to
+        // FAILSAFE_MAX_SEND_TIME.
         const responseWait = Duration.min(
             this.interaction.maximumPeerResponseTime(maxProcessingTime, true),
-            Millis(maxProcessingTime + FAILSAFE_PROCESSING_MARGIN),
+            Millis(maxProcessingTime + FAILSAFE_MAX_SEND_TIME),
         );
         const minFailsafeTime = Millis(responseWait + FAILSAFE_PROCESSING_MARGIN);
 
@@ -922,7 +924,7 @@ export class ControllerCommissioningFlow {
                         );
                         this.#armFailsafe(Duration.max(this.#defaultFailSafeTime, this.#failSafeTimeLeft)).catch(
                             error => {
-                                logger.info("Error while re-arming failsafe during reconnect", error);
+                                logger.warn("Error while re-arming failsafe during reconnect", error);
                                 this.#armFailsafeInterval?.stop();
                                 this.#armFailsafeInterval = undefined;
                             },

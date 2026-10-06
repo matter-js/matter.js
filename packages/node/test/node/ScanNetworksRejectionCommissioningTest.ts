@@ -4,29 +4,62 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { GeneralCommissioningServer } from "#behaviors/general-commissioning";
 import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
-import { asError, Bytes, ChannelType, Crypto, MatterError, MockCrypto, Seconds, Time } from "@matter/general";
+import {
+    asError,
+    Bytes,
+    ChannelType,
+    Crypto,
+    MatterError,
+    MaybePromise,
+    Minutes,
+    MockCrypto,
+    Seconds,
+    Time,
+} from "@matter/general";
 import {
     ClientInteraction,
     ControllerCommissioningFlow,
     ControllerCommissioningFlowOptions,
-    NodeSession,
     PeerUnresponsiveError,
-    SessionManager,
 } from "@matter/protocol";
 import { StatusResponse } from "@matter/types";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { MockServerNode } from "./mock-server-node.js";
 import { MockSite } from "./mock-site.js";
 
 const networkCalls = new Array<string>();
 
+/** Failsafe each ArmFailSafe leaves on the device, when it arrived, and how many network commands came before it. */
+const failsafeArms = new Array<{ at: number; end: number; afterNetworkCalls: number }>();
+
+/**
+ * Whether the PASE channel still reports BLE once the flow registered its steps.  On BLE the flow re-arms the failsafe
+ * every 25 s, which keeps any failsafe alive.
+ */
+let bleAfterSetup = true;
+const setUpInteractions = new WeakSet<ClientInteraction>();
+
 /**
  * Replaces sending ScanNetworks; what it throws is what the flow sees.
  */
 let interceptScan: ((interaction: ClientInteraction) => Promise<void>) | undefined;
+
+class RecordingGeneralCommissioningServer extends GeneralCommissioningServer {
+    override armFailSafe(request: GeneralCommissioning.ArmFailSafeRequest) {
+        const at = Time.nowMs;
+        failsafeArms.push({
+            at,
+            end: at + Seconds(request.expiryLengthSeconds),
+            afterNetworkCalls: networkCalls.length,
+        });
+        return super.armFailSafe(request);
+    }
+}
 
 class RejectingWifiServer extends NetworkCommissioningServer.with("WiFiNetworkInterface") {
     override initialize() {
@@ -43,7 +76,7 @@ class RejectingWifiServer extends NetworkCommissioningServer.with("WiFiNetworkIn
 
     override addOrUpdateWiFiNetwork({
         ssid,
-    }: NetworkCommissioning.AddOrUpdateWiFiNetworkRequest): NetworkCommissioning.NetworkConfigResponse {
+    }: NetworkCommissioning.AddOrUpdateWiFiNetworkRequest): MaybePromise<NetworkCommissioning.NetworkConfigResponse> {
         networkCalls.push("add");
         this.state.networks = [{ networkId: ssid, connected: true }];
         return { networkingStatus: NetworkCommissioning.NetworkCommissioningStatus.Success, networkIndex: 0 };
@@ -80,6 +113,15 @@ class SlowWifiServer extends NetworkCommissioningServer.with("WiFiNetworkInterfa
     }
 }
 
+class SlowAddWifiServer extends RejectingWifiServer {
+    override async addOrUpdateWiFiNetwork(
+        request: NetworkCommissioning.AddOrUpdateWiFiNetworkRequest,
+    ): Promise<NetworkCommissioning.NetworkConfigResponse> {
+        await Time.sleep("slow add", Seconds(27));
+        return super.addOrUpdateWiFiNetwork(request);
+    }
+}
+
 class RejectingThreadServer extends NetworkCommissioningServer.with("ThreadNetworkInterface") {
     override initialize() {
         this.state.maxNetworks = 1;
@@ -103,15 +145,6 @@ class RejectingThreadServer extends NetworkCommissioningServer.with("ThreadNetwo
 
 class NetworkStepPassed extends MatterError {}
 
-class FlowConstructionFailed extends MatterError {}
-
-class UnconstructableFlow extends ControllerCommissioningFlow {
-    constructor(...args: ConstructorParameters<typeof ControllerCommissioningFlow>) {
-        super(...args);
-        throw new FlowConstructionFailed();
-    }
-}
-
 /**
  * Presents the PASE channel as BLE, because the flow only configures the operational network on a BLE commissioning
  * channel.  Applies {@link interceptScan} to ScanNetworks.
@@ -120,7 +153,7 @@ function asBleChannel(interaction: ClientInteraction) {
     return new Proxy(interaction, {
         get(target, property) {
             if (property === "channelType") {
-                return ChannelType.BLE;
+                return bleAfterSetup || !setUpInteractions.has(target) ? ChannelType.BLE : target.channelType;
             }
             if (property === "invoke" && interceptScan !== undefined) {
                 const intercept = interceptScan;
@@ -150,6 +183,7 @@ function asBleChannel(interaction: ClientInteraction) {
 class StopAfterNetworkFlow extends ControllerCommissioningFlow {
     constructor(...[interaction, ...rest]: ConstructorParameters<typeof ControllerCommissioningFlow>) {
         super(asBleChannel(interaction), ...rest);
+        setUpInteractions.add(interaction);
     }
 
     override async executeCommissioning() {
@@ -177,6 +211,8 @@ describe("ScanNetworks rejection during commissioning", () => {
 
     beforeEach(() => {
         networkCalls.length = 0;
+        failsafeArms.length = 0;
+        bleAfterSetup = true;
         interceptScan = undefined;
     });
 
@@ -188,10 +224,7 @@ describe("ScanNetworks rejection during commissioning", () => {
 
     async function commissionAndCaptureError(
         addDevice: (site: MockSite) => Promise<ServerNode>,
-        options: Pick<ControllerCommissioningFlowOptions, "wifiNetwork" | "threadNetwork"> & {
-            commissioningFlowImpl?: typeof ControllerCommissioningFlow;
-        },
-        afterCommission?: (controller: ServerNode) => void,
+        network: Pick<ControllerCommissioningFlowOptions, "wifiNetwork" | "threadNetwork">,
     ) {
         const site = new MockSite();
         try {
@@ -212,7 +245,7 @@ describe("ScanNetworks rejection during commissioning", () => {
                         discriminator,
                         commissioningFlowImpl: StopAfterNetworkFlow,
                         timeout: Seconds(90),
-                        ...options,
+                        ...network,
                     })
                     .catch(error => {
                         caught = asError(error);
@@ -220,7 +253,6 @@ describe("ScanNetworks rejection during commissioning", () => {
                 { macrotasks: true },
             );
 
-            afterCommission?.(controller);
             return caught;
         } finally {
             await site.close();
@@ -294,11 +326,10 @@ describe("ScanNetworks rejection during commissioning", () => {
         expect(PeerUnresponsiveError.of(error)).instanceOf(PeerUnresponsiveError);
     });
 
-    it("runs the network setup on a PASE session that communication failures do not close", async () => {
-        const closesOnPeerLoss = new Array<boolean | undefined>();
+    it("commissions over a PASE session that suppresses peer loss", async () => {
+        const suppressPeerLoss = new Array<boolean | undefined>();
         interceptScan = async interaction => {
-            const { session } = interaction;
-            closesOnPeerLoss.push(NodeSession.is(session) ? session.closesOnPeerLoss : undefined);
+            suppressPeerLoss.push(interaction.session?.suppressPeerLoss);
             throw new StatusResponse.FailureError();
         };
         await commissionAndCaptureError(
@@ -308,23 +339,52 @@ describe("ScanNetworks rejection during commissioning", () => {
             },
         );
 
-        expect(closesOnPeerLoss).deep.equals([false]);
+        expect(suppressPeerLoss).deep.equals([true]);
     });
 
-    it("closes the PASE session when the commissioning flow cannot be created", async () => {
-        let paseSessionLeft: NodeSession | undefined;
-        const error = await commissionAndCaptureError(
-            site => site.addNode(MockServerNode.RootEndpoint.with(RejectingWifiServer), { device: OnOffLightDevice }),
+    it("arms the failsafe beyond the wait for a scan response", async () => {
+        bleAfterSetup = false;
+        await commissionAndCaptureError(
+            site =>
+                site.addNode(MockServerNode.RootEndpoint.with(SlowWifiServer, RecordingGeneralCommissioningServer), {
+                    device: OnOffLightDevice,
+                }),
             {
                 wifiNetwork: { wifiSsid: "TestNet", wifiCredentials: "secret" },
-                commissioningFlowImpl: UnconstructableFlow,
-            },
-            controller => {
-                paseSessionLeft = controller.env.get(SessionManager).getPaseSession();
             },
         );
 
-        expect(error).instanceOf(FlowConstructionFailed);
-        expect(paseSessionLeft).undefined;
+        const scanArm = failsafeArms.filter(({ afterNetworkCalls }) => afterNetworkCalls === 0).at(-1);
+        const nextArm = failsafeArms.find(({ afterNetworkCalls }) => afterNetworkCalls > 0);
+        expect(scanArm).not.undefined;
+        expect(nextArm).not.undefined;
+        if (scanArm === undefined || nextArm === undefined) {
+            return;
+        }
+        expect(nextArm.at - scanArm.at).greaterThan(Seconds(60));
+        expect(scanArm.end - nextArm.at).greaterThanOrEqual(Seconds(5));
+    });
+
+    it("re-arms the failsafe on BLE without shortening a longer one", async () => {
+        await commissionAndCaptureError(
+            site =>
+                site.addNode(MockServerNode.RootEndpoint.with(SlowAddWifiServer, RecordingGeneralCommissioningServer), {
+                    device: OnOffLightDevice,
+                }),
+            {
+                wifiNetwork: { wifiSsid: "TestNet", wifiCredentials: "secret" },
+            },
+        );
+
+        // The periodic re-arms are the ones while the add is still running
+        const connectIndex = failsafeArms.findIndex(({ at, end }) => end - at > Minutes(5));
+        expect(connectIndex).greaterThan(-1);
+        const periodicArms = failsafeArms
+            .slice(connectIndex + 1)
+            .filter(({ afterNetworkCalls }) => !networkCalls.slice(0, afterNetworkCalls).includes("add"));
+        expect(periodicArms.length).greaterThan(0);
+        for (const { end } of periodicArms) {
+            expect(end).greaterThanOrEqual(failsafeArms[connectIndex].end - Seconds(1));
+        }
     });
 });

@@ -17,7 +17,6 @@ import {
     ControllerCommissioningFlowOptions,
     NodeIdConflictError,
 } from "#peer/ControllerCommissioningFlow.js";
-import { SessionClosedError } from "#protocol/errors.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
@@ -256,10 +255,10 @@ export class ControllerCommissioner {
             passcode,
             retryFailureAsPeerCommunication: "Could not connect to device",
             abort,
+            // This method ends the PASE session on every path
+            suppressPeerLoss: true,
         });
 
-        // This method ends the PASE session on every path, so a communication failure must not close it underneath
-        session.closesOnPeerLoss = false;
         try {
             // Claim the operational identity only after PASE; undefined means another candidate already won the race
             let assignedNodeId = nodeId;
@@ -272,25 +271,30 @@ export class ControllerCommissioner {
                 }
             }
 
-            return await this.#commissionConnectedNode(session, { ...options, nodeId: assignedNodeId }, discoveryData);
-        } finally {
-            await this.#closePaseSession(session);
+            const result = await this.#commissionConnectedNode(
+                session,
+                { ...options, nodeId: assignedNodeId },
+                discoveryData,
+            );
+            await this.#closePaseSession(
+                session,
+                new CommissioningTransitionError("Commissioning over PASE completed"),
+            );
+            return result;
+        } catch (error) {
+            await this.#closePaseSession(session, asError(error));
+            throw error;
         }
     }
 
     /**
      * Ends the PASE session without masking the error that ended commissioning.
      */
-    async #closePaseSession(session: NodeSession) {
+    async #closePaseSession(session: NodeSession, cause: Error) {
         try {
-            await session.initiateForceClose({
-                cause: new CommissioningTransitionError("Commissioning over PASE ended"),
-            });
+            await session.initiateForceClose({ cause });
         } catch (error) {
-            if (error instanceof SessionClosedError) {
-                return;
-            }
-            logger.warn("Error closing PASE session after commissioning", error);
+            logger.warn("Error closing PASE session", error);
         }
     }
 
@@ -333,6 +337,7 @@ export class ControllerCommissioner {
         passcode: number;
         retryFailureAsPeerCommunication?: string;
         abort?: AbortSignal;
+        suppressPeerLoss?: boolean;
     }) {
         try {
             return await CommissioningConnection({
@@ -340,7 +345,13 @@ export class ControllerCommissioner {
                 timeout: options.timeout,
                 externalAbort: options.abort,
                 establishSession: (address, device, signal) =>
-                    this.#establishEphemeralNodeSession(address, options.passcode, device, signal),
+                    this.#establishEphemeralNodeSession(
+                        address,
+                        options.passcode,
+                        device,
+                        signal,
+                        options.suppressPeerLoss,
+                    ),
             });
         } catch (error) {
             if (
@@ -363,6 +374,7 @@ export class ControllerCommissioner {
         passcode: number,
         device?: DiscoveryData,
         signal?: AbortSignal,
+        suppressPeerLoss?: boolean,
     ): Promise<NodeSession> {
         let paseChannel: Channel<Bytes>;
         if (device !== undefined) {
@@ -418,7 +430,7 @@ export class ControllerCommissioner {
                 paseExchange,
                 paseChannel,
                 passcode,
-                { abort: signal },
+                { abort: signal, suppressPeerLoss },
             );
             await unsecuredSession.detachChannel()?.release();
             return caseSession;
@@ -585,12 +597,7 @@ export class ControllerCommissioner {
                         .initiateForceClose({
                             cause: new BleChannelClosedError(`BLE transport closed on ${ephemeralSession.via}`),
                         })
-                        .catch(error => {
-                            // Already-closed races with our force-close — the session shut down
-                            // via another path, no action needed.  Anything else is a real bug.
-                            if (error instanceof SessionClosedError) return;
-                            logger.warn("Error while force-closing PASE session on BLE close", error);
-                        });
+                        .catch(error => logger.warn("Error while force-closing PASE session on BLE close", error));
                 });
             }
         }
@@ -621,11 +628,12 @@ export class ControllerCommissioner {
                         joining of operational network at Commissionee).
                      */
                     // We've reconnected using CASE so close the ephemeral node ID session
-                    await ephemeralSession.initiateForceClose({
-                        cause: new CommissioningTransitionError(
+                    await this.#closePaseSession(
+                        ephemeralSession,
+                        new CommissioningTransitionError(
                             "Commissioning session closed because node has now joined fabric",
                         ),
-                    });
+                    );
                 }
 
                 if (performCaseCommissioning !== undefined) {

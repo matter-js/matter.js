@@ -19,8 +19,8 @@ import { BDX_PROTOCOL_ID, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "
  * We override send on the channel instance rather than subclassing because the Session
  * setter guards against channel replacement after construction.
  */
-function makeThrowingSession(): ProtocolMocks.NodeSession {
-    const session = new ProtocolMocks.NodeSession();
+function makeThrowingSession(config?: ProtocolMocks.NodeSession.Config): ProtocolMocks.NodeSession {
+    const session = new ProtocolMocks.NodeSession(config);
     (session.channel as any).send = async (_message: Message): Promise<void> => {
         throw new NetworkError("Simulated network failure");
     };
@@ -116,6 +116,26 @@ describe("MessageExchange", () => {
                 await exchange.nextMessage({ timeout: Millis(0) }); // drains the queued message
 
                 // Subsequent timeout with an empty queue should not declare peer lost
+                await expect(exchange.nextMessage({ timeout: Millis(0) })).to.be.rejected;
+
+                expect(peerLostCalled.value).to.be.false;
+            });
+        });
+
+        describe("on a session that suppresses peer loss", () => {
+            it("does not declare peer lost when a send fails", async () => {
+                const { exchange, peerLostCalled } = createExchange(makeThrowingSession({ suppressPeerLoss: true }));
+
+                await expect(exchange.send(0, Bytes.empty)).to.be.rejectedWith(NetworkError);
+
+                expect(peerLostCalled.value).to.be.false;
+            });
+
+            it("does not declare peer lost when no response arrives", async () => {
+                const { exchange, peerLostCalled } = createExchange(
+                    new ProtocolMocks.NodeSession({ suppressPeerLoss: true }),
+                );
+
                 await expect(exchange.nextMessage({ timeout: Millis(0) })).to.be.rejected;
 
                 expect(peerLostCalled.value).to.be.false;
