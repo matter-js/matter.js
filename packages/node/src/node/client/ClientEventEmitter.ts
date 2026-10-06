@@ -47,7 +47,7 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
         // A report can still arrive while the node is deleted, also when a leave event triggered the deletion
         if (node.lifecycle.isGone) {
             logger.debug(
-                `Ignoring event ${occurrence.path.clusterId}/${occurrence.path.eventId} for ${node} because it is closing or being deleted`,
+                `Ignoring event ${occurrence.path.clusterId}/${occurrence.path.eventId} for ${node} because it is closing, being deleted or crashed`,
             );
             return;
         }
