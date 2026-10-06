@@ -93,8 +93,17 @@ export async function settled(...nodes: Array<{ env: Environment }>) {
     throw new InternalError("Nodes did not settle; work is blocked on time that the test must advance itself");
 }
 
+/**
+ * Fail-safe length in seconds that {@link CommissioningHelper} arms during commissioning.
+ */
 export const FAILSAFE_LENGTH_S = 60;
 
+/**
+ * Runs a factory reset on a node and checks the outcome with `expect`: previous online state resumed, basic information
+ * present, unique id regenerated, pairing codes available, and the expected online/offline transitions seen.  Closes the
+ * node at the end.  `mode` sets the starting state: `online` and `offline-after-commission` commission a node first;
+ * `offline` uses an uncommissioned node that is never started; `offline-during-reset` stops the node while erase runs.
+ */
 export async function testFactoryReset(
     mode: "online" | "offline-after-commission" | "offline" | "offline-during-reset",
 ) {
@@ -160,10 +169,19 @@ export async function testFactoryReset(
     await node.close();
 }
 
+/**
+ * Returns helpers that commission a {@link MockServerNode} by invoking the commissioning commands directly on it, without a
+ * real controller.  `fabricNumber` holds the fabric index last used.
+ */
 export function CommissioningHelper() {
     return {
         fabricNumber: undefined as number | undefined,
 
+        /**
+         * Runs the commissioning sequence up to and including AddNOC, leaving the fail-safe armed.  Creates the node with
+         * {@link MockServerNode.createOnline} if none is given.  Returns the node, the exchange context used and the controller's
+         * fabric.  `index` selects the fabric index and the test authority.
+         */
         async almostCommission(node?: MockServerNode, index = 1) {
             const authority = await TestFabric.Authority({ index });
 
@@ -248,6 +266,10 @@ export function CommissioningHelper() {
             return { node, context, controllerFabric };
         },
 
+        /**
+         * Runs {@link almostCommission}, then sends CommissioningComplete on a new session in the new fabric and waits until the node
+         * is commissioned.  Returns the node, the context options for further calls and the device's fabric.
+         */
         async commission(existingNode?: MockServerNode, index = 1) {
             const { node, controllerFabric } = await this.almostCommission(existingNode, index);
 
@@ -304,6 +326,9 @@ export namespace interaction {
     /**
      * Creates a mock messenger that captures the invoke response.
      */
+    /**
+     * Creates a stub messenger that records the invoke response sent through it.  `getResponse` returns it, or `undefined` if none was sent.
+     */
     export function createInvokeMessenger(): {
         messenger: InteractionServerMessenger;
         getResponse: () => InvokeResponseForSend | undefined;
@@ -320,14 +345,23 @@ export namespace interaction {
         };
     }
 
+    /**
+     * Minimal unicast message, enough for the interaction server handlers.
+     */
     export const BarelyMockedMessage = {
         packetHeader: { sessionType: SessionType.Unicast, messageId: 123 },
     } as Message;
 
+    /**
+     * Minimal group message, enough for the interaction server handlers.
+     */
     export const BarelyMockedGroupMessage = {
         packetHeader: { sessionType: SessionType.Group, messageId: 123 },
     } as Message;
 
+    /**
+     * Creates a mock secure session on the node in the given fabric.  Returns its exchange and the node's interaction server.
+     */
     export async function connect(node: MockServerNode, fabric: Fabric) {
         const exchange = await node.createExchange({ fabric });
 
@@ -336,6 +370,9 @@ export namespace interaction {
         return { exchange, interactionServer };
     }
 
+    /**
+     * Sends a single-item write request through the node's interaction server and discards the response.
+     */
     export async function write(
         node: MockServerNode,
         fabric: Fabric,
@@ -352,6 +389,9 @@ export namespace interaction {
         await interactionServer.handleWriteRequest(exchange, writeRequest, BarelyMockedMessenger, BarelyMockedMessage);
     }
 
+    /**
+     * Sends a single attribute read request.  Returns the payload of the first attribute data of the response, or `undefined` if the first response item is not attribute data.
+     */
     export async function read(
         node: MockServerNode,
         fabric: Fabric,
@@ -376,6 +416,9 @@ export namespace interaction {
             : undefined;
     }
 
+    /**
+     * Sends a single-item invoke request and calls `responder` with the first decoded invoke response, if any.  `options.timed` runs it as a timed interaction.
+     */
     export async function invoke(
         node: MockServerNode,
         fabric: Fabric,
@@ -411,6 +454,9 @@ export namespace interaction {
         }
     }
 
+    /**
+     * Sends a subscribe request through the node's interaction server.  The response is not captured.
+     */
     export async function subscribe(
         node: MockServerNode,
         fabric: Fabric,
@@ -421,6 +467,9 @@ export namespace interaction {
         await interactionServer.handleSubscribeRequest(exchange, request, BarelyMockedMessenger, BarelyMockedMessage);
     }
 
+    /**
+     * Waits for the node to initiate an exchange, expects a ReportData message, acknowledges it with a status response and returns the decoded report.
+     */
     export function receiveDataReport(node: MockServerNode) {
         return node.handleExchange().then(async exchange => {
             const {
@@ -433,6 +482,9 @@ export namespace interaction {
         });
     }
 
+    /**
+     * Collects data reports from {@link receiveDataReport} until at least the given number of attribute reports and event reports arrived.  A minimum of 0 means that kind is not waited for.
+     */
     export async function receiveData(node: MockServerNode, minAttributeCount: number, minEventCount: number) {
         const attributes = Array<AttributeReport>();
         const events = Array<EventReport>();
@@ -489,9 +541,13 @@ export function clientStructureOf(peer: ClientNode) {
     return initializer.structure;
 }
 
+/**
+ * Waits, advancing mock time, until the controller's peer `id` has an active subscription, and returns the peer.  Fails an
+ * `expect` if the peer does not exist or has no subscription after about 10 s of mock time.
+ */
 export async function subscribedPeer(controller: ServerNode, id: string) {
     const peer = controller.peers.get(id);
-    expect(peer).not.undefined;
+    expect(peer).to.not.equal(undefined);
 
     // A peer that starts with its node sets activeSubscription only once it has sent its subscribe request
     const network = peer!.behaviors.internalsOf(NetworkClient);
@@ -500,7 +556,7 @@ export async function subscribedPeer(controller: ServerNode, id: string) {
     }
 
     const subscription = network.activeSubscription as SustainedSubscription;
-    expect(subscription).not.undefined;
+    expect(subscription).to.not.equal(undefined);
 
     await MockTime.resolve(subscription.active);
 

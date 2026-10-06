@@ -6,7 +6,7 @@
 
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { Environment } from "@matter/general";
-import { settled } from "./node-helpers.js";
+import { settled } from "@matter/node/testing";
 
 function nodeWithActivity(name: string) {
     const env = new Environment(name);

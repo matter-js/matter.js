@@ -8,8 +8,8 @@ import { Api } from "#behavior/system/remote/api/Api.js";
 import type { RemoteRequest } from "#behavior/system/remote/api/RemoteRequest.js";
 import { UserLabelServer } from "#behaviors/user-label";
 import { Abort } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { Status, StatusResponseError } from "@matter/types";
-import { MockServerNode } from "../../../node/mock-server-node.js";
 
 async function createNode() {
     return MockServerNode.createOnline({

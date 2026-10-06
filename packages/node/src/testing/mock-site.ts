@@ -36,10 +36,18 @@ export class MockSite {
     #storage = {} as Record<string, Record<string, any>>;
     #createStorageDriver: (store: Record<string, any>) => StorageDriver;
 
+    /**
+     * Creates an empty site.  All nodes added share one network simulator unless a node brings its own.
+     */
     constructor(options?: MockSite.Options) {
         this.#createStorageDriver = options?.createStorageDriver ?? (store => new MemoryStorageDriver(store));
     }
 
+    /**
+     * Adds a plain {@link ServerNode} (not a {@link MockServerNode}) with mock crypto, a simulated network host and
+     * site-backed storage, and starts it unless `online` is `false`.  Missing `index` and `id` are assigned (`device<index>`).
+     * The site closes the node and any environment it created on {@link close}.
+     */
     addNode<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint>(
         type?: T,
         options?: MockServerNode.Options<T>,
@@ -98,6 +106,9 @@ export class MockSite {
         return node;
     }
 
+    /**
+     * Adds an offline controller node with commissioning disabled and admin fabric id 1.  Missing `index` and `id` are assigned (`controller<index>`); the options object is modified.
+     */
     async addController(options?: MockServerNode.Options<MockServerNode.RootEndpoint>) {
         options ??= {};
         const index = (options.index ??= this.#nextNetworkIndex++);
@@ -117,6 +128,9 @@ export class MockSite {
         });
     }
 
+    /**
+     * Adds a node with an On/Off Light device and starts it, unless the options say otherwise.
+     */
     async addDevice(options?: MockServerNode.Options<MockServerNode.RootEndpoint>) {
         return await this.addNode(undefined, {
             device: OnOffLightDevice,
@@ -124,6 +138,9 @@ export class MockSite {
         });
     }
 
+    /**
+     * Adds a controller (not started) and a device, without commissioning them.
+     */
     async addUncommissionedPair(options?: MockSite.PairOptions) {
         options ??= {};
         const controller = await this.addController(options.controller);
@@ -132,6 +149,10 @@ export class MockSite {
         return { controller, device };
     }
 
+    /**
+     * Adds a controller and a device, starts the controller and commissions the device into its fabric using mock time (90 s
+     * timeout).  Entropy is enabled on both only while pairing.
+     */
     async addCommissionedPair(options?: MockSite.PairOptions) {
         const { controller, device } = await this.addUncommissionedPair(options);
 
@@ -155,6 +176,9 @@ export class MockSite {
         return { controller, device };
     }
 
+    /**
+     * Closes all nodes still open, then the environments the site created for them.
+     */
     async close() {
         await MockTime.resolve(
             MatterAggregateError.allSettled(
@@ -182,6 +206,9 @@ export class MockSite {
         );
     }
 
+    /**
+     * The in-memory store backing the given node id (or node), created on first use.  Persists across node restarts within the site.
+     */
     storageFor(id: string | { id: string }) {
         if (typeof id !== "string") {
             id = id.id;
@@ -192,18 +219,36 @@ export class MockSite {
         return this.#storage[id];
     }
 
+    /**
+     * Closes the site, so it can be used with `await using`.
+     */
     async [Symbol.asyncDispose]() {
         await this.close();
     }
 }
 
 export namespace MockSite {
+    /**
+     * Options for {@link MockSite}.
+     */
     export interface Options {
+        /**
+         * Creates the storage driver for a node, given its backing store.  Defaults to a memory driver.
+         */
         createStorageDriver?: (store: Record<string, any>) => StorageDriver;
     }
 
+    /**
+     * Per-node configuration for the pair-creating methods of {@link MockSite}.
+     */
     export interface PairOptions {
+        /**
+         * Configuration of the controller node.
+         */
         controller?: MockServerNode.Configuration<any>;
+        /**
+         * Configuration of the device node.
+         */
         device?: MockServerNode.Configuration<any>;
     }
 }

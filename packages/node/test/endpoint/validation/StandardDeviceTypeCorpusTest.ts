@@ -15,6 +15,7 @@ import * as endpoints from "#endpoints/index";
 import { ClosurePanelTag, ClosureTag, CommodityTariffCommodityTag } from "#tags/index.js";
 import { Bytes } from "@matter/general";
 import { FeatureSelectionViolations, Matter } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { MeasurementType, Status } from "@matter/types";
 import { AirQuality } from "@matter/types/clusters/air-quality";
 import { ApplicationBasic } from "@matter/types/clusters/application-basic";
@@ -33,7 +34,6 @@ import { RvcRunMode } from "@matter/types/clusters/rvc-run-mode";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { WaterHeaterManagement } from "@matter/types/clusters/water-heater-management";
 import { WaterHeaterMode } from "@matter/types/clusters/water-heater-mode";
-import { MockServerNode } from "../../node/mock-server-node.js";
 import { createNode, createUnjudgedNode, violationsOf } from "./validation-helpers.js";
 
 /**

@@ -7,10 +7,8 @@
 import { SubscriptionsServer } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { Crypto, Entropy, Environment, MockCrypto } from "@matter/general";
+import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { commission } from "../../../node/icd-helpers.js";
-import { MockServerNode } from "../../../node/mock-server-node.js";
-import { MockSite } from "../../../node/mock-site.js";
-import { subscribedPeer } from "../../../node/node-helpers.js";
 
 function activeSubscriptionsOf(node: ServerNode) {
     return Object.values(node.state.sessions.sessions).reduce(

@@ -45,8 +45,8 @@ import {
     RequirementModel,
     RequirementResolver,
 } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { DoorLock } from "@matter/types/clusters/door-lock";
-import { MockServerNode } from "../../node/mock-server-node.js";
 import {
     createBleNode,
     createNode,
