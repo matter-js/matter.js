@@ -16,6 +16,7 @@ import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
 import type { Node } from "#node/Node.js";
+import { ImplementationError } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 import { ClusterId, DeviceTypeId, EndpointNumber } from "@matter/types";
 import { MockEndpointType } from "../../behavior/mock-behavior.js";
@@ -159,6 +160,68 @@ describe("DescriptorServer", () => {
             // { deviceType: 257, revision: 3 },
             // { deviceType: 256, revision: 3 },
         ]);
+    });
+
+    describe("addTags", () => {
+        const TaggedEndpoint = MockEndpointType.with(DescriptorServer.with("TagList"));
+
+        function tag(tag: number, label?: string | null) {
+            return { mfgCode: null, namespaceId: 7, tag, label };
+        }
+
+        async function createTagged() {
+            return MockEndpoint.create({ type: TaggedEndpoint, descriptor: { tagList: [tag(1)] } });
+        }
+
+        function addTags(endpoint: MockEndpoint<typeof TaggedEndpoint>, ...tags: ReturnType<typeof tag>[]) {
+            return endpoint.act(agent => agent.descriptor.addTags(...tags));
+        }
+
+        function tagsOf(endpoint: MockEndpoint<typeof TaggedEndpoint>) {
+            return endpoint.state.descriptor.tagList.map(({ tag, label }) => ({ tag, label }));
+        }
+
+        it("adds a tag that is already listed only once", async () => {
+            await using endpoint = await createTagged();
+            await addTags(endpoint, tag(1), tag(2), tag(2));
+
+            expect(tagsOf(endpoint)).deep.equals([
+                { tag: 1, label: undefined },
+                { tag: 2, label: undefined },
+            ]);
+        });
+
+        it("does not add a listed tag again when the label is the same", async () => {
+            await using endpoint = await createTagged();
+            await addTags(endpoint, tag(1, "Kitchen"));
+            await addTags(endpoint, tag(1, "Kitchen"));
+
+            expect(tagsOf(endpoint)).deep.equals([{ tag: 1, label: "Kitchen" }]);
+        });
+
+        it("replaces the label of a listed tag", async () => {
+            await using endpoint = await createTagged();
+            await addTags(endpoint, tag(1, "Kitchen"));
+            await addTags(endpoint, tag(1, "Bedroom"));
+
+            expect(tagsOf(endpoint)).deep.equals([{ tag: 1, label: "Bedroom" }]);
+        });
+
+        it("keeps the label when a listed tag is added without one", async () => {
+            await using endpoint = await createTagged();
+            await addTags(endpoint, tag(1, "Kitchen"));
+            await addTags(endpoint, tag(1));
+            await addTags(endpoint, tag(1, null));
+
+            expect(tagsOf(endpoint)).deep.equals([{ tag: 1, label: "Kitchen" }]);
+        });
+
+        it("requires the TagList feature", async () => {
+            await using endpoint = await MockEndpoint.create(MockEndpointType);
+            expect(() => endpoint.act(agent => agent.get(DescriptorServer).addTags(tag(1)))).throws(
+                ImplementationError,
+            );
+        });
     });
 
     describe("composition", () => {
