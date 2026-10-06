@@ -411,6 +411,40 @@ describe("ExchangeManager", () => {
             };
         }
 
+        it("counts a duplicate message as peer activity", async () => {
+            await using peer = await sessionWithSleepingLitPeer();
+            peer.exchanges.addProtocolHandler({
+                id: SECURE_CHANNEL_PROTOCOL_ID,
+                requiresSecureSession: true,
+                async onNewExchange() {},
+                async close() {},
+            });
+            const ack = peer.datagram({
+                payloadHeader: {
+                    isInitiatorMessage: false,
+                    requiresAck: false,
+                    messageType: SecureMessageType.StandaloneAck,
+                    exchangeId: 0x1234,
+                    protocolId: SECURE_CHANNEL_PROTOCOL_ID,
+                    ackedMessageId: 0x5678,
+                    hasSecuredExtension: false,
+                },
+            });
+            peer.transport.receive(ack);
+            for (let i = 0; i < 20; i++) {
+                await MockTime.yield();
+            }
+            const first = peer.session.activeTimestamp;
+
+            await MockTime.advance(1000);
+            peer.transport.receive(ack);
+            for (let i = 0; i < 20; i++) {
+                await MockTime.yield();
+            }
+
+            expect(peer.session.activeTimestamp).greaterThan(first);
+        });
+
         it("wakes a sleeping LIT peer on a message no exchange accepts", async () => {
             await using peer = await sessionWithSleepingLitPeer();
             peer.exchanges.addProtocolHandler({

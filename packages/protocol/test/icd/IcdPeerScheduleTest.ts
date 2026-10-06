@@ -108,6 +108,14 @@ describe("IcdPeerSchedule", () => {
             expect(s.nextSignalDue()).equal(at(Seconds(4) + Seconds(120) + MARGIN));
         });
 
+        it("does not count a message sent before the Check-In as an interaction", () => {
+            const s = schedule({ maximumCheckInBackoff: Seconds(120) });
+            s.noteSent();
+            s.noteCheckIn(T0);
+            s.noteActive(at(Seconds(1)));
+            expect(s.nextSignalDue()).equal(at(Seconds(5) + Seconds(120) + MARGIN));
+        });
+
         it("forgets an interaction at the next Check-In", () => {
             const s = schedule({ maximumCheckInBackoff: Seconds(120) });
             s.noteCheckIn(T0);
@@ -129,6 +137,12 @@ describe("IcdPeerSchedule", () => {
             const s = schedule({ maximumCheckInBackoff: Seconds(120) });
             s.noteActive(T0);
             expect(s.nextSignalDue(Seconds(70))).equal(at(Seconds(70)));
+        });
+
+        it("is undefined before any activity, even with a StayActive promise", () => {
+            const s = schedule();
+            s.noteStayActive(T0, Seconds(60));
+            expect(s.nextSignalDue(Seconds(70))).undefined;
         });
 
         it("is not before the end of Active Mode", () => {

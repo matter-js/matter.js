@@ -38,6 +38,32 @@ describe("IcdPeerWakefulness", () => {
         expect(w.nextSignalDue).undefined;
     });
 
+    it("never arms timers for a peer that needs no awaiting", async () => {
+        const w = new IcdPeerWakefulness();
+        w.setTimings(TIMINGS);
+        let missed = 0;
+        w.checkInMissed.on(() => {
+            missed++;
+        });
+        w.noteActive();
+
+        await MockTime.advance(Millis(CHECK_IN_DUE + 1));
+        expect(w.awake.value).equals(true);
+        expect(w.available.value).equals(true);
+        expect(missed).equals(0);
+    });
+
+    it("applies new timings at once", async () => {
+        const { w } = lit();
+        w.noteActive();
+        await MockTime.advance(Seconds(20));
+
+        w.setTimings({ ...TIMINGS, idleModeDuration: Seconds(1) }); // due at 4s + 1s + 10s, already passed
+
+        expect(w.available.value).equals(false);
+        expect(w.nextSignalDue).undefined;
+    });
+
     it("starts asleep and unavailable for a LIT peer without activity", () => {
         const { w } = lit();
         expect(w.awake.value).equals(false);
@@ -98,6 +124,16 @@ describe("IcdPeerWakefulness", () => {
             expect(missed.count).equals(0);
             await MockTime.advance(Seconds(2));
             expect(missed.count).equals(1);
+        });
+
+        it("drops a released cadence's deadline at the next Check-In", () => {
+            const { w } = lit();
+            const cadence = w.reportCadence(Seconds(120));
+            w.noteActive();
+            cadence[Symbol.dispose]();
+
+            w.noteCheckIn();
+            expect(w.nextSignalDue).equals(Time.nowMs + CHECK_IN_DUE);
         });
 
         it("keeps the remaining subscription's cadence when another one is released", () => {

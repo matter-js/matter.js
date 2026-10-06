@@ -955,6 +955,19 @@ describe("SustainedSubscription", () => {
                 await MockTime.resolve(subscription.done!, { macrotasks: true });
             });
 
+            it("releases the cadence when the recreate after a mode change fails", async () => {
+                const { wakefulness, subscription } = await subscribedLitPeer();
+                wakefulness.requiresAwait = false; // recreate for the new mode; the resubscribe fails
+                await flush();
+                wakefulness.requiresAwait = true;
+
+                wakefulness.noteActive();
+                expect(wakefulness.nextSignalDue).equal(checkInDue());
+
+                subscription.close();
+                await MockTime.resolve(subscription.done!, { macrotasks: true });
+            });
+
             it("keeps its subscription when the peer's wakefulness is suspended", async () => {
                 const { wakefulness, subscription } = await subscribedLitPeer();
                 const id = subscription.subscriptionId;
