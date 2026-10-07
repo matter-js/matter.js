@@ -65,4 +65,13 @@ describe("ServerAddressSet", () => {
             expect(result.healthyAt).equal(1234);
         });
     });
+
+    describe("compareHealth", () => {
+        it("ranks a healthy address before an unused one, in either argument order", () => {
+            const healthy = { ...a, healthyAt: Timestamp(1000) };
+
+            expect(ServerAddressSet.compareHealth(healthy, b)).lessThan(0);
+            expect(ServerAddressSet.compareHealth(b, healthy)).greaterThan(0);
+        });
+    });
 });
