@@ -33,9 +33,8 @@ const logger = Logger.get("PaseClient");
 const MAX_PASSCODE_GENERATION_ATTEMPTS = 100;
 
 /**
- * The responder's key confirmation (Pake2 cB) does not verify, so initiator and responder derived different keys: the
- * passcode is wrong for the device at this address.  A stale address that reaches a different device in commissioning
- * mode produces the same error.
+ * The responder's key confirmation (Pake2 cB) does not verify: the passcode is wrong for the device at this address, or
+ * a stale address reached another device in commissioning mode.
  *
  * @see {@link MatterSpecification.v161.Core} § 4.14.1.2.7
  */

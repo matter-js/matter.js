@@ -117,6 +117,12 @@ export interface CommissioningOptions extends Partial<ControllerCommissioningFlo
 export const DEFAULT_CASE_CONNECTION_TIMEOUT = Seconds(255);
 
 /**
+ * {@link DiscoveryData} of a device to commission.  A non-empty `deviceIdentifier` marks the addresses as those of one
+ * discovered device instance, so a wrong passcode on one of them stops the attempts on the others.
+ */
+export type CommissioningDiscoveryData = DiscoveryData & { deviceIdentifier?: string };
+
+/**
  * Configuration for commissioning a previously discovered node.
  */
 export interface LocatedNodeCommissioningOptions extends CommissioningOptions {
@@ -126,11 +132,8 @@ export interface LocatedNodeCommissioningOptions extends CommissioningOptions {
      */
     addresses: ServerAddress[];
 
-    /**
-     * Discovery metadata of the device.  A non-empty `deviceIdentifier` marks the addresses as those of one discovered
-     * device instance, so a wrong passcode on one of them stops the attempts on the others.
-     */
-    discoveryData?: DiscoveryData & { deviceIdentifier?: string };
+    /** Discovery metadata of the device. */
+    discoveryData?: CommissioningDiscoveryData;
 
     /**
      * Overall wall-clock budget for PASE establishment across all candidate addresses.
@@ -173,11 +176,8 @@ export interface EstablishPaseOptions {
      */
     addresses: ServerAddress[];
 
-    /**
-     * Discovery metadata of the device.  A non-empty `deviceIdentifier` marks the addresses as those of one discovered
-     * device instance, so a wrong passcode on one of them stops the attempts on the others.
-     */
-    discoveryData?: DiscoveryData & { deviceIdentifier?: string };
+    /** Discovery metadata of the device. */
+    discoveryData?: CommissioningDiscoveryData;
 
     /** PASE passcode for the device. */
     passcode: number;
@@ -403,9 +403,7 @@ export class ControllerCommissioner {
         }
     }
 
-    /**
-     * Establishes a PASE session at one address.  A wrong passcode throws `PasscodeMismatchError`.
-     */
+    /** A wrong passcode throws {@link PasscodeMismatchError}. */
     async #establishEphemeralNodeSession(
         address: ServerAddress,
         passcode: number,
@@ -533,8 +531,8 @@ export class ControllerCommissioner {
     }
 
     /**
-     * Maps addresses to synthetic {@link CommissionableDevice} candidates for use with {@link CommissioningConnection},
-     * ordered by {@link ServerAddressSet.compareDesirability}; equally ranked addresses keep the given order.
+     * Maps addresses to synthetic {@link CommissionableDevice} candidates, ordered by
+     * {@link ServerAddressSet.compareDesirability}; equally ranked addresses keep the given order.
      *
      * Addresses of one discovered device instance form one candidate, so a wrong passcode on one address stops the
      * others.  Otherwise each distinct address becomes its own candidate: an address may be stale and reach a
@@ -542,7 +540,7 @@ export class ControllerCommissioner {
      */
     #addressesToCandidates(
         addresses: ServerAddress[],
-        discoveryData?: DiscoveryData & { deviceIdentifier?: string },
+        discoveryData?: CommissioningDiscoveryData,
     ): CommissionableDevice[] {
         const distinct = new Map(addresses.map(address => [ServerAddress.urlFor(address), address]));
         const sorted = [...distinct.values()].sort(ServerAddressSet.compareDesirability);

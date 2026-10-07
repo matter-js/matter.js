@@ -621,9 +621,8 @@ export class MatterController {
                 logger.warn("PASE channel established via known address", paseSession.via, paseSession.isSecure);
                 return paseSession;
             } catch (error) {
-                // Fall back to full discovery when the known address is stale or unreachable.  A passcode mismatch is
-                // final even though a stale address reaching another commissionable device produces it too: with a
-                // wrong passcode, discovery fails the same way and costs the device more failed PASE attempts.
+                // A passcode mismatch is final even when a stale address caused it: discovery fails the same way and
+                // costs the device more failed PASE attempts
                 if (
                     causedBy(error, PasscodeMismatchError) ||
                     !causedBy(error, UnexpectedDataError, RetransmissionLimitReachedError, PeerCommunicationError)
