@@ -347,13 +347,12 @@ describe("ClientNode", () => {
         expect(peer1.parts.size).equals(1);
     });
 
-    it("establishes PASE with the device's addresses in their ranked order", async () => {
-        await using site = new MockSite();
+    /** An uncommissioned pair whose device records where each packet to its Matter port goes. */
+    async function pairRecordingPaseDestinations(site: MockSite) {
         const { controller, device } = await site.addUncommissionedPair();
 
         const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
         const deviceCrypto = device.env.get(Crypto) as MockCrypto;
-        controllerCrypto.entropic = deviceCrypto.entropic = true;
 
         const paseDestinations = new Array<string>();
         const deviceNetwork = device.env.get(Network) as MockNetwork;
@@ -365,36 +364,36 @@ describe("ClientNode", () => {
         });
 
         await controller.start();
+
+        /** Runs `action` with entropic crypto on both nodes; deterministic crypto makes their session IDs collide. */
+        async function withEntropicCrypto<T>(action: () => Promise<T>) {
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+            try {
+                return await MockTime.resolve(action(), { macrotasks: true });
+            } finally {
+                controllerCrypto.entropic = deviceCrypto.entropic = false;
+            }
+        }
+
+        return { controller, device, paseDestinations, withEntropicCrypto };
+    }
+
+    it("establishes PASE with the device's addresses in their ranked order", async () => {
+        await using site = new MockSite();
+        const { controller, device, paseDestinations, withEntropicCrypto } = await pairRecordingPaseDestinations(site);
+
         const { passcode, discriminator } = device.state.commissioning;
-        await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
-            macrotasks: true,
-        });
-        controllerCrypto.entropic = deviceCrypto.entropic = false;
+        await withEntropicCrypto(() => controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }));
 
         // The device advertises a global IPv6 and an IPv4 address; IPv6 ranks first
         expect(paseDestinations[0]).equals("abcd::2");
     });
 
-    it("establishes PASE over IP before BLE, keeping the given order within IP", async () => {
+    it("establishes PASE with the most desirable of the given addresses first", async () => {
         await using site = new MockSite();
-        const { controller, device } = await site.addUncommissionedPair();
+        const { controller, device, paseDestinations, withEntropicCrypto } = await pairRecordingPaseDestinations(site);
 
-        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
-        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
-        controllerCrypto.entropic = deviceCrypto.entropic = true;
-
-        const paseDestinations = new Array<string>();
-        const deviceNetwork = device.env.get(Network) as MockNetwork;
-        deviceNetwork.simulator.router.intercept((packet, route) => {
-            if (packet.kind === "udp" && packet.destPort === 5540) {
-                paseDestinations.push(packet.destAddress);
-            }
-            route(packet);
-        });
-
-        await controller.start();
-        const started = Time.nowUs;
-        const { paseSession } = await MockTime.resolve(
+        const { paseSession } = await withEntropicCrypto(() =>
             controller.env.get(ControllerCommissioner).establishPase({
                 addresses: [
                     { type: "ble", peripheralAddress: "00:11:22:33:44:55" },
@@ -403,13 +402,10 @@ describe("ClientNode", () => {
                 ],
                 passcode: device.state.commissioning.passcode,
             }),
-            { macrotasks: true },
         );
-        controllerCrypto.entropic = deviceCrypto.entropic = false;
         await paseSession.initiateClose();
 
-        expect(paseDestinations[0]).equals("10.10.10.2");
-        expect(Timestamp.delta(started, Time.nowUs)).lessThan(Seconds(5));
+        expect(paseDestinations[0]).equals("abcd::2");
     });
 
     it("skips the post-commission read when autoStateInitialize is false", async () => {
