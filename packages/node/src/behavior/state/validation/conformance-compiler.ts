@@ -10,9 +10,11 @@ import type { Schema } from "@matter/model";
 import {
     ClusterModel,
     Conformance,
+    Constraint,
     DataModelPath,
     ElementTag,
     FeatureSet,
+    FieldModel,
     FieldValue,
     Metatype,
     ValueModel,
@@ -731,11 +733,15 @@ export function astToFunction(
     }
 
     function disallowEnumValue(schema: Schema): EnumMemberValidator {
+        const value =
+            schema instanceof FieldModel && schema.isEnumRange
+                ? `range ${schema.constraint}`
+                : `ID ${schema.effectiveId}`;
         return location => {
             throw new EnumValueConformanceError(
                 schema,
                 location,
-                `Matter does not allow enum value ${schema.name} (ID ${schema.effectiveId}) here`,
+                `Matter does not allow enum value ${schema.name} (${value}) here`,
             );
         };
     }
@@ -766,10 +772,13 @@ export function astToFunction(
         // Create a validator for each member with conformance.  If the member is not constrained then we perform no
         // special validation for it
         let memberValidators: undefined | Record<number, EnumMemberValidator>;
+        const rangeValidators = new Array<{ range: Constraint; validate: EnumMemberValidator }>();
         for (const member of members) {
+            const range = member instanceof FieldModel && member.isEnumRange ? member.constraint : undefined;
+
             // If there's no ID the schema is invalid so just skip
             const id = member.effectiveId;
-            if (id === undefined) {
+            if (id === undefined && range === undefined) {
                 continue;
             }
 
@@ -827,15 +836,16 @@ export function astToFunction(
                     throw new UnsupportedConformanceNodeError(member, compiledNode);
             }
 
-            if (!memberValidators) {
-                memberValidators = {};
+            if (range !== undefined) {
+                rangeValidators.push({ range, validate: memberValidator });
+            } else if (id !== undefined) {
+                memberValidators ??= {};
+                memberValidators[id] = memberValidator;
             }
-
-            memberValidators[id] = memberValidator;
         }
 
         // If we did not find members with conformance that requires enforcement then just return the main validator
-        if (memberValidators === undefined) {
+        if (memberValidators === undefined && !rangeValidators.length) {
             return mainValidator;
         }
 
@@ -844,14 +854,15 @@ export function astToFunction(
             mainValidator?.(value, session, location);
 
             if (typeof value === "number") {
-                if (!memberValidators[value]) {
+                const validate =
+                    memberValidators?.[value] ?? rangeValidators.find(({ range }) => range.test(value))?.validate;
+                if (!validate) {
                     throw new UnknownEnumValueError(
                         location,
                         `Matter does not define the enum value ${value} for ${schema.name}`,
                     );
                 }
-                // Invoke the member validator if one exists for the selected value
-                memberValidators[value](location);
+                validate(location);
             }
         };
     }

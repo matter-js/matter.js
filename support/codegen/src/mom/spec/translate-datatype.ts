@@ -10,7 +10,7 @@ import { addDocumentation } from "./add-documentation.js";
 import { repairConstraint } from "./repairs/aspect-repairs.js";
 import { repairDefaultValue } from "./repairs/default-value-repairs.js";
 import { repairType, repairTypeIdentifier } from "./repairs/type-repairs.js";
-import { SpecReference } from "./spec-types.js";
+import { SpecReference, Table } from "./spec-types.js";
 import {
     Alias,
     chooseIdentityAliases,
@@ -186,6 +186,39 @@ export function translateFields<T extends AnyElement.Type<FieldRecord>>(
     return translateRecordsToMatter(type.Tag, records, type) as ReturnType<T>[] | undefined;
 }
 
+const RANGE_VALUE = /^\s*(0x[0-9a-f]+|\d+)\s+(?:to|-)\s+(0x[0-9a-f]+|\d+)\s*$/i;
+
+/**
+ * Translate the rows of enum tables that reserve a value range for manufacturers ("0x80 to 0xBF | MfgCodes") to range
+ * members.  Other range rows summarize values defined by name or by a derived cluster, so their values stay closed.
+ */
+export function translateEnumRanges(tables: Table[] | undefined) {
+    const ranges = new Array<FieldElement>();
+    for (const { fields, rows } of tables ?? []) {
+        const [valueField] = fields;
+        const nameField = fields.find(field => field.match(/name/)) ?? fields[1];
+        const summaryField = fields.find(field => field.match(/summary|description/));
+        for (const row of rows) {
+            const bounds = row[valueField]?.match(RANGE_VALUE);
+            const name = row[nameField];
+            const summary = summaryField === undefined ? undefined : row[summaryField];
+            if (!bounds || !name || !`${name} ${summary ?? ""}`.match(/manufactur|vendor|mfg/i)) {
+                continue;
+            }
+            const conformance = row.conformance;
+            ranges.push(
+                FieldElement({
+                    name: Identifier(name),
+                    constraint: `${Number(bounds[1])} to ${Number(bounds[2])}`,
+                    conformance: conformance === undefined ? undefined : ConformanceCode(conformance),
+                    description: summary === undefined ? undefined : StrWithSuperscripts(summary),
+                }),
+            );
+        }
+    }
+    return ranges;
+}
+
 /**
  * Translate children of enums, bitmaps, structs, commands, attributes and events.  If "parent" is none of these,
  * returns undefined.
@@ -249,7 +282,9 @@ export function translateValueChildren(
                 }
             }
 
-            return translateRecordsToMatter("value", records, FieldElement);
+            const values = translateRecordsToMatter("value", records, FieldElement);
+            const ranges = translateEnumRanges(definition.tables);
+            return ranges.length ? [...(values ?? []), ...ranges] : values;
         }
 
         case Metatype.bitmap: {

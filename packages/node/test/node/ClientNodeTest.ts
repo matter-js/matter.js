@@ -136,10 +136,7 @@ class FailingCommissioningFlow extends ControllerCommissioningFlow {
     }
 }
 
-describe("ClientNode", function () {
-    // Commissioning runs real crypto, which a loaded CI runner can stretch past the 2 s wall-clock default
-    this.timeout(10_000);
-
+describe("ClientNode", () => {
     before(() => {
         MockTime.init();
     });

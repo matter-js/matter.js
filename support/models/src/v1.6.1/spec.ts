@@ -2407,6 +2407,10 @@ export const SpecMatter = Matter(
                 name: "InvalidInMode", id: 0x3,
                 description: "The received request cannot be handled due to the current mode of the device",
                 xref: "cluster§1.10.7.2.1.2"
+            }),
+            Field({
+                name: "MfgCodes", constraint: "128 to 191",
+                description: "Manufacturer specific values. For the derived Mode Base cluster instances, these are manufacturer specific under the derived cluster."
             })
         ),
 
@@ -2421,7 +2425,11 @@ export const SpecMatter = Matter(
             Field({ name: "Min", id: 0x6, xref: "cluster§1.10.8" }),
             Field({ name: "Max", id: 0x7, xref: "cluster§1.10.8" }),
             Field({ name: "Night", id: 0x8, xref: "cluster§1.10.8" }),
-            Field({ name: "Day", id: 0x9, xref: "cluster§1.10.8" })
+            Field({ name: "Day", id: 0x9, xref: "cluster§1.10.8" }),
+            Field({
+                name: "MfgTags", constraint: "32768 to 49151",
+                description: "Manufacturer-specific values. For the derived cluster instances, these are manufacturer specific under the derived cluster."
+            })
         )
     ),
 
@@ -3176,7 +3184,8 @@ export const SpecMatter = Matter(
             Field({ name: "Stopped", id: 0x0, conformance: "M", description: "The device is stopped" }),
             Field({ name: "Running", id: 0x1, conformance: "M", description: "The device is operating" }),
             Field({ name: "Paused", id: 0x2, conformance: "M", description: "The device is paused during an operation" }),
-            Field({ name: "Error", id: 0x3, conformance: "M", description: "The device is in an error state" })
+            Field({ name: "Error", id: 0x3, conformance: "M", description: "The device is in an error state" }),
+            Field({ name: "ManufacturerStates", constraint: "128 to 191", description: "Vendor specific states" })
         ),
 
         Datatype(
@@ -3236,7 +3245,8 @@ export const SpecMatter = Matter(
             Field({
                 name: "CommandInvalidInState", id: 0x3, conformance: "M",
                 description: "The device cannot process the command in its current state"
-            })
+            }),
+            Field({ name: "ManufacturerError", constraint: "128 to 191", description: "Vendor specific errors" })
         ),
 
         Datatype(
@@ -4707,7 +4717,11 @@ export const SpecMatter = Matter(
         Datatype(
             { name: "LightSensorTypeEnum", type: "enum8", xref: "cluster§2.2.4.1" },
             Field({ name: "Photodiode", id: 0x0, conformance: "M", description: "Indicates photodiode sensor type" }),
-            Field({ name: "Cmos", id: 0x1, conformance: "M", description: "Indicates CMOS sensor type" })
+            Field({ name: "Cmos", id: 0x1, conformance: "M", description: "Indicates CMOS sensor type" }),
+            Field({
+                name: "Ms", conformance: "O", constraint: "64 to 254",
+                description: "Reserved for manufacturer specific light sensor types"
+            })
         )
     ),
 
@@ -16076,7 +16090,8 @@ export const SpecMatter = Matter(
             Field({
                 name: "InternalInterference", id: 0x4, conformance: "M",
                 description: "An internal element is prohibiting motion, e.g. an integrated door within a bigger garage door is open and prevents motion"
-            })
+            }),
+            Field({ name: "ManufacturerError", constraint: "128 to 191", description: "Vendor specific errors" })
         ),
 
         Datatype(

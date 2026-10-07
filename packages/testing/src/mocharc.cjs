@@ -61,6 +61,7 @@ function mocharc(format = "cjs") {
 
     return {
         inlineDiffs: true,
+        timeout: 10_000, // DEFAULT_TEST_TIMEOUT in mocha.ts
         file: listSupportFiles(format),
         spec: [defaultSpec],
     };

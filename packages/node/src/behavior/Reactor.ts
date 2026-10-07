@@ -21,7 +21,7 @@ import type { Behavior } from "./Behavior.js";
  *   - If {@link reactor} is asynchronous, the behavior tracks the resulting promise.  It provides error handling and
  *     ensures the promise completes before {@link Endpoint} destruction
  *
- *   - The behavior ensures reactors run serially even if they are asynchronous
+ *   - The behavior ensures reactions of a reactor to an observable run serially even if they are asynchronous
  *
  *   - Matter.js manages the context in which the reactor runs automatically, either joining the emitter's context or
  *     creating a dedicated offline context

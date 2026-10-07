@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError, Millis, Seconds, Time, Timer } from "@matter/general";
+import { ImplementationError, Millis, Seconds, Timer } from "@matter/general";
 import { NodeLifecycle } from "@matter/main";
 import { GeneralDiagnosticsServer } from "@matter/main/behaviors/general-diagnostics";
 import { IcdManagementServer } from "@matter/main/behaviors/icd-management";
@@ -89,10 +89,11 @@ export class IcdTestEventServer extends TestGeneralDiagnosticsServer {
     #armActiveWindow() {
         this.#stopTimers();
         const icd = this.agent.get(IcdManagementServer);
-        this.internal.activeTimer = Time.getTimer(
+        this.internal.activeTimer = this.reactorTimer(
             "icd-test-active-window",
             Millis(icd.state.activeModeDuration),
-            this.callback(this.#onActiveWindowDone, { lock: true }),
+            this.#onActiveWindowDone,
+            { lock: true },
         ).start();
     }
 
@@ -108,10 +109,11 @@ export class IcdTestEventServer extends TestGeneralDiagnosticsServer {
     #onIdleEntered() {
         this.#stopTimers();
         const icd = this.agent.get(IcdManagementServer);
-        this.internal.idleTimer = Time.getTimer(
+        this.internal.idleTimer = this.reactorTimer(
             "icd-test-idle-window",
             Seconds(icd.state.idleModeDuration),
-            this.callback(this.#onIdleWindowDone, { lock: true }),
+            this.#onIdleWindowDone,
+            { lock: true },
         ).start();
     }
 
