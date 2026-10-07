@@ -1640,6 +1640,26 @@ describe("GroupcastServer", () => {
             await MockTime.advance(1_000);
             expect(node.stateOf(GroupcastServer).fabricUnderTest).equal(FabricIndex.NO_FABRIC);
         });
+
+        it("ends testing after the duration of the latest request once disabled and enabled again", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const testing = (testOperation: Groupcast.GroupcastTesting, durationSeconds?: number) =>
+                node.online({ exchange: fabricExchange(fabric.fabricIndex), command: true }, agent =>
+                    agent.get(GroupcastServer).groupcastTesting({ testOperation, durationSeconds }),
+                );
+
+            await testing(Groupcast.GroupcastTesting.EnableListenerTesting, 10);
+            await MockTime.advance(5_000);
+            await testing(Groupcast.GroupcastTesting.DisableTesting);
+            await testing(Groupcast.GroupcastTesting.EnableListenerTesting, 100);
+
+            await MockTime.advance(10_000);
+            expect(node.stateOf(GroupcastServer).fabricUnderTest).equal(fabric.fabricIndex);
+
+            await MockTime.advance(90_000);
+            expect(node.stateOf(GroupcastServer).fabricUnderTest).equal(FabricIndex.NO_FABRIC);
+        });
     });
 
     describe("groupcastTesting events", () => {
