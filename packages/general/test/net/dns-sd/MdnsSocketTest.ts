@@ -85,6 +85,32 @@ describe("MdnsSocket", () => {
             expect(received.queries[0].name).to.equal("_test._tcp.local");
         });
 
+        it("waits on close for a message handler still running", async () => {
+            let release!: () => void;
+            const gate = new Promise<void>(resolve => (release = resolve));
+            const handling = new Promise<void>(resolve => {
+                env.socket.receipt.on(async () => {
+                    resolve();
+                    await gate;
+                });
+            });
+            await sendFromPeer(env, completeDnsMessage(createQuery("_matter._tcp.local")));
+            await handling;
+
+            let closed = false;
+            const closing = env.socket.close().then(() => {
+                closed = true;
+            });
+            for (let i = 0; i < 10; i++) {
+                await MockTime.yield();
+            }
+            expect(closed).false;
+
+            release();
+            await closing;
+            expect(closed).true;
+        });
+
         it("ignores messages after close", async () => {
             await env.socket.close();
 
