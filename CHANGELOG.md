@@ -129,6 +129,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure that a read of a fabric-sensitive list attribute returns only the accessing fabric's entries and removing a fabric deletes its entries from such lists
     - Fix: Ensure that `DescriptorServer.addTags` does not add a tag that is already listed and only updates its label when one is given
     - Fix: Ensure that `DescriptorServer.addDeviceTypes` does not list a device type a second time with another revision
+    - Enhancement: In `strict` validation mode (`endpoint.validation`) a cluster server, the root endpoint's included, refuses construction when a command its conformance requires throws `Behavior.unimplemented`
     - Enhancement: The commissioning test harness (`MockSite`, `MockServerNode`, `MockExchange` and the node helpers) is exported at `@matter/node/testing`, for tests that run under `@matter/testing`
     - Fix: `ClientNode.decommission()` no longer throws for a peer commissioned with `autoSubscribe` and `autoStateInitialize` disabled
     - Fix: A read that runs while a data report is still arriving no longer lets a descriptor in that report delete a cluster whose data came earlier in the same report

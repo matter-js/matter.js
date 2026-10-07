@@ -11,6 +11,7 @@ import { OnlineEvent } from "#behavior/Events.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { Agent } from "#endpoint/index.js";
 import type { SupportedElements } from "#endpoint/properties/Behaviors.js";
+import { DeviceTypeConformanceService } from "#node/server/DeviceTypeConformanceService.js";
 import { camelize, ImplementationError, MaybePromise, ObserverGroup } from "@matter/general";
 import { ClusterModel, CommandModel, FeatureSet, FieldValue, Schema } from "@matter/model";
 import { Val } from "@matter/protocol";
@@ -96,7 +97,9 @@ export class ServerBehaviorBacking extends BehaviorBacking {
 
     #configureElements(behavior: ClusterBehavior) {
         // Validate
-        const validation = new ValidatedElements(behavior.constructor as ClusterBehavior.Type, behavior);
+        const validation = new ValidatedElements(behavior.constructor as ClusterBehavior.Type, behavior, {
+            strict: this.endpoint.env.maybeGet(DeviceTypeConformanceService)?.mode === "strict",
+        });
         validation.report();
 
         const globals = behavior.state as GlobalAttributeState;
