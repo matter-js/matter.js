@@ -5,6 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import { ClusterImplementationError } from "#behavior/cluster/ValidatedElements.js";
 import { AdministratorCommissioningServer } from "#behaviors/administrator-commissioning";
 import { BridgedDeviceBasicInformationServer } from "#behaviors/bridged-device-basic-information";
 import { DescriptorServer } from "#behaviors/descriptor";
@@ -14,6 +15,7 @@ import {
     GroupKeyManagementServer,
 } from "#behaviors/group-key-management";
 import { OnOffServer } from "#behaviors/on-off";
+import { TemperatureControlServer } from "#behaviors/temperature-control";
 import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light";
 import { RefrigeratorDevice } from "#devices/refrigerator";
 import { TemperatureControlledCabinetDevice } from "#devices/temperature-controlled-cabinet";
@@ -38,6 +40,7 @@ import {
 import { MockServerNode, MockSite } from "@matter/node/testing";
 import {
     captureLogOf,
+    captureWarningsOf,
     createNode,
     deviceTypeList,
     lightWith,
@@ -45,11 +48,12 @@ import {
     lightWithoutIdentify,
     unjudgedModel,
     withBle,
+    CabinetDevice,
 } from "./validation-helpers.js";
 
 function cabinet() {
     return {
-        type: TemperatureControlledCabinetDevice,
+        type: CabinetDevice,
         id: "cabinet",
         temperatureControl: { minTemperature: 0, maxTemperature: 1000, temperatureSetpoint: 400 },
     };
@@ -64,6 +68,20 @@ const { Groups, OnOff, ScenesManagement } = OnOffLightRequirements.server.mandat
  */
 async function createStrictNode() {
     return MockServerNode.createOnline(undefined, { environment: strictEnvironment(), device: undefined });
+}
+
+/**
+ * {@link error} and every error it wraps, as a cause or in an aggregate.
+ */
+function causesOf(error: unknown): unknown[] {
+    if (!(error instanceof Error)) {
+        return [error];
+    }
+    const nested = error instanceof AggregateError ? [...error.errors] : [];
+    if (error.cause !== undefined) {
+        nested.push(error.cause);
+    }
+    return [error, ...nested.flatMap(causesOf)];
 }
 
 function strictEnvironment() {
@@ -421,7 +439,7 @@ describe("device type validation at construction", () => {
         const fridge = await node.add({
             type: Fridge,
             id: "fridge",
-            parts: [light, { ...cabinet(), type: TemperatureControlledCabinetDevice.with(SlowBehavior) }],
+            parts: [light, { ...cabinet(), type: CabinetDevice.with(SlowBehavior) }],
         });
 
         expect(grandchild).not.undefined;
@@ -452,7 +470,7 @@ describe("device type validation at construction", () => {
             .add({
                 type: Fridge,
                 id: "fridge",
-                parts: [{ ...cabinet(), type: TemperatureControlledCabinetDevice.with(SlowBehavior) }],
+                parts: [{ ...cabinet(), type: CabinetDevice.with(SlowBehavior) }],
             })
             .finally(() => (constructing = false));
         while (!first.parts.has("fridge")) {
@@ -572,6 +590,39 @@ describe("device type validation at construction", () => {
             .match(/^RootNode NetworkCommissioning: /);
 
         await node.close();
+    });
+
+    describe("of a cluster server whose mandatory command throws unimplemented", () => {
+        const stubCabinet = () => ({ ...cabinet(), type: TemperatureControlledCabinetDevice });
+
+        it("refuses it in strict mode", async () => {
+            const node = await createStrictNode();
+
+            const error = await node.add(stubCabinet()).catch(e => e);
+            expect(causesOf(error).some(cause => cause instanceof ClusterImplementationError)).true;
+            expect(node.parts.has("cabinet")).false;
+
+            await node.close();
+        });
+
+        for (const mode of ["warn", "off"]) {
+            it(`logs it and leaves it out of the accepted commands in ${mode} mode`, async () => {
+                const node = await MockServerNode.createOnline(undefined, {
+                    environment: environmentWith(mode),
+                    device: undefined,
+                });
+
+                let cabinet: Endpoint | undefined;
+                const logged = await captureWarningsOf(async () => {
+                    cabinet = await node.add(stubCabinet());
+                });
+
+                expect(logged.some(({ text }) => text.includes("setTemperature: Throws unimplemented exception"))).true;
+                expect(cabinet?.globalsOf(TemperatureControlServer).acceptedCommandList).deep.equals([]);
+
+                await node.close();
+            });
+        }
     });
 
     describe("in off mode", () => {

@@ -50,8 +50,9 @@ export interface DeviceTypeValidation {
 export namespace DeviceTypeValidation {
     /**
      * How the node judges the device types of its endpoints: `"off"` judges nothing on its own, `"warn"` logs each
-     * violation and `"strict"` refuses the construction of an endpoint with any new violation. A misplaced singleton is
-     * refused at construction in every mode; in `"off"` only when a device type above the endpoint declares it.
+     * violation and `"strict"` refuses the construction of an endpoint with any new violation, and of a cluster server
+     * with an unimplemented mandatory command. A misplaced singleton is refused at construction in every mode; in
+     * `"off"` only when a device type above the endpoint declares it.
      */
     export type Mode = "off" | "warn" | "strict";
 

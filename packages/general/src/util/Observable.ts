@@ -681,7 +681,7 @@ export class BasicObservableValue<T extends [any, ...any[]] = [boolean], R exten
     }
 
     offError(handler: (cause: Error) => void) {
-        this.#awaiters = this.#awaiters?.filter(awaiter => awaiter.resolve === undefined && awaiter.reject === handler);
+        this.#awaiters = this.#awaiters?.filter(awaiter => awaiter.resolve !== undefined || awaiter.reject !== handler);
     }
 
     useError(handler: (cause: Error) => void) {
@@ -884,14 +884,19 @@ export class ObservableProxy extends BasicObservable {
     }
 }
 
+interface ObserverRegistration {
+    observer: Observer<any[], any>;
+    target?: {};
+    bound: Observer<any[], any>;
+}
+
 /**
  * A collection of observers managed as a unit.  This makes it convenient to deregister multiple observers when an
  * object closes.
  */
 export class ObserverGroup {
     #defaultTarget?: {};
-    #observers = new Map<Observable<any[], any> | AsyncObservable<any>, Observer<any[], any>[]>();
-    #boundObservers = new Map<Observer<any[], any>, Map<{}, Observer<any[]>>>();
+    #observers = new Map<Observable<any[], any> | AsyncObservable<any>, ObserverRegistration[]>();
 
     constructor(target?: {}) {
         this.#defaultTarget = target;
@@ -921,15 +926,14 @@ export class ObserverGroup {
         observer: Observer<ObserverGroup.VarArgs<NoInfer<T>>, NoInfer<R>>,
         target = this.#defaultTarget,
     ) {
-        if (target !== undefined) {
-            observer = observer.bind(target);
-        }
-        observable.on(observer as Observer<T, R>);
-        const observers = this.#observers.get(observable);
-        if (observers === undefined) {
-            this.#observers.set(observable, [observer]);
+        const bound = target === undefined ? observer : observer.bind(target);
+        observable.on(bound as Observer<T, R>);
+        const registration = { observer, target, bound };
+        const registrations = this.#observers.get(observable);
+        if (registrations === undefined) {
+            this.#observers.set(observable, [registration]);
         } else {
-            observers.push(observer);
+            registrations.push(registration);
         }
     }
 
@@ -945,28 +949,20 @@ export class ObserverGroup {
         observer: Observer<NoInfer<T>>,
         target = this.#defaultTarget,
     ) {
-        if (target) {
-            const observers = this.#boundObservers.get(observer);
-            if (observers === undefined) {
-                return;
-            }
-            const bound = observers.get(target);
-            if (bound === undefined) {
-                return;
-            }
-            observers.delete(target);
-            if (observers.size === 0) {
-                this.#boundObservers.delete(observer);
-            }
+        const registrations = this.#observers.get(observable);
+        const index =
+            registrations?.findIndex(
+                registration => registration.observer === observer && registration.target === target,
+            ) ?? -1;
+        if (registrations === undefined || index === -1) {
+            return;
         }
-        const observers = this.#observers.get(observable);
-        if (observers) {
-            const index = observers.indexOf(observer);
-            if (index !== -1) {
-                observers?.splice(index, 1);
-            }
+
+        const [{ bound }] = registrations.splice(index, 1);
+        if (!registrations.length) {
+            this.#observers.delete(observable);
         }
-        observable.off(observer);
+        observable.off(bound);
     }
 
     /**
@@ -985,20 +981,19 @@ export class ObserverGroup {
      * @param observer the observer function
      */
     has(observable: Observable<any[], any> | AsyncObservable<any>, observer: Observer<any[], any>) {
-        return this.#observers.get(observable)?.includes(observer) ?? false;
+        return this.#observers.get(observable)?.some(registration => registration.observer === observer) ?? false;
     }
 
     /**
      * Remove all observers. The instance can be reused afterward to add new observers.
      */
     close() {
-        for (const [observable, observers] of this.#observers.entries()) {
-            for (const observer of observers) {
-                observable.off(observer);
+        for (const [observable, registrations] of this.#observers.entries()) {
+            for (const { bound } of registrations) {
+                observable.off(bound);
             }
         }
         this.#observers.clear();
-        this.#boundObservers.clear();
     }
 
     [Symbol.dispose]() {
