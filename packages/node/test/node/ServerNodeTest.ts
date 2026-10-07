@@ -6,6 +6,7 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { EventsBehavior } from "#behavior/system/events/EventsBehavior.js";
+import { AccessControlServer } from "#behaviors/access-control";
 import { DescriptorBehavior } from "#behaviors/descriptor";
 import { OnOffServer } from "#behaviors/on-off";
 import { PumpConfigurationAndControlServer } from "#behaviors/pump-configuration-and-control";
@@ -82,6 +83,7 @@ import {
     Val,
 } from "@matter/protocol";
 import { EndpointNumber, FabricId, FabricIndex, NodeId, StreamUsage, VendorId } from "@matter/types";
+import { AccessControl } from "@matter/types/clusters/access-control";
 import { BasicInformation as BasicInformationCluster } from "@matter/types/clusters/basic-information";
 import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configuration-and-control";
 
@@ -1460,6 +1462,45 @@ describe("ServerNode", () => {
                 },
             });
 
+            await node.close();
+        }
+    });
+
+    it("keeps the access control list when a newer default root endpoint adds a feature", async () => {
+        const environment = new Environment("test");
+        const service = environment.get(StorageService);
+
+        // Configure storage that will survive node replacement
+        const storage = new StorageManager(new MemoryStorageDriver());
+        storage.close = () => {};
+        await storage.initialize();
+        service.open = () => Promise.resolve(storage);
+
+        const acl = [
+            {
+                privilege: AccessControl.AccessControlEntryPrivilege.Administer,
+                authMode: AccessControl.AccessControlEntryAuthMode.Case,
+                subjects: [NodeId(0x1234)],
+                targets: null,
+                auxiliaryType: undefined,
+                fabricIndex: FabricIndex(1),
+            },
+        ];
+
+        {
+            const node = new MockServerNode(MockServerNode.RootEndpoint.with(AccessControlServer.with("Extension")), {
+                id: "node0",
+                environment,
+            });
+            await node.construction.ready;
+            await node.setStateOf(AccessControlServer, { acl });
+            await node.close();
+        }
+
+        {
+            const node = new MockServerNode({ id: "node0", environment });
+            await node.construction.ready;
+            expect(node.stateOf(AccessControlServer).acl.map(entry => ({ ...entry }))).deep.equals(acl);
             await node.close();
         }
     });

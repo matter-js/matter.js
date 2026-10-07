@@ -14,42 +14,41 @@ import {
     Duration,
     Logger,
     MatterAggregateError,
-    Millis,
     NetworkError,
     NoResponseTimeoutError,
+    Millis,
     Seconds,
     ServerAddress,
+    Time,
+    Timer,
+    Timestamp,
     TimeoutError,
     UnexpectedDataError,
 } from "@matter/general";
-import { CommissioningConnectionAttempt, CommissioningConnectionPool } from "./CommissioningConnectionPool.js";
 import { TransientPeerCommunicationError } from "./PeerCommunicationError.js";
 
 const logger = Logger.get("CommissioningConnection");
 
-// Delay between consecutive PASE attempts starts for addresses of the same device.  The CHIP SDK
-// responder binds its singleton PASESession to the first incoming PBKDFParamRequest exchange; concurrent
-// requests on other exchanges are rejected and clear the in-progress PASE state.  Staggering avoids that
-// race when a single device exposes multiple addresses (e.g. IPv6 ULA + link-local + IPv4).  The first
-// attempt fires immediately; each subsequent attempt waits one additional slot, cancelable when a winner
-// is established.  Paired with the shorter cross-device stagger in ParallelPaseDiscovery.
-const PER_ADDRESS_STAGGER_DELAY = Seconds(10);
+// How long the latest PASE attempt runs before the next address of a device gets one, unless it settles first.
+// Paired with the shorter cross-device stagger in ParallelPaseDiscovery.
+const DELAY_BEFORE_NEXT_ADDRESS = Seconds(10);
 
 /**
- * Attempts PASE establishments in parallel across all provided device candidates, returning the first successful
- * session.
+ * Attempts PASE establishment with the provided device candidates, returning the first successful session.
  *
- * All candidates come from {@link CommissioningConnection.Options.devices}.  The first candidate launches
- * immediately; subsequent candidates are staggered by {@link PER_ADDRESS_STAGGER_DELAY} to avoid overwhelming a
- * device that exposes multiple addresses (the CHIP responder cannot serialise concurrent
- * PBKDFParamRequests).  This is used when addresses are already known (e.g. from a prior mDNS discovery or
- * a pre-configured address list).
+ * All candidates come from {@link CommissioningConnection.Options.devices}, in their order, one PASE attempt per
+ * (device, address).  This is used when addresses are already known (e.g. from a prior mDNS discovery or a
+ * pre-configured address list).
  *
- * A PASE attempt is launched for each (device, address) candidate, so a single device may have multiple concurrent
- * attempts if it was discovered at multiple addresses.  If an attempt fails with a credential error the device is
- * permanently dropped.  If it fails with a transient network/timeout error the remaining addresses for that device
- * are still in-flight.  The process completes when one session is established, all candidates are exhausted, or the
- * overall timeout fires.
+ * The first candidate launches immediately.  The next one launches once the latest attempt has settled or has run
+ * for {@link DELAY_BEFORE_NEXT_ADDRESS}, but never while an attempt holds its responder, i.e. has received the
+ * PBKDFParamResponse.  The CHIP SDK responder binds its single PASESession to the first PBKDFParamRequest exchange,
+ * and a request on another exchange clears the handshake in progress, so addresses of one device (e.g. IPv6 ULA +
+ * link-local + IPv4) must not be raced.  An older, unanswered attempt may still run when a newer one starts.
+ *
+ * If an attempt fails with a credential error the device is permanently dropped and its queued addresses are
+ * skipped.  If it fails with a transient network/timeout error the remaining addresses are still tried.  The
+ * process completes when one session is established, all candidates are exhausted, or the overall timeout fires.
  *
  * When the first PASE session is established the abort signal passed to
  * {@link CommissioningConnection.Options.establishSession} fires on all remaining in-flight attempts, allowing
@@ -60,13 +59,9 @@ export async function CommissioningConnection(
     options: CommissioningConnection.Options,
 ): Promise<CommissioningConnection.Result> {
     using abort = new Abort({ timeout: options.timeout, abort: options.externalAbort });
-    const pool = new CommissioningConnectionPool(options.devices);
-    const staggerDelay = options.staggerDelay ?? PER_ADDRESS_STAGGER_DELAY;
+    const delayBeforeNextAddress = options.delayBeforeNextAddress ?? DELAY_BEFORE_NEXT_ADDRESS;
     let lastError: Error | undefined;
     let lastNonRetryableError: Error | undefined;
-
-    // Deduplicates in-flight attempts by attemptKey (device+address).
-    const inFlight = new Set<string>();
 
     // All outstanding PASE attempt promises.  Each resolves to the winning session or null on failure.
     const pending = new Set<Promise<CommissioningConnection.Result | null>>();
@@ -75,50 +70,69 @@ export async function CommissioningConnection(
     // should cancel all remaining in-flight addresses for that same device immediately.
     const deviceAborts = new Map<string, AbortController>();
 
-    const getDeviceAbort = (deviceKey: string): AbortController => {
-        let ac = deviceAborts.get(deviceKey);
+    const getDeviceAbort = (deviceIdentifier: string): AbortController => {
+        let ac = deviceAborts.get(deviceIdentifier);
         if (ac === undefined) {
             ac = new AbortController();
-            deviceAborts.set(deviceKey, ac);
+            deviceAborts.set(deviceIdentifier, ac);
         }
         return ac;
     };
 
     let winner: CommissioningConnection.Result | undefined;
-    let launchedCount = 0;
 
-    const launchAttempt = (candidate: CommissioningConnectionAttempt) => {
-        if (inFlight.has(candidate.attemptKey)) return;
-        inFlight.add(candidate.attemptKey);
+    const queue = options.devices.flatMap(device => device.addresses.map(address => ({ device, address })));
+    let holdingAttempts = 0;
+    let latest: { startedAt: Timestamp; settled: boolean } | undefined;
+    let nextAttemptTimer: Timer | undefined;
+
+    // The one place that decides whether the next candidate starts, called whenever an attempt settles or the timer
+    // fires.
+    const schedule = () => {
+        nextAttemptTimer?.stop();
+        nextAttemptTimer = undefined;
+
+        while (winner === undefined && !abort.aborted && holdingAttempts === 0) {
+            while (queue.length > 0 && getDeviceAbort(queue[0].device.deviceIdentifier).signal.aborted) {
+                queue.shift();
+            }
+            const candidate = queue.shift();
+            if (candidate === undefined) {
+                return;
+            }
+
+            if (latest !== undefined && !latest.settled) {
+                const remaining = delayBeforeNextAddress - Timestamp.delta(latest.startedAt, Time.nowUs);
+                if (remaining > 0) {
+                    queue.unshift(candidate);
+                    nextAttemptTimer = Time.getTimer("PASE next address", Millis(remaining), schedule).start();
+                    return;
+                }
+            }
+
+            launchAttempt(candidate);
+        }
+    };
+
+    const launchAttempt = (candidate: Attempt) => {
+        const attempt = { startedAt: Time.nowUs, settled: false };
+        latest = attempt;
 
         // Compose global + per-device abort so either can cancel this attempt.
-        const deviceAc = getDeviceAbort(candidate.deviceKey);
+        const deviceAc = getDeviceAbort(candidate.device.deviceIdentifier);
         const signal = AbortSignal.any([abort.signal, deviceAc.signal]);
 
-        // Stagger consecutive attempts so the CHIP SDK responder isn't hit with concurrent
-        // PBKDFParamRequests it cannot serialise.  First attempt fires immediately; each subsequent
-        // one waits staggerDelay * its launch index.  The shared abort signal cancels pending
-        // sleeps when a winner is established (or the overall timeout fires).
-        const slot = launchedCount++;
-        const stagger = Millis(slot * staggerDelay);
-
-        const startSession = (): Promise<NodeSession | null> => {
-            // Re-check race outcomes after the stagger sleep — winner may have been chosen, or this
-            // device's other address may have failed credential check.
-            if (winner !== undefined || signal.aborted) {
-                return Promise.resolve(null);
+        let holdsResponder = false;
+        const onPbkdfParamResponse = () => {
+            if (!holdsResponder) {
+                holdsResponder = true;
+                holdingAttempts++;
             }
-            return options.establishSession(candidate.address, candidate.device, signal);
         };
 
-        const sessionPromise: Promise<NodeSession | null> =
-            stagger > 0 ? Abort.sleep("PASE stagger", signal, stagger).then(startSession) : startSession();
-
-        const p: Promise<CommissioningConnection.Result | null> = sessionPromise
+        const p: Promise<CommissioningConnection.Result | null> = options
+            .establishSession(candidate.address, candidate.device, { signal, onPbkdfParamResponse })
             .then(session => {
-                if (session === null) {
-                    return null;
-                }
                 // deviceAc fired ⇒ this device was dropped for invalid credentials, so a late success on
                 // another of its addresses must not win.
                 if (winner !== undefined || abort.aborted || deviceAc.signal.aborted) {
@@ -154,7 +168,6 @@ export async function CommissioningConnection(
                         logger.info(`Dropping device ${candidate.device.deviceIdentifier}:`, asErr.message);
                         lastNonRetryableError = asErr;
                         deviceAc.abort(asErr);
-                        pool.markInvalidCredentials(candidate.deviceKey);
                     } else if (causedBy(asErr, NoResponseTimeoutError, TransientPeerCommunicationError, NetworkError)) {
                         lastError = asErr;
                         logger.warn(
@@ -170,20 +183,21 @@ export async function CommissioningConnection(
             })
             .finally(() => {
                 pending.delete(p);
-                inFlight.delete(candidate.attemptKey);
+                attempt.settled = true;
+                if (holdsResponder) {
+                    holdingAttempts--;
+                }
+                schedule();
             });
 
         pending.add(p);
     };
 
-    for (const candidate of pool.availableCandidates(inFlight)) {
-        launchAttempt(candidate);
-    }
+    schedule();
 
     try {
-        // Drain until a winner is picked or the outer abort fires; waiting for each attempt (including those
-        // still sleeping in the per-address stagger) to actually run, rather than short-circuiting on the first
-        // failure.
+        // Drain until a winner is picked or the outer abort fires, rather than short-circuiting on the first
+        // failure.  A winner fires the abort, which ends the wait even when it launched after the wait began.
         while (pending.size > 0 && winner === undefined && !abort.aborted) {
             await abort.race(...pending);
         }
@@ -217,13 +231,20 @@ export async function CommissioningConnection(
         }
         throw new PairRetransmissionLimitReachedError("Failed to connect on any discovered server");
     } catch (error) {
-        // Fire the abort so any in-flight stagger sleep cancels and any late PASE completion closes its session
+        // Fire the abort so any in-flight attempt cancels and any late PASE completion closes its session
         // via the winner/abort guard in launchAttempt's .then handler.
         if (!abort.aborted) {
             abort.abort(asError(error));
         }
         throw error;
+    } finally {
+        nextAttemptTimer?.stop();
     }
+}
+
+interface Attempt {
+    device: CommissionableDevice;
+    address: ServerAddress;
 }
 
 export namespace CommissioningConnection {
@@ -231,15 +252,13 @@ export namespace CommissioningConnection {
         /**
          * Commissioning candidates to attempt PASE with.
          *
-         * {@link CommissioningConnectionPool} merges entries by `deviceIdentifier` and expands each device's
-         * address list into independent `(device, address)` attempts.  The stagger delay applies globally
-         * across those generated attempts (slot 0 fires immediately, slot N fires at N × staggerDelay) —
-         * the intent is to serialise addresses of one physical device so the CHIP responder isn't hit with
-         * concurrent PBKDFParamRequests it cannot handle.
+         * Each address of a device becomes one `(device, address)` attempt, in the given order, and attempts launch
+         * one after the other across all devices (see {@link CommissioningConnection}).  A credential failure drops
+         * every attempt whose device has the same `deviceIdentifier`.
          *
          * Callers that discover genuinely distinct devices should coordinate fan-out at a higher layer
-         * (e.g. {@link ParallelPaseDiscovery}); passing multiple distinct devices here will serialise them
-         * by the same stagger, which is usually not what you want for a multi-device race.
+         * (e.g. {@link ParallelPaseDiscovery}); passing multiple distinct devices here serialises them too, which is
+         * usually not what you want for a multi-device race.
          */
         devices: CommissionableDevice[];
 
@@ -247,14 +266,12 @@ export namespace CommissioningConnection {
         timeout: Duration;
 
         /**
-         * Establishes a PASE session for the given candidate.  The provided {@link AbortSignal} fires when the
-         * overall timeout expires or when another candidate wins the race first.  Implementations should respect the
-         * signal and abort cleanly (e.g. by sending an InvalidParam status to prevent a 60-second device lockout).
+         * Establishes a PASE session for the given candidate.
          */
         establishSession: (
             address: ServerAddress,
             device: CommissionableDevice,
-            signal: AbortSignal,
+            context: EstablishSessionContext,
         ) => Promise<NodeSession>;
 
         /**
@@ -263,11 +280,23 @@ export namespace CommissioningConnection {
         externalAbort?: AbortSignal;
 
         /**
-         * Delay between consecutive PASE attempt starts.  Defaults to the internal 10s production value.
-         * Exposed primarily for tests that need to disable or shorten the stagger; production callers
-         * should not override this.
+         * How long the latest attempt runs before the next candidate starts, unless it settles first.  Defaults to
+         * the internal 10s production value.  Exposed primarily for tests that need to disable or shorten it;
+         * production callers should not override this.
          */
-        staggerDelay?: Duration;
+        delayBeforeNextAddress?: Duration;
+    }
+
+    export interface EstablishSessionContext {
+        /**
+         * Fires when the overall timeout expires or when another candidate wins the race first.  Implementations
+         * should respect it and abort cleanly (e.g. by sending an InvalidParam status to prevent a 60-second device
+         * lockout).
+         */
+        signal: AbortSignal;
+
+        /** Call once the PBKDFParamResponse has arrived; no further candidate launches until this attempt settles. */
+        onPbkdfParamResponse: () => void;
     }
 
     export interface Result {

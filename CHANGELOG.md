@@ -23,6 +23,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure that `ObservableValue.offError()` removes only the given handler and keeps other error handlers and pending awaiters
     - Fix: Ensure that `Lifetime.details` keeps what is written to it and lifetime diagnostics show every detail
     - Fix: Ensure that `MdnsSocket.close()` waits for message handlers that are still running
+    - Fix: `ServerAddressSet.compareHealth` ranks a healthy address before an unused one in either argument order
     - Fix: Supporting Timers with intervals longer than 2^31-1 ms (about 24.8 days)
     - Fix: DNS-SD discovery no longer takes records from the known-answer list of mDNS queries, its own looped-back queries included. A link-local address learned on one interface was stored under every interface such a query arrived on, so a controller could dial a node through the wrong interface and spend its connection attempt waiting for a timeout
     - Fix: `FormattedText` nests list items by their indent, so an item that outdents between two open levels sits beside the deeper level instead of below it, and an indented numbered list nests instead of merging into its parent
@@ -86,8 +87,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Fix: Ensure that `BleScanner` forgets a discovered device after 15 minutes of scanning without its advertisement, or, for a client that reports no listening time, 15 minutes after the later of its last report and the end of the last discovery
     - Fix: Commissioning tries a device's addresses in ranked order instead of reverse order, so a lower-ranked unreachable address no longer delays PASE
-    - Fix: Commissioning starts PASE on a device's next address after 10 s instead of 15 s, so a third address gets an attempt within the default 30 s timeout
+    - Fix: Commissioning tries a device's next address as soon as the last attempt fails, or 10 s after it started, instead of every 15 s, and not while the device is answering an earlier attempt
+    - Fix: Commissioning with known addresses tries a repeated address only once, so a duplicate no longer costs the device an extra failed PASE attempt
     - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status or does not answer it in time
     - Fix: A missing response no longer closes the commissioning PASE session; commissioning closes it on every exit
     - Feature: A `NodeSession` created with `suppressPeerLoss` stays open on communication failures of its exchanges; its owner closes it
@@ -136,6 +139,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: Ensure that a feature change of a server cluster drops only the persisted values that fail validation under the new features, not all of them
+    - Breaking: `Behaviors.validateRequirements()` is removed; nothing called it, and `DeviceTypeConformanceService` checks device type requirements
+    - Fix: Ensure that a client read returns the peer's current values of changes-omitted attributes, which the subscription does not report, instead of cached ones
     - Fix: Ensure that a peer's endpoint is installed and announced only after the endpoint that owns it is on the node
     - Fix: A `ServerNode` whose construction failed early can be closed
     - Fix: Closing a node or endpoint continues past a failing step, so its other parts, its behaviors, network runtime, peers and services still close and a `ServerNode` releases the storage lock it holds
@@ -183,7 +189,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A quality or constraint an element inherits from its type or from the element it overrides now takes effect where only its own was read: an inherited quieter quality (Q) makes an event or `$Changed` event quiet, an inherited nullable quality (X) lets `null` through a cast, an inherited atomic quality (T) admits the attribute to an atomic write, and an inherited list constraint is enforced. A derived behavior whose schema makes an element quieter replaces the event its base built, so the element's changes are reported
     - Breaking: The `SupportedModes` attribute of the mode clusters derived from Mode Base (Device Energy Management Mode, Dishwasher Mode, Energy EVSE Mode, Laundry Washer Mode, Microwave Oven Mode, Oven Mode, Refrigerator And Temperature Controlled Cabinet Mode, RVC Clean Mode, RVC Run Mode, Water Heater Mode) enforces the 2 to 255 entries Mode Base defines and has no empty default, so a server of one of these clusters must configure at least two modes
     - Fix: An OTA provider refusing an apply it holds no consent for sent `DelayedActionTime` as milliseconds, so a requestor honoring it waited 24 hours rather than two minutes
-    - Breaking: `ServerNode.RootEndpoint` includes `GroupcastServer` (Listener, Sender and PerGroup features) and selects the AccessControl `Auxiliary` feature, as Matter 1.6.1 requires Groupcast on the root of a node with a Groups server. This applies to controllers too. A node type that installs its own AccessControl server must select `Auxiliary` on it, e.g. `MyAccessControlServer.with("Extension", "Auxiliary")`, or build on the new `ServerNode.RootEndpointWithoutGroupcast`. The `ServerNode.RootEndpoint` type does not include Groupcast; read its state with `node.stateOf(GroupcastServer)`. The GroupKeyManagement `Groupcast` feature stays provisional and is still rejected. With the `Auxiliary` feature, a Group ACL entry without targets no longer grants access on endpoint 0
+    - Breaking: `ServerNode.RootEndpoint` includes `GroupcastServer` (Listener, Sender and PerGroup features) and selects the AccessControl `Auxiliary` feature, as Matter 1.6.1 requires Groupcast on the root of a node with a Groups server. This applies to controllers built on `ServerNode.RootEndpoint`; the legacy `CommissioningController` and the shell build on `ServerNode.RootEndpointWithoutGroupcast`. A node type that installs its own AccessControl server must select `Auxiliary` on it, e.g. `MyAccessControlServer.with("Extension", "Auxiliary")`, or build on the new `ServerNode.RootEndpointWithoutGroupcast`. The `ServerNode.RootEndpoint` type does not include Groupcast; read its state with `node.stateOf(GroupcastServer)`. The GroupKeyManagement `Groupcast` feature stays provisional and is still rejected. With the `Auxiliary` feature, a Group ACL entry without targets no longer grants access on endpoint 0
     - Breaking: `.with()` on a subclass of a cluster behavior that declares its own attributes or commands keeps the behavior id, so the variant replaces the default behavior instead of running next to it with an empty state of its own. State such a variant stored under its previous id (the subclass name) is not carried over. An endpoint refuses two behaviors for the same cluster
     - Feature: `GroupcastServer` (Groupcast cluster) and the AccessControl `Auxiliary` feature are available. Auxiliary entries are split to the subject and target limits per entry, and an ACL write with an entry that includes `AuxiliaryType` fails with `FAILURE`
     - Fix: An overridden `AccessControlServer.extensionEntryAccessCheck` also applies to fabrics commissioned after the node went online
@@ -643,6 +649,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: a unicast mDNS response does not carry the cache-flush bit
 
 - @matter/react-native
+    - Fix: Ensure that `ReactNativeBle.scanner` returns one `BleScanner`, so the scanner the controller uses keeps receiving advertisements
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
 
 - @matter/types

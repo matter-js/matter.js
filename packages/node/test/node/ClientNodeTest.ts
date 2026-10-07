@@ -17,9 +17,12 @@ import {
     BooleanStateConfigurationClient,
     BooleanStateConfigurationServer,
 } from "#behaviors/boolean-state-configuration";
+import { GeneralDiagnosticsClient } from "#behaviors/general-diagnostics";
 import { IdentifyClient, IdentifyServer } from "#behaviors/identify";
 import { LevelControlClient } from "#behaviors/level-control";
 import { OnOffClient } from "#behaviors/on-off";
+import { PowerSourceServer } from "#behaviors/power-source";
+import { TimeSynchronizationClient } from "#behaviors/time-synchronization";
 import { WindowCoveringClient, WindowCoveringServer } from "#behaviors/window-covering";
 import { ContactSensorDevice } from "#devices/contact-sensor";
 import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light";
@@ -55,6 +58,7 @@ import {
     ServerAddressIp,
     Time,
     Timestamp,
+    UnexpectedDataError,
 } from "@matter/general";
 import {
     AcceptedCommandList,
@@ -73,6 +77,7 @@ import {
     ControllerCommissioningFlow,
     FabricAuthority,
     FabricManager,
+    MessageCodec,
     PeerSet,
     Read,
     ReadResult,
@@ -88,6 +93,8 @@ import {
     EndpointNumber,
     FabricIndex,
     NodeId,
+    SECURE_CHANNEL_PROTOCOL_ID,
+    SecureMessageType,
     Status,
     StatusResponseError,
     TlvAny,
@@ -97,6 +104,7 @@ import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { LevelControl } from "@matter/types/clusters/level-control";
 import { OnOff } from "@matter/types/clusters/on-off";
+import { PowerSource } from "@matter/types/clusters/power-source";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { captureErrorsOf } from "../endpoint/validation/validation-helpers.js";
@@ -343,13 +351,12 @@ describe("ClientNode", () => {
         expect(peer1.parts.size).equals(1);
     });
 
-    it("establishes PASE with the device's addresses in their ranked order", async () => {
-        await using site = new MockSite();
+    /** An uncommissioned pair whose device records where each packet to its Matter port goes. */
+    async function pairRecordingPaseDestinations(site: MockSite) {
         const { controller, device } = await site.addUncommissionedPair();
 
         const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
         const deviceCrypto = device.env.get(Crypto) as MockCrypto;
-        controllerCrypto.entropic = deviceCrypto.entropic = true;
 
         const paseDestinations = new Array<string>();
         const deviceNetwork = device.env.get(Network) as MockNetwork;
@@ -361,36 +368,36 @@ describe("ClientNode", () => {
         });
 
         await controller.start();
+
+        /** Runs `action` with entropic crypto on both nodes; deterministic crypto makes their session IDs collide. */
+        async function withEntropicCrypto<T>(action: () => Promise<T>) {
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+            try {
+                return await MockTime.resolve(action(), { macrotasks: true });
+            } finally {
+                controllerCrypto.entropic = deviceCrypto.entropic = false;
+            }
+        }
+
+        return { controller, device, paseDestinations, withEntropicCrypto };
+    }
+
+    it("establishes PASE with the device's addresses in their ranked order", async () => {
+        await using site = new MockSite();
+        const { controller, device, paseDestinations, withEntropicCrypto } = await pairRecordingPaseDestinations(site);
+
         const { passcode, discriminator } = device.state.commissioning;
-        await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
-            macrotasks: true,
-        });
-        controllerCrypto.entropic = deviceCrypto.entropic = false;
+        await withEntropicCrypto(() => controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }));
 
         // The device advertises a global IPv6 and an IPv4 address; IPv6 ranks first
         expect(paseDestinations[0]).equals("abcd::2");
     });
 
-    it("establishes PASE over IP before BLE, keeping the given order within IP", async () => {
+    it("establishes PASE with the most desirable of the given addresses first", async () => {
         await using site = new MockSite();
-        const { controller, device } = await site.addUncommissionedPair();
+        const { controller, device, paseDestinations, withEntropicCrypto } = await pairRecordingPaseDestinations(site);
 
-        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
-        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
-        controllerCrypto.entropic = deviceCrypto.entropic = true;
-
-        const paseDestinations = new Array<string>();
-        const deviceNetwork = device.env.get(Network) as MockNetwork;
-        deviceNetwork.simulator.router.intercept((packet, route) => {
-            if (packet.kind === "udp" && packet.destPort === 5540) {
-                paseDestinations.push(packet.destAddress);
-            }
-            route(packet);
-        });
-
-        await controller.start();
-        const started = Time.nowUs;
-        const { paseSession } = await MockTime.resolve(
+        const { paseSession } = await withEntropicCrypto(() =>
             controller.env.get(ControllerCommissioner).establishPase({
                 addresses: [
                     { type: "ble", peripheralAddress: "00:11:22:33:44:55" },
@@ -399,13 +406,45 @@ describe("ClientNode", () => {
                 ],
                 passcode: device.state.commissioning.passcode,
             }),
-            { macrotasks: true },
         );
-        controllerCrypto.entropic = deviceCrypto.entropic = false;
         await paseSession.initiateClose();
 
-        expect(paseDestinations[0]).equals("10.10.10.2");
-        expect(Timestamp.delta(started, Time.nowUs)).lessThan(Seconds(5));
+        expect(paseDestinations[0]).equals("abcd::2");
+    });
+
+    it("tries a repeated address once", async () => {
+        await using site = new MockSite();
+        const { controller, device, withEntropicCrypto } = await pairRecordingPaseDestinations(site);
+
+        // Retransmits reuse their exchange, so the number of exchanges is the number of PASE attempts
+        const pbkdfExchanges = new Set<number>();
+        (device.env.get(Network) as MockNetwork).simulator.router.intercept((packet, route) => {
+            if (packet.kind === "udp" && packet.destPort === 5540) {
+                const decoded = MessageCodec.decodePacket(packet.payload);
+                if (decoded.header.sessionId === 0) {
+                    const { payloadHeader } = MessageCodec.decodePayload(decoded);
+                    if (
+                        payloadHeader.protocolId === SECURE_CHANNEL_PROTOCOL_ID &&
+                        payloadHeader.messageType === SecureMessageType.PbkdfParamRequest
+                    ) {
+                        pbkdfExchanges.add(payloadHeader.exchangeId);
+                    }
+                }
+            }
+            route(packet);
+        });
+
+        const address: ServerAddress = { type: "udp", ip: "abcd::2", port: 5540 };
+        await expect(
+            withEntropicCrypto(() =>
+                controller.env.get(ControllerCommissioner).establishPase({
+                    addresses: [address, { ...address }],
+                    passcode: device.state.commissioning.passcode + 1,
+                }),
+            ),
+        ).rejectedWith(UnexpectedDataError);
+
+        expect(pbkdfExchanges.size).equals(1);
     });
 
     it("skips the post-commission read when autoStateInitialize is false", async () => {
@@ -2183,6 +2222,89 @@ describe("ClientNode", () => {
 
         newValue = await MockTime.resolve(sawChange);
         expect(newValue).equals(1200);
+    });
+
+    it("reads a changes-omitted attribute from the peer while subscribed", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+
+        const cached = peer1.stateOf(GeneralDiagnosticsClient).upTime;
+        await MockTime.advance(Seconds(100));
+
+        const { upTime } = await MockTime.resolve(peer1.getStateOf(GeneralDiagnosticsClient));
+
+        expect(Number(upTime)).greaterThanOrEqual(Number(cached) + 100);
+    });
+
+    it("omits version filters only for clusters in which the peer has a changes-omitted attribute", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint.with(
+                    PowerSourceServer.with("Battery").set({
+                        status: PowerSource.PowerSourceStatus.Active,
+                        order: 0,
+                        description: "Battery",
+                        batChargeLevel: PowerSource.BatChargeLevel.Ok,
+                        batReplacementNeeded: false,
+                        batReplaceability: PowerSource.BatReplaceability.Unspecified,
+                    }),
+                ),
+            },
+        });
+        const peer1 = controller.peers.get("peer1")!;
+        const { structure } = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+        const filteredClusters = (options?: { refreshChangesOmitted?: boolean }) =>
+            (structure.injectVersionFilters(request, options).dataVersionFilters ?? [])
+                .filter(({ path: { endpointId } }) => endpointId === 0)
+                .map(({ path: { clusterId } }) => clusterId);
+
+        expect(filteredClusters()).include.members([
+            GeneralDiagnosticsClient.cluster.id,
+            AccessControlClient.cluster.id,
+        ]);
+        expect(filteredClusters({ refreshChangesOmitted: true })).not.include(GeneralDiagnosticsClient.cluster.id);
+        expect(filteredClusters({ refreshChangesOmitted: true })).include(PowerSourceServer.cluster.id);
+    });
+
+    it("omits version filters for a cluster with changes-omitted attributes when the peer reports no AttributeList", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+        const { structure } = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+        // Time Synchronization with an empty AttributeList and without UTCTime, its changes-omitted attribute
+        const timeSync = TimeSynchronizationClient.cluster.id;
+        const attr = (attributeId: number, value: unknown): ReadResult.Report => ({
+            kind: "attr-value",
+            path: { endpointId: EndpointNumber(0), clusterId: timeSync, attributeId: attributeId as AttributeId },
+            value,
+            version: 7,
+            tlv: TlvAny,
+        });
+        async function* report(): ReadResult {
+            yield [
+                attr(ClusterRevision.id, 2),
+                attr(FeatureMap.id, {}),
+                attr(AttributeList.id, []),
+                attr(AcceptedCommandList.id, []),
+                attr(GeneratedCommandList.id, []),
+                attr(TimeSynchronizationClient.cluster.attributes.granularity.id, 0),
+            ];
+        }
+        for await (const _chunk of structure.mutate(request, report()));
+
+        const filteredClusters = (options?: { refreshChangesOmitted?: boolean }) =>
+            (structure.injectVersionFilters(request, options).dataVersionFilters ?? [])
+                .filter(({ path: { endpointId } }) => endpointId === 0)
+                .map(({ path: { clusterId } }) => clusterId);
+
+        expect(filteredClusters()).include(timeSync);
+        expect(filteredClusters({ refreshChangesOmitted: true })).not.include(timeSync);
     });
 
     it("exposes attributes added by a behavior replace", async () => {
