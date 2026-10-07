@@ -527,12 +527,13 @@ export class ControllerCommissioner {
 
     /**
      * Maps addresses to synthetic {@link CommissionableDevice} candidates for use with
-     * {@link CommissioningConnection}.  Each address becomes its own candidate so a credential failure on one
-     * does not cancel attempts on others.  Candidates are ordered by {@link ServerAddressSet.compareDesirability};
+     * {@link CommissioningConnection}.  Each distinct address becomes its own candidate so a credential failure on
+     * one does not cancel attempts on others.  Candidates are ordered by {@link ServerAddressSet.compareDesirability};
      * equally ranked addresses keep the given order.
      */
     #addressesToCandidates(addresses: ServerAddress[], discoveryData?: DiscoveryData): CommissionableDevice[] {
-        const sorted = [...addresses].sort(ServerAddressSet.compareDesirability);
+        const distinct = new Map(addresses.map(address => [ServerAddress.urlFor(address), address]));
+        const sorted = [...distinct.values()].sort(ServerAddressSet.compareDesirability);
         return sorted.map((address, index) => ({
             ...(discoveryData ?? {}),
             addresses: [address],

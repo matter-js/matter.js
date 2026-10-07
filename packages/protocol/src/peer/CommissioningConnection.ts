@@ -25,7 +25,6 @@ import {
     TimeoutError,
     UnexpectedDataError,
 } from "@matter/general";
-import { CommissioningConnectionAttempt, CommissioningConnectionPool } from "./CommissioningConnectionPool.js";
 import { TransientPeerCommunicationError } from "./PeerCommunicationError.js";
 
 const logger = Logger.get("CommissioningConnection");
@@ -60,7 +59,6 @@ export async function CommissioningConnection(
     options: CommissioningConnection.Options,
 ): Promise<CommissioningConnection.Result> {
     using abort = new Abort({ timeout: options.timeout, abort: options.externalAbort });
-    const pool = new CommissioningConnectionPool(options.devices);
     const delayBeforeNextAddress = options.delayBeforeNextAddress ?? DELAY_BEFORE_NEXT_ADDRESS;
     let lastError: Error | undefined;
     let lastNonRetryableError: Error | undefined;
@@ -72,18 +70,18 @@ export async function CommissioningConnection(
     // should cancel all remaining in-flight addresses for that same device immediately.
     const deviceAborts = new Map<string, AbortController>();
 
-    const getDeviceAbort = (deviceKey: string): AbortController => {
-        let ac = deviceAborts.get(deviceKey);
+    const getDeviceAbort = (deviceIdentifier: string): AbortController => {
+        let ac = deviceAborts.get(deviceIdentifier);
         if (ac === undefined) {
             ac = new AbortController();
-            deviceAborts.set(deviceKey, ac);
+            deviceAborts.set(deviceIdentifier, ac);
         }
         return ac;
     };
 
     let winner: CommissioningConnection.Result | undefined;
 
-    const queue = pool.availableCandidates();
+    const queue = options.devices.flatMap(device => device.addresses.map(address => ({ device, address })));
     let holdingAttempts = 0;
     let latest: { startedAt: Timestamp; settled: boolean } | undefined;
     let nextAttemptTimer: Timer | undefined;
@@ -95,7 +93,7 @@ export async function CommissioningConnection(
         nextAttemptTimer = undefined;
 
         while (winner === undefined && !abort.aborted && holdingAttempts === 0) {
-            while (queue.length > 0 && getDeviceAbort(queue[0].deviceKey).signal.aborted) {
+            while (queue.length > 0 && getDeviceAbort(queue[0].device.deviceIdentifier).signal.aborted) {
                 queue.shift();
             }
             const candidate = queue.shift();
@@ -116,12 +114,12 @@ export async function CommissioningConnection(
         }
     };
 
-    const launchAttempt = (candidate: CommissioningConnectionAttempt) => {
+    const launchAttempt = (candidate: Attempt) => {
         const attempt = { startedAt: Time.nowUs, settled: false };
         latest = attempt;
 
         // Compose global + per-device abort so either can cancel this attempt.
-        const deviceAc = getDeviceAbort(candidate.deviceKey);
+        const deviceAc = getDeviceAbort(candidate.device.deviceIdentifier);
         const signal = AbortSignal.any([abort.signal, deviceAc.signal]);
 
         let holdsResponder = false;
@@ -170,7 +168,6 @@ export async function CommissioningConnection(
                         logger.info(`Dropping device ${candidate.device.deviceIdentifier}:`, asErr.message);
                         lastNonRetryableError = asErr;
                         deviceAc.abort(asErr);
-                        pool.markInvalidCredentials(candidate.deviceKey);
                     } else if (causedBy(asErr, NoResponseTimeoutError, TransientPeerCommunicationError, NetworkError)) {
                         lastError = asErr;
                         logger.warn(
@@ -245,14 +242,19 @@ export async function CommissioningConnection(
     }
 }
 
+interface Attempt {
+    device: CommissionableDevice;
+    address: ServerAddress;
+}
+
 export namespace CommissioningConnection {
     export interface Options {
         /**
          * Commissioning candidates to attempt PASE with.
          *
-         * {@link CommissioningConnectionPool} merges entries by `deviceIdentifier` and expands each device's
-         * address list into independent `(device, address)` attempts, which launch one after the other across
-         * all devices (see {@link CommissioningConnection}).
+         * Each address of a device becomes one `(device, address)` attempt, in the given order, and attempts launch
+         * one after the other across all devices (see {@link CommissioningConnection}).  A credential failure drops
+         * every attempt whose device has the same `deviceIdentifier`.
          *
          * Callers that discover genuinely distinct devices should coordinate fan-out at a higher layer
          * (e.g. {@link ParallelPaseDiscovery}); passing multiple distinct devices here serialises them too, which is
