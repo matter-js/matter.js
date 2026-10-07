@@ -130,12 +130,10 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
     }
 
     override async [Construction.destruct]() {
-        if (this.#peers) {
-            await this.#peers.close();
-        }
-
-        await super[Construction.destruct]();
-        await ServerEnvironment.close(this);
+        await MatterAggregateError.settleSeries(
+            [() => this.#peers?.close(), () => super[Construction.destruct](), () => ServerEnvironment.close(this)],
+            `Error destroying server node ${this}`,
+        );
     }
 
     override async prepareRuntimeShutdown() {
