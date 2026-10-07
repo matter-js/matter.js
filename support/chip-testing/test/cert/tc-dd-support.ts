@@ -730,8 +730,8 @@ export class CommissioningRefusals {
     /**
      * Records that the DUT gives up on `target`, a well-formed code naming a device that is not there.
      *
-     * The TH is observed advertising first, or the DUT gives up because there was nothing to find at all.
-     * And only a give-up counts ({@link isCommissioningGiveUp}), so a controller that failed for an
+     * The TH is observed advertising first; otherwise the DUT would give up because there was nothing to find
+     * at all. Only a give-up counts ({@link isCommissioningGiveUp}), so a controller that failed for an
      * unrelated reason does not pass. A payload refusal is not a give-up: it means the code never reached
      * discovery. chip-tool reports every failure as the same command error, so there its own log has to
      * show the give-up ({@link chipToolDiscoveryGaveUp}).
@@ -741,9 +741,16 @@ export class CommissioningRefusals {
         target: CommissioningTarget,
         what: string,
         timeout: Duration,
-        /** Overridden by the unit tests, which have no mDNS to answer. */
-        probeCommissionable: (cx: CertStepContext) => Promise<void> = cx =>
-            recordCommissionable(cx, "TH advertising before the DUT is offered the code"),
+        {
+            probeCommissionable = cx => recordCommissionable(cx, "TH advertising before the DUT is offered the code"),
+            explain = detail => detail,
+        }: {
+            /** Records that the TH is advertising; the unit tests, which have no mDNS to answer, replace it. */
+            probeCommissionable?: (cx: CertStepContext) => Promise<void>;
+
+            /** The evidence detail of the give-up check, from the rejection's own detail. */
+            explain?: (detail: string) => string;
+        } = {},
     ): Promise<void> {
         await probeCommissionable(cx);
 
@@ -751,23 +758,21 @@ export class CommissioningRefusals {
         const chipTool = resolveControllerImplementation() === "chip-tool";
         const from = chipTool ? await dut.log.markSettled() : 0;
 
+        const label = `commissioning from ${describeTarget(target)}`;
         const attempt = dut.commission(target);
         this.track(attempt);
 
-        record(
-            cx,
-            await expectRejection(
-                `commissioning from ${describeTarget(target)}`,
-                attempt,
-                timeout,
-                isCommissioningGiveUp,
-            ),
-            what,
-        );
-
+        const outcome = await expectRejection(label, attempt, timeout, isCommissioningGiveUp);
+        const checks: RecordedCheck[] = [
+            { what, check: () => ({ ...outcome, detail: explain(outcome.detail ?? label) }) },
+        ];
         if (chipTool) {
-            record(cx, await chipToolDiscoveryGaveUp(dut.log, from), `${what}: chip-tool gave up on discovery`);
+            checks.push({
+                what: `${what}: chip-tool gave up on discovery`,
+                check: () => chipToolDiscoveryGaveUp(dut.log, from),
+            });
         }
+        await recordAll(cx, checks);
     }
 
     /**
@@ -818,9 +823,8 @@ export class CommissioningRefusals {
 
 /**
  * What the DUT is asked to spend looking for a device that is not there. matter.js honors the bound.
- * chip-tool cannot be bounded and gives up on its own after about 30 seconds (observed in the
- * manual-code plans' wrong-discriminator steps, which run on chip-tool; {@link recordDiscriminatorHonored}
- * does not).
+ * chip-tool cannot be bounded and gives up on its own after 30 seconds
+ * (`CHIP_CONFIG_SETUP_CODE_PAIRER_DISCOVERY_TIMEOUT_SECS`).
  */
 export const ABSENT_DEVICE_GIVE_UP = Seconds(20);
 
@@ -831,7 +835,7 @@ export const ABSENT_DEVICE_GIVE_UP = Seconds(20);
  * which is why the two must not be the same value. Erring long only delays reporting a DUT that hangs;
  * erring short fails a working one.
  *
- * It also outlasts chip-tool's own give-up of about 30 seconds.
+ * It also outlasts chip-tool's own give-up after 30 seconds.
  */
 export const ABSENT_DEVICE_WAIT = Seconds(90);
 
@@ -873,8 +877,9 @@ function absentDiscriminator(cx: CertStepContext, payload: string): number {
  *   find and the check passes on the TH's absence rather than on the DUT's use of the field. This is
  *   the guard {@link recordVendorOutcome} states for the same reason.
  * - Only a give-up counts ({@link isCommissioningGiveUp}): the TH is present and the code is
- *   well-formed, so a controller that would not start must not pass. {@link CommissioningRefusals.requireGiveUp}
- *   makes the same two checks for a manual code.
+ *   well-formed, so a controller that would not start must not pass. On chip-tool, whose rejection cannot
+ *   tell a give-up apart, its own log has to show it ({@link chipToolDiscoveryGaveUp}). The checks are
+ *   {@link CommissioningRefusals.requireGiveUp}'s, which the manual-code plans use directly.
  *
  * The claim is about the commissioner rather than about any one step, so a test case establishes it
  * once, in a precondition step of its own that no PICS gate can skip.
@@ -890,43 +895,21 @@ export async function recordDiscriminatorHonored(
     const payload = await thQrPayload(th);
     const absent = absentDiscriminator(cx, payload);
 
-    if (resolveControllerImplementation() === "chip-tool") {
-        record(
-            cx,
-            {
-                type: "response",
-                verdict: "unverified",
-                detail: `discriminator ${absent} was not offered to the DUT`,
-                accepted:
-                    "chip-tool funnels discovery, PASE, attestation, CASE, timeout and argument-parse failures " +
-                    "alike into one command error, so a give-up cannot be told from a controller that failed for " +
-                    "another reason, and the attempt would cost its own discovery timeout to prove nothing",
-            },
-            "DUT commissions the device its code names",
-        );
-        return;
-    }
-
     const code = qrPayloadWith(payload, { discriminator: absent });
 
-    await probeCommissionable(cx, `${th.id} advertising before the DUT is offered discriminator ${absent}`, th);
-
-    const label = `commissioning from a code naming discriminator ${absent}`;
-    const attempt = cx.controllers.dut.commission({ qrPairingCode: code, giveUpAfterMs: ABSENT_DEVICE_GIVE_UP });
-    refusals.track(attempt);
-
-    const outcome = await expectRejection(label, attempt, ABSENT_DEVICE_WAIT, isCommissioningGiveUp);
-
-    record(
+    await refusals.requireGiveUp(
         cx,
+        { qrPairingCode: code, giveUpAfterMs: ABSENT_DEVICE_GIVE_UP },
+        "DUT commissions the device its code names",
+        ABSENT_DEVICE_WAIT,
         {
-            ...outcome,
-            detail:
-                `${outcome.detail ?? label}; the code is ${th.id}'s own payload with discriminator ` +
+            probeCommissionable: cx =>
+                probeCommissionable(cx, `${th.id} advertising before the DUT is offered discriminator ${absent}`, th),
+            explain: detail =>
+                `${detail}; the code is ${th.id}'s own payload with discriminator ` +
                 `${qrPayloadFields(payload).discriminator} replaced by ${absent}, which no device in this run ` +
                 "advertises",
         },
-        "DUT commissions the device its code names",
     );
 }
 
@@ -1083,22 +1066,6 @@ export async function recordCommissionable(
     record(cx, await expectMdns(th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT }), what);
 }
 
-/**
- * Whether `error` is a commissioner giving up on a code it read successfully, which is what the
- * negative vendor and product plans mean by "the DUT terminates the commissioning process".
- *
- * The two controllers say it differently. In-process, a code no advertisement satisfies ends as a
- * {@link DiscoveryError}, or as a {@link DiscoveryAggregateError} where a candidate was tried and
- * failed — a manual code carries only the discriminator's 4 most significant bits, so one device in
- * sixteen on the network is a candidate the scanner hands on. chip-tool's output cannot separate one
- * command failure from another, so its give-up arrives as a {@link ChipToolCommandError} — on those
- * legs this excludes a controller that would not start, and the probe the caller makes first excludes
- * a TH that was not there.
- *
- * An {@link OnboardingPayloadRefusedError} is the opposite outcome — the controller rejected the code
- * before it looked for anything, and these steps generate a well-formed one. It is not a subclass of
- * either accepted error today, and the guard is what keeps that true if it becomes one.
- */
 const CHIP_TOOL_DISCOVERY_TIMED_OUT = /\[CTL\] Discovery timed out/;
 const CHIP_TOOL_PASE_ATTEMPT = /Attempting PASE connection/;
 
@@ -1127,6 +1094,22 @@ export async function chipToolDiscoveryGaveUp(log: LogFollower, from: number): P
     return timedOut.check;
 }
 
+/**
+ * Whether `error` is a commissioner giving up on a code it read successfully, which is what the
+ * negative vendor and product plans mean by "the DUT terminates the commissioning process".
+ *
+ * The two controllers say it differently. In-process, a code no advertisement satisfies ends as a
+ * {@link DiscoveryError}, or as a {@link DiscoveryAggregateError} where a candidate was tried and
+ * failed — a manual code carries only the discriminator's 4 most significant bits, so one device in
+ * sixteen on the network is a candidate the scanner hands on. chip-tool's output cannot separate one
+ * command failure from another, so its give-up arrives as a {@link ChipToolCommandError}; on those legs
+ * chip-tool's own log has to show the give-up ({@link chipToolDiscoveryGaveUp}), and the probe the
+ * caller makes first excludes a TH that was not there.
+ *
+ * An {@link OnboardingPayloadRefusedError} is the opposite outcome — the controller rejected the code
+ * before it looked for anything, and these steps generate a well-formed one. It is not a subclass of
+ * either accepted error today, and the guard is what keeps that true if it becomes one.
+ */
 export function isCommissioningGiveUp(error: unknown): boolean {
     if (error instanceof OnboardingPayloadRefusedError) {
         return false;
