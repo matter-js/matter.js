@@ -6,7 +6,10 @@
 
 import { ValidationOutOfBoundsError } from "#common/ValidationError.js";
 import { AttributeId } from "#datatype/AttributeId.js";
+import { ClusterId } from "#datatype/ClusterId.js";
+import { FieldId } from "#datatype/FieldId.js";
 import { Mei } from "#datatype/ManufacturerExtensibleIdentifier.js";
+import { VendorId } from "#datatype/VendorId.js";
 
 describe("Mei", () => {
     describe("fromMei", () => {
@@ -19,6 +22,28 @@ describe("Mei", () => {
                 expect(() => Mei.fromMei(value)).throws(ValidationOutOfBoundsError);
             });
         }
+    });
+});
+
+describe("Mei.asMei", () => {
+    it("names a negative vendor prefix as it was given", () => {
+        expect(() => Mei.asMei(VendorId(-1, false), 0)).throws(/Invalid vendor prefix -1 for MEI/);
+    });
+});
+
+describe("ClusterId", () => {
+    it("names the standard range for a standard cluster ID", () => {
+        expect(() => ClusterId(0x0000_8000)).throws(/standard cluster suffix must be 0x0000 - 0x7fff/);
+    });
+
+    it("names the vendor-specific range for a vendor-specific cluster ID", () => {
+        expect(() => ClusterId(0xfff1_0001)).throws(/vendor-specific cluster suffix must be 0xfc00 - 0xfffe/);
+    });
+});
+
+describe("FieldId", () => {
+    it("refuses a fractional value in the global field range", () => {
+        expect(FieldId.isValid(0xe0 + 0.5)).equals(false);
     });
 });
 

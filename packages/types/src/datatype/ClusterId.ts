@@ -24,14 +24,19 @@ export function ClusterId(clusterId: number, validate = true): ClusterId {
         return clusterId as ClusterId;
     }
     const { vendorPrefix, typeSuffix } = Mei.fromMei(clusterId);
-    if (
-        (typeSuffix >= 0 && typeSuffix <= 0x7fff && vendorPrefix === 0) || // Standard cluster
-        (typeSuffix >= 0xfc00 && typeSuffix <= 0xfffe && vendorPrefix !== 0) // Manufacturer specific cluster
-    ) {
+    if (vendorPrefix === 0) {
+        if (typeSuffix <= 0x7fff) {
+            return clusterId as ClusterId;
+        }
+        throw new ValidationOutOfBoundsError(
+            `Invalid cluster ID 0x${hex.fixed(clusterId, 8)}: a standard cluster suffix must be 0x0000 - 0x7fff`,
+        );
+    }
+    if (typeSuffix >= 0xfc00 && typeSuffix <= 0xfffe) {
         return clusterId as ClusterId;
     }
     throw new ValidationOutOfBoundsError(
-        `Invalid cluster ID 0x${hex.fixed(clusterId, 8)}: a standard cluster uses vendor prefix 0x0000 with a suffix of 0x0000 - 0x7fff, a vendor-specific cluster uses a prefix of 0x0001 - 0xfff4 with a suffix of 0xfc00 - 0xfffe`,
+        `Invalid cluster ID 0x${hex.fixed(clusterId, 8)}: a vendor-specific cluster suffix must be 0xfc00 - 0xfffe`,
     );
 }
 

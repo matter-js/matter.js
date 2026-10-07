@@ -13,12 +13,12 @@ export namespace Mei {
     export const asMei = (vendorPrefix: VendorId, typeSuffix: number) => {
         if (vendorPrefix < 0 || vendorPrefix > 0xfff4) {
             throw new ValidationOutOfBoundsError(
-                `Invalid vendor prefix 0x${hex.fixed(vendorPrefix, 4)} for MEI: the prefix must be 0x0000 - 0xfff4`,
+                `Invalid vendor prefix ${vendorPrefix} for MEI: the prefix must be 0x0000 - 0xfff4`,
             );
         }
         if (typeSuffix < 0 || typeSuffix > 0xfffe) {
             throw new ValidationOutOfBoundsError(
-                `Invalid type suffix 0x${hex.fixed(typeSuffix, 4)} for MEI: the suffix must be 0x0000 - 0xfffe`,
+                `Invalid type suffix ${typeSuffix} for MEI: the suffix must be 0x0000 - 0xfffe`,
             );
         }
 
