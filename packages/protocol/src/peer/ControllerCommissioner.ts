@@ -326,9 +326,9 @@ export class ControllerCommissioner {
     /**
      * Establishes a PASE session with a known device without running a commissioning flow.
      *
-     * All provided addresses are tried in parallel.  The first to complete PASE wins; the rest are cancelled
-     * via an abort signal.  A credential failure (wrong passcode) on any address immediately cancels all
-     * other in-flight attempts for this device.
+     * IP addresses are tried before BLE, in the given order, each attempt starting a fixed stagger after the one
+     * before.  The first to complete PASE wins; the rest are cancelled via an abort signal.  A credential failure
+     * (wrong passcode) on any address immediately cancels all other in-flight attempts for this device.
      */
     async establishPase(options: EstablishPaseOptions): Promise<EstablishPaseResult> {
         const { addresses, discoveryData, passcode, timeout = Seconds(30), abort, continueAfterPase } = options;

@@ -389,7 +389,7 @@ describe("ClientNode", () => {
         });
 
         await controller.start();
-        const started = Time.nowMs;
+        const started = Time.nowUs;
         const { paseSession } = await MockTime.resolve(
             controller.env.get(ControllerCommissioner).establishPase({
                 addresses: [
@@ -405,7 +405,7 @@ describe("ClientNode", () => {
         await paseSession.initiateClose();
 
         expect(paseDestinations[0]).equals("10.10.10.2");
-        expect(Time.nowMs - started).lessThan(Seconds(5));
+        expect(Timestamp.delta(started, Time.nowUs)).lessThan(Seconds(5));
     });
 
     it("skips the post-commission read when autoStateInitialize is false", async () => {
