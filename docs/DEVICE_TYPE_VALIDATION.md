@@ -87,8 +87,7 @@ conformance of the cluster requires that throws `Behavior.unimplemented` fails t
 `ClusterImplementationError` as the cause. In `warn` and `off` mode each such command logs a warning. In every mode the
 command is left out of the `AcceptedCommandList`.
 
-During development keep `warn`, or use `strict` to refuse a non-conforming structure. In production, `off` skips the
-checks for performance.
+During development keep `warn`, or use `strict` to refuse a non-conforming structure. In production, `off` skips device-type checks for performance; cluster implementation validation still runs.
 
 A misplaced singleton is refused at construction in every mode; in `off` mode only when a device type above the
 endpoint declares it.
