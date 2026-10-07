@@ -197,16 +197,28 @@ export class BleScanner implements Scanner {
     }
 
     async #startScanning() {
-        await this.#client.startScanning();
         this.#activeScans++;
+        try {
+            await this.#client.startScanning();
+        } catch (error) {
+            this.#endScan();
+            throw error;
+        }
     }
 
     async #stopScanning() {
+        try {
+            await this.#client.stopScanning();
+        } finally {
+            this.#endScan();
+        }
+    }
+
+    #endScan() {
         this.#activeScans--;
         if (this.#activeScans === 0) {
             this.#lastScanEndedAt = Time.nowUs;
         }
-        await this.#client.stopScanning();
     }
 
     /**

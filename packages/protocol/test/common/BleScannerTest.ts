@@ -402,6 +402,30 @@ describe("BleScanner", () => {
             expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 3 })).to.have.lengthOf(0);
         });
 
+        it("keeps a peripheral of a client that reports no listening time while its scan is still starting", async () => {
+            let started!: () => void;
+            class SlowStartingClient extends MockOneShotBleScannerClient {
+                override async startScanning() {
+                    await new Promise<void>(resolve => (started = resolve));
+                    await super.startScanning();
+                }
+            }
+            const client = new SlowStartingClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            const discovery = scanner.findCommissionableDevicesContinuously({ productId: 1 }, () => {});
+            await settleDiscovery();
+
+            await MockTime.advance(Minutes(16));
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(1);
+
+            started();
+            await settleDiscovery();
+            scanner.cancelCommissionableDeviceDiscovery({ productId: 1 });
+            await discovery;
+        });
+
         it("forgets an aged-out peripheral when another one advertises", async () => {
             const client = new MockOneShotBleScannerClient();
             const scanner = new BleScanner(client);
