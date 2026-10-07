@@ -139,6 +139,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Fix: Ensure that a feature change of a server cluster drops only the persisted values that fail validation under the new features, not all of them
+    - Breaking: `Behaviors.validateRequirements()` is removed; nothing called it, and `DeviceTypeConformanceService` checks device type requirements
     - Fix: Ensure that a client read returns the peer's current values of changes-omitted attributes, which the subscription does not report, instead of cached ones
     - Fix: Ensure that a peer's endpoint is installed and announced only after the endpoint that owns it is on the node
     - Feature: `Behavior.reactorTimer()` and `Behavior.periodicReactorTimer()` create a timer that runs a reactor of the behavior and stops when the behavior closes to prevent leaking them
