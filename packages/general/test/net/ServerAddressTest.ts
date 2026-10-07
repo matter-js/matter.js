@@ -50,6 +50,11 @@ describe("ServerAddress", () => {
             );
         });
 
+        it("ranks a non-IP address after every IP address", () => {
+            const ble = ServerAddress.selectionPreferenceOf({ type: "ble", peripheralAddress: "AA:BB:CC:DD:EE:FF" });
+            expect(ble).greaterThan(ServerAddress.selectionPreferenceOf(udp("192.0.2.1")));
+        });
+
         it("classifies ULA, generic IPv6, and IPv4", () => {
             expect(ServerAddress.selectionPreferenceOf(udp("fd29::1"))).to.equal(
                 ServerAddress.SelectionPreference.IPV6_ULA,

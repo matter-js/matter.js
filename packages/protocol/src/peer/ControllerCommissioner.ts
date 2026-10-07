@@ -158,7 +158,10 @@ export interface LocatedNodeCommissioningOptions extends CommissioningOptions {
  * pre-configured address).  For pure mDNS/BLE discovery without known addresses, use {@link PaseDiscovery}.
  */
 export interface EstablishPaseOptions {
-    /** One or more addresses at which the device may be reached. All are tried in parallel. */
+    /**
+     * One or more addresses at which the device may be reached, most preferred first. IP addresses are tried
+     * before BLE, in the given order, each starting a fixed stagger after the one before.
+     */
     addresses: ServerAddress[];
 
     /** Discovery metadata associated with the device (used for logging and passed through to the caller). */
@@ -246,8 +249,6 @@ export class ControllerCommissioner {
         this.#assertRequestedNodeIdAvailable(fabric, nodeId);
         this.#validateCommissioningOptions(options);
 
-        // Each address becomes an independent candidate so that a credential failure on one does not
-        // cancel attempts on others.  UDP is prioritised within the sorted list.
         const addressCandidates = this.#addressesToCandidates(addresses, discoveryData);
 
         const { session } = await this.#establishPaseFromCandidates({
@@ -521,11 +522,11 @@ export class ControllerCommissioner {
     /**
      * Maps addresses to synthetic {@link CommissionableDevice} candidates for use with
      * {@link CommissioningConnection}.  Each address becomes its own candidate so a credential failure on one
-     * does not cancel attempts on others.  UDP is partitioned ahead of BLE, preserving input order within each
+     * does not cancel attempts on others.  IP is partitioned ahead of BLE, preserving input order within each
      * group — the caller's {@link ServerAddressSet.compareDesirability} ranking is load-bearing.
      */
     #addressesToCandidates(addresses: ServerAddress[], discoveryData?: DiscoveryData): CommissionableDevice[] {
-        const sorted = [...addresses].sort((a, b) => (ServerAddress.isIp(a) ? -1 : ServerAddress.isIp(b) ? 1 : 0));
+        const sorted = [...addresses].sort((a, b) => Number(!ServerAddress.isIp(a)) - Number(!ServerAddress.isIp(b)));
         return sorted.map((address, index) => ({
             ...(discoveryData ?? {}),
             addresses: [address],
