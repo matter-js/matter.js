@@ -18,6 +18,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: More global datatypes, such as `bool`, `epoch-us` and `Status`, carry their specification documentation and a precise section reference
 
 - @matter/general
+    - Fix: `ServerAddress.selectionPreferenceOf` ranks a non-IP address such as BLE after IPv4 instead of equal to it
     - Fix: Ensure that `ObserverGroup.off()` removes an observer the group bound to a target, and that `has()` finds it
     - Fix: Ensure that `ObservableValue.offError()` removes only the given handler and keeps other error handlers and pending awaiters
     - Fix: Ensure that `Lifetime.details` keeps what is written to it and lifetime diagnostics show every detail
@@ -85,6 +86,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Fix: Commissioning tries a device's addresses in ranked order instead of reverse order, so a lower-ranked unreachable address no longer delays PASE
+    - Fix: Commissioning starts PASE on a device's next address after 10 s instead of 15 s, so a third address gets an attempt within the default 30 s timeout
     - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status or does not answer it in time
     - Fix: A missing response no longer closes the commissioning PASE session; commissioning closes it on every exit
     - Feature: A `NodeSession` created with `suppressPeerLoss` stays open on communication failures of its exchanges; its owner closes it
