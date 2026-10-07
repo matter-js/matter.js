@@ -35,7 +35,8 @@ export class ScanControl {
     #scanning = false;
     #available: boolean;
     #closed = false;
-    #startOutstanding = false;
+    /** Starts we issued that the radio has neither answered nor refused, or that timed out and may still take effect. */
+    #outstandingStarts = 0;
     #calls: Promise<unknown> = Promise.resolve();
 
     constructor(radio: ScanRadio, available: boolean) {
@@ -62,10 +63,10 @@ export class ScanControl {
      * seen during a connect, and then report no end, so only a scan answering our own start counts.
      */
     started() {
-        if (!this.#startOutstanding) {
+        if (this.#outstandingStarts === 0) {
             return;
         }
-        this.#startOutstanding = false;
+        this.#outstandingStarts = 0;
         this.#scanning = true;
         if (!this.#wanted) {
             // Our own start completed after its request was given up or withdrawn
@@ -78,7 +79,7 @@ export class ScanControl {
     /** The radio reports that it stopped scanning. */
     stopped() {
         this.#scanning = false;
-        this.#startOutstanding = false;
+        this.#outstandingStarts = 0;
     }
 
     /** The adapter can scan or not. An adapter that cannot does not scan, whatever it reported before. */
@@ -86,7 +87,7 @@ export class ScanControl {
         this.#available = available;
         if (!available) {
             this.#scanning = false;
-            this.#startOutstanding = false;
+            this.#outstandingStarts = 0;
         } else if (this.#wanted) {
             this.#enqueueAdjustment().catch(error =>
                 logger.warn("Starting the BLE scan after the adapter became available failed:", error),
@@ -112,13 +113,13 @@ export class ScanControl {
             return;
         }
         if (this.#wanted && !this.#scanning) {
-            this.#startOutstanding = true;
+            this.#outstandingStarts++;
             try {
                 await withTimeout(RADIO_CALL_TIMEOUT, this.#radio.start());
             } catch (error) {
                 // Only a start that timed out may still take effect later
-                if (!(error instanceof PromiseTimeoutError)) {
-                    this.#startOutstanding = false;
+                if (!(error instanceof PromiseTimeoutError) && this.#outstandingStarts > 0) {
+                    this.#outstandingStarts--;
                 }
                 throw error;
             }

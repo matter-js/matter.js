@@ -513,7 +513,7 @@ export class BleScanner implements Scanner {
             try {
                 // An advertisement may have arrived while the scan started, before a waiter could hear of it
                 storedRecords = this.#getCommissionableDevices(identifier);
-                if (storedRecords.length === 0) {
+                if (storedRecords.length === 0 && !this.#closed) {
                     await this.#createRecordWaiter(queryKey, timeout).promise;
                     storedRecords = this.#getCommissionableDevices(identifier);
                 }

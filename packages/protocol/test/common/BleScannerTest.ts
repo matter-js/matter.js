@@ -878,6 +878,26 @@ describe("BleScanner", () => {
             expect(client.scanCalls).to.not.include("start");
         });
 
+        it("returns a one-shot discovery started after the scanner closed at once", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+            await scanner.close();
+
+            let settled = false;
+            const discovery = scanner
+                .findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(60))
+                .then(found => {
+                    settled = true;
+                    return found;
+                });
+            await settleDiscovery();
+
+            // No virtual time passed, so the discovery did not wait out its timeout
+            expect(settled).to.equal(true);
+            expect(await discovery).to.deep.equal([]);
+            expect(client.scanCalls).to.not.include("start");
+        });
+
         it("ends a one-shot discovery that is canceled", async () => {
             const client = new MockBleScannerClient();
             const scanner = new BleScanner(client);

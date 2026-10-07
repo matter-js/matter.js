@@ -203,6 +203,26 @@ describe("ScanControl", () => {
         expect(control.scanning).equal(false);
     });
 
+    it("stops a timed-out start that takes effect late although a retry was refused meanwhile", async () => {
+        const { radio, control } = controlFor();
+
+        radio.hold = true;
+        const timedOut = expect(control.want(true)).rejectedWith(PromiseTimeoutError);
+        await settle();
+        await MockTime.advance(Seconds(6));
+        await timedOut;
+
+        radio.failStart = new BleError("not powered on");
+        await expect(control.want(true)).rejectedWith("not powered on");
+        await control.want(false);
+
+        radio.finish();
+        await settle();
+
+        expect(radio.calls).deep.equal(["start", "start", "stop"]);
+        expect(control.scanning).equal(false);
+    });
+
     it("stops the scan once a start still in flight completes after the scan is no longer wanted", async () => {
         const { radio, control } = controlFor();
 
