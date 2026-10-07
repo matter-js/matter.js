@@ -32,6 +32,15 @@ const logger = Logger.get("PaseClient");
 
 const MAX_PASSCODE_GENERATION_ATTEMPTS = 100;
 
+/**
+ * The responder's key confirmation (Pake2 cB) does not verify, so initiator and responder derived different keys: the
+ * passcode is wrong for the device at this address.  A stale address that reaches a different device in commissioning
+ * mode produces the same error.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 4.14.1.2.7
+ */
+export class PasscodeMismatchError extends UnexpectedDataError {}
+
 export class PaseClient {
     #sessions: SessionManager;
 
@@ -176,8 +185,8 @@ export class PaseClient {
         const { y: Y, verifier } = await messenger.readPasePake2({ abort: abort.signal });
         const { Ke, hAY, hBX } = await abort.attempt(spake2p.computeSecretAndVerifiersFromY(w1, X, Y));
         if (!Bytes.areEqual(verifier, hBX)) {
-            throw new UnexpectedDataError(
-                "Received incorrect key confirmation from the receiver. Commissioning failed.",
+            throw new PasscodeMismatchError(
+                "PASE key confirmation from the device does not match: the passcode is wrong for this device",
             );
         }
 

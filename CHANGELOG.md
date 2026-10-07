@@ -91,6 +91,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Commissioning tries a device's addresses in ranked order instead of reverse order, so a lower-ranked unreachable address no longer delays PASE
     - Fix: Commissioning tries a device's next address as soon as the last attempt fails, or 10 s after it started, instead of every 15 s, and not while the device is answering an earlier attempt
     - Fix: Commissioning with known addresses tries a repeated address only once, so a duplicate no longer costs the device an extra failed PASE attempt
+    - Feature: PASE throws `PasscodeMismatchError`, a subclass of `UnexpectedDataError`, when the device's key confirmation does not verify, as happens with a wrong passcode
+    - Fix: A wrong passcode stops commissioning on the other addresses of the same discovered device, so it costs the device one failed PASE attempt instead of one per address
     - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status or does not answer it in time
     - Fix: A missing response no longer closes the commissioning PASE session; commissioning closes it on every exit
     - Feature: A `NodeSession` created with `suppressPeerLoss` stays open on communication failures of its exchanges; its owner closes it
@@ -286,6 +288,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/examples
     - Fix: The composed OnOff device example creates as many endpoints as `--num` asks for (default 2) instead of one fewer; a node stored by an earlier run gains the missing endpoint on its next start
+
+- @project-chip/matter.js
+    - Fix: PASE with a known address reports a wrong passcode instead of falling back to discovery, which cost the device further failed PASE attempts
+    - Fix: PASE with an unreachable known address falls back to discovery instead of failing with "Could not connect to device"
 
 - @matter/general
     - Breaking: `camelize()` treats a pluralised acronym as one word wherever it occurs in an identifier, so `TariffComponentIDs` normalises to `tariffComponentIds` where it previously passed through unchanged

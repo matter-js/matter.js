@@ -125,7 +125,12 @@ export interface LocatedNodeCommissioningOptions extends CommissioningOptions {
      * {@link ServerAddressSet.compareDesirability} (see {@link CommissioningConnection}).
      */
     addresses: ServerAddress[];
-    discoveryData?: DiscoveryData;
+
+    /**
+     * Discovery metadata of the device.  A non-empty `deviceIdentifier` marks the addresses as those of one discovered
+     * device instance, so a wrong passcode on one of them stops the attempts on the others.
+     */
+    discoveryData?: DiscoveryData & { deviceIdentifier?: string };
 
     /**
      * Overall wall-clock budget for PASE establishment across all candidate addresses.
@@ -168,8 +173,11 @@ export interface EstablishPaseOptions {
      */
     addresses: ServerAddress[];
 
-    /** Discovery metadata associated with the device (used for logging and passed through to the caller). */
-    discoveryData?: DiscoveryData;
+    /**
+     * Discovery metadata of the device.  A non-empty `deviceIdentifier` marks the addresses as those of one discovered
+     * device instance, so a wrong passcode on one of them stops the attempts on the others.
+     */
+    discoveryData?: DiscoveryData & { deviceIdentifier?: string };
 
     /** PASE passcode for the device. */
     passcode: number;
@@ -331,8 +339,9 @@ export class ControllerCommissioner {
      * Establishes a PASE session with a known device without running a commissioning flow.
      *
      * The addresses are tried one after the other, most desirable first (see {@link EstablishPaseOptions.addresses}).
-     * The first to complete PASE wins; the rest are cancelled via an abort signal.  A credential failure (wrong
-     * passcode) fails only the address it occurred on, so the remaining addresses are still tried.
+     * The first to complete PASE wins; the rest are cancelled via an abort signal.  A wrong passcode
+     * (`PasscodeMismatchError`) stops the remaining addresses when they belong to one discovered device (see
+     * {@link EstablishPaseOptions.discoveryData}); otherwise it fails only the address it occurred on.
      */
     async establishPase(options: EstablishPaseOptions): Promise<EstablishPaseResult> {
         const { addresses, discoveryData, passcode, timeout = Seconds(30), abort, continueAfterPase } = options;
@@ -395,9 +404,7 @@ export class ControllerCommissioner {
     }
 
     /**
-     * Method to start commission process with a PASE pairing.
-     * If this not successful and throws an RetransmissionLimitReachedError the address is invalid or the passcode
-     * is wrong.
+     * Establishes a PASE session at one address.  A wrong passcode throws `PasscodeMismatchError`.
      */
     async #establishEphemeralNodeSession(
         address: ServerAddress,
@@ -526,14 +533,25 @@ export class ControllerCommissioner {
     }
 
     /**
-     * Maps addresses to synthetic {@link CommissionableDevice} candidates for use with
-     * {@link CommissioningConnection}.  Each distinct address becomes its own candidate so a credential failure on
-     * one does not cancel attempts on others.  Candidates are ordered by {@link ServerAddressSet.compareDesirability};
-     * equally ranked addresses keep the given order.
+     * Maps addresses to synthetic {@link CommissionableDevice} candidates for use with {@link CommissioningConnection},
+     * ordered by {@link ServerAddressSet.compareDesirability}; equally ranked addresses keep the given order.
+     *
+     * Addresses of one discovered device instance form one candidate, so a wrong passcode on one address stops the
+     * others.  Otherwise each distinct address becomes its own candidate: an address may be stale and reach a
+     * different device, whose passcode check must not cancel the attempts on the others.
      */
-    #addressesToCandidates(addresses: ServerAddress[], discoveryData?: DiscoveryData): CommissionableDevice[] {
+    #addressesToCandidates(
+        addresses: ServerAddress[],
+        discoveryData?: DiscoveryData & { deviceIdentifier?: string },
+    ): CommissionableDevice[] {
         const distinct = new Map(addresses.map(address => [ServerAddress.urlFor(address), address]));
         const sorted = [...distinct.values()].sort(ServerAddressSet.compareDesirability);
+
+        const deviceIdentifier = discoveryData?.deviceIdentifier;
+        if (deviceIdentifier !== undefined && deviceIdentifier !== "") {
+            return [{ ...discoveryData, addresses: sorted, deviceIdentifier, D: 0, CM: 1 }];
+        }
+
         return sorted.map((address, index) => ({
             ...(discoveryData ?? {}),
             addresses: [address],

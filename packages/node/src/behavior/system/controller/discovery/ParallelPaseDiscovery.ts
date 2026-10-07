@@ -16,7 +16,7 @@ import {
     Millis,
     Seconds,
 } from "@matter/general";
-import { CommissioningError, PeerCommunicationError } from "@matter/protocol";
+import { CommissioningError, PasscodeMismatchError, PeerCommunicationError } from "@matter/protocol";
 import { Discovery } from "./Discovery.js";
 import { DiscoveryAggregateError, DiscoveryError } from "./DiscoveryError.js";
 
@@ -132,6 +132,7 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
                     causedBy(
                         error,
                         CommissioningError,
+                        PasscodeMismatchError,
                         PeerCommunicationError,
                         DestroyedDependencyError,
                         CrashedDependencyError,
