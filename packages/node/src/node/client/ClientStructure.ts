@@ -1275,34 +1275,49 @@ export class ClientStructure {
      * A part named by an ordinary endpoint's list is that endpoint's child. A part named only by
      * full-family lists is a child of the innermost of them — but only once every endpoint those lists
      * name has reported its own parts, because until then a list naming it says no more than that it
-     * is somewhere below. An undecided claim stays for a later interaction to settle.
+     * is somewhere below. A part is placed only below an owner that is itself placed, so it is never
+     * installed or announced below an endpoint that is not on the node. A claim that is undecided, or
+     * whose owner is not placed yet, stays for a later interaction to settle.
      */
     #resolvePartClaims() {
-        for (const [part, claimants] of [...this.#partClaims]) {
-            // Nothing is reparented: an endpoint the peer has already placed keeps its parent, and
-            // Matter has no operation that would move it (Core § 9.2.3's single-parent requirement)
-            if (this.#ownerOf(part) !== undefined) {
+        let placedAny: boolean;
+        do {
+            placedAny = false;
+            for (const [part, claimants] of [...this.#partClaims]) {
+                // Nothing is reparented: an endpoint the peer has already placed keeps its parent, and
+                // Matter has no operation that would move it (Core § 9.2.3's single-parent requirement)
+                if (this.#ownerOf(part) !== undefined) {
+                    this.#partClaims.delete(part);
+                    continue;
+                }
+
+                const owner = this.#ownerFor(part, claimants);
+                if (owner === undefined || !this.#isPlaced(owner)) {
+                    continue;
+                }
+
                 this.#partClaims.delete(part);
-                continue;
+
+                // The root names every endpoint the peer has, and its removal scan runs while attribute
+                // data is read — before this. Installing a part the root no longer names would resurrect
+                // an endpoint that scan has already passed over.
+                if (!this.#isOnTheNode(part)) {
+                    continue;
+                }
+
+                part.pendingOwner = owner;
+                this.#scheduleStructureChange(part, "install");
+                placedAny = true;
             }
+        } while (placedAny);
+    }
 
-            const owner = this.#ownerFor(part, claimants);
-            if (owner === undefined) {
-                continue;
-            }
-
-            this.#partClaims.delete(part);
-
-            // The root names every endpoint the peer has, and its removal scan runs while attribute
-            // data is read — before this. Installing a part the root no longer names would resurrect
-            // an endpoint that scan has already passed over.
-            if (!this.#isOnTheNode(part)) {
-                continue;
-            }
-
-            part.pendingOwner = owner;
-            this.#scheduleStructureChange(part, "install");
-        }
+    /**
+     * Whether `structure` is the root or has an owner, installed or pending. An owner is only ever
+     * assigned to a placed endpoint, so its chain of owners reaches the root.
+     */
+    #isPlaced(structure: EndpointStructure) {
+        return structure.endpoint.maybeNumber === 0 || this.#ownerOf(structure) !== undefined;
     }
 
     /**
