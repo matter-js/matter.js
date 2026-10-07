@@ -283,7 +283,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/nodejs-ble
     - Enhancement: `NobleBleClient` reports how long its radio actually scanned as `BleScannerClient.listeningTime`
-    - Fix: `NobleBleClient` keeps the wish to scan across a Bluetooth adapter power-off and asks noble to scan again once the adapter powers on
+    - Fix: `NobleBleClient` asks noble to scan again once the Bluetooth adapter powers on
+    - Fix: `NobleBleClient` stops a scan it requested that only took effect after it was no longer wanted
 
 - @matter/protocol
     - Breaking: `ClientSubscriptions.lastReportStartedAtFor()` and `PeerSubscription.lastReportStartedAt` are removed; the new `ClientSubscriptions.reportStarted` observable emits the session each inbound report arrives over
