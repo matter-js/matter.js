@@ -13,6 +13,7 @@ import {
     Logger,
     MaybePromise,
     Millis,
+    Minutes,
     Seconds,
     ServerAddress,
     Time,
@@ -55,7 +56,8 @@ export interface BleScannerClient {
      * A record only states that a device went silent when its age is measured in this time.
      *
      * A client that reports a peripheral once per scan, or that cannot tell how long its radio scanned, omits this.
-     * Its records then remain candidates however old they are, and only an address the device rotated away from is
+     * Its records then remain candidates while a discovery is pending, and are forgotten {@link RECORD_MAX_AGE} after
+     * the later of their last report and the end of the last discovery. An address the device rotated away from is
      * dropped after elapsed time.
      */
     readonly listeningTime?: Duration;
@@ -96,6 +98,16 @@ type StoredDiscoveredBleDevice = DiscoveredBleDevice & {
 const STALE_ENTRY_AGE = Seconds(60);
 
 /**
+ * A record is forgotten after this much listening time without an advertisement, or, for a client that reports no
+ * listening time, after this much time since the later of its last report and the end of the last discovery. It is the
+ * longest a device announces at the rapid interval; a device using Extended Announcement keeps advertising and so
+ * keeps its record fresh.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 5.4.2.3
+ */
+const RECORD_MAX_AGE = Minutes(15);
+
+/**
  * A client call that starts or stops the scan and has not settled after this long counts as failed. noble settles
  * these calls only on its own scan events, which an adapter that powers off may never send.
  */
@@ -120,6 +132,7 @@ export class BleScanner implements Scanner {
     #scanning = false;
     #scanTransitions: Promise<unknown> = Promise.resolve();
     #closed = false;
+    #lastScanEndedAt?: Timestamp;
 
     constructor(client: BleScannerClient) {
         this.#client = client;
@@ -128,7 +141,7 @@ export class BleScanner implements Scanner {
         );
     }
 
-    /** Resolves a peripheral for a channel open, so a record stays resolvable here however old it is. */
+    /** Resolves a peripheral for a channel open, so a record stays resolvable here until it is forgotten. */
     public getDiscoveredDevice(address: string): DiscoveredBleDevice {
         const device = this.#discoveredMatterDevices.get(address);
         if (device === undefined) {
@@ -202,7 +215,7 @@ export class BleScanner implements Scanner {
         try {
             await this.#reconcileScan(true);
         } catch (error) {
-            this.#activeDiscoveries--;
+            this.#endDiscovery();
             if (this.#activeDiscoveries === 0) {
                 // The failed start may have left the radio scanning, and no discovery remains to stop it later
                 await this.#reconcileScan(false);
@@ -212,8 +225,15 @@ export class BleScanner implements Scanner {
     }
 
     async #stopDiscovering() {
-        this.#activeDiscoveries--;
+        this.#endDiscovery();
         await this.#reconcileScan(false);
+    }
+
+    #endDiscovery() {
+        this.#activeDiscoveries--;
+        if (this.#activeDiscoveries === 0) {
+            this.#lastScanEndedAt = Time.nowUs;
+        }
     }
 
     #failWaiters(error: unknown) {
@@ -246,6 +266,33 @@ export class BleScanner implements Scanner {
             return false;
         }
         return this.#silenceOf(record, listeningTime) > STALE_ENTRY_AGE;
+    }
+
+    /**
+     * How long a record has gone without the chance of an update. That is its silence in listening time. A client that
+     * reports no listening time may report a peripheral only once per scan, so its record does not age while a discovery
+     * is pending, and ages from the later of its last report and the end of the last discovery.
+     */
+    #ageOf(record: StoredDiscoveredBleDevice, listeningTime: Duration | undefined): Duration {
+        if (listeningTime !== undefined && record.seenAt !== undefined) {
+            return this.#silenceOf(record, listeningTime);
+        }
+        if (this.#activeDiscoveries > 0) {
+            return Millis(0);
+        }
+        const scanEnded = this.#lastScanEndedAt;
+        const since = scanEnded !== undefined && scanEnded > record.lastSeen ? scanEnded : record.lastSeen;
+        return Timestamp.delta(since, Time.nowUs);
+    }
+
+    /** Forget every record older than {@link RECORD_MAX_AGE}. */
+    #forgetAgedOut(listeningTime = this.#client.listeningTime) {
+        for (const [address, record] of this.#discoveredMatterDevices) {
+            const age = this.#ageOf(record, listeningTime);
+            if (age <= RECORD_MAX_AGE) continue;
+            this.#discoveredMatterDevices.delete(address);
+            logger.debug(`Forgetting BLE device ${address} not seen for ${Duration.format(age)}`);
+        }
     }
 
     /**
@@ -349,6 +396,7 @@ export class BleScanner implements Scanner {
                 CM: 1, // Can be no other mode,
                 addresses: [{ type: "ble", peripheralAddress: address }],
             };
+            this.#forgetAgedOut();
             const deviceExisting = this.#discoveredMatterDevices.has(address);
             const serviceDataHex = Bytes.toHex(manufacturerServiceData);
             const now = Time.nowUs;
@@ -448,6 +496,7 @@ export class BleScanner implements Scanner {
 
     #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers, includeUnavailable = false) {
         const listeningTime = this.#client.listeningTime;
+        this.#forgetAgedOut(listeningTime);
         // Newest first so ordered consumers (e.g. parallel PASE discovery) prefer the freshest advertisement
         const storedRecords = Array.from(this.#discoveredMatterDevices.values())
             .filter(
