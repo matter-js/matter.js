@@ -17,9 +17,11 @@ import {
     BooleanStateConfigurationClient,
     BooleanStateConfigurationServer,
 } from "#behaviors/boolean-state-configuration";
+import { GeneralDiagnosticsClient } from "#behaviors/general-diagnostics";
 import { IdentifyClient, IdentifyServer } from "#behaviors/identify";
 import { LevelControlClient } from "#behaviors/level-control";
 import { OnOffClient } from "#behaviors/on-off";
+import { PowerSourceServer } from "#behaviors/power-source";
 import { WindowCoveringClient, WindowCoveringServer } from "#behaviors/window-covering";
 import { ContactSensorDevice } from "#devices/contact-sensor";
 import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light";
@@ -95,6 +97,7 @@ import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { LevelControl } from "@matter/types/clusters/level-control";
 import { OnOff } from "@matter/types/clusters/on-off";
+import { PowerSource } from "@matter/types/clusters/power-source";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { captureErrorsOf } from "../endpoint/validation/validation-helpers.js";
@@ -2116,6 +2119,52 @@ describe("ClientNode", () => {
 
         newValue = await MockTime.resolve(sawChange);
         expect(newValue).equals(1200);
+    });
+
+    it("reads a changes-omitted attribute from the peer while subscribed", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+
+        const cached = peer1.stateOf(GeneralDiagnosticsClient).upTime;
+        await MockTime.advance(Seconds(100));
+
+        const { upTime } = await MockTime.resolve(peer1.getStateOf(GeneralDiagnosticsClient));
+
+        expect(Number(upTime)).greaterThanOrEqual(Number(cached) + 100);
+    });
+
+    it("omits version filters only for clusters in which the peer has a changes-omitted attribute", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint.with(
+                    PowerSourceServer.with("Battery").set({
+                        status: PowerSource.PowerSourceStatus.Active,
+                        order: 0,
+                        description: "Battery",
+                        batChargeLevel: PowerSource.BatChargeLevel.Ok,
+                        batReplacementNeeded: false,
+                        batReplaceability: PowerSource.BatReplaceability.Unspecified,
+                    }),
+                ),
+            },
+        });
+        const peer1 = controller.peers.get("peer1")!;
+        const { structure } = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+        const filteredClusters = (options?: { refreshChangesOmitted?: boolean }) =>
+            (structure.injectVersionFilters(request, options).dataVersionFilters ?? [])
+                .filter(({ path: { endpointId } }) => endpointId === 0)
+                .map(({ path: { clusterId } }) => clusterId);
+
+        expect(filteredClusters()).include.members([
+            GeneralDiagnosticsClient.cluster.id,
+            AccessControlClient.cluster.id,
+        ]);
+        expect(filteredClusters({ refreshChangesOmitted: true })).not.include(GeneralDiagnosticsClient.cluster.id);
+        expect(filteredClusters({ refreshChangesOmitted: true })).include(PowerSourceServer.cluster.id);
     });
 
     it("exposes attributes added by a behavior replace", async () => {

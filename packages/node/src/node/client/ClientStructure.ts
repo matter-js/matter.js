@@ -31,6 +31,7 @@ import {
 import {
     AcceptedCommandList,
     AttributeList,
+    ClusterModel,
     ClusterRevision,
     DeviceClassification,
     EndpointComposition,
@@ -242,8 +243,13 @@ export class ClientStructure {
 
     /**
      * Inject version filters into a Read or Subscribe request.
+     *
+     * A subscription does not report changes of an attribute with the changes-omitted quality, so the cached value of
+     * such an attribute is as of the last full report of its cluster, and a matching cluster version does not mean it
+     * is current. With {@link options.refreshChangesOmitted} a cluster in which the peer has such an attribute gets no
+     * filter, so the read returns the peer's current values.
      */
-    injectVersionFilters<T extends Read>(request: T): T {
+    injectVersionFilters<T extends Read>(request: T, options?: { refreshChangesOmitted?: boolean }): T {
         const scope = ReadScope(request);
         let result = request;
 
@@ -251,11 +257,16 @@ export class ClientStructure {
             endpoint: { number: endpointId },
             clusters,
         } of this.#endpoints.values()) {
-            for (const {
-                id: clusterId,
-                store: { version },
-            } of clusters.values()) {
+            for (const cluster of clusters.values()) {
+                const {
+                    id: clusterId,
+                    store: { version },
+                } = cluster;
                 if (!scope.isRelevant(endpointId, clusterId)) {
+                    continue;
+                }
+
+                if (options?.refreshChangesOmitted && hasChangesOmittedAttribute(cluster)) {
                     continue;
                 }
 
@@ -1642,4 +1653,30 @@ interface ClusterEvent {
     subkind: "add" | "delete" | "replace";
     endpoint: EndpointStructure;
     cluster: ClusterStructure;
+}
+
+const changesOmittedIdsOf = new WeakMap<ClusterModel, Set<number>>();
+
+/**
+ * Whether the peer has an attribute with the changes-omitted quality in {@link cluster}. Without the peer's
+ * `AttributeList` every such attribute of the model counts.
+ */
+function hasChangesOmittedAttribute(cluster: ClusterStructure) {
+    const schema = cluster.behavior?.schema;
+    if (!(schema instanceof ClusterModel)) {
+        return false;
+    }
+
+    let ids = changesOmittedIdsOf.get(schema);
+    if (ids === undefined) {
+        ids = new Set(
+            schema.attributes.filter(attribute => attribute.changesOmitted === true).map(attribute => attribute.id),
+        );
+        changesOmittedIdsOf.set(schema, ids);
+    }
+
+    if (!ids.size) {
+        return false;
+    }
+    return cluster.attributes === undefined || cluster.attributes.some(id => ids.has(id));
 }
