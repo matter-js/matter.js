@@ -5,7 +5,10 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
-import { ValidatedElements } from "#behavior/cluster/ValidatedElements.js";
+import { ClusterImplementationError, ValidatedElements } from "#behavior/cluster/ValidatedElements.js";
+import { GroupKeyManagementServer } from "#behaviors/group-key-management";
+import { GroupsServer } from "#behaviors/groups";
+import { ScenesManagementServer } from "#behaviors/scenes-management";
 import { MaybePromise } from "@matter/general";
 import type { Model } from "@matter/model";
 import { AttributeElement, ClusterModel, CommandElement, EventElement, FieldElement } from "@matter/model";
@@ -165,8 +168,8 @@ function makeBehaviorType(options: {
     return TestBehavior as ClusterBehavior.Type;
 }
 
-function validate(type: ClusterBehavior.Type) {
-    return new ValidatedElements(type);
+function validate(type: ClusterBehavior.Type, options?: ValidatedElements.Options) {
+    return new ValidatedElements(type, undefined, options);
 }
 
 describe("ValidatedElements", () => {
@@ -491,6 +494,98 @@ describe("ValidatedElements", () => {
             const result = validate(type);
             expect(result.commands.has("cmdA")).true;
             expect(result.commands.has("cmdB")).true;
+        });
+    });
+    describe("unimplemented mandatory commands", () => {
+        const schema = makeCluster({
+            features: { FT: { bit: 0, name: "Feature" }, OT: { bit: 1, name: "Other" } },
+            supportedFeatures: ["FT"],
+            commands: {
+                CmdA: { id: 1, conformance: "M" },
+                CmdB: { id: 2, conformance: "FT" },
+                CmdC: { id: 3, conformance: "OT" },
+                CmdD: { id: 4, conformance: "CmdA" },
+            },
+        });
+
+        function unimplementedOf(result: ValidatedElements) {
+            return (result.errors ?? []).filter(({ message }) => message.startsWith("Throws unimplemented exception"));
+        }
+
+        it("warns for each mandatory command that throws unimplemented", () => {
+            const result = validate(makeBehaviorType({ schema }));
+
+            expect(unimplementedOf(result)).deep.equals([
+                { element: "TestBehavior.cmdA", message: "Throws unimplemented exception", fatal: false },
+                { element: "TestBehavior.cmdB", message: "Throws unimplemented exception", fatal: false },
+            ]);
+            expect(result.commands.size).equals(0);
+        });
+
+        it("is fatal for each mandatory command that throws unimplemented in strict mode", () => {
+            const result = validate(makeBehaviorType({ schema, implementedCommands: ["cmdA"] }), { strict: true });
+
+            expect(unimplementedOf(result)).deep.equals([
+                {
+                    element: "TestBehavior.cmdB",
+                    message: "Throws unimplemented exception, refused by strict validation",
+                    fatal: true,
+                },
+                {
+                    element: "TestBehavior.cmdD",
+                    message: "Throws unimplemented exception, refused by strict validation",
+                    fatal: true,
+                },
+            ]);
+            expect(() => result.report()).throws(ClusterImplementationError);
+        });
+
+        it("is fatal for a mandatory command without implementation", () => {
+            const type = makeBehaviorType({ schema, implementedCommands: ["cmdB"] });
+            Object.defineProperty(type.prototype, "cmdA", { value: undefined });
+
+            const result = validate(type);
+
+            expect(result.errors).deep.equals([
+                { element: "TestBehavior.cmdA", message: "Implementation missing", fatal: true },
+            ]);
+        });
+
+        it("is fatal for a conditionally required command without implementation", () => {
+            const type = makeBehaviorType({ schema, implementedCommands: ["cmdA", "cmdB"] });
+            Object.defineProperty(type.prototype, "cmdD", { value: undefined });
+
+            const result = validate(type);
+
+            expect(result.errors).deep.equals([
+                { element: "TestBehavior.cmdD", message: "Implementation missing", fatal: true },
+            ]);
+        });
+
+        it("reports a mandatory command that is not a function once", () => {
+            const type = makeBehaviorType({ schema, implementedCommands: ["cmdB"] });
+            Object.defineProperty(type.prototype, "cmdA", { value: 1 });
+
+            const result = validate(type);
+
+            expect(result.errors).deep.equals([
+                { element: "TestBehavior.cmdA", message: "Implementation is not a function", fatal: true },
+            ]);
+        });
+
+        for (const server of [GroupsServer, ScenesManagementServer, GroupKeyManagementServer]) {
+            it(`accepts the default ${server.name} in strict mode`, () => {
+                expect(new ValidatedElements(server, undefined, { strict: true }).errors).undefined;
+            });
+        }
+
+        it("accepts a cluster that implements its mandatory commands in strict mode", () => {
+            const result = validate(makeBehaviorType({ schema, implementedCommands: ["cmdA", "cmdB", "cmdD"] }), {
+                strict: true,
+            });
+
+            expect(result.errors).undefined;
+            expect([...result.commands]).deep.equals(["cmdA", "cmdB", "cmdD"]);
         });
     });
 });
