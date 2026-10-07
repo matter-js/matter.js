@@ -776,8 +776,10 @@ export class ClientStructure {
                     cluster.features = features as FeatureBitmap;
                 }
 
-                if (Array.isArray(attributeList) && attributeList.length) {
-                    cluster.attributes = (attributeList.filter(attr => typeof attr === "number") as AttributeId[]).sort(
+                const reportedList = Array.isArray(attributeList) && attributeList.length ? attributeList : undefined;
+                cluster.attributeListReported = reportedList !== undefined;
+                if (reportedList !== undefined) {
+                    cluster.attributes = (reportedList.filter(attr => typeof attr === "number") as AttributeId[]).sort(
                         (a, b) => a - b,
                     );
                 } else {
@@ -1616,6 +1618,9 @@ interface ClusterStructure extends Partial<PeerBehavior.DiscoveredClusterShape> 
     pendingBehavior?: ClusterBehavior.Type;
     pendingDelete?: boolean;
     store: Datasource.ExternallyMutableStore;
+
+    /** Whether {@link attributes} is the peer's `AttributeList` rather than the IDs of the values it sent. */
+    attributeListReported?: boolean;
 }
 
 /**
@@ -1678,5 +1683,5 @@ function hasChangesOmittedAttribute(cluster: ClusterStructure) {
     if (!ids.size) {
         return false;
     }
-    return cluster.attributes === undefined || cluster.attributes.some(id => ids.has(id));
+    return !cluster.attributeListReported || !!cluster.attributes?.some(id => ids.has(id));
 }
