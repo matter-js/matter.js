@@ -199,7 +199,7 @@ describe("device type validation at construction", () => {
 
         expect(counting.calls).deep.equals({ validate: 0, validateNodeScope: 1, passes: 1 });
         expect(logged.filter(({ text }) => text.includes("Identify")).length).equals(100);
-    }).timeout(10_000);
+    });
 
     it("judges an endpoint added with its descendants in one pass", async () => {
         const node = await createNode();

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import "./blob.js";
 import "./crypto.js";
 import "./environment.js";
 import "./logging.js";

@@ -511,6 +511,54 @@ describe("Ota", () => {
         await MockTime.resolve(idlePromise);
     }).timeout(10_000);
 
+    it("handles an announcement only after a running query, so no second query overlaps it", async () => {
+        const { promise: queried, resolver: queryArrived } = createPromise<void>();
+        const { promise: answer, resolver: releaseAnswer } = createPromise<void>();
+        let queries = 0;
+
+        class SlowOtaProviderServer extends OtaSoftwareUpdateProviderServer {
+            override async queryImage(): Promise<OtaSoftwareUpdateProvider.QueryImageResponse> {
+                queries++;
+                queryArrived();
+                await answer;
+                return { status: OtaSoftwareUpdateProvider.Status.NotAvailable };
+            }
+        }
+
+        const { site, controller, otaRequestor } = await initOtaSite(
+            SlowOtaProviderServer,
+            OtaSoftwareUpdateRequestorServer,
+        );
+        await using _localSite = site;
+        await MockTime.resolve(queried);
+
+        const [{ location }] = otaRequestor.stateOf(OtaSoftwareUpdateRequestorServer).activeOtaProviders;
+        const requestorEndpoint = [...controller.peers.get("peer1")!.endpoints].find(endpoint =>
+            endpoint.behaviors.has(OtaSoftwareUpdateRequestorClient),
+        );
+        let announced = false;
+        const announcement = requestorEndpoint!
+            .commandsOf(OtaSoftwareUpdateRequestorClient)
+            .announceOtaProvider({
+                providerNodeId: location.providerNodeId,
+                vendorId: VendorId(0xfff1),
+                announcementReason: OtaSoftwareUpdateRequestor.AnnouncementReason.UrgentUpdateAvailable,
+                endpoint: location.endpoint,
+            })
+            .then(() => (announced = true));
+
+        await MockTime.advance(Seconds(700));
+        await MockTime.macrotasks;
+        expect(announced).false;
+        expect(queries).equals(1);
+
+        releaseAnswer();
+        await MockTime.resolve(announcement);
+        await MockTime.advance(Seconds(700));
+        await MockTime.macrotasks;
+        expect(queries).equals(2);
+    });
+
     describe("with a provider that answers Busy", () => {
         /** A provider answering every query Busy, recording the virtual time of each answer. */
         function BusyOtaProviderServer() {
@@ -2045,7 +2093,7 @@ describe("Ota", () => {
         // Set up idlePromise BEFORE forceUpdate: resolves when device returns to Idle.
         // The device will call queryImage, get NotAvailable, and go to Idle immediately.
         // We wait for Idle before site teardown to ensure the updateQueryTimer is started before
-        // node.close() stops it in [Symbol.asyncDispose].
+        // node.close() stops it.
         const { promise: idlePromise, resolver: idleResolver } = createPromise<void>();
         peer1.endpoints
             .for(otaRequestor.number)

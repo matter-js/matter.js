@@ -391,6 +391,7 @@ describe("ValueValidator", () => {
                     { id: 0, name: "Test", type: "enum8" },
                     Field({ id: 1, name: "plain" }),
                     Field({ id: 4, name: "ifFeature", conformance: "FT" }),
+                    Field({ name: "mfgValues", constraint: "128 to 191" }),
                 ),
             ],
         });
@@ -441,6 +442,14 @@ describe("ValueValidator", () => {
 
         it("forwards a feature-gated enum value on a client peer write", () => {
             expect(() => enumValidator({ test: 4 }, peer, enumPath)).not.throws();
+        });
+
+        it("accepts a value in a range member on a server write", () => {
+            expect(() => enumValidator({ test: 128 }, server, enumPath)).not.throws();
+        });
+
+        it("rejects a value outside every range member on a server write", () => {
+            expect(() => enumValidator({ test: 192 }, server, enumPath)).throws(UnknownEnumValueError);
         });
 
         it("rejects an undefined enum value on a server write", () => {

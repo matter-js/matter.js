@@ -208,7 +208,7 @@ export declare namespace RvcCleanMode {
         /**
          * @see {@link MatterSpecification.v161.Cluster} § 1.10.7.2.1
          */
-        status: ModeChangeStatus | ModeBase.ModeChangeStatus;
+        status: ModeChangeStatus | ModeBase.ModeChangeStatus | number;
 
         statusText: string;
     }
@@ -325,7 +325,7 @@ export declare namespace RvcCleanMode {
          *
          * @see {@link MatterSpecification.v161.Cluster} § 1.10.5.1.2
          */
-        value: ModeTag | ModeBase.ModeTag;
+        value: ModeTag | ModeBase.ModeTag | number;
     }
 
     /**

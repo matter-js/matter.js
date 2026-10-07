@@ -1312,4 +1312,55 @@ describe("ValueValidator", () => {
             );
         });
     });
+    describe("enum members", () => {
+        function validateEnum(...children: FieldElement[]) {
+            const Matter = new MatterModel(
+                {},
+                enum8.clone(),
+                new ClusterModel(
+                    { name: "Test", id: 0xfff1 },
+                    new DatatypeModel({ name: "TestEnum", type: "enum8" }, ...children),
+                ),
+            );
+            Matter.finalize();
+
+            return ValidateModel(Matter)
+                .errors.filter(e => e.code.includes("ENUM"))
+                .map(e => e.code);
+        }
+
+        it("accepts a range member beside named values", () => {
+            expect(
+                validateEnum(
+                    FieldElement({ name: "Zero", id: 0 }),
+                    FieldElement({ name: "One", id: 1 }),
+                    FieldElement({ name: "MfgValues", constraint: "128 to 191" }),
+                ),
+            ).deep.equals([]);
+        });
+
+        it("reports a named value inside a range", () => {
+            expect(
+                validateEnum(
+                    FieldElement({ name: "Named", id: 0x81 }),
+                    FieldElement({ name: "MfgValues", constraint: "128 to 191" }),
+                ),
+            ).deep.equals(["ENUM_ID_IN_RANGE"]);
+        });
+
+        it("reports overlapping ranges", () => {
+            expect(
+                validateEnum(
+                    FieldElement({ name: "Low", constraint: "0 to 128" }),
+                    FieldElement({ name: "High", constraint: "128 to 191" }),
+                ),
+            ).deep.equals(["OVERLAPPING_ENUM_RANGE"]);
+        });
+
+        it("reports a name and an ID 0 that appear twice", () => {
+            expect(
+                validateEnum(FieldElement({ name: "Same", id: 0 }), FieldElement({ name: "Same", id: 0 })),
+            ).deep.equals(["DUPLICATE_ENUM_ID", "DUPLICATE_ENUM_NAME"]);
+        });
+    });
 });

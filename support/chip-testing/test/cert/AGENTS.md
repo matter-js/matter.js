@@ -1087,6 +1087,12 @@ narrowed it to that one option (autoSubscribe:false present and hanging vs. abse
 completing in under 5 minutes). Don't reach for `autoSubscribe: false` again for a chip-flavor
 concern; whatever it's meant to fix, it costs the entire chip-local run.
 
+**One per-peer exception.** `CommissioningTarget.withoutSubscription` leaves a single commissioned
+peer without the subscription and skips the wait for it. TC-ACT-3.2 sets it, because CHIP's bridge
+app cannot answer the subscription's priming read; that TC runs on chip-local with the flag. It is
+not a run-wide setting, and a test case that sets it may only use the calls that go straight to the
+device (the flag's JSDoc lists them).
+
 What actually fixes `decommission()` refusing at cleanup (the bug `autoSubscribe: false` was
 originally shipped for) is `keepSubscriptions: true` on this TC's own subscribes
 (`InProcessCertNodeApi.subscribe`, `InProcessControllerAdapter.ts`) — verified alone, with
@@ -1612,13 +1618,14 @@ Step 4 hands over a well-formed code naming a device that is not there, so the D
 commissionee; `requireGiveUp` first observes the TH advertising, then accepts only a give-up
 (`isCommissioningGiveUp`).
 The evidence keeps them apart: on chip-tool, steps 3/7/8 record `Run command failure:
-src/setup_payload/…` while step 4 records a bare command failure.
+src/setup_payload/…` while step 4 records a bare command failure plus chip-tool's own
+`[CTL] Discovery timed out` line (`chipToolDiscoveryGaveUp`).
 
 **Step 4 needs a discovery bound, not a longer wait.** matter.js looks for a commissionable device for
 the specification's 3-minute minimum commissioning window (`CommissioningDiscovery` defaults
 `timeout` to `Minutes(3)`), so a step budget under that reports "neither resolved nor rejected" — as
 it did until `CommissioningTarget.giveUpAfterMs` was added. matter.js maps it to that discovery
-timeout; chip-tool cannot be bounded and says so, stopping on its own after ~30s, so the step's own
+timeout; chip-tool cannot be bounded and says so, stopping on its own after 30 s, so the step's own
 budget has to outlast chip-tool rather than matter.js.
 
 **Step 6: a manual code's vendor id is not informational, and both controllers act on it.** The
@@ -1998,24 +2005,22 @@ lands far outside that span whatever the plan declares — and the helper throws
 the run anyway, since that would turn the control into an ordinary commissioning.
 
 **Because a refusal is what a pass looks like here, two conditions are established rather than
-assumed.** The TH is observed advertising first, or the DUT gives up because there was nothing to find
-and the check passes on the TH's absence. And only a give-up counts (`isCommissioningGiveUp`), so a
-controller that would not start does not pass. `requireGiveUp` makes the same two checks for the
-manual-code plans.
+assumed.** The TH is observed advertising first; otherwise the DUT would give up because there was
+nothing to find, and the check would pass on the TH's absence. Only a give-up counts
+(`isCommissioningGiveUp`), so a controller that would not start does not pass. Both checks are
+`CommissioningRefusals.requireGiveUp`'s, which the manual-code plans call directly.
 
-**On chip-tool the control cannot be run at all.** `ChipToolCommandError` covers discovery, PASE,
-attestation, CASE, timeout and argument-parse failures alike, so a give-up is indistinguishable from a
-controller that failed for any other reason — and the attempt would spend chip-tool's own discovery
-timeout to record a pass that examined nothing. The step records an `unverified` check carrying
-`accepted` instead, and makes no attempt. This is the shape to reach for whenever a controller cannot
-exhibit the thing a check is about: state the gap in the bundle, do not spend time producing a verdict
-that could not have failed.
+**On chip-tool the give-up is read from chip-tool's own log.** `ChipToolCommandError` covers
+discovery, PASE, attestation, CASE, timeout and argument-parse failures alike, so the rejection alone
+cannot tell a give-up from a controller that failed for any other reason. `chipToolDiscoveryGaveUp`
+settles it: `[CTL] Discovery timed out` with no `Attempting PASE connection` before it. chip-tool cannot
+be bounded, so the step spends chip-tool's own discovery timeout of 30 seconds.
 
 **Budgets.** `ABSENT_DEVICE_GIVE_UP` (20s) is what the DUT is asked to spend; `ABSENT_DEVICE_WAIT`
 (90s) is how long the harness waits for that give-up. They must not be equal: a wait equal to the
 deadline it is waiting on observes the attempt still pending and records the DUT as having neither
 onboarded nor refused. matter.js honors the bound. chip-tool ignores it and gives up on its own after
-about 30 s (observed in TC-DD-3.16/3.17 step 4.b, which run on chip-tool), so the wait outlasts both.
+30 s (`CHIP_CONFIG_SETUP_CODE_PAIRER_DISCOVERY_TIMEOUT_SECS`), so the wait outlasts both.
 Erring long only delays reporting a DUT that hangs; erring short fails a working one.
 
 **Where it goes.** A precondition step numbered `0`, before the first commissioning whose evidence
@@ -2478,7 +2483,7 @@ re-establishes is one the peer must serve over TCP — a step that read without 
 over MRP and still find a session to report.
 
 **Its claim is not attributable from the device's log, and trying was a dead end worth recording.**
-The cert adapter leaves sustained subscriptions on, so a controller re-establishes a session on its
+The cert adapter leaves sustained subscriptions on for these cases, so a controller re-establishes a session on its
 own schedule — a lost subscription reconnects by establishing one. A check that matches a
 CASE-establishment line and calls it this step's therefore races either way around whatever mark it
 takes: a mark before the reconnect matches a line the step's read did not cause, and a mark after it

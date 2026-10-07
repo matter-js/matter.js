@@ -288,7 +288,6 @@ export class IcdClient extends Behavior {
             availableSource.off(availableListener);
         }
         this.internal.availableSource = undefined;
-        this.internal.availableListener = undefined;
     }
 
     #unsubscribeCheckInMissed() {
@@ -297,7 +296,6 @@ export class IcdClient extends Behavior {
             checkInMissedSource.off(checkInMissedListener);
         }
         this.internal.checkInMissedSource = undefined;
-        this.internal.checkInMissedListener = undefined;
     }
 
     /**
@@ -511,17 +509,21 @@ export class IcdClient extends Behavior {
         }
 
         this.#unsubscribeAvailable();
-        const listener = this.callback(this.#onAvailableChanged, { offline: true, lock: true });
+        const listener = (this.internal.availableListener ??= this.callback(this.#onAvailableChanged, {
+            offline: true,
+            lock: true,
+        }));
         wakefulness.available.on(listener);
         this.internal.availableSource = wakefulness.available;
-        this.internal.availableListener = listener;
         this.state.available = wakefulness.available.value === true;
 
         this.#unsubscribeCheckInMissed();
-        const checkInMissedListener = this.callback(this.#onCheckInMissed, { offline: true, lock: true });
+        const checkInMissedListener = (this.internal.checkInMissedListener ??= this.callback(this.#onCheckInMissed, {
+            offline: true,
+            lock: true,
+        }));
         wakefulness.checkInMissed.on(checkInMissedListener);
         this.internal.checkInMissedSource = wakefulness.checkInMissed;
-        this.internal.checkInMissedListener = checkInMissedListener;
     }
 
     #onAvailableChanged(available: boolean) {
@@ -651,13 +653,13 @@ export namespace IcdClient {
         /** The fed peer's wakefulness `available` observable we currently mirror. */
         availableSource?: AsyncObservableValue<[boolean]>;
 
-        /** Listener mirroring {@link availableSource} into {@link IcdClient.State.available}; removed on drop and before re-feed. */
+        /** Listener mirroring {@link availableSource} into {@link IcdClient.State.available}; created once and moved on re-feed. */
         availableListener?: Observer<[boolean]>;
 
         /** The fed peer's wakefulness `checkInMissed` observable we currently mirror. */
         checkInMissedSource?: AsyncObservable<[]>;
 
-        /** Listener mirroring {@link checkInMissedSource} into {@link IcdClient.Events.checkInMissed}; removed on drop and before re-feed. */
+        /** Listener mirroring {@link checkInMissedSource} into {@link IcdClient.Events.checkInMissed}; created once and moved on re-feed. */
         checkInMissedListener?: Observer<[]>;
     }
 

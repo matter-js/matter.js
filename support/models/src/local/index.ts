@@ -32,7 +32,6 @@ import "./GroupKeyManagementOverrides.js";
 import "./GroupsOverrides.js";
 import "./hwadr.js";
 import "./IcdManagementOverrides.js";
-import "./IlluminanceMeasurementOverrides.js";
 import "./ipadr.js";
 import "./ipv4adr.js";
 import "./ipv6adr.js";
