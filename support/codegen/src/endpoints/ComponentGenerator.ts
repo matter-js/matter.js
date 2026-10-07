@@ -19,6 +19,7 @@ import {
 } from "#model";
 import type { ClusterFile } from "../clusters/ClusterFile.js";
 import { documentationOf } from "../util/documentation.js";
+import { isEnumRange } from "../util/enum-ranges.js";
 import { asObjectKey, camelize, serialize } from "../util/string.js";
 import type { Block } from "../util/TsFile.js";
 import { TypeGenerator } from "./TypeGenerator.js";
@@ -483,6 +484,9 @@ export class ComponentGenerator {
         enumBlock.document(model);
 
         model.children.forEach(child => {
+            if (isEnumRange(child)) {
+                return;
+            }
             let childName = child.name;
             if (childName.match(/^\d+$/)) {
                 childName = `E${childName}`;
@@ -569,7 +573,7 @@ export class ComponentGenerator {
     #defineErrors(enumName: string, model: ValueModel, block: Block) {
         for (const field of model.fields) {
             let { name: errName } = field;
-            if (errName === "Success") {
+            if (errName === "Success" || isEnumRange(field)) {
                 continue;
             }
 

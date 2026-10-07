@@ -92,7 +92,7 @@ export declare namespace OvenCavityOperationalState {
          *
          * @see {@link MatterSpecification.v161.Cluster} § 1.14.5.5
          */
-        operationalState: OperationalState.OperationalStateEnum;
+        operationalState: OperationalState.OperationalStateEnum | number;
 
         /**
          * This attribute shall specify the details of any current error condition being experienced on the device when
@@ -190,7 +190,7 @@ export declare namespace OvenCavityOperationalState {
          *
          * @see {@link MatterSpecification.v161.Cluster} § 1.14.5.5
          */
-        operationalState: OperationalState.OperationalStateEnum;
+        operationalState: OperationalState.OperationalStateEnum | number;
 
         /**
          * This attribute shall specify the details of any current error condition being experienced on the device when

@@ -80,6 +80,31 @@ The units used for these fields are derived from IEEE 802.11-2024 clause 11.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 0 | Gain | int8 | all |  |  |  | M |
 
+### 5.17.5.6. ErrorEnum Type
+
+This data type is derived from enum8.
+
+| Value | Name | Summary |
+| --- | --- | --- |
+| 0x00 to 0x3F | GeneralErrors | Generally applicable values for error, defined herein |
+| 0x40 to 0x7F | DerivedClusterErrors | Derived Cluster defined errors |
+| 0x80 to 0xBF | ManufacturerError | Vendor specific errors |
+
+The general error values are defined in the table below.
+
+| Value | Name | Summary | Conformance |
+| --- | --- | --- | --- |
+| 0x00 | NoError | No error | M |
+
+### 5.17.5.7. SensorTypeEnum Type
+
+This data type is derived from enum8.
+
+| Value | Name | Summary | Conformance |
+| --- | --- | --- | --- |
+| 0 | Photodiode | Photodiode sensor | M |
+| 64 to 254 | MS | Reserved for manufacturer specific sensor types | O |
+
 ### 5.17.5.5. Client Table
 
 The client table is shared.
@@ -222,6 +247,31 @@ describe("cluster scrape", () => {
 
         it("is not a document cited after 'derived from'", () => {
             expect(datatype(scrapeCluster().children, "RDRStruct").type).equals("struct");
+        });
+    });
+
+    describe("an enum range", () => {
+        function members(name: string) {
+            return datatype(scrapeCluster().children, name).children?.map(({ name, id, constraint, conformance }) => ({
+                name,
+                id,
+                constraint,
+                conformance,
+            }));
+        }
+
+        it("becomes a member for a manufacturer range in a table of its own", () => {
+            expect(members("ErrorEnum")).deep.equals([
+                { name: "NoError", id: 0, constraint: undefined, conformance: "M" },
+                { name: "ManufacturerError", id: undefined, constraint: "128 to 191", conformance: undefined },
+            ]);
+        });
+
+        it("becomes a member for a manufacturer range among the values", () => {
+            expect(members("SensorTypeEnum")).deep.equals([
+                { name: "Photodiode", id: 0, constraint: undefined, conformance: "M" },
+                { name: "Ms", id: undefined, constraint: "64 to 254", conformance: "O" },
+            ]);
         });
     });
 

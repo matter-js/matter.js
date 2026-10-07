@@ -120,7 +120,8 @@ export const ClosureControl = Cluster(
         Field({ name: "BlockedBySensor", id: 0x1, conformance: "M" }),
         Field({ name: "TemperatureLimited", id: 0x2, conformance: "M" }),
         Field({ name: "MaintenanceRequired", id: 0x3, conformance: "M" }),
-        Field({ name: "InternalInterference", id: 0x4, conformance: "M" })
+        Field({ name: "InternalInterference", id: 0x4, conformance: "M" }),
+        Field({ name: "ManufacturerError", constraint: "128 to 191" })
     ),
 
     Datatype(
