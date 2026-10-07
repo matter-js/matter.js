@@ -298,6 +298,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/nodejs-ble
     - Enhancement: `NobleBleClient` reports how long its radio actually scanned as `BleScannerClient.listeningTime`
+    - Fix: `NobleBleClient` asks noble to scan again once the Bluetooth adapter powers on
+    - Fix: `NobleBleClient` stops a scan it requested that only took effect after it was no longer wanted
 
 - @matter/protocol
     - Breaking: `ClientSubscriptions.lastReportStartedAtFor()` and `PeerSubscription.lastReportStartedAt` are removed; the new `ClientSubscriptions.reportStarted` observable emits the session each inbound report arrives over
@@ -314,6 +316,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A later BLE discovery no longer offers a device that was just commissioned through another transport and advertises its vendor, as the commissioner passes the new `CommissionableDeviceIdentity` to `Scanner.forgetCommissionedDevice()`
     - Fix: A BLE peripheral silent through a minute of listening, as reported by the new optional `BleScannerClient.listeningTime`, is no longer offered for commissioning
     - Enhancement: New `BleListeningClock` accumulates a BLE client's scan time for `BleScannerClient.listeningTime`
+    - Fix: Concurrent BLE discoveries share one scan and each waits for its own result
+    - Fix: A BLE scan start that never completes fails the waiting discoveries after 10 s instead of leaving them waiting
     - Fix: A session or exchange ending because its transport connection dropped reports `TransportClosedError` instead of an untyped error
     - Fix: A CASE pairing failure reaches the caller even when reporting it to the peer fails; the report's own failure is logged instead of replacing the pairing error
 
