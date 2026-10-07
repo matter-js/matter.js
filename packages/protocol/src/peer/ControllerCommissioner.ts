@@ -547,14 +547,14 @@ export class ControllerCommissioner {
 
         const deviceIdentifier = discoveryData?.deviceIdentifier;
         if (deviceIdentifier !== undefined && deviceIdentifier !== "") {
-            return [{ ...discoveryData, addresses: sorted, deviceIdentifier, D: 0, CM: 1 }];
+            return [{ ...discoveryData, addresses: sorted, deviceIdentifier, D: discoveryData?.D ?? 0, CM: 1 }];
         }
 
         return sorted.map((address, index) => ({
             ...(discoveryData ?? {}),
             addresses: [address],
             deviceIdentifier: `known-address-${index}-${ServerAddress.urlFor(address)}`,
-            D: 0,
+            D: discoveryData?.D ?? 0,
             CM: 1,
         }));
     }
