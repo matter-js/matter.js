@@ -303,14 +303,18 @@ export class ControllerCommissioner {
      * A commissioned device closes its commissioning window, but a scanner may still hold the advertisement that
      * opened it, and a later discovery by short discriminator matches many devices.
      */
-    #forgetCommissionedDevice(addresses: ServerAddress[]) {
+    #forgetCommissionedDevice(addresses: ServerAddress[], discoveryData?: DiscoveryData) {
         const environment = this.#context.environment;
         if (!environment.has(ScannerSet)) {
             return;
         }
+        const identity =
+            discoveryData?.D !== undefined && discoveryData.VP !== undefined
+                ? { D: discoveryData.D, VP: discoveryData.VP }
+                : undefined;
         for (const scanner of environment.get(ScannerSet)) {
             try {
-                scanner.forgetCommissionedDevice?.(addresses);
+                scanner.forgetCommissionedDevice?.(addresses, identity);
             } catch (error) {
                 // The device is commissioned either way, so a scanner's bookkeeping must not fail the commissioning
                 logger.warn(`Error forgetting commissioned device in ${scanner.type} scanner:`, error);
@@ -692,7 +696,7 @@ export class ControllerCommissioner {
         try {
             await commissioner.executeCommissioning();
             // The device's commissioning window is closed now, whatever fails after this point
-            this.#forgetCommissionedDevice(options.addresses);
+            this.#forgetCommissionedDevice(options.addresses, discoveryData);
             const captured = commissioner.fabricIndexOnPeer;
             // Treat the spec-invalid NO_FABRIC (0) as "unknown" so callers don't have to filter it again.
             fabricIndexOnPeer = captured === FabricIndex.NO_FABRIC ? undefined : captured;

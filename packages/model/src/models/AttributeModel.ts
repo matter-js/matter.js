@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Access } from "../aspects/Access.js";
 import { AttributeElement } from "../elements/index.js";
 import { Model } from "./Model.js";
 import { PropertyModel } from "./PropertyModel.js";
@@ -22,8 +23,21 @@ export class AttributeModel extends PropertyModel<AttributeElement> implements A
         return !this.fixed && this.effectiveAccess.writable;
     }
 
+    /**
+     * Whether the attribute holds fabric-scoped data, with fabric-scoped (`F`) or fabric-sensitive (`S`) access.
+     */
     get fabricScoped() {
-        return !!this.effectiveAccess.fabric;
+        const { fabric } = this.effectiveAccess;
+        return fabric === Access.Fabric.Scoped || fabric === Access.Fabric.Sensitive;
+    }
+
+    /**
+     * Whether the attribute is fabric-sensitive; a read returns only the accessing fabric's entries of its list.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 7.6.5
+     */
+    get fabricSensitive() {
+        return this.effectiveAccess.fabricSensitive;
     }
 
     get fixed() {

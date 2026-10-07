@@ -11,6 +11,7 @@ import { AdministratorCommissioningClient } from "#behaviors/administrator-commi
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
+import { ClientStructure } from "#node/client/ClientStructure.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { IdentityConflictError, IdentityService } from "#node/server/IdentityService.js";
 import type { ServerNode } from "#node/ServerNode.js";
@@ -74,6 +75,7 @@ import {
     PeerTimingParameters,
     PeerAddress as ProtocolPeerAddress,
     SessionParameters as ProtocolSessionParameters,
+    Read,
     Subscribe,
 } from "@matter/protocol";
 import {
@@ -341,15 +343,41 @@ export class CommissioningClient extends Behavior {
 
         const formerAddress = ProtocolPeerAddress(peerAddress).toString();
 
+        // A peer commissioned without a structure read or subscription has no OperationalCredentials behavior to
+        // send RemoveFabric through, and one read only partially may hold no fabric index; reading the attribute
+        // installs the behavior and supplies the index
+        const node = this.endpoint as ClientNode;
+        if (
+            !node.behaviors.has(OperationalCredentialsClient) ||
+            (this.state.fabricIndexOnPeer === undefined &&
+                !node.maybeStateOf(OperationalCredentialsClient)?.currentFabricIndex)
+        ) {
+            const fabricFilter = ClientStructure.isFabricFiltered(
+                this.agent.get(NetworkClient).state.defaultSubscription,
+            );
+            for await (const _chunk of node.interaction.read(
+                Read(
+                    { fabricFilter },
+                    Read.Attribute({
+                        endpoint: node,
+                        cluster: OperationalCredentials.Cluster,
+                        attributes: "currentFabricIndex",
+                    }),
+                ),
+            ));
+        }
+
         const opcreds = this.agent.get(OperationalCredentialsClient);
 
-        const fabricIndex = opcreds.state.currentFabricIndex;
+        const fabricIndex = this.state.fabricIndexOnPeer ?? opcreds.state.currentFabricIndex;
 
         // Removing the fabric we communicate over destroys the session the NocResponse must travel on, so the response
         // is frequently lost.  Treat the command as confirmed if it was delivered (transient peer error) or if a
         // matching leave event arrives.  Arm the listener before sending so a fast leave cannot be missed.
         let leaveSeen = false;
-        const leaveEvents = this.endpoint.eventsOf(BasicInformationClient).leave;
+        const leaveEvents = node.behaviors.has(BasicInformationClient)
+            ? node.eventsOf(BasicInformationClient).leave
+            : undefined;
         const onLeave = ({ fabricIndex: leftFabricIndex }: { fabricIndex: FabricIndex }) => {
             // Ignore leaves replayed during subscription establishment; they may be stale events from a prior
             // commissioning with the same identifier, matching the guard in Peers#onLeave.
@@ -389,7 +417,6 @@ export class CommissioningClient extends Behavior {
             }
 
             // Removal confirmed.  Must run before commit unbinds Peer via peerAddress$Changed.
-            const node = this.endpoint as ClientNode;
             try {
                 await node.env.maybeGet(Peer)?.disconnect(new PeerLeftError());
             } catch (error) {
