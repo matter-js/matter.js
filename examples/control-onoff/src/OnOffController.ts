@@ -14,7 +14,7 @@ import { ServerNode } from "@matter/main";
 import { OnOffClient } from "@matter/main/behaviors/on-off";
 
 // Create the controller
-const controller = await ServerNode.create({ id: "controller" });
+const controller = await ServerNode.create(ServerNode.RootEndpointWithoutGroupcast, { id: "controller" });
 
 const [command, ...args] = process.argv.slice(2);
 

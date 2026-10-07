@@ -79,7 +79,7 @@ A controller is a `ServerNode` with `ControllerBehavior` and commissioning disab
 import { ControllerBehavior, ServerNode } from "@matter/node";
 import { FabricAuthority } from "@matter/protocol";
 
-const node = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
+const node = await ServerNode.create(ServerNode.RootEndpointWithoutGroupcast.with(ControllerBehavior), {
     environment,
     id: "controller",
     commissioning: { enabled: false },                  // a controller is never commissionable itself
@@ -96,6 +96,11 @@ await node.start();
 
 A controller typically also sets `subscriptions: { persistenceEnabled: false }` (subscription persistence is a
 device feature). The port is ephemeral by default (see above).
+
+`ServerNode.RootEndpointWithoutGroupcast` leaves out the Groupcast cluster and the Access Control Auxiliary
+feature that Groupcast needs. A controller uses neither, and the legacy `CommissioningController` builds its node
+the same way. Use `ServerNode.RootEndpoint` only if the controller should also receive Groupcast messages as a
+device. Switching between the two on an existing storage keeps the persisted ACL entries.
 
 To act as an OTA provider, add an `OtaProviderEndpoint` (`import { OtaProviderEndpoint } from
 "@matter/node/endpoints/ota-provider"`); it pulls in `SoftwareUpdateManager` (query/check/download/apply
@@ -242,7 +247,7 @@ off via a callback to complete the flow elsewhere. On the new API:
   // the fabric before starting:
   const completingEnv = new Environment("completingController", Environment.default);
   completingEnv.set(CertificateAuthority, await CertificateAuthority.create(completingEnv.get(Crypto), caConfig));
-  const completingController = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
+  const completingController = await ServerNode.create(ServerNode.RootEndpointWithoutGroupcast.with(ControllerBehavior), {
       environment: completingEnv,
       id: "completingController",
       commissioning: { enabled: false },

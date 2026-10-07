@@ -11,6 +11,7 @@ import { StateType } from "#behavior/state/StateType.js";
 import { BehaviorSupervisor } from "#behavior/supervision/BehaviorSupervisor.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
+import { AccessControlServer } from "#behaviors/access-control";
 import {
     AsyncObservable,
     ImplementationError,
@@ -29,7 +30,8 @@ import {
     FieldModel,
 } from "@matter/model";
 import { AccessControl, Val } from "@matter/protocol";
-import { EndpointNumber, NodeId } from "@matter/types";
+import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
+import { AccessControl as AccessControlCluster } from "@matter/types/clusters/access-control";
 import { rawValuesOf } from "./values/value-utils.js";
 
 class MyState {
@@ -729,6 +731,196 @@ describe("Datasource", () => {
 
         expect(sets.length).equals(1);
         expect("__features__" in sets[0]).true;
+    });
+
+    describe("persisted values after a feature change", () => {
+        class GatedState {
+            plain?: number = undefined;
+            gated?: number = undefined;
+            dependent?: number = undefined;
+            limited?: number = undefined;
+        }
+
+        function gatedSupervisor(...features: string[]) {
+            const schema = new ClusterModel({
+                id: 0xfff1_fc97,
+                name: "GatedState",
+
+                children: [
+                    AttributeElement({
+                        id: 0xfffc,
+                        name: "FeatureMap",
+                        type: "FeatureMap",
+                        children: [
+                            FieldElement({ name: "GATE", constraint: "0" }),
+                            FieldElement({ name: "EXTRA", constraint: "1" }),
+                        ],
+                    }),
+                    AttributeElement({ id: 1, name: "Plain", type: "uint8", quality: "N" }),
+                    AttributeElement({ id: 2, name: "Gated", type: "uint8", quality: "N", conformance: "GATE" }),
+                    AttributeElement({
+                        id: 3,
+                        name: "Dependent",
+                        type: "uint8",
+                        quality: "N",
+                        conformance: "Gated",
+                    }),
+                    AttributeElement({ id: 4, name: "Limited", type: "uint8", quality: "N", constraint: "max 10" }),
+                ],
+            });
+            schema.supportedFeatures = new FeatureSet(features);
+            return BehaviorSupervisor({ id: "gatedState", State: GatedState, schema });
+        }
+
+        function featuresKeyOf(supervisor: RootSupervisor) {
+            return [...supervisor.supportedFeatures].join(",");
+        }
+
+        function createGated(supervisor: RootSupervisor, initialValues: Val.Struct) {
+            const store = createStore(initialValues);
+            const ds = createDatasource({ type: GatedState, supervisor, store });
+            return { ds, store };
+        }
+
+        it("keeps every persisted value when a feature is added", async () => {
+            const { ds } = createGated(gatedSupervisor("GATE", "EXTRA"), {
+                plain: 1,
+                gated: 2,
+                dependent: 3,
+                __features__: featuresKeyOf(gatedSupervisor("GATE")),
+            });
+
+            expect(ds.view.plain).equals(1);
+            expect(ds.view.gated).equals(2);
+            expect(ds.view.dependent).equals(3);
+        });
+
+        it("drops only values the removed feature disallows", async () => {
+            const { ds } = createGated(gatedSupervisor("EXTRA"), {
+                plain: 1,
+                gated: 2,
+                __features__: featuresKeyOf(gatedSupervisor("GATE", "EXTRA")),
+            });
+
+            expect(ds.view.plain).equals(1);
+            expect(ds.view.gated).undefined;
+        });
+
+        it("rechecks after a drop so values depending on a dropped value go too", async () => {
+            // "dependent" validates first and only fails once "gated" is gone
+            const { ds } = createGated(gatedSupervisor(), {
+                dependent: 3,
+                plain: 1,
+                gated: 2,
+                __features__: featuresKeyOf(gatedSupervisor("GATE")),
+            });
+
+            expect(ds.view.plain).equals(1);
+            expect(ds.view.gated).undefined;
+            expect(ds.view.dependent).undefined;
+        });
+
+        it("drops persisted keys that are not persistent members", async () => {
+            const { ds, store } = createGated(gatedSupervisor("GATE"), {
+                plain: 1,
+                vanished: 4,
+                __features__: featuresKeyOf(gatedSupervisor()),
+            });
+
+            expect(ds.view.plain).equals(1);
+            expect("vanished" in ds.view).false;
+
+            await withReference(ds, ({ state }) => (state.plain = 5));
+
+            expect(store.sets).deep.equals([
+                { plain: 5, __features__: featuresKeyOf(gatedSupervisor("GATE")), vanished: undefined },
+            ]);
+        });
+
+        it("deletes dropped values together with the new features key", async () => {
+            const supervisor = gatedSupervisor();
+            const { ds, store } = createGated(supervisor, {
+                dependent: 3,
+                plain: 1,
+                gated: 2,
+                __features__: featuresKeyOf(gatedSupervisor("GATE")),
+            });
+
+            await withReference(ds, ({ state }) => (state.plain = 5));
+            await withReference(ds, ({ state }) => (state.plain = 6));
+
+            expect(store.sets).deep.equals([
+                { plain: 5, __features__: featuresKeyOf(supervisor), dependent: undefined, gated: undefined },
+                { plain: 6 },
+            ]);
+        });
+
+        it("keeps a dropped value that is written again in the commit that deletes it", async () => {
+            const supervisor = gatedSupervisor("GATE");
+            const { ds, store } = createGated(supervisor, {
+                plain: 1,
+                limited: 20,
+                __features__: featuresKeyOf(gatedSupervisor()),
+            });
+
+            expect(ds.view.limited).undefined;
+
+            await withReference(ds, ({ state }) => (state.limited = 5));
+
+            expect(store.sets).deep.equals([{ limited: 5, __features__: featuresKeyOf(supervisor) }]);
+        });
+
+        it("writes no deletions when features are unchanged", async () => {
+            const supervisor = gatedSupervisor("GATE");
+            const { ds, store } = createGated(supervisor, {
+                plain: 1,
+                gated: 2,
+                __features__: featuresKeyOf(supervisor),
+            });
+
+            await withReference(ds, ({ state }) => (state.plain = 5));
+
+            expect(ds.view.gated).equals(2);
+            expect(store.sets).deep.equals([{ plain: 5 }]);
+        });
+
+        it("ignores every persisted value of a mirror", async () => {
+            const store: Datasource.ExternallyMutableStore = {
+                // Legacy name-keyed slot: still a valid persisted value, so only the mirror rule removes it
+                initialValues: { plain: 1, __features__: featuresKeyOf(gatedSupervisor()) },
+                version: 1,
+                async set() {},
+                async externalSet() {},
+            };
+            createDatasource({ type: GatedState, supervisor: gatedSupervisor("GATE"), primaryKey: "id", store });
+
+            expect(store.consumer?.snapshot()).deep.equals({});
+        });
+
+        it("keeps the access control list when the Auxiliary feature is added", async () => {
+            const before = AccessControlServer.with("Extension");
+            const after = AccessControlServer.with("Extension", "Auxiliary");
+            const acl = [
+                {
+                    privilege: AccessControlCluster.AccessControlEntryPrivilege.Administer,
+                    authMode: AccessControlCluster.AccessControlEntryAuthMode.Case,
+                    subjects: [NodeId(0x1234)],
+                    targets: null,
+                    fabricIndex: FabricIndex(1),
+                },
+            ];
+
+            const ds = createDatasource({
+                type: after.State,
+                supervisor: after.supervisor,
+                store: createStore({ acl, extension: [], __features__: featuresKeyOf(before.supervisor) }),
+            });
+
+            expect(featuresKeyOf(before.supervisor)).not.equals(featuresKeyOf(after.supervisor));
+            expect(ds.view.acl.map(entry => ({ ...entry }))).deep.equals(
+                acl.map(entry => ({ ...entry, auxiliaryType: undefined })),
+            );
+        });
     });
 
     it("auto-commits changes after initial load", async () => {
