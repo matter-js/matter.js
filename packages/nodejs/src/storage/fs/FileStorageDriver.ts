@@ -94,6 +94,18 @@ export class FileStorageDriver extends FilesystemStorageDriver implements Legacy
         this.isInitialized = true;
     }
 
+    /** The index of {@link contexts}, or undefined if nothing was ever stored there. */
+    #existingIndexFor(contexts: string[]) {
+        let node: ContextIndex | undefined = this.#index;
+        for (const name of contexts) {
+            node = node.contexts?.get(name);
+            if (node === undefined) {
+                return;
+            }
+        }
+        return node;
+    }
+
     #indexFor(contexts: string[]) {
         let node = this.#index;
         for (const name of contexts) {
@@ -171,8 +183,7 @@ export class FileStorageDriver extends FilesystemStorageDriver implements Legacy
     }
 
     override async has(contexts: string[], key: string): Promise<boolean> {
-        const index = this.#indexFor(contexts);
-        return !!index.keys?.has(key);
+        return !!this.#existingIndexFor(contexts)?.keys?.has(key);
     }
 
     async get<T extends SupportedStorageTypes>(contexts: string[], key: string): Promise<T | undefined> {
@@ -335,8 +346,8 @@ export class FileStorageDriver extends FilesystemStorageDriver implements Legacy
 
     /** Returns all keys of a storage context without keys of sub-contexts */
     async keys(contexts: string[]) {
-        const index = this.#indexFor(contexts);
-        return index.keys ? [...index.keys] : [];
+        const keys = this.#existingIndexFor(contexts)?.keys;
+        return keys ? [...keys] : [];
     }
 
     async values(contexts: string[]) {
@@ -358,16 +369,29 @@ export class FileStorageDriver extends FilesystemStorageDriver implements Legacy
         return values;
     }
 
+    /** The sub-contexts of {@link contexts} that hold a key, directly or below them. */
     contexts(contexts: string[]): string[] {
-        const index = this.#indexFor(contexts);
-        return index.contexts ? [...index.contexts.keys()] : [];
+        const children = this.#existingIndexFor(contexts)?.contexts;
+        if (children === undefined) {
+            return [];
+        }
+        return [...children].filter(([, child]) => holdsKeys(child)).map(([name]) => name);
     }
 
     async clearAll(contexts: string[]) {
         await this.#finishAllWrites();
-        const parent = this.#indexFor(contexts.slice(0, -1));
+        const parent = this.#existingIndexFor(contexts.slice(0, -1));
+        if (parent === undefined) {
+            return;
+        }
         const name = contexts[contexts.length - 1];
         await this.#clearChildContext(contexts, parent, name);
+
+        // A write that landed while clearing keeps its context
+        const cleared = parent.contexts?.get(name);
+        if (cleared !== undefined && !holdsKeys(cleared)) {
+            parent.contexts?.delete(name);
+        }
     }
 
     async #clearChildContext(contexts: string[], parent: ContextIndex, name: string) {
@@ -389,4 +413,16 @@ export class FileStorageDriver extends FilesystemStorageDriver implements Legacy
             );
         }
     }
+}
+
+function holdsKeys(index: ContextIndex): boolean {
+    if (index.keys?.size) {
+        return true;
+    }
+    for (const child of index.contexts?.values() ?? []) {
+        if (holdsKeys(child)) {
+            return true;
+        }
+    }
+    return false;
 }
