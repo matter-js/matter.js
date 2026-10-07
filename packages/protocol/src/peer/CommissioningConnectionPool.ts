@@ -21,8 +21,8 @@ type CandidateState = {
 };
 
 /**
- * Tracks commissioning candidates by device and exposes all viable (device, address) pairs for parallel PASE
- * launching.  The only retained state is which devices have been permanently dropped due to credential failure.
+ * Tracks commissioning candidates by device and exposes all viable (device, address) pairs for PASE launching.
+ * The only retained state is which devices have been permanently dropped due to credential failure.
  */
 export class CommissioningConnectionPool {
     readonly #invalidCredentialDevices = new Set<string>();
@@ -72,8 +72,8 @@ export class CommissioningConnectionPool {
     }
 
     /**
-     * Permanently drop a device whose passcode is wrong.  All its addresses are already in-flight and will
-     * receive the per-device abort signal; new attempts for this device will be skipped.
+     * Permanently drop a device whose passcode is wrong.  {@link CommissioningConnection} skips its queued addresses
+     * and aborts the ones in flight.
      */
     markInvalidCredentials(deviceKey: string) {
         this.#invalidCredentialDevices.add(deviceKey);

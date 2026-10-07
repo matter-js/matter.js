@@ -23,6 +23,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure that `ObservableValue.offError()` removes only the given handler and keeps other error handlers and pending awaiters
     - Fix: Ensure that `Lifetime.details` keeps what is written to it and lifetime diagnostics show every detail
     - Fix: Ensure that `MdnsSocket.close()` waits for message handlers that are still running
+    - Fix: `ServerAddressSet.compareHealth` ranks a healthy address before an unused one in either argument order
     - Fix: Supporting Timers with intervals longer than 2^31-1 ms (about 24.8 days)
     - Fix: DNS-SD discovery no longer takes records from the known-answer list of mDNS queries, its own looped-back queries included. A link-local address learned on one interface was stored under every interface such a query arrived on, so a controller could dial a node through the wrong interface and spend its connection attempt waiting for a timeout
     - Fix: `FormattedText` nests list items by their indent, so an item that outdents between two open levels sits beside the deeper level instead of below it, and an indented numbered list nests instead of merging into its parent
@@ -88,7 +89,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Fix: Ensure that `BleScanner` forgets a discovered device after 15 minutes of scanning without its advertisement, or, for a client that reports no listening time, 15 minutes after the later of its last report and the end of the last discovery
     - Fix: Commissioning tries a device's addresses in ranked order instead of reverse order, so a lower-ranked unreachable address no longer delays PASE
-    - Fix: Commissioning starts PASE on a device's next address after 10 s instead of 15 s, so a third address gets an attempt within the default 30 s timeout
+    - Fix: Commissioning tries a device's next address as soon as the last attempt fails, or 10 s after it started, instead of every 15 s, and not while the device is answering an earlier attempt
     - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status or does not answer it in time
     - Fix: A missing response no longer closes the commissioning PASE session; commissioning closes it on every exit
     - Feature: A `NodeSession` created with `suppressPeerLoss` stays open on communication failures of its exchanges; its owner closes it
@@ -137,6 +138,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: Ensure that a client read returns the peer's current values of changes-omitted attributes, which the subscription does not report, instead of cached ones
     - Fix: Ensure that a peer's endpoint is installed and announced only after the endpoint that owns it is on the node
     - Feature: `Behavior.reactorTimer()` and `Behavior.periodicReactorTimer()` create a timer that runs a reactor of the behavior and stops when the behavior closes to prevent leaking them
     - Fix: Ensure that a value in the manufacturer range of an enum is accepted; Illuminance Measurement `LightSensorType` rejects the reserved values 2 to 63 and 255
