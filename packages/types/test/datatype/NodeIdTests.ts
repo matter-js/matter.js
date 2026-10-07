@@ -70,4 +70,18 @@ describe("NodeId", () => {
     it("should throw an error when creating a NodeId from a PAKE key identifier with negative value", () => {
         expect(() => NodeId.getFromPakeKeyIdentifier(-1)).to.throw(UnexpectedDataError);
     });
+
+    describe("isValidCaseAuthenticatedTag", () => {
+        it("accepts a CAT subject with a version other than 0", () => {
+            expect(NodeId.isValidCaseAuthenticatedTag(NodeId(0xffff_fffd_0001_0001n))).equals(true);
+        });
+
+        it("refuses a CAT subject with version 0", () => {
+            expect(NodeId.isValidCaseAuthenticatedTag(NodeId(0xffff_fffd_0001_0000n))).equals(false);
+        });
+
+        it("refuses a subject outside the CAT range", () => {
+            expect(NodeId.isValidCaseAuthenticatedTag(NodeId(100n))).equals(false);
+        });
+    });
 });

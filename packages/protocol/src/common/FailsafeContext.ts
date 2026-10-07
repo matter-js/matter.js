@@ -234,7 +234,7 @@ export abstract class FailsafeContext {
 
         const { nocValue, icacValue, adminVendorId, ipkValue, caseAdminSubject } = nocData;
 
-        if (!isCaseAdminSubject(caseAdminSubject)) {
+        if (!NodeId.isOperationalNodeId(caseAdminSubject) && !NodeId.isValidCaseAuthenticatedTag(caseAdminSubject)) {
             throw new MatterFabricInvalidAdminSubjectError(
                 `CaseAdminSubject ${SubjectId.strOf(caseAdminSubject)} is neither an operational node ID nor a valid CAT`,
             );
@@ -346,16 +346,4 @@ export namespace FailsafeContext {
         maxCumulativeFailsafe: Duration;
         session: NodeSession;
     }
-}
-
-/**
- * A CASE ACL subject is an operational node ID or a CASE Authenticated Tag whose version, the low 16 bits, is not 0.
- *
- * @see {@link MatterSpecification.v161.Core} § 11.18.6.8.4
- */
-function isCaseAdminSubject(subject: SubjectId) {
-    if (NodeId.isOperationalNodeId(subject)) {
-        return true;
-    }
-    return NodeId.isCaseAuthenticatedTag(subject) && (BigInt(subject) & 0xffffn) !== 0n;
 }

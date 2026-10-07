@@ -77,6 +77,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/types
     - Feature: `VendorId.isOperational()` tells whether a vendor ID may identify a fabric administrator: a valid vendor ID other than 0x0000
+    - Feature: `CaseAuthenticatedTag.isValid()` and `NodeId.isValidCaseAuthenticatedTag()` tell whether a value or subject is a CASE Authenticated Tag with a version other than 0, without throwing
     - Breaking: Fields of an enum with a manufacturer range are typed `Enum | number`, and Illuminance Measurement `LightSensorType` is typed `LightSensorType | number`
     - Fix: A bitmap class such as `Groups.NameSupportAttribute` applies the defaults its members state, and one constructed from a number sets a multi-bit member at its full width and members above bit 31. An instance built from the default or a number names every conformant member and no other
     - Fix: `CommissioningOptions.Configuration.advertisementWindow` applies to windows an uncommissioned node opens itself and defaults to 48 hours; a commissioned node's own window stays open for 15 minutes
@@ -90,6 +91,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Fix: `Noc.verify()` throws `OperationalNodeIdError`, a `CertificateError`, when the NOC's node ID is outside the operational range
     - Fix: `FailsafeContext.buildFabric()` refuses a CASE Authenticated Tag with version 0 as admin subject
+    - Fix: `FabricAuthority.createFabric()` throws `ImplementationError` for admin vendor ID 0x0000 or above 0xFFF4, which devices refuse in AddNOC
     - Fix: Ensure that `BleScanner` forgets a discovered device after 15 minutes of scanning without its advertisement, or, for a client that reports no listening time, 15 minutes after the later of its last report and the end of the last discovery
     - Fix: Commissioning tries a device's addresses in ranked order instead of reverse order, so a lower-ranked unreachable address no longer delays PASE
     - Fix: Commissioning tries a device's next address as soon as the last attempt fails, or 10 s after it started, instead of every 15 s, and not while the device is answering an earlier attempt

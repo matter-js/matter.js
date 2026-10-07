@@ -41,7 +41,7 @@ export namespace VendorId {
      *
      * @see {@link MatterSpecification.v161.Core} § 11.18.6.8.3
      */
-    export const isOperational = (v: number): boolean => v !== 0 && isValid(v);
+    export const isOperational = (v: number): boolean => Number.isInteger(v) && v !== 0 && isValid(v);
 }
 
 /** Data model for a Vendor Identifier. */

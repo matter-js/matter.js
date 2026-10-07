@@ -21,5 +21,9 @@ describe("VendorId", () => {
             expect(VendorId.isOperational(0xfff5)).equals(false);
             expect(VendorId.isOperational(0xffff)).equals(false);
         });
+
+        it("refuses a vendor ID that is not an integer", () => {
+            expect(VendorId.isOperational(1.5)).equals(false);
+        });
     });
 });
