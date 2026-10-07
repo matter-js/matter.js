@@ -84,7 +84,8 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     /**
      * Read chosen attributes remotely from the node. Known data versions are automatically injected into the request to
-     * optimize the read when the fabric filter matches the active subscription. Set `includeKnownVersions` in the
+     * optimize the read when the fabric filter matches the active subscription, except for clusters with a
+     * changes-omitted attribute, which the subscription does not keep current. Set `includeKnownVersions` in the
      * request to skip version injection and always receive a full response from the server.
      */
     async *read(request: ClientRead, context?: ActionContext): ReadResult {
@@ -103,7 +104,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             !request.includeKnownVersions &&
             (request.isFabricFiltered ?? true) === this.#structure.subscribedFabricFiltered
         ) {
-            request = this.#structure.injectVersionFilters(request);
+            request = this.#structure.injectVersionFilters(request, { refreshChangesOmitted: true });
         }
 
         const response = this.#interaction.read(request, context);
