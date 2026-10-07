@@ -296,6 +296,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `MockCrypto` defaults to the standard implementation where the detected Node.js-style API cannot serve Matter, via the new `NodeJsStyleCrypto.providesDefault`. It keyed on a Node.js-style API merely being present, which an incomplete emulation also satisfies
 
 - @matter/nodejs
+    - Fix: Ensure that `FileStorageDriver.contexts()` lists only contexts that hold keys, so a context emptied by `clearAll` or `delete`, or one that was only read, is no longer listed
     - Fix: The Node.js environment uses standard crypto where Node.js's crypto module offers no SHA-256 digest, or no `aes-128-ccm` cipher or decipher, which is the case on Bun and Deno, and says which was missing. It previously made that choice by runtime name, so it covered Bun alone and left Deno on an implementation that fails commissioning. Where the process restricts its cryptographic provider it keeps Node.js crypto rather than evading the restriction, and reports that Matter will fail where it needs the missing primitive
     - Enhancement: `NodeJsCrypto.defect` states which primitive Node.js's crypto module cannot offer, `NodeJsCrypto.providerIsRestricted` whether this process restricts its cryptographic provider, and `cryptoFor` chooses an implementation from a reported defect
     - Fix: `NodeJsUdpSocket.create()` closes the bound socket when it cannot configure it, such as for a network interface that does not exist, so the port is not held
