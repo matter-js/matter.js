@@ -149,6 +149,29 @@ describe("InProcessControllerAdapter", () => {
         await adapter.node(ref).decommission();
     });
 
+    it("commissions without the sustained subscription when asked, leaving raw reads and decommissioning working", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840, withoutSubscription: true });
+
+        try {
+            const node = adapter.node(ref);
+            const onOff = await node.readAttribute({
+                endpoint: 1,
+                cluster: ON_OFF.id,
+                attribute: ON_OFF.attributes.require("OnOff").id,
+            });
+            expect(onOff, "a raw read reaches the device").a("boolean");
+
+            // A subscription primes the controller's copy well within this wait, so an empty copy means none was set up
+            await new Promise(resolve => setTimeout(resolve, 2_000));
+            const root = (await node.clientEndpoints()).find(entry => entry.endpoint === 0);
+            expect(root?.deviceTypes, "no subscription primed the controller's copy of the peer").empty;
+        } finally {
+            await adapter.node(ref).decommission();
+        }
+    });
+
     // Held state is read through the behavior the endpoint actually carries, not through a concrete
     // type or the certification model, because a discovered peer's behaviors are generated from what
     // the peer reports

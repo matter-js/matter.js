@@ -332,7 +332,8 @@ Resource.add({
                 { tag: "field", name: "Stopped", description: "The device is stopped" },
                 { tag: "field", name: "Running", description: "The device is operating" },
                 { tag: "field", name: "Paused", description: "The device is paused during an operation" },
-                { tag: "field", name: "Error", description: "The device is in an error state" }
+                { tag: "field", name: "Error", description: "The device is in an error state" },
+                { tag: "field", name: "ManufacturerStates", description: "Vendor specific states" }
             ]
         },
 
@@ -389,7 +390,8 @@ Resource.add({
                 {
                     tag: "field", name: "CommandInvalidInState",
                     description: "The device cannot process the command in its current state"
-                }
+                },
+                { tag: "field", name: "ManufacturerError", description: "Vendor specific errors" }
             ]
         },
 

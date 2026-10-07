@@ -11,7 +11,7 @@ import { camelize, FLOAT32_MAX, FLOAT32_MIN, FLOAT64_MAX, FLOAT64_MIN } from "@m
 import { Access, Aspect, Conformance, Constraint, Quality } from "../../aspects/index.js";
 import { DefinitionError, FieldValue, Metatype } from "../../common/index.js";
 import { CommandElement } from "../../elements/index.js";
-import { ClusterModel, CommandModel, Globals, Model, ValueModel } from "../../models/index.js";
+import { ClusterModel, CommandModel, FieldModel, Globals, Model, ValueModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
 import { ValidationExceptions } from "./ValidationExceptions.js";
 
@@ -623,8 +623,24 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
     #validateEnumKeys() {
         const ids = new Set<number>();
         const names = new Set<string>();
+        const ranges = new Array<{ name: string; min: number; max: number }>();
         for (const c of this.model.children) {
-            if (c.id) {
+            if (c instanceof FieldModel && c.isEnumRange) {
+                const { min, max } = c.constraint;
+                if (typeof min !== "number" || typeof max !== "number" || min > max) {
+                    this.error("INVALID_ENUM_RANGE", `${this.model.type} range "${c.name}" is not a numeric range`);
+                } else {
+                    for (const r of ranges) {
+                        if (min <= r.max && max >= r.min) {
+                            this.error(
+                                "OVERLAPPING_ENUM_RANGE",
+                                `${this.model.type} ranges "${r.name}" and "${c.name}" overlap`,
+                            );
+                        }
+                    }
+                    ranges.push({ name: c.name, min, max });
+                }
+            } else if (c.id !== undefined) {
                 if (ids.has(c.id)) {
                     this.error(
                         "DUPLICATE_ENUM_ID",
@@ -636,6 +652,18 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             }
             if (names.has(c.name)) {
                 this.error("DUPLICATE_ENUM_NAME", `${this.model.type} name "${c.name}" appears more than once`);
+            }
+            names.add(c.name);
+        }
+
+        for (const id of ids) {
+            for (const r of ranges) {
+                if (id >= r.min && id <= r.max) {
+                    this.error(
+                        "ENUM_ID_IN_RANGE",
+                        `${this.model.type} ID 0x${id.toString(16)} lies in range "${r.name}"`,
+                    );
+                }
             }
         }
     }

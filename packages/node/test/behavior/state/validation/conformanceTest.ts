@@ -594,12 +594,36 @@ const AllTests = Tests({
                     FieldElement({ id: 2, name: "mandatory", conformance: "M" }),
                     FieldElement({ id: 3, name: "disallowed", conformance: "X" }),
                     FieldElement({ id: 4, name: "ifFeature", conformance: "FT" }),
+                    FieldElement({ name: "mfgValues", constraint: "128 to 191" }),
+                    FieldElement({ name: "featureValues", constraint: "200 to 210", conformance: "FT" }),
                 ],
             }),
 
             {
                 "allows without conformance": {
                     record: { test: 1 },
+                },
+
+                "allows a value in a range": {
+                    record: { test: 191 },
+                },
+
+                "disallows a value next to a range": {
+                    record: { test: 192 },
+                    error: undefinedEnum("Test", 192),
+                },
+
+                "disallows a value in a non-conformant range": {
+                    record: { test: 205 },
+                    error: {
+                        type: EnumValueConformanceError,
+                        message: `Validating Test.test: Conformance "FT": Matter does not allow enum value featureValues (range 200 to 210) here`,
+                    },
+                },
+
+                "allows a value in a range conformant by feature": {
+                    supports: ["FT"],
+                    record: { test: 205 },
                 },
 
                 "allows without mandatory": {

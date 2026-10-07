@@ -10,6 +10,7 @@ import {
     ClusterModel,
     ClusterModifier,
     FeatureSet,
+    FieldModel,
     GeneratorScope,
     GLOBAL_IDS,
     Metatype,
@@ -258,7 +259,7 @@ function installDatatypeGetters(model: ClusterModel, lazy: (name: string, factor
             // Error classes for cluster status code enums
             if (definer.name === "StatusEnum" || definer.name === "StatusCodeEnum") {
                 for (const field of definer.children) {
-                    if (field.name === "Success") {
+                    if (field.name === "Success" || (field instanceof FieldModel && field.isEnumRange)) {
                         continue;
                     }
 

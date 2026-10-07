@@ -57,7 +57,8 @@ Resource.add(
                 tag: "datatype", name: "LightSensorTypeEnum", xref: "cluster§2.2.4.1",
                 children: [
                     { tag: "field", name: "Photodiode", description: "Indicates photodiode sensor type" },
-                    { tag: "field", name: "Cmos", description: "Indicates CMOS sensor type" }
+                    { tag: "field", name: "Cmos", description: "Indicates CMOS sensor type" },
+                    { tag: "field", name: "Ms", description: "Reserved for manufacturer specific light sensor types" }
                 ]
             }
         ]

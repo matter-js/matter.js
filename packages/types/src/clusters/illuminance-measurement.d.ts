@@ -95,7 +95,7 @@ export declare namespace IlluminanceMeasurement {
          *
          * @see {@link MatterSpecification.v161.Cluster} § 2.2.5.5
          */
-        lightSensorType?: number | null;
+        lightSensorType?: LightSensorType | number | null;
     }
 
     /**
@@ -154,7 +154,7 @@ export declare namespace IlluminanceMeasurement {
          *
          * @see {@link MatterSpecification.v161.Cluster} § 2.2.5.5
          */
-        lightSensorType: number | null;
+        lightSensorType: LightSensorType | number | null;
     }
 
     export type Components = [{ flags: {}, attributes: BaseAttributes }];
