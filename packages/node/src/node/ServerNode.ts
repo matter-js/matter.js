@@ -263,7 +263,8 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
 
 export namespace ServerNode {
     /**
-     * The root endpoint of a server node without the Groupcast cluster.
+     * The root endpoint of a server node without the Groupcast cluster.  Its Access Control server has no Auxiliary
+     * feature.  Controllers, which need neither, use this as their root.
      *
      * A node with a Groups server on any endpoint does not conform to Matter 1.6.1 without Groupcast on its root, so
      * use this only for nodes without Groups or that deliberately model a pre-Groupcast device.

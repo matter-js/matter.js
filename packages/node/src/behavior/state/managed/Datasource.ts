@@ -6,6 +6,7 @@
 
 import {
     deepCopy,
+    Diagnostic,
     Entropy,
     ImplementationError,
     InternalError,
@@ -16,7 +17,8 @@ import {
     Observable,
     Transaction,
 } from "@matter/general";
-import { AccessControl, ExpiredReferenceError, hasRemoteActor, Val } from "@matter/protocol";
+import { AttributeModel, DataModelPath } from "@matter/model";
+import { AccessControl, ExpiredReferenceError, hasRemoteActor, Val, ValidateError } from "@matter/protocol";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import type { Supervision } from "../../supervision/Supervision.js";
 import { GlobalConfig, LocalConfig } from "../../supervision/SupervisionConfig.js";
@@ -56,6 +58,65 @@ function stripMemberValues(values: Val.Struct, members: Set<string>) {
         }
     }
     return values;
+}
+
+/**
+ * Keep the persisted values that validate under the supervisor's current feature set and drop the rest.
+ *
+ * A dropped value falls back to its default, and other values may reference it in their conformance or constraints,
+ * so validation restarts after each drop.  Stored keys that are no longer persistent are dropped as well.
+ *
+ * Fields validate individually against the stored values and defaults, without supervision config.  A rule that
+ * references a value initialization sets sees that value's default; choice conformance across fields is left to the
+ * validation that follows initialization.
+ */
+function reconcileStoredValues(
+    supervisor: RootSupervisor,
+    path: DataModelPath,
+    { base, stored }: { base: Val.Struct; stored: Val.Struct },
+) {
+    const validators = new Map<string, ValueSupervisor.Validate | undefined>();
+    for (const member of supervisor.membersOf(supervisor.schema)) {
+        // Mirrors the struct validator, which leaves these to lower levels
+        const skip = AttributeModel.isGlobal(member) || (member.isDeprecated && !member.type);
+        validators.set(member.propertyName, skip ? undefined : supervisor.get(member).validate);
+    }
+
+    const persistent = supervisor.persistentKeys();
+    const kept = { ...stored };
+    const discarded = new Map<string, string>();
+    const session: ValueSupervisor.LocalActorSession = { transaction: viewTx };
+
+    const discard = (key: string, reason: string) => {
+        delete kept[key];
+        discarded.set(key, reason);
+    };
+
+    for (const key in kept) {
+        if (!isMetadataKey(key) && !persistent.has(key)) {
+            discard(key, "not persistent");
+        }
+    }
+
+    revalidate: while (true) {
+        const siblings = { ...base, ...kept };
+        for (const key in kept) {
+            const validate = validators.get(key);
+            if (validate === undefined) {
+                continue;
+            }
+            try {
+                validate(kept[key], session, { path: path.at(key), siblings, choices: {} });
+            } catch (e) {
+                if (!(e instanceof ValidateError)) {
+                    throw e;
+                }
+                discard(key, e.message);
+                continue revalidate;
+            }
+        }
+        return { kept, discarded };
+    }
 }
 
 // Once-per-act() guard for local sessions (frozen — can't set interactionStarted on the session).
@@ -349,6 +410,13 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     sessions?: Map<ValueSupervisor.Session, SessionContext>;
     featuresKey?: string;
     featuresKeyPersisted?: boolean;
+
+    /**
+     * Persisted keys dropped when reconciling stored values with {@link featuresKey}.  They must be deleted in the
+     * same write that persists the features key, unless that write sets them again.
+     */
+    discardedStoreKeys?: string[];
+
     storeFields: Set<string>;
     supervisionConfig?: GlobalConfig;
 
@@ -392,12 +460,30 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         if (options.supervisor.featureMap.children.length) {
             this.featuresKey = [...options.supervisor.supportedFeatures].join(",");
             const storedFeaturesKey = storedValues?.[FEATURES_KEY];
-            if (storedFeaturesKey !== undefined) {
+            if (storedFeaturesKey !== undefined && storedValues !== undefined) {
                 if (storedFeaturesKey !== this.featuresKey) {
-                    logger.warn(
-                        `Ignoring persisted values for ${options.location.path} because features changed from "${storedFeaturesKey}" to "${this.featuresKey}"`,
-                    );
-                    storedValues = undefined;
+                    if (this.mirrorsRemote) {
+                        logger.warn(
+                            `Ignoring persisted values for ${options.location.path} because features changed from "${storedFeaturesKey}" to "${this.featuresKey}"`,
+                        );
+                        storedValues = undefined;
+                    } else {
+                        const { kept, discarded } = reconcileStoredValues(options.supervisor, options.location.path, {
+                            base: { ...values, ...options.defaults },
+                            stored: storedValues,
+                        });
+                        storedValues = kept;
+                        const change = `Features of ${options.location.path} changed from "${storedFeaturesKey}" to "${this.featuresKey}"`;
+                        if (discarded.size) {
+                            this.discardedStoreKeys = [...discarded.keys()];
+                            logger.warn(
+                                `${change}, discarded persisted values:`,
+                                Diagnostic.dict(Object.fromEntries(discarded)),
+                            );
+                        } else {
+                            logger.info(`${change}, kept all persisted values`);
+                        }
+                    }
                 } else {
                     this.featuresKeyPersisted = true;
                 }
@@ -1017,6 +1103,11 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             !this.#internals.featuresKeyPersisted
         ) {
             stored[FEATURES_KEY] = this.#internals.featuresKey;
+            for (const key of this.#internals.discardedStoreKeys ?? []) {
+                if (!(key in stored)) {
+                    stored[key] = undefined;
+                }
+            }
             this.#stagedFeaturesKey = true;
         }
 

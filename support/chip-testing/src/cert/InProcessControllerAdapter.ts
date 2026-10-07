@@ -2639,22 +2639,25 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 await this.#attestation.construction;
             }
 
-            const controller = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
-                environment: this.#env,
-                id: this.id,
-                commissioning: { enabled: false },
-                controller: { adminFabricLabel: this.id },
-                network: {
-                    autoStartCommissionedPeers: false,
+            const controller = await ServerNode.create(
+                ServerNode.RootEndpointWithoutGroupcast.with(ControllerBehavior),
+                {
+                    environment: this.#env,
+                    id: this.id,
+                    commissioning: { enabled: false },
+                    controller: { adminFabricLabel: this.id },
+                    network: {
+                        autoStartCommissionedPeers: false,
 
-                    // Outgoing only: this controller is a TCP client, and `tcp: true` would also have it
-                    // listen and advertise as a TCP server, which no cert test asks of a controller.
-                    ...(this.#transport === "tcp"
-                        ? { tcp: { outgoing: true }, transportPreference: "tcp" as const }
-                        : {}),
+                        // Outgoing only: this controller is a TCP client, and `tcp: true` would also have it
+                        // listen and advertise as a TCP server, which no cert test asks of a controller.
+                        ...(this.#transport === "tcp"
+                            ? { tcp: { outgoing: true }, transportPreference: "tcp" as const }
+                            : {}),
+                    },
+                    subscriptions: { persistenceEnabled: false },
                 },
-                subscriptions: { persistenceEnabled: false },
-            });
+            );
             this.#controller = controller;
 
             const fabricAuthority = await controller.env.load(FabricAuthority);
