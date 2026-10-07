@@ -17,7 +17,6 @@ import {
     BasicObservable,
     camelize,
     Construction,
-    describeList,
     DetachedObservers,
     Diagnostic,
     EventEmitter,
@@ -589,47 +588,6 @@ export class Behaviors {
         delete (this.#endpoint.events as Record<string, SupportedBehaviors.EventsOf<any>>)[id];
 
         return promise;
-    }
-
-    /**
-     * Ensure a set of behavior requirements are met.  Throws an error detailing missing requirements.
-     */
-    validateRequirements(requirements?: SupportedBehaviors) {
-        if (!requirements) {
-            return;
-        }
-
-        const missing = Array<string>();
-        for (const requirement of Object.values(requirements)) {
-            let name = camelize(requirement.name, true);
-
-            if (this.#endpoint.behaviors.has(requirement)) {
-                continue;
-            }
-
-            // For ClusterBehaviors, accept any behavior that supports the cluster.  Could confirm features too but
-            // doesn't currently
-            const cluster = clusterOf(requirement);
-            if (cluster) {
-                const other = this.#endpoint.behaviors.supported[requirement.id];
-
-                if (clusterOf(other)?.id === cluster.id) {
-                    continue;
-                }
-
-                if (cluster.id !== undefined) {
-                    name = `${name} (${Diagnostic.hex(cluster.id)})`;
-                }
-            }
-
-            missing.push(name);
-        }
-
-        if (missing.length) {
-            throw new ImplementationError(
-                `${this.#endpoint} is missing required behaviors: ${describeList("and", ...missing)}`,
-            );
-        }
     }
 
     /**
