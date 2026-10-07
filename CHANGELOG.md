@@ -76,6 +76,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `diff-spec` accepts patch revisions such as `1.6.1`. Without arguments it compares the current revision with the one before it, 1.6.1 with 1.6 instead of 1.5, and names both revisions above the diff
 
 - @matter/types
+    - Feature: `VendorId.isOperational()` tells whether a vendor ID may identify a fabric administrator: a valid vendor ID other than 0x0000
     - Breaking: Fields of an enum with a manufacturer range are typed `Enum | number`, and Illuminance Measurement `LightSensorType` is typed `LightSensorType | number`
     - Fix: A bitmap class such as `Groups.NameSupportAttribute` applies the defaults its members state, and one constructed from a number sets a multi-bit member at its full width and members above bit 31. An instance built from the default or a number names every conformant member and no other
     - Fix: `CommissioningOptions.Configuration.advertisementWindow` applies to windows an uncommissioned node opens itself and defaults to 48 hours; a commissioned node's own window stays open for 15 minutes
@@ -87,6 +88,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Fix: `Noc.verify()` throws `OperationalNodeIdError`, a `CertificateError`, when the NOC's node ID is outside the operational range
+    - Fix: `FailsafeContext.buildFabric()` refuses a CASE Authenticated Tag with version 0 as admin subject
     - Fix: Ensure that `BleScanner` forgets a discovered device after 15 minutes of scanning without its advertisement, or, for a client that reports no listening time, 15 minutes after the later of its last report and the end of the last discovery
     - Fix: Commissioning tries a device's addresses in ranked order instead of reverse order, so a lower-ranked unreachable address no longer delays PASE
     - Fix: Commissioning tries a device's next address as soon as the last attempt fails, or 10 s after it started, instead of every 15 s, and not while the device is answering an earlier attempt
@@ -138,6 +141,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: AddNOC and UpdateNOC answer `InvalidNodeOpId` for a NOC whose node ID is outside the operational range
+    - Fix: AddNOC answers `InvalidAdminSubject` for a CASE Authenticated Tag with version 0 as admin subject
+    - Fix: AddNOC answers `InvalidCommand` for admin vendor ID 0x0000 or above 0xFFF4
+    - Fix: SetVIDVerificationStatement refuses vendor ID 0x0000 with `ConstraintError`
     - Fix: Ensure that a client read returns the peer's current values of changes-omitted attributes, which the subscription does not report, instead of cached ones
     - Fix: Ensure that a peer's endpoint is installed and announced only after the endpoint that owns it is on the node
     - Feature: `Behavior.reactorTimer()` and `Behavior.periodicReactorTimer()` create a timer that runs a reactor of the behavior and stops when the behavior closes to prevent leaking them

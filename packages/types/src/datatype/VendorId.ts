@@ -34,6 +34,14 @@ export namespace VendorId {
             return false;
         }
     };
+
+    /**
+     * Whether a vendor ID may identify the administrator of a fabric: a valid vendor ID other than the Matter Standard
+     * ID 0x0000.  The test vendor IDs 0xFFF1 - 0xFFF4 are accepted, as the CHIP SDK does.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.6.8.3
+     */
+    export const isOperational = (v: number): boolean => v !== 0 && isValid(v);
 }
 
 /** Data model for a Vendor Identifier. */

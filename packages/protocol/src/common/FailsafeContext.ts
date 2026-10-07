@@ -15,10 +15,9 @@ import {
     Duration,
     Logger,
     MatterFlowError,
-    UnexpectedDataError,
     UninitializedDependencyError,
 } from "@matter/general";
-import { CaseAuthenticatedTag, NodeId, SubjectId, ValidationError, VendorId } from "@matter/types";
+import { NodeId, SubjectId, VendorId } from "@matter/types";
 import { Fabric, FabricBuilder } from "../fabric/Fabric.js";
 import { FabricManager } from "../fabric/FabricManager.js";
 import { SessionManager } from "../session/SessionManager.js";
@@ -235,20 +234,10 @@ export abstract class FailsafeContext {
 
         const { nocValue, icacValue, adminVendorId, ipkValue, caseAdminSubject } = nocData;
 
-        // Handle error if the CaseAdminSubject field is not a valid ACL subject in the context of AuthMode set to CASE
-        if (!NodeId.isOperationalNodeId(caseAdminSubject) && !NodeId.isCaseAuthenticatedTag(caseAdminSubject)) {
-            try {
-                if (CaseAuthenticatedTag.getVersion(NodeId.extractAsCaseAuthenticatedTag(caseAdminSubject)) === 0) {
-                    throw new MatterFabricInvalidAdminSubjectError();
-                }
-            } catch (error) {
-                // Validation error can happen when parsing the CaseAuthenticatedTag, then it is invalid too
-                if (error instanceof ValidationError || error instanceof UnexpectedDataError) {
-                    throw new MatterFabricInvalidAdminSubjectError();
-                } else {
-                    throw error;
-                }
-            }
+        if (!isCaseAdminSubject(caseAdminSubject)) {
+            throw new MatterFabricInvalidAdminSubjectError(
+                `CaseAdminSubject ${SubjectId.strOf(caseAdminSubject)} is neither an operational node ID nor a valid CAT`,
+            );
         }
 
         await builder.setOperationalCert(nocValue, icacValue);
@@ -357,4 +346,16 @@ export namespace FailsafeContext {
         maxCumulativeFailsafe: Duration;
         session: NodeSession;
     }
+}
+
+/**
+ * A CASE ACL subject is an operational node ID or a CASE Authenticated Tag whose version, the low 16 bits, is not 0.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 11.18.6.8.4
+ */
+function isCaseAdminSubject(subject: SubjectId) {
+    if (NodeId.isOperationalNodeId(subject)) {
+        return true;
+    }
+    return NodeId.isCaseAuthenticatedTag(subject) && (BigInt(subject) & 0xffffn) !== 0n;
 }
