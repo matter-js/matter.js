@@ -9,7 +9,6 @@ import { BridgedDeviceBasicInformationServer } from "#behaviors/bridged-device-b
 import { DescriptorServer } from "#behaviors/descriptor";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { RefrigeratorDevice } from "#devices/refrigerator";
-import { TemperatureControlledCabinetDevice } from "#devices/temperature-controlled-cabinet";
 import { TemperatureSensorDevice } from "#devices/temperature-sensor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointPartsError } from "#endpoint/errors.js";
@@ -42,6 +41,7 @@ import {
     recordingReads,
     serverPass,
     WiFiCommissioningServer,
+    CabinetDevice,
 } from "./validation-helpers.js";
 
 const BridgedLight = OnOffLightDevice.with(BridgedDeviceBasicInformationServer);
@@ -258,7 +258,7 @@ function strictEnvironment() {
  */
 async function addFridge(parent: Endpoint) {
     const cabinet = {
-        type: TemperatureControlledCabinetDevice,
+        type: CabinetDevice,
         id: "cabinet",
         temperatureControl: { minTemperature: 0, maxTemperature: 1000, temperatureSetpoint: 400 },
     };
@@ -384,7 +384,7 @@ describe("device type validation after construction", () => {
             const { fridge } = await addFridge(node);
             await expect(
                 fridge.add({
-                    type: TemperatureControlledCabinetDevice,
+                    type: CabinetDevice,
                     id: "crashed",
                     isEssential: false,
                     temperatureControl: { minTemperature: 0, maxTemperature: 1000, temperatureSetpoint: 400 },

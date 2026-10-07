@@ -129,11 +129,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: Ensure that a peer's endpoint is installed and announced only after the endpoint that owns it is on the node
     - Feature: `Behavior.reactorTimer()` and `Behavior.periodicReactorTimer()` create a timer that runs a reactor of the behavior and stops when the behavior closes to prevent leaking them
     - Fix: Ensure that a value in the manufacturer range of an enum is accepted; Illuminance Measurement `LightSensorType` rejects the reserved values 2 to 63 and 255
     - Fix: Ensure that a read of a fabric-sensitive list attribute returns only the accessing fabric's entries and removing a fabric deletes its entries from such lists
     - Fix: Ensure that `DescriptorServer.addTags` does not add a tag that is already listed and only updates its label when one is given
     - Fix: Ensure that `DescriptorServer.addDeviceTypes` does not list a device type a second time with another revision
+    - Enhancement: In `strict` validation mode (`endpoint.validation`) a cluster server, the root endpoint's included, refuses construction when a command its conformance requires throws `Behavior.unimplemented`
     - Enhancement: The commissioning test harness (`MockSite`, `MockServerNode`, `MockExchange` and the node helpers) is exported at `@matter/node/testing`, for tests that run under `@matter/testing`
     - Fix: `ClientNode.decommission()` no longer throws for a peer commissioned with `autoSubscribe` and `autoStateInitialize` disabled
     - Fix: A read that runs while a data report is still arriving no longer lets a descriptor in that report delete a cluster whose data came earlier in the same report
