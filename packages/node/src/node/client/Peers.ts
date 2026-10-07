@@ -35,6 +35,7 @@ import {
     ImplementationError,
     Lifecycle,
     Logger,
+    MatterAggregateError,
     MatterError,
     MaybePromise,
     Minutes,
@@ -509,10 +510,15 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     override async close() {
         this.#closed = true;
-        await this.#installedSubscriptionHandler?.close();
-        this.#cancelExpiration();
-        await this.#mutex;
-        await super.close();
+        await MatterAggregateError.settleSeries(
+            [
+                () => this.#installedSubscriptionHandler?.close(),
+                () => this.#cancelExpiration(),
+                () => this.#mutex,
+                () => super.close(),
+            ],
+            `Error closing peers of ${this.owner}`,
+        );
     }
 
     #cancelExpiration() {

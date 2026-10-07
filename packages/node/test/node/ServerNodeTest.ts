@@ -24,11 +24,15 @@ import { ChangeNotificationService } from "#node/integration/ChangeNotificationS
 import { IdentityService } from "#node/server/IdentityService.js";
 import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
 import { ServerNode } from "#node/ServerNode.js";
+import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     Bytes,
     CrashedDependencyError,
     Crypto,
+    DatafileRoot,
+    DiagnosticPresentation,
+    DiagnosticSource,
     DnsCodec,
     DnsMessage,
     DnsRecordType,
@@ -41,6 +45,7 @@ import {
     MemoryStorageDriver,
     MdnsSocket,
     MockCrypto,
+    MockFilesystem,
     MockNetwork,
     MockUdpSocket,
     Network,
@@ -708,14 +713,78 @@ describe("ServerNode", () => {
             }
         }
 
-        // Not disposed: a node whose construction fails before its endpoint initializer is installed cannot be closed
-        const site = new MockSite({ createStorageDriver: store => new FailingDriver(store) });
+        await using site = new MockSite({ createStorageDriver: store => new FailingDriver(store) });
 
         await expect(site.addNode(undefined, { id: "doomed", device: undefined, commissioning: { enabled: false } }))
             .rejected;
 
         expect(closes).equals(1);
     });
+
+    it("releases the storage lock when an earlier service fails to close", async () => {
+        let bufferClosed = false;
+        class FailingBuffer extends ClientCacheBuffer {
+            override async close() {
+                bufferClosed = true;
+                throw new ImplementationError("Cannot flush client cache");
+            }
+        }
+
+        await using site = new MockSite();
+        const node = await site.addNode(undefined, { device: undefined, commissioning: { enabled: false } });
+        node.env.set(ClientCacheBuffer, new FailingBuffer(new MemoryStorageDriver(), Seconds(1)));
+        const lock = installLock(node);
+
+        await MockTime.resolve(node.close(), { macrotasks: true });
+
+        expect(bufferClosed).equals(true);
+        expect(lock.released).equals(true);
+    });
+
+    it("releases the storage lock when an endpoint fails to close", async () => {
+        await using site = new MockSite();
+        const node = await site.addNode(undefined, { device: undefined, commissioning: { enabled: false } });
+        const light = await node.add(OnOffLightDevice);
+        const initializer = node.env.get(EndpointInitializer);
+        const deactivate = initializer.deactivateDescendant.bind(initializer);
+        initializer.deactivateDescendant = async endpoint => {
+            if (endpoint === light) {
+                throw new ImplementationError("Cannot deactivate light");
+            }
+            await deactivate(endpoint);
+        };
+        const lock = installLock(node);
+
+        await MockTime.resolve(node.close(), { macrotasks: true });
+
+        expect(lock.released).equals(true);
+        expect(DiagnosticSource[DiagnosticPresentation.value]).not.include(node);
+    });
+
+    it("releases the storage lock when taking the node offline fails", async () => {
+        await using site = new MockSite();
+        const node = await site.addNode(undefined, { device: undefined, commissioning: { enabled: false } });
+        node.lifecycle.goingOffline.on(() => {
+            throw new ImplementationError("Cannot go offline");
+        });
+        const lock = installLock(node);
+
+        await expect(MockTime.resolve(node.close(), { macrotasks: true })).rejected;
+
+        expect(node.lifecycle.isOnline).equals(false);
+        expect(lock.released).equals(true);
+    });
+
+    function installLock(node: ServerNode) {
+        const lock = { released: false };
+        node.env.set(
+            DatafileRoot.Lock,
+            new DatafileRoot.Lock(new MockFilesystem().directory(node.id), async () => {
+                lock.released = true;
+            }),
+        );
+        return lock;
+    }
 
     it("starts a node after an earlier node could not open the mDNS socket", async () => {
         class MdnsBlockingNetwork extends MockNetwork {
@@ -736,8 +805,7 @@ describe("ServerNode", () => {
         ]);
         environment.set(Network, network);
 
-        // Not disposed: a node whose construction fails before its endpoint initializer is installed cannot be closed
-        const site = new MockSite();
+        await using site = new MockSite();
         const options = { environment, device: undefined, commissioning: { enabled: false } };
 
         const error = await site.addNode(undefined, { ...options, id: "blocked" }).then(

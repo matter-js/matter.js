@@ -137,6 +137,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Fix: Ensure that a peer's endpoint is installed and announced only after the endpoint that owns it is on the node
+    - Fix: A `ServerNode` whose construction failed early can be closed
+    - Fix: Closing a node or endpoint continues past a failing step, so its other parts, its behaviors, network runtime, peers and services still close and a `ServerNode` releases the storage lock it holds
     - Feature: `Behavior.reactorTimer()` and `Behavior.periodicReactorTimer()` create a timer that runs a reactor of the behavior and stops when the behavior closes to prevent leaking them
     - Fix: Ensure that a value in the manufacturer range of an enum is accepted; Illuminance Measurement `LightSensorType` rejects the reserved values 2 to 63 and 255
     - Fix: Ensure that a read of a fabric-sensitive list attribute returns only the accessing fabric's entries and removing a fabric deletes its entries from such lists
