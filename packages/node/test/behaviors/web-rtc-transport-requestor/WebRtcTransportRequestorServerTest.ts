@@ -319,6 +319,24 @@ describe("WebRtcTransportRequestorServer", () => {
             ).to.be.rejectedWith(/NotFound|not found/i);
         });
 
+        it("end keeps the sessions of other fabrics", async () => {
+            const other = makeSession({ id: SESSION_ID + 1, peerNodeId: PEER_NODE, fabricIndex: FabricIndex(2) });
+            await cameraEndpoint!.act(agent => {
+                agent.get(WebRtcTransportRequestorServer).upsertSession(other);
+            });
+
+            await withPeerContext(node, FABRIC, PEER_NODE, async context => {
+                await cameraEndpoint!.agentFor(context).get(WebRtcTransportRequestorServer).end({
+                    webRtcSessionId: SESSION_ID,
+                    reason: WebRtcTransportDefinitions.WebRtcEndReason.UserHangup,
+                });
+            });
+
+            expect(
+                cameraEndpoint!.stateOf(WebRtcTransportRequestorServer).currentSessions.map(({ id }) => id),
+            ).deep.equals([SESSION_ID + 1]);
+        });
+
         it("offer emits the offer observable exactly once", async () => {
             let count = 0;
             cameraEndpoint!.eventsOf(WebRtcTransportRequestorServer).offer.on(() => {
