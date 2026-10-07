@@ -445,6 +445,8 @@ describe("BleScanner", () => {
                 throw new Error("callback failed");
             });
             await expect(discovery).rejectedWith("callback failed");
+            expect(client.scanCalls).deep.equal(["start", "stop"]);
+            expect(client.scanning).false;
 
             client.discover("bb:bb:bb:bb:bb:bb", SERVICE_DATA_B);
             await MockTime.advance(Minutes(16));
