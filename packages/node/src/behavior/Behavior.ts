@@ -8,6 +8,7 @@ import { type Agent, INSTALL_BEHAVIOR } from "#endpoint/Agent.js";
 import {
     AsyncObservable,
     type DeepPartial,
+    type Duration,
     EventEmitter,
     GeneratedClass,
     ImplementationError,
@@ -250,6 +251,9 @@ export abstract class Behavior {
      *
      * Like a reactor, the callback's "this" will be bound to an active Behavior instance.
      * Because of this: The reactor MUST be a real JS function - arrow functions will not work!
+     *
+     * Each call installs a reactor that remains until the behavior closes.  Create the callback once rather than each
+     * time it is passed on; for a timer use {@link reactorTimer} or {@link periodicReactorTimer}.
      */
     protected callback<A extends any[], R>(reactor: Reactor<A, R>, options?: Reactor.Options) {
         const observable = Observable<A, R>();
@@ -257,6 +261,39 @@ export abstract class Behavior {
         this.reactTo(observable, reactor, options);
 
         return observable.emit.bind(observable) as (...args: A) => R;
+    }
+
+    /**
+     * Create a timer that runs {@link reactor} like a reactor of this behavior when it expires.
+     *
+     * The timer is created stopped.  Each start installs the reactor for that run only, so restarting the timer or
+     * replacing it with a new one does not accumulate reactors.  Once {@link Timer.stop} returns, the reactor does not
+     * start, even if the timer expired and the reaction waits for a lock or for an earlier reaction.  The behavior stops
+     * the timer when it closes, and the timer does not start again after that.
+     *
+     * As with {@link reactTo}, the reactor MUST be a real JS function so "this" binds to an active Behavior instance.
+     */
+    protected reactorTimer(
+        name: string,
+        duration: Duration,
+        reactor: Reactor<[], unknown>,
+        options?: Behavior.ReactorTimerOptions,
+    ) {
+        return (this as unknown as Internal)[BACKING].createTimer(name, duration, false, reactor, options);
+    }
+
+    /**
+     * Create a periodic timer that runs {@link reactor} like a reactor of this behavior at each interval.
+     *
+     * @see {@link reactorTimer}
+     */
+    protected periodicReactorTimer(
+        name: string,
+        interval: Duration,
+        reactor: Reactor<[], unknown>,
+        options?: Behavior.ReactorTimerOptions,
+    ) {
+        return (this as unknown as Internal)[BACKING].createTimer(name, interval, true, reactor, options);
     }
 
     /**
@@ -433,6 +470,11 @@ function isBehaviorType(value: unknown): value is Behavior.Type {
 }
 
 export namespace Behavior {
+    /**
+     * Reactor options of a timer created by {@link Behavior.reactorTimer} or {@link Behavior.periodicReactorTimer}.
+     */
+    export type ReactorTimerOptions = Omit<Reactor.Options, "once">;
+
     /**
      * Static properties supported by all behaviors.
      */

@@ -67,6 +67,18 @@ export class Reactors {
         this.#backings.add(new ReactorBacking(this, observable, reactor, options ?? {}));
     }
 
+    /**
+     * Stop matching reactors from receiving emissions without waiting for an ongoing reaction, which {@link close}
+     * still awaits.
+     */
+    detach(selector: Reactor.Selector) {
+        for (const backing of this.#backings) {
+            if (backing.is(selector.observable, selector.reactor)) {
+                backing.detach();
+            }
+        }
+    }
+
     remove(selector: Reactor.Selector) {
         const toRemove = Array<ReactorBacking<any, any>>();
         for (const backing of this.#backings) {
@@ -223,11 +235,12 @@ class ReactorBacking<T extends any[], R> {
     }
 
     close() {
-        if (!this.#closing) {
-            this.#close();
-        }
-
+        this.detach();
         return this.#trampoline;
+    }
+
+    detach() {
+        this.#close();
     }
 
     toString() {
@@ -240,6 +253,9 @@ class ReactorBacking<T extends any[], R> {
     }
 
     #close() {
+        if (this.#closing) {
+            return;
+        }
         this.#observable.off(this.#listener);
         this.#closing = true;
         if (this.#trampoline) {
