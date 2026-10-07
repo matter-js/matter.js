@@ -6,9 +6,9 @@
 
 import { Events } from "#behavior/Events.js";
 import type { Agent } from "#endpoint/Agent.js";
-import { hex, ImplementationError, MaybePromise } from "@matter/general";
+import { ImplementationError, MaybePromise } from "@matter/general";
 import { ClusterModifier, ElementTag, Schema } from "@matter/model";
-import { ClusterId, ClusterType, type ClusterTyping } from "@matter/types";
+import { ClusterType, type ClusterTyping } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import type { BehaviorBacking } from "../internal/BehaviorBacking.js";
 import type { RootSupervisor } from "../supervision/RootSupervisor.js";
@@ -121,11 +121,6 @@ export class ClusterBehavior extends Behavior {
     };
 
     static for(this: ClusterBehavior.Type, ns: ClusterType, schema?: Schema.Cluster, name?: string) {
-        // A peer's cluster is modeled as the device reports it; a cluster we host ourselves is an authoring error.  The
-        // namespace carries the ID the behavior exposes and need not be the schema's
-        assertHostedClusterId(ns);
-        assertHostedClusterId(schema);
-
         return ClusterBehaviorType({
             namespace: ns,
             base: this,
@@ -550,16 +545,4 @@ export namespace ClusterBehavior {
         }
         return clusters;
     }
-}
-
-function assertHostedClusterId(source?: { id?: number; name?: string }) {
-    if (source?.id === undefined || ClusterId.isValid(source.id)) {
-        return;
-    }
-
-    throw new ImplementationError(
-        `Cluster ${source.name ?? "(unnamed)"} has ID 0x${hex.fixed(source.id, 8)} which is not a legal Matter ` +
-            `cluster ID; a standard cluster uses vendor prefix 0x0000 with a suffix of 0x0000 - 0x7fff and a ` +
-            `vendor-specific cluster uses a prefix of 0x0001 - 0xfff4 with a suffix of 0xfc00 - 0xfffe`,
-    );
 }

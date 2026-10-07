@@ -76,6 +76,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `diff-spec` accepts patch revisions such as `1.6.1`. Without arguments it compares the current revision with the one before it, 1.6.1 with 1.6 instead of 1.5, and names both revisions above the diff
 
 - @matter/types
+    - Enhancement: The cluster, attribute, command, event and MEI ID validators name the legal range in their error message
     - Breaking: Fields of an enum with a manufacturer range are typed `Enum | number`, and Illuminance Measurement `LightSensorType` is typed `LightSensorType | number`
     - Fix: A bitmap class such as `Groups.NameSupportAttribute` applies the defaults its members state, and one constructed from a number sets a multi-bit member at its full width and members above bit 31. An instance built from the default or a number names every conformant member and no other
     - Fix: `CommissioningOptions.Configuration.advertisementWindow` applies to windows an uncommissioned node opens itself and defaults to 48 hours; a commissioned node's own window stays open for 15 minutes
@@ -592,7 +593,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A cluster's feature selection is recorded as persisted only once the store accepted the values it travels with, so a failed write no longer leaves a later feature change undetected
     - Fix: Validating a state class that serves properties dynamically passes it the endpoint, as every other caller does
     - Fix: A peer that reports a cluster ID outside the ranges the specification allows no longer fails node initialization
-    - Adjustment: A cluster ID is validated when a server behavior is created rather than when a cluster namespace is built, so a peer's ID stays as reported
+    - Adjustment: A hosted cluster's cluster, attribute, command and event IDs are validated when its server behavior initializes on an endpoint, for every cluster behavior however it is defined; a peer's or client's IDs stay as reported
     - Fix: Two peer clusters whose attribute or command IDs differ by 32 no longer share one generated behavior
 
 - @matter/matter.js

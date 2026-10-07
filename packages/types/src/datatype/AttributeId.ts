@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Branded } from "@matter/general";
+import { Branded, hex } from "@matter/general";
 import { ValidationOutOfBoundsError, validatorOf } from "../common/ValidationError.js";
 import { TlvUInt32 } from "../tlv/TlvNumber.js";
 import { TlvWrapper } from "../tlv/TlvWrapper.js";
@@ -28,7 +28,9 @@ export function AttributeId(attributeId: number, validate = true): AttributeId {
     if (typeSuffix >= 0x0000 && typeSuffix <= 0x4fff) {
         return attributeId as AttributeId;
     }
-    throw new ValidationOutOfBoundsError(`Invalid attribute ID: ${attributeId}`);
+    throw new ValidationOutOfBoundsError(
+        `Invalid attribute ID 0x${hex.fixed(attributeId, 8)}: the suffix must be 0x0000 - 0x4fff, or the ID must be a global attribute ID 0xf000 - 0xfffe`,
+    );
 }
 
 export namespace AttributeId {

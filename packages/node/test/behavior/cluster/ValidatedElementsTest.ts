@@ -4,15 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClientBehavior } from "#behavior/cluster/ClientBehavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ClusterImplementationError, ValidatedElements } from "#behavior/cluster/ValidatedElements.js";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { GroupsServer } from "#behaviors/groups";
 import { ScenesManagementServer } from "#behaviors/scenes-management";
-import { MaybePromise } from "@matter/general";
+import { MatterAggregateError, MaybePromise } from "@matter/general";
 import type { Model } from "@matter/model";
 import { AttributeElement, ClusterModel, CommandElement, EventElement, FieldElement } from "@matter/model";
 import { ClusterType } from "@matter/types";
+import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
+import { MockEndpointType } from "../mock-behavior.js";
 
 function makeCluster(options: {
     commands?: Record<string, { id: number; conformance: string; response?: string; direction?: string }>;
@@ -586,6 +589,71 @@ describe("ValidatedElements", () => {
 
             expect(result.errors).undefined;
             expect([...result.commands]).deep.equals(["cmdA", "cmdB", "cmdD"]);
+        });
+    });
+
+    describe("element IDs", () => {
+        it("refuses illegal attribute, command and event IDs together", () => {
+            const schema = makeCluster({
+                attributes: { IllegalAttribute: { id: 0xfff1_5000, conformance: "O" } },
+                commands: { IllegalCommand: { id: 0xfff1_0100, conformance: "O" } },
+                events: { IllegalEvent: { id: 0xfff1_0100, conformance: "O" } },
+            });
+
+            const result = validate(makeBehaviorType({ schema }));
+
+            expect(result.errors?.filter(e => e.fatal).map(e => e.element)).deep.equals([
+                "TestBehavior.IllegalAttribute",
+                "TestBehavior.IllegalCommand",
+                "TestBehavior.IllegalEvent",
+            ]);
+            expect(() => result.report()).throws(ClusterImplementationError);
+        });
+
+        it("refuses an illegal cluster ID", () => {
+            const schema = new ClusterModel({ id: 0xfff1_0001, name: "IllegalMei", revision: 1 });
+
+            const result = validate(makeBehaviorType({ schema }));
+
+            expect(result.errors?.find(e => e.element === "TestBehavior.cluster")?.message).match(
+                /Invalid cluster ID 0xfff10001/,
+            );
+        });
+
+        it("accepts a command without a Matter ID", () => {
+            const schema = makeCluster({ commands: { LocalOnly: { id: CommandElement.NO_ID, conformance: "O" } } });
+
+            expect(validate(makeBehaviorType({ schema })).errors?.filter(e => e.fatal)).undefined;
+        });
+
+        it("reports an illegal ID for every behavior that hosts the schema", () => {
+            const schema = makeCluster({ attributes: { IllegalAttribute: { id: 0xfff1_5000, conformance: "O" } } });
+            const type = makeBehaviorType({ schema });
+
+            validate(type);
+
+            expect(validate(type).errors?.some(e => e.element === "TestBehavior.IllegalAttribute")).true;
+        });
+
+        it("lets a client behavior model a cluster with an illegal ID", () => {
+            const namespace = ClusterType({ id: 0xfff1_0001, name: "IllegalMei", revision: 1 });
+
+            expect(() => ClientBehavior(namespace)).not.throws();
+        });
+
+        it("fails endpoint initialization for a hosted cluster with an illegal ID", async () => {
+            const schema = makeCluster({ attributes: { IllegalAttribute: { id: 0xfff1_5000, conformance: "O" } } });
+
+            const error = await MockEndpoint.create(MockEndpointType.with(makeBehaviorType({ schema }))).then(
+                () => undefined,
+                (error: unknown) => error,
+            );
+
+            const cause = error instanceof MatterAggregateError ? error.errors[0]?.cause : undefined;
+            expect(cause).instanceOf(ClusterImplementationError);
+            expect(cause instanceof ClusterImplementationError && String(cause.errors[0])).match(
+                /IllegalAttribute.*Invalid attribute ID 0xfff15000/,
+            );
         });
     });
 });

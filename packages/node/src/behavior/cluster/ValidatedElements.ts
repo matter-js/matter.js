@@ -5,8 +5,8 @@
  */
 
 import { Diagnostic, ImplementationError, Logger, MatterAggregateError, Observable } from "@matter/general";
-import { ClusterModel, Conformance, FeatureSelectionErrors, Schema } from "@matter/model";
-import type { ClusterType } from "@matter/types";
+import { ClusterModel, CommandElement, Conformance, FeatureSelectionErrors, Schema } from "@matter/model";
+import { AttributeId, ClusterId, type ClusterType, CommandId, EventId, ValidationError } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import { introspectionInstanceOf } from "./cluster-behavior-utils.js";
 import { ClusterBehavior } from "./ClusterBehavior.js";
@@ -16,9 +16,9 @@ import { NameDependentElements } from "./NameDependentElements.js";
 const logger = Logger.get("ValidatedElements");
 
 /**
- * Schema whose feature selection we have already assessed.
+ * Schema whose feature selection and element IDs passed validation.
  */
-const validatedFeatureSelections = new WeakSet<ClusterModel>();
+const validatedSchemas = new WeakSet<ClusterModel>();
 
 /**
  * Thrown when a {@link ClusterBehavior} cannot be constructed due to fatal errors.
@@ -133,7 +133,7 @@ export class ValidatedElements {
             this.error("instance", "Is not an object", true);
         }
 
-        this.#validateFeatures();
+        this.#validateSchema();
         this.#validateAttributes();
         this.#validateCommands();
         this.#validateEvents();
@@ -174,22 +174,51 @@ export class ValidatedElements {
     }
 
     /**
-     * Feature selection is a property of the schema, so assess each schema once however many behaviors share it.
+     * Feature selection and element IDs are properties of the schema, so assess each schema once however many behaviors
+     * share it.
+     *
+     * A peer's cluster never reaches this point, so its IDs are modeled as the peer reports them.
      */
-    #validateFeatures() {
-        if (validatedFeatureSelections.has(this.#schema)) {
+    #validateSchema() {
+        const schema = this.#schema;
+        if (validatedSchemas.has(schema)) {
             return;
         }
 
-        const errors = FeatureSelectionErrors(this.#schema);
-        if (errors.length) {
-            for (const error of errors) {
-                this.error("features", error, true);
+        const errorCount = this.errors?.length ?? 0;
+
+        for (const error of FeatureSelectionErrors(schema)) {
+            this.error("features", error, true);
+        }
+
+        this.#validateId("cluster", schema.id, ClusterId);
+        for (const attribute of schema.attributes) {
+            this.#validateId(attribute.name, attribute.id, AttributeId);
+        }
+        for (const command of schema.commands) {
+            if (command.id !== CommandElement.NO_ID) {
+                this.#validateId(command.name, command.id, CommandId);
             }
-            return;
+        }
+        for (const event of schema.events) {
+            this.#validateId(event.name, event.id, EventId);
         }
 
-        validatedFeatureSelections.add(this.#schema);
+        if ((this.errors?.length ?? 0) === errorCount) {
+            validatedSchemas.add(schema);
+        }
+    }
+
+    #validateId(element: string, id: number | undefined, validate: (id: number) => unknown) {
+        if (id === undefined) {
+            return;
+        }
+        try {
+            validate(id);
+        } catch (error) {
+            ValidationError.accept(error);
+            this.error(element, error.message, true);
+        }
     }
 
     #validateAttributes() {

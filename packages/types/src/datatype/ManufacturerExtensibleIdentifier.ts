@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { hex } from "@matter/general";
 import { ValidationOutOfBoundsError } from "../common/ValidationError.js";
 import { VendorId } from "./VendorId.js";
 
@@ -11,10 +12,14 @@ export namespace Mei {
     /** Create a Manufacturer Extensible Identifier (MEI) from a vendor prefix and type suffix. */
     export const asMei = (vendorPrefix: VendorId, typeSuffix: number) => {
         if (vendorPrefix < 0 || vendorPrefix > 0xfff4) {
-            throw new ValidationOutOfBoundsError(`Invalid vendor prefix for MEI: ${vendorPrefix}`);
+            throw new ValidationOutOfBoundsError(
+                `Invalid vendor prefix 0x${hex.fixed(vendorPrefix, 4)} for MEI: the prefix must be 0x0000 - 0xfff4`,
+            );
         }
         if (typeSuffix < 0 || typeSuffix > 0xfffe) {
-            throw new ValidationOutOfBoundsError(`Invalid type suffix for MEI: ${typeSuffix}`);
+            throw new ValidationOutOfBoundsError(
+                `Invalid type suffix 0x${hex.fixed(typeSuffix, 4)} for MEI: the suffix must be 0x0000 - 0xfffe`,
+            );
         }
 
         return ((vendorPrefix << 16) + typeSuffix) >>> 0;
@@ -24,12 +29,16 @@ export namespace Mei {
     export const fromMei = (mei: number): { vendorPrefix: VendorId; typeSuffix: number } => {
         const vendorPrefix = mei >>> 16;
         if (vendorPrefix > 0xfff4) {
-            throw new ValidationOutOfBoundsError(`Invalid vendor prefix for MEI: ${mei}`);
+            throw new ValidationOutOfBoundsError(
+                `Invalid vendor prefix in MEI 0x${hex.fixed(mei, 8)}: the prefix must be 0x0000 - 0xfff4`,
+            );
         }
 
         const typeSuffix = mei & 0xffff;
         if (typeSuffix > 0xfffe) {
-            throw new ValidationOutOfBoundsError(`Invalid type suffix for MEI: ${mei}`);
+            throw new ValidationOutOfBoundsError(
+                `Invalid type suffix in MEI 0x${hex.fixed(mei, 8)}: the suffix must not be 0xffff`,
+            );
         }
 
         return {

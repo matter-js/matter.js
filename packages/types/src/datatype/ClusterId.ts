@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Branded } from "@matter/general";
+import { Branded, hex } from "@matter/general";
 import { ValidationError, ValidationOutOfBoundsError, validatorOf } from "../common/ValidationError.js";
 import { TlvUInt32 } from "../tlv/TlvNumber.js";
 import { TlvWrapper } from "../tlv/TlvWrapper.js";
@@ -30,7 +30,9 @@ export function ClusterId(clusterId: number, validate = true): ClusterId {
     ) {
         return clusterId as ClusterId;
     }
-    throw new ValidationOutOfBoundsError(`Invalid cluster ID: ${clusterId}`);
+    throw new ValidationOutOfBoundsError(
+        `Invalid cluster ID 0x${hex.fixed(clusterId, 8)}: a standard cluster uses vendor prefix 0x0000 with a suffix of 0x0000 - 0x7fff, a vendor-specific cluster uses a prefix of 0x0001 - 0xfff4 with a suffix of 0xfc00 - 0xfffe`,
+    );
 }
 
 export namespace ClusterId {
