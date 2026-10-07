@@ -107,7 +107,7 @@ export declare namespace OperationalState {
          *
          * @see {@link MatterSpecification.v161.Cluster} § 1.14.5.5
          */
-        operationalState: OperationalStateEnum;
+        operationalState: OperationalStateEnum | number;
 
         /**
          * This attribute shall specify the details of any current error condition being experienced on the device when
@@ -205,7 +205,7 @@ export declare namespace OperationalState {
          *
          * @see {@link MatterSpecification.v161.Cluster} § 1.14.5.5
          */
-        operationalState: OperationalStateEnum;
+        operationalState: OperationalStateEnum | number;
 
         /**
          * This attribute shall specify the details of any current error condition being experienced on the device when
@@ -462,7 +462,7 @@ export declare namespace OperationalState {
          *
          * @see {@link MatterSpecification.v161.Cluster} § 1.14.4.2.1
          */
-        operationalStateId: OperationalStateEnum;
+        operationalStateId: OperationalStateEnum | number;
 
         /**
          * This field is present when the OperationalStateID is from the set reserved for Manufacturer Specific States.
@@ -524,7 +524,7 @@ export declare namespace OperationalState {
          *
          * @see {@link MatterSpecification.v161.Cluster} § 1.14.4.4.1
          */
-        errorStateId: ErrorState;
+        errorStateId: ErrorState | number;
 
         /**
          * This field is present when the ErrorStateID is from the set reserved for Manufacturer Specific errors. If

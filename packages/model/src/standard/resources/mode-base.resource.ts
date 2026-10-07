@@ -259,6 +259,10 @@ Resource.add({
                     tag: "field", name: "InvalidInMode",
                     description: "The received request cannot be handled due to the current mode of the device",
                     xref: "cluster§1.10.7.2.1.2"
+                },
+                {
+                    tag: "field", name: "MfgCodes",
+                    description: "Manufacturer specific values. For the derived Mode Base cluster instances, these are manufacturer specific under the derived cluster."
                 }
             ]
         },
@@ -276,7 +280,11 @@ Resource.add({
                 { tag: "field", name: "Min", xref: "cluster§1.10.8" },
                 { tag: "field", name: "Max", xref: "cluster§1.10.8" },
                 { tag: "field", name: "Night", xref: "cluster§1.10.8" },
-                { tag: "field", name: "Day", xref: "cluster§1.10.8" }
+                { tag: "field", name: "Day", xref: "cluster§1.10.8" },
+                {
+                    tag: "field", name: "MfgTags",
+                    description: "Manufacturer-specific values. For the derived cluster instances, these are manufacturer specific under the derived cluster."
+                }
             ]
         }
     ]
