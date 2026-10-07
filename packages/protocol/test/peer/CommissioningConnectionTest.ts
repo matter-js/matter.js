@@ -106,8 +106,72 @@ describe("CommissioningConnection", () => {
         });
 
         expect(discoveryData.deviceIdentifier).equals("a");
-        // All addresses of all devices are launched in parallel; within device "a", fd00::1 is tried before fd00::3.
         expect(attempts).deep.equals(["a:fd00::1", "a:fd00::3", "b:fd00::2"]);
+    });
+
+    it("merges entries with the same deviceIdentifier and tries each distinct address once", async () => {
+        const attempts = new Array<string>();
+
+        await expect(
+            CommissioningConnection({
+                devices: [
+                    device("a", [udp("fd00::1"), udp("fd00::1")]),
+                    device("b", [udp("fd00::2")]),
+                    device("a", [udp("fd00::3"), udp("fd00::1")]),
+                ],
+                timeout: Seconds(2),
+                delayBeforeNextAddress: 0,
+                establishSession: async (address, discoveryData) => {
+                    attempts.push(`${discoveryData.deviceIdentifier}:${(address as ServerAddressUdp).ip}`);
+                    throw new NoResponseTimeoutError("temporary network error");
+                },
+            }),
+        ).rejectedWith(PairRetransmissionLimitReachedError);
+
+        expect(attempts).deep.equals(["a:fd00::1", "a:fd00::3", "b:fd00::2"]);
+    });
+
+    it("returns the merged device as discovery data", async () => {
+        const { discoveryData } = await CommissioningConnection({
+            devices: [
+                device("a", [udp("fd00::1")]),
+                device("b", [udp("fd00::2")]),
+                { ...device("a", [udp("fd00::3")]), DN: "later" },
+            ],
+            timeout: Seconds(2),
+            delayBeforeNextAddress: 0,
+            establishSession: async address => {
+                if ((address as ServerAddressUdp).ip !== "fd00::3") {
+                    throw new NoResponseTimeoutError("temporary network error");
+                }
+                return {} as any;
+            },
+        });
+
+        expect(discoveryData.deviceIdentifier).equals("a");
+        expect(discoveryData.addresses).deep.equals([udp("fd00::1"), udp("fd00::3")]);
+        expect(discoveryData.DN).equals("later");
+    });
+
+    it("credential failure skips later entries with the same deviceIdentifier", async () => {
+        const attempts = new Array<string>();
+
+        await expect(
+            CommissioningConnection({
+                devices: [device("a", [udp("fd00::1")]), device("b", [udp("fd00::2")]), device("a", [udp("fd00::3")])],
+                timeout: Seconds(2),
+                delayBeforeNextAddress: Seconds(1),
+                establishSession: async (address, discoveryData) => {
+                    attempts.push(`${discoveryData.deviceIdentifier}:${(address as ServerAddressUdp).ip}`);
+                    if (discoveryData.deviceIdentifier === "a") {
+                        throw new UnexpectedDataError("invalid credentials");
+                    }
+                    throw new NoResponseTimeoutError("temporary network error");
+                },
+            }),
+        ).rejectedWith(UnexpectedDataError);
+
+        expect(attempts).deep.equals(["a:fd00::1", "b:fd00::2"]);
     });
 
     it("throws UnexpectedDataError (not generic error) when all static candidates fail with wrong credentials", async () => {
