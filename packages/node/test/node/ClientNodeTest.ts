@@ -58,6 +58,7 @@ import {
     ServerAddressIp,
     Time,
     Timestamp,
+    UnexpectedDataError,
 } from "@matter/general";
 import {
     AcceptedCommandList,
@@ -406,6 +407,26 @@ describe("ClientNode", () => {
         await paseSession.initiateClose();
 
         expect(paseDestinations[0]).equals("abcd::2");
+    });
+
+    it("tries a repeated address once", async () => {
+        await using site = new MockSite();
+        const { controller, device, paseDestinations, withEntropicCrypto } = await pairRecordingPaseDestinations(site);
+        const wrongPasscode = device.state.commissioning.passcode + 1;
+        const establishPase = (addresses: ServerAddress[]) =>
+            withEntropicCrypto(() =>
+                controller.env.get(ControllerCommissioner).establishPase({ addresses, passcode: wrongPasscode }),
+            );
+        const address: ServerAddress = { type: "udp", ip: "abcd::2", port: 5540 };
+
+        await expect(establishPase([address])).rejectedWith(UnexpectedDataError);
+        const packetsForOneAttempt = paseDestinations.length;
+        paseDestinations.length = 0;
+
+        await expect(establishPase([address, { ...address }])).rejectedWith(UnexpectedDataError);
+
+        expect(packetsForOneAttempt).greaterThan(0);
+        expect(paseDestinations.length).equals(packetsForOneAttempt);
     });
 
     it("skips the post-commission read when autoStateInitialize is false", async () => {

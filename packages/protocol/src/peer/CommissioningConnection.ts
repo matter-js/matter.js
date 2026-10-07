@@ -81,7 +81,7 @@ export async function CommissioningConnection(
 
     let winner: CommissioningConnection.Result | undefined;
 
-    const queue = attemptsFor(options.devices);
+    const queue = options.devices.flatMap(device => device.addresses.map(address => ({ device, address })));
     let holdingAttempts = 0;
     let latest: { startedAt: Timestamp; settled: boolean } | undefined;
     let nextAttemptTimer: Timer | undefined;
@@ -247,43 +247,14 @@ interface Attempt {
     address: ServerAddress;
 }
 
-/**
- * Merges devices by `deviceIdentifier` and returns one attempt per distinct address, devices and addresses in order
- * of first appearance.
- */
-function attemptsFor(devices: CommissionableDevice[]) {
-    const merged = new Map<string, { device: CommissionableDevice; addresses: Map<string, ServerAddress> }>();
-    for (const device of devices) {
-        let entry = merged.get(device.deviceIdentifier);
-        if (entry === undefined) {
-            entry = { device, addresses: new Map() };
-            merged.set(device.deviceIdentifier, entry);
-        } else {
-            entry.device = { ...entry.device, ...device };
-        }
-        for (const address of device.addresses) {
-            entry.addresses.set(ServerAddress.urlFor(address), address);
-        }
-    }
-
-    const attempts = new Array<Attempt>();
-    for (const { device: discovered, addresses } of merged.values()) {
-        const device = { ...discovered, addresses: [...addresses.values()] };
-        for (const address of device.addresses) {
-            attempts.push({ device, address });
-        }
-    }
-    return attempts;
-}
-
 export namespace CommissioningConnection {
     export interface Options {
         /**
          * Commissioning candidates to attempt PASE with.
          *
-         * Entries with the same `deviceIdentifier` are merged into one device.  Each distinct address of a device
-         * becomes one `(device, address)` attempt, and attempts launch one after the other across all devices (see
-         * {@link CommissioningConnection}).
+         * Each address of a device becomes one `(device, address)` attempt, in the given order, and attempts launch
+         * one after the other across all devices (see {@link CommissioningConnection}).  A credential failure drops
+         * every attempt whose device has the same `deviceIdentifier`.
          *
          * Callers that discover genuinely distinct devices should coordinate fan-out at a higher layer
          * (e.g. {@link ParallelPaseDiscovery}); passing multiple distinct devices here serialises them too, which is

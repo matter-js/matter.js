@@ -89,6 +89,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Fix: Commissioning tries a device's addresses in ranked order instead of reverse order, so a lower-ranked unreachable address no longer delays PASE
     - Fix: Commissioning tries a device's next address as soon as the last attempt fails, or 10 s after it started, instead of every 15 s, and not while the device is answering an earlier attempt
+    - Fix: Commissioning with known addresses tries a repeated address only once, so a duplicate no longer costs the device an extra failed PASE attempt
     - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status or does not answer it in time
     - Fix: A missing response no longer closes the commissioning PASE session; commissioning closes it on every exit
     - Feature: A `NodeSession` created with `suppressPeerLoss` stays open on communication failures of its exchanges; its owner closes it
