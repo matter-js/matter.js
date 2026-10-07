@@ -517,7 +517,7 @@ describe("CommissioningConnection", () => {
             expect(result.discoveryData.deviceIdentifier).equals("a");
         });
 
-        it("default staggerDelay is 15s", async () => {
+        it("default staggerDelay is 10s", async () => {
             const order = new Array<string>();
             const gate = deferred<void>();
 
@@ -537,7 +537,7 @@ describe("CommissioningConnection", () => {
             await MockTime.yield3();
             expect(order).deep.equals(["fd00::1"]);
 
-            await MockTime.advance(14900);
+            await MockTime.advance(9900);
             await MockTime.yield3();
             expect(order).deep.equals(["fd00::1"]);
 

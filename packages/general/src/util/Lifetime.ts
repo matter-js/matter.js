@@ -123,7 +123,7 @@ class LifetimeImplementation implements Lifetime, Lifetime.Owner {
     }
 
     get details() {
-        return this.#details ?? {};
+        return (this.#details ??= {});
     }
 
     get owner() {
@@ -194,8 +194,11 @@ class LifetimeImplementation implements Lifetime, Lifetime.Owner {
 
         const details: Record<string, unknown> = {
             up: Duration.format(Timestamp.delta(this.startedAt, Time.nowMs)),
-            ...this.#details,
         };
+        // Writers define details with Object.defineProperty, which makes them non-enumerable by default
+        for (const name of Object.getOwnPropertyNames(this.#details ?? {})) {
+            details[name] = this.#details?.[name];
+        }
 
         header.push(Diagnostic.dict(details));
 

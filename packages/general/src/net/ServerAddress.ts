@@ -172,7 +172,7 @@ export namespace ServerAddress {
         IPV6_ULA,
         IPV6,
         IPV4,
-        NOT_IP = 3,
+        NOT_IP,
     }
 
     /** True when `ip` is an IPv6 link-local address (fe80::/10). */

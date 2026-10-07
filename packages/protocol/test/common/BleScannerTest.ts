@@ -7,7 +7,8 @@
 import { BleError } from "#ble/Ble.js";
 import { BleListeningClock } from "#common/BleListeningClock.js";
 import { BlePeripheral, BleScanner, BleScannerClient } from "#common/BleScanner.js";
-import { Bytes, Duration, Minutes, Seconds } from "@matter/general";
+import { Bytes, createPromise, Duration, Minutes, PromiseTimeoutError, Seconds } from "@matter/general";
+import { VendorId } from "@matter/types";
 
 const SERVICE_DATA_A = Bytes.fromHex("00c9067c11018000"); // D=1737, VP=4476+32769
 const SERVICE_DATA_B = Bytes.fromHex("00e8037c11018000"); // D=1000, VP=4476+32769
@@ -17,6 +18,7 @@ class MockBleScannerClient implements BleScannerClient {
     setDiscoveryCallback(callback: (peripheral: BlePeripheral, data: Bytes) => void) {
         this.callback = callback;
     }
+    startScanningError?: Error;
     stopScanningError?: Error;
 
     readonly #listening = new BleListeningClock();
@@ -25,22 +27,69 @@ class MockBleScannerClient implements BleScannerClient {
         return this.#listening.total;
     }
 
+    /** Each call the scanner made, so a test can see whether transitions overlapped. */
+    readonly scanCalls = new Array<"start" | "stop">();
+
+    #startGate?: Promise<void>;
+    #openStartGate?: () => void;
+    #stopGate?: Promise<void>;
+    #openStopGate?: () => void;
+
     async startScanning() {
+        this.scanCalls.push("start");
+        await this.#startGate;
+        if (this.startScanningError) throw this.startScanningError;
         this.startListening();
     }
 
     async stopScanning() {
+        this.scanCalls.push("stop");
+        await this.#stopGate;
         this.stopListening();
         if (this.stopScanningError) throw this.stopScanningError;
     }
 
+    /** Leaves the next `startScanning()` in flight, as a client waiting for its radio does. */
+    holdStart() {
+        const { promise, resolver } = createPromise<void>();
+        this.#startGate = promise;
+        this.#openStartGate = resolver;
+    }
+
+    releaseStart() {
+        this.#startGate = undefined;
+        this.#openStartGate?.();
+        this.#openStartGate = undefined;
+    }
+
+    /** Leaves the next `stopScanning()` in flight, as a client whose radio reports its state asynchronously does. */
+    holdStop() {
+        const { promise, resolver } = createPromise<void>();
+        this.#stopGate = promise;
+        this.#openStopGate = resolver;
+    }
+
+    releaseStop() {
+        this.#stopGate = undefined;
+        this.#openStopGate?.();
+        this.#openStopGate = undefined;
+    }
+
+    #scanning = false;
+
+    get scanning() {
+        return this.#scanning;
+    }
+
     /** The radio scans, which for a real client is an event it receives rather than the request we made. */
     startListening() {
+        this.#scanning = true;
         this.#listening.start();
     }
 
     /** The radio stopped, as when the adapter powers off under a scan we still believe is running. */
     stopListening() {
+        this.#scanning = false;
         this.#listening.stop();
     }
 
@@ -403,24 +452,18 @@ describe("BleScanner", () => {
         });
 
         it("keeps a peripheral of a client that reports no listening time while its scan is still starting", async () => {
-            let started!: () => void;
-            class SlowStartingClient extends MockOneShotBleScannerClient {
-                override async startScanning() {
-                    await new Promise<void>(resolve => (started = resolve));
-                    await super.startScanning();
-                }
-            }
-            const client = new SlowStartingClient();
+            const client = new MockOneShotBleScannerClient();
             const scanner = new BleScanner(client);
 
             client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
-            const discovery = scanner.findCommissionableDevicesContinuously({ productId: 1 }, () => {});
-            await settleDiscovery();
+            await MockTime.advance(Minutes(15));
 
-            await MockTime.advance(Minutes(16));
+            client.holdStart();
+            const discovery = scanner.findCommissionableDevicesContinuously({ productId: 1 }, () => {});
+            await MockTime.advance(Seconds(5));
             expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(1);
 
-            started();
+            client.releaseStart();
             await settleDiscovery();
             scanner.cancelCommissionableDeviceDiscovery({ productId: 1 });
             await discovery;
@@ -750,6 +793,495 @@ describe("BleScanner", () => {
         });
     });
 
+    describe("overlapping discoveries", () => {
+        it("fails every discovery waiting on a scan that cannot start", async () => {
+            const client = new MockBleScannerClient();
+            client.startScanningError = new Error("start failed");
+            const scanner = new BleScanner(client);
+
+            const first = scanner.findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(10));
+            const second = scanner.findCommissionableDevices({ longDiscriminator: 1000 }, Seconds(10));
+
+            await expect(first).to.be.rejectedWith("start failed");
+            await expect(second).to.be.rejectedWith("start failed");
+        });
+
+        it("scans again for a later discovery after a scan could not start", async () => {
+            const client = new MockBleScannerClient();
+            client.startScanningError = new Error("start failed");
+            const scanner = new BleScanner(client);
+
+            await expect(
+                scanner.findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(10)),
+            ).to.be.rejectedWith("start failed");
+
+            client.startScanningError = undefined;
+            const discovery = scanner.findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(10));
+            await settleDiscovery();
+
+            expect(client.scanning).to.equal(true);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            expect(await discovery).to.have.lengthOf(1);
+            await settleDiscovery();
+            // The failed start left the radio in an unknown state, so it is stopped at once
+            expect(client.scanCalls).to.deep.equal(["start", "stop", "start", "stop"]);
+            expect(client.scanning).to.equal(false);
+        });
+
+        it("stops the scan once a one-shot discovery found its device", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const discovery = scanner.findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(10));
+            await settleDiscovery();
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            expect(await discovery).to.have.lengthOf(1);
+            await settleDiscovery();
+            expect(client.scanning).to.equal(false);
+        });
+
+        it("hands a one-shot discovery an advertisement that arrived while its scan started", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.holdStart();
+            let settled = false;
+            const discovery = scanner
+                .findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(10))
+                .then(found => {
+                    settled = true;
+                    return found;
+                });
+            await settleDiscovery();
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            client.releaseStart();
+            await settleDiscovery();
+
+            // No virtual time passed, so the discovery did not wait out its timeout
+            expect(settled).to.equal(true);
+            expect(await discovery).to.have.lengthOf(1);
+        });
+
+        it("fails a discovery whose scan does not start in time and serves the next one", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.holdStart();
+            const stuck = scanner.findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(60));
+            const failed = expect(stuck).to.be.rejectedWith(PromiseTimeoutError);
+            await settleDiscovery();
+            await MockTime.advance(Seconds(11));
+            await failed;
+
+            client.releaseStart();
+            const discovery = scanner.findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(10));
+            await settleDiscovery();
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            expect(await discovery).to.have.lengthOf(1);
+        });
+
+        it("fails a discovery that still runs when restarting its scan fails as another ends", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const { promise: ending, resolver: end } = createPromise<void>();
+            const ended = scanner.findCommissionableDevicesContinuously(
+                { shortDiscriminator: 6 },
+                () => {},
+                undefined,
+                ending,
+            );
+            const remaining = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 7 }, () => {});
+            const remainingFailed = expect(remaining).to.be.rejectedWith("restart failed");
+            await settleDiscovery();
+
+            client.startScanningError = new BleError("restart failed");
+            end();
+
+            // The restart is the remaining discovery's concern, so the ending one still ends normally
+            expect(await ended).to.deep.equal([]);
+            await remainingFailed;
+        });
+
+        it("still stops the radio once the discoveries a failed start ended are gone", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+            const running = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 6 }, () => {});
+            const runningFailed = expect(running).to.be.rejectedWith("start failed");
+            await settleDiscovery();
+
+            client.startScanningError = new BleError("start failed");
+            await expect(
+                scanner.findCommissionableDevices({ longDiscriminator: 1000 }, Seconds(10)),
+            ).to.be.rejectedWith("start failed");
+            await runningFailed;
+            await settleDiscovery();
+
+            expect(client.scanCalls.at(-1)).to.equal("stop");
+            expect(client.scanning).to.equal(false);
+        });
+
+        it("stops the radio after the only discovery's scan could not start", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.startScanningError = new BleError("start failed");
+            await expect(
+                scanner.findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(10)),
+            ).to.be.rejectedWith("start failed");
+            await settleDiscovery();
+
+            expect(client.scanCalls).to.deep.equal(["start", "stop"]);
+        });
+
+        it("keeps a discovery's result when stopping its scan fails", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const discovery = scanner.findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(10));
+            await settleDiscovery();
+            client.stopScanningError = new BleError("stop failed");
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            expect(await discovery).to.have.lengthOf(1);
+        });
+
+        it("closes even when the client's stop never settles", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+            const discovery = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 6 }, () => {});
+            await settleDiscovery();
+
+            client.holdStop();
+            const closed = expect(scanner.close()).to.be.rejectedWith(PromiseTimeoutError);
+            await settleDiscovery();
+            await MockTime.advance(Seconds(11));
+
+            await closed;
+            await discovery;
+        });
+
+        it("does not scan for a discovery started after the scanner closed", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+            await scanner.close();
+
+            const discovery = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 6 }, () => {});
+            await settleDiscovery();
+            await discovery;
+
+            expect(client.scanCalls).to.not.include("start");
+        });
+
+        it("returns a one-shot discovery started after the scanner closed at once", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+            await scanner.close();
+
+            let settled = false;
+            const discovery = scanner
+                .findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(60))
+                .then(found => {
+                    settled = true;
+                    return found;
+                });
+            await settleDiscovery();
+
+            // No virtual time passed, so the discovery did not wait out its timeout
+            expect(settled).to.equal(true);
+            expect(await discovery).to.deep.equal([]);
+            expect(client.scanCalls).to.not.include("start");
+        });
+
+        it("ends a one-shot discovery that is canceled", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const discovery = scanner.findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(60));
+            await settleDiscovery();
+            scanner.cancelCommissionableDeviceDiscovery({ longDiscriminator: 1737 });
+
+            expect(await discovery).to.deep.equal([]);
+            await settleDiscovery();
+            expect(client.scanning).to.equal(false);
+        });
+
+        it("starts the next scan only once the previous stop finished", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const first = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 6 }, () => {});
+            await settleDiscovery();
+
+            client.holdStop();
+            scanner.cancelCommissionableDeviceDiscovery({ shortDiscriminator: 6 });
+            await settleDiscovery();
+
+            const second = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 7 }, () => {});
+            await settleDiscovery();
+
+            // The stop is still in flight, so the radio is not asked to start again yet
+            expect(client.scanCalls).to.deep.equal(["start", "stop"]);
+
+            client.releaseStop();
+            await first;
+            await settleDiscovery();
+
+            expect(client.scanCalls).to.deep.equal(["start", "stop", "start"]);
+            expect(client.scanning).to.equal(true);
+
+            await scanner.close();
+            await second;
+        });
+
+        it("leaves no scan running when it closes while one is starting", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.holdStart();
+            const discovery = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 6 }, () => {});
+            await settleDiscovery();
+
+            const closed = scanner.close();
+            await settleDiscovery();
+
+            client.releaseStart();
+            await closed;
+            await discovery;
+
+            expect(client.scanCalls).to.deep.equal(["start", "stop"]);
+            expect(client.scanning).to.equal(false);
+        });
+
+        it("asks the client to scan again after its radio stopped on its own", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const first = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 6 }, () => {});
+            await settleDiscovery();
+
+            // The adapter power-cycles: the radio stops without the scanner asking for it
+            client.stopListening();
+
+            const second = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 7 }, () => {});
+            await settleDiscovery();
+
+            expect(client.scanning).to.equal(true);
+
+            await scanner.close();
+            await first;
+            await second;
+        });
+
+        it("keeps scanning for a discovery that still runs when another ends", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const candidates = new Array<string>();
+            const running = scanner.findCommissionableDevicesContinuously(
+                { shortDiscriminator: 6 },
+                ({ deviceIdentifier }) => candidates.push(deviceIdentifier),
+            );
+            const ending = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 7 }, () => {});
+            await settleDiscovery();
+            expect(client.scanning).to.equal(true);
+
+            scanner.cancelCommissionableDeviceDiscovery({ shortDiscriminator: 7 });
+            await ending;
+
+            expect(client.scanning).to.equal(true);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await settleDiscovery();
+            expect(candidates).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+
+            scanner.cancelCommissionableDeviceDiscovery({ shortDiscriminator: 6 });
+            await running;
+
+            expect(client.scanning).to.equal(false);
+        });
+    });
+
+    describe("discoveries for one identifier", () => {
+        it("hands an advertisement to every discovery waiting for it", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const first = new Array<string>();
+            const second = new Array<string>();
+            const firstDiscovery = scanner.findCommissionableDevicesContinuously(
+                { shortDiscriminator: 6 },
+                ({ deviceIdentifier }) => first.push(deviceIdentifier),
+            );
+            const secondDiscovery = scanner.findCommissionableDevicesContinuously(
+                { shortDiscriminator: 6 },
+                ({ deviceIdentifier }) => second.push(deviceIdentifier),
+            );
+            await settleDiscovery();
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await settleDiscovery();
+
+            expect(first).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+            expect(second).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+
+            await scanner.close();
+            await firstDiscovery;
+            await secondDiscovery;
+        });
+
+        it("ends one discovery on its timeout and leaves the other waiting", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const candidates = new Array<string>();
+            const running = scanner.findCommissionableDevicesContinuously(
+                { shortDiscriminator: 6 },
+                ({ deviceIdentifier }) => candidates.push(deviceIdentifier),
+            );
+            const expiring = scanner.findCommissionableDevices({ shortDiscriminator: 6 }, Seconds(10));
+            await settleDiscovery();
+
+            await MockTime.advance(Seconds(11));
+            expect(await expiring).to.have.lengthOf(0);
+
+            // The discovery without a timeout still runs, and the radio still scans for it
+            expect(client.scanning).to.equal(true);
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await settleDiscovery();
+            expect(candidates).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+
+            await scanner.close();
+            await running;
+        });
+
+        it("does not end a discovery when another discovery's timeout expires", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const shortWait = scanner.findCommissionableDevices({ shortDiscriminator: 6 }, Seconds(10));
+            const longWait = scanner.findCommissionableDevices({ shortDiscriminator: 6 }, Seconds(60));
+            let longWaitSettled = false;
+            const trackedLongWait = longWait.then(devices => {
+                longWaitSettled = true;
+                return devices;
+            });
+            await settleDiscovery();
+
+            await MockTime.advance(Seconds(11));
+            expect(await shortWait).to.have.lengthOf(0);
+            await settleDiscovery();
+
+            expect(longWaitSettled).to.equal(false);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            expect(await trackedLongWait).to.have.lengthOf(1);
+        });
+
+        it("hands an advertisement to discoveries that ask for the device differently", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const byLong = new Array<string>();
+            const byShort = new Array<string>();
+            const longDiscovery = scanner.findCommissionableDevicesContinuously(
+                { longDiscriminator: 1737 },
+                ({ deviceIdentifier }) => byLong.push(deviceIdentifier),
+            );
+            const shortDiscovery = scanner.findCommissionableDevicesContinuously(
+                { shortDiscriminator: 6 },
+                ({ deviceIdentifier }) => byShort.push(deviceIdentifier),
+            );
+            await settleDiscovery();
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await settleDiscovery();
+
+            expect(byLong).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+            expect(byShort).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+
+            await scanner.close();
+            await longDiscovery;
+            await shortDiscovery;
+        });
+
+        it("hands an advertisement to discoveries by vendor, product and without identifier", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const found = new Array<string>();
+            const identifiers = [
+                { vendorId: VendorId(4476), productId: 32769 },
+                { productId: 32769 },
+                { vendorId: VendorId(4476) },
+                {},
+            ];
+            const discoveries = identifiers.map(identifier =>
+                scanner.findCommissionableDevices(identifier, Seconds(10)).then(devices => {
+                    found.push(...devices.map(({ deviceIdentifier }) => deviceIdentifier));
+                }),
+            );
+            await settleDiscovery();
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await Promise.all(discoveries);
+
+            expect(found).to.deep.equal(new Array(4).fill("aa:aa:aa:aa:aa:aa"));
+        });
+
+        it("ends only the canceled discovery when another waits for the same identifier", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const canceling = new AbortController();
+            const canceled = scanner.findCommissionableDevicesContinuously(
+                { shortDiscriminator: 6 },
+                () => {},
+                undefined,
+                new Promise<void>(resolve => canceling.signal.addEventListener("abort", () => resolve())),
+            );
+            const waiting = scanner.findCommissionableDevices({ shortDiscriminator: 6 }, Seconds(60));
+            let waitingSettled = false;
+            const trackedWaiting = waiting.then(devices => {
+                waitingSettled = true;
+                return devices;
+            });
+            await settleDiscovery();
+
+            canceling.abort();
+            await canceled;
+            await settleDiscovery();
+
+            expect(waitingSettled).to.equal(false);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            expect(await trackedWaiting).to.have.lengthOf(1);
+        });
+
+        it("ends every discovery for an identifier that is canceled", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const first = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 6 }, () => {});
+            const second = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 6 }, () => {});
+            await settleDiscovery();
+
+            scanner.cancelCommissionableDeviceDiscovery({ shortDiscriminator: 6 });
+
+            await first;
+            await second;
+            await settleDiscovery();
+
+            expect(client.scanning).to.equal(false);
+        });
+    });
+
     describe("close", () => {
         it("settles a timeout-less continuous discovery driven by an external cancel signal", async () => {
             const client = new MockBleScannerClient();
@@ -800,8 +1332,9 @@ describe("BleScanner", () => {
 
             await Promise.resolve();
 
+            // close() owns the stop once it runs, so it alone reports the failure and the discovery simply ends
             await expect(scanner.close()).to.be.rejectedWith("stop failed");
-            await expect(discovery).to.be.rejectedWith("stop failed");
+            expect(await discovery).to.have.lengthOf(0);
         });
     });
 });

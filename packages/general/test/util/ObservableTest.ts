@@ -61,6 +61,71 @@ describe("ObservableGroup", () => {
 
         expect(observable.isObserved).false;
     });
+
+    it("removes a single observer", () => {
+        const observable = Observable<[foo: string]>();
+        const observers = new ObserverGroup();
+        const observer = () => {};
+
+        observers.on(observable, observer);
+        observers.off(observable, observer);
+
+        expect(observable.isObserved).false;
+        expect(observers.observes(observable)).false;
+    });
+
+    describe("with a target", () => {
+        class Owner {
+            calls = 0;
+
+            onFoo() {
+                this.calls++;
+            }
+        }
+
+        it("removes an observer it bound to its default target", () => {
+            const observable = Observable<[foo: string]>();
+            const owner = new Owner();
+            const observers = new ObserverGroup(owner);
+
+            observers.on(observable, owner.onFoo);
+            expect(observers.has(observable, owner.onFoo)).true;
+
+            observers.off(observable, owner.onFoo);
+
+            expect(observable.isObserved).false;
+            expect(observers.has(observable, owner.onFoo)).false;
+            observable.emit("bar");
+            expect(owner.calls).equals(0);
+        });
+
+        it("removes only the observer bound to the given target", () => {
+            const observable = Observable<[foo: string]>();
+            const first = new Owner();
+            const second = new Owner();
+            const observers = new ObserverGroup();
+
+            observers.on(observable, Owner.prototype.onFoo, first);
+            observers.on(observable, Owner.prototype.onFoo, second);
+
+            observers.off(observable, Owner.prototype.onFoo, second);
+            observable.emit("bar");
+
+            expect(first.calls).equals(1);
+            expect(second.calls).equals(0);
+        });
+
+        it("removes observers it bound on close", () => {
+            const observable = Observable<[foo: string]>();
+            const owner = new Owner();
+            const observers = new ObserverGroup(owner);
+
+            observers.on(observable, owner.onFoo);
+            observers.close();
+
+            expect(observable.isObserved).false;
+        });
+    });
 });
 
 describe("Observable", () => {
@@ -267,6 +332,27 @@ describe("ObservableValue", () => {
         expect(resolved).true;
         expect(resolvedValue).equals("next");
         expect(observedValues).deep.equals(["", "next"]);
+    });
+});
+
+describe("ObservableValue error handlers", () => {
+    it("removes only the error handler named in offError", async () => {
+        const observable = ObservableValue<[value: string]>();
+
+        const calls = new Array<string>();
+        const removed = () => calls.push("removed");
+        observable.onError(removed);
+        observable.onError(() => calls.push("kept"));
+        const awaiting = observable.then(
+            () => calls.push("resolved"),
+            () => calls.push("rejected"),
+        );
+
+        observable.offError(removed);
+        observable.reject(new Error("failed"));
+        await awaiting;
+
+        expect(calls).deep.equals(["kept", "rejected"]);
     });
 });
 
