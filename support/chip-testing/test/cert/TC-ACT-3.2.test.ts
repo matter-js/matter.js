@@ -76,9 +76,11 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
             const dut = cx.controllers.dut;
             const th = cx.devices.th;
 
+            // The chip bridge app fails the wildcard priming read at a bridged node's PowerSource cluster
             const ref = await dut.commission({
                 passcode: th.commissioning.passcode,
                 discriminator: th.commissioning.discriminator,
+                withoutSubscription: true,
             });
             commissioned.set("dut", ref);
 
