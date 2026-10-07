@@ -215,7 +215,8 @@ export class NobleBleClient implements BleScannerClient {
         noble.off("scanStop", this.#listeners.scanStop);
 
         try {
-            // Windows holds a referenced handle from the first listener on, radio or not, and only stop() releases it
+            // Windows holds a referenced handle from the first listener on, radio or not, and only stop() releases it.
+            // stop() also ends any scan, including a start still in flight, so none needs a stop of its own here.
             noble.stop();
         } catch (error) {
             logger.info("Error stopping Noble:", error);
