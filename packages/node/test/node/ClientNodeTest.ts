@@ -65,6 +65,7 @@ import {
 import { clientStructureOf, MockSite, seedPeerCache, subscribedPeer } from "@matter/node/testing";
 import {
     CommissionableDevice,
+    CommissionableDeviceIdentity,
     CommissioningError,
     ControllerCommissioner,
     ControllerCommissioningFlow,
@@ -102,6 +103,7 @@ import { captureErrorsOf } from "../endpoint/validation/validation-helpers.js";
 class ForgetRecordingScanner implements Scanner {
     readonly type = ChannelType.UDP;
     readonly forgotten = new Array<readonly ServerAddress[]>();
+    readonly identities = new Array<CommissionableDeviceIdentity | undefined>();
 
     async findCommissionableDevicesContinuously(): Promise<CommissionableDevice[]> {
         return [];
@@ -113,8 +115,9 @@ class ForgetRecordingScanner implements Scanner {
 
     cancelCommissionableDeviceDiscovery() {}
 
-    forgetCommissionedDevice(addresses: readonly ServerAddress[]) {
+    forgetCommissionedDevice(addresses: readonly ServerAddress[], identity?: CommissionableDeviceIdentity) {
         this.forgotten.push(addresses);
+        this.identities.push(identity);
     }
 
     async close() {}
@@ -675,6 +678,29 @@ describe("ClientNode", function () {
 
         expect(device.state.commissioning.commissioned).equals(true);
         expect(scanner.forgotten).deep.equals([addresses]);
+    });
+
+    it("tells the scanners the identity of a device it discovered and commissioned", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addUncommissionedPair();
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        await controller.start();
+        const scanner = new ForgetRecordingScanner();
+        controller.env.get(ScannerSet).add(scanner);
+
+        const { passcode, discriminator } = device.state.commissioning;
+        const { vendorId, productId } = device.state.basicInformation;
+        await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+            macrotasks: true,
+        });
+
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        expect(scanner.identities).deep.equals([{ D: discriminator, VP: `${vendorId}+${productId}` }]);
     });
 
     it("leaves a device the scanners know when commissioning it fails", async () => {

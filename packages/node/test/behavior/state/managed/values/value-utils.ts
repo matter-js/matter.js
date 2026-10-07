@@ -12,7 +12,7 @@ import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import type { Node } from "#node/Node.js";
 import { camelize, Identity, MaybePromise, MockCrypto, Observable } from "@matter/general";
-import { DataModelPath, FieldElement, FieldModel } from "@matter/model";
+import { AttributeElement, ClusterModel, DataModelPath, FieldElement, FieldModel, Schema } from "@matter/model";
 import { Val } from "@matter/protocol";
 import { ClusterId, EndpointNumber } from "@matter/types";
 
@@ -74,12 +74,33 @@ export function TestStruct(
     defaults: Val.Struct = {},
     primaryKey?: "name" | "id",
 ) {
-    const supervisor = RootSupervisor.for(new FieldModel(structOf(fields)));
+    return managedTestValue(new FieldModel(structOf(fields)), Object.keys(fields), defaults, primaryKey);
+}
+
+/**
+ * Utility for creating the managed state of a cluster with the specified attributes, for behavior that depends on the
+ * schema being an attribute.
+ */
+export function TestCluster(
+    attributes: Record<string, Omit<AttributeElement.Properties, "name" | "id">>,
+    defaults: Val.Struct = {},
+) {
+    const cluster = new ClusterModel({
+        name: "TestCluster",
+        children: Object.entries(attributes).map(([name, definition], index) =>
+            AttributeElement({ ...definition, id: index + 1, name }),
+        ),
+    });
+    return managedTestValue(cluster, Object.keys(attributes), defaults);
+}
+
+function managedTestValue(schema: Schema, fieldNames: string[], defaults: Val.Struct, primaryKey?: "name" | "id") {
+    const supervisor = RootSupervisor.for(schema);
 
     const notifies: { index: string | undefined; oldValue: Val; newValue: Val }[] = [];
 
     const events = {} as Record<string, Observable<any>>;
-    for (const index in fields) {
+    for (const index of fieldNames) {
         const observable = Observable();
         events[`${camelize(index)}$Changed`] = observable;
         observable.on((newValue: Val, oldValue: Val) => {
@@ -129,7 +150,7 @@ export function TestStruct(
     };
 }
 
-export type TestStruct = Identity<ReturnType<typeof TestStruct>>;
+export type TestStruct = Identity<ReturnType<typeof managedTestValue>>;
 
 /**
  * Bypass the managed proxy to inspect the container's raw stored slots.

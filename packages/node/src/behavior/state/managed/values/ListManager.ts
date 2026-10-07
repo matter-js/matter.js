@@ -6,7 +6,7 @@
 
 import { isObject, serialize } from "@matter/general";
 import type { Schema } from "@matter/model";
-import { Access, DataModelPath, ValueModel } from "@matter/model";
+import { Access, AttributeModel, DataModelPath, ValueModel } from "@matter/model";
 import {
     AccessControl,
     ExpiredReferenceError,
@@ -54,6 +54,18 @@ export function ListManager(owner: RootSupervisor, schema: Schema): ValueSupervi
     };
 }
 
+/**
+ * Whether a list holds fabric-scoped entries that a remote actor may see filtered by fabric: `F` access, or an attribute
+ * with `S` access.  `S` on a struct field only hides that field from other fabrics.
+ */
+export function isFabricScopedList(schema: Schema) {
+    return schema.effectiveAccess.fabric === Access.Fabric.Scoped || isFabricSensitiveList(schema);
+}
+
+function isFabricSensitiveList(schema: Schema) {
+    return schema instanceof AttributeModel && schema.fabricSensitive;
+}
+
 function createConfig(owner: RootSupervisor, schema: Schema): ListConfig {
     const entry = schema instanceof ValueModel ? schema.listEntry : undefined;
     if (entry === undefined) {
@@ -63,11 +75,12 @@ function createConfig(owner: RootSupervisor, schema: Schema): ListConfig {
     const entryManager = owner.get(entry);
 
     const access = AccessControl(schema);
+    const fabricSensitive = isFabricSensitiveList(schema);
 
     return {
         schema,
-        fabricScoped: schema.effectiveAccess.fabric === Access.Fabric.Scoped,
-        fabricSensitive: schema.effectiveAccess.fabric === Access.Fabric.Sensitive,
+        fabricScoped: fabricSensitive || schema.effectiveAccess.fabric === Access.Fabric.Scoped,
+        fabricSensitive,
         manageEntries: entryManager.manage !== PrimitiveManager,
         manageEntry: entryManager.manage,
         validateEntry: entryManager.validate,
@@ -451,7 +464,9 @@ function createProxy(config: ListConfig, reference: ValReference<Val.List>, sess
         config.manageEntries &&
         config.fabricScoped &&
         hasRemoteActor(session) &&
-        (session.fabricFiltered || config.fabricSensitive);
+        // Fabric-sensitive lists are filtered for reads and writes; command handlers see all entries, as data access
+        // rules do not apply to them
+        (session.fabricFiltered || (config.fabricSensitive && !session.command));
 
     const handler = isFabricFiltered
         ? new FabricFilteredListProxyHandler(config, reference, session)

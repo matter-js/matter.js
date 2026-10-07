@@ -241,9 +241,9 @@ class MockTimer {
      * As with the production implementation, changes have no effect until the timer restarts.
      */
     set interval(interval: number) {
-        if (interval < 0 || interval > 2147483647) {
+        if (!Number.isFinite(interval) || interval < 0) {
             throw new Error(
-                `Invalid intervalMs: ${interval}. The value must be between 0 and 32-bit maximum value (2147483647)`,
+                `Invalid interval for timer "${this.name}": ${interval}; it must be finite and not negative`,
             );
         }
         this.#interval = interval;

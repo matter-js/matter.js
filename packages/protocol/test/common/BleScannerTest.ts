@@ -436,6 +436,46 @@ describe("BleScanner", () => {
 
             expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(1);
         });
+
+        it("forgets the BLE record of a device commissioned over another transport", () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            client.discover("bb:bb:bb:bb:bb:bb", SERVICE_DATA_B);
+
+            scanner.forgetCommissionedDevice([{ type: "udp", ip: "fe80::1", port: 5540 }], {
+                D: 1737,
+                VP: "4476+32769",
+            });
+
+            expect(() => scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.throw("No device found");
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1000 })).to.have.lengthOf(1);
+        });
+
+        it("matches an identity that names only the vendor", () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            scanner.forgetCommissionedDevice([], { D: 1737, VP: "4476" });
+
+            expect(() => scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.throw("No device found");
+        });
+
+        it("keeps a record whose vendor or product differs from the identity", () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            scanner.forgetCommissionedDevice([], { D: 1737, VP: "4477+32769" });
+            scanner.forgetCommissionedDevice([], { D: 1737, VP: "4476+32770" });
+            scanner.forgetCommissionedDevice([], { D: 1737, VP: "4477" });
+
+            expect(scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.exist;
+        });
     });
 
     describe("reachability", () => {
