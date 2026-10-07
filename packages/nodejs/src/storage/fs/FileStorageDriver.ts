@@ -94,7 +94,7 @@ export class FileStorageDriver extends FilesystemStorageDriver implements Legacy
         this.isInitialized = true;
     }
 
-    /** The index of {@link contexts}, or undefined if nothing was ever stored there. */
+    /** The current index node of {@link contexts}, without creating one; undefined if there is none. */
     #existingIndexFor(contexts: string[]) {
         let node: ContextIndex | undefined = this.#index;
         for (const name of contexts) {
@@ -387,7 +387,7 @@ export class FileStorageDriver extends FilesystemStorageDriver implements Legacy
         const name = contexts[contexts.length - 1];
         await this.#clearChildContext(contexts, parent, name);
 
-        // A write that landed while clearing keeps its context
+        // A context that still holds keys, such as one a write landed in while clearing, stays in the index
         const cleared = parent.contexts?.get(name);
         if (cleared !== undefined && !holdsKeys(cleared)) {
             parent.contexts?.delete(name);
