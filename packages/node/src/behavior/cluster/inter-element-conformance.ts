@@ -206,20 +206,11 @@ function applyConditionalResults(elements: ValidatedElements, nameDependentEleme
 function applyPresence(elements: ValidatedElements, entry: NameDependentElements.Entry, presence: boolean) {
     const propName = entry.model.propertyName;
 
-    if (presence && !entry.isImplemented) {
-        const target =
-            entry.elementType === "attribute"
-                ? `State.${propName}`
-                : entry.elementType === "command"
-                  ? propName
-                  : `cluster.events.${propName}`;
-
-        if (entry.elementType === "command") {
-            const isPresent = elements.presentCommands.has(propName);
-            elements.error(target, isPresent ? "Throws unimplemented exception" : "Implementation missing", !isPresent);
-        } else {
-            elements.error(target, "Mandatory element unsupported", false);
-        }
+    if (presence && entry.elementType === "command") {
+        elements.requireCommand(propName);
+    } else if (presence && !entry.isImplemented) {
+        const target = entry.elementType === "attribute" ? `State.${propName}` : `cluster.events.${propName}`;
+        elements.error(target, "Mandatory element unsupported", false);
     } else if (!presence && entry.isImplemented) {
         const target =
             entry.elementType === "attribute"
