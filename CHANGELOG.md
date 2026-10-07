@@ -81,6 +81,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Fix: Ensure that `BleScanner` forgets a discovered device after 15 minutes of scanning without its advertisement, or, for a client that reports no listening time, 15 minutes after the later of its last report and the end of the last discovery
     - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status or does not answer it in time
     - Fix: A missing response no longer closes the commissioning PASE session; commissioning closes it on every exit
     - Feature: A `NodeSession` created with `suppressPeerLoss` stays open on communication failures of its exchanges; its owner closes it
@@ -629,6 +630,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: a unicast mDNS response does not carry the cache-flush bit
 
 - @matter/react-native
+    - Fix: Ensure that `ReactNativeBle.scanner` returns one `BleScanner`, so the scanner the controller uses keeps receiving advertisements
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
 
 - @matter/types

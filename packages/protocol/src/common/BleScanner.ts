@@ -13,6 +13,7 @@ import {
     Logger,
     MaybePromise,
     Millis,
+    Minutes,
     Seconds,
     ServerAddress,
     Time,
@@ -54,7 +55,8 @@ export interface BleScannerClient {
      * A record only states that a device went silent when its age is measured in this time.
      *
      * A client that reports a peripheral once per scan, or that cannot tell how long its radio scanned, omits this.
-     * Its records then remain candidates however old they are, and only an address the device rotated away from is
+     * Its records then remain candidates while a discovery is pending, and are forgotten {@link RECORD_MAX_AGE} after
+     * the later of their last report and the end of the last discovery. An address the device rotated away from is
      * dropped after elapsed time.
      */
     readonly listeningTime?: Duration;
@@ -87,6 +89,15 @@ type StoredDiscoveredBleDevice = DiscoveredBleDevice & {
  */
 const STALE_ENTRY_AGE = Seconds(60);
 
+/**
+ * A record is forgotten after this much listening time without an advertisement, or, for a client that reports no
+ * listening time, after this much time since the later of its last report and the end of the last discovery. It is the longest a device announces at the rapid interval;
+ * a device using Extended Announcement keeps advertising and so keeps its record fresh.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 5.4.2.3
+ */
+const RECORD_MAX_AGE = Minutes(15);
+
 /** Whether a BLE record's `VendorId+ProductId` matches an identity's, which may name only the VendorId. */
 function matchesVendorProduct(recordVp: string | undefined, identityVp: string) {
     if (identityVp.includes("+")) {
@@ -110,6 +121,8 @@ export class BleScanner implements Scanner {
     >();
     readonly #discoveredMatterDevices = new Map<string, StoredDiscoveredBleDevice>();
     #closed = false;
+    #activeScans = 0;
+    #lastScanEndedAt?: Timestamp;
 
     constructor(client: BleScannerClient) {
         this.#client = client;
@@ -118,7 +131,7 @@ export class BleScanner implements Scanner {
         );
     }
 
-    /** Resolves a peripheral for a channel open, so a record stays resolvable here however old it is. */
+    /** Resolves a peripheral for a channel open, so a record stays resolvable here until it is forgotten. */
     public getDiscoveredDevice(address: string): DiscoveredBleDevice {
         const device = this.#discoveredMatterDevices.get(address);
         if (device === undefined) {
@@ -154,6 +167,46 @@ export class BleScanner implements Scanner {
             return false;
         }
         return this.#silenceOf(record, listeningTime) > STALE_ENTRY_AGE;
+    }
+
+    /**
+     * How long a record has gone without the chance of an update. That is its silence in listening time. A client that
+     * reports no listening time may report a peripheral only once per scan, so its record does not age while a discovery
+     * is pending, and ages from the later of its last report and the end of the last discovery.
+     */
+    #ageOf(record: StoredDiscoveredBleDevice, listeningTime: Duration | undefined): Duration {
+        if (listeningTime !== undefined && record.seenAt !== undefined) {
+            return this.#silenceOf(record, listeningTime);
+        }
+        if (this.#activeScans > 0) {
+            return Millis(0);
+        }
+        const scanEnded = this.#lastScanEndedAt;
+        const since = scanEnded !== undefined && scanEnded > record.lastSeen ? scanEnded : record.lastSeen;
+        return Timestamp.delta(since, Time.nowUs);
+    }
+
+    /** Forget every record older than {@link RECORD_MAX_AGE}. */
+    #forgetAgedOut(listeningTime = this.#client.listeningTime) {
+        for (const [address, record] of this.#discoveredMatterDevices) {
+            const age = this.#ageOf(record, listeningTime);
+            if (age <= RECORD_MAX_AGE) continue;
+            this.#discoveredMatterDevices.delete(address);
+            logger.debug(`Forgetting BLE device ${address} not seen for ${Duration.format(age)}`);
+        }
+    }
+
+    async #startScanning() {
+        await this.#client.startScanning();
+        this.#activeScans++;
+    }
+
+    async #stopScanning() {
+        this.#activeScans--;
+        if (this.#activeScans === 0) {
+            this.#lastScanEndedAt = Time.nowUs;
+        }
+        await this.#client.stopScanning();
     }
 
     /**
@@ -248,6 +301,7 @@ export class BleScanner implements Scanner {
                 CM: 1, // Can be no other mode,
                 addresses: [{ type: "ble", peripheralAddress: address }],
             };
+            this.#forgetAgedOut();
             const deviceExisting = this.#discoveredMatterDevices.has(address);
             const serviceDataHex = Bytes.toHex(manufacturerServiceData);
             const now = Time.nowUs;
@@ -363,6 +417,7 @@ export class BleScanner implements Scanner {
 
     #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers, includeUnavailable = false) {
         const listeningTime = this.#client.listeningTime;
+        this.#forgetAgedOut(listeningTime);
         // Newest first so ordered consumers (e.g. parallel PASE discovery) prefer the freshest advertisement
         const storedRecords = Array.from(this.#discoveredMatterDevices.values())
             .filter(
@@ -424,11 +479,13 @@ export class BleScanner implements Scanner {
         }
         let storedRecords = ignoreExistingRecords ? [] : this.#getCommissionableDevices(identifier);
         if (storedRecords.length === 0) {
-            await this.#client.startScanning();
-            await this.#registerWaiterPromise(queryKey, timeout);
-
-            storedRecords = this.#getCommissionableDevices(identifier);
-            await this.#client.stopScanning();
+            await this.#startScanning();
+            try {
+                await this.#registerWaiterPromise(queryKey, timeout);
+                storedRecords = this.#getCommissionableDevices(identifier);
+            } finally {
+                await this.#stopScanning();
+            }
         }
         return storedRecords.map(({ deviceData }) => deviceData);
     }
@@ -447,7 +504,7 @@ export class BleScanner implements Scanner {
         const discoveredDevices = new Set<string>();
 
         const discoveryEndTime = timeout ? Timestamp(Time.nowUs + timeout) : undefined;
-        await this.#client.startScanning();
+        await this.#startScanning();
 
         let queryResolver: ((value: void) => void) | undefined;
         if (cancelSignal === undefined) {
@@ -467,29 +524,32 @@ export class BleScanner implements Scanner {
             },
         );
 
-        while (!canceled && !this.#closed) {
-            this.#getCommissionableDevices(identifier).forEach(({ deviceData }) => {
-                const { deviceIdentifier } = deviceData;
-                if (!discoveredDevices.has(deviceIdentifier)) {
-                    discoveredDevices.add(deviceIdentifier);
-                    callback(deviceData);
-                }
-            });
+        try {
+            while (!canceled && !this.#closed) {
+                this.#getCommissionableDevices(identifier).forEach(({ deviceData }) => {
+                    const { deviceIdentifier } = deviceData;
+                    if (!discoveredDevices.has(deviceIdentifier)) {
+                        discoveredDevices.add(deviceIdentifier);
+                        callback(deviceData);
+                    }
+                });
 
-            let remainingTime;
-            if (discoveryEndTime !== undefined) {
-                remainingTime = Millis.ceil(Timespan(Time.nowUs, discoveryEndTime).duration);
-                if (remainingTime <= 0) {
-                    break;
+                let remainingTime;
+                if (discoveryEndTime !== undefined) {
+                    remainingTime = Millis.ceil(Timespan(Time.nowUs, discoveryEndTime).duration);
+                    if (remainingTime <= 0) {
+                        break;
+                    }
                 }
+
+                // Wake on any advertisement of a candidate, not only an address never seen: the loop's own set decides
+                // what is news, so a peripheral that becomes a candidate again is delivered without the scanner
+                // tracking why it was not one before.
+                await this.#registerWaiterPromise(queryKey, remainingTime, true, queryResolver);
             }
-
-            // Wake on any advertisement of a candidate, not only an address never seen: the loop's own set decides
-            // what is news, so a peripheral that becomes a candidate again is delivered without the scanner
-            // tracking why it was not one before.
-            await this.#registerWaiterPromise(queryKey, remainingTime, true, queryResolver);
+        } finally {
+            await this.#stopScanning();
         }
-        await this.#client.stopScanning();
         return this.#getCommissionableDevices(identifier).map(({ deviceData }) => deviceData);
     }
 

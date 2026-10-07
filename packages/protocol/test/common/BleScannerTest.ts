@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { BleError } from "#ble/Ble.js";
 import { BleListeningClock } from "#common/BleListeningClock.js";
 import { BlePeripheral, BleScanner, BleScannerClient } from "#common/BleScanner.js";
-import { Bytes, Duration, Seconds } from "@matter/general";
+import { Bytes, Duration, Minutes, Seconds } from "@matter/general";
 
 const SERVICE_DATA_A = Bytes.fromHex("00c9067c11018000"); // D=1737, VP=4476+32769
 const SERVICE_DATA_B = Bytes.fromHex("00e8037c11018000"); // D=1000, VP=4476+32769
@@ -322,14 +323,95 @@ describe("BleScanner", () => {
             await discovery;
         });
 
-        it("keeps offering a peripheral of a client that reports no listening time", async () => {
+        it("forgets a peripheral of a client that reports no listening time 15 minutes after it was seen outside a scan", async () => {
             const client = new MockOneShotBleScannerClient();
             const scanner = new BleScanner(client);
 
             client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
-            await MockTime.advance(Seconds(3600));
-
+            await MockTime.advance(Minutes(15));
             expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(1);
+
+            await MockTime.advance(Seconds(1));
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(0);
+            expect(() => scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.throw(BleError);
+        });
+
+        it("forgets a peripheral silent for 15 minutes of listening", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+            const stopScanning = await startScanning(scanner);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await MockTime.advance(Minutes(15));
+            scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 });
+            expect(scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.exist;
+
+            await MockTime.advance(Seconds(1));
+            scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 });
+            expect(() => scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.throw(BleError);
+
+            await stopScanning();
+        });
+
+        it("keeps a peripheral of a client that reports no listening time while a scan runs, and forgets it 15 minutes after", async () => {
+            const client = new MockOneShotBleScannerClient();
+            const scanner = new BleScanner(client);
+            const stopScanning = await startScanning(scanner);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await MockTime.advance(Minutes(30));
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(1);
+
+            await stopScanning();
+            await MockTime.advance(Minutes(15));
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(1);
+
+            await MockTime.advance(Seconds(1));
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(0);
+            expect(() => scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.throw(BleError);
+        });
+
+        it("ages a peripheral of a client that reports no listening time from its report after the last scan", async () => {
+            const client = new MockOneShotBleScannerClient();
+            const scanner = new BleScanner(client);
+            const stopScanning = await startScanning(scanner);
+            await stopScanning();
+
+            await MockTime.advance(Minutes(10));
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            await MockTime.advance(Minutes(15));
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(1);
+
+            await MockTime.advance(Seconds(1));
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(0);
+        });
+
+        it("ends the scan of a discovery whose callback throws", async () => {
+            const client = new MockOneShotBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            const discovery = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 6 }, () => {
+                throw new Error("callback failed");
+            });
+            await expect(discovery).rejectedWith("callback failed");
+
+            client.discover("bb:bb:bb:bb:bb:bb", SERVICE_DATA_B);
+            await MockTime.advance(Minutes(16));
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 3 })).to.have.lengthOf(0);
+        });
+
+        it("forgets an aged-out peripheral when another one advertises", async () => {
+            const client = new MockOneShotBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await MockTime.advance(Minutes(16));
+            client.discover("bb:bb:bb:bb:bb:bb", SERVICE_DATA_B);
+
+            expect(() => scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.throw(BleError);
+            expect(scanner.getDiscoveredDevice("bb:bb:bb:bb:bb:bb")).to.exist;
         });
     });
 
