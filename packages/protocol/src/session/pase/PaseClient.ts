@@ -81,6 +81,7 @@ export class PaseClient {
                 setupPin,
                 abort,
                 options?.suppressPeerLoss,
+                options?.onPbkdfParamResponse,
             );
         } catch (error) {
             // Unlike CASE, for PASE we send InvalidParam even on abort. This signals the device to reset its
@@ -121,6 +122,7 @@ export class PaseClient {
         setupPin: number,
         abort: Abort,
         suppressPeerLoss?: boolean,
+        onPbkdfParamResponse?: () => void,
     ) {
         const { crypto } = this.#sessions;
         const initiatorRandom = crypto.randomBytes(32);
@@ -143,6 +145,7 @@ export class PaseClient {
             responsePayload,
             response: { pbkdfParameters, responderSessionId, responderSessionParams },
         } = await messenger.readPbkdfParamResponse({ abort: abort.signal });
+        onPbkdfParamResponse?.();
 
         if (pbkdfParameters === undefined) {
             throw new UnexpectedDataError("Missing requested PbkdfParameters in the response. Commissioning failed.");
@@ -210,5 +213,8 @@ export namespace PaseClient {
 
         /** @see {@link NodeSession.suppressPeerLoss} */
         suppressPeerLoss?: boolean;
+
+        /** Called once the responder has answered the PBKDFParamRequest. */
+        onPbkdfParamResponse?: () => void;
     }
 }
