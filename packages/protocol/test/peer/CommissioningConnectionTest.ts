@@ -106,8 +106,28 @@ describe("CommissioningConnection", () => {
         });
 
         expect(discoveryData.deviceIdentifier).equals("a");
-        // All addresses of all devices are launched in parallel; within device "a", fd00::1 is tried before fd00::3.
         expect(attempts).deep.equals(["a:fd00::1", "a:fd00::3", "b:fd00::2"]);
+    });
+
+    it("credential failure skips later entries with the same deviceIdentifier", async () => {
+        const attempts = new Array<string>();
+
+        await expect(
+            CommissioningConnection({
+                devices: [device("a", [udp("fd00::1")]), device("b", [udp("fd00::2")]), device("a", [udp("fd00::3")])],
+                timeout: Seconds(2),
+                delayBeforeNextAddress: Seconds(1),
+                establishSession: async (address, discoveryData) => {
+                    attempts.push(`${discoveryData.deviceIdentifier}:${(address as ServerAddressUdp).ip}`);
+                    if (discoveryData.deviceIdentifier === "a") {
+                        throw new UnexpectedDataError("invalid credentials");
+                    }
+                    throw new NoResponseTimeoutError("temporary network error");
+                },
+            }),
+        ).rejectedWith(UnexpectedDataError);
+
+        expect(attempts).deep.equals(["a:fd00::1", "b:fd00::2"]);
     });
 
     it("throws UnexpectedDataError (not generic error) when all static candidates fail with wrong credentials", async () => {
