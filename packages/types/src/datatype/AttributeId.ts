@@ -21,7 +21,7 @@ export function AttributeId(attributeId: number, validate = true): AttributeId {
     if (!validate) {
         return attributeId as AttributeId;
     }
-    if (attributeId >= 0xf000 && attributeId <= 0xfffe) {
+    if (Number.isInteger(attributeId) && attributeId >= 0xf000 && attributeId <= 0xfffe) {
         return attributeId as AttributeId;
     }
     const { typeSuffix } = Mei.fromMei(attributeId);

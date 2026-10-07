@@ -27,6 +27,10 @@ export namespace Mei {
 
     /** Extract the vendor prefix and type suffix from a Manufacturer Extensible Identifier (MEI). */
     export const fromMei = (mei: number): { vendorPrefix: VendorId; typeSuffix: number } => {
+        if (!Number.isInteger(mei) || mei < 0 || mei > 0xffff_ffff) {
+            throw new ValidationOutOfBoundsError(`Invalid MEI ${mei}: an MEI is a 32-bit unsigned integer`);
+        }
+
         const vendorPrefix = mei >>> 16;
         if (vendorPrefix > 0xfff4) {
             throw new ValidationOutOfBoundsError(

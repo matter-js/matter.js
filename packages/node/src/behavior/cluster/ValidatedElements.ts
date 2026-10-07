@@ -134,6 +134,9 @@ export class ValidatedElements {
         }
 
         this.#validateSchema();
+        if (this.#cluster.id !== this.#schema.id) {
+            this.#validateId("cluster", this.#cluster.id, ClusterId);
+        }
         this.#validateAttributes();
         this.#validateCommands();
         this.#validateEvents();

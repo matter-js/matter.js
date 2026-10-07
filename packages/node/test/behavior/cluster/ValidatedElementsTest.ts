@@ -620,6 +620,17 @@ describe("ValidatedElements", () => {
             );
         });
 
+        it("refuses an illegal namespace cluster ID next to a legal schema", () => {
+            const type = ClusterBehavior.for(
+                ClusterType({ id: 0xfff1_0002, name: "IllegalNamespace", revision: 1 }),
+                makeCluster({}),
+            );
+
+            expect(validate(type).errors?.find(e => e.element.endsWith(".cluster"))?.message).match(
+                /Invalid cluster ID 0xfff10002/,
+            );
+        });
+
         it("accepts a command without a Matter ID", () => {
             const schema = makeCluster({ commands: { LocalOnly: { id: CommandElement.NO_ID, conformance: "O" } } });
 

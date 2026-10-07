@@ -77,6 +77,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/types
     - Enhancement: The cluster, attribute, command, event and MEI ID validators name the legal range in their error message
+    - Fix: The cluster, attribute, command, event, field and device type ID validators refuse values that are not 32-bit unsigned integers instead of accepting them after the bits wrapped
     - Breaking: Fields of an enum with a manufacturer range are typed `Enum | number`, and Illuminance Measurement `LightSensorType` is typed `LightSensorType | number`
     - Fix: A bitmap class such as `Groups.NameSupportAttribute` applies the defaults its members state, and one constructed from a number sets a multi-bit member at its full width and members above bit 31. An instance built from the default or a number names every conformant member and no other
     - Fix: `CommissioningOptions.Configuration.advertisementWindow` applies to windows an uncommissioned node opens itself and defaults to 48 hours; a commissioned node's own window stays open for 15 minutes
