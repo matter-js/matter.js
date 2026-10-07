@@ -17,7 +17,7 @@ export class CommandModel extends ValueModel<CommandElement> implements CommandE
     operationalResponse?: CommandModel | null;
 
     get fabricScoped() {
-        return !!this.effectiveAccess.fabric;
+        return this.effectiveAccess.fabricScoped;
     }
 
     get isRequest() {
