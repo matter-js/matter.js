@@ -209,7 +209,7 @@ export class MatterNode {
 
         this.#nodePromise = (async () => {
             const id = `shell-${this.#nodeNum.toString()}`;
-            const node = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
+            const node = await ServerNode.create(ServerNode.RootEndpointWithoutGroupcast.with(ControllerBehavior), {
                 environment: this.#nodeEnvironment,
                 id,
                 network: {
