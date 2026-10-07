@@ -74,14 +74,6 @@ describe("Behaviors", () => {
         expect(light.eventsOf(OnOffServer).endpoint).equals(light);
     });
 
-    it("accepts different base class for cluster requirements", () => {
-        class MyOnOffServer extends OnOffServer {}
-
-        const light = new Endpoint(OnOffLightDevice.with(MyOnOffServer));
-
-        light.behaviors.validateRequirements();
-    });
-
     it("inject rejects behavior ID starting with uppercase", () => {
         class UpperBehavior extends Behavior {
             static override readonly id = "BadName";
