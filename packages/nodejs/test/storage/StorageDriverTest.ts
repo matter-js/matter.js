@@ -187,6 +187,40 @@ describe("StorageDrivers", () => {
                 expect(await storage.keys(CONTEXTx3)).deep.equal([]);
             });
 
+            it("lists no context that clearAll emptied", async () => {
+                await storage.set(CONTEXTx3, "key", "value");
+
+                await storage.clearAll(CONTEXTx2);
+
+                expect(await storage.contexts(CONTEXTx1)).deep.equal([]);
+                expect(await storage.contexts([])).deep.equal([]);
+            });
+
+            it("lists no context that was only read", async () => {
+                await storage.keys(["ghost", "sub"]);
+                await storage.contexts(["ghost", "sub"]);
+
+                expect(await storage.contexts([])).deep.equal([]);
+                expect(await storage.contexts(["ghost"])).deep.equal([]);
+            });
+
+            it("lists no context whose last key was deleted", async () => {
+                await storage.set(CONTEXTx2, "key", "value");
+
+                await storage.delete(CONTEXTx2, "key");
+
+                expect(await storage.contexts(CONTEXTx1)).deep.equal([]);
+            });
+
+            it("deletes a key whose delete overlaps the first write of its context", async () => {
+                const writing = storage.set(["fresh"], "key", "value");
+                await storage.delete(["fresh"], "key");
+                await writing;
+
+                expect(await storage.keys(["fresh"])).deep.equal([]);
+                expect(await storage.contexts([])).deep.equal([]);
+            });
+
             it("Allows root-level keys with empty context", async () => {
                 await storage.set([], "key", "value");
                 assert.equal(await storage.get([], "key"), "value");
