@@ -18,6 +18,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: More global datatypes, such as `bool`, `epoch-us` and `Status`, carry their specification documentation and a precise section reference
 
 - @matter/general
+    - Fix: Ensure that `ObserverGroup.off()` removes an observer the group bound to a target, and that `has()` finds it
+    - Fix: Ensure that `ObservableValue.offError()` removes only the given handler and keeps other error handlers and pending awaiters
+    - Fix: Ensure that `Lifetime.details` keeps what is written to it and lifetime diagnostics show every detail
+    - Fix: Ensure that `MdnsSocket.close()` waits for message handlers that are still running
     - Fix: Supporting Timers with intervals longer than 2^31-1 ms (about 24.8 days)
     - Fix: DNS-SD discovery no longer takes records from the known-answer list of mDNS queries, its own looped-back queries included. A link-local address learned on one interface was stored under every interface such a query arrived on, so a controller could dial a node through the wrong interface and spend its connection attempt waiting for a timeout
     - Fix: `FormattedText` nests list items by their indent, so an item that outdents between two open levels sits beside the deeper level instead of below it, and an indented numbered list nests instead of merging into its parent

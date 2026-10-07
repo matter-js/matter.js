@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { LogFormat } from "#log/LogFormat.js";
 import { InternalError } from "#MatterError.js";
 import { Lifetime } from "#util/Lifetime.js";
 
@@ -31,6 +32,26 @@ describe("Lifetime", () => {
 
             expect(root.join("solo").name).equal("solo");
             expect(root.join("a", "b").name).deep.equal(["a", "b"]);
+        });
+    });
+
+    describe("details", () => {
+        it("keeps the details written to it", () => {
+            const lifetime = Lifetime.mock.join("test");
+            lifetime.details.state = "busy";
+
+            expect(lifetime.details).deep.equals({ state: "busy" });
+        });
+
+        it("presents its details, also those defined as non-enumerable", () => {
+            const lifetime = Lifetime.mock.join("test");
+            lifetime.details.state = "busy";
+            Object.defineProperty(lifetime.details, "via", { get: () => "peer" });
+
+            const presented = LogFormat.formats.plain([lifetime]);
+
+            expect(presented).contains("state: busy");
+            expect(presented).contains("via: peer");
         });
     });
 
