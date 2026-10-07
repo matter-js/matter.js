@@ -34,6 +34,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `UdpMulticastServer.create()` closes the sockets it already opened when it fails, such as the IPv4 socket when the IPv6 socket cannot be created
 
 - @matter/model
+    - Fix: Ensure that `AttributeModel.fabricScoped` is true only for `F` and `S` access and `CommandModel.fabricScoped` only for `F`; `AttributeModel.fabricSensitive` is added
     - Enhancement: `DecodedBitmap()` takes options to select members by conformance and, with `complete`, to name clear members as `false` or 0
     - Fix: `EncodedBitmap()`, `DecodedBitmap()` and a bitmap default built from member defaults place every member at its full width, the last bit of a multi-bit member and bits 31 to 63 included, and a member with no upper bound from its lowest bit. `DecodedBitmap` values may be a `bigint` where a number cannot hold a member exactly, and both functions take an optional `Scope` to resolve a bitmap datatype a cluster inherits
     - Enhancement: Model lookups (`clusters`, `deviceTypes`, `datatypes`, `fields` and `attributes` of a `MatterModel`; `attributes`, `commands`, `events`, `datatypes` and `fields` of a `ClusterModel`) reuse their index until the children of the model, of a model it derives from or, for attributes, of its root change, instead of rebuilding the model scope on each access. `Matter.clusters(id)` drops from about 180 µs to under 1 µs and `cluster.attributes(id)` from 50–110 µs to about 2 µs
@@ -125,9 +126,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: Ensure that a read of a fabric-sensitive list attribute returns only the accessing fabric's entries and removing a fabric deletes its entries from such lists
     - Fix: Ensure that `DescriptorServer.addTags` does not add a tag that is already listed and only updates its label when one is given
     - Fix: Ensure that `DescriptorServer.addDeviceTypes` does not list a device type a second time with another revision
     - Enhancement: The commissioning test harness (`MockSite`, `MockServerNode`, `MockExchange` and the node helpers) is exported at `@matter/node/testing`, for tests that run under `@matter/testing`
+    - Fix: `ClientNode.decommission()` no longer throws for a peer commissioned with `autoSubscribe` and `autoStateInitialize` disabled
     - Fix: A read that runs while a data report is still arriving no longer lets a descriptor in that report delete a cluster whose data came earlier in the same report
     - Fix: A peer's state drops the value of an attribute its `AttributeList` omits, such as one a firmware update removed, also when the value was cached before the list changed; such a cluster is read again in full after the controller starts. `Datasource.ExternallyMutableStore` has an optional `invalidateVersion()`
     - Fix: After a node restarts, the data reports of the client subscriptions it sets up again are no longer rejected, so changes arrive right away instead of only when a subscription times out and is re-established
@@ -211,6 +214,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/testing
     - Breaking: `forFlavor()` and `LogExpectOptions.flavor` take a `LogFlavor` (a `DeviceFlavor`, or `"chip"`/`"matterjs"`) instead of a string; `flavorFamily()` answers which family a flavor belongs to, and a flavor of neither family, such as `python-wrapped`, selects no variant
+    - Feature: `CommissioningTarget.withoutSubscription` commissions a certification peer without the sustained subscription and without waiting for one
     - Feature: `MockForwardFeatures.enableAll()` enables every forward feature for a whole run, for a harness that tests against peers of the next Matter line
     - Fix: CHIP test runs on one Docker daemon take turns with the shared harness containers instead of recreating each other's `chip` container, which ended the other run with exit code 137. A run holds a lock while it uses the harness and waits while another run holds it (`MATTER_CHIP_HARNESS_WAIT_MINUTES`, default 60; `0` fails at once with `HarnessBusyError` when another run holds it). The lock ends with the process that holds it; a lock that does not run for 30 s is left over and fails the run with the command that removes it
     - Fix: A certification step that made a controller call that may change the device and is then refused by the controller fails the run instead of being recorded as skipped, as a step that already recorded a check does
@@ -293,6 +297,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: A `BleScannerClient` may state via the new optional `isPeripheralReachable()` whether a peripheral it discovered can still be reached, and the scanner offers only reachable peripherals for commissioning. A transport that routes BLE through remote proxies no longer offers peripherals whose proxy is gone
     - Fix: A running BLE discovery is woken by any advertisement of a device matching its query, not only by an address it has never seen, so a device that becomes a candidate again during the discovery is handed to it. Each device is still offered once per discovery
     - Fix: A later BLE discovery no longer offers a device that was just commissioned over BLE, via the new optional `Scanner.forgetCommissionedDevice()`
+    - Fix: A later BLE discovery no longer offers a device that was just commissioned through another transport and advertises its vendor, as the commissioner passes the new `CommissionableDeviceIdentity` to `Scanner.forgetCommissionedDevice()`
     - Fix: A BLE peripheral silent through a minute of listening, as reported by the new optional `BleScannerClient.listeningTime`, is no longer offered for commissioning
     - Enhancement: New `BleListeningClock` accumulates a BLE client's scan time for `BleScannerClient.listeningTime`
     - Fix: A session or exchange ending because its transport connection dropped reports `TransportClosedError` instead of an untyped error
@@ -579,6 +584,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Giving up on a peripheral reports the last connection failure as cause
     - Fix: A disconnect that never completes no longer leaves the channel request pending forever
     - Fix: Aborting a BLE connection attempt now stops its retries and releases a link the attempt already established
+    - Fix: A peripheral that completes the BTP handshake but then never responds to data is retried once with the minimum BTP segment size instead of failing commissioning
+    - Fix: A pending ATT_MTU exchange is awaited briefly, so a late MTU no longer pins the BTP segment size to the minimum
+    - Fix: Opening a BLE channel no longer waits beyond the handshake timeout or an abort when the handshake write or subscribe never completes
     - Fix: Stopping an advertisement that was still waiting for the Bluetooth adapter retracts it, so the adapter powering on no longer starts an advertisement that was already given up on
     - Fix: Shutdown no longer hangs when Bluetooth is enabled but no adapter is usable; the Bluetooth driver is now always stopped, which releases the handle that kept the process alive
 
@@ -595,6 +603,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: New `CertificateAuthority.erase()` discards the authority's key material, persisted and in memory
     - Enhancement: A discovered commissionable device reports the `hostname` its SRV record names
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it; defaults to the previous fixed 4m15s
+    - Breaking: `BtpSessionHandler.createAsCentral()` requires the segment size offered in the handshake request and rejects an invalid one with `ImplementationError`
+    - Enhancement: `BtpSessionHandler.stalledAfterHandshake` reports a peer that answers the handshake and then nothing else, carrying the messages it never acknowledged
+    - Enhancement: New `BtpSessionHandler.suspend()` ends a BTP session without closing the BLE connection
+    - Enhancement: New `BtpCodec.isHandshakeResponse()` identifies a BTP handshake response without a session to decode against
+    - Fix: A central BTP session never uses a segment size larger than the one it offered
+    - Fix: A failed write to the BLE transport closes the BTP session
     - Fix: Cancelling BLE commissioning aborts the in-flight channel open
     - Fix: A concrete subscription path is reported only when that attribute changed; it was previously reported whenever any other attribute of the same cluster changed
     - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves

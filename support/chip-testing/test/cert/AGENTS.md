@@ -1087,6 +1087,12 @@ narrowed it to that one option (autoSubscribe:false present and hanging vs. abse
 completing in under 5 minutes). Don't reach for `autoSubscribe: false` again for a chip-flavor
 concern; whatever it's meant to fix, it costs the entire chip-local run.
 
+**One per-peer exception.** `CommissioningTarget.withoutSubscription` leaves a single commissioned
+peer without the subscription and skips the wait for it. TC-ACT-3.2 sets it, because CHIP's bridge
+app cannot answer the subscription's priming read; that TC runs on chip-local with the flag. It is
+not a run-wide setting, and a test case that sets it may only use the calls that go straight to the
+device (the flag's JSDoc lists them).
+
 What actually fixes `decommission()` refusing at cleanup (the bug `autoSubscribe: false` was
 originally shipped for) is `keepSubscriptions: true` on this TC's own subscribes
 (`InProcessCertNodeApi.subscribe`, `InProcessControllerAdapter.ts`) — verified alone, with
@@ -2477,7 +2483,7 @@ re-establishes is one the peer must serve over TCP — a step that read without 
 over MRP and still find a session to report.
 
 **Its claim is not attributable from the device's log, and trying was a dead end worth recording.**
-The cert adapter leaves sustained subscriptions on, so a controller re-establishes a session on its
+The cert adapter leaves sustained subscriptions on for these cases, so a controller re-establishes a session on its
 own schedule — a lost subscription reconnects by establishing one. A check that matches a
 CASE-establishment line and calls it this step's therefore races either way around whatever mark it
 takes: a mark before the reconnect matches a line the step's read did not cause, and a mark after it

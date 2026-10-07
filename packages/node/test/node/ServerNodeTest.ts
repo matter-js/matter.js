@@ -9,6 +9,7 @@ import { EventsBehavior } from "#behavior/system/events/EventsBehavior.js";
 import { DescriptorBehavior } from "#behaviors/descriptor";
 import { OnOffServer } from "#behaviors/on-off";
 import { PumpConfigurationAndControlServer } from "#behaviors/pump-configuration-and-control";
+import { WebRtcTransportProviderServer } from "#behaviors/web-rtc-transport-provider";
 import { ColorTemperatureLightDevice } from "#devices/color-temperature-light";
 import { ExtendedColorLightDevice } from "#devices/extended-color-light";
 import { LightSensorDevice } from "#devices/light-sensor";
@@ -75,7 +76,7 @@ import {
     SessionManager,
     Val,
 } from "@matter/protocol";
-import { EndpointNumber, FabricId, FabricIndex, NodeId, VendorId } from "@matter/types";
+import { EndpointNumber, FabricId, FabricIndex, NodeId, StreamUsage, VendorId } from "@matter/types";
 import { BasicInformation as BasicInformationCluster } from "@matter/types/clusters/basic-information";
 import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configuration-and-control";
 
@@ -1123,6 +1124,39 @@ describe("ServerNode", () => {
         expect(lastCommissionedFabricCount).equals(2);
         expect(lastCommissionedFabricIndex).equals(2);
         expect(lastFabricsCount).equals(2);
+
+        await node.close();
+    });
+
+    it("removes the entries of a removed fabric from a fabric-sensitive list", async () => {
+        const camera = new Endpoint(OnOffLightDevice.with(WebRtcTransportProviderServer), { id: "camera" });
+        const node = await MockServerNode.createOnline(undefined, { device: camera });
+        const { contextOptions } = await commissioning.commission(node);
+        (node.env.get(Crypto) as MockCrypto).index++;
+        await commissioning.commission(node, 2);
+
+        const session = (id: number, fabricIndex: number) => ({
+            id,
+            peerNodeId: NodeId(id),
+            peerEndpointId: EndpointNumber(1),
+            streamUsage: StreamUsage.LiveView,
+            videoStreams: [10],
+            metadataEnabled: false,
+            fabricIndex: FabricIndex(fabricIndex),
+        });
+        await camera.set({ webRtcTransportProvider: { currentSessions: [session(1, 1), session(2, 2)] } });
+
+        const sanitized = Promise.resolve(ServerEnvironment.fabricScopedDataSanitized);
+        await node.online(contextOptions, async agent => {
+            await agent.operationalCredentials.removeFabric({ fabricIndex: FabricIndex(1) });
+        });
+        await sanitized;
+
+        expect(
+            camera
+                .stateOf(WebRtcTransportProviderServer)
+                .currentSessions.map(({ id, fabricIndex }) => [id, fabricIndex]),
+        ).deep.equals([[2, 2]]);
 
         await node.close();
     });
