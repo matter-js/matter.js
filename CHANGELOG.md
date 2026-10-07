@@ -260,6 +260,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The chip-tool YAML test shim of the matter.js controller reports the FeatureMap bits a device sets; it reported every FeatureMap as 0. Writes and commands encode a bitmap a step gives as a number, and the value of a multi-bit field, instead of sending 0 or 1
     - Fix: The YAML test controllers no longer space their exchanges with a peer 100 ms apart, matching chip-tool
     - Fix: The chip-tool YAML test shim of the matter.js controller sends a write as a timed write when its step declares `timedInteractionTimeoutMs`
+    - Enhancement: Tests get 10 s before they time out instead of Mocha's 2 s default
+    - Fix: `MockTime.resolve` holds virtual time while a `Blob` is read, as it does for crypto, so a slow host no longer expires protocol timeouts during a read
+    - Fix: A `MockTime.resolve` left running by a test that timed out stops moving the clock once the next test starts, instead of failing the tests that follow
 
 - @matter/examples
     - Fix: The composed OnOff device example creates as many endpoints as `--num` asks for (default 2) instead of one fewer; a node stored by an earlier run gains the missing endpoint on its next start

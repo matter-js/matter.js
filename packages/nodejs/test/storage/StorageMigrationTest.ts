@@ -29,7 +29,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
-const TEST_STORAGE_LOCATION = resolve(tmpdir(), "matterjs-test-storage");
+let storageRoot: string;
 
 const CONTEXTx1 = ["context"];
 const CONTEXTx2 = [...CONTEXTx1, "subcontext"];
@@ -45,19 +45,19 @@ const driverFactories: DriverFactory[] = [
     {
         name: "file",
         async create(namespace) {
-            const path = resolve(TEST_STORAGE_LOCATION, namespace);
+            const path = resolve(storageRoot, namespace);
             const storage = new FileStorageDriver(path);
             await storage.initialize();
             return storage;
         },
         async remove(namespace) {
-            await rm(resolve(TEST_STORAGE_LOCATION, namespace), { recursive: true, force: true });
+            await rm(resolve(storageRoot, namespace), { recursive: true, force: true });
         },
     },
     {
         name: "wal",
         async create(namespace) {
-            const path = resolve(TEST_STORAGE_LOCATION, namespace);
+            const path = resolve(storageRoot, namespace);
             await mkdir(path, { recursive: true });
             const fs = new NodeJsFilesystem(path);
             const storage = new WalStorageDriver(undefined, {
@@ -68,7 +68,7 @@ const driverFactories: DriverFactory[] = [
             return storage;
         },
         async remove(namespace) {
-            await rm(resolve(TEST_STORAGE_LOCATION, namespace), { recursive: true, force: true });
+            await rm(resolve(storageRoot, namespace), { recursive: true, force: true });
         },
     },
 ];
@@ -77,13 +77,13 @@ if (supportsSqlite()) {
     driverFactories.push({
         name: "sqlite",
         async create(namespace) {
-            const path = resolve(TEST_STORAGE_LOCATION, `${namespace}.db`);
+            const path = resolve(storageRoot, `${namespace}.db`);
             const storage = new SqliteStorageDriver({ namespaceOrPath: path });
             await storage.initialize();
             return storage;
         },
         async remove(namespace) {
-            await rm(resolve(TEST_STORAGE_LOCATION, `${namespace}.db`), { recursive: true, force: true });
+            await rm(resolve(storageRoot, `${namespace}.db`), { recursive: true, force: true });
         },
     });
 }
@@ -101,7 +101,7 @@ describe("StorageMigration", () => {
     }
 
     before(async () => {
-        await mkdir(TEST_STORAGE_LOCATION, { recursive: true });
+        storageRoot = await mkdtemp(resolve(tmpdir(), "matterjs-storage-migration-test-"));
     });
 
     for (const pair of testPairs) {
@@ -199,13 +199,13 @@ describe("StorageMigration", () => {
         const blobData2 = new Uint8Array([0xde, 0xad, 0xbe, 0xef, 0x01, 0x02]);
 
         afterEach(async () => {
-            await rm(resolve(TEST_STORAGE_LOCATION, sourceNs), { recursive: true, force: true });
-            await rm(resolve(TEST_STORAGE_LOCATION, targetNs), { recursive: true, force: true });
+            await rm(resolve(storageRoot, sourceNs), { recursive: true, force: true });
+            await rm(resolve(storageRoot, targetNs), { recursive: true, force: true });
         });
 
         it("migrates blobs from flat file format to directory structure", async () => {
             // Create a FileStorageDriver with KV data and blob data mixed together
-            const sourcePath = resolve(TEST_STORAGE_LOCATION, sourceNs);
+            const sourcePath = resolve(storageRoot, sourceNs);
             const source = new FileStorageDriver(sourcePath);
             await source.initialize();
 
@@ -230,7 +230,7 @@ describe("StorageMigration", () => {
             await source.writeBlobFromStream(["bin", "fff1", "8000"], "test", stream2);
 
             // Create target blob storage
-            const targetPath = resolve(TEST_STORAGE_LOCATION, targetNs);
+            const targetPath = resolve(storageRoot, targetNs);
             await mkdir(targetPath, { recursive: true });
             const targetFs = new NodeJsFilesystem(targetPath);
             const target = DirectoryBlobStorageDriver.create(new DatafileRoot(targetFs.directory(".")), {
@@ -264,13 +264,13 @@ describe("StorageMigration", () => {
         const blobData = new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]);
 
         afterEach(async () => {
-            await rm(resolve(TEST_STORAGE_LOCATION, ns), { recursive: true, force: true });
+            await rm(resolve(storageRoot, ns), { recursive: true, force: true });
         });
 
         it("reads WAL-format blobs directly with DirectoryBlobStorageDriver", async () => {
             // Simulate WAL's blobs/ directory structure manually:
             // blobs/<encoded-context1>/<encoded-context2>/<key>
-            const blobsRoot = resolve(TEST_STORAGE_LOCATION, ns);
+            const blobsRoot = resolve(storageRoot, ns);
             const blobDir = resolve(blobsRoot, "bin", "fff1", "8000");
             await mkdir(blobDir, { recursive: true });
             await writeFile(resolve(blobDir, "prod"), blobData);
@@ -311,7 +311,7 @@ describe("StorageMigration", () => {
 
         it("migrates dir blobs via blob→blob migration", async () => {
             // Create directory-format source
-            const sourceRoot = resolve(TEST_STORAGE_LOCATION, `${ns}-src`);
+            const sourceRoot = resolve(storageRoot, `${ns}-src`);
             const sourceDir = resolve(sourceRoot, "ctx1", "ctx2");
             await mkdir(sourceDir, { recursive: true });
             await writeFile(resolve(sourceDir, "myblob"), blobData);
@@ -323,7 +323,7 @@ describe("StorageMigration", () => {
             await source.initialize();
 
             // Create target
-            const targetRoot = resolve(TEST_STORAGE_LOCATION, `${ns}-tgt`);
+            const targetRoot = resolve(storageRoot, `${ns}-tgt`);
             await mkdir(targetRoot, { recursive: true });
             const targetFs = new NodeJsFilesystem(targetRoot);
             const target = DirectoryBlobStorageDriver.create(new DatafileRoot(targetFs.directory(".")), {
@@ -417,13 +417,13 @@ describe("StorageMigration", () => {
                 const targetBase = `test_blob_${pair.source.name}_to_${pair.target.name}_tgt`;
 
                 afterEach(async () => {
-                    await pair.source.cleanup(resolve(TEST_STORAGE_LOCATION, sourceBase));
-                    await pair.target.cleanup(resolve(TEST_STORAGE_LOCATION, targetBase));
+                    await pair.source.cleanup(resolve(storageRoot, sourceBase));
+                    await pair.target.cleanup(resolve(storageRoot, targetBase));
                 });
 
                 it("migrates blobs preserving data and structure", async () => {
-                    const sourcePath = resolve(TEST_STORAGE_LOCATION, sourceBase);
-                    const targetPath = resolve(TEST_STORAGE_LOCATION, targetBase);
+                    const sourcePath = resolve(storageRoot, sourceBase);
+                    const targetPath = resolve(storageRoot, targetBase);
 
                     const source = await pair.source.create(sourcePath);
                     const target = await pair.target.create(targetPath);
@@ -478,12 +478,12 @@ describe("StorageMigration", () => {
             const targetNs = "test_kv_to_dir_blob_tgt";
 
             afterEach(async () => {
-                await rm(resolve(TEST_STORAGE_LOCATION, sourceNs), { recursive: true, force: true });
-                await rm(resolve(TEST_STORAGE_LOCATION, targetNs), { recursive: true, force: true });
+                await rm(resolve(storageRoot, sourceNs), { recursive: true, force: true });
+                await rm(resolve(storageRoot, targetNs), { recursive: true, force: true });
             });
 
             it("extracts blobs from FileStorageDriver KV to DirectoryBlobStorageDriver", async () => {
-                const sourcePath = resolve(TEST_STORAGE_LOCATION, sourceNs);
+                const sourcePath = resolve(storageRoot, sourceNs);
                 const source = new FileStorageDriver(sourcePath);
                 await source.initialize();
 
@@ -508,7 +508,7 @@ describe("StorageMigration", () => {
                 await source.writeBlobFromStream(["bin", "fff1", "8000"], "test", stream2);
 
                 // Create target
-                const targetPath = resolve(TEST_STORAGE_LOCATION, targetNs);
+                const targetPath = resolve(storageRoot, targetNs);
                 await mkdir(targetPath, { recursive: true });
                 const targetFs = new NodeJsFilesystem(targetPath);
                 const target = DirectoryBlobStorageDriver.create(new DatafileRoot(targetFs.directory(".")), {
@@ -539,7 +539,7 @@ describe("StorageMigration", () => {
 
     // Cleanup
     after(async () => {
-        await rm(TEST_STORAGE_LOCATION, { recursive: true, force: true });
+        await rm(storageRoot, { recursive: true, force: true });
     });
 });
 
