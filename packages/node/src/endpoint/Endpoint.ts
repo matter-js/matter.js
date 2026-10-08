@@ -1123,7 +1123,8 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         // Sanity checks
         this.assertConstructable();
 
-        if (this.#number !== undefined) {
+        // Number 0 is the node root's own; a nested claimant of it is refused at insertion
+        if (this.#number !== undefined && this.#number !== 0) {
             IndexBehavior.assertNumberAvailable(this, this.#number);
         }
 

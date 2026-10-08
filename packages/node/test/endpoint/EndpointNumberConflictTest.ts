@@ -11,6 +11,7 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { IdentityConflictError } from "#endpoint/errors.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
+import { RootEndpoint } from "#endpoints/root";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ImplementationError, Lifecycle } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
@@ -74,6 +75,15 @@ describe("EndpointNumberConflict", () => {
             const { deleted } = await refuseClaimant(node);
             expect(deleted).deep.equals([]);
         });
+    });
+
+    it("refuses a child that claims endpoint number 0", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+
+        await expect(node.add(RootEndpoint, { id: "nestedRoot", number: 0 })).rejectedWith(IdentityConflictError);
+
+        expect(node.endpoints.for(0)).equals(node);
+        expect(holderOf(node, 0)).undefined;
     });
 
     it("refuses a duplicate preset number in a tree built before start", async () => {
