@@ -23,6 +23,7 @@ import {
     Lifecycle,
     Lifetime,
     Logger,
+    MatterAggregateError,
     MaybePromise,
     Observable,
     toHex,
@@ -1013,22 +1014,40 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         return visitChildren() as T;
     }
 
+    /**
+     * Destroy the endpoint and its parts.
+     *
+     * Every teardown step runs even when an earlier one fails.  A failed deactivation rejects with a
+     * {@link MatterAggregateError}; failures while destroying the endpoint, its parts and its behaviors are logged.
+     */
     async close() {
         this.lifecycle.change(EndpointLifecycle.Change.Destroying);
-        await this.env.get(EndpointInitializer).deactivateDescendant(this);
-        await this.#construction.close();
+        await MatterAggregateError.settleSeries(
+            [
+                () => this.env.maybeGet(EndpointInitializer)?.deactivateDescendant(this),
+                () => this.#construction.close(),
+            ],
+            `Error closing endpoint ${this}`,
+        );
     }
 
     async [Construction.destruct]() {
-        await this.#parts?.close();
-        await this.#behaviors?.close();
-
-        for (const id in this.#events) {
-            this.#events[id][Symbol.dispose]();
-        }
-
-        this.lifecycle.change(EndpointLifecycle.Change.Destroyed);
-        this.#owner = undefined;
+        await MatterAggregateError.settleSeries(
+            [
+                () => this.#parts?.close(),
+                () => this.#behaviors?.close(),
+                () => {
+                    for (const id in this.#events) {
+                        this.#events[id][Symbol.dispose]();
+                    }
+                },
+                () => {
+                    this.lifecycle.change(EndpointLifecycle.Change.Destroyed);
+                    this.#owner = undefined;
+                },
+            ],
+            `Error destroying endpoint ${this}`,
+        );
     }
 
     async [Symbol.asyncDispose]() {

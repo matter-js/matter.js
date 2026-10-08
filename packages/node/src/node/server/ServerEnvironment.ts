@@ -94,35 +94,35 @@ export namespace ServerEnvironment {
      *
      * The order below is load-bearing and was arrived at through a series of shutdown defects.  Treat it as fixed:
      * {@link NodeServices} installs most of these but deliberately does not sequence their closure, because the
-     * services it installs interleave with services it does not.
+     * services it installs interleave with services it does not.  Every step runs even when an earlier one fails, so
+     * no step may assume that its predecessors succeeded.
      */
     export async function close(node: ServerNode) {
         const { env } = node;
 
-        await env.close(FabricManager);
-        await env.close(PeerSet);
-        if (env.owns(ClientSubscriptions)) {
-            await env.close(ClientSubscriptions);
-        }
-        await env.close(ChangeNotificationService);
-        await env.close(SessionManager);
-        await env.close(OccurrenceManager);
-        await env.close(BindingManager);
+        await MatterAggregateError.settleSeries(
+            [
+                () => env.close(FabricManager),
+                () => env.close(PeerSet),
+                () => (env.owns(ClientSubscriptions) ? env.close(ClientSubscriptions) : undefined),
+                () => env.close(ChangeNotificationService),
+                () => env.close(SessionManager),
+                () => env.close(OccurrenceManager),
+                () => env.close(BindingManager),
 
-        // Flush and stop client cache buffering before closing storage
-        if (env.has(ClientCacheBuffer)) {
-            await env.get(ClientCacheBuffer).close();
-        }
+                // Flush and stop client cache buffering before closing storage
+                () => (env.has(ClientCacheBuffer) ? env.get(ClientCacheBuffer).close() : undefined),
 
-        await env.close(ServerNodeStore);
-        await env.close(NodeServices);
-        await env.close(FabricAuthority);
-        await env.close(CertificateAuthority);
+                () => env.close(ServerNodeStore),
+                () => env.close(NodeServices),
+                () => env.close(FabricAuthority),
+                () => env.close(CertificateAuthority),
 
-        // Release the env-held lock (from storage.lock) if one was acquired
-        if (env.has(DatafileRoot.Lock)) {
-            await env.get(DatafileRoot.Lock).close();
-        }
+                // Release the env-held lock (from storage.lock) if one was acquired
+                () => (env.has(DatafileRoot.Lock) ? env.get(DatafileRoot.Lock).close() : undefined),
+            ],
+            `Error closing services of ${node}`,
+        );
     }
 }
 

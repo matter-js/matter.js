@@ -5,8 +5,11 @@
  */
 
 import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
+import { DescriptorServer } from "#behaviors/descriptor";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
+import { ImplementationError, Lifecycle } from "@matter/general";
 import { MockEndpointType } from "../../behavior/mock-behavior.js";
 import { MockEndpoint } from "../mock-endpoint.js";
 
@@ -38,6 +41,17 @@ async function assembleIncrementally(
     expect(child.number).equals(3);
 }
 
+function failDeactivationOf(endpoint: Endpoint) {
+    const initializer = endpoint.env.get(EndpointInitializer);
+    const deactivate = initializer.deactivateDescendant.bind(initializer);
+    initializer.deactivateDescendant = async descendant => {
+        if (descendant === endpoint) {
+            throw new ImplementationError(`Cannot deactivate ${endpoint}`);
+        }
+        await deactivate(descendant);
+    };
+}
+
 describe("Parts", () => {
     it("adopts parts", async () => {
         await using parent = createParent();
@@ -65,6 +79,50 @@ describe("Parts", () => {
         await child.close();
 
         expect(parts.size).equals(0);
+    });
+
+    it("closes every part when one fails to close", async () => {
+        await using parent = createParent();
+        await parent.construction;
+
+        const failing = createParentAndChild();
+        const child = createChild();
+        parent.parts.add(failing);
+        parent.parts.add(child);
+        await child.construction;
+        failDeactivationOf(failing);
+
+        await expect(parent.parts.close()).rejected;
+
+        expect(failing.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(child.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(parent.parts.size).equals(0);
+    });
+
+    it("destroys an endpoint whose part fails to close", async () => {
+        let behaviorClosed = false;
+        class TrackedServer extends DescriptorServer {
+            override async [Symbol.asyncDispose]() {
+                behaviorClosed = true;
+            }
+        }
+
+        await using grandparent = createParent();
+        await grandparent.construction;
+
+        const parent = new MockEndpoint(MockEndpointType.with(TrackedServer), { number: 2, owner: undefined });
+        grandparent.parts.add(parent);
+        const child = createChild();
+        parent.parts.add(child);
+        await child.construction;
+        failDeactivationOf(child);
+
+        await parent.close();
+
+        expect(behaviorClosed).equals(true);
+        expect(parent.owner).equals(undefined);
+        expect(child.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(grandparent.parts.size).equals(0);
     });
 
     it("bubbles initialization", async () => {
