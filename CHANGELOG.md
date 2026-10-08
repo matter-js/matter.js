@@ -148,6 +148,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: `ChangeNotificationService` reports nothing once its node begins destruction, so consumers such as the shell no longer see every endpoint of every peer as deleted on shutdown
     - Fix: AddNOC and UpdateNOC answer `InvalidNodeOpId` for a NOC whose node ID is outside the operational range
     - Fix: AddNOC answers `InvalidAdminSubject` for a CASE Authenticated Tag with version 0 as admin subject
     - Fix: AddNOC answers `InvalidCommand` for admin vendor ID 0x0000 or above 0xFFF4

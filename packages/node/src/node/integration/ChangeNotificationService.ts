@@ -21,13 +21,23 @@ import { EventNumber, Priority } from "@matter/types";
  *
  * This service provides an optimized path to detecting property changes for all endpoints associated with a node.  This
  * includes endpoints on peers.
+ *
+ * The service reports nothing once its node begins destruction.  Destruction destroys every endpoint, peers included,
+ * and that teardown is not a removal of the endpoints.
  */
 export class ChangeNotificationService {
     #change = new Observable<[changes: ChangeNotificationService.Change]>();
+    #nodeDestroying = false;
     #nodeObservers = new Map<Node, NodeObserver>();
-    #peerObservers = new ObserverGroup();
+    #observers = new ObserverGroup();
 
     constructor(node: ServerNode) {
+        this.#observers.on(node.construction.change, status => {
+            if (status === Lifecycle.Status.Destroying) {
+                this.#nodeDestroying = true;
+            }
+        });
+
         this.#beginNodeObservation(node);
 
         if (node.lifecycle.isReady) {
@@ -49,7 +59,7 @@ export class ChangeNotificationService {
      */
     broadcastUpdate(backing: BehaviorBacking, properties: string[]) {
         const { endpoint, type: behavior } = backing;
-        this.#change.emit({
+        this.#emit({
             kind: "update",
             endpoint,
             behavior,
@@ -67,7 +77,7 @@ export class ChangeNotificationService {
         event: EventModel,
         occurrence: ChangeNotificationService.OccurrenceProperties,
     ) {
-        this.#change.emit({
+        this.#emit({
             kind: "event",
             endpoint,
             behavior,
@@ -81,7 +91,7 @@ export class ChangeNotificationService {
             observer.close();
         }
         this.#nodeObservers.clear();
-        this.#peerObservers.close();
+        this.#observers.close();
     }
 
     #beginNodeObservation(node: Node) {
@@ -93,10 +103,16 @@ export class ChangeNotificationService {
             node,
             new NodeObserver(
                 node,
-                change => this.#change.emit(change),
+                change => this.#emit(change),
                 () => this.#nodeObservers.delete(node),
             ),
         );
+    }
+
+    #emit(change: ChangeNotificationService.Change) {
+        if (!this.#nodeDestroying) {
+            this.#change.emit(change);
+        }
     }
 
     #beginPeerObservation(node: ServerNode) {
@@ -105,7 +121,7 @@ export class ChangeNotificationService {
         for (const peer of peers) {
             this.#beginNodeObservation(peer);
         }
-        this.#peerObservers.on(peers.added, this.#beginNodeObservation.bind(this));
+        this.#observers.on(peers.added, this.#beginNodeObservation.bind(this));
     }
 }
 
@@ -230,7 +246,8 @@ export namespace ChangeNotificationService {
     /**
      * Emits when endpoints/nodes are deleted.
      *
-     * This indicates to the recipient to drop the associated data subtree.
+     * This indicates to the recipient to drop the associated data subtree.  Like every other change, it is not reported
+     * once the service's node begins destruction.
      */
     export interface EndpointDelete {
         kind: "delete";
