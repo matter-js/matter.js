@@ -75,6 +75,14 @@ export namespace CaseAuthenticatedTag {
     /** Gets the version number (lower 16 bits) of the CaseAuthenticatedTag. */
     export const getVersion = (tag: CaseAuthenticatedTag) => tag & 0xffff;
 
+    /**
+     * Whether a value is a valid CaseAuthenticatedTag: a 32-bit unsigned integer with a version other than 0.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.6.2.1.2
+     */
+    export const isValid = (value: number): value is CaseAuthenticatedTag =>
+        Number.isInteger(value) && value >= 0 && value <= 0xffff_ffff && (value & 0xffff) !== 0;
+
     /** Increases the version number (lower 16 bits) of the CaseAuthenticatedTag by 1. */
     export const increaseVersion = (tag: CaseAuthenticatedTag) => {
         const version = getVersion(tag);

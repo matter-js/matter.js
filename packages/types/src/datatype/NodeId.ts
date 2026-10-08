@@ -91,12 +91,23 @@ export namespace NodeId {
         return nodeIdHex.startsWith("fffffffd") && nodeIdHex.length === 16;
     };
 
+    const caseAuthenticatedTagValueOf = (nodeId: SubjectId) => parseInt(nodeId.toString(16).slice(8), 16);
+
     export const extractAsCaseAuthenticatedTag = (nodeId: SubjectId): CaseAuthenticatedTag => {
         if (!isCaseAuthenticatedTag(nodeId)) {
             throw new UnexpectedDataError(`Invalid CASE Authenticated tag: ${nodeId}`);
         }
-        return CaseAuthenticatedTag(parseInt(nodeId.toString(16).slice(8), 16));
+        return CaseAuthenticatedTag(caseAuthenticatedTagValueOf(nodeId));
     };
+
+    /**
+     * Whether a subject is in the CASE Authenticated Tag range and carries a valid tag, i.e. one with a version other
+     * than 0.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.6.2.1.2
+     */
+    export const isValidCaseAuthenticatedTag = (nodeId: SubjectId) =>
+        isCaseAuthenticatedTag(nodeId) && CaseAuthenticatedTag.isValid(caseAuthenticatedTagValueOf(nodeId));
 
     /**
      * This subrange of Node ID is used to assign an access control subject to a particular PAKE key as specified in
