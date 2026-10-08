@@ -37,7 +37,7 @@ export class LegacyControllerSite {
      * Adds an On/Off Light device on the shared network and starts it.
      */
     addDevice(options?: MockServerNode.Options<MockServerNode.RootEndpoint>) {
-        return this.#site.addDevice({ simulator: this.#simulator, ...options });
+        return this.#site.addDevice({ ...options, simulator: this.#simulator });
     }
 
     /**
