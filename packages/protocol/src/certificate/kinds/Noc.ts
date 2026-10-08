@@ -12,6 +12,13 @@ import { Icac } from "./Icac.js";
 import { OperationalBase } from "./OperationalBase.js";
 import { Rcac } from "./Rcac.js";
 
+/**
+ * Thrown when the matter-node-id of a NOC is outside the Operational Node ID range.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 11.18.6.7.1
+ */
+export class OperationalNodeIdError extends CertificateError {}
+
 export class Noc extends OperationalBase<OperationalCertificate.Noc> {
     /** Construct the class from a Tlv version of the certificate */
     static fromTlv(tlv: Bytes) {
@@ -74,7 +81,7 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
         }
         // The matter-node-id attribute’s value SHALL be in the Operational Node ID
         if (!NodeId.isOperationalNodeId(nodeId)) {
-            throw new CertificateError(`Invalid nodeId in NoC certificate: ${Diagnostic.json(nodeId)}`);
+            throw new OperationalNodeIdError(`Invalid nodeId in NoC certificate: ${Diagnostic.json(nodeId)}`);
         }
 
         // The subject DN SHALL encode exactly one matter-fabric-id attribute.

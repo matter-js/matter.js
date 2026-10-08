@@ -29,6 +29,7 @@ import {
     MatterFabricConflictError,
     MatterFabricInvalidAdminSubjectError,
     NodeSession,
+    OperationalNodeIdError,
     PublicKeyError,
     TlvAttestation,
     TlvCertSigningRequest,
@@ -175,6 +176,11 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
                 statusCode: OperationalCredentials.NodeOperationalCertStatus.TableFull,
                 debugText: error.message,
             };
+        } else if (error instanceof OperationalNodeIdError) {
+            return {
+                statusCode: OperationalCredentials.NodeOperationalCertStatus.InvalidNodeOpId,
+                debugText: error.message,
+            };
         } else if (
             error instanceof CryptoVerifyError ||
             error instanceof CertificateError ||
@@ -207,6 +213,13 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
         adminVendorId,
     }: OperationalCredentials.AddNocRequest) {
         assertRemoteActor(this.context);
+
+        if (!VendorId.isOperational(adminVendorId)) {
+            throw new StatusResponseError(
+                `AdminVendorId 0x${adminVendorId.toString(16)} is reserved`,
+                Status.InvalidCommand,
+            );
+        }
 
         const failsafeContext = this.#failsafeContext;
 
@@ -501,7 +514,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
                 "At least one of vendorId, vidVerificationStatement or vvsc must be provided",
             );
         }
-        if (vendorId !== undefined && !VendorId.isValid(vendorId)) {
+        if (vendorId !== undefined && !VendorId.isOperational(vendorId)) {
             throw new StatusResponse.ConstraintErrorError(`Invalid vendorId: ${vendorId}`);
         }
 

@@ -40,4 +40,20 @@ describe("CaseAuthenticatedTag", () => {
     it("should throw an error when creating a CaseAuthenticatedTag with version number 0", () => {
         expect(() => CaseAuthenticatedTag(0x12340000)).to.throw("CaseAuthenticatedTag version number must not be 0.");
     });
+
+    describe("isValid", () => {
+        it("accepts a tag with a version other than 0", () => {
+            expect(CaseAuthenticatedTag.isValid(0x1234_0001)).equals(true);
+        });
+
+        it("refuses a tag with version 0", () => {
+            expect(CaseAuthenticatedTag.isValid(0x1234_0000)).equals(false);
+        });
+
+        it("refuses values that are not 32-bit unsigned integers", () => {
+            expect(CaseAuthenticatedTag.isValid(-1)).equals(false);
+            expect(CaseAuthenticatedTag.isValid(0x1_0000_0001)).equals(false);
+            expect(CaseAuthenticatedTag.isValid(1.5)).equals(false);
+        });
+    });
 });
