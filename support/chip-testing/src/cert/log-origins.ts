@@ -97,7 +97,12 @@ function registrationFor(message: Diagnostic.Message) {
 export function OriginDestination(name: string, kind: LogOriginKind, fallback: (text: string) => void) {
     return LogDestination({
         name,
-        format: LogFormat.formats.plain,
+        // Cert patterns that anchor on "<facility> <text>" need claimed lines unlabelled; a claimed line's participant is
+        // implied by the log it lands in, an unclaimed line keeps its label as the only clue to which node wrote it
+        format: message =>
+            LogFormat.formats.plain(
+                registrationFor(message) === undefined ? message : { ...message, origin: undefined },
+            ),
 
         // A participant's log is evidence, not console noise, so it carries what a component logs per operation --
         // a session evicted with its connection, for one -- which the level a person watches a run at leaves out
