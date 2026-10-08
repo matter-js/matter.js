@@ -112,7 +112,7 @@ jobs:
           steps.marker.outputs.present != 'true'
         run: |
           sha="$(cat support/chip/sha.txt 2> /dev/null || true)"
-          if [ -n "$sha" ] && docker manifest inspect "ghcr.io/matter-js/chip:$sha" > /dev/null; then
+          if [[ "$sha" =~ ^[0-9a-f]{40}$ ]] && docker manifest inspect "ghcr.io/matter-js/chip:$sha" > /dev/null; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
