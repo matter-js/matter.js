@@ -576,13 +576,16 @@ export class CommissioningController {
                 logger.warn(`Decommissioning node ${nodeId} failed with error, remove node anyway: ${error}`);
             }
         }
-        await MatterAggregateError.settleSeries(
-            [() => node?.close(!decommissionSuccess), () => controller.removeNode(nodeId)],
-            `Error removing node ${nodeId}`,
-        );
-        if (node !== undefined) {
-            this.#initializedNodes.delete(node.id);
-            this.#nodeChangeObservers.delete(node.id);
+        try {
+            await MatterAggregateError.settleSeries(
+                [() => node?.close(!decommissionSuccess), () => controller.removeNode(nodeId)],
+                `Error removing node ${nodeId}`,
+            );
+        } finally {
+            if (node !== undefined) {
+                this.#initializedNodes.delete(node.id);
+                this.#nodeChangeObservers.delete(node.id);
+            }
         }
     }
 

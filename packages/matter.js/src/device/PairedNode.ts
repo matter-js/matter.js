@@ -1485,13 +1485,6 @@ export class PairedNode {
         this.#observers.close();
         this.#updateEndpointStructureTimer.stop();
 
-        // Not awaited: close() also runs from the node's own decommissioning, which holds the node's lock until it
-        // returns.  Stopping rather than disabling keeps the persisted subscription setting for the next start
-        MaybePromise.catch(
-            () => this.#clientNode.stop(),
-            error => logger.warn(this.#peerAddress, "Error stopping node of closed paired node", error),
-        );
-
         try {
             if (sendDecommissionedStatus) {
                 this.#handleNodeDecommissioning();

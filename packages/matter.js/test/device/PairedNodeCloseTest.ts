@@ -7,20 +7,12 @@
 import { CommissioningController } from "#CommissioningController.js";
 import { NodeStateInformation, NodeStates, PairedNode } from "#device/PairedNode.js";
 import { ImplementationError, Lifecycle, MatterAggregateError, MatterError, Seconds, Time } from "@matter/general";
-import { ChangeNotificationService, ClusterBehavior, NetworkClient, Node, ServerNode } from "@matter/node";
-import { OnOffServer } from "@matter/node/behaviors/on-off";
+import { ChangeNotificationService, ClusterBehavior, NetworkClient, Node } from "@matter/node";
 import { settled } from "@matter/node/testing";
 import { LegacyControllerSite } from "../util/LegacyControllerSite.js";
 
 class StateCallbackError extends MatterError {}
 class HandlerError extends MatterError {}
-
-function activeSubscriptionsOf(device: ServerNode) {
-    return Object.values(device.state.sessions.sessions).reduce(
-        (count, { numberOfActiveSubscriptions }) => count + numberOfActiveSubscriptions,
-        0,
-    );
-}
 
 function networkOf(node: PairedNode) {
     return node.node.stateOf(NetworkClient);
@@ -162,24 +154,6 @@ describe("PairedNode close", () => {
     });
 
     describe("of a subscribed node", () => {
-        it("ends the subscription, also on the device", async () => {
-            await using site = new LegacyControllerSite();
-            const { controller, device, nodeId } = await site.addCommissionedPair();
-            const node = await MockTime.resolve(controller.connectNode(nodeId), { macrotasks: true });
-            await MockTime.resolve(node.events.initialized, { macrotasks: true });
-            expect(activeSubscriptionsOf(device)).equals(1);
-
-            node.close();
-            await idle(controller, node);
-            const [light] = device.parts;
-            await MockTime.resolve(light.setStateOf(OnOffServer, { onOff: true }), { macrotasks: true });
-            await idle(controller, node);
-
-            expect(node.node.behaviors.internalsOf(NetworkClient).activeSubscription).undefined;
-            expect(activeSubscriptionsOf(device)).equals(0);
-            expect(networkOf(node).autoSubscribe).true;
-        });
-
         it("finishes closing when a decommissioned handler throws", async () => {
             await using site = new LegacyControllerSite();
             const { controller, nodeId } = await site.addCommissionedPair();
