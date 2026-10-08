@@ -9,12 +9,12 @@ import { ThermostatDevice } from "#devices/thermostat";
 import { Endpoint } from "#endpoint/index.js";
 import { Bytes } from "@matter/general";
 import { AccessLevel, AttributeElement, AttributeModel } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { AttributeWriteResponse, CommandInvokeResponse, Fabric, Invoke, InvokeResult, Write } from "@matter/protocol";
 import { AttributeId, FabricIndex, NodeId, Status, TlvOfModel } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { AtomicWriteHandler } from "../../../src/behaviors/thermostat/AtomicWriteHandler.js";
-import { MockServerNode } from "../../node/mock-server-node.js";
 import { newPreset } from "./preset-helpers.js";
 
 const PresetsServer = ThermostatServer.with("Heating", "Cooling", "AutoMode", "Presets");

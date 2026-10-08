@@ -31,6 +31,7 @@ import {
 import {
     AcceptedCommandList,
     AttributeList,
+    ClusterModel,
     ClusterRevision,
     DeviceClassification,
     EndpointComposition,
@@ -242,8 +243,13 @@ export class ClientStructure {
 
     /**
      * Inject version filters into a Read or Subscribe request.
+     *
+     * A subscription does not report changes of an attribute with the changes-omitted quality, so the cached value of
+     * such an attribute is as of the last full report of its cluster, and a matching cluster version does not mean it
+     * is current. With {@link options.refreshChangesOmitted} a cluster in which the peer has such an attribute gets no
+     * filter, so the read returns the peer's current values.
      */
-    injectVersionFilters<T extends Read>(request: T): T {
+    injectVersionFilters<T extends Read>(request: T, options?: { refreshChangesOmitted?: boolean }): T {
         const scope = ReadScope(request);
         let result = request;
 
@@ -251,11 +257,16 @@ export class ClientStructure {
             endpoint: { number: endpointId },
             clusters,
         } of this.#endpoints.values()) {
-            for (const {
-                id: clusterId,
-                store: { version },
-            } of clusters.values()) {
+            for (const cluster of clusters.values()) {
+                const {
+                    id: clusterId,
+                    store: { version },
+                } = cluster;
                 if (!scope.isRelevant(endpointId, clusterId)) {
+                    continue;
+                }
+
+                if (options?.refreshChangesOmitted && hasChangesOmittedAttribute(cluster)) {
                     continue;
                 }
 
@@ -431,23 +442,15 @@ export class ClientStructure {
             try {
                 const state = this.#node.state as Record<string, unknown>;
                 const network = state?.network as undefined | Record<string, unknown>;
-                const defaultSubscription = network?.defaultSubscription as
-                    | undefined
-                    | { isFabricFiltered?: boolean; fabricFiltered?: boolean };
-                if (defaultSubscription) {
-                    this.#subscribedFabricFiltered =
-                        ("isFabricFiltered" in defaultSubscription
-                            ? defaultSubscription.isFabricFiltered
-                            : "fabricFiltered" in defaultSubscription
-                              ? defaultSubscription.fabricFiltered
-                              : true) ?? true;
-                }
+                this.#subscribedFabricFiltered = ClientStructure.isFabricFiltered(
+                    network?.defaultSubscription as undefined | object,
+                );
 
                 const events = this.#node.events as Record<string, unknown>;
                 const networkEvents = events?.network as undefined | Record<string, unknown>;
                 const changedEvent = networkEvents?.defaultSubscription$Changed as undefined | Observable;
-                changedEvent?.on((newSubscription: undefined | { isFabricFiltered?: boolean }) => {
-                    this.#subscribedFabricFiltered = newSubscription?.isFabricFiltered ?? true;
+                changedEvent?.on((newSubscription: undefined | object) => {
+                    this.#subscribedFabricFiltered = ClientStructure.isFabricFiltered(newSubscription);
                 });
             } catch {
                 // Not a ClientNode or network behavior not available; default to true
@@ -773,8 +776,10 @@ export class ClientStructure {
                     cluster.features = features as FeatureBitmap;
                 }
 
-                if (Array.isArray(attributeList) && attributeList.length) {
-                    cluster.attributes = (attributeList.filter(attr => typeof attr === "number") as AttributeId[]).sort(
+                const reportedList = Array.isArray(attributeList) && attributeList.length ? attributeList : undefined;
+                cluster.attributeListReported = reportedList !== undefined;
+                if (reportedList !== undefined) {
+                    cluster.attributes = (reportedList.filter(attr => typeof attr === "number") as AttributeId[]).sort(
                         (a, b) => a - b,
                     );
                 } else {
@@ -1283,34 +1288,49 @@ export class ClientStructure {
      * A part named by an ordinary endpoint's list is that endpoint's child. A part named only by
      * full-family lists is a child of the innermost of them — but only once every endpoint those lists
      * name has reported its own parts, because until then a list naming it says no more than that it
-     * is somewhere below. An undecided claim stays for a later interaction to settle.
+     * is somewhere below. A part is placed only below an owner that is itself placed, so it is never
+     * installed or announced below an endpoint that is not on the node. A claim that is undecided, or
+     * whose owner is not placed yet, stays for a later interaction to settle.
      */
     #resolvePartClaims() {
-        for (const [part, claimants] of [...this.#partClaims]) {
-            // Nothing is reparented: an endpoint the peer has already placed keeps its parent, and
-            // Matter has no operation that would move it (Core § 9.2.3's single-parent requirement)
-            if (this.#ownerOf(part) !== undefined) {
+        let placedAny: boolean;
+        do {
+            placedAny = false;
+            for (const [part, claimants] of [...this.#partClaims]) {
+                // Nothing is reparented: an endpoint the peer has already placed keeps its parent, and
+                // Matter has no operation that would move it (Core § 9.2.3's single-parent requirement)
+                if (this.#ownerOf(part) !== undefined) {
+                    this.#partClaims.delete(part);
+                    continue;
+                }
+
+                const owner = this.#ownerFor(part, claimants);
+                if (owner === undefined || !this.#isPlaced(owner)) {
+                    continue;
+                }
+
                 this.#partClaims.delete(part);
-                continue;
+
+                // The root names every endpoint the peer has, and its removal scan runs while attribute
+                // data is read — before this. Installing a part the root no longer names would resurrect
+                // an endpoint that scan has already passed over.
+                if (!this.#isOnTheNode(part)) {
+                    continue;
+                }
+
+                part.pendingOwner = owner;
+                this.#scheduleStructureChange(part, "install");
+                placedAny = true;
             }
+        } while (placedAny);
+    }
 
-            const owner = this.#ownerFor(part, claimants);
-            if (owner === undefined) {
-                continue;
-            }
-
-            this.#partClaims.delete(part);
-
-            // The root names every endpoint the peer has, and its removal scan runs while attribute
-            // data is read — before this. Installing a part the root no longer names would resurrect
-            // an endpoint that scan has already passed over.
-            if (!this.#isOnTheNode(part)) {
-                continue;
-            }
-
-            part.pendingOwner = owner;
-            this.#scheduleStructureChange(part, "install");
-        }
+    /**
+     * Whether `structure` is the root or has an owner, installed or pending. An owner is only ever
+     * assigned to a placed endpoint, so its chain of owners reaches the root.
+     */
+    #isPlaced(structure: EndpointStructure) {
+        return structure.endpoint.maybeNumber === 0 || this.#ownerOf(structure) !== undefined;
     }
 
     /**
@@ -1540,6 +1560,23 @@ export class ClientStructure {
 
 export namespace ClientStructure {
     /**
+     * Whether the sustained subscription `defaultSubscription` describes is fabric filtered. The cache stores values
+     * only from interactions with the same fabric filter, so a read meant to update it has to use this one.
+     */
+    export function isFabricFiltered(defaultSubscription: undefined | object): boolean {
+        if (defaultSubscription === undefined) {
+            return true;
+        }
+        if ("isFabricFiltered" in defaultSubscription) {
+            return defaultSubscription.isFabricFiltered !== false;
+        }
+        if ("fabricFiltered" in defaultSubscription) {
+            return defaultSubscription.fabricFiltered !== false;
+        }
+        return true;
+    }
+
+    /**
      * Creates a {@link Datasource.ExternallyMutableStore} for a behavior on an endpoint.
      */
     export type StoreFactory = (
@@ -1581,6 +1618,9 @@ interface ClusterStructure extends Partial<PeerBehavior.DiscoveredClusterShape> 
     pendingBehavior?: ClusterBehavior.Type;
     pendingDelete?: boolean;
     store: Datasource.ExternallyMutableStore;
+
+    /** Whether {@link attributes} is the peer's `AttributeList` rather than the IDs of the values it sent. */
+    attributeListReported?: boolean;
 }
 
 /**
@@ -1618,4 +1658,30 @@ interface ClusterEvent {
     subkind: "add" | "delete" | "replace";
     endpoint: EndpointStructure;
     cluster: ClusterStructure;
+}
+
+const changesOmittedIdsOf = new WeakMap<ClusterModel, Set<number>>();
+
+/**
+ * Whether the peer has an attribute with the changes-omitted quality in {@link cluster}. Without the peer's
+ * `AttributeList` every such attribute of the model counts.
+ */
+function hasChangesOmittedAttribute(cluster: ClusterStructure) {
+    const schema = cluster.behavior?.schema;
+    if (!(schema instanceof ClusterModel)) {
+        return false;
+    }
+
+    let ids = changesOmittedIdsOf.get(schema);
+    if (ids === undefined) {
+        ids = new Set(
+            schema.attributes.filter(attribute => attribute.changesOmitted === true).map(attribute => attribute.id),
+        );
+        changesOmittedIdsOf.set(schema, ids);
+    }
+
+    if (!ids.size) {
+        return false;
+    }
+    return !cluster.attributeListReported || !!cluster.attributes?.some(id => ids.has(id));
 }

@@ -12,12 +12,13 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
 import type { ClientEndpointInitializer } from "#node/client/ClientEndpointInitializer.js";
+import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { AcceptedCommandList, AttributeList, ClusterRevision, FeatureMap, GeneratedCommandList } from "@matter/model";
+import { MockSite } from "@matter/node/testing";
 import { Read, ReadResult } from "@matter/protocol";
 import { AttributeId, EndpointNumber, TlvAny } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
-import { MockSite } from "./mock-site.js";
 
 const BridgedLightDevice = OnOffLightDevice.with(BridgedDeviceBasicInformationServer);
 
@@ -472,6 +473,27 @@ describe("a peer that changes what it says between interactions", () => {
         expect(treeOf(peer)).deep.equals([]);
     });
 
+    it("places an aggregator's devices in the same interaction when they have lower numbers", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        const aggregator = 50;
+        const sensors = [40, 41];
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, [...sensors, aggregator], 10)],
+                    descriptorReports(aggregator, AggregatorEndpoint.deviceType, 3, sensors, 10),
+                    ...sensors.map(number => descriptorReports(number, TemperatureSensorDevice.deviceType, 2, [], 10)),
+                ),
+            ),
+        );
+
+        expect(treeOf(peer)).deep.equals([`/ep${aggregator}`, ...sensors.map(n => `/ep${aggregator}/ep${n}`)]);
+    });
+
     it("waits for a claimant's device types before reading its list as parenthood", async () => {
         const { site, peer, structure, request } = await peerOf();
         await using _site = site;
@@ -882,6 +904,64 @@ describe("a peer that reports an aggregator below an aggregator", () => {
         );
 
         expect(treeOf(peer)).deep.equals(NESTED_BRIDGE_TREE);
+    });
+
+    it("announces no endpoint below an aggregator that is not on the node yet", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        const announced = new Array<number>();
+        const detached = new Array<number>();
+        peer.env
+            .get(ClientStructureEvents)
+            .endpointInstalled(BridgedNodeEndpoint)
+            .on(endpoint => {
+                announced.push(endpoint.number);
+                let ancestor: Endpoint | undefined = endpoint;
+                while (ancestor !== undefined && ancestor !== peer) {
+                    ancestor = ancestor.owner;
+                }
+                if (ancestor === undefined) {
+                    detached.push(endpoint.number);
+                }
+            });
+
+        const silent = DALI_LIGHTS[DALI_LIGHTS.length - 1];
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, ROOT_PARTS, 10)],
+                    ...nestedBridgeReports(10).filter(reports => reports[0].path.endpointId !== silent),
+                ),
+            ),
+        );
+
+        expect(announced, "no endpoint is announced while one endpoint of the bridge has said nothing").deep.equals([]);
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    descriptorReports(
+                        silent,
+                        [
+                            { deviceType: BridgedNodeEndpoint.deviceType, revision: 3 },
+                            { deviceType: DIMMABLE_LIGHT_DEVICE_TYPE, revision: 3 },
+                        ],
+                        3,
+                        [],
+                        10,
+                    ),
+                ),
+            ),
+        );
+
+        expect(detached, "every announced endpoint is below the node").deep.equals([]);
+        expect([...new Set(announced)].sort((a, b) => a - b)).deep.equals(
+            [...ZIGBEE_LIGHTS, DALI_AGGREGATOR, ...DALI_LIGHTS, ...ZWAVE_LIGHTS].sort((a, b) => a - b),
+        );
     });
 
     it("takes the aggregator device type of an endpoint that is also a bridged node", async () => {

@@ -55,7 +55,10 @@ export namespace MatterBle {
      */
     export const BTP_CONN_RSP_TIMEOUT = Seconds(15); // timer starts when receives handshake request & waits for a subscription request on c2
 
-    /** The maximum amount of time after receipt of a segment before a stand-alone ACK must be sent. */
+    /**
+     * The maximum amount of time after receipt of a segment before a stand-alone ACK must be sent. Also the duration of
+     * the acknowledgement-received timer (§4.19.4.8).
+     */
     export const BTP_ACK_TIMEOUT = Seconds(15); // timer in ms before ack should be sent for a segment
 
     export const BTP_SEND_ACK_TIMEOUT = Millis(BTP_ACK_TIMEOUT / 3); // timer starts when we receive a packet and stops when we sends its ack

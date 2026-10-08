@@ -6,7 +6,7 @@
 
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { Icac } from "#certificate/kinds/Icac.js";
-import { Noc } from "#certificate/kinds/Noc.js";
+import { Noc, OperationalNodeIdError } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
 import { Bytes, MemoryStorageDriver, StandardCrypto, StorageContext, StorageManager } from "@matter/general";
 import { CaseAuthenticatedTag, FabricId, NodeId } from "@matter/types";
@@ -37,6 +37,24 @@ describe("CertificateAuthority", () => {
             const nocCert = Noc.fromTlv(noc);
             expect(BigInt(nocCert.cert.issuer.rcacId!)).equal(BigInt(0));
             expect(nocCert.cert.issuer.icacId).undefined;
+        });
+
+        it("refuses a NOC whose node ID is outside the operational range", async () => {
+            const ca = await CertificateAuthority.create(crypto);
+            const keyPair = await crypto.createKeyPair();
+            const noc = await ca.generateNoc(keyPair.publicKey, FabricId(1n), NodeId(0xffff_ffff_0000_0001n));
+
+            await expect(Noc.fromTlv(noc).verify(crypto, Rcac.fromTlv(ca.rootCert))).rejectedWith(
+                OperationalNodeIdError,
+            );
+        });
+
+        it("verifies a NOC whose node ID is in the operational range", async () => {
+            const ca = await CertificateAuthority.create(crypto);
+            const keyPair = await crypto.createKeyPair();
+            const noc = await ca.generateNoc(keyPair.publicKey, FabricId(1n), NodeId(100n));
+
+            await Noc.fromTlv(noc).verify(crypto, Rcac.fromTlv(ca.rootCert));
         });
 
         it("persists and loads from storage", async () => {

@@ -5,7 +5,15 @@
  */
 
 import { IdentityConflictError } from "#node/server/IdentityService.js";
-import { BasicSet, decamelize, Diagnostic, ImmutableSet, MutableSet, ObservableSet } from "@matter/general";
+import {
+    BasicSet,
+    decamelize,
+    Diagnostic,
+    ImmutableSet,
+    MatterAggregateError,
+    MutableSet,
+    ObservableSet,
+} from "@matter/general";
 import { Endpoint } from "../Endpoint.js";
 
 /**
@@ -117,8 +125,13 @@ export class EndpointContainer<T extends Endpoint = Endpoint>
      * Destroy all parts.  Invoked automatically by the owner on destroy.
      */
     async close() {
+        await MatterAggregateError.settleSeries(this.#closeTasks(), `Error closing endpoints owned by ${this.#owner}`);
+    }
+
+    // Iterates the live set, so an endpoint added while closing is closed too
+    *#closeTasks() {
         for (const endpoint of this) {
-            await endpoint.close();
+            yield () => endpoint.close();
         }
     }
 

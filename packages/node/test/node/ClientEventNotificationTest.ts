@@ -12,6 +12,7 @@ import { PeerBehavior } from "#node/client/PeerBehavior.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { FeatureBitmap } from "@matter/model";
+import { MockSite } from "@matter/node/testing";
 import { ReadResult } from "@matter/protocol";
 import {
     AttributeId,
@@ -24,7 +25,6 @@ import {
     TlvAny,
 } from "@matter/types";
 import { Switch } from "@matter/types/clusters/switch";
-import { MockSite } from "./mock-site.js";
 
 describe("Client Event Notification", () => {
     before(() => MockTime.init());

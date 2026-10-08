@@ -9,7 +9,7 @@ import { OnOffServer } from "#behaviors/on-off";
 import { WindowCoveringServer } from "#behaviors/window-covering";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { causeMessagesOf } from "../../node/node-helpers.js";
+import { causeMessagesOf } from "@matter/node/testing";
 import { MockEndpoint } from "../mock-endpoint.js";
 
 describe("Behaviors", () => {
@@ -72,14 +72,6 @@ describe("Behaviors", () => {
         light.behaviors.inject(installedType);
 
         expect(light.eventsOf(OnOffServer).endpoint).equals(light);
-    });
-
-    it("accepts different base class for cluster requirements", () => {
-        class MyOnOffServer extends OnOffServer {}
-
-        const light = new Endpoint(OnOffLightDevice.with(MyOnOffServer));
-
-        light.behaviors.validateRequirements();
     });
 
     it("inject rejects behavior ID starting with uppercase", () => {

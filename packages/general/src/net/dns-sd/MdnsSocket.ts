@@ -268,17 +268,15 @@ export class MdnsSocket {
             return;
         }
 
-        let promise = this.#receipt.emit({
+        const result = this.#receipt.emit({
             ...parsed,
             sourceIp,
             sourceIntf,
         }) as MaybePromise;
 
-        if (MaybePromise.is(promise)) {
-            if (this.#handlers === undefined) {
-                this.#handlers = new Set();
-            }
-            promise = Promise.resolve(promise).finally(() => this.#handlers?.delete(promise as PromiseLike<void>));
+        if (MaybePromise.is(result)) {
+            const handler: Promise<void> = Promise.resolve(result).finally(() => this.#handlers?.delete(handler));
+            (this.#handlers ??= new Set()).add(handler);
         }
     }
 }

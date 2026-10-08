@@ -19,7 +19,13 @@ import { camelize } from "../../util/string.js";
 import { addDocumentation } from "./add-documentation.js";
 import { repairConformance } from "./repairs/aspect-repairs.js";
 import { ClusterReference, SpecReference, Table } from "./spec-types.js";
-import { accessModifierOf, translateDatatype, translateFields, translateValueChildren } from "./translate-datatype.js";
+import {
+    accessModifierOf,
+    translateDatatype,
+    translateEnumRanges,
+    translateFields,
+    translateValueChildren,
+} from "./translate-datatype.js";
 import { Alias, Details, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
 import {
     CompactStr,
@@ -477,12 +483,19 @@ function translateNamespace(definition: ClusterReference, elements: Array<Cluste
         return;
     }
 
+    // Mode Base states the manufacturer range of its status codes in a section of its own
+    const statusRanges = new Array<FieldElement>();
+
     for (const section of definition.namespace) {
         let name;
         let type;
         let table: Table | undefined;
 
         switch (camelize(section.name).toLowerCase()) {
+            case "modebasestatuscoderanges":
+                statusRanges.push(...translateEnumRanges(section.tables));
+                continue;
+
             case "modenamespace": // Mode Base cluster
             case "modetags": // Derivative clusters
                 // The first table in the "mode namespace" section describes ranges.  Skip if we encounter this
@@ -523,7 +536,16 @@ function translateNamespace(definition: ClusterReference, elements: Array<Cluste
                 return;
             }
 
+            children.push(...translateEnumRanges(section.tables));
+
             elements.push(DatatypeElement({ name, type, children }));
         });
+    }
+
+    if (statusRanges.length) {
+        const status = elements.find(
+            (element): element is DatatypeElement => element.tag === "datatype" && element.name === "ModeChangeStatus",
+        );
+        status?.children?.push(...statusRanges);
     }
 }

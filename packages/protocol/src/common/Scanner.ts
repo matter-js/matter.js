@@ -25,6 +25,13 @@ import { SupportedTransportsBitmap, SupportedTransportsSchema } from "./Supporte
  * Names are from the Matter specification.
  */
 export type DiscoveryData = {
+    /**
+     * Long discriminator of a commissionable device
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.3.7.6
+     */
+    D?: number;
+
     /** VendorId + ProductId */
     VP?: string;
 
@@ -167,6 +174,25 @@ export type CommissionableDevice = DiscoverableDevice<ServerAddress> & {
 };
 
 /**
+ * What identifies a commissionable device independently of the transport that discovered it.
+ */
+export interface CommissionableDeviceIdentity {
+    /**
+     * Long discriminator
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.3.7.6
+     */
+    D: number;
+
+    /**
+     * VendorId + ProductId, or only the VendorId
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.3.7.7
+     */
+    VP: string;
+}
+
+/**
  * Identifier to use to discover a commissionable device.
  *
  * Use the most specific identifier available.
@@ -224,6 +250,16 @@ export interface Scanner {
      * be over.
      */
     cancelCommissionableDeviceDiscovery(identifier: CommissionableDeviceIdentifiers, resolvePromise?: boolean): void;
+
+    /**
+     * Forget the device reachable at these addresses, if the scanner's records describe a commissioning window
+     * rather than an operational device. Called once a commissioning succeeded. A device that advertises again is
+     * discovered again.
+     *
+     * The identity, when known, also covers records of the device under other addresses, such as its BLE
+     * advertisement when it was commissioned over the network.
+     */
+    forgetCommissionedDevice?(addresses: readonly ServerAddress[], identity?: CommissionableDeviceIdentity): void;
 
     /** Close the scanner server and free resources. */
     close(): Promise<void>;

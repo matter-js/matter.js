@@ -72,7 +72,9 @@ import {
     FabricAuthority,
     FabricManager,
     OperationalAddress,
+    PasscodeMismatchError,
     PeerAddress,
+    PeerCommunicationError,
     PeerDescriptor,
     PeerSet,
     PhysicalDeviceProperties,
@@ -342,7 +344,7 @@ export class MatterController {
 
         this.#construction = Construction(this, async () => {
             // Now after all Legacy stuff is prepared, initialize the ServerNode
-            this.#node = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
+            this.#node = await ServerNode.create(ServerNode.RootEndpointWithoutGroupcast.with(ControllerBehavior), {
                 environment,
                 id,
                 network: {
@@ -619,9 +621,12 @@ export class MatterController {
                 logger.warn("PASE channel established via known address", paseSession.via, paseSession.isSecure);
                 return paseSession;
             } catch (error) {
-                // Intentional: fall back to full discovery when the known address is stale, unreachable, or
-                // points to a different device.  Re-throw on unexpected errors (e.g. config problems).
-                if (!causedBy(error, UnexpectedDataError, RetransmissionLimitReachedError)) {
+                // A passcode mismatch is final even when a stale address caused it: discovery fails the same way and
+                // costs the device more failed PASE attempts
+                if (
+                    causedBy(error, PasscodeMismatchError) ||
+                    !causedBy(error, UnexpectedDataError, RetransmissionLimitReachedError, PeerCommunicationError)
+                ) {
                     throw error;
                 }
             }

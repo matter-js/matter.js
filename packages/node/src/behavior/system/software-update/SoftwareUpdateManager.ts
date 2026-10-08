@@ -221,10 +221,10 @@ export class SoftwareUpdateManager extends Behavior {
         const delay = Millis(Seconds(Math.floor(Math.random() * 300)) + Minutes(5));
         logger.info(`Scheduling first OTA update check in ${Duration.format(delay)}`);
         this.internal.checkForUpdateTimer?.stop();
-        this.internal.checkForUpdateTimer = Time.getTimer(
+        this.internal.checkForUpdateTimer = this.reactorTimer(
             "initializeUpdateCheck",
             delay,
-            this.callback(this.#initializeUpdateCheck),
+            this.#initializeUpdateCheck,
         ).start();
     }
 
@@ -265,10 +265,10 @@ export class SoftwareUpdateManager extends Behavior {
         }
 
         this.internal.checkForUpdateTimer.stop();
-        this.internal.checkForUpdateTimer = Time.getPeriodicTimer(
+        this.internal.checkForUpdateTimer = this.periodicReactorTimer(
             "checkAvailableUpdates",
             this.state.updateCheckInterval,
-            this.callback(this.checkForUpdates),
+            this.checkForUpdates,
         ).start();
     }
 
@@ -920,10 +920,10 @@ export class SoftwareUpdateManager extends Behavior {
             });
             if (!this.internal.updateQueueTimer?.isRunning) {
                 // Start a periodic timer to check for stalled updates
-                this.internal.updateQueueTimer = Time.getPeriodicTimer(
+                this.internal.updateQueueTimer = this.periodicReactorTimer(
                     "checkQueuedUpdates",
                     Minutes(5),
-                    this.callback(this.#triggerQueuedUpdate),
+                    this.#triggerQueuedUpdate,
                 ).start();
             }
         }
@@ -1268,8 +1268,6 @@ export class SoftwareUpdateManager extends Behavior {
 
     override async [Symbol.asyncDispose]() {
         this.internal.suppressUpdates = true;
-        this.internal.checkForUpdateTimer?.stop();
-        this.internal.updateQueueTimer?.stop();
         await this.internal.announcements?.close();
         this.internal.versionUpdateObservers.close();
         this.internal.rebootResubscribeArmer?.[Symbol.dispose]();

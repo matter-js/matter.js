@@ -195,6 +195,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         this.reactTo(node.lifecycle.commissioned, this.#scheduleInitialQuery);
 
         this.internal.applyPreparedUpdate = this.callback(this.#applyPreparedUpdate, { offline: true });
+        this.internal.updateProgress = this.callback(this.#updateProgress, { lock: true });
     }
 
     async getDownloadLocation(): Promise<PersistedFileDesignator> {
@@ -515,12 +516,8 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             delay = this.state.updateQueryInterval;
         }
 
-        logger.info(`Scheduling OTA update query in ${delay} (reason "${ScheduleReason[reason]}")`);
-        this.internal.updateQueryTimer = Time.getTimer(
-            "OTA Request",
-            delay,
-            this.callback(this.#performUpdateQuery),
-        ).start();
+        logger.info(`Scheduling OTA update query in ${Duration.format(delay)} (reason "${ScheduleReason[reason]}")`);
+        this.internal.updateQueryTimer = this.reactorTimer("OTA Request", delay, this.#performUpdateQuery).start();
         return true;
     }
 
@@ -567,8 +564,24 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         return ep;
     }
 
-    /** Perform an actual update query */
+    /** Perform an actual update query unless one is still running */
     async #performUpdateQuery() {
+        // A query can run for hours while it waits for a delay the provider requested; a query timer that fires
+        // meanwhile must not start a second one
+        if (this.internal.queryRunning) {
+            logger.info("OTA update query is still running, skipping the new query");
+            return;
+        }
+
+        this.internal.queryRunning = true;
+        try {
+            await this.#queryForUpdate();
+        } finally {
+            this.internal.queryRunning = false;
+        }
+    }
+
+    async #queryForUpdate() {
         // Every query passes here, so none starts while applyUpdate runs outside the query's transaction
         if (this.state.updateState === OtaSoftwareUpdateRequestor.UpdateState.Applying) {
             logger.info("OTA update is being applied, skipping update query");
@@ -964,7 +977,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
                 });
 
                 // We report progress 0..99%, 100% we only report when finished
-                bdx.progressInfo.on(this.callback(this.#updateProgress, { lock: true }));
+                bdx.progressInfo.on(this.internal.updateProgress);
                 bdx.progressFinished.on(bytesTransferred =>
                     logger.info(`OTA download finished after ${bytesTransferred} bytes`),
                 );
@@ -1291,7 +1304,6 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
     }
 
     override async [Symbol.asyncDispose]() {
-        this.internal.updateQueryTimer?.stop();
         this.internal.updateDelayPromise?.cancel(new MatterError("Update Requestion cluster shuts down"));
         await super[Symbol.asyncDispose]?.();
     }
@@ -1386,6 +1398,9 @@ export namespace OtaSoftwareUpdateRequestorServer {
         /** Timer for the next update query */
         updateQueryTimer: Timer | undefined;
 
+        /** Whether an update query runs, including its download and the delays the provider requests */
+        queryRunning = false;
+
         /**
          * The preferred provider to use for the next update query.
          * Mainly used for the Busy case to reuse the same provider for the next try.
@@ -1405,6 +1420,9 @@ export namespace OtaSoftwareUpdateRequestorServer {
          * It is initialized from the state or with an internal default on startup.
          */
         downloadLocation!: PersistedFileDesignator;
+
+        /** Reports download progress in a dedicated transaction */
+        updateProgress!: (bytesDownloaded: number, totalBytes?: number) => void;
 
         /** Applies a prepared update in a dedicated transaction */
         applyPreparedUpdate?: (newSoftwareVersion: number, fileDesignator: PersistedFileDesignator) => void;

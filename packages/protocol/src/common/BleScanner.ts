@@ -13,15 +13,24 @@ import {
     Logger,
     MaybePromise,
     Millis,
+    Minutes,
     Seconds,
+    ServerAddress,
     Time,
     Timer,
     Timespan,
+    Timestamp,
+    withTimeout,
 } from "@matter/general";
 import { VendorId } from "@matter/types";
 import { BleError } from "../ble/Ble.js";
 import { BtpCodec } from "../codec/BtpCodec.js";
-import { CommissionableDevice, CommissionableDeviceIdentifiers, Scanner } from "./Scanner.js";
+import {
+    CommissionableDevice,
+    CommissionableDeviceIdentifiers,
+    CommissionableDeviceIdentity,
+    Scanner,
+} from "./Scanner.js";
 
 const logger = Logger.get("BleScanner");
 
@@ -41,6 +50,17 @@ export interface BleScannerClient {
      * stays either way, so a peripheral becomes a candidate again as soon as it is reachable again.
      */
     isPeripheralReachable?(address: string): boolean;
+
+    /**
+     * Time this client spent listening, meaning its radio scanned and it reported every advertisement it received.
+     * A record only states that a device went silent when its age is measured in this time.
+     *
+     * A client that reports a peripheral once per scan, or that cannot tell how long its radio scanned, omits this.
+     * Its records then remain candidates while a discovery is pending, and are forgotten {@link RECORD_MAX_AGE} after
+     * the later of their last report and the end of the last discovery. An address the device rotated away from is
+     * dropped after elapsed time.
+     */
+    readonly listeningTime?: Duration;
 }
 
 export type CommissionableDeviceData = CommissionableDevice & {
@@ -53,29 +73,66 @@ export type DiscoveredBleDevice = {
     hasAdditionalAdvertisementData: boolean;
 };
 
-type StoredDiscoveredBleDevice = DiscoveredBleDevice & {
-    serviceDataHex: string;
-    lastSeen: number;
+type RecordWaiter = {
+    resolver: () => void;
+    rejecter: (error: unknown) => void;
+    timer?: Timer;
+    cancelResolver?: (value: void) => void;
 };
 
-/** Entries older than this are treated as dead addresses when matching service data arrives from a new address. */
+type StoredDiscoveredBleDevice = DiscoveredBleDevice & {
+    serviceDataHex: string;
+
+    /** When the peripheral last advertised, for ordering and for recognizing an address it rotated away from. */
+    lastSeen: Timestamp;
+
+    /** The client's listening time when the peripheral last advertised, absent if the client reports none. */
+    seenAt?: Duration;
+};
+
+/**
+ * A record silent for longer than this is dropped once its service data arrives from another address, and is no
+ * longer a candidate if the client reports listening time. Silence is measured in that listening time, otherwise in
+ * elapsed time.
+ */
 const STALE_ENTRY_AGE = Seconds(60);
+
+/**
+ * A record is forgotten after this much listening time without an advertisement, or, for a client that reports no
+ * listening time, after this much time since the later of its last report and the end of the last discovery. It is the
+ * longest a device announces at the rapid interval; a device using Extended Announcement keeps advertising and so
+ * keeps its record fresh.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 5.4.2.3
+ */
+const RECORD_MAX_AGE = Minutes(15);
+
+/**
+ * A client call that starts or stops the scan and has not settled after this long counts as failed. noble settles
+ * these calls only on its own scan events, which an adapter that powers off may never send.
+ */
+const SCAN_TRANSITION_TIMEOUT = Seconds(10);
+
+/** Whether a BLE record's `VendorId+ProductId` matches an identity's, which may name only the VendorId. */
+function matchesVendorProduct(recordVp: string | undefined, identityVp: string) {
+    if (identityVp.includes("+")) {
+        return recordVp === identityVp;
+    }
+    return recordVp?.split("+")[0] === identityVp;
+}
 
 export class BleScanner implements Scanner {
     readonly type = ChannelType.BLE;
 
     readonly #client: BleScannerClient;
-    readonly #recordWaiters = new Map<
-        string,
-        {
-            resolver: () => void;
-            timer?: Timer;
-            resolveOnUpdatedRecords: boolean;
-            cancelResolver?: (value: void) => void;
-        }
-    >();
+    /** Every discovery waiting for a query, because several may wait for the same one. */
+    readonly #recordWaiters = new Map<string, Set<RecordWaiter>>();
     readonly #discoveredMatterDevices = new Map<string, StoredDiscoveredBleDevice>();
+    #activeDiscoveries = 0;
+    #scanning = false;
+    #scanTransitions: Promise<unknown> = Promise.resolve();
     #closed = false;
+    #lastScanEndedAt?: Timestamp;
 
     constructor(client: BleScannerClient) {
         this.#client = client;
@@ -84,6 +141,7 @@ export class BleScanner implements Scanner {
         );
     }
 
+    /** Resolves a peripheral for a channel open, so a record stays resolvable here until it is forgotten. */
     public getDiscoveredDevice(address: string): DiscoveredBleDevice {
         const device = this.#discoveredMatterDevices.get(address);
         if (device === undefined) {
@@ -100,56 +158,227 @@ export class BleScanner implements Scanner {
     }
 
     /**
-     * Registers a deferred promise for a specific queryId together with a timeout and return the promise.
-     * The promise will be resolved when the timer runs out latest.
+     * Runs a transition of the client's scan after every transition queued before it. A client that learns its scan
+     * state from its radio cannot answer a start issued while its stop is still in flight, so no two transitions may
+     * overlap.
      */
-    async #registerWaiterPromise(
-        queryId: string,
-        timeout?: Duration,
-        resolveOnUpdatedRecords = true,
-        cancelResolver?: (value: void) => void,
-    ) {
-        const { promise, resolver } = createPromise<void>();
-        let timer;
-        if (timeout) {
-            timer = Time.getTimer("BLE query timeout", timeout, () => {
-                cancelResolver?.();
-                this.#finishWaiter(queryId, true);
-            }).start();
-        }
-        this.#recordWaiters.set(queryId, { resolver, timer, resolveOnUpdatedRecords, cancelResolver });
-        logger.debug(
-            `Registered waiter for query ${queryId} with timeout ${timeout === undefined ? "(none)" : Duration.format(timeout)}${
-                resolveOnUpdatedRecords ? "" : " (not resolving on updated records)"
-            }`,
-        );
-        await promise;
+    #enqueueScanTransition(transition: () => Promise<void>) {
+        const result = this.#scanTransitions.then(transition);
+
+        // A failed transition ends here; the next one decides again from the state it left behind
+        this.#scanTransitions = result.catch(() => {});
+
+        return result;
     }
 
     /**
-     * Remove a waiter promise for a specific queryId and stop the connected timer. If required also resolve the
-     * promise.
+     * Drives the client to the scan the discoveries present at the time the transition runs need. A failure while a
+     * scan is wanted fails every discovery waiting for an advertisement, as none will arrive. Only a caller that starts
+     * discovering learns of a failure; a failed stop costs no discovery its result.
      */
-    #finishWaiter(queryId: string, resolvePromise: boolean, isUpdatedRecord = false) {
-        const waiter = this.#recordWaiters.get(queryId);
-        if (waiter === undefined) return;
-        const { timer, resolver, resolveOnUpdatedRecords } = waiter;
-        if (isUpdatedRecord && !resolveOnUpdatedRecords) return;
+    #reconcileScan(starting: boolean) {
+        return this.#enqueueScanTransition(async () => {
+            const wanted = this.#activeDiscoveries > 0 && !this.#closed;
+            try {
+                if (wanted) {
+                    // Asked on every transition, also while we believe the scan runs: a radio that stopped on its
+                    // own resumes only when asked again
+                    await withTimeout(SCAN_TRANSITION_TIMEOUT, this.#client.startScanning());
+                } else if (this.#scanning) {
+                    await withTimeout(SCAN_TRANSITION_TIMEOUT, this.#client.stopScanning());
+                }
+                this.#scanning = wanted;
+            } catch (error) {
+                // The client may scan or not after a failed call, so a later stop must still be sent
+                this.#scanning = true;
+                if (wanted) {
+                    this.#failWaiters(error);
+                } else {
+                    logger.warn("Stopping the BLE scan failed:", error);
+                }
+                if (starting) {
+                    throw error;
+                }
+                if (wanted) {
+                    logger.debug("Restarting the BLE scan for the remaining discoveries failed", error);
+                }
+            }
+        });
+    }
+
+    /**
+     * Scans for as long as the caller discovers. One radio serves every discovery, so the scan starts with the first
+     * and stops with the last: a discovery that ends must not take the scan away from one that still runs.
+     */
+    async #startDiscovering() {
+        this.#activeDiscoveries++;
+        try {
+            await this.#reconcileScan(true);
+        } catch (error) {
+            this.#endDiscovery();
+            if (this.#activeDiscoveries === 0) {
+                // The failed start may have left the radio scanning, and no discovery remains to stop it later
+                await this.#reconcileScan(false);
+            }
+            throw error;
+        }
+    }
+
+    async #stopDiscovering() {
+        this.#endDiscovery();
+        await this.#reconcileScan(false);
+    }
+
+    #endDiscovery() {
+        this.#activeDiscoveries--;
+        if (this.#activeDiscoveries === 0) {
+            this.#lastScanEndedAt = Time.nowUs;
+        }
+    }
+
+    #failWaiters(error: unknown) {
+        for (const [queryId, waiters] of [...this.#recordWaiters]) {
+            for (const waiter of [...waiters]) {
+                waiter.timer?.stop();
+                waiter.rejecter(error);
+            }
+            this.#recordWaiters.delete(queryId);
+        }
+    }
+
+    /**
+     * How long the record's device has not advertised. Listening time does not pass while nothing listens, so a record
+     * does not age then; a client that reports none leaves only elapsed time.
+     */
+    #silenceOf(record: StoredDiscoveredBleDevice, listeningTime = this.#client.listeningTime): Duration {
+        if (listeningTime !== undefined && record.seenAt !== undefined) {
+            return Millis(listeningTime - record.seenAt);
+        }
+        return Timestamp.delta(record.lastSeen, Time.nowUs);
+    }
+
+    /**
+     * Whether a record states that the device went silent. Elapsed time cannot tell silence from nobody listening, so
+     * only a client that reports listening time lets its records go stale.
+     */
+    #isStale(record: StoredDiscoveredBleDevice, listeningTime?: Duration) {
+        if (listeningTime === undefined || record.seenAt === undefined) {
+            return false;
+        }
+        return this.#silenceOf(record, listeningTime) > STALE_ENTRY_AGE;
+    }
+
+    /**
+     * How long a record has gone without the chance of an update. That is its silence in listening time. A client that
+     * reports no listening time may report a peripheral only once per scan, so its record does not age while a discovery
+     * is pending, and ages from the later of its last report and the end of the last discovery.
+     */
+    #ageOf(record: StoredDiscoveredBleDevice, listeningTime: Duration | undefined): Duration {
+        if (listeningTime !== undefined && record.seenAt !== undefined) {
+            return this.#silenceOf(record, listeningTime);
+        }
+        if (this.#activeDiscoveries > 0) {
+            return Millis(0);
+        }
+        const scanEnded = this.#lastScanEndedAt;
+        const since = scanEnded !== undefined && scanEnded > record.lastSeen ? scanEnded : record.lastSeen;
+        return Timestamp.delta(since, Time.nowUs);
+    }
+
+    /** Forget every record older than {@link RECORD_MAX_AGE}. */
+    #forgetAgedOut(listeningTime = this.#client.listeningTime) {
+        for (const [address, record] of this.#discoveredMatterDevices) {
+            const age = this.#ageOf(record, listeningTime);
+            if (age <= RECORD_MAX_AGE) continue;
+            this.#discoveredMatterDevices.delete(address);
+            logger.debug(`Forgetting BLE device ${address} not seen for ${Duration.format(age)}`);
+        }
+    }
+
+    /**
+     * Forget the device we commissioned. Its advertisement described a commissioning window that is now closed, so it
+     * must not qualify for a later discovery; a device that advertises again is discovered again.
+     *
+     * A record matching the identity is dropped too. Another device of the same vendor, and product when the identity
+     * names one, sharing the discriminator loses its record until it advertises again.
+     */
+    forgetCommissionedDevice(addresses: readonly ServerAddress[], identity?: CommissionableDeviceIdentity) {
+        for (const address of addresses) {
+            if (!ServerAddress.isBle(address)) continue;
+            if (this.#discoveredMatterDevices.delete(address.peripheralAddress)) {
+                logger.debug(`Forgetting BLE device ${address.peripheralAddress} whose commissioning window is closed`);
+            }
+        }
+        if (identity === undefined) {
+            return;
+        }
+        for (const [address, { deviceData }] of this.#discoveredMatterDevices) {
+            if (deviceData.D !== identity.D || !matchesVendorProduct(deviceData.VP, identity.VP)) continue;
+            this.#discoveredMatterDevices.delete(address);
+            logger.debug(`Forgetting BLE device ${address} that advertises the commissioned device's identity`);
+        }
+    }
+
+    /**
+     * Registers a waiter of one discovery for a query. Its promise resolves when an advertisement answers the query,
+     * the discovery is canceled or its timeout runs out, and rejects when the scan it depends on fails.
+     */
+    #createRecordWaiter(queryId: string, timeout?: Duration, cancelResolver?: (value: void) => void) {
+        const { promise, resolver, rejecter } = createPromise<void>();
+        const waiter: RecordWaiter = { resolver, rejecter, cancelResolver };
+        if (timeout) {
+            // The timeout belongs to this discovery alone, so it ends this waiter and leaves the others waiting
+            waiter.timer = Time.getTimer("BLE query timeout", timeout, () => {
+                cancelResolver?.();
+                this.#finishWaiter(queryId, waiter, true);
+            }).start();
+        }
+
+        let waiters = this.#recordWaiters.get(queryId);
+        if (waiters === undefined) {
+            waiters = new Set();
+            this.#recordWaiters.set(queryId, waiters);
+        }
+        waiters.add(waiter);
+
+        logger.debug(
+            `Registered waiter ${waiters.size} for query ${queryId} with timeout ${timeout === undefined ? "(none)" : Duration.format(timeout)}`,
+        );
+
+        return { waiter, promise };
+    }
+
+    /** Removes one discovery's waiter and stops its timer, resolving its promise if asked to. */
+    #finishWaiter(queryId: string, waiter: RecordWaiter, resolvePromise: boolean) {
+        const waiters = this.#recordWaiters.get(queryId);
+        if (waiters?.has(waiter) !== true) return;
+        const { timer, resolver } = waiter;
         logger.debug(`Finishing waiter for query ${queryId}, resolving: ${resolvePromise}`);
         timer?.stop();
+        waiters.delete(waiter);
+        if (waiters.size === 0) {
+            this.#recordWaiters.delete(queryId);
+        }
         if (resolvePromise) {
             resolver();
         }
-        this.#recordWaiters.delete(queryId);
+    }
+
+    /** Every discovery waiting for a query learns of the record that arrived for it, not only the newest one. */
+    #finishWaiters(queryId: string, resolvePromise: boolean) {
+        for (const waiter of [...(this.#recordWaiters.get(queryId) ?? [])]) {
+            this.#finishWaiter(queryId, waiter, resolvePromise);
+        }
     }
 
     cancelCommissionableDeviceDiscovery(identifier: CommissionableDeviceIdentifiers, resolvePromise = true) {
         const queryKey = this.#buildCommissionableQueryIdentifier(identifier);
         if (queryKey === undefined) return;
-        const { cancelResolver } = this.#recordWaiters.get(queryKey) ?? {};
-        // Mark as canceled to not loop further in discovery, if cancel-resolver is used
-        cancelResolver?.();
-        this.#finishWaiter(queryKey, resolvePromise);
+        for (const { cancelResolver } of this.#recordWaiters.get(queryKey) ?? []) {
+            // Mark as canceled to not loop further in discovery, if cancel-resolver is used
+            cancelResolver?.();
+        }
+        this.#finishWaiters(queryKey, resolvePromise);
     }
 
     #handleDiscoveredDevice(peripheral: BlePeripheral, manufacturerServiceData: Bytes) {
@@ -167,17 +396,19 @@ export class BleScanner implements Scanner {
                 CM: 1, // Can be no other mode,
                 addresses: [{ type: "ble", peripheralAddress: address }],
             };
+            this.#forgetAgedOut();
             const deviceExisting = this.#discoveredMatterDevices.has(address);
             const serviceDataHex = Bytes.toHex(manufacturerServiceData);
-            const now = Time.nowMs;
+            const now = Time.nowUs;
 
             // Drop stale entries with matching service data — same device likely re-advertising under a rotated address
             for (const [otherAddress, otherEntry] of this.#discoveredMatterDevices) {
                 if (otherAddress === address) continue;
                 if (otherEntry.serviceDataHex !== serviceDataHex) continue;
-                if (now - otherEntry.lastSeen <= STALE_ENTRY_AGE) continue;
+                const silence = this.#silenceOf(otherEntry);
+                if (silence <= STALE_ENTRY_AGE) continue;
                 logger.debug(
-                    `Dropping stale BLE entry ${otherAddress} — matching service data arrived from ${address} and prior entry is ${Duration.format(Millis(now - otherEntry.lastSeen))} old`,
+                    `Dropping stale BLE entry ${otherAddress} — matching service data arrived from ${address} and prior entry is silent for ${Duration.format(silence)}`,
                 );
                 this.#discoveredMatterDevices.delete(otherAddress);
             }
@@ -192,12 +423,14 @@ export class BleScanner implements Scanner {
                 hasAdditionalAdvertisementData,
                 serviceDataHex,
                 lastSeen: now,
+                seenAt: this.#client.listeningTime,
             });
 
-            const queryKey = this.#findCommissionableQueryIdentifier(deviceData);
             // An unreachable peripheral is no candidate, so its advertisement must not end a discovery's wait.
-            if (queryKey !== undefined && this.#isReachable(address)) {
-                this.#finishWaiter(queryKey, true, deviceExisting);
+            if (this.#isReachable(address)) {
+                for (const queryId of this.#findCommissionableQueryIdentifiers(deviceData)) {
+                    this.#finishWaiters(queryId, true);
+                }
             }
         } catch (error) {
             logger.debug(
@@ -206,51 +439,34 @@ export class BleScanner implements Scanner {
         }
     }
 
-    #findCommissionableQueryIdentifier(record: CommissionableDeviceData) {
-        const longDiscriminatorQueryId = this.#buildCommissionableQueryIdentifier({ longDiscriminator: record.D });
-        if (longDiscriminatorQueryId !== undefined && this.#recordWaiters.has(longDiscriminatorQueryId)) {
-            return longDiscriminatorQueryId;
-        }
+    /** Every registered query an advertisement answers, because discoveries may ask for one device differently. */
+    #findCommissionableQueryIdentifiers(record: CommissionableDeviceData) {
+        const queryIds = new Array<string>();
+        const addQuery = (identifier: CommissionableDeviceIdentifiers) => {
+            const queryId = this.#buildCommissionableQueryIdentifier(identifier);
+            if (queryId !== undefined && this.#recordWaiters.has(queryId)) {
+                queryIds.push(queryId);
+            }
+        };
 
-        const shortDiscriminatorQueryId = this.#buildCommissionableQueryIdentifier({ shortDiscriminator: record.SD });
-        if (shortDiscriminatorQueryId !== undefined && this.#recordWaiters.has(shortDiscriminatorQueryId)) {
-            return shortDiscriminatorQueryId;
-        }
+        addQuery({ longDiscriminator: record.D });
+        addQuery({ shortDiscriminator: record.SD });
 
         if (record.VP !== undefined) {
             const vpParts = record.VP.split("+");
             const vendorId = VendorId(parseInt(vpParts[0]));
             const productId = vpParts[1] !== undefined ? parseInt(vpParts[1]) : undefined;
 
-            // Check vendorId+productId combo first (most specific)
             if (productId !== undefined) {
-                const vendorProductQueryId = this.#buildCommissionableQueryIdentifier({
-                    vendorId,
-                    productId,
-                });
-                if (vendorProductQueryId !== undefined && this.#recordWaiters.has(vendorProductQueryId)) {
-                    return vendorProductQueryId;
-                }
+                addQuery({ vendorId, productId });
+                addQuery({ productId });
             }
-
-            const vendorIdQueryId = this.#buildCommissionableQueryIdentifier({ vendorId });
-            if (vendorIdQueryId !== undefined && this.#recordWaiters.has(vendorIdQueryId)) {
-                return vendorIdQueryId;
-            }
-
-            if (productId !== undefined) {
-                const productIdQueryId = this.#buildCommissionableQueryIdentifier({ productId });
-                if (productIdQueryId !== undefined && this.#recordWaiters.has(productIdQueryId)) {
-                    return productIdQueryId;
-                }
-            }
+            addQuery({ vendorId });
         }
 
-        if (this.#recordWaiters.has("*")) {
-            return "*";
-        }
+        addQuery({});
 
-        return undefined;
+        return queryIds;
     }
 
     /**
@@ -278,10 +494,16 @@ export class BleScanner implements Scanner {
         } else return "*";
     }
 
-    #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers, includeUnreachable = false) {
+    #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers, includeUnavailable = false) {
+        const listeningTime = this.#client.listeningTime;
+        this.#forgetAgedOut(listeningTime);
         // Newest first so ordered consumers (e.g. parallel PASE discovery) prefer the freshest advertisement
         const storedRecords = Array.from(this.#discoveredMatterDevices.values())
-            .filter(({ peripheral }) => includeUnreachable || this.#isReachable(peripheral.address))
+            .filter(
+                record =>
+                    includeUnavailable ||
+                    (this.#isReachable(record.peripheral.address) && !this.#isStale(record, listeningTime)),
+            )
             .sort((a, b) => b.lastSeen - a.lastSeen);
 
         const foundRecords = new Array<DiscoveredBleDevice>();
@@ -336,11 +558,17 @@ export class BleScanner implements Scanner {
         }
         let storedRecords = ignoreExistingRecords ? [] : this.#getCommissionableDevices(identifier);
         if (storedRecords.length === 0) {
-            await this.#client.startScanning();
-            await this.#registerWaiterPromise(queryKey, timeout);
-
-            storedRecords = this.#getCommissionableDevices(identifier);
-            await this.#client.stopScanning();
+            await this.#startDiscovering();
+            try {
+                // An advertisement may have arrived while the scan started, before a waiter could hear of it
+                storedRecords = this.#getCommissionableDevices(identifier);
+                if (storedRecords.length === 0 && !this.#closed) {
+                    await this.#createRecordWaiter(queryKey, timeout).promise;
+                    storedRecords = this.#getCommissionableDevices(identifier);
+                }
+            } finally {
+                await this.#stopDiscovering();
+            }
         }
         return storedRecords.map(({ deviceData }) => deviceData);
     }
@@ -358,8 +586,8 @@ export class BleScanner implements Scanner {
 
         const discoveredDevices = new Set<string>();
 
-        const discoveryEndTime = timeout ? Time.nowMs + timeout : undefined;
-        await this.#client.startScanning();
+        const discoveryEndTime = timeout ? Timestamp(Time.nowUs + timeout) : undefined;
+        await this.#startDiscovering();
 
         let queryResolver: ((value: void) => void) | undefined;
         if (cancelSignal === undefined) {
@@ -369,39 +597,49 @@ export class BleScanner implements Scanner {
         }
 
         let canceled = false;
+        let currentWaiter: RecordWaiter | undefined;
         cancelSignal?.then(
             () => {
                 canceled = true;
-                this.#finishWaiter(queryKey, true);
+                // The signal belongs to this discovery, so it ends this discovery's wait and no other
+                if (currentWaiter !== undefined) {
+                    this.#finishWaiter(queryKey, currentWaiter, true);
+                }
             },
             cause => {
                 logger.warn("Unexpected error canceling commissioning", cause);
             },
         );
 
-        while (!canceled && !this.#closed) {
-            this.#getCommissionableDevices(identifier).forEach(({ deviceData }) => {
-                const { deviceIdentifier } = deviceData;
-                if (!discoveredDevices.has(deviceIdentifier)) {
-                    discoveredDevices.add(deviceIdentifier);
-                    callback(deviceData);
-                }
-            });
+        try {
+            while (!canceled && !this.#closed) {
+                this.#getCommissionableDevices(identifier).forEach(({ deviceData }) => {
+                    const { deviceIdentifier } = deviceData;
+                    if (!discoveredDevices.has(deviceIdentifier)) {
+                        discoveredDevices.add(deviceIdentifier);
+                        callback(deviceData);
+                    }
+                });
 
-            let remainingTime;
-            if (discoveryEndTime !== undefined) {
-                remainingTime = Millis.ceil(Timespan(Time.nowMs, discoveryEndTime).duration);
-                if (remainingTime <= 0) {
-                    break;
+                let remainingTime;
+                if (discoveryEndTime !== undefined) {
+                    remainingTime = Millis.ceil(Timespan(Time.nowUs, discoveryEndTime).duration);
+                    if (remainingTime <= 0) {
+                        break;
+                    }
                 }
+
+                // Wake on any advertisement of a candidate, not only an address never seen: the loop's own set decides
+                // what is news, so a peripheral that becomes a candidate again is delivered without the scanner
+                // tracking why it was not one before.
+                const { waiter, promise } = this.#createRecordWaiter(queryKey, remainingTime, queryResolver);
+                currentWaiter = waiter;
+                await promise;
+                currentWaiter = undefined;
             }
-
-            // Wake on any advertisement of a candidate, not only an address never seen: the loop's own set decides
-            // what is news, so a peripheral that becomes a candidate again is delivered without the scanner
-            // tracking why it was not one before.
-            await this.#registerWaiterPromise(queryKey, remainingTime, true, queryResolver);
+        } finally {
+            await this.#stopDiscovering();
         }
-        await this.#client.stopScanning();
         return this.#getCommissionableDevices(identifier).map(({ deviceData }) => deviceData);
     }
 
@@ -418,10 +656,18 @@ export class BleScanner implements Scanner {
         // trigger here; #closed makes the loop exit instead of re-registering after we resolve its awaiter.
         this.#closed = true;
         try {
-            await this.closeClient();
+            // Shutdown queues like any other transition, so a scan still starting cannot outlive the scanner
+            await this.#enqueueScanTransition(async () => {
+                try {
+                    await withTimeout(SCAN_TRANSITION_TIMEOUT, Promise.resolve(this.closeClient()));
+                } finally {
+                    // No stop is sent after close
+                    this.#scanning = false;
+                }
+            });
         } finally {
             for (const queryId of [...this.#recordWaiters.keys()]) {
-                this.#finishWaiter(queryId, true);
+                this.#finishWaiters(queryId, true);
             }
         }
     }

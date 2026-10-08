@@ -5,8 +5,7 @@
  */
 
 import { ClientNodePhysicalProperties } from "#node/client/ClientNodePhysicalProperties.js";
-import { MockSite } from "./mock-site.js";
-import { subscribedPeer } from "./node-helpers.js";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 
 describe("ClientNodePhysicalProperties", () => {
     before(() => {

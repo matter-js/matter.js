@@ -8,13 +8,13 @@ import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavi
 import { ContinuousDiscovery } from "#behavior/system/controller/discovery/ContinuousDiscovery.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { ChannelType, Seconds } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import {
     type CommissionableDevice,
     type CommissionableDeviceIdentifiers,
     type Scanner,
     ScannerSet,
 } from "@matter/protocol";
-import { MockServerNode } from "../../../../node/mock-server-node.js";
 
 /**
  * Reports each device once per discovery, as the real scanners do, and keeps scanning until discovery stops.

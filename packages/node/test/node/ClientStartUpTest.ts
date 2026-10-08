@@ -8,9 +8,8 @@ import { CommissioningClient } from "#behavior/system/commissioning/Commissionin
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { Seconds, Timestamp } from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { ProtocolMocks, SessionManager } from "@matter/protocol";
-import { MockSite } from "./mock-site.js";
-import { subscribedPeer } from "./node-helpers.js";
 
 describe("Client startUp event handling", () => {
     before(() => MockTime.init());

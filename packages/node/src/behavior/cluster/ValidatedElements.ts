@@ -5,8 +5,8 @@
  */
 
 import { Diagnostic, ImplementationError, Logger, MatterAggregateError, Observable } from "@matter/general";
-import { ClusterModel, Conformance, FeatureSelectionErrors, Schema } from "@matter/model";
-import type { ClusterType } from "@matter/types";
+import { ClusterModel, CommandElement, Conformance, FeatureSelectionErrors, Schema } from "@matter/model";
+import { AttributeId, ClusterId, type ClusterType, CommandId, EventId, ValidationError } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import { introspectionInstanceOf } from "./cluster-behavior-utils.js";
 import { ClusterBehavior } from "./ClusterBehavior.js";
@@ -16,9 +16,9 @@ import { NameDependentElements } from "./NameDependentElements.js";
 const logger = Logger.get("ValidatedElements");
 
 /**
- * Schema whose feature selection we have already assessed.
+ * Schema whose feature selection and element IDs passed validation.
  */
-const validatedFeatureSelections = new WeakSet<ClusterModel>();
+const validatedSchemas = new WeakSet<ClusterModel>();
 
 /**
  * Thrown when a {@link ClusterBehavior} cannot be constructed due to fatal errors.
@@ -94,6 +94,8 @@ export class ValidatedElements {
     #cluster: ClusterType;
     #schema: ClusterModel;
     #nameDependentElements?: NameDependentElements;
+    #strict: boolean;
+    #requiredCommands = new Set<string>();
 
     /**
      * Obtain validation information.
@@ -101,10 +103,15 @@ export class ValidatedElements {
      * Validation may run against the type alone or with a specific instance of the behavior.  The latter option allows
      * for per-instance specialization.
      *
+     * A command the conformance of the cluster requires is fatal when it has no implementation. When it throws
+     * {@link Behavior.unimplemented} it is fatal with {@link ValidatedElements.Options.strict strict} set and a warning
+     * otherwise.
+     *
      * @param type the behavior type to analyze
      * @param instance optional concrete instance of the behavior
      */
-    constructor(type: ClusterBehavior.Type, instance?: Behavior) {
+    constructor(type: ClusterBehavior.Type, instance?: Behavior, options?: ValidatedElements.Options) {
+        this.#strict = options?.strict ?? false;
         this.#type = type;
         this.#instance = instance;
         this.#name = type.name;
@@ -126,7 +133,10 @@ export class ValidatedElements {
             this.error("instance", "Is not an object", true);
         }
 
-        this.#validateFeatures();
+        this.#validateSchema();
+        if (this.#cluster.id !== this.#schema.id) {
+            this.#validateId("cluster", this.#cluster.id, ClusterId);
+        }
         this.#validateAttributes();
         this.#validateCommands();
         this.#validateEvents();
@@ -134,6 +144,8 @@ export class ValidatedElements {
         if (this.#nameDependentElements) {
             resolveInterElementConformance(this, this.#schema, this.#nameDependentElements);
         }
+
+        this.#validateRequiredCommands();
     }
 
     /**
@@ -165,22 +177,51 @@ export class ValidatedElements {
     }
 
     /**
-     * Feature selection is a property of the schema, so assess each schema once however many behaviors share it.
+     * Feature selection and element IDs are properties of the schema, so assess each schema once however many behaviors
+     * share it.
+     *
+     * A peer's cluster never reaches this point, so its IDs are modeled as the peer reports them.
      */
-    #validateFeatures() {
-        if (validatedFeatureSelections.has(this.#schema)) {
+    #validateSchema() {
+        const schema = this.#schema;
+        if (validatedSchemas.has(schema)) {
             return;
         }
 
-        const errors = FeatureSelectionErrors(this.#schema);
-        if (errors.length) {
-            for (const error of errors) {
-                this.error("features", error, true);
+        const errorCount = this.errors?.length ?? 0;
+
+        for (const error of FeatureSelectionErrors(schema)) {
+            this.error("features", error, true);
+        }
+
+        this.#validateId("cluster", schema.id, ClusterId);
+        for (const attribute of schema.attributes) {
+            this.#validateId(attribute.name, attribute.id, AttributeId);
+        }
+        for (const command of schema.commands) {
+            if (command.id !== CommandElement.NO_ID) {
+                this.#validateId(command.name, command.id, CommandId);
             }
-            return;
+        }
+        for (const event of schema.events) {
+            this.#validateId(event.name, event.id, EventId);
         }
 
-        validatedFeatureSelections.add(this.#schema);
+        if ((this.errors?.length ?? 0) === errorCount) {
+            validatedSchemas.add(schema);
+        }
+    }
+
+    #validateId(element: string, id: number | undefined, validate: (id: number) => unknown) {
+        if (id === undefined) {
+            return;
+        }
+        try {
+            validate(id);
+        } catch (error) {
+            ValidationError.accept(error);
+            this.error(element, error.message, true);
+        }
     }
 
     #validateAttributes() {
@@ -282,35 +323,50 @@ export class ValidatedElements {
                 continue;
             }
 
-            if (!isPresent) {
-                if (applicability === Conformance.Applicability.Mandatory) {
-                    this.error(name, `Implementation missing`, true);
-                }
+            if (isPresent && typeof implementation !== "function") {
+                this.error(name, `Implementation is not a function`, true);
                 continue;
             }
 
-            if (typeof implementation !== "function") {
-                this.error(name, `Implementation is not a function`, true);
+            if (applicability === Conformance.Applicability.Mandatory) {
+                this.requireCommand(name);
+            }
+
+            if (!isPresent) {
                 continue;
             }
 
             this.presentCommands.add(name);
 
-            if (implementation === Behavior.unimplemented) {
-                if (applicability === Conformance.Applicability.Mandatory) {
-                    // TODO - do not pollute the logs with these as Matter spec is in flux (should this include groups
-                    //  or just scenes?)
-                    if (this.#name.match(/^(?:Groups|Scenes|GroupKeyManagement)(?:Server|Behavior)/)) {
-                        continue;
-                    }
-
-                    // We treat this error as a warning
-                    this.error(name, `Throws unimplemented exception`, false);
-                }
-                continue;
+            if (implementation !== Behavior.unimplemented) {
+                this.commands.add(name);
             }
+        }
+    }
 
-            this.commands.add(name);
+    /**
+     * Record that the conformance of the cluster requires command `name`. Only effective while the constructor
+     * runs.
+     *
+     * @internal
+     */
+    requireCommand(name: string) {
+        this.#requiredCommands.add(name);
+    }
+
+    #validateRequiredCommands() {
+        for (const name of this.#requiredCommands) {
+            if (!this.presentCommands.has(name)) {
+                this.error(name, "Implementation missing", true);
+            } else if (!this.commands.has(name)) {
+                this.error(
+                    name,
+                    this.#strict
+                        ? "Throws unimplemented exception, refused by strict validation"
+                        : "Throws unimplemented exception",
+                    this.#strict,
+                );
+            }
         }
     }
 
@@ -379,5 +435,14 @@ export class ValidatedElements {
         const name = element === undefined ? this.#name : `${this.#name}.${element}`;
 
         this.errors?.push({ element: name, message, fatal });
+    }
+}
+
+export namespace ValidatedElements {
+    export interface Options {
+        /**
+         * Treat every required command that throws {@link Behavior.unimplemented} as fatal.
+         */
+        strict?: boolean;
     }
 }

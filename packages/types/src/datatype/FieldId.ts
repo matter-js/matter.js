@@ -22,7 +22,7 @@ export function FieldId(fieldId: number, validate = true): FieldId {
     if (!validate) {
         return fieldId as FieldId;
     }
-    if (fieldId >= 0xe0 && fieldId <= 0xfe) {
+    if (Number.isInteger(fieldId) && fieldId >= 0xe0 && fieldId <= 0xfe) {
         // Global
         return fieldId as FieldId;
     }

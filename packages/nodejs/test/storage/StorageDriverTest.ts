@@ -10,11 +10,11 @@ import { SqliteStorageDriverError } from "#storage/sqlite/SqliteStorageDriverErr
 import { supportsSqlite } from "#util/runtimeChecks.js";
 import { StorageDriver, StorageError } from "@matter/general";
 import * as assert from "node:assert";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
-const TEST_STORAGE_LOCATION = resolve(tmpdir(), "matterjs-test-storage");
+let storageRoot: string;
 
 const CONTEXTx1 = ["context"];
 const CONTEXTx2 = [...CONTEXTx1, "subcontext"];
@@ -30,13 +30,13 @@ const drivers: DriverFactory[] = [
     {
         name: "file",
         async create(namespace) {
-            const path = resolve(TEST_STORAGE_LOCATION, namespace);
+            const path = resolve(storageRoot, namespace);
             const storage = new FileStorageDriver(path);
             await storage.initialize();
             return storage;
         },
         async remove(namespace) {
-            await rm(resolve(TEST_STORAGE_LOCATION, namespace), { recursive: true, force: true });
+            await rm(resolve(storageRoot, namespace), { recursive: true, force: true });
         },
     },
 ];
@@ -45,20 +45,20 @@ if (supportsSqlite()) {
     drivers.push({
         name: "sqlite",
         async create(namespace) {
-            const path = resolve(TEST_STORAGE_LOCATION, `${namespace}.db`);
+            const path = resolve(storageRoot, `${namespace}.db`);
             const storage = new SqliteStorageDriver({ namespaceOrPath: path });
             await storage.initialize();
             return storage;
         },
         async remove(namespace) {
-            await rm(resolve(TEST_STORAGE_LOCATION, `${namespace}.db`), { recursive: true, force: true });
+            await rm(resolve(storageRoot, `${namespace}.db`), { recursive: true, force: true });
         },
     });
 }
 
 describe("StorageDrivers", () => {
     before(async () => {
-        await mkdir(TEST_STORAGE_LOCATION, { recursive: true });
+        storageRoot = await mkdtemp(resolve(tmpdir(), "matterjs-storage-driver-test-"));
     });
 
     for (const driver of drivers) {
@@ -187,6 +187,40 @@ describe("StorageDrivers", () => {
                 expect(await storage.keys(CONTEXTx3)).deep.equal([]);
             });
 
+            it("lists no context that clearAll emptied", async () => {
+                await storage.set(CONTEXTx3, "key", "value");
+
+                await storage.clearAll(CONTEXTx2);
+
+                expect(await storage.contexts(CONTEXTx1)).deep.equal([]);
+                expect(await storage.contexts([])).deep.equal([]);
+            });
+
+            it("lists no context that was only read", async () => {
+                await storage.keys(["ghost", "sub"]);
+                await storage.contexts(["ghost", "sub"]);
+
+                expect(await storage.contexts([])).deep.equal([]);
+                expect(await storage.contexts(["ghost"])).deep.equal([]);
+            });
+
+            it("lists no context whose last key was deleted", async () => {
+                await storage.set(CONTEXTx2, "key", "value");
+
+                await storage.delete(CONTEXTx2, "key");
+
+                expect(await storage.contexts(CONTEXTx1)).deep.equal([]);
+            });
+
+            it("deletes a key whose delete overlaps the first write of its context", async () => {
+                const writing = storage.set(["fresh"], "key", "value");
+                await storage.delete(["fresh"], "key");
+                await writing;
+
+                expect(await storage.keys(["fresh"])).deep.equal([]);
+                expect(await storage.contexts([])).deep.equal([]);
+            });
+
             it("Allows root-level keys with empty context", async () => {
                 await storage.set([], "key", "value");
                 assert.equal(await storage.get([], "key"), "value");
@@ -289,7 +323,7 @@ describe("StorageDrivers", () => {
 
     if (supportsSqlite()) {
         it("sqlite driver opens when the parent directory does not exist yet", async () => {
-            const freshRoot = resolve(TEST_STORAGE_LOCATION, "fresh");
+            const freshRoot = resolve(storageRoot, "fresh");
             await rm(freshRoot, { recursive: true, force: true });
             const storage: StorageDriver = new SqliteStorageDriver({
                 namespaceOrPath: resolve(freshRoot, "nested", "storage.db"),
@@ -307,6 +341,6 @@ describe("StorageDrivers", () => {
 
     // Cleanup
     after(async () => {
-        await rm(TEST_STORAGE_LOCATION, { recursive: true, force: true });
+        await rm(storageRoot, { recursive: true, force: true });
     });
 });

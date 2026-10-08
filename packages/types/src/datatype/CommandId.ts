@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Branded } from "@matter/general";
+import { Branded, hex } from "@matter/general";
 import { CommandElement } from "@matter/model";
 import { ValidationOutOfBoundsError, validatorOf } from "../common/ValidationError.js";
 import { TlvUInt32 } from "../tlv/TlvNumber.js";
@@ -26,7 +26,9 @@ export function CommandId(commandId: number, validate = true): CommandId {
     if (typeSuffix >= 0x00 && typeSuffix <= 0xff) {
         return commandId as CommandId;
     }
-    throw new ValidationOutOfBoundsError(`Invalid command ID: ${commandId}`);
+    throw new ValidationOutOfBoundsError(
+        `Invalid command ID 0x${hex.fixed(commandId, 8)}: the suffix must be 0x00 - 0xff`,
+    );
 }
 
 export namespace CommandId {

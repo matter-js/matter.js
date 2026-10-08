@@ -6,9 +6,8 @@
 
 import { OnOffClient } from "#behaviors/on-off";
 import { ChannelType, Crypto, MockCrypto, Seconds, ServerAddress } from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { ExchangeManager, Peer, PeerSet } from "@matter/protocol";
-import { MockSite } from "./mock-site.js";
-import { subscribedPeer } from "./node-helpers.js";
 
 /**
  * TCP transport variant tests for ClientNode integration.
@@ -24,10 +23,7 @@ import { subscribedPeer } from "./node-helpers.js";
  * The TCP connection management behavior is tested separately in TcpChannelTest and
  * TcpSessionBindingTest.
  */
-describe("ClientNodeTcp", function () {
-    // Commissioning runs real crypto, which a loaded CI runner can stretch past the 2 s wall-clock default
-    this.timeout(10_000);
-
+describe("ClientNodeTcp", () => {
     before(() => {
         MockTime.init();
     });

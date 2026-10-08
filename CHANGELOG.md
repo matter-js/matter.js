@@ -18,6 +18,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: More global datatypes, such as `bool`, `epoch-us` and `Status`, carry their specification documentation and a precise section reference
 
 - @matter/general
+    - Fix: `ServerAddress.selectionPreferenceOf` ranks a non-IP address such as BLE after IPv4 instead of equal to it
+    - Fix: Ensure that `ObserverGroup.off()` removes an observer the group bound to a target, and that `has()` finds it
+    - Fix: Ensure that `ObservableValue.offError()` removes only the given handler and keeps other error handlers and pending awaiters
+    - Fix: Ensure that `Lifetime.details` keeps what is written to it and lifetime diagnostics show every detail
+    - Fix: Ensure that `MdnsSocket.close()` waits for message handlers that are still running
+    - Fix: `ServerAddressSet.compareHealth` ranks a healthy address before an unused one in either argument order
+    - Fix: Supporting Timers with intervals longer than 2^31-1 ms (about 24.8 days)
     - Fix: DNS-SD discovery no longer takes records from the known-answer list of mDNS queries, its own looped-back queries included. A link-local address learned on one interface was stored under every interface such a query arrived on, so a controller could dial a node through the wrong interface and spend its connection attempt waiting for a timeout
     - Fix: `FormattedText` nests list items by their indent, so an item that outdents between two open levels sits beside the deeper level instead of below it, and an indented numbered list nests instead of merging into its parent
     - Feature: `Crypto` creates, signs and verifies ML-DSA-44 and ML-DSA-65 (FIPS 204), the algorithms PQC Phase 1 allows for PAA and PAI certificates. Node.js signs and verifies natively where its crypto supports ML-DSA; key generation and all other runtimes use `@noble/post-quantum`, which loads only when an ML-DSA operation first needs it. `MlDsa` encodes and decodes the RFC 9881 public keys and algorithm identifiers, and `NodeJsCryptoApiLike` gains optional `sign` and `verify` members for the native path
@@ -33,6 +40,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `UdpMulticastServer.create()` closes the sockets it already opened when it fails, such as the IPv4 socket when the IPv6 socket cannot be created
 
 - @matter/model
+    - Feature: An enum member without an ID and with a range constraint stands for a range of values (`FieldModel.isEnumRange`); the standard model defines the manufacturer ranges of Mode Base, Operational State, Closure Control and Illuminance Measurement enums
+    - Fix: Ensure that model validation reports an enum name or an enum ID 0 that appears twice
+    - Fix: Ensure that `AttributeModel.fabricScoped` is true only for `F` and `S` access and `CommandModel.fabricScoped` only for `F`; `AttributeModel.fabricSensitive` is added
     - Enhancement: `DecodedBitmap()` takes options to select members by conformance and, with `complete`, to name clear members as `false` or 0
     - Fix: `EncodedBitmap()`, `DecodedBitmap()` and a bitmap default built from member defaults place every member at its full width, the last bit of a multi-bit member and bits 31 to 63 included, and a member with no upper bound from its lowest bit. `DecodedBitmap` values may be a `bigint` where a number cannot hold a member exactly, and both functions take an optional `Scope` to resolve a bitmap datatype a cluster inherits
     - Enhancement: Model lookups (`clusters`, `deviceTypes`, `datatypes`, `fields` and `attributes` of a `MatterModel`; `attributes`, `commands`, `events`, `datatypes` and `fields` of a `ClusterModel`) reuse their index until the children of the model, of a model it derives from or, for attributes, of its root change, instead of rebuilding the model scope on each access. `Matter.clusters(id)` drops from about 180 µs to under 1 µs and `cluster.attributes(id)` from 50–110 µs to about 2 µs
@@ -66,6 +76,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `diff-spec` accepts patch revisions such as `1.6.1`. Without arguments it compares the current revision with the one before it, 1.6.1 with 1.6 instead of 1.5, and names both revisions above the diff
 
 - @matter/types
+    - Enhancement: The cluster, attribute, command, event and MEI ID validators name the legal range in their error message
+    - Fix: The cluster, attribute, command, event, field and device type ID validators refuse values that are not 32-bit unsigned integers instead of accepting them after the bits wrapped
+    - Feature: `VendorId.isOperational()` tells whether a vendor ID may identify a fabric administrator: a valid vendor ID other than 0x0000
+    - Feature: `CaseAuthenticatedTag.isValid()` and `NodeId.isValidCaseAuthenticatedTag()` tell whether a value or subject is a CASE Authenticated Tag with a version other than 0, without throwing
+    - Breaking: Fields of an enum with a manufacturer range are typed `Enum | number`, and Illuminance Measurement `LightSensorType` is typed `LightSensorType | number`
     - Fix: A bitmap class such as `Groups.NameSupportAttribute` applies the defaults its members state, and one constructed from a number sets a multi-bit member at its full width and members above bit 31. An instance built from the default or a number names every conformant member and no other
     - Fix: `CommissioningOptions.Configuration.advertisementWindow` applies to windows an uncommissioned node opens itself and defaults to 48 hours; a commissioned node's own window stays open for 15 minutes
     - Feature: `TlvInvokeRequest` carries the optional `delayReportData` field (`TlvDelayReportData`); matter.js acts on it only behind the `delay-report-data` forward feature. Decoding is not behind the flag: an InvokeRequest whose field 3 is not a structure is now rejected, where it was skipped before, and a missing `delayMinMs` or `delayJitterWindowMs` subfield of a present `delayReportData` decodes as 0
@@ -76,6 +91,19 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Fix: `Noc.verify()` throws `OperationalNodeIdError`, a `CertificateError`, when the NOC's node ID is outside the operational range
+    - Fix: `FailsafeContext.buildFabric()` refuses a CASE Authenticated Tag with version 0 as admin subject
+    - Fix: `FabricAuthority.createFabric()` throws `ImplementationError` for admin vendor ID 0x0000 or above 0xFFF4, which devices refuse in AddNOC
+    - Fix: Ensure that `BleScanner` forgets a discovered device after 15 minutes of scanning without its advertisement, or, for a client that reports no listening time, 15 minutes after the later of its last report and the end of the last discovery
+    - Fix: Commissioning tries a device's addresses in ranked order instead of reverse order, so a lower-ranked unreachable address no longer delays PASE
+    - Fix: Commissioning tries a device's next address as soon as the last attempt fails, or 10 s after it started, instead of every 15 s, and not while the device is answering an earlier attempt
+    - Fix: Commissioning with known addresses tries a repeated address only once, so a duplicate no longer costs the device an extra failed PASE attempt
+    - Feature: PASE throws `PasscodeMismatchError`, a subclass of `UnexpectedDataError`, when the device's key confirmation does not verify, as happens with a wrong passcode
+    - Fix: A wrong passcode stops commissioning on the other addresses of the same discovered device, so it costs the device one failed PASE attempt instead of one per address
+    - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status or does not answer it in time
+    - Fix: A missing response no longer closes the commissioning PASE session; commissioning closes it on every exit
+    - Feature: A `NodeSession` created with `suppressPeerLoss` stays open on communication failures of its exchanges; its owner closes it
+    - Fix: The periodic failsafe re-arm during BLE commissioning no longer shortens a longer failsafe armed for a network scan or connect
     - Fix: Ensure that a controller treats any message from a LIT ICD peer as a wake signal and resubscribes at once, instead of waiting for the next Check-In
     - Breaking: `IcdPeerWakefulness` API renamed (`noteActive()`, `nextCheckInDue`, `holdSubscription()`); ICD timing constants moved to `IcdPeerSchedule`
     - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status
@@ -120,6 +148,24 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: AddNOC and UpdateNOC answer `InvalidNodeOpId` for a NOC whose node ID is outside the operational range
+    - Fix: AddNOC answers `InvalidAdminSubject` for a CASE Authenticated Tag with version 0 as admin subject
+    - Fix: AddNOC answers `InvalidCommand` for admin vendor ID 0x0000 or above 0xFFF4
+    - Fix: SetVIDVerificationStatement refuses vendor ID 0x0000 with `ConstraintError`
+    - Fix: Ensure that a feature change of a server cluster drops only the persisted values that fail validation under the new features, not all of them
+    - Breaking: `Behaviors.validateRequirements()` is removed; nothing called it, and `DeviceTypeConformanceService` checks device type requirements
+    - Fix: Ensure that a client read returns the peer's current values of changes-omitted attributes, which the subscription does not report, instead of cached ones
+    - Fix: Ensure that a peer's endpoint is installed and announced only after the endpoint that owns it is on the node
+    - Fix: A `ServerNode` whose construction failed early can be closed
+    - Fix: Closing a node or endpoint continues past a failing step, so its other parts, its behaviors, network runtime, peers and services still close and a `ServerNode` releases the storage lock it holds
+    - Feature: `Behavior.reactorTimer()` and `Behavior.periodicReactorTimer()` create a timer that runs a reactor of the behavior and stops when the behavior closes to prevent leaking them
+    - Fix: Ensure that a value in the manufacturer range of an enum is accepted; Illuminance Measurement `LightSensorType` rejects the reserved values 2 to 63 and 255
+    - Fix: Ensure that a read of a fabric-sensitive list attribute returns only the accessing fabric's entries and removing a fabric deletes its entries from such lists
+    - Fix: Ensure that `DescriptorServer.addTags` does not add a tag that is already listed and only updates its label when one is given
+    - Fix: Ensure that `DescriptorServer.addDeviceTypes` does not list a device type a second time with another revision
+    - Enhancement: In `strict` validation mode (`endpoint.validation`) a cluster server, the root endpoint's included, refuses construction when a command its conformance requires throws `Behavior.unimplemented`
+    - Enhancement: The commissioning test harness (`MockSite`, `MockServerNode`, `MockExchange` and the node helpers) is exported at `@matter/node/testing`, for tests that run under `@matter/testing`
+    - Fix: `ClientNode.decommission()` no longer throws for a peer commissioned with `autoSubscribe` and `autoStateInitialize` disabled
     - Fix: A read that runs while a data report is still arriving no longer lets a descriptor in that report delete a cluster whose data came earlier in the same report
     - Fix: A peer's state drops the value of an attribute its `AttributeList` omits, such as one a firmware update removed, also when the value was cached before the list changed; such a cluster is read again in full after the controller starts. `Datasource.ExternallyMutableStore` has an optional `invalidateVersion()`
     - Fix: After a node restarts, the data reports of the client subscriptions it sets up again are no longer rejected, so changes arrive right away instead of only when a subscription times out and is re-established
@@ -131,6 +177,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `AdministratorCommissioningServer` leaves the window and its timeout to `DeviceCommissioner`; `Internal.commissioningWindowTimeout` is gone
     - Fix: `OpenCommissioningWindow` and `OpenBasicCommissioningWindow` replace a window the node opened itself, and `RevokeCommissioning` closes it. Previously such an open failed with `Failure` or left the cluster unaware of its window, and every further open was answered with `Busy` until the node restarted. A window an Administrator opened still answers `Busy`
     - Fix: `ArmFailSafe` over CASE answers `BusyWithOtherAdmin` while any commissioning window is open, including one the node opened itself
+    - Fix: `RemoveFabric` while a fail-safe is armed for another fabric, or not yet for any fabric, no longer throws `MatterFlowError` before the commissioned state and `fabricsChanged` are updated. After the last fabric is removed, the factory reset waits until no fail-safe is armed and is skipped if a commissioning added a fabric
     - Fix: `GroupcastServer` LeaveGroup with GroupID 0 and an Endpoints list removes those endpoints from every group of the fabric; it removed all groups with all their endpoints
     - Fix: `GroupKeyManagementServer` accepts a `KeySetWrite` with any `GroupKeyMulticastPolicy` and ignores the field, which has no effect; it rejected every value but PerGroupID with INVALID_COMMAND. `KeySetRead` reports PerGroupID
     - Fix: A `GroupcastTesting` request without `DurationSeconds` ends testing after 60 seconds; testing previously never ended
@@ -155,7 +202,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A quality or constraint an element inherits from its type or from the element it overrides now takes effect where only its own was read: an inherited quieter quality (Q) makes an event or `$Changed` event quiet, an inherited nullable quality (X) lets `null` through a cast, an inherited atomic quality (T) admits the attribute to an atomic write, and an inherited list constraint is enforced. A derived behavior whose schema makes an element quieter replaces the event its base built, so the element's changes are reported
     - Breaking: The `SupportedModes` attribute of the mode clusters derived from Mode Base (Device Energy Management Mode, Dishwasher Mode, Energy EVSE Mode, Laundry Washer Mode, Microwave Oven Mode, Oven Mode, Refrigerator And Temperature Controlled Cabinet Mode, RVC Clean Mode, RVC Run Mode, Water Heater Mode) enforces the 2 to 255 entries Mode Base defines and has no empty default, so a server of one of these clusters must configure at least two modes
     - Fix: An OTA provider refusing an apply it holds no consent for sent `DelayedActionTime` as milliseconds, so a requestor honoring it waited 24 hours rather than two minutes
-    - Breaking: `ServerNode.RootEndpoint` includes `GroupcastServer` (Listener, Sender and PerGroup features) and selects the AccessControl `Auxiliary` feature, as Matter 1.6.1 requires Groupcast on the root of a node with a Groups server. This applies to controllers too. A node type that installs its own AccessControl server must select `Auxiliary` on it, e.g. `MyAccessControlServer.with("Extension", "Auxiliary")`, or build on the new `ServerNode.RootEndpointWithoutGroupcast`. The `ServerNode.RootEndpoint` type does not include Groupcast; read its state with `node.stateOf(GroupcastServer)`. The GroupKeyManagement `Groupcast` feature stays provisional and is still rejected. With the `Auxiliary` feature, a Group ACL entry without targets no longer grants access on endpoint 0
+    - Breaking: `ServerNode.RootEndpoint` includes `GroupcastServer` (Listener, Sender and PerGroup features) and selects the AccessControl `Auxiliary` feature, as Matter 1.6.1 requires Groupcast on the root of a node with a Groups server. This applies to controllers built on `ServerNode.RootEndpoint`; the legacy `CommissioningController` and the shell build on `ServerNode.RootEndpointWithoutGroupcast`. A node type that installs its own AccessControl server must select `Auxiliary` on it, e.g. `MyAccessControlServer.with("Extension", "Auxiliary")`, or build on the new `ServerNode.RootEndpointWithoutGroupcast`. The `ServerNode.RootEndpoint` type does not include Groupcast; read its state with `node.stateOf(GroupcastServer)`. The GroupKeyManagement `Groupcast` feature stays provisional and is still rejected. With the `Auxiliary` feature, a Group ACL entry without targets no longer grants access on endpoint 0
     - Breaking: `.with()` on a subclass of a cluster behavior that declares its own attributes or commands keeps the behavior id, so the variant replaces the default behavior instead of running next to it with an empty state of its own. State such a variant stored under its previous id (the subclass name) is not carried over. An endpoint refuses two behaviors for the same cluster
     - Feature: `GroupcastServer` (Groupcast cluster) and the AccessControl `Auxiliary` feature are available. Auxiliary entries are split to the subject and target limits per entry, and an ACL write with an entry that includes `AuxiliaryType` fails with `FAILURE`
     - Fix: An overridden `AccessControlServer.extensionEntryAccessCheck` also applies to fabrics commissioned after the node went online
@@ -202,6 +249,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/testing
     - Breaking: `forFlavor()` and `LogExpectOptions.flavor` take a `LogFlavor` (a `DeviceFlavor`, or `"chip"`/`"matterjs"`) instead of a string; `flavorFamily()` answers which family a flavor belongs to, and a flavor of neither family, such as `python-wrapped`, selects no variant
+    - Feature: `CommissioningTarget.withoutSubscription` commissions a certification peer without the sustained subscription and without waiting for one
     - Feature: `MockForwardFeatures.enableAll()` enables every forward feature for a whole run, for a harness that tests against peers of the next Matter line
     - Fix: CHIP test runs on one Docker daemon take turns with the shared harness containers instead of recreating each other's `chip` container, which ended the other run with exit code 137. A run holds a lock while it uses the harness and waits while another run holds it (`MATTER_CHIP_HARNESS_WAIT_MINUTES`, default 60; `0` fails at once with `HarnessBusyError` when another run holds it). The lock ends with the process that holds it; a lock that does not run for 30 s is left over and fails the run with the command that removes it
     - Fix: A certification step that made a controller call that may change the device and is then refused by the controller fails the run instead of being recorded as skipped, as a step that already recorded a check does
@@ -247,9 +295,16 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The chip-tool YAML test shim of the matter.js controller reports the FeatureMap bits a device sets; it reported every FeatureMap as 0. Writes and commands encode a bitmap a step gives as a number, and the value of a multi-bit field, instead of sending 0 or 1
     - Fix: The YAML test controllers no longer space their exchanges with a peer 100 ms apart, matching chip-tool
     - Fix: The chip-tool YAML test shim of the matter.js controller sends a write as a timed write when its step declares `timedInteractionTimeoutMs`
+    - Enhancement: Tests get 10 s before they time out instead of Mocha's 2 s default
+    - Fix: `MockTime.resolve` holds virtual time while a `Blob` is read, as it does for crypto, so a slow host no longer expires protocol timeouts during a read
+    - Fix: A `MockTime.resolve` left running by a test that timed out stops moving the clock once the next test starts, instead of failing the tests that follow
 
 - @matter/examples
     - Fix: The composed OnOff device example creates as many endpoints as `--num` asks for (default 2) instead of one fewer; a node stored by an earlier run gains the missing endpoint on its next start
+
+- @project-chip/matter.js
+    - Fix: PASE with a known address reports a wrong passcode instead of falling back to discovery
+    - Fix: PASE with an unreachable known address falls back to discovery instead of failing with "Could not connect to device"
 
 - @matter/general
     - Breaking: `camelize()` treats a pluralised acronym as one word wherever it occurs in an identifier, so `TariffComponentIDs` normalises to `tariffComponentIds` where it previously passed through unchanged
@@ -265,9 +320,15 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `MockCrypto` defaults to the standard implementation where the detected Node.js-style API cannot serve Matter, via the new `NodeJsStyleCrypto.providesDefault`. It keyed on a Node.js-style API merely being present, which an incomplete emulation also satisfies
 
 - @matter/nodejs
+    - Fix: Ensure that `FileStorageDriver.contexts()` lists only contexts that hold keys, so a context emptied by `clearAll` or `delete`, or one that was only read, is no longer listed
     - Fix: The Node.js environment uses standard crypto where Node.js's crypto module offers no SHA-256 digest, or no `aes-128-ccm` cipher or decipher, which is the case on Bun and Deno, and says which was missing. It previously made that choice by runtime name, so it covered Bun alone and left Deno on an implementation that fails commissioning. Where the process restricts its cryptographic provider it keeps Node.js crypto rather than evading the restriction, and reports that Matter will fail where it needs the missing primitive
     - Enhancement: `NodeJsCrypto.defect` states which primitive Node.js's crypto module cannot offer, `NodeJsCrypto.providerIsRestricted` whether this process restricts its cryptographic provider, and `cryptoFor` chooses an implementation from a reported defect
     - Fix: `NodeJsUdpSocket.create()` closes the bound socket when it cannot configure it, such as for a network interface that does not exist, so the port is not held
+
+- @matter/nodejs-ble
+    - Enhancement: `NobleBleClient` reports how long its radio actually scanned as `BleScannerClient.listeningTime`
+    - Fix: `NobleBleClient` asks noble to scan again once the Bluetooth adapter powers on
+    - Fix: `NobleBleClient` stops a scan it requested that only took effect after it was no longer wanted
 
 - @matter/protocol
     - Breaking: `ClientSubscriptions.lastReportStartedAtFor()` and `PeerSubscription.lastReportStartedAt` are removed; the new `ClientSubscriptions.reportStarted` observable emits the session each inbound report arrives over
@@ -280,6 +341,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `ClientRequest.largeMessage` requires a session that permits large payloads for any interaction, not only a command invocation; such an interaction establishes a TCP-backed session or fails rather than falling back to MRP
     - Enhancement: A `BleScannerClient` may state via the new optional `isPeripheralReachable()` whether a peripheral it discovered can still be reached, and the scanner offers only reachable peripherals for commissioning. A transport that routes BLE through remote proxies no longer offers peripherals whose proxy is gone
     - Fix: A running BLE discovery is woken by any advertisement of a device matching its query, not only by an address it has never seen, so a device that becomes a candidate again during the discovery is handed to it. Each device is still offered once per discovery
+    - Fix: A later BLE discovery no longer offers a device that was just commissioned over BLE, via the new optional `Scanner.forgetCommissionedDevice()`
+    - Fix: A later BLE discovery no longer offers a device that was just commissioned through another transport and advertises its vendor, as the commissioner passes the new `CommissionableDeviceIdentity` to `Scanner.forgetCommissionedDevice()`
+    - Fix: A BLE peripheral silent through a minute of listening, as reported by the new optional `BleScannerClient.listeningTime`, is no longer offered for commissioning
+    - Enhancement: New `BleListeningClock` accumulates a BLE client's scan time for `BleScannerClient.listeningTime`
+    - Fix: Concurrent BLE discoveries share one scan and each waits for its own result
+    - Fix: A BLE scan start that never completes fails the waiting discoveries after 10 s instead of leaving them waiting
     - Fix: A session or exchange ending because its transport connection dropped reports `TransportClosedError` instead of an untyped error
     - Fix: A CASE pairing failure reaches the caller even when reporting it to the peer fails; the report's own failure is logged instead of replacing the pairing error
 
@@ -365,6 +432,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A discovered peer cluster records the `ClusterRevision` the peer reports rather than the standard cluster's, and peers differing only in revision no longer share a behavior
     - Fix: (@lboue) `DoorLockServer` denies a `WeekDayScheduleUser`, `YearDayScheduleUser` or `ScheduleRestrictedUser` outside its schedules, and when it has none
     - Fix: (@lboue) `DoorLockServer` disables a user of type `ExpiringUser` once `ExpiringUserTimeout` minutes have passed since its first use, also across a restart, and emits `LockUserChange`; it denies such a user while `ExpiringUserTimeout` is not set
+    - Breaking: Ensure that `DoorLockServer` refuses remote lock operations in the `Privacy` and `NoRemoteLockUnlock` operating modes, during a wrong-code lockout and for a `NonAccessUser`, and accepts only an `OperatingMode` that `SupportedOperatingModes` marks as supported
+    - Breaking: The `DoorLockServer` lock command handlers are `async`; an override must `await` its `super` call, and hardware belongs in `handleLockOperation`
+    - Fix: Ensure that `DoorLockServer` disables a `DisposableUser` after it unlocks once, reports `ForcedUser` operations with the `ForcedUser` alarm, counts an omitted required PIN as a wrong code and reports `UnboltDoor` as an `Unlock` to `Unlocked`
+    - Fix: Ensure that `DoorLockServer` emits `LockUserChange` for schedule changes and reports the affected user and index in its `LockUserChange` and `LockOperationError` events
+    - Feature: Ensure that a lock implementation can drive its hardware by overriding `DoorLockServer.handleLockOperation` and report a failure reason with `LockOperationFailedError`
 
 - @matter/types
     - Enhancement: `hasNumberTlvMapping()` states whether a model's integer or bitmap width has a TLV codec. Generation uses it to refuse a model that declares a width with none, rather than letting the width reach an invoke or write and throw there
@@ -542,7 +614,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A cluster's feature selection is recorded as persisted only once the store accepted the values it travels with, so a failed write no longer leaves a later feature change undetected
     - Fix: Validating a state class that serves properties dynamically passes it the endpoint, as every other caller does
     - Fix: A peer that reports a cluster ID outside the ranges the specification allows no longer fails node initialization
-    - Adjustment: A cluster ID is validated when a server behavior is created rather than when a cluster namespace is built, so a peer's ID stays as reported
+    - Adjustment: A hosted cluster's cluster, attribute, command and event IDs are validated when its server behavior initializes on an endpoint, for every cluster behavior however it is defined; a peer's or client's IDs stay as reported
     - Fix: Two peer clusters whose attribute or command IDs differ by 32 no longer share one generated behavior
 
 - @matter/matter.js
@@ -560,6 +632,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Giving up on a peripheral reports the last connection failure as cause
     - Fix: A disconnect that never completes no longer leaves the channel request pending forever
     - Fix: Aborting a BLE connection attempt now stops its retries and releases a link the attempt already established
+    - Fix: A peripheral that completes the BTP handshake but then never responds to data is retried once with the minimum BTP segment size instead of failing commissioning
+    - Fix: A pending ATT_MTU exchange is awaited briefly, so a late MTU no longer pins the BTP segment size to the minimum
+    - Fix: Opening a BLE channel no longer waits beyond the handshake timeout or an abort when the handshake write or subscribe never completes
     - Fix: Stopping an advertisement that was still waiting for the Bluetooth adapter retracts it, so the adapter powering on no longer starts an advertisement that was already given up on
     - Fix: Shutdown no longer hangs when Bluetooth is enabled but no adapter is usable; the Bluetooth driver is now always stopped, which releases the handle that kept the process alive
 
@@ -576,6 +651,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: New `CertificateAuthority.erase()` discards the authority's key material, persisted and in memory
     - Enhancement: A discovered commissionable device reports the `hostname` its SRV record names
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it; defaults to the previous fixed 4m15s
+    - Breaking: `BtpSessionHandler.createAsCentral()` requires the segment size offered in the handshake request and rejects an invalid one with `ImplementationError`
+    - Enhancement: `BtpSessionHandler.stalledAfterHandshake` reports a peer that answers the handshake and then nothing else, carrying the messages it never acknowledged
+    - Enhancement: New `BtpSessionHandler.suspend()` ends a BTP session without closing the BLE connection
+    - Enhancement: New `BtpCodec.isHandshakeResponse()` identifies a BTP handshake response without a session to decode against
+    - Fix: A central BTP session never uses a segment size larger than the one it offered
+    - Fix: A failed write to the BLE transport closes the BTP session
     - Fix: Cancelling BLE commissioning aborts the in-flight channel open
     - Fix: A concrete subscription path is reported only when that attribute changed; it was previously reported whenever any other attribute of the same cluster changed
     - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves
@@ -586,6 +667,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: a unicast mDNS response does not carry the cache-flush bit
 
 - @matter/react-native
+    - Fix: Ensure that `ReactNativeBle.scanner` returns one `BleScanner`, so the scanner the controller uses keeps receiving advertisements
     - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
 
 - @matter/types

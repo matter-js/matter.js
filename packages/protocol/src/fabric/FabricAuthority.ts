@@ -138,6 +138,10 @@ export class FabricAuthority {
         if (vendorId === undefined) {
             vendorId = DEFAULT_ADMIN_VENDOR_ID;
             logger.warn(`Using test vendor ID 0x${vendorId.toString(16)} for controller fabric`);
+        } else if (!VendorId.isOperational(vendorId)) {
+            throw new ImplementationError(
+                `Admin vendor ID 0x${vendorId.toString(16)} is reserved (0x0000 or above 0xFFF4); devices refuse it in AddNOC`,
+            );
         }
 
         const fabricBuilder = await FabricBuilder.create(this.#fabrics.crypto);

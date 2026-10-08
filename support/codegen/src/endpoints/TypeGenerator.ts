@@ -6,6 +6,7 @@
 
 import { ClusterModel, int64, Metatype, status, uint64, ValueModel } from "#model";
 import { SpecializedNumbers, specializedNumberTypeFor } from "../clusters/NumberConstants.js";
+import { isEnumRange } from "../util/enum-ranges.js";
 import { ScopeFile } from "../util/ScopeFile.js";
 
 /**
@@ -164,12 +165,14 @@ export class TypeGenerator {
                 // clusters with extended enums (e.g. RvcCleanMode.ModeChangeStatus |
                 // ModeBase.ModeChangeStatus) get the full union type.
                 const types = Array<string>();
+                let open = false;
                 for (let m: ValueModel | undefined = model; m; m = m.base) {
                     if (!m.children.length) {
                         continue;
                     }
                     this.onReference?.(m);
                     types.push(this.file.reference(m, false, true));
+                    open ||= m.children.some(isEnumRange);
                 }
                 const owner = this.file.scope?.owner;
                 if (model.isGlobal && model.name === status.name && owner instanceof ClusterModel) {
@@ -180,6 +183,10 @@ export class TypeGenerator {
                     }
                 }
                 if (types.length) {
+                    // A value in a range member, such as a manufacturer-specific value, has no enum constant
+                    if (open) {
+                        types.push("number");
+                    }
                     return types.join(" | ");
                 }
                 this.onReference?.(model);

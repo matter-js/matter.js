@@ -131,6 +131,12 @@ let charger: object | undefined;
 let abandonedHostAsyncOps = 0;
 
 /**
+ * Advances with each test.  Mocha abandons a timed-out test but not its promises, so a {@link MockTime.resolve} loop
+ * the test left running would keep moving the clock under the tests that follow; the loop stops once this moves on.
+ */
+let testGeneration = 0;
+
+/**
  * Report whether virtual time must stand still for a pending host operation.  The waiter that owns the bridge also
  * spends it and abandons any operation that has outlived its budget.
  */
@@ -241,9 +247,9 @@ class MockTimer {
      * As with the production implementation, changes have no effect until the timer restarts.
      */
     set interval(interval: number) {
-        if (interval < 0 || interval > 2147483647) {
+        if (!Number.isFinite(interval) || interval < 0) {
             throw new Error(
-                `Invalid intervalMs: ${interval}. The value must be between 0 and 32-bit maximum value (2147483647)`,
+                `Invalid interval for timer "${this.name}": ${interval}; it must be finite and not negative`,
             );
         }
         this.#interval = interval;
@@ -560,6 +566,7 @@ export const MockTime = {
         let turns = 0;
         let advanced = false;
         const waiter = {};
+        const generation = testGeneration;
 
         try {
             while (!resolved) {
@@ -578,6 +585,10 @@ export const MockTime = {
 
                 if (resolved) {
                     break;
+                }
+
+                if (generation !== testGeneration) {
+                    throw new TestTimeoutError("MockTime.resolve outlived the test that started it");
                 }
 
                 // If we've advanced more than one hour, assume we've hung
@@ -808,6 +819,8 @@ function instrumentImplementation(time: TimeLike) {
 Object.assign(globalThis, { MockTime });
 
 Boot.init(kind => {
+    testGeneration++;
+
     if (kind === "state") {
         wallClockOffsetMs = 0;
         return;

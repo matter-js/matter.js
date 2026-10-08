@@ -17,6 +17,9 @@ import { PeerAddress, ProtocolMocks, Session } from "@matter/protocol";
  * stub out methods as necessary.
  */
 export class MockExchange extends ProtocolMocks.Exchange {
+    /**
+     * The peer address this exchange was created for.
+     */
     address: PeerAddress;
 
     constructor(address: PeerAddress, { session, accessLevel = AccessLevel.Operate }: MockExchange.Options = {}) {
@@ -29,18 +32,33 @@ export class MockExchange extends ProtocolMocks.Exchange {
         this.address = address;
     }
 
+    /**
+     * Reads the next message, resolving it through {@link MockTime} so no manual clock advance is needed.
+     */
     override async read() {
         return MockTime.resolve(super.read());
     }
 
+    /**
+     * Returns the next message, resolving it through {@link MockTime} so no manual clock advance is needed.
+     */
     override async nextMessage() {
         return await MockTime.resolve(super.nextMessage());
     }
 }
 
 export namespace MockExchange {
+    /**
+     * Options for {@link MockExchange}.
+     */
     export interface Options {
+        /**
+         * Session to use.  If omitted, a mock fabric and mock node session for the peer address are created.
+         */
         session?: Session;
+        /**
+         * Access level granted on the generated session (View is always granted too).  Ignored if `session` is given.  Defaults to Operate.
+         */
         accessLevel?: AccessLevel;
     }
 }

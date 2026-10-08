@@ -178,4 +178,67 @@ describe("MockTime.resolve", () => {
 
         expect(MockTime.pendingHostAsyncOps).equal(0);
     });
+
+    // Node settles a small read before the clock first moves, so only the browser leg sees an unregistered read here
+    it("holds virtual time while a Blob is read whole", async () => {
+        const bytes = await MockTime.resolve(new Blob([new Uint8Array(4096)]).arrayBuffer());
+
+        expect(bytes.byteLength).equal(4096);
+        expect(MockTime.nowMs).equal(FAKE_TIME);
+    });
+
+    it("holds virtual time while a Blob is read as text", async () => {
+        const text = await MockTime.resolve(new Blob(["x".repeat(4096)]).text());
+
+        expect(text.length).equal(4096);
+        expect(MockTime.nowMs).equal(FAKE_TIME);
+    });
+
+    it("holds virtual time while a Blob is streamed", async () => {
+        const reader = new Blob([new Uint8Array(4096)]).stream().getReader();
+        let length = 0;
+        while (true) {
+            const { done, value } = await MockTime.resolve(reader.read());
+            if (done) {
+                break;
+            }
+            length += value.length;
+        }
+
+        expect(length).equal(4096);
+        expect(MockTime.nowMs).equal(FAKE_TIME);
+    });
+
+    it("streams a Blob to a BYOB reader", async () => {
+        const reader = new Blob([new Uint8Array(16).fill(7)]).stream().getReader({ mode: "byob" });
+
+        const { value } = await MockTime.resolve(reader.read(new Uint8Array(16)));
+
+        expect(value?.[0]).equal(7);
+        await reader.cancel();
+    });
+});
+
+describe("MockTime.resolve across tests", () => {
+    // Set by the first test and observed by the second; the second cannot run alone
+    let abandoned: Promise<unknown> | undefined;
+
+    before(() => MockTime.reset(FAKE_TIME));
+
+    it("leaves a wait running when the test ends", () => {
+        abandoned = MockTime.resolve(new Promise(() => {})).then(
+            () => undefined,
+            error => error,
+        );
+    });
+
+    it("stops moving the clock for a wait an earlier test left running", async () => {
+        const nowMs = MockTime.nowMs;
+
+        expect(abandoned).not.undefined;
+        const error = await abandoned;
+
+        expect(error).instanceOf(Error).with.property("message").contains("outlived the test that started it");
+        expect(MockTime.nowMs).equal(nowMs);
+    });
 });

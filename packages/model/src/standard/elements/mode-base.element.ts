@@ -75,7 +75,8 @@ export const ModeBase = Cluster(
         Field({ name: "Success", id: 0x0 }),
         Field({ name: "UnsupportedMode", id: 0x1 }),
         Field({ name: "GenericFailure", id: 0x2 }),
-        Field({ name: "InvalidInMode", id: 0x3 })
+        Field({ name: "InvalidInMode", id: 0x3 }),
+        Field({ name: "MfgCodes", constraint: "128 to 191" })
     ),
 
     Datatype(
@@ -89,7 +90,8 @@ export const ModeBase = Cluster(
         Field({ name: "Min", id: 0x6 }),
         Field({ name: "Max", id: 0x7 }),
         Field({ name: "Night", id: 0x8 }),
-        Field({ name: "Day", id: 0x9 })
+        Field({ name: "Day", id: 0x9 }),
+        Field({ name: "MfgTags", constraint: "32768 to 49151" })
     )
 );
 
