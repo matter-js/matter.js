@@ -8,6 +8,7 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import type { ServerNode } from "#node/ServerNode.js";
+import { Lifecycle } from "@matter/general";
 import { MockServerNode, MockSite } from "@matter/node/testing";
 import type { CommissionableDevice } from "@matter/protocol";
 
@@ -117,6 +118,24 @@ describe("ChangeNotificationService", () => {
         await MockTime.resolve(controller.close());
 
         expect(recorded.endpointsOf("delete")).deep.equals([]);
+    });
+
+    it("reports no deletion when the runtime shuts down a controller with a started peer", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer = controller.peers.get("peer1");
+        if (peer === undefined) {
+            expect.fail("No commissioned peer");
+        }
+        await MockTime.resolve(peer.start());
+        expect(peer.lifecycle.isOnline).equals(true);
+        const recorded = record(controller);
+
+        await MockTime.resolve(controller.env.runtime.close(), { macrotasks: true });
+
+        expect(recorded.endpointsOf("delete")).deep.equals([]);
+        expect(peer.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(controller.peers.size).equals(0);
     });
 
     it("reports the shutdown of a node with its own endpoints, but no deletion, while it closes", async () => {

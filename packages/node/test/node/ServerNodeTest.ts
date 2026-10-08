@@ -32,6 +32,7 @@ import {
     CrashedDependencyError,
     Crypto,
     DatafileRoot,
+    Diagnostic,
     DiagnosticPresentation,
     DiagnosticSource,
     DnsCodec,
@@ -42,6 +43,7 @@ import {
     InternalError,
     Lifecycle,
     isObject,
+    LogFormat,
     MemoryBlobStorageDriver,
     MemoryStorageDriver,
     MdnsSocket,
@@ -303,6 +305,19 @@ describe("ServerNode", () => {
 
         const expiration = DnsCodec.decode(await expirationReceived);
         expect(expiration?.answers[0]?.ttl).equals(0);
+    });
+
+    it("lists its peers in its diagnostics", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer = controller.peers.get("peer1");
+        if (peer === undefined) {
+            expect.fail("No commissioned peer");
+        }
+
+        const text = LogFormat.formats.plain(Diagnostic.valueOf(controller));
+
+        expect(text).contains(`${peer} ${peer.lifecycle.isOnline ? "online" : "offline"}`);
     });
 
     describe("operational port", () => {
