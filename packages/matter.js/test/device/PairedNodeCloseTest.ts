@@ -13,6 +13,7 @@ import { settled } from "@matter/node/testing";
 import { LegacyControllerSite } from "../util/LegacyControllerSite.js";
 
 class StateCallbackError extends MatterError {}
+class HandlerError extends MatterError {}
 
 function activeSubscriptionsOf(device: ServerNode) {
     return Object.values(device.state.sessions.sessions).reduce(
@@ -196,6 +197,60 @@ describe("PairedNode close", () => {
             });
 
             await MockTime.resolve(node.close(true), { macrotasks: true });
+
+            expect(handled).true;
+        });
+
+        it("finishes closing when a decommissioned handler rejects", async () => {
+            await using site = new LegacyControllerSite();
+            const { controller, nodeId } = await site.addCommissionedPair();
+            const node = await MockTime.resolve(controller.getNode(nodeId), { macrotasks: true });
+
+            node.events.decommissioned.on(async () => {
+                throw new HandlerError("decommissioned handler failed");
+            });
+
+            const closing = node.close(true);
+            await expect(MockTime.resolve(closing, { macrotasks: true })).rejectedWith("decommissioned handler failed");
+
+            expect(node.connectionState).equals(NodeStates.Disconnected);
+            expect(node.close()).equals(closing);
+            await idle(controller, node);
+            expect(node.construction.status).equals(Lifecycle.Status.Destroyed);
+        });
+
+        it("makes a second close wait for the first", async () => {
+            await using site = new LegacyControllerSite();
+            const { controller, nodeId } = await site.addCommissionedPair();
+            const node = await MockTime.resolve(controller.getNode(nodeId), { macrotasks: true });
+
+            let handled = false;
+            node.events.decommissioned.on(async () => {
+                await Time.sleep("decommissioned handler", Seconds(1));
+                handled = true;
+            });
+
+            const first = node.close(true);
+            const second = node.close();
+            await MockTime.resolve(second, { macrotasks: true });
+
+            expect(second).equals(first);
+            expect(handled).true;
+        });
+
+        it("waits in decommission() for the handlers of the decommissioned event", async () => {
+            await using site = new LegacyControllerSite();
+            const { controller, nodeId } = await site.addCommissionedPair();
+            const node = await MockTime.resolve(controller.connectNode(nodeId), { macrotasks: true });
+            await MockTime.resolve(node.events.initialized, { macrotasks: true });
+
+            let handled = false;
+            node.events.decommissioned.on(async () => {
+                await Time.sleep("decommissioned handler", Seconds(1));
+                handled = true;
+            });
+
+            await MockTime.resolve(node.decommission(), { macrotasks: true });
 
             expect(handled).true;
         });

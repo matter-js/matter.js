@@ -799,7 +799,9 @@ export class CommissioningController {
         try {
             await MatterAggregateError.settleSeries(
                 [
-                    ...[...this.#initializedNodes.values()].map(node => () => node.close()),
+                    ...[...this.#initializedNodes.values()]
+                        .filter(node => !node.isClosed)
+                        .map(node => () => node.close()),
                     () => this.#controllerInstance?.close(),
                 ],
                 "Error closing commissioning controller",

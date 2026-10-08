@@ -265,6 +265,8 @@ export class PairedNode {
     #decommissioned = false;
     readonly #peerAddress: PeerAddress;
     #closing = false;
+    #closed?: Promise<void>;
+    #decommissionReported?: Promise<void>;
 
     /**
      * Endpoint structure change information that are checked when updating structure
@@ -342,7 +344,12 @@ export class PairedNode {
                     break;
             }
         });
-        this.#observers.on(this.#clientNode.lifecycle.decommissioned, () => this.#handleNodeDecommissioning());
+        this.#observers.on(this.#clientNode.lifecycle.decommissioned, () => {
+            MaybePromise.catch(
+                () => this.#handleNodeDecommissioning(),
+                error => logger.warn(this.#peerAddress, "Error reporting decommissioning", error),
+            );
+        });
         this.#observers.on(
             this.#clientNode.eventsOf(NetworkClient).subscriptionStatusChanged,
             this.#handleSubscriptionStatusChanged.bind(this),
@@ -1345,10 +1352,15 @@ export class PairedNode {
         await this.#handleNodeDecommissioning();
     }
 
-    async #handleNodeDecommissioning() {
-        if (this.#decommissioned) {
-            return;
-        }
+    /**
+     * Report the decommissioning once.  The node's lifecycle event starts the report without waiting for it, so a later
+     * caller waits for that same report.
+     */
+    #handleNodeDecommissioning() {
+        return (this.#decommissionReported ??= this.#reportDecommissioning());
+    }
+
+    async #reportDecommissioning() {
         this.#decommissioned = true;
 
         this.#updateEndpointStructureTimer?.stop();
@@ -1468,11 +1480,16 @@ export class PairedNode {
         await this.#commissioningController.disconnectNode(this.nodeId);
     }
 
-    /** Closes the subscription and ends all timers used by this PairedNode instance. */
-    async close(sendDecommissionedStatus = false) {
-        if (this.#closing) {
-            return;
-        }
+    /**
+     * Closes the subscription and ends all timers used by this PairedNode instance.
+     *
+     * Every call returns the same promise, which settles once the first call finished.
+     */
+    close(sendDecommissionedStatus = false): Promise<void> {
+        return (this.#closed ??= this.#close(sendDecommissionedStatus));
+    }
+
+    async #close(sendDecommissionedStatus: boolean) {
         this.#closing = true;
         this.#observers.close();
         this.#updateEndpointStructureTimer.stop();
@@ -1484,16 +1501,17 @@ export class PairedNode {
             error => logger.warn(this.#peerAddress, "Error stopping node of closed paired node", error),
         );
 
-        if (sendDecommissionedStatus) {
-            this.#decommissioned = true;
-            this.#options.stateInformationCallback?.(this.nodeId, NodeStateInformation.Decommissioned);
-            await this.events.decommissioned.emit();
+        try {
+            if (sendDecommissionedStatus) {
+                await this.#handleNodeDecommissioning();
+            }
+        } finally {
+            this.#setConnectionState(NodeStates.Disconnected);
+            MaybePromise.catch(
+                () => this.#construction.close(),
+                error => logger.warn(this.#peerAddress, "Error closing paired node", error),
+            );
         }
-        this.#setConnectionState(NodeStates.Disconnected);
-        MaybePromise.catch(
-            () => this.#construction.close(),
-            error => logger.warn(this.#peerAddress, "Error closing paired node", error),
-        );
     }
 
     /**
