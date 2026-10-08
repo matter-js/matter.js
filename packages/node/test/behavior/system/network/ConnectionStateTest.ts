@@ -143,6 +143,16 @@ describe("ConnectionState", () => {
         expect(peer1.lifecycle.isConnected).false;
     });
 
+    it("transitions to Disconnected when its controller goes offline", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+
+        expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Disconnected);
+    });
+
     it("reports Disconnected for a known peer that has not been started", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();

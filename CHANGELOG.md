@@ -149,6 +149,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: A peer stopped after losing its sessions, as when its controller goes offline, reports `Disconnected` instead of staying `Reconnecting`
     - Fix: Started peers close during their controller's teardown instead of in parallel with it, so shutting down no longer reports their endpoints as deleted
     - Fix: `ChangeNotificationService` reports nothing once its node begins destruction, so consumers such as the shell no longer see every endpoint of every peer as deleted on shutdown
     - Fix: AddNOC and UpdateNOC answer `InvalidNodeOpId` for a NOC whose node ID is outside the operational range
