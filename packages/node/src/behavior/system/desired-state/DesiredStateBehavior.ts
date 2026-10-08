@@ -10,12 +10,12 @@ import { Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { assertCanAddItems, CapacityCache } from "./capacity.js";
 import type { CapacityInfo } from "./ItemKind.js";
-import { itemMapKey, ItemMode, ItemState, ManagedItem, newStatus } from "./types.js";
+import { itemMapKey, ItemDrift, ItemMode, ItemState, ManagedItem, newStatus } from "./types.js";
 
 /**
- * Per-ClientNode store of intended state. Holds persisted {@link ManagedItem}s and a volatile
- * observed device capacity cache. Passive: it tracks intent and status but performs no network
- * I/O. The Reconciler (separate package) drives items toward the node.
+ * Per-ClientNode store of intended state. Holds persisted {@link ManagedItem}s and, volatile, the
+ * observed device capacity cache and the drift marks of committed items. Passive: it tracks intent
+ * and status but performs no network I/O. The Reconciler (separate package) drives items toward the node.
  */
 export class DesiredStateBehavior extends Behavior {
     static override readonly id = "desiredState";
@@ -47,6 +47,7 @@ export class DesiredStateBehavior extends Behavior {
             generation: (this.state.items[itemMapKey(kind, key)]?.generation ?? 0) + 1,
         };
         this.state.items = { ...this.state.items, [itemMapKey(kind, key)]: item };
+        this.#removeDrift(kind, key);
         this.events.itemChanged.emit(item);
         return item;
     }
@@ -64,6 +65,7 @@ export class DesiredStateBehavior extends Behavior {
             generation: existing.generation + 1,
         };
         this.state.items = { ...this.state.items, [id]: item };
+        this.#removeDrift(kind, key);
         this.events.itemChanged.emit(item);
     }
 
@@ -84,6 +86,7 @@ export class DesiredStateBehavior extends Behavior {
         }
         const item: ManagedItem = { ...existing, status: newStatus(state, failureCode) };
         this.state.items = { ...this.state.items, [id]: item };
+        this.#removeDrift(kind, key);
         this.events.itemChanged.emit(item);
     }
 
@@ -104,7 +107,45 @@ export class DesiredStateBehavior extends Behavior {
         }
         const { [id]: _removed, ...rest } = this.state.items;
         this.state.items = rest;
+        this.#removeDrift(kind, key);
         this.events.itemRemoved.emit(kind, key);
+    }
+
+    /**
+     * Record that a live read confirmed the item differs from the device.
+     *
+     * Written only beside a `committed` item, and, when `ifGeneration` is given, only if that is still the
+     * intent the read was made for; see {@link updateStatus}. An item that is pending, being removed or gone
+     * has nothing the device is expected to hold, so nothing can have drifted from it.
+     *
+     * Emits {@link Events.itemDriftChanged} when the mark is new or its disposition changes; a repeated
+     * confirmation of the same disposition changes nothing.
+     */
+    markDrift(kind: string, key: string, drift: ItemDrift, ifGeneration?: number): void {
+        const id = itemMapKey(kind, key);
+        const existing = this.state.items[id];
+        if (
+            existing === undefined ||
+            existing.status.state !== "committed" ||
+            (ifGeneration !== undefined && existing.generation !== ifGeneration)
+        ) {
+            return;
+        }
+        if (this.state.drifts[id]?.disposition === drift.disposition) {
+            return;
+        }
+        this.state.drifts = { ...this.state.drifts, [id]: drift };
+        this.events.itemDriftChanged.emit(kind, key, drift);
+    }
+
+    /** Forget a drift mark, for example because a live read found the device restored. */
+    clearDrift(kind: string, key: string): void {
+        this.#removeDrift(kind, key);
+    }
+
+    /** The confirmed drift of an item, if this runtime knows of one. */
+    driftOf(kind: string, key: string): ItemDrift | undefined {
+        return this.state.drifts[itemMapKey(kind, key)];
     }
 
     getItem(kind: string, key: string): ManagedItem | undefined {
@@ -127,6 +168,17 @@ export class DesiredStateBehavior extends Behavior {
         return this.state.capacities[kind];
     }
 
+    /** The one place a mark is removed, so every writer of an item clears it the same way. */
+    #removeDrift(kind: string, key: string) {
+        const id = itemMapKey(kind, key);
+        if (this.state.drifts[id] === undefined) {
+            return;
+        }
+        const { [id]: _removed, ...rest } = this.state.drifts;
+        this.state.drifts = rest;
+        this.events.itemDriftChanged.emit(kind, key, undefined);
+    }
+
     /** See {@link assertCanAddItems}. */
     assertCanAdd(kind: string, keys: readonly string[]): void {
         assertCanAddItems(this.state, kind, keys);
@@ -137,10 +189,22 @@ export namespace DesiredStateBehavior {
     export class State {
         items: Record<string, ManagedItem> = {};
         capacities: CapacityCache = {};
+
+        /**
+         * Confirmed drifts, keyed by {@link itemMapKey}. Volatile: not in the schema, so a restart starts empty
+         * and the next verify finds a drift again.
+         *
+         * A mark exists only beside a committed item whose status has not been written since the drift was
+         * confirmed. `setIntent`, `removeIntent`, `dropItem` and `updateStatus` therefore clear it.
+         */
+        drifts: Record<string, ItemDrift> = {};
     }
 
     export class Events extends BaseEvents {
         itemChanged = new Observable<[item: ManagedItem]>();
         itemRemoved = new Observable<[kind: string, key: string]>();
+
+        /** A drift mark was set, changed disposition, or cleared (`drift` is then `undefined`). */
+        itemDriftChanged = new Observable<[kind: string, key: string, drift: ItemDrift | undefined]>();
     }
 }

@@ -59,6 +59,19 @@ export interface ManagedItem<I = unknown> {
     generation: number;
 }
 
+/** A confirmed drift of a committed item, known to this runtime only. */
+export interface ItemDrift {
+    /** When the live read confirmed it. */
+    confirmedAt: Timestamp;
+
+    /**
+     * What the engine did: left it for an explicit verify (`recorded`), or stopped writing it back after its re-apply
+     * budget ran out (`held`). A held item stays held until the reconciler's `retry()`, a removed intent or a new
+     * one.
+     */
+    disposition: "recorded" | "held";
+}
+
 export function newStatus(state: ItemState, failureCode?: number): StatusEntry {
     return { state, updateTimestamp: Time.nowMs, failureCode };
 }

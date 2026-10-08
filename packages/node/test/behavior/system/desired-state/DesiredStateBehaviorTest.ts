@@ -6,7 +6,8 @@
 
 import { DesiredStateBehavior } from "#behavior/system/desired-state/DesiredStateBehavior.js";
 import { AclCapacityExceededError } from "#behavior/system/desired-state/errors.js";
-import { ManagedItem } from "#behavior/system/desired-state/types.js";
+import { ItemDrift, ManagedItem } from "#behavior/system/desired-state/types.js";
+import { Timestamp } from "@matter/general";
 import { MockEndpoint } from "../../../endpoint/mock-endpoint.js";
 
 describe("DesiredStateBehavior", () => {
@@ -106,6 +107,130 @@ describe("DesiredStateBehavior", () => {
             expect(ds.getCapacity("acl")).deep.equals({ limit: 4, used: 3 });
             expect(() => ds.assertCanAdd("acl", ["a"])).not.throws();
             expect(() => ds.assertCanAdd("acl", ["a", "b"])).throws(AclCapacityExceededError);
+        });
+    });
+
+    describe("drift mark", () => {
+        const recorded: ItemDrift = { confirmedAt: Timestamp(1000), disposition: "recorded" };
+        const held: ItemDrift = { confirmedAt: Timestamp(2000), disposition: "held" };
+
+        function track(ds: DesiredStateBehavior) {
+            const edges = new Array<[string, string, ItemDrift | undefined]>();
+            ds.events.itemDriftChanged.on((kind, key, drift) => {
+                edges.push([kind, key, drift]);
+            });
+            return edges;
+        }
+
+        function committed(ds: DesiredStateBehavior) {
+            const item = ds.setIntent("acl", "1", { privilege: 5 }, "maintain");
+            ds.updateStatus("acl", "1", "committed");
+            return item;
+        }
+
+        it("markDrift sets the mark and emits once per change of disposition", async () => {
+            await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+            await endpoint.act(agent => {
+                const ds = agent.get(DesiredStateBehavior);
+                committed(ds);
+                const edges = track(ds);
+
+                ds.markDrift("acl", "1", recorded);
+                expect(ds.driftOf("acl", "1")).deep.equals(recorded);
+                expect(edges).deep.equals([["acl", "1", recorded]]);
+
+                ds.markDrift("acl", "1", { ...recorded, confirmedAt: Timestamp(1500) });
+                expect(edges.length).equals(1);
+
+                ds.markDrift("acl", "1", held);
+                expect(ds.driftOf("acl", "1")).deep.equals(held);
+                expect(edges.length).equals(2);
+                expect(edges[1]).deep.equals(["acl", "1", held]);
+            });
+        });
+
+        it("markDrift ignores a stale generation, a pending item and a missing item", async () => {
+            await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+            await endpoint.act(agent => {
+                const ds = agent.get(DesiredStateBehavior);
+                const edges = track(ds);
+
+                ds.markDrift("acl", "9", recorded);
+                expect(ds.driftOf("acl", "9")).equals(undefined);
+
+                const item = ds.setIntent("acl", "1", {}, "maintain");
+                ds.markDrift("acl", "1", recorded, item.generation);
+                expect(ds.driftOf("acl", "1")).equals(undefined);
+
+                ds.updateStatus("acl", "1", "committed");
+                ds.markDrift("acl", "1", recorded, item.generation + 1);
+                expect(ds.driftOf("acl", "1")).equals(undefined);
+
+                expect(edges).deep.equals([]);
+
+                ds.markDrift("acl", "1", recorded, item.generation);
+                expect(ds.driftOf("acl", "1")).deep.equals(recorded);
+                expect(edges.length).equals(1);
+            });
+        });
+
+        const writers: Record<string, (ds: DesiredStateBehavior) => void> = {
+            setIntent: ds => {
+                ds.setIntent("acl", "1", { privilege: 3 }, "maintain");
+            },
+            removeIntent: ds => ds.removeIntent("acl", "1"),
+            dropItem: ds => ds.dropItem("acl", "1"),
+            updateStatus: ds => ds.updateStatus("acl", "1", "committed"),
+        };
+
+        for (const [name, write] of Object.entries(writers)) {
+            it(`${name} clears an existing mark and emits the clearing edge`, async () => {
+                await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+                await endpoint.act(agent => {
+                    const ds = agent.get(DesiredStateBehavior);
+                    committed(ds);
+                    ds.markDrift("acl", "1", recorded);
+                    const edges = track(ds);
+
+                    write(ds);
+
+                    expect(ds.driftOf("acl", "1")).equals(undefined);
+                    expect(edges).deep.equals([["acl", "1", undefined]]);
+                });
+            });
+
+            it(`${name} without a mark emits no drift event`, async () => {
+                await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+                await endpoint.act(agent => {
+                    const ds = agent.get(DesiredStateBehavior);
+                    committed(ds);
+                    const edges = track(ds);
+
+                    write(ds);
+
+                    expect(edges).deep.equals([]);
+                });
+            });
+        }
+
+        it("clearDrift emits only when a mark existed", async () => {
+            await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+            await endpoint.act(agent => {
+                const ds = agent.get(DesiredStateBehavior);
+                committed(ds);
+                const edges = track(ds);
+
+                ds.clearDrift("acl", "1");
+                expect(edges).deep.equals([]);
+
+                ds.markDrift("acl", "1", recorded);
+                ds.clearDrift("acl", "1");
+                expect(ds.driftOf("acl", "1")).equals(undefined);
+                expect(edges).deep.equals([
+                    ["acl", "1", recorded],
+                    ["acl", "1", undefined],
+                ]);
+            });
         });
     });
 });

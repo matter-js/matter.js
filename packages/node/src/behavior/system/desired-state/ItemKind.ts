@@ -24,9 +24,12 @@ export interface ItemKind<I = unknown> {
     diff?(intent: I, current: I): boolean;
 
     /**
-     * Report whether the device currently satisfies `item`. `true` = no drift. The engine consults
-     * this on a verify pass to decide which committed items to re-pend. Kinds own the device read
-     * and match; `read`/`diff` remain optional helpers.
+     * Report, from a live read, whether the device currently satisfies `item`: `true` means no drift, `false`
+     * means drifted. The engine calls this on a verify pass for each committed item; the item's mode and the pass
+     * decide what a drift leads to. Kinds own the device read and match; `read`/`diff` remain optional helpers.
+     *
+     * A throw means "not read": the engine decides nothing about drift for the item, and an explicit
+     * `reconcile({ verify: true })` rejects with the error once its pass is done.
      */
     verify?(node: ClientNode, item: ManagedItem<I>): Promise<boolean>;
 

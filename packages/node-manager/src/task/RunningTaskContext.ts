@@ -10,6 +10,7 @@ import { asError, Logger, ObserverGroup } from "@matter/general";
 import {
     ClientNode,
     DesiredStateBehavior,
+    ItemDrift,
     ItemKind,
     itemMapKey,
     ItemMode,
@@ -17,7 +18,7 @@ import {
     NetworkClient,
 } from "@matter/node";
 import { PeerAddress, SustainedSubscription } from "@matter/protocol";
-import { TaskFailedError, TaskPeerUnavailableError, TaskSuspendedSignal } from "./errors.js";
+import { TaskFailedError, TaskItemHeldError, TaskPeerUnavailableError, TaskSuspendedSignal } from "./errors.js";
 import { addressLabel, addressOf, peerLabel } from "./peer.js";
 import { runLabel, RunRecord, TaskPersistence } from "./Task.js";
 import { TaskContext, TaskState } from "./types.js";
@@ -228,7 +229,10 @@ export class RunningTaskContext implements TaskContext {
     }
     /**
      * A commit gate only ever observes success, so an intent nothing will converge would park the task
-     * forever. Fail it into the driver's rollback path, saying which of the two happened.
+     * forever. Fail it into the driver's rollback path, saying which of the three happened.
+     *
+     * A held item is still `committed`, so without its own check the gate would resolve on a value the device
+     * keeps reverting and the reconciler has stopped writing.
      */
     #requireAwaited(items: Array<{ peer: ClientNode; kind: ItemKind; key: string }>): void {
         for (const item of items) {
@@ -245,11 +249,22 @@ export class RunningTaskContext implements TaskContext {
                         `${this.#whyAbandoned(current)}, so it will not commit`,
                 );
             }
+            if (this.#driftOf(item.peer, item.kind.kind, item.key)?.disposition === "held") {
+                throw new TaskItemHeldError(
+                    `Task ${runLabel(this.record.runId)}: awaited intent ${item.kind.kind}:${item.key} on ${peerLabel(item.peer)} ` +
+                        `is held: the device kept reverting it and its re-apply budget is spent. It needs ` +
+                        `ReconcilerBehavior.retry(), a removed intent or a new one`,
+                );
+            }
         }
     }
 
     #itemOf(peer: ClientNode, kind: string, key: string): ManagedItem | undefined {
         return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
+    }
+
+    #driftOf(peer: ClientNode, kind: string, key: string): ItemDrift | undefined {
+        return peer.stateOf(DesiredStateBehavior).drifts[itemMapKey(kind, key)];
     }
 
     /**
@@ -414,6 +429,10 @@ export class RunningTaskContext implements TaskContext {
         }
         for (const node of nodes) {
             await this.reconciler.reconcile(node, { verify: true });
+        }
+        // Asked again: a reconcile whose fabric left while it waited returns having read nothing.
+        if (!this.canConclude()) {
+            return false;
         }
         const items = nodes.flatMap(node => Object.values(node.stateOf(DesiredStateBehavior).items));
         return until(items);

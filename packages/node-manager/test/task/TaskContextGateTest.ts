@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TaskCancelledSignal, TaskFailedError } from "#task/errors.js";
+import { TaskCancelledSignal, TaskFailedError, TaskItemHeldError, TaskSettledSignal } from "#task/errors.js";
 import { GateControl, RunningTaskContext } from "#task/RunningTaskContext.js";
 import { TaskDefinition, RunRecord } from "#task/Task.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
-import { Observable } from "@matter/general";
+import { Observable, Timestamp } from "@matter/general";
 import { ClientNode, itemMapKey } from "@matter/node";
 import { PeerAddress } from "@matter/protocol";
 import { kindOf, FakePeer } from "./helpers.js";
@@ -240,6 +240,58 @@ describe("TaskContext gates", () => {
         expect(peer.subscriptionStatusChanged.isObserved).equals(false);
         expect(peer.itemRemoved.isObserved).equals(false);
         expect(peer.itemRemoved.isObserved).equals(false);
+    });
+
+    it("does not resolve when the run's fabric stops being managed during its verify pass", async () => {
+        /** The manager loses the run's fabric while this peer's pass waits, so the pass returns having read nothing. */
+        class FabricLostDuringPassPeer extends FakePeer {
+            managed = true;
+            override async reconcile(node: ClientNode, options?: { verify?: boolean }) {
+                this.managed = false;
+                await super.reconcile(node, options);
+            }
+        }
+
+        const peer = new FabricLostDuringPassPeer("p1");
+        peer.addItem("groupMembership", "1", "committed");
+        const record = new RunRecord(RunId(1), "gate-test:1", GateTask.type, {});
+        const gateControl = makeGate();
+        const ctx = new RunningTaskContext(
+            record,
+            () => peer.asNode(),
+            peer,
+            state => (record.state = state),
+            gateControl.control,
+            undefined,
+            undefined,
+            () => peer.managed,
+        );
+
+        let settled = false;
+        const gate = ctx
+            .awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }])
+            .finally(() => (settled = true));
+        for (let i = 0; i < 20; i++) {
+            await MockTime.advance(1);
+        }
+        expect(settled).equals(false);
+        expect(peer.reconciles).equals(1);
+
+        // The fabric-loss settlement is what ends it.
+        gateControl.abort(new TaskSettledSignal("fabric gone"));
+        await expect(MockTime.resolve(gate)).rejectedWith(TaskSettledSignal);
+    });
+
+    it("fails with what to do when its verify pass leaves an awaited item held", async () => {
+        const peer = new FakePeer("p1");
+        peer.addItem("groupMembership", "1", "committed");
+        peer.drifts[itemMapKey("groupMembership", "1")] = { confirmedAt: Timestamp(0), disposition: "held" };
+        const { ctx } = makeContext(peer);
+
+        const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]);
+
+        await expect(MockTime.resolve(gate)).rejectedWith(TaskItemHeldError, /groupMembership:1 on .*held/);
+        expect(peer.itemChanged.isObserved).equals(false);
     });
 
     it("fails when an awaited item is dropped while the gate is parked", async () => {

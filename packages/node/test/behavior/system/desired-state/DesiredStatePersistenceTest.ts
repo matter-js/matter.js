@@ -6,7 +6,7 @@
 
 import { DesiredStateBehavior } from "#behavior/system/desired-state/DesiredStateBehavior.js";
 import { ClientNode } from "#node/ClientNode.js";
-import { Environment } from "@matter/general";
+import { Environment, Timestamp } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 
 describe("DesiredState integration", () => {
@@ -46,6 +46,29 @@ describe("DesiredState integration", () => {
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "captest" });
         await node2.act(agent => {
             expect(agent.get(DesiredStateBehavior).getCapacity("acl")).equals(undefined);
+        });
+        await node2.close();
+    });
+
+    it("does NOT persist drift marks across a restart", async () => {
+        const environment = new Environment("test");
+        const RootEndpoint = MockServerNode.RootEndpoint.with(DesiredStateBehavior);
+
+        const node1 = await MockServerNode.create(RootEndpoint, { environment, id: "drifttest" });
+        await node1.act(agent => {
+            const ds = agent.get(DesiredStateBehavior);
+            ds.setIntent("acl", "1", { privilege: 5 }, "maintain");
+            ds.updateStatus("acl", "1", "committed");
+            ds.markDrift("acl", "1", { confirmedAt: Timestamp(1000), disposition: "recorded" });
+            expect(ds.driftOf("acl", "1")?.disposition).equals("recorded");
+        });
+        await node1.close();
+
+        const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "drifttest" });
+        await node2.act(agent => {
+            const ds = agent.get(DesiredStateBehavior);
+            expect(ds.getItem("acl", "1")).not.equals(undefined);
+            expect(ds.driftOf("acl", "1")).equals(undefined);
         });
         await node2.close();
     });

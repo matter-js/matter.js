@@ -3628,6 +3628,7 @@ const PEER1_STATE = {
     desiredState: {
         items: {},
         capacities: {},
+        drifts: {},
     },
 };
 

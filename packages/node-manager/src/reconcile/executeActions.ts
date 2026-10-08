@@ -151,6 +151,7 @@ export async function executeActions(
             }
 
             case "skip":
+            case "drifted":
                 break;
         }
     }

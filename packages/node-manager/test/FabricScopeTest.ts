@@ -5,6 +5,7 @@
  */
 
 import { managedFabricOf } from "#ManagedFabric.js";
+import { Acl } from "#reconcile/kinds.js";
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskForeignFabricError, TaskNoManagedFabricError } from "#task/errors.js";
 import { AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
@@ -197,7 +198,7 @@ describe("the fabric a manager manages", () => {
         expect(fabric.peer(foreign.peerAddress!)).equals(undefined);
     });
 
-    it("refuses to reconcile a peer of another fabric", async () => {
+    it("refuses to reconcile or retry a peer of another fabric", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair({ controller: { type: ControllerRoot } });
         await subscribedPeer(controller, "peer1");
@@ -215,6 +216,12 @@ describe("the fabric a manager manages", () => {
         }
         expect(refusal).instanceOf(ImplementationError);
         expect((refusal as Error).message).contains("not on the fabric this manager manages");
+
+        // The fabric is asked before the item, so a foreign peer is refused for what it is, not for what it holds.
+        await expect(controller.act(a => a.get(ReconcilerBehavior).retry(foreignPeer!, Acl, "k"))).rejectedWith(
+            ImplementationError,
+            /not on the fabric this manager manages/,
+        );
     });
 
     it("acts on no trigger from a peer of another fabric", async () => {
