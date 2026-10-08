@@ -266,9 +266,6 @@ LogFormat.formats.ansi = function ansi(diagnostic: unknown, indents = 0) {
 
             const prefix = style("prefix", `${formatTime(now)} ${LogLevel[level].toUpperCase().padEnd(6)}`);
 
-            const originText = originLabel(origin);
-            const originPart = originText === "" ? "" : `${style("origin", originText)} `;
-
             facility = style(
                 "facility",
                 facility.length > 20
@@ -279,6 +276,9 @@ LogFormat.formats.ansi = function ansi(diagnostic: unknown, indents = 0) {
             if (nestPrefix) {
                 nestPrefix = style("prefix", nestPrefix);
             }
+
+            const originText = originLabel(origin);
+            const originPart = originText === "" ? "" : `${style("origin", originText)} `;
 
             const formattedValues = ensureIndented(renderDiagnostic(values, formatter));
 

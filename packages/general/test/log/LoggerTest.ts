@@ -791,6 +791,17 @@ describe("Logger", () => {
             expect(labelled.indexOf("[controller-one]")).equals(unlabelled.indexOf("hello"));
         });
 
+        // ANSI escapes are emitted as differences from the current style, so each part must be styled in output order
+        it("styles the facility the same with or without a label", () => {
+            function rawAnsi(origin?: Diagnostic.Origin) {
+                const [message] = captureMessages(() => Logger.get("OriginTest", origin).info("hello"));
+                const line = LogFormat.formats.ansi(message);
+                return line.slice(line.indexOf("INFO"), line.indexOf("OriginTest") + "OriginTest".length);
+            }
+
+            expect(rawAnsi({ name: "controller-one", parent: { name: "root" } })).equals(rawAnsi());
+        });
+
         it("brackets the origin in every format", () => {
             const [message] = captureMessages(() => Logger.get("OriginTest", origin).info("hello"));
 
