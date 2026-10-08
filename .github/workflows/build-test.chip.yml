@@ -13,12 +13,13 @@
 #
 #     * The head commit message includes [rebuild-chip] (works on both push and pull_request)
 #
-#     * A PR modifies the workflow file or files under matter.js/chip change
+#     * A push or PR changes files under support/chip, unless only sha.txt moved to a SHA whose image is already
+#       published (the nightly job's SHA-bump PR and its merge)
 #
 #     * Run as part of the nightly job
 #
-#   * It runs CHIP tests.  If a new image was built, it tests that image.  Otherwise it tests the latest image in the
-#     registry
+#   * It runs CHIP tests.  If a new image was built, it tests that image.  A change that only moves sha.txt to a published
+#     SHA tests the image published for it.  Otherwise it tests the latest image in the registry
 #
 #   * It publishes the new image (and PRs the new CHIP SHA) only on the nightly/manual jobs.  Builds triggered by a
 #     push or pull_request are test-only and never published.
@@ -61,19 +62,25 @@ jobs:
       build-needed: ${{ steps.check-rebuild.outputs.build-needed }}
       controllers: ${{ steps.controllers.outputs.controllers }}
       chip-sha: ${{ steps.get-sha.outputs.chip-sha }}
+      image-tag: ${{ steps.image-tag.outputs.image-tag }}
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
+      # "every" so the "!" pattern excludes sha.txt from the match instead of matching every other file
       - uses: dorny/paths-filter@v4
         id: changes
         with:
           base: main
+          predicate-quantifier: every
           filters: |
             src:
               - "support/chip/**"
+            src-besides-sha:
+              - "support/chip/**"
+              - "!support/chip/sha.txt"
 
       # head_commit is only populated on push events, so the marker would never match on pull_request.  Scan the PR's
       # commit messages (so any commit in the PR may carry the marker), and the head commit message on push.
@@ -95,12 +102,29 @@ jobs:
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # The nightly run publishes the image for a new CHIP SHA before it opens the PR that pins that SHA, so neither that
+      # PR nor its merge to main needs to build the image again
+      - name: Check for a published image of the pinned SHA
+        id: published
+        if: >-
+          steps.changes.outputs.src == 'true' &&
+          steps.changes.outputs.src-besides-sha != 'true' &&
+          steps.marker.outputs.present != 'true'
+        run: |
+          sha="$(cat support/chip/sha.txt 2> /dev/null || true)"
+          if [ -n "$sha" ] && docker manifest inspect "ghcr.io/matter-js/chip:$sha" > /dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Docker rebuild needed
         if: >-
               github.event_name == 'schedule' ||
               (
                 (github.event_name == 'push' || github.event_name == 'pull_request') &&
-                steps.changes.outputs.src == 'true'
+                steps.changes.outputs.src == 'true' &&
+                steps.published.outputs.exists != 'true'
               ) ||
               github.event_name == 'workflow_dispatch'||
               steps.marker.outputs.present == 'true'
@@ -137,6 +161,20 @@ jobs:
         run: |
           cd support/chip
           echo chip-sha=$(cat sha.txt) >> $GITHUB_OUTPUT
+
+      # A pinned SHA whose image is published is tested against that image rather than "latest", which a later nightly
+      # run may already have moved on
+      - name: Select image tag
+        id: image-tag
+        env:
+          PUBLISHED: ${{ steps.published.outputs.exists }}
+          CHIP_SHA: ${{ steps.get-sha.outputs.chip-sha }}
+        run: |
+          if [ "$PUBLISHED" = "true" ]; then
+            echo "image-tag=$CHIP_SHA" >> "$GITHUB_OUTPUT"
+          else
+            echo "image-tag=latest" >> "$GITHUB_OUTPUT"
+          fi
 
   # Build the CHIP container if necessary. CHIP compiles natively per architecture (QEMU emulation of the toolchain
   # is prohibitively slow), so amd64 and arm64 are separate jobs on runners native to each; publish-manifest later
@@ -250,6 +288,7 @@ jobs:
       - uses: ./.github/actions/run-chip-tests
         with:
           image-source: ${{ needs.chip-image-amd64.outputs.source }}
+          image-tag: ${{ needs.workflow-conditions.outputs.image-tag }}
           test-group: core
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
@@ -266,6 +305,7 @@ jobs:
       - uses: ./.github/actions/run-chip-tests
         with:
           image-source: ${{ needs.chip-image-arm64.outputs.source }}
+          image-tag: ${{ needs.workflow-conditions.outputs.image-tag }}
           artifact-name: chip-image-arm64
           test-group: core
 
@@ -283,6 +323,7 @@ jobs:
       - uses: ./.github/actions/run-chip-tests
         with:
           image-source: ${{ needs.chip-image-amd64.outputs.source }}
+          image-tag: ${{ needs.workflow-conditions.outputs.image-tag }}
           test-group: app-fast
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
@@ -300,6 +341,7 @@ jobs:
       - uses: ./.github/actions/run-chip-tests
         with:
           image-source: ${{ needs.chip-image-amd64.outputs.source }}
+          image-tag: ${{ needs.workflow-conditions.outputs.image-tag }}
           test-group: app-slow
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
@@ -317,6 +359,7 @@ jobs:
       - uses: ./.github/actions/run-chip-tests
         with:
           image-source: ${{ needs.chip-image-amd64.outputs.source }}
+          image-tag: ${{ needs.workflow-conditions.outputs.image-tag }}
           test-group: app-cc-1
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
@@ -334,6 +377,7 @@ jobs:
       - uses: ./.github/actions/run-chip-tests
         with:
           image-source: ${{ needs.chip-image-amd64.outputs.source }}
+          image-tag: ${{ needs.workflow-conditions.outputs.image-tag }}
           test-group: app-cc-2
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
@@ -351,6 +395,7 @@ jobs:
       - uses: ./.github/actions/run-chip-tests
         with:
           image-source: ${{ needs.chip-image-amd64.outputs.source }}
+          image-tag: ${{ needs.workflow-conditions.outputs.image-tag }}
           test-group: icd
           use-local-controller: ${{ matrix.controller == 'matterjs' }}
 
