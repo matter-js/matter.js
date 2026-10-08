@@ -7,6 +7,7 @@
 import { CommissionableDevice } from "#common/Scanner.js";
 import { CommissioningConnection } from "#peer/CommissioningConnection.js";
 import { PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
+import { PasscodeMismatchError } from "#session/pase/PaseClient.js";
 import {
     AbortedError,
     AddressUnreachableError,
@@ -33,7 +34,7 @@ function device(deviceIdentifier: string, addresses: ServerAddressUdp[]): Commis
 }
 
 describe("CommissioningConnection", () => {
-    it("drops device on UnexpectedDataError and tries next device", async () => {
+    it("drops device on PasscodeMismatchError and tries next device", async () => {
         const attempts = new Array<string>();
 
         const { discoveryData } = await CommissioningConnection({
@@ -43,7 +44,7 @@ describe("CommissioningConnection", () => {
             establishSession: async (address, discoveryData) => {
                 attempts.push(`${discoveryData.deviceIdentifier}:${(address as ServerAddressUdp).ip}`);
                 if (discoveryData.deviceIdentifier === "a") {
-                    throw new UnexpectedDataError("invalid credentials");
+                    throw new PasscodeMismatchError("invalid credentials");
                 }
                 return {} as any;
             },
@@ -67,7 +68,7 @@ describe("CommissioningConnection", () => {
             delayBeforeNextAddress: 0,
             establishSession: async address => {
                 if ((address as ServerAddressUdp).ip === "fd00::1") {
-                    throw new UnexpectedDataError("invalid credentials");
+                    throw new PasscodeMismatchError("invalid credentials");
                 }
                 await lateGate;
                 return {
@@ -82,10 +83,10 @@ describe("CommissioningConnection", () => {
         await new Promise(r => setTimeout(r, 0));
         releaseLate();
 
-        await expect(p).rejectedWith(UnexpectedDataError);
+        await expect(p).rejectedWith(PasscodeMismatchError);
         await new Promise(r => setTimeout(r, 0));
         // The late session is closed with the real credential error, not the generic race fallback.
-        expect(closeCause).instanceof(UnexpectedDataError);
+        expect(closeCause).instanceof(PasscodeMismatchError);
     });
 
     it("keeps device in play for network errors while addresses remain", async () => {
@@ -120,27 +121,48 @@ describe("CommissioningConnection", () => {
                 establishSession: async (address, discoveryData) => {
                     attempts.push(`${discoveryData.deviceIdentifier}:${(address as ServerAddressUdp).ip}`);
                     if (discoveryData.deviceIdentifier === "a") {
-                        throw new UnexpectedDataError("invalid credentials");
+                        throw new PasscodeMismatchError("invalid credentials");
                     }
                     throw new NoResponseTimeoutError("temporary network error");
                 },
             }),
-        ).rejectedWith(UnexpectedDataError);
+        ).rejectedWith(PasscodeMismatchError);
 
         expect(attempts).deep.equals(["a:fd00::1", "b:fd00::2"]);
     });
 
-    it("throws UnexpectedDataError (not generic error) when all static candidates fail with wrong credentials", async () => {
+    it("keeps trying a device's other addresses after invalid PASE data on one", async () => {
+        const attempts = new Array<string>();
+
+        const { discoveryData } = await CommissioningConnection({
+            devices: [device("a", [udp("fd00::1"), udp("fd00::2")])],
+            timeout: Seconds(2),
+            delayBeforeNextAddress: Seconds(1),
+            establishSession: async address => {
+                const ip = (address as ServerAddressUdp).ip;
+                attempts.push(ip);
+                if (ip === "fd00::1") {
+                    throw new UnexpectedDataError("Missing requested PbkdfParameters");
+                }
+                return {} as any;
+            },
+        });
+
+        expect(discoveryData.deviceIdentifier).equals("a");
+        expect(attempts).deep.equals(["fd00::1", "fd00::2"]);
+    });
+
+    it("throws PasscodeMismatchError (not generic error) when all static candidates fail with wrong credentials", async () => {
         await expect(
             CommissioningConnection({
                 devices: [device("a", [udp("fd00::1")]), device("b", [udp("fd00::2")])],
                 timeout: Seconds(2),
                 delayBeforeNextAddress: 0,
                 establishSession: async () => {
-                    throw new UnexpectedDataError("invalid credentials");
+                    throw new PasscodeMismatchError("invalid credentials");
                 },
             }),
-        ).rejectedWith(UnexpectedDataError);
+        ).rejectedWith(PasscodeMismatchError);
     });
 
     it("closes session if winner is found concurrently with another establishment completing", async () => {
@@ -595,13 +617,13 @@ describe("CommissioningConnection", () => {
                 delayBeforeNextAddress: Seconds(5),
                 establishSession: async address => {
                     order.push((address as ServerAddressUdp).ip);
-                    throw new UnexpectedDataError("wrong passcode");
+                    throw new PasscodeMismatchError("wrong passcode");
                 },
             }).catch(error => error);
 
             await MockTime.yield3();
             await MockTime.advance(Seconds(10));
-            expect(await result).instanceOf(UnexpectedDataError);
+            expect(await result).instanceOf(PasscodeMismatchError);
             expect(order).deep.equals(["fd00::1"]);
         });
 

@@ -7,6 +7,7 @@
 import { CommissionableDevice } from "#common/Scanner.js";
 import { CommissioningError, PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
 import { NodeSession } from "#session/NodeSession.js";
+import { PasscodeMismatchError } from "#session/pase/PaseClient.js";
 import {
     Abort,
     asError,
@@ -46,9 +47,10 @@ const DELAY_BEFORE_NEXT_ADDRESS = Seconds(10);
  * and a request on another exchange clears the handshake in progress, so addresses of one device (e.g. IPv6 ULA +
  * link-local + IPv4) must not be raced.  An older, unanswered attempt may still run when a newer one starts.
  *
- * If an attempt fails with a credential error the device is permanently dropped and its queued addresses are
- * skipped.  If it fails with a transient network/timeout error the remaining addresses are still tried.  The
- * process completes when one session is established, all candidates are exhausted, or the overall timeout fires.
+ * If an attempt fails with a {@link PasscodeMismatchError} the device is permanently dropped and its queued addresses
+ * are skipped.  If it fails with another `UnexpectedDataError` or a transient network/timeout error, the remaining
+ * addresses are still tried.  Any other error ends the whole process.  The process completes when one session is
+ * established, all candidates are exhausted, or the overall timeout fires.
  *
  * When the first PASE session is established the abort signal passed to
  * {@link CommissioningConnection.Options.establishSession} fires on all remaining in-flight attempts, allowing
@@ -162,12 +164,17 @@ export async function CommissioningConnection(
                 // Skip error tracking if this attempt was cancelled intentionally (global or per-device abort).
                 if (!abort.aborted && !deviceAc.signal.aborted) {
                     const asErr = asError(error);
-                    if (causedBy(asErr, UnexpectedDataError)) {
-                        // Wrong passcode or invalid PASE data — all addresses of this device will fail identically;
-                        // cancel them now.
+                    if (causedBy(asErr, PasscodeMismatchError)) {
                         logger.info(`Dropping device ${candidate.device.deviceIdentifier}:`, asErr.message);
                         lastNonRetryableError = asErr;
                         deviceAc.abort(asErr);
+                    } else if (causedBy(asErr, UnexpectedDataError)) {
+                        // Invalid PASE data says nothing about the device's other addresses
+                        logger.info(
+                            `Address ${ServerAddress.urlFor(candidate.address)} failed for ${candidate.device.deviceIdentifier}:`,
+                            asErr.message,
+                        );
+                        lastNonRetryableError = asErr;
                     } else if (causedBy(asErr, NoResponseTimeoutError, TransientPeerCommunicationError, NetworkError)) {
                         lastError = asErr;
                         logger.warn(

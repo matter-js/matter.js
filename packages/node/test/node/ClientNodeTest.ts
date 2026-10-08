@@ -58,7 +58,6 @@ import {
     ServerAddressIp,
     Time,
     Timestamp,
-    UnexpectedDataError,
 } from "@matter/general";
 import {
     AcceptedCommandList,
@@ -75,9 +74,11 @@ import {
     CommissioningError,
     ControllerCommissioner,
     ControllerCommissioningFlow,
+    EstablishPaseOptions,
     FabricAuthority,
     FabricManager,
     MessageCodec,
+    PasscodeMismatchError,
     PeerSet,
     Read,
     ReadResult,
@@ -359,10 +360,24 @@ describe("ClientNode", () => {
         const deviceCrypto = device.env.get(Crypto) as MockCrypto;
 
         const paseDestinations = new Array<string>();
+
+        // Retransmits reuse their exchange, so the number of exchanges is the number of PASE attempts
+        const pbkdfExchanges = new Set<number>();
+
         const deviceNetwork = device.env.get(Network) as MockNetwork;
         deviceNetwork.simulator.router.intercept((packet, route) => {
             if (packet.kind === "udp" && packet.destPort === 5540) {
                 paseDestinations.push(packet.destAddress);
+                const decoded = MessageCodec.decodePacket(packet.payload);
+                if (decoded.header.sessionId === 0) {
+                    const { payloadHeader } = MessageCodec.decodePayload(decoded);
+                    if (
+                        payloadHeader.protocolId === SECURE_CHANNEL_PROTOCOL_ID &&
+                        payloadHeader.messageType === SecureMessageType.PbkdfParamRequest
+                    ) {
+                        pbkdfExchanges.add(payloadHeader.exchangeId);
+                    }
+                }
             }
             route(packet);
         });
@@ -379,7 +394,7 @@ describe("ClientNode", () => {
             }
         }
 
-        return { controller, device, paseDestinations, withEntropicCrypto };
+        return { controller, device, paseDestinations, pbkdfExchanges, withEntropicCrypto };
     }
 
     it("establishes PASE with the device's addresses in their ranked order", async () => {
@@ -412,39 +427,43 @@ describe("ClientNode", () => {
         expect(paseDestinations[0]).equals("abcd::2");
     });
 
-    it("tries a repeated address once", async () => {
-        await using site = new MockSite();
-        const { controller, device, withEntropicCrypto } = await pairRecordingPaseDestinations(site);
+    describe("with a wrong passcode", () => {
+        async function establishWithWrongPasscode(
+            addresses: ServerAddress[],
+            discoveryData?: EstablishPaseOptions["discoveryData"],
+        ) {
+            await using site = new MockSite();
+            const { controller, device, pbkdfExchanges, withEntropicCrypto } =
+                await pairRecordingPaseDestinations(site);
 
-        // Retransmits reuse their exchange, so the number of exchanges is the number of PASE attempts
-        const pbkdfExchanges = new Set<number>();
-        (device.env.get(Network) as MockNetwork).simulator.router.intercept((packet, route) => {
-            if (packet.kind === "udp" && packet.destPort === 5540) {
-                const decoded = MessageCodec.decodePacket(packet.payload);
-                if (decoded.header.sessionId === 0) {
-                    const { payloadHeader } = MessageCodec.decodePayload(decoded);
-                    if (
-                        payloadHeader.protocolId === SECURE_CHANNEL_PROTOCOL_ID &&
-                        payloadHeader.messageType === SecureMessageType.PbkdfParamRequest
-                    ) {
-                        pbkdfExchanges.add(payloadHeader.exchangeId);
-                    }
-                }
-            }
-            route(packet);
+            await expect(
+                withEntropicCrypto(() =>
+                    controller.env.get(ControllerCommissioner).establishPase({
+                        addresses,
+                        discoveryData,
+                        passcode: device.state.commissioning.passcode + 1,
+                    }),
+                ),
+            ).rejectedWith(PasscodeMismatchError);
+
+            return pbkdfExchanges.size;
+        }
+
+        const ipv6: ServerAddress = { type: "udp", ip: "abcd::2", port: 5540 };
+        const ipv4: ServerAddress = { type: "udp", ip: "10.10.10.2", port: 5540 };
+
+        it("tries a repeated address once", async () => {
+            expect(await establishWithWrongPasscode([ipv6, { ...ipv6 }])).equals(1);
         });
 
-        const address: ServerAddress = { type: "udp", ip: "abcd::2", port: 5540 };
-        await expect(
-            withEntropicCrypto(() =>
-                controller.env.get(ControllerCommissioner).establishPase({
-                    addresses: [address, { ...address }],
-                    passcode: device.state.commissioning.passcode + 1,
-                }),
-            ),
-        ).rejectedWith(UnexpectedDataError);
+        it("stops after the first address of one discovered device", async () => {
+            expect(await establishWithWrongPasscode([ipv6, ipv4], { deviceIdentifier: "device-1" })).equals(1);
+        });
 
-        expect(pbkdfExchanges.size).equals(1);
+        it("tries every address when the device identity is unknown", async () => {
+            expect(await establishWithWrongPasscode([ipv6, ipv4])).equals(2);
+            expect(await establishWithWrongPasscode([ipv6, ipv4], { deviceIdentifier: "" })).equals(2);
+        });
     });
 
     it("skips the post-commission read when autoStateInitialize is false", async () => {
