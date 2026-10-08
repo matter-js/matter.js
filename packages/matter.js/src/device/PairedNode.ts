@@ -284,7 +284,7 @@ export class PairedNode {
         nodeEndpointAdded: Observable<[EndpointNumber]>(),
         nodeEndpointRemoved: Observable<[EndpointNumber]>(),
         nodeEndpointChanged: Observable<[EndpointNumber]>(),
-        decommissioned: Observable<[void]>(),
+        decommissioned: AsyncObservable<[void]>(),
         connectionAlive: Observable<[void]>(),
     };
 
@@ -1757,7 +1757,7 @@ export namespace PairedNode {
         structureChanged: Observable<[void]>;
 
         /** Emitted when the node is decommissioned. */
-        decommissioned: Observable<[void]>;
+        decommissioned: AsyncObservable<[void]>;
 
         /** Emitted when a subscription alive trigger is received (max interval trigger or any data update) */
         connectionAlive: Observable<[void]>;

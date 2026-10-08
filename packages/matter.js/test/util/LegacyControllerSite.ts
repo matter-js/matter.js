@@ -118,27 +118,34 @@ export class LegacyControllerSite {
         const environments = [...this.#environments];
         this.#environments.clear();
 
-        await MockTime.resolve(
-            MatterAggregateError.allSettled(
-                controllers.map(async controller => {
-                    const { env } = controller;
-                    try {
-                        await controller.close();
-                    } finally {
-                        if (env.owns(RuntimeService)) {
-                            await env.get(RuntimeService).close();
-                        }
+        await MatterAggregateError.settleSeries(
+            [
+                () =>
+                    MockTime.resolve(
+                        MatterAggregateError.allSettled(
+                            controllers.map(async controller => {
+                                const { env } = controller;
+                                try {
+                                    await controller.close();
+                                } finally {
+                                    if (env.owns(RuntimeService)) {
+                                        await env.get(RuntimeService).close();
+                                    }
+                                }
+                            }),
+                            "Error closing legacy controllers",
+                        ),
+                        { macrotasks: true },
+                    ),
+                () => {
+                    for (const environment of environments) {
+                        environment[Symbol.dispose]();
                     }
-                }),
-                "Error closing legacy controllers",
-            ),
-            { macrotasks: true },
+                },
+                () => this.#site.close(),
+            ],
+            "Error closing legacy controller site",
         );
-        for (const environment of environments) {
-            environment[Symbol.dispose]();
-        }
-
-        await this.#site.close();
     }
 
     async [Symbol.asyncDispose]() {

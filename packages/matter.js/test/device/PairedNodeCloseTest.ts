@@ -184,6 +184,22 @@ describe("PairedNode close", () => {
             expect(networkOf(node).autoSubscribe).true;
         });
 
+        it("waits for the handlers of the decommissioned event", async () => {
+            await using site = new LegacyControllerSite();
+            const { controller, nodeId } = await site.addCommissionedPair();
+            const node = await MockTime.resolve(controller.getNode(nodeId), { macrotasks: true });
+
+            let handled = false;
+            node.events.decommissioned.on(async () => {
+                await Time.sleep("decommissioned handler", Seconds(1));
+                handled = true;
+            });
+
+            await MockTime.resolve(node.close(true), { macrotasks: true });
+
+            expect(handled).true;
+        });
+
         it("is replaced by a new instance on the next getNode()", async () => {
             await using site = new LegacyControllerSite();
             const { controller, nodeId } = await site.addCommissionedPair();
