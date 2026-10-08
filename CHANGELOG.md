@@ -18,6 +18,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: More global datatypes, such as `bool`, `epoch-us` and `Status`, carry their specification documentation and a precise section reference
 
 - @matter/general
+    - Fix: The HTML log format escapes `&` and `<` correctly
     - Fix: `ServerAddress.selectionPreferenceOf` ranks a non-IP address such as BLE after IPv4 instead of equal to it
     - Fix: Ensure that `ObserverGroup.off()` removes an observer the group bound to a target, and that `has()` finds it
     - Fix: Ensure that `ObservableValue.offError()` removes only the given handler and keeps other error handlers and pending awaiters
@@ -309,7 +310,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/general
     - Breaking: `camelize()` treats a pluralised acronym as one word wherever it occurs in an identifier, so `TariffComponentIDs` normalises to `tariffComponentIds` where it previously passed through unchanged
     - Enhancement: A log message names where it came from via `Diagnostic.Message.origin`, which `Logger.get()` accepts and `Environment.logger()` supplies from `Environment.logOrigin`, so a destination can attribute a line written from a socket or timer callback
-    - Enhancement: Log output names a message's origin in brackets ahead of the facility, for the environments below the outermost one
+    - Enhancement: Log output names a message's origin in brackets after the facility, at the start of the message text, for the environments below the outermost one
     - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
     - Enhancement: `StorageService.isBlobConfigured` reports whether blob drivers are registered
     - Fix: `NodeJsStyleCrypto.computeHash` names a digest the way Node.js's crypto API does. It passed the Web Crypto spelling, which Node.js accepts as an alias while stricter emulations of its API reject it

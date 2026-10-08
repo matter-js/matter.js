@@ -542,6 +542,22 @@ describe("Logger", () => {
                 '<span class="matter-log-line fatal"><span class="matter-log-time">xxxx-xx-xx xx:xx:xx.xxx</span> <span class="matter-log-level">FATAL</span> <span class="matter-log-facility">UnitTest</span> THIS IS <em>VERY</em> IMPORTANT</span>',
             );
         });
+
+        it("escapes markup characters", () => {
+            const result = captureOne(() => {
+                Logger.format = LogFormat.HTML;
+                logger.info("a < b && c > d");
+            });
+            expect(result.message).contains(" a &lt; b &amp;&amp; c &gt; d</span>");
+        });
+
+        it("escapes the facility", () => {
+            const result = captureOne(() => {
+                Logger.format = LogFormat.HTML;
+                Logger.get("A<B&C").info("test");
+            });
+            expect(result.message).contains('<span class="matter-log-facility">A&lt;B&amp;C</span>');
+        });
     });
 
     describe("LogFormat.format", () => {
@@ -731,9 +747,29 @@ describe("Logger", () => {
             expect(message.origin).equals(undefined);
         });
 
-        it("renders the origin ahead of the facility", () => {
+        it("renders the origin after the facility", () => {
             const line = captureOne(() => Logger.get("OriginTest", origin).info("hello"));
-            expect(line.message).match(/INFO \[node-1\] OriginTest hello$/);
+            expect(line.message).match(/INFO OriginTest \[node-1\] hello$/);
+        });
+
+        it("keeps the nesting guide in place, labelling the nested text", () => {
+            Logger.nest(() => {
+                const labelled = captureOne(() => Logger.get("OriginTest", origin).info("hello"));
+                const unlabelled = captureOne(() => Logger.get("OriginTest").info("hello"));
+
+                expect(labelled.message).match(/OriginTest ⎸ \[node-1\] hello$/);
+                expect(labelled.message.indexOf("⎸")).equals(unlabelled.message.indexOf("⎸"));
+
+                const [message] = captureMessages(() => Logger.get("OriginTest", origin).info("hello"));
+                expect(plainly(LogFormat.formats.ansi(message))).match(/OriginTest\s+⎸ \[node-1\] hello$/);
+            });
+        });
+
+        it("escapes the origin in html", () => {
+            const [message] = captureMessages(() =>
+                Logger.get("OriginTest", { name: "a<b&c", parent: { name: "root" } }).info("hello"),
+            );
+            expect(LogFormat.formats.html(message)).contains(">[a&lt;b&amp;c]</span>");
         });
 
         it("renders nothing for a message with no origin", () => {
@@ -741,19 +777,18 @@ describe("Logger", () => {
             expect(line.message).match(/INFO OriginTest hello$/);
         });
 
-        it("keeps siblings apart in a format that pads the label to a column", () => {
-            function ansiLabel(name: string) {
-                const [message] = captureMessages(() =>
-                    Logger.get("OriginTest", { name, parent: { name: "root" } }).info("hello"),
-                );
-                return plainly(LogFormat.formats.ansi(message)).replace(/^\S+ \S+\s+/, "");
+        it("keeps the facility column in place in a format that pads it", () => {
+            function ansiLine(origin?: Diagnostic.Origin) {
+                const [message] = captureMessages(() => Logger.get("OriginTest", origin).info("hello"));
+                return plainly(LogFormat.formats.ansi(message));
             }
 
-            const one = ansiLabel("controller-one");
-            const two = ansiLabel("controller-two");
+            const labelled = ansiLine({ name: "controller-one", parent: { name: "root" } });
+            const unlabelled = ansiLine();
 
-            expect(one).not.equals(two);
-            expect(one.indexOf("OriginTest")).equals(two.indexOf("OriginTest"));
+            expect(labelled).match(/OriginTest\s+\[controller-one\] hello$/);
+            expect(labelled.indexOf("OriginTest")).equals(unlabelled.indexOf("OriginTest"));
+            expect(labelled.indexOf("[controller-one]")).equals(unlabelled.indexOf("hello"));
         });
 
         it("brackets the origin in every format", () => {
@@ -761,7 +796,9 @@ describe("Logger", () => {
 
             expect(LogFormat.formats.plain(message)).contains("[node-1]");
             expect(plainly(LogFormat.formats.ansi(message))).contains("[node-1]");
-            expect(LogFormat.formats.html(message)).contains("[node-1]");
+            expect(LogFormat.formats.html(message)).match(
+                /matter-log-facility">OriginTest<\/span> <span class="matter-log-origin">\[node-1\]<\/span> hello/,
+            );
         });
 
         // The outermost environment names every message of a single-node process, which distinguishes nothing
