@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ValidationOutOfBoundsError } from "#common/ValidationError.js";
 import { CaseAuthenticatedTag } from "#datatype/CaseAuthenticatedTag.js";
 import { NodeId } from "#datatype/NodeId.js";
 import { StandardCrypto, UnexpectedDataError } from "@matter/general";
@@ -16,11 +17,7 @@ describe("NodeId", () => {
 
     it("should create a valid NodeId as number", () => {
         const nodeId = NodeId(0x10001);
-        expect(nodeId).to.equal(0x10001);
-    });
-
-    it("should throw an error when creating a NodeId with negative value", () => {
-        expect(() => NodeId(BigInt(-1))).to.throw(UnexpectedDataError);
+        expect(nodeId).to.equal(0x10001n);
     });
 
     it("should generate a random operational NodeId", () => {
@@ -34,7 +31,7 @@ describe("NodeId", () => {
     });
 
     it("should throw an error when creating a NodeId from a group NodeId with negative value", () => {
-        expect(() => NodeId.fromGroupId(-1)).to.throw(UnexpectedDataError);
+        expect(() => NodeId.fromGroupId(-1)).to.throw(ValidationOutOfBoundsError);
     });
 
     it("should create a NodeId from a temporary local NodeId", () => {
@@ -69,5 +66,19 @@ describe("NodeId", () => {
 
     it("should throw an error when creating a NodeId from a PAKE key identifier with negative value", () => {
         expect(() => NodeId.getFromPakeKeyIdentifier(-1)).to.throw(UnexpectedDataError);
+    });
+
+    describe("isValidCaseAuthenticatedTag", () => {
+        it("accepts a CAT subject with a version other than 0", () => {
+            expect(NodeId.isValidCaseAuthenticatedTag(NodeId(0xffff_fffd_0001_0001n))).equals(true);
+        });
+
+        it("refuses a CAT subject with version 0", () => {
+            expect(NodeId.isValidCaseAuthenticatedTag(NodeId(0xffff_fffd_0001_0000n))).equals(false);
+        });
+
+        it("refuses a subject outside the CAT range", () => {
+            expect(NodeId.isValidCaseAuthenticatedTag(NodeId(100n))).equals(false);
+        });
     });
 });

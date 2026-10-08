@@ -8,7 +8,7 @@ import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { FabricAuthority } from "#fabric/FabricAuthority.js";
 import { FabricManager } from "#fabric/FabricManager.js";
-import { Bytes, MemoryStorageDriver, StandardCrypto, StorageManager } from "@matter/general";
+import { Bytes, ImplementationError, MemoryStorageDriver, StandardCrypto, StorageManager } from "@matter/general";
 import { CaseAuthenticatedTag, FabricId, NodeId, VendorId } from "@matter/types";
 
 const crypto = new StandardCrypto();
@@ -29,6 +29,20 @@ describe("FabricAuthority", () => {
         ca = await CertificateAuthority.create(crypto, storageManager.createContext("ca"));
         authority = new FabricAuthority({ ca, fabrics: fabricManager });
         await authority.construction;
+    });
+
+    describe("createFabric", () => {
+        it("refuses the Matter Standard vendor ID as admin vendor ID", async () => {
+            await expect(
+                authority.createFabric({ adminFabricLabel: "test-fabric", adminVendorId: VendorId(0) }),
+            ).rejectedWith(ImplementationError, /Admin vendor ID 0x0 is reserved/);
+        });
+
+        it("refuses a vendor ID above 0xFFF4 as admin vendor ID", async () => {
+            await expect(
+                authority.createFabric({ adminFabricLabel: "test-fabric", adminVendorId: VendorId(0xfff5, false) }),
+            ).rejectedWith(ImplementationError, /Admin vendor ID 0xfff5 is reserved/);
+        });
     });
 
     describe("keypair rotation", () => {
