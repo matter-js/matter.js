@@ -76,6 +76,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `diff-spec` accepts patch revisions such as `1.6.1`. Without arguments it compares the current revision with the one before it, 1.6.1 with 1.6 instead of 1.5, and names both revisions above the diff
 
 - @matter/types
+    - Enhancement: The cluster, attribute, command, event and MEI ID validators name the legal range in their error message
+    - Fix: The cluster, attribute, command, event, field and device type ID validators refuse values that are not 32-bit unsigned integers instead of accepting them after the bits wrapped
     - Feature: `VendorId.isOperational()` tells whether a vendor ID may identify a fabric administrator: a valid vendor ID other than 0x0000
     - Feature: `CaseAuthenticatedTag.isValid()` and `NodeId.isValidCaseAuthenticatedTag()` tell whether a value or subject is a CASE Authenticated Tag with a version other than 0, without throwing
     - Breaking: Fields of an enum with a manufacturer range are typed `Enum | number`, and Illuminance Measurement `LightSensorType` is typed `LightSensorType | number`
@@ -611,7 +613,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A cluster's feature selection is recorded as persisted only once the store accepted the values it travels with, so a failed write no longer leaves a later feature change undetected
     - Fix: Validating a state class that serves properties dynamically passes it the endpoint, as every other caller does
     - Fix: A peer that reports a cluster ID outside the ranges the specification allows no longer fails node initialization
-    - Adjustment: A cluster ID is validated when a server behavior is created rather than when a cluster namespace is built, so a peer's ID stays as reported
+    - Adjustment: A hosted cluster's cluster, attribute, command and event IDs are validated when its server behavior initializes on an endpoint, for every cluster behavior however it is defined; a peer's or client's IDs stay as reported
     - Fix: Two peer clusters whose attribute or command IDs differ by 32 no longer share one generated behavior
 
 - @matter/matter.js
