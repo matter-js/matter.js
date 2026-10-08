@@ -7,11 +7,19 @@
 import { CommissioningController } from "#CommissioningController.js";
 import { NodeStateInformation, NodeStates, PairedNode } from "#device/PairedNode.js";
 import { ImplementationError, Lifecycle, MatterAggregateError, MatterError, Seconds, Time } from "@matter/general";
-import { ChangeNotificationService, ClusterBehavior, NetworkClient, Node } from "@matter/node";
+import { ChangeNotificationService, ClusterBehavior, NetworkClient, Node, ServerNode } from "@matter/node";
+import { OnOffServer } from "@matter/node/behaviors/on-off";
 import { settled } from "@matter/node/testing";
 import { LegacyControllerSite } from "../util/LegacyControllerSite.js";
 
 class StateCallbackError extends MatterError {}
+
+function activeSubscriptionsOf(device: ServerNode) {
+    return Object.values(device.state.sessions.sessions).reduce(
+        (count, { numberOfActiveSubscriptions }) => count + numberOfActiveSubscriptions,
+        0,
+    );
+}
 
 function networkOf(node: PairedNode) {
     return node.node.stateOf(NetworkClient);
@@ -59,8 +67,9 @@ describe("PairedNode close", () => {
             const node = await MockTime.resolve(controller.getNode(nodeId), { macrotasks: true });
 
             node.connect({ subscribeMaxIntervalCeilingSeconds: 60 });
-            node.close();
+            const closing = node.close();
             await idle(controller, node);
+            await closing;
 
             expect(networkOf(node).autoSubscribe).false;
             expect(node.connectionState).equals(NodeStates.Disconnected);
@@ -74,8 +83,9 @@ describe("PairedNode close", () => {
             expect(networkOf(node).isDisabled).true;
 
             node.connect({ subscribeMaxIntervalCeilingSeconds: 60 });
-            node.close();
+            const closing = node.close();
             await idle(controller, node);
+            await closing;
 
             expect(networkOf(node).isDisabled).true;
             expect(networkOf(node).autoSubscribe).false;
@@ -88,17 +98,18 @@ describe("PairedNode close", () => {
             await MockTime.resolve(node.disconnect(), { macrotasks: true });
             await idle(controller, node);
 
-            let closedWhileEnabling = false;
+            let closing: Promise<void> | undefined;
             node.node.eventsOf(NetworkClient).isDisabled$Changed.on(isDisabled => {
                 if (!isDisabled) {
-                    closedWhileEnabling = true;
-                    node.close();
+                    closing = node.close();
                 }
             });
             const counter = countReadDataOf(controller, node);
 
             node.connect({ autoSubscribe: false });
             await idle(controller, node);
+            const closedWhileEnabling = closing !== undefined;
+            await closing;
 
             expect(closedWhileEnabling).true;
             expect(counter.changes).equals(0);
@@ -113,8 +124,9 @@ describe("PairedNode close", () => {
             const node = await MockTime.resolve(controller.getNode(nodeId), { macrotasks: true });
 
             const reconnecting = node.reconnect();
-            node.close();
+            const closing = node.close();
             await MockTime.resolve(reconnecting, { macrotasks: true });
+            await MockTime.resolve(closing, { macrotasks: true });
             await idle(controller, node);
 
             expect(networkOf(node).autoSubscribe).false;
@@ -131,24 +143,58 @@ describe("PairedNode close", () => {
             node.events.initialized.on(() => void emitted.push("initialized"));
             node.events.initializedFromRemote.on(() => void emitted.push("initializedFromRemote"));
 
-            let closedDuringRead = false;
+            let closing: Promise<void> | undefined;
             const changes = controller.node.env.get(ChangeNotificationService).change;
             const closeOnFirstChange = (change: ChangeNotificationService.Change) => {
                 if (isReadDataOf(node, change)) {
                     changes.off(closeOnFirstChange);
-                    closedDuringRead = true;
-                    node.close();
+                    closing = node.close();
                 }
             };
             changes.on(closeOnFirstChange);
 
             node.connect({ autoSubscribe: false });
             await idle(controller, node);
+            const closedDuringRead = closing !== undefined;
+            await closing;
 
             expect(closedDuringRead).true;
             expect(emitted).deep.equals([]);
             expect(node.remoteInitializationDone).false;
             expect(node.connectionState).equals(NodeStates.Disconnected);
+        });
+    });
+
+    describe("of a subscribed node", () => {
+        it("ends the subscription, also on the device", async () => {
+            await using site = new LegacyControllerSite();
+            const { controller, device, nodeId } = await site.addCommissionedPair();
+            const node = await MockTime.resolve(controller.connectNode(nodeId), { macrotasks: true });
+            await MockTime.resolve(node.events.initialized, { macrotasks: true });
+            expect(activeSubscriptionsOf(device)).equals(1);
+
+            await MockTime.resolve(node.close(), { macrotasks: true });
+            await idle(controller, node);
+            const [light] = device.parts;
+            await MockTime.resolve(light.setStateOf(OnOffServer, { onOff: true }), { macrotasks: true });
+            await idle(controller, node);
+
+            expect(node.node.behaviors.internalsOf(NetworkClient).activeSubscription).undefined;
+            expect(activeSubscriptionsOf(device)).equals(0);
+            expect(networkOf(node).autoSubscribe).true;
+        });
+
+        it("is replaced by a new instance on the next getNode()", async () => {
+            await using site = new LegacyControllerSite();
+            const { controller, nodeId } = await site.addCommissionedPair();
+            const node = await MockTime.resolve(controller.connectNode(nodeId), { macrotasks: true });
+            await MockTime.resolve(node.events.initialized, { macrotasks: true });
+
+            await MockTime.resolve(node.close(), { macrotasks: true });
+            const next = await MockTime.resolve(controller.getNode(nodeId), { macrotasks: true });
+
+            expect(next).not.equals(node);
+            expect(next.isClosed).false;
         });
     });
 
@@ -161,7 +207,7 @@ describe("PairedNode close", () => {
             expect(networkOf(node).autoSubscribe).true;
             const defaultSubscription = networkOf(node).defaultSubscription;
 
-            node.close();
+            await MockTime.resolve(node.close(), { macrotasks: true });
 
             node.connect({ subscribeMaxIntervalCeilingSeconds: 3600 });
             await MockTime.resolve(node.reconnect(), { macrotasks: true });

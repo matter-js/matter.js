@@ -532,7 +532,13 @@ export class CommissioningController {
         if (peerId === undefined) {
             return undefined;
         }
-        return this.#initializedNodes.get(peerId);
+        const node = this.#initializedNodes.get(peerId);
+        if (node?.isClosed) {
+            this.#initializedNodes.delete(peerId);
+            this.#nodeChangeObservers.delete(peerId);
+            return undefined;
+        }
+        return node;
     }
 
     /**
@@ -571,7 +577,7 @@ export class CommissioningController {
             }
         }
         if (node !== undefined) {
-            node.close(!decommissionSuccess);
+            await node.close(!decommissionSuccess);
         }
         await controller.removeNode(nodeId);
         if (node !== undefined) {

@@ -421,6 +421,11 @@ export class PairedNode {
         return this.#connectionState === NodeStates.Connected;
     }
 
+    /** True once {@link close} was called; the controller creates a new instance for the node on its next request. */
+    get isClosed() {
+        return this.#closing;
+    }
+
     /** Returns the Node connection state. */
     get connectionState() {
         return this.#connectionState;
@@ -1352,7 +1357,7 @@ export class PairedNode {
 
         this.#setConnectionState(NodeStates.Disconnected);
 
-        this.events.decommissioned.emit();
+        await this.events.decommissioned.emit();
     }
 
     /**
@@ -1464,15 +1469,25 @@ export class PairedNode {
     }
 
     /** Closes the subscription and ends all timers used by this PairedNode instance. */
-    close(sendDecommissionedStatus = false) {
+    async close(sendDecommissionedStatus = false) {
+        if (this.#closing) {
+            return;
+        }
         this.#closing = true;
         this.#observers.close();
         this.#updateEndpointStructureTimer.stop();
-        // Deactivate the subscription via NetworkClient
+
+        // Not awaited: close() also runs from the node's own decommissioning, which holds the node's lock until it
+        // returns.  Stopping rather than disabling keeps the persisted subscription setting for the next start
+        MaybePromise.catch(
+            () => this.#clientNode.stop(),
+            error => logger.warn(this.#peerAddress, "Error stopping node of closed paired node", error),
+        );
+
         if (sendDecommissionedStatus) {
             this.#decommissioned = true;
             this.#options.stateInformationCallback?.(this.nodeId, NodeStateInformation.Decommissioned);
-            this.events.decommissioned.emit();
+            await this.events.decommissioned.emit();
         }
         this.#setConnectionState(NodeStates.Disconnected);
         MaybePromise.catch(
