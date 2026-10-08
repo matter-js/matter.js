@@ -28,6 +28,7 @@ import { ContactSensorDevice } from "#devices/contact-sensor";
 import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light";
 import { WindowCoveringDevice } from "#devices/window-covering";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { IdentityConflictError } from "#endpoint/errors.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import type { ClientEndpointInitializer } from "#node/client/ClientEndpointInitializer.js";
@@ -2195,7 +2196,7 @@ describe("ClientNode", () => {
 
         await MockTime.resolve(device.stop());
 
-        await serverEp1.erase();
+        await serverEp1.delete();
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
@@ -2356,7 +2357,7 @@ describe("ClientNode", () => {
         // *** REPLACE CLUSTER ADDING TILT ***
 
         await MockTime.resolve(device.stop());
-        await serverEp1.erase();
+        await serverEp1.delete();
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
@@ -2433,7 +2434,7 @@ describe("ClientNode", () => {
         // *** REPLACE CLUSTER ADDING TILT ***
 
         await MockTime.resolve(device.stop());
-        await serverEp1.erase();
+        await serverEp1.delete();
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
@@ -2513,7 +2514,7 @@ describe("ClientNode", () => {
 
         await MockTime.resolve(device.stop());
 
-        await serverEp1.erase();
+        await serverEp1.delete();
 
         // Nudge so version number changes, otherwise new endpoint won't sync
         device.env.set(Entropy, MockCrypto(0x20));
@@ -2584,7 +2585,7 @@ describe("ClientNode", () => {
         // *** REPLACE CLUSTER DROPPING TILT ***
 
         await MockTime.resolve(device.stop());
-        await serverEp1.erase();
+        await serverEp1.delete();
 
         const LiftWc = WindowCoveringServer.with("Lift", "PositionAwareLift").set({
             currentPositionLiftPercent100ths: 0,
@@ -2645,7 +2646,7 @@ describe("ClientNode", () => {
         // *** REMOVE THE CLUSTER ***
 
         await MockTime.resolve(device.stop());
-        await device.parts.get("part0")!.erase();
+        await device.parts.get("part0")!.delete();
         device.env.set(Entropy, MockCrypto(0x20));
         await device.add({ type: OnOffLightDevice, number: 1, id: "part0b" });
 
@@ -2658,7 +2659,7 @@ describe("ClientNode", () => {
         // *** RESTORE THE CLUSTER ***
 
         await MockTime.resolve(device.stop());
-        await device.parts.get("part0b")!.erase();
+        await device.parts.get("part0b")!.delete();
         device.env.set(Entropy, MockCrypto(0x40));
         await device.add({ type: OnOffLightDevice.with(LiftWc), number: 1, id: "part0c" });
 
@@ -2706,7 +2707,7 @@ describe("ClientNode", () => {
         }
 
         async function replaceDeviceEndpointWithoutOnOffTransition(device: ServerNode) {
-            await device.parts.get("part0")!.erase();
+            await device.parts.get("part0")!.delete();
 
             // Nudge so version number changes, otherwise new endpoint won't sync
             device.env.set(Entropy, MockCrypto(0x20));
@@ -3767,6 +3768,60 @@ describe("ClientNode", () => {
             const after = neoType();
             expect(after, "NEO should remain active").not.undefined;
             expect(after, "behavior must be rebuilt to reflect the new command set").not.equals(before);
+        });
+    });
+
+    describe("endpoint numbers", () => {
+        // Characterization
+        it("accepts a peer endpoint whose number a local endpoint holds", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            await controller.add(OnOffLightDevice, { id: "local9", number: 9 });
+            const peer1 = controller.peers.get("peer1")!;
+
+            const peerEp9 = peer1.endpoints.require(9);
+
+            expect(peer1.endpoints.for(9)).equals(peerEp9);
+            expect(controller.endpoints.for(9)).not.equals(peerEp9);
+        });
+
+        it("adopts an endpoint created by require() when the peer reports it", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const sizeBefore = peer1.parts.size;
+
+            const required = peer1.endpoints.require(5);
+
+            const installed = new Promise<Endpoint>(resolve =>
+                peer1.env
+                    .get(ClientStructureEvents)
+                    .clusterInstalled(OnOffClient)
+                    .on(endpoint => {
+                        if (endpoint.number === 5) {
+                            resolve(endpoint);
+                        }
+                    }),
+            );
+            await device.add(OnOffLightDevice, { id: "late5", number: 5 });
+            const adopted = await MockTime.resolve(installed);
+
+            expect(adopted).equals(required);
+            expect(peer1.endpoints.for(5)).equals(required);
+            expect(peer1.parts.size).equals(sizeBefore + 1);
+            expect(required.stateOf(OnOffClient).onOff).equals(false);
+        });
+
+        it("refuses a duplicate number in a hand-built peer structure", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = controller.peers.get("peer1")!;
+            const peerEp7 = peer1.endpoints.require(7);
+
+            const duplicate = new Endpoint({ id: "duplicate7", number: 7, type: peerEp7.type });
+
+            expect(() => peer1.parts.add(duplicate)).throws(IdentityConflictError);
+            expect(peer1.endpoints.for(7)).equals(peerEp7);
         });
     });
 });

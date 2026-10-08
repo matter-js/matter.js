@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IdentityConflictError, IdentityService } from "#node/server/IdentityService.js";
+import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import { Construction, ImplementationError, Lifecycle, Logger, MutableSet } from "@matter/general";
 import { Agent } from "../Agent.js";
 import { Endpoint } from "../Endpoint.js";
-import { EndpointPartsError, PartNotFoundError } from "../errors.js";
+import { EndpointPartsError, IdentityConflictError, PartNotFoundError } from "../errors.js";
 import { EndpointType } from "../type/EndpointType.js";
 import { EndpointContainer } from "./EndpointContainer.js";
 import { EndpointLifecycle } from "./EndpointLifecycle.js";
@@ -19,7 +19,8 @@ const logger = Logger.get("Parts");
  * Manages the parent-child relationship between endpoints as defined by the "Parts" attribute of the Basic Information
  * cluster.
  *
- * You can manipulate child parts using {@link MutableSet} interface.
+ * Add child parts with {@link add}.  A part leaves its parent when it is closed or deleted; {@link delete} and
+ * {@link clear} throw.
  *
  * Notifications of structural change bubble via {@link Endpoint.lifecycle.changed}.
  */
@@ -41,8 +42,10 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
             return;
         }
 
-        // Insertion validation is only possible in a fully configured node. If we are not yet installed then an
-        // ancestor will handle validation when we install
+        assertNotAncestor(this.owner, endpoint);
+
+        // Insertion validation is only possible in a fully configured node. Otherwise each endpoint's number is
+        // checked when the endpoint is constructed
         if (this.owner.lifecycle.isReady) {
             this.#validateInsertion(endpoint, endpoint);
         }
@@ -63,15 +66,30 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
         return endpoint;
     }
 
-    override delete(child: Endpoint | Agent) {
-        const endpoint = this.#endpointFor(child);
+    /**
+     * @deprecated Always throws; remove the endpoint with {@link Endpoint.close} or {@link Endpoint.delete}.
+     */
+    override delete(child: Endpoint | Agent): never {
+        throw new ImplementationError(
+            `Cannot remove ${this.#endpointFor(child)} from ${this.owner} directly; use close() or delete() on the endpoint`,
+        );
+    }
 
-        if (!super.delete(this.#endpointFor(child))) {
+    /**
+     * @deprecated Always throws; remove each endpoint with {@link Endpoint.close} or {@link Endpoint.delete}.
+     */
+    override clear(): never {
+        throw new ImplementationError(
+            `Cannot remove the parts of ${this.owner} directly; use close() or delete() on each endpoint`,
+        );
+    }
+
+    override remove(endpoint: Endpoint) {
+        if (!super.remove(endpoint)) {
             return false;
         }
 
-        const childLifeCycle = endpoint.lifecycle;
-        childLifeCycle.changed.off(this.#bubbleChange);
+        endpoint.lifecycle.changed.off(this.#bubbleChange);
 
         return true;
     }
@@ -169,10 +187,10 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
 
     #validateInsertion(forefather: Endpoint, endpoint: Endpoint, usedNumbers?: Set<number>) {
         if (endpoint.lifecycle.hasNumber) {
-            this.owner.env.get(IdentityService).assertEndpointNumberAvailable(endpoint.number, endpoint);
+            IndexBehavior.assertNumberAvailable(endpoint, endpoint.number, this.owner);
             if (usedNumbers?.has(endpoint.number)) {
                 throw new IdentityConflictError(
-                    `Cannot add endpoint ${forefather} because descendents have conflicting definitions for endpoint number ${endpoint.number}`,
+                    `Cannot add endpoint ${forefather} because descendants have conflicting definitions for endpoint number ${endpoint.number}`,
                 );
             }
         }
@@ -217,5 +235,22 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
         }
 
         return Endpoint.partFor(child);
+    }
+}
+
+function assertNotAncestor(owner: Endpoint, endpoint: Endpoint) {
+    if (owner === endpoint) {
+        throw new ImplementationError(`Cannot add ${endpoint} to itself`);
+    }
+
+    for (let ancestor: Endpoint | undefined = owner; ancestor; ancestor = ancestor.owner) {
+        if (ancestor === endpoint) {
+            throw new ImplementationError(
+                `Cannot add ${endpoint} to ${owner} because ${endpoint} is an ancestor of ${owner}`,
+            );
+        }
+        if (ancestor.maybeNumber === 0) {
+            break;
+        }
     }
 }

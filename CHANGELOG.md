@@ -149,6 +149,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Breaking: An endpoint whose number another endpoint of the same node or `ClientNode` uses is refused with `IdentityConflictError`, and the existing endpoint keeps its number
+    - Breaking: `parts.delete()` and `parts.clear()`, also on `agent.parts`, throw `ImplementationError`; remove an endpoint with its `close()` or `delete()`
+    - Breaking: Adding an endpoint with the number of an erased endpoint that is still a part of its parent is refused
+    - Breaking: An essential endpoint whose initialization fails in `add()` is closed instead of reset, so the same instance cannot be added again
+    - Fix: Adding an endpoint below one of its own descendants fails with `ImplementationError` instead of creating a cycle
+    - Fix: An endpoint created with `ClientNodeEndpoints.require()` on a running `ClientNode` is reused when the peer later reports that endpoint
+    - Enhancement: `IdentityConflictError` is exported
     - Fix: A peer stopped after losing its sessions, as when its controller goes offline, reports `Disconnected` instead of staying `Reconnecting`
     - Fix: Started peers close during their controller's teardown instead of in parallel with it, so shutting down no longer reports their endpoints as deleted
     - Fix: `ChangeNotificationService` reports nothing once its node begins destruction, so consumers such as the shell no longer see every endpoint of every peer as deleted on shutdown

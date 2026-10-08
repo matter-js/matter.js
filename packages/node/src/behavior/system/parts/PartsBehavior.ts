@@ -19,12 +19,18 @@ export class PartsBehavior extends Behavior implements MutableSet<Endpoint, Endp
         this.endpoint.parts.add(child);
     }
 
-    delete(child: Endpoint | Agent) {
+    /**
+     * @deprecated Always throws; remove the endpoint with {@link Endpoint.close} or {@link Endpoint.delete}.
+     */
+    delete(child: Endpoint | Agent): never {
         return this.endpoint.parts.delete(child);
     }
 
-    clear() {
-        this.endpoint.parts.clear();
+    /**
+     * @deprecated Always throws; remove each endpoint with {@link Endpoint.close} or {@link Endpoint.delete}.
+     */
+    clear(): never {
+        return this.endpoint.parts.clear();
     }
 
     has(child: Endpoint | Agent) {

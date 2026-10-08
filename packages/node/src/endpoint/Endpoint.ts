@@ -11,9 +11,9 @@ import { ActionContext } from "#behavior/context/ActionContext.js";
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { ContextAgents } from "#behavior/context/server/ContextAgents.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
+import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import { ProtocolService } from "#node/integration/ProtocolService.js";
 import type { Node } from "#node/Node.js";
-import { IdentityService } from "#node/server/IdentityService.js";
 import {
     Construction,
     Diagnostic,
@@ -696,10 +696,6 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             if (number === 0) {
                 throw new ImplementationError("Only root endpoint may have ID 0");
             }
-
-            if (this.lifecycle.isInstalled) {
-                this.env.get(IdentityService).assertEndpointNumberAvailable(number, this);
-            }
         }
 
         this.#number = EndpointNumber(number);
@@ -712,7 +708,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             return;
         }
         if (this.#owner) {
-            this.#container.delete(this);
+            this.#container.remove(this);
         }
 
         this.#owner = owner;
@@ -721,7 +717,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             try {
                 this.#container.add(this);
             } catch (e) {
-                this.#container.delete(this);
+                this.#container.remove(this);
                 this.#owner = undefined;
                 throw e;
             }
@@ -733,7 +729,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      *
      * If child initialization fails:
      *
-     *   - If the child is essential (@see {@link EndpointLifecycle#isEssential}), removes the child and rethrows
+     *   - If the child is essential (@see {@link EndpointLifecycle#isEssential}), closes the child and rethrows
      *
      *   - If the child is non-essential then logs the error but leaves the child installed.
      *
@@ -778,9 +774,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         } catch (e) {
             // If endpoint is essential do not allow it to be added
             if (endpoint.lifecycle.isEssential) {
-                await endpoint.reset();
-                this.parts.delete(endpoint);
-                endpoint.#owner = undefined;
+                await endpoint.close();
             }
 
             // For non-essential endpoints just log the error
@@ -1128,6 +1122,10 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     [Construction.construct]() {
         // Sanity checks
         this.assertConstructable();
+
+        if (this.#number !== undefined) {
+            IndexBehavior.assertNumberAvailable(this, this.#number);
+        }
 
         // We now consider the endpoint "installed"
         this.lifecycle.change(EndpointLifecycle.Change.Installed);

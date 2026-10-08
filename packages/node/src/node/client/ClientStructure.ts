@@ -1014,16 +1014,21 @@ export class ClientStructure {
             return endpoint;
         }
 
+        // An endpoint created with ClientNodeEndpoints.require() already holds this number
+        const existing = this.#node.endpoints.has(number) ? this.#node.endpoints.for(number) : undefined;
+
         endpoint = {
-            endpoint: new Endpoint({
-                id: `ep${number}`,
-                number,
-                type: EndpointType({
-                    name: "Unknown",
-                    deviceType: EndpointType.UNKNOWN_DEVICE_TYPE,
-                    deviceRevision: EndpointType.UNKNOWN_DEVICE_REVISION,
+            endpoint:
+                existing ??
+                new Endpoint({
+                    id: `ep${number}`,
+                    number,
+                    type: EndpointType({
+                        name: "Unknown",
+                        deviceType: EndpointType.UNKNOWN_DEVICE_TYPE,
+                        deviceRevision: EndpointType.UNKNOWN_DEVICE_REVISION,
+                    }),
                 }),
-            }),
             clusters: new Map(),
         };
         this.#endpoints.set(number, endpoint);

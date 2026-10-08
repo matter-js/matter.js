@@ -410,29 +410,32 @@ describe("Endpoint", () => {
         });
 
         it("does not release a live sibling's number when an unidentified part preset to the same number closes", async () => {
-            const node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const node = new MockServerNode();
 
-            const holder = await node.add(OnOffLightDevice, { id: "holder", number: 5 });
+            const holder = new Endpoint(OnOffLightDevice, { id: "holder", number: EndpointNumber(5) });
+            node.parts.add(holder);
 
             // The parent crashes before its part reaches initializeDescendant/assignNumber, so the part's preset
-            // number was never recorded as allocated to it
+            // number was never recorded as allocated to it.  A live tree refuses such a part on insertion, so the
+            // tree is built before the node starts
             const parent = new Endpoint(OnOffLightDevice.with(FailingOnOffServer), {
                 id: "parent",
                 isEssential: false,
                 parts: [{ type: OnOffLightDevice, number: EndpointNumber(5) }],
             });
-            await expect(node.add(parent)).rejectedWith(EndpointBehaviorsError);
+            node.parts.add(parent);
+            await node.start();
+            expect(parent.construction.status).equals(Lifecycle.Status.Crashed);
             const [collidingChild] = [...parent.parts];
             expect(collidingChild.maybeId).equals(undefined);
             expect(collidingChild.maybeNumber).equals(5);
 
             await parent.close();
 
-            // holder's number must still be reserved: a new endpoint claiming the same number is a conflict, not a
-            // free number to hand out
             await expect(node.add(OnOffLightDevice, { id: "impostor", number: 5 })).rejected;
 
             expect(holder.maybeNumber).equals(5);
+            expect(node.behaviors.internalsOf(IndexBehavior).partsByNumber[5]).equals(holder);
 
             await node.close();
         });

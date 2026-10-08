@@ -11,6 +11,11 @@ import type { Status } from "@matter/types";
 import type { Endpoint } from "./Endpoint.js";
 
 /**
+ * Thrown when an endpoint ID, an endpoint number or a peer address is already in use.
+ */
+export class IdentityConflictError extends ImplementationError {}
+
+/**
  * Thrown when an error occurs during initialization of a behavior.
  */
 export class BehaviorInitializationError extends MatterError {
