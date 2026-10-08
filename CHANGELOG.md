@@ -306,6 +306,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The composed OnOff device example creates as many endpoints as `--num` asks for (default 2) instead of one fewer; a node stored by an earlier run gains the missing endpoint on its next start
 
 - @project-chip/matter.js
+    - Fix: A closed `PairedNode` no longer starts a subscription, read or connection, and `CommissioningController.close()` closes the controller even when closing a node fails
     - Fix: PASE with a known address reports a wrong passcode instead of falling back to discovery
     - Fix: PASE with an unreachable known address falls back to discovery instead of failing with "Could not connect to device"
 

@@ -481,12 +481,15 @@ export class PairedNode {
      * Activate the sustained subscription on NetworkClient. This triggers the Read and Subscribe flow.
      */
     #activateSubscription() {
-        if (this.#options.autoSubscribe === false) {
+        if (this.#closing || this.#options.autoSubscribe === false) {
             return;
         }
         const networkState = this.#clientNode.stateOf(NetworkClient);
         if (!networkState.autoSubscribe) {
-            this.#clientNode.act(agent => (agent.get(NetworkClient).state.autoSubscribe = true));
+            MaybePromise.catch(
+                () => this.#clientNode.act(agent => (agent.get(NetworkClient).state.autoSubscribe = true)),
+                error => logger.warn(this.#peerAddress, "Error activating subscription", error),
+            );
         }
     }
 
@@ -495,11 +498,18 @@ export class PairedNode {
      * Used when autoSubscribe is false to still populate the node state once.
      */
     async #initializeWithRead() {
+        if (this.#closing) {
+            return;
+        }
         const read = Read({
             fabricFilter: true,
             attributes: [{}],
         });
         for await (const _chunk of this.#clientNode.interaction.read(read));
+
+        if (this.#closing) {
+            return;
+        }
 
         if (this.#endpoints !== undefined) {
             this.#initializeEndpointStructure();
@@ -525,6 +535,10 @@ export class PairedNode {
         if (this.#decommissioned) {
             throw new UnknownNodeError("This node is decommissioned and cannot be connected to.");
         }
+        if (this.#closing) {
+            logger.debug(this.#peerAddress, "Ignoring connect request because node is closed.");
+            return;
+        }
         if (connectOptions !== undefined) {
             this.#options = connectOptions;
         }
@@ -535,6 +549,9 @@ export class PairedNode {
         // Per-connect subscription intervals must reach the NetworkClient that drives the subscription; the
         // create-time path only applies them when passed to getNode()/connectNode().
         await this.#applyDefaultSubscription(connectOptions);
+        if (this.#closing) {
+            return;
+        }
 
         // disconnect() disables the underlying node; re-enable it so the node restarts and NetworkClient can
         // (re)subscribe.  Without this a connect() after disconnect() is a no-op because isDisabled stays set.
@@ -581,6 +598,10 @@ export class PairedNode {
     async reconnect(connectOptions?: CommissioningControllerNodeOptions) {
         if (this.#decommissioned) {
             logger.debug(this.#peerAddress, "Ignoring reconnect request because node is decommissioned.");
+            return;
+        }
+        if (this.#closing) {
+            logger.debug(this.#peerAddress, "Ignoring reconnect request because node is closed.");
             return;
         }
         if (connectOptions !== undefined) {
@@ -1454,7 +1475,10 @@ export class PairedNode {
             this.events.decommissioned.emit();
         }
         this.#setConnectionState(NodeStates.Disconnected);
-        this.#construction.close();
+        MaybePromise.catch(
+            () => this.#construction.close(),
+            error => logger.warn(this.#peerAddress, "Error closing paired node", error),
+        );
     }
 
     /**

@@ -12,6 +12,7 @@ import {
     Environment,
     ImplementationError,
     Logger,
+    MatterAggregateError,
     MatterError,
     Minutes,
     Observable,
@@ -789,16 +790,21 @@ export class CommissioningController {
      */
     async close() {
         this.#observers.close();
-        for (const node of this.#initializedNodes.values()) {
-            node.close();
+        try {
+            await MatterAggregateError.settleSeries(
+                [
+                    ...[...this.#initializedNodes.values()].map(node => () => node.close()),
+                    () => this.#controllerInstance?.close(),
+                ],
+                "Error closing commissioning controller",
+            );
+        } finally {
+            this.#controllerInstance = undefined;
+            this.#initializedNodes.clear();
+            this.#nodeChangeObservers.clear();
+            this.#ipv4Disabled = undefined;
+            this.#started = false;
         }
-        await this.#controllerInstance?.close();
-
-        this.#controllerInstance = undefined;
-        this.#initializedNodes.clear();
-        this.#nodeChangeObservers.clear();
-        this.#ipv4Disabled = undefined;
-        this.#started = false;
     }
 
     /** Return the port used by the controller for the UDP interface. */
