@@ -138,28 +138,12 @@ function statusIcon(status: Lifecycle.Status) {
  * The outermost environment is the one every process has, so naming it would label every message of a single-node
  * process without distinguishing anything.
  */
-function originLabel(origin: Diagnostic.Origin | undefined, width?: number) {
+function originLabel(origin: Diagnostic.Origin | undefined) {
     if (origin?.parent === undefined) {
         return "";
     }
-
-    const label = `[${origin.name}]`;
-    if (width === undefined) {
-        return `${label} `;
-    }
-
-    if (label.length > width) {
-        // Elided in the middle, as an over-long facility is: the names this distinguishes are siblings, and siblings
-        // share their leading characters
-        const tail = Math.floor((width - 3) / 2);
-        return `${label.slice(0, width - tail - 2)}~${label.slice(label.length - tail - 1)} `;
-    }
-
-    // Padded so the facility column survives in a process logging for several nodes, which is what the label is for
-    return `${label.padEnd(width)} `;
+    return `[${origin.name}]`;
 }
-
-const ORIGIN_WIDTH = 12;
 
 LogFormat.formats.plain = function plain(diagnostic: unknown, indents = 0) {
     const creator = plaintextCreator(indents);
@@ -168,10 +152,11 @@ LogFormat.formats.plain = function plain(diagnostic: unknown, indents = 0) {
         ...creator,
         message: message => {
             const formattedValues = ensureIndented(renderDiagnostic(message.values, formatter));
+            const origin = originLabel(message.origin);
 
-            return `${formatTime(message.now)} ${LogLevel[message.level].toUpperCase()} ${originLabel(
-                message.origin,
-            )}${message.facility} ${message.prefix}${formattedValues}`;
+            return `${formatTime(message.now)} ${LogLevel[message.level].toUpperCase()} ${message.facility} ${
+                message.prefix
+            }${origin === "" ? "" : `${origin} `}${formattedValues}`;
         },
         key: text => creator.text(`${text}: `),
         keylike: text => creator.text(`${text}`),
@@ -281,9 +266,6 @@ LogFormat.formats.ansi = function ansi(diagnostic: unknown, indents = 0) {
 
             const prefix = style("prefix", `${formatTime(now)} ${LogLevel[level].toUpperCase().padEnd(6)}`);
 
-            const originText = originLabel(origin, ORIGIN_WIDTH);
-            const originPart = originText === "" ? "" : style("origin", originText);
-
             facility = style(
                 "facility",
                 facility.length > 20
@@ -295,9 +277,12 @@ LogFormat.formats.ansi = function ansi(diagnostic: unknown, indents = 0) {
                 nestPrefix = style("prefix", nestPrefix);
             }
 
+            const originText = originLabel(origin);
+            const originPart = originText === "" ? "" : `${style("origin", originText)} `;
+
             const formattedValues = ensureIndented(renderDiagnostic(values, formatter));
 
-            return `${prefix} ${originPart}${facility} ${nestPrefix}${formattedValues}`;
+            return `${prefix} ${facility} ${nestPrefix}${originPart}${formattedValues}`;
         },
 
         text: text => creator.text(normal(text)),
@@ -461,21 +446,22 @@ function htmlSpan(type: string, inner: string) {
 
 LogFormat.formats.html = function html(diagnostic: unknown) {
     function escape(text: string) {
-        return text.toString().replace(/</g, "&amp").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        return text.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
     const formatter = {
         message: ({ now, level, facility, prefix, values, origin }) => {
-            prefix = prefix.replace(/ /g, "&nbsp;");
+            prefix = escape(prefix).replace(/ /g, "&nbsp;");
             const formattedValues = renderDiagnostic(values, formatter);
-            const originSpan = origin?.parent === undefined ? "" : `${htmlSpan("origin", escape(`[${origin.name}]`))} `;
+            const originText = originLabel(origin);
+            const originSpan = originText === "" ? "" : `${htmlSpan("origin", escape(originText))} `;
 
             return htmlSpan(
                 `line ${LogLevel[level].toLowerCase()}`,
                 `${htmlSpan("time", formatTime(now))} ${htmlSpan(
                     "level",
                     LogLevel[level].toUpperCase(),
-                )} ${originSpan}${htmlSpan("facility", facility)} ${prefix}${formattedValues}`,
+                )} ${htmlSpan("facility", escape(facility))} ${prefix}${originSpan}${formattedValues}`,
             );
         },
         text: escape,

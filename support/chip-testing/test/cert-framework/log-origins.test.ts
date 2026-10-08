@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment, InternalError, Millis, Time } from "@matter/main";
+import { Diagnostic, Environment, InternalError, Millis, Time } from "@matter/main";
 import { LineQueue } from "@matter/testing";
 import { expect } from "chai";
-import { forgetLogOriginClaims, registerLogOrigin } from "../../src/cert/log-origins.js";
+import { forgetLogOriginClaims, OriginDestination, registerLogOrigin } from "../../src/cert/log-origins.js";
 
 // Importing installs the destinations this exercises
 import { runTaggedForDevice } from "../../src/cert/index.js";
@@ -56,6 +56,32 @@ describe("cert log attribution", () => {
 
             expect(await firstLine(queue)).match(/from a child environment/);
         });
+    });
+
+    it("leaves the origin label out of a participant's log", async () => {
+        await withOwner("device", async (env, queue) => {
+            new Environment("child", env).logger("ChildFacility").info("from a child environment");
+
+            const line = await firstLine(queue);
+            expect(line).match(/ ChildFacility from a child environment$/);
+            expect(line).not.contains("[child]");
+        });
+    });
+
+    it("keeps the origin label on a line no participant claims", () => {
+        const fallback = new Array<string>();
+        const destination = OriginDestination("unclaimed-test", "device", text => fallback.push(text));
+
+        destination.add(
+            Diagnostic.message({
+                facility: "LooseFacility",
+                values: ["from an unclaimed node"],
+                origin: new Environment("unclaimed", Environment.default).logOrigin,
+            }),
+        );
+
+        expect(fallback).length(1);
+        expect(fallback[0]).match(/ LooseFacility \[unclaimed\] from an unclaimed node$/);
     });
 
     // The attribution a step reads must beat the one the call stack suggests, or a device's line lands in whichever

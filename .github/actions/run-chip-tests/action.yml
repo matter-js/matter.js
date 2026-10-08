@@ -9,6 +9,11 @@ inputs:
     description: 'Container source (artifact or repository)'
     required: true
 
+  image-tag:
+    description: 'Tag to pull when image-source is "repository"; the image is tagged "latest" locally, which the tests run'
+    required: false
+    default: 'latest'
+
   artifact-name:
     description: 'Name of the uploaded chip image artifact, when image-source is "artifact"'
     required: false
@@ -43,7 +48,13 @@ runs:
     - name: Pull image from repository
       if: inputs.image-source == 'repository'
       shell: bash
-      run: docker pull ghcr.io/matter-js/chip
+      env:
+        IMAGE_TAG: ${{ inputs.image-tag }}
+      run: |
+        docker pull "ghcr.io/matter-js/chip:$IMAGE_TAG"
+        if [ "$IMAGE_TAG" != "latest" ]; then
+          docker tag "ghcr.io/matter-js/chip:$IMAGE_TAG" ghcr.io/matter-js/chip:latest
+        fi
 
     - name: Load image from artifact
       if: inputs.image-source == 'artifact'
