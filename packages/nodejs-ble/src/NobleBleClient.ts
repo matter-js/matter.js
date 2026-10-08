@@ -4,11 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Diagnostic, Logger } from "@matter/general";
+import { Bytes, Diagnostic, Duration, Logger } from "@matter/general";
 import { require } from "@matter/nodejs-ble/require";
-import { MatterBle } from "@matter/protocol";
+import { BleListeningClock, BleScannerClient, MatterBle } from "@matter/protocol";
 import type { Noble, Peripheral } from "@stoprocent/noble";
 import { BleOptions } from "./NodeJsBle.js";
+import { ScanControl } from "./ScanControl.js";
 
 const logger = Logger.get("NobleBleClient");
 let noble: Noble;
@@ -47,10 +48,11 @@ interface NobleListeners {
     scanStop: () => void;
 }
 
-export class NobleBleClient {
+export class NobleBleClient implements BleScannerClient {
+    readonly #listening = new BleListeningClock();
+    readonly #scan: ScanControl;
+
     private readonly discoveredPeripherals = new Map<string, { peripheral: Peripheral; matterServiceData: Bytes }>();
-    private shouldScan = false;
-    private isScanning = false;
     private nobleState = "unknown";
     #scanDeferred = false;
     private deviceDiscoveredCallback: ((peripheral: Peripheral, manufacturerData: Bytes) => void) | undefined;
@@ -75,46 +77,64 @@ export class NobleBleClient {
         // same turn would leave them running; reading the state starts them now and reports what
         // a binding that could not start already found
         this.nobleState = noble.state;
+        this.#scan = new ScanControl(
+            {
+                start: async () => {
+                    logger.debug("Start BLE scanning for Matter Services ...");
+                    await noble.startScanningAsync([MatterBle.SERVICE_UUID_SHORT], true);
+                },
+                stop: async () => {
+                    logger.debug("Stop BLE scanning for Matter Services ...");
+                    await noble.stopScanningAsync();
+                },
+            },
+            this.nobleState === "poweredOn",
+        );
 
         this.#listeners = {
             stateChange: state => {
                 this.nobleState = state;
                 logger.debug(`Noble state changed to ${state}`);
-                if (state === "poweredOn") {
-                    if (this.shouldScan) {
-                        const deferred = this.#scanDeferred;
-                        this.startScanning().then(
-                            () => {
-                                if (deferred) {
-                                    logger.notice("Bluetooth adapter is powered on, BLE discovery started");
-                                }
-                            },
-                            error => logger.error("Cannot start BLE discovery after the adapter powered on:", error),
-                        );
-                    }
-                } else {
-                    this.stopScanning().catch(error => logger.error("Cannot stop BLE discovery:", error));
+                const available = state === "poweredOn";
+                if (!available) {
+                    // noble's Linux HCI bindings emit no scanStop when the adapter powers off
+                    this.#listening.stop();
                 }
+                this.#scan.setAvailable(available);
             },
 
             discover: peripheral => this.handleDiscoveredDevice(peripheral),
 
             scanStart: () => {
-                if (!this.shouldScan) {
-                    // Noble sometimes emits scanStart when we did not asked for and misses the scanStop event
-                    // TODO: Remove as soon as Noble fixed this behavior
+                this.#scan.started();
+                if (!this.#scan.scanning) {
                     return;
                 }
-                this.isScanning = true;
+                this.#listening.start();
+                if (this.#scanDeferred) {
+                    this.#scanDeferred = false;
+                    logger.notice("Bluetooth adapter is powered on, BLE discovery started");
+                }
             },
 
-            scanStop: () => (this.isScanning = false),
+            scanStop: () => {
+                this.#listening.stop();
+                this.#scan.stopped();
+            },
         };
 
         noble.on("stateChange", this.#listeners.stateChange);
         noble.on("discover", this.#listeners.discover);
         noble.on("scanStart", this.#listeners.scanStart);
         noble.on("scanStop", this.#listeners.scanStop);
+    }
+
+    /**
+     * Time noble's radio scanned, taken from noble's scan events and adapter state rather than our requests: a scan we
+     * asked for may wait for the adapter, and none survives the adapter powering off.
+     */
+    get listeningTime(): Duration {
+        return this.#listening.total;
     }
 
     public setDiscoveryCallback(callback: (peripheral: Peripheral, manufacturerData: Bytes) => void) {
@@ -126,32 +146,19 @@ export class NobleBleClient {
 
     public async startScanning() {
         if (this.#closing) return;
-        if (this.isScanning) {
-            this.#scanDeferred = false;
-            return;
-        }
-
-        this.shouldScan = true;
-        if (this.nobleState === "poweredOn") {
-            this.#scanDeferred = false;
-            logger.debug("Start BLE scanning for Matter Services ...");
-            await noble.startScanningAsync([MatterBle.SERVICE_UUID_SHORT], true);
-        } else if (!this.#scanDeferred) {
+        if (this.nobleState !== "poweredOn" && !this.#scanDeferred) {
             this.#scanDeferred = true;
             logger.notice(
                 `BLE discovery deferred until the Bluetooth adapter reports "poweredOn" (it reports "${this.nobleState}"). Check that Bluetooth is enabled and that this process has the permissions needed to use it.`,
             );
         }
+        await this.#scan.want(true);
     }
 
     public async stopScanning() {
         if (this.#closing) return;
-        this.shouldScan = false;
         this.#scanDeferred = false;
-        if (this.isScanning) {
-            logger.debug("Stop BLE scanning for Matter Services ...");
-            await noble.stopScanningAsync();
-        }
+        await this.#scan.want(false);
     }
 
     private handleDiscoveredDevice(peripheral: Peripheral) {
@@ -198,6 +205,7 @@ export class NobleBleClient {
             return;
         }
         this.#closing = true;
+        this.#scan.close();
 
         logger.debug(`Stopping Noble, adapter state is "${this.nobleState}"`);
 
@@ -207,7 +215,8 @@ export class NobleBleClient {
         noble.off("scanStop", this.#listeners.scanStop);
 
         try {
-            // Windows holds a referenced handle from the first listener on, radio or not, and only stop() releases it
+            // Windows holds a referenced handle from the first listener on, radio or not, and only stop() releases it.
+            // stop() also ends any scan, including a start still in flight, so none needs a stop of its own here.
             noble.stop();
         } catch (error) {
             logger.info("Error stopping Noble:", error);

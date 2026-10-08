@@ -82,8 +82,12 @@ other value fails the node's construction with an `ImplementationError` as the c
   between checks. Only the misplaced-singleton check before an endpoint's behaviors initialize still runs, because a
   behavior that works only on the root endpoint otherwise fails with an untyped error.
 
-During development keep `warn`, or use `strict` to refuse a non-conforming structure. In production, `off` skips the
-checks for performance.
+The mode also applies to every cluster server, device type or not, when it initializes. In `strict` mode a command the
+conformance of the cluster requires that throws `Behavior.unimplemented` fails the initialization, with a
+`ClusterImplementationError` as the cause. In `warn` and `off` mode each such command logs a warning. In every mode the
+command is left out of the `AcceptedCommandList`.
+
+During development keep `warn`, or use `strict` to refuse a non-conforming structure. In production, `off` skips device-type checks for performance; cluster implementation validation still runs.
 
 A misplaced singleton is refused at construction in every mode; in `off` mode only when a device type above the
 endpoint declares it.

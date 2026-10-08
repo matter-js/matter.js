@@ -19,7 +19,7 @@ import {
     STANDARD_VERSION,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, runCleanups } from "./tc-support.js";
+import { CommissionedRefs, runCleanups, theTh, withChecks } from "./tc-support.js";
 
 const BLE_ONLY = DiscoveryCapabilitiesSchema.encode({ ble: true });
 const WIFI_PAF_ONLY = DiscoveryCapabilitiesSchema.encode({ wifiPublicActionFrame: true });
@@ -116,7 +116,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
         const scanGate = leg.pics === undefined ? "MCORE.DD.SCAN_QR_CODE" : `MCORE.DD.SCAN_QR_CODE & ${leg.pics}`;
 
         const payloadFor = async (cx: CertStepContext) =>
-            qrPayloadWith(await thQrPayload(cx.devices.th), { discoveryCapabilities: leg.bitmask, flowType });
+            qrPayloadWith(await thQrPayload(theTh(cx)), { discoveryCapabilities: leg.bitmask, flowType });
 
         builder
             .step(
@@ -126,7 +126,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
                     "is NOT in commissioning mode. Ensure the Version bit string follows the current Matter spec. " +
                     "documentation.",
                 async cx => {
-                    const source = await thQrPayload(cx.devices.th);
+                    const source = await thQrPayload(theTh(cx));
                     recordGeneratedPayload(
                         cx,
                         qrPayloadWith(source, { discoveryCapabilities: leg.bitmask, flowType }),
@@ -183,7 +183,8 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
                 leg.capability === "onIpNetwork"
                     ? async cx => {
                           await recordCommissionable(cx);
-                          await commissionByQr(cx, await payloadFor(cx), commissioned);
+                          const payload = await payloadFor(cx);
+                          await withChecks(cx, checks => commissionByQr(cx, payload, commissioned, checks));
                       }
                     : async () => {},
                 leg.capability === "onIpNetwork"

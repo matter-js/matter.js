@@ -7,7 +7,6 @@
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { IcdPeerAsleepError } from "#behavior/system/icd/IcdPeerAsleepError.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
-import { IcdManagementClient } from "#behaviors/icd-management";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import {
@@ -20,7 +19,6 @@ import {
     MatterAggregateError,
     Millis,
     ObserverGroup,
-    Seconds,
     Time,
 } from "@matter/general";
 import {
@@ -86,7 +84,8 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     /**
      * Read chosen attributes remotely from the node. Known data versions are automatically injected into the request to
-     * optimize the read when the fabric filter matches the active subscription. Set `includeKnownVersions` in the
+     * optimize the read when the fabric filter matches the active subscription, except for clusters with a
+     * changes-omitted attribute, which the subscription does not keep current. Set `includeKnownVersions` in the
      * request to skip version injection and always receive a full response from the server.
      */
     async *read(request: ClientRead, context?: ActionContext): ReadResult {
@@ -105,7 +104,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             !request.includeKnownVersions &&
             (request.isFabricFiltered ?? true) === this.#structure.subscribedFabricFiltered
         ) {
-            request = this.#structure.injectVersionFilters(request);
+            request = this.#structure.injectVersionFilters(request, { refreshChangesOmitted: true });
         }
 
         const response = this.#interaction.read(request, context);
@@ -161,8 +160,8 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             // re-subscribing.
             icdWakefulness: () => this.#icdWakefulness(),
 
-            // A subscription established before its peer was fed holds no wakefulness to observe the first
-            // registration-induced flip on; the feed signal lets it recreate on that flip.
+            // A subscription running while its peer is not registered has no wakefulness to watch; the feed signal lets
+            // it recreate once the peer registers.
             icdPeerFed: () => this.#peerIcd()?.icd.peerFed,
         };
 
@@ -296,8 +295,9 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     /**
      * Resolve the peer wakefulness and whether an await-mode (LIT) ICD interaction should route through the
-     * unthrottled `icdLit` network profile, so a Check-In-triggered interaction is not queued behind bulk traffic and
-     * lands inside the peer's brief active window.  Non-LIT peers and a caller-pinned network keep their profile.
+     * unthrottled `icdLit` network profile, so an interaction released by a wake signal is not queued behind bulk
+     * traffic and lands inside the peer's brief active window.  Non-LIT peers and a caller-pinned network keep their
+     * profile.
      *
      * The caller applies the routing to a copy of its request rather than mutating the caller's object, so a reused
      * request never caches the decision across a DSLS SIT⇄LIT flip.  The wakefulness is returned so the caller hands
@@ -313,8 +313,9 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      *
      * Returns `undefined` for the common passthrough cases (non-LIT peer, unregistered peer, or an already-awake LIT
      * peer) so callers add no latency and no microtask boundary on the hot path — important for same-tick invoke
-     * batching.  Returns a promise only when the operation must actually park; it resolves when a Check-In re-arms the
-     * awake window and rejects with {@link IcdPeerAsleepError} if the timeout elapses first.
+     * batching.  Returns a promise only when the operation must actually park; it resolves when a Check-In or any
+     * other message from the peer re-arms the awake window and rejects with {@link IcdPeerAsleepError} if the timeout
+     * elapses first.
      *
      * requiresAwait is read live so a DSLS SIT⇄LIT flip is honored per interaction.
      */
@@ -328,28 +329,18 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             return undefined;
         }
 
-        // A sleeping peer wakes on its next (unreliable) Check-In, so the default wait spans the idle Check-In cadence
-        // plus the same fixed jitter slack the availability window uses for that cadence.
-        const idle = this.#node.maybeStateOf(IcdManagementClient)?.idleModeDuration;
-        const effectiveTimeout =
-            timeout ??
-            Millis(
-                (idle === undefined ? IcdPeerWakefulness.DEFAULT_IDLE : Seconds(idle)) +
-                    IcdPeerWakefulness.CHECK_IN_MARGIN,
-            );
-
-        return this.#awaitWake(wakefulness, address, effectiveTimeout);
+        return this.#awaitWake(wakefulness, address, timeout ?? wakefulness.nextCheckInWithin);
     }
 
     async #awaitWake(wakefulness: IcdPeerWakefulness, address: PeerAddress, timeout: Duration) {
-        const nextCheckIn = wakefulness.availableUntil;
+        const nextCheckIn = wakefulness.nextCheckInDue;
         logger.info(
             "Peer is a LIT ICD in idle mode; holding interaction until it wakes",
             Diagnostic.dict({
                 peer: PeerAddress(address),
                 timeout: Duration.format(timeout),
                 nextCheckInWithin:
-                    nextCheckIn === undefined ? undefined : Duration.format(Millis(nextCheckIn - Time.nowMs)),
+                    nextCheckIn === undefined ? undefined : Duration.format(Millis(nextCheckIn - Time.nowUs)),
             }),
         );
         using abort = Abort.subtask(undefined, timeout);

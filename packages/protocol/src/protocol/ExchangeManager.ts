@@ -200,13 +200,13 @@ export class ExchangeManager implements Transport.Provider {
     }
 
     async #onMessage(channel: Channel<Bytes>, messageBytes: Bytes) {
-        using _lifetime = this.#lifetime.join("receiving from", Diagnostic.strong(channel.name));
+        using lifetime = this.#lifetime.join("receiving from", Diagnostic.strong(channel.name));
 
         // An unsecured session created for an inbound message must not outlive that message unless a protocol handler
         // adopts it (PASE and CASE do), otherwise any peer can grow the session table without authenticating
         const inbound: { unsecuredSession?: UnsecuredSession } = {};
         try {
-            await this.#receiveMessage(channel, messageBytes, inbound);
+            await this.#receiveMessage(channel, messageBytes, inbound, lifetime);
         } finally {
             const session = inbound.unsecuredSession;
             if (session !== undefined && !session.isClosed && !session.isClosing && !session.hasActiveExchanges) {
@@ -221,6 +221,7 @@ export class ExchangeManager implements Transport.Provider {
         channel: Channel<Bytes>,
         messageBytes: Bytes,
         inbound: { unsecuredSession?: UnsecuredSession },
+        lifetime: Lifetime,
     ) {
         const packet = MessageCodec.decodePacket(messageBytes);
         const bytes = Bytes.of(messageBytes);
@@ -285,6 +286,10 @@ export class ExchangeManager implements Transport.Provider {
                 DuplicateMessageError.accept(e);
                 isDuplicate = true;
             }
+
+            // Every decoded message proves the peer is active, also a duplicate or one that no exchange accepts; the
+            // CHIP SDK marks the session active before it drops a duplicate.
+            session.notifyActivity(true);
         } else if (packet.header.sessionType === SessionType.Group) {
             if (this.#isClosing) return;
 
@@ -350,7 +355,7 @@ export class ExchangeManager implements Transport.Provider {
 
         if (exchange !== undefined) {
             try {
-                this.#lifetime.details.exchange = exchange.idStr;
+                lifetime.details.exchange = exchange.idStr;
                 if (exchange.session.id !== packet.header.sessionId || (exchange.considerClosed && !isStandaloneAck)) {
                     this.#logger.debug(
                         exchange.via,
@@ -425,7 +430,7 @@ export class ExchangeManager implements Transport.Provider {
                     session.channel.socket = channel;
                 }
 
-                this.#lifetime.details.exchange = exchange.idStr;
+                lifetime.details.exchange = exchange.idStr;
                 this.#addExchange(exchangeIndex, exchange);
                 try {
                     await exchange.onMessageReceived(message);
@@ -435,7 +440,7 @@ export class ExchangeManager implements Transport.Provider {
                 }
             } else if (message.payloadHeader.requiresAck) {
                 const exchange = MessageExchange.fromInitialMessage(this.#messageExchangeContextFor(session), message);
-                this.#lifetime.details.exchange = exchange.idStr;
+                lifetime.details.exchange = exchange.idStr;
                 this.#addExchange(exchangeIndex, exchange);
 
                 try {

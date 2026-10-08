@@ -203,7 +203,7 @@ export namespace ServerAddressSet {
             return 1;
         }
 
-        // If b is unhealthy and a is not; prefer b
+        // If b is unhealthy and a is not; prefer a
         if (hb.unhealthyAt) {
             return -1;
         }
@@ -217,6 +217,11 @@ export namespace ServerAddressSet {
 
             // Prefer a as b has not been used
             return -1;
+        }
+
+        // Prefer b as a has not been used
+        if (hb.healthyAt) {
+            return 1;
         }
 
         // No preference

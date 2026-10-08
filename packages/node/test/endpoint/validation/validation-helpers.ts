@@ -9,7 +9,10 @@ import { GroupKeyManagementBehavior } from "#behaviors/group-key-management";
 import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light";
 import { RefrigeratorDevice } from "#devices/refrigerator";
-import { TemperatureControlledCabinetDevice } from "#devices/temperature-controlled-cabinet";
+import {
+    TemperatureControlledCabinetDevice,
+    TemperatureControlledCabinetRequirements,
+} from "#devices/temperature-controlled-cabinet";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { SupportedBehaviors } from "#endpoint/properties/SupportedBehaviors.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
@@ -26,10 +29,10 @@ import {
     Transport,
 } from "@matter/general";
 import { DeviceTypeConformance, DeviceTypeModel, DeviceTypeValidationPass, Matter, MatterModel } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { Ble, BlePeripheralInterface, Scanner } from "@matter/protocol";
 import { DeviceTypeId } from "@matter/types";
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 const { Groups, OnOff, ScenesManagement } = OnOffLightRequirements.server.mandatory;
 
@@ -202,11 +205,20 @@ export async function addRefrigerator(
     return { fridge, cabinets: added };
 }
 
+class SettableTemperatureControlServer extends TemperatureControlledCabinetRequirements.TemperatureControlServer {
+    override setTemperature() {}
+}
+
+/**
+ * A temperature controlled cabinet that implements its mandatory commands, so a strict node accepts it.
+ */
+export const CabinetDevice = TemperatureControlledCabinetDevice.with(SettableTemperatureControlServer);
+
 /**
  * A temperature controlled cabinet with a valid temperature range.
  */
 export async function addCabinet(parent: Endpoint, id: string) {
-    return parent.add(TemperatureControlledCabinetDevice, {
+    return parent.add(CabinetDevice, {
         id,
         temperatureControl: { minTemperature: 0, maxTemperature: 1000, temperatureSetpoint: 400 },
     });
@@ -262,6 +274,15 @@ export async function captureLogOf(actor: () => Promise<unknown>) {
 }
 
 /**
+ * The warnings and errors logged until {@link actor} settles.
+ */
+export async function captureWarningsOf(actor: () => Promise<unknown>) {
+    using capture = capturing();
+    await actor();
+    return capture.warnings();
+}
+
+/**
  * The errors logged until {@link actor} settles.
  */
 export async function captureErrorsOf(actor: () => Promise<unknown>) {
@@ -281,6 +302,8 @@ function capturing() {
 
     return {
         conformanceWarnings: () => messages.filter(({ text }) => text.includes("violates device type requirements")),
+
+        warnings: () => messages.filter(({ level }) => level >= LogLevel.WARN),
 
         errors: () => messages.filter(({ level }) => level >= LogLevel.ERROR),
 

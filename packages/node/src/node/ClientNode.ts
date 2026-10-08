@@ -12,7 +12,6 @@ import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
 import { Agent } from "#endpoint/Agent.js";
 import { ClientNodeEndpoints } from "#endpoint/properties/ClientNodeEndpoints.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
@@ -28,6 +27,7 @@ import {
     InternalError,
     Lifecycle,
     Logger,
+    MatterAggregateError,
     MaybePromise,
 } from "@matter/general";
 import { Matter, MatterModel } from "@matter/model";
@@ -145,28 +145,44 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     /**
+     * {@link owner} throws {@link InternalError} once the node is destroyed; a gone node rejects with its lifecycle
+     * error instead.
+     */
+    get #peers() {
+        this.lifecycle.assertNotGone();
+        return this.owner.peers;
+    }
+
+    /**
      * Add this node to a fabric.
+     *
+     * Rejects as `Peers.runCommissioning()` describes if the node is gone or a commission or decommission of it is
+     * already in progress.
      */
     async commission(options: CommissioningClient.CommissioningOptions) {
-        await this.act("commission", agent => agent.commissioning.commission(options));
+        await this.#peers.runCommissioning(this, () =>
+            this.act("commission", agent => agent.commissioning.commission(options)),
+        );
     }
 
     /**
      * Remove this node from the fabric (if commissioned) and locally.
      * This method tries to communicate with the device to decommission it properly and will fail if the device is
-     * unreachable.
+     * unreachable.  If the device does not confirm the removal, the node is kept and stays usable.  Rejects as
+     * `Peers.runDecommissioning()` describes if the node is gone or a commission or decommission of it is already in
+     * progress.
      * If you cannot reach the device, use {@link delete} instead.
      */
     async decommission() {
-        this.lifecycle.change(EndpointLifecycle.Change.Destroying);
+        await this.#peers.runDecommissioning(this, async () => {
+            if (this.lifecycle.isCommissioned) {
+                this.statusUpdate("decommissioning");
 
-        if (this.lifecycle.isCommissioned) {
-            this.statusUpdate("decommissioning");
+                await this.act("decommission", agent => agent.commissioning.decommission());
+            }
 
-            await this.act("decommission", agent => agent.commissioning.decommission());
-        }
-
-        await this.delete();
+            await this.delete();
+        });
     }
 
     /**
@@ -276,8 +292,10 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         try {
             const interaction = this.#interaction;
             this.#interaction = undefined;
-            await interaction?.close();
-            await super.cancelWithMutex();
+            await MatterAggregateError.settleSeries(
+                [() => interaction?.close(), () => super.cancelWithMutex()],
+                `Error disconnecting ${this}`,
+            );
         } finally {
             this.#blockInteractions = false;
         }
@@ -299,6 +317,8 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         actor?: (agent: Agent.Instance<ClientNode.RootEndpoint>) => MaybePromise<R>,
     ): MaybePromise<R> {
         if (this.construction.status === Lifecycle.Status.Inactive) {
+            // Between the reset and the close of a deletion; restarting would revive a node that is going away
+            this.lifecycle.assertNotGone();
             this.construction.start();
         }
 

@@ -4,7 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, DataReader, Diagnostic, Endian, Logger, MatterError, Observable, Time } from "@matter/general";
+import {
+    asError,
+    Bytes,
+    DataReader,
+    Diagnostic,
+    Endian,
+    ImplementationError,
+    Logger,
+    MatterError,
+    Observable,
+    Time,
+} from "@matter/general";
 import { BtpCodec } from "../codec/BtpCodec.js";
 import { BleDisconnectedError } from "./Ble.js";
 import { MatterBle } from "./BleConsts.js";
@@ -39,10 +50,37 @@ export class BtpSessionHandler {
         await this.close();
     });
     readonly #closed = Observable<[]>();
+    readonly #stalledAfterHandshake = Observable<[messagesToReplay: readonly Bytes[]]>();
+
+    /**
+     * Matter messages handed to {@link sendMatterMessage} while the peer has not acknowledged anything yet. Dropped as
+     * soon as any BTP packet arrives, because from then on {@link stalledAfterHandshake} can no longer fire, and the
+     * ack timeout bounds how much can accumulate.
+     */
+    #messagesPendingFirstAck: Bytes[] | undefined = new Array<Bytes>();
 
     /** Emitted exactly once when the session transitions to closed. */
     get closed() {
         return this.#closed;
+    }
+
+    /**
+     * Emitted instead of {@link closed} when the peer completed the handshake and then sent no BTP packet at all before
+     * the acknowledgement timeout, although we sent it at least one Matter message. Carries the Matter messages the peer
+     * never acknowledged in submission order. Only a central session above the minimum segment size reports this, as the
+     * remedy is a smaller segment size.
+     *
+     * Some peripherals were observed to behave this way with large segments on Bluetooth 4.1 adapters and to work with
+     * the minimum segment size; the cause is not established. Recovering is an interop workaround with no basis in the
+     * specification: the transport may establish a fresh session with a smaller segment size and resend the messages,
+     * which the specification neither describes nor forbids.
+     *
+     * The session is suspended when this fires: it no longer touches the transport, and the transport owns what happens
+     * next. A session nobody observes closes on the acknowledgement timeout, so a transport that cannot renegotiate
+     * need not observe this.
+     */
+    get stalledAfterHandshake() {
+        return this.#stalledAfterHandshake;
     }
 
     /** Factory method to create a new BTPSessionHandler from a received handshake request */
@@ -118,18 +156,29 @@ export class BtpSessionHandler {
         return btpSession;
     }
 
+    /**
+     * @param requestedSegmentSize The segment size offered in our handshake request. A peripheral must not select more
+     *     than we offered, so it also bounds the session; without it a peripheral that echoes an oversized value would
+     *     defeat a deliberate reduction of the segment size.
+     */
     static async createAsCentral(
         handshakeResponsePayload: Bytes,
         writeBleCallback: (data: Bytes) => Promise<void>,
         disconnectBleCallback: () => Promise<void>,
         handleMatterMessagePayload: (data: Bytes) => Promise<void>,
+        requestedSegmentSize: number,
     ) {
-        const handshakeRequest = BtpCodec.decodeBtpHandshakeResponsePayload(handshakeResponsePayload);
+        if (!Number.isInteger(requestedSegmentSize) || requestedSegmentSize < MatterBle.MINIMUM_ATT_MTU) {
+            throw new ImplementationError(
+                `Requested BTP segment size must be an integer of at least ${MatterBle.MINIMUM_ATT_MTU}, got ${requestedSegmentSize}`,
+            );
+        }
+        const handshakeResponse = BtpCodec.decodeBtpHandshakeResponsePayload(handshakeResponsePayload);
 
-        logger.debug("Handshake request", Diagnostic.dict(handshakeRequest));
+        logger.debug("Handshake response", Diagnostic.dict(handshakeResponse));
 
-        const { version, attMtu: handshakeMtu, windowSize } = handshakeRequest;
-        const fragmentSize = Math.min(handshakeMtu, MatterBle.MAXIMUM_BTP_MTU);
+        const { version, attMtu: handshakeMtu, windowSize } = handshakeResponse;
+        const fragmentSize = Math.min(handshakeMtu, requestedSegmentSize, MatterBle.MAXIMUM_BTP_MTU);
 
         return new BtpSessionHandler(
             "central",
@@ -229,6 +278,7 @@ export class BtpSessionHandler {
                 throw new BtpProtocolError("Expected and actual BTP packets sequence number does not match");
             }
             this.prevIncomingSequenceNumber = sequenceNumber;
+            this.#messagesPendingFirstAck = undefined;
 
             if (!this.sendAckTimer.isRunning) {
                 this.sendAckTimer.start();
@@ -336,12 +386,13 @@ export class BtpSessionHandler {
             throw new BtpFlowError("BTP packet must not be empty");
         }
         const dataReader = new DataReader(data, Endian.Little);
+        this.#messagesPendingFirstAck?.push(data);
         this.queuedOutgoingMatterMessages.push(dataReader);
         await this.processSendQueue();
     }
 
     private async processSendQueue() {
-        if (this.sendInProgress) return;
+        if (this.sendInProgress || !this.isActive) return;
 
         if (this.queuedOutgoingMatterMessages.length === 0) return;
 
@@ -415,7 +466,6 @@ export class BtpSessionHandler {
 
             // Commit the ack before the await so a concurrent send can't observe the stale value and ack the same
             // sequence twice (spec-compliant peers reject a duplicate ack).
-            const previousAckedSequenceNumber = this.prevAckedSequenceNumber;
             if (ackNumberToSend !== undefined) {
                 this.prevAckedSequenceNumber = ackNumberToSend;
             }
@@ -423,16 +473,19 @@ export class BtpSessionHandler {
             try {
                 await this.writeBleCallback(packet);
             } catch (error) {
-                // Roll back before re-raising so every error type (not just an absorbed disconnect) leaves clean
-                // state; the queue is cleared to drop partially-consumed DataReaders.
-                this.prevAckedSequenceNumber = previousAckedSequenceNumber;
+                // Whether the packet reached the peer is unknown, and its sequence number is spent either way, so the
+                // session cannot continue without the peer seeing a gap or a partial message
                 this.queuedOutgoingMatterMessages.length = 0;
                 this.sendInProgress = false;
-                BleDisconnectedError.accept(error);
-                logger.debug(
-                    `BTP packet (seq ${btpPacket.payload.sequenceNumber}) send failed because BLE is disconnected`,
-                    Diagnostic.errorMessage(error),
-                );
+                await this.#handleFailedWrite(error, `BTP packet (seq ${btpPacket.payload.sequenceNumber})`);
+                return;
+            }
+
+            if (!this.isActive) {
+                // A suspend during the write hands the transport to someone else; further segments of this session
+                // would reach a peer that has already renegotiated
+                this.queuedOutgoingMatterMessages.length = 0;
+                this.sendInProgress = false;
                 return;
             }
 
@@ -464,9 +517,7 @@ export class BtpSessionHandler {
      * Close the BTP session. This method is called when the BLE transport is disconnected and so the BTP session gets closed.
      */
     public async close() {
-        this.sendAckTimer.stop();
-        this.ackReceiveTimer.stop();
-        this.idleTimeout.stop();
+        this.#stopTimers();
         if (this.isActive) {
             logger.debug(`Closing BTP session`);
             this.isActive = false;
@@ -478,6 +529,43 @@ export class BtpSessionHandler {
                 this.#closed.emit();
             }
         }
+    }
+
+    /**
+     * Ends the session after a failed write and re-raises the error unless it is a disconnect. A write that fails after
+     * the session already ended is only logged: that end was reported through {@link closed} or
+     * {@link stalledAfterHandshake}, and after a stall the message belongs to the replay.
+     */
+    async #handleFailedWrite(error: unknown, packetDescription: string) {
+        if (!this.isActive) {
+            logger.debug(
+                `${packetDescription} failed after the BTP session ended`,
+                Diagnostic.errorMessage(asError(error)),
+            );
+            return;
+        }
+        try {
+            await this.close();
+        } catch (closeError) {
+            logger.debug(`Error closing the BTP session after a failed write`, closeError);
+        }
+        BleDisconnectedError.accept(error);
+        logger.debug(`${packetDescription} send failed because BLE is disconnected`, Diagnostic.errorMessage(error));
+    }
+
+    /**
+     * End the session without touching the transport, so the same BLE connection can carry a renegotiated session.
+     * Unlike {@link close} this emits neither {@link closed} nor a disconnect.
+     */
+    suspend() {
+        this.#stopTimers();
+        this.isActive = false;
+    }
+
+    #stopTimers() {
+        this.sendAckTimer.stop();
+        this.ackReceiveTimer.stop();
+        this.idleTimeout.stop();
     }
 
     /**
@@ -500,7 +588,7 @@ export class BtpSessionHandler {
     private async sendStandaloneAck() {
         // Mutually exclusive with processSendQueue (both directions): if a send is in progress it will piggyback
         // the pending ack, and two concurrent writes could otherwise reach the wire out of order.
-        if (this.sendInProgress) return;
+        if (this.sendInProgress || !this.isActive) return;
         const ackNumberToSend = this.prevIncomingSequenceNumber;
         if (ackNumberToSend === this.prevAckedSequenceNumber) return;
         // §4.19.4.7: an ack still consumes a remote-window slot, so never send into a full window.
@@ -527,22 +615,18 @@ export class BtpSessionHandler {
 
             // Commit the ack before the await so an interleaved send can't re-ack the same sequence
             // (spec-compliant peers reject a duplicate ack).
-            const previousAckedSequenceNumber = this.prevAckedSequenceNumber;
             this.prevAckedSequenceNumber = ackNumberToSend;
             try {
                 await this.writeBleCallback(packet);
             } catch (error) {
-                // Roll back before re-raising so a failed write never leaves the ack marked as sent.
-                this.prevAckedSequenceNumber = previousAckedSequenceNumber;
-                BleDisconnectedError.accept(error);
-                logger.debug(
-                    `BTP ACK (seq ${btpPacket.payload.sequenceNumber}, ack ${ackNumberToSend}) send failed because BLE is disconnected`,
-                    Diagnostic.errorMessage(error),
+                await this.#handleFailedWrite(
+                    error,
+                    `BTP ACK (seq ${btpPacket.payload.sequenceNumber}, ack ${ackNumberToSend})`,
                 );
                 return;
             }
             this.sendAckTimer.stop();
-            if (!this.ackReceiveTimer.isRunning) {
+            if (this.isActive && !this.ackReceiveTimer.isRunning) {
                 this.ackReceiveTimer.start(); // starts the timer
             }
         } finally {
@@ -556,12 +640,41 @@ export class BtpSessionHandler {
     /**
      * If a peer’s acknowledgement-received timer expires, or if a peer receives an invalid acknowledgement,
      * the peer SHALL close the BTP session and report an error to the application.
+     *
+     * A stall reported through {@link stalledAfterHandshake} suspends the session instead, leaving the transport to
+     * its observer.
      */
     private async btpAckTimeoutTriggered() {
-        if (this.prevIncomingAckNumber !== this.sequenceNumber) {
-            logger.warn("Acknowledgement for the sent sequence number was not received ... disconnect");
-            await this.close();
+        if (!this.isActive || this.prevIncomingAckNumber === this.sequenceNumber) {
+            return;
         }
+        const messagesToReplay = this.#messagesToReplayOnStall();
+        if (messagesToReplay !== undefined) {
+            logger.debug(
+                `No BTP packet received since the handshake with a segment size of ${this.fragmentSize} bytes, reporting a stall`,
+            );
+            this.#messagesPendingFirstAck = undefined;
+            this.suspend();
+            this.#stalledAfterHandshake.emit(messagesToReplay);
+            return;
+        }
+        logger.warn("Acknowledgement for the sent sequence number was not received ... disconnect");
+        await this.close();
+    }
+
+    /**
+     * The messages to replay if we sent Matter data and the peer has since sent nothing at all, someone observes
+     * {@link stalledAfterHandshake}, and a smaller segment size is still possible; undefined otherwise.
+     */
+    #messagesToReplayOnStall() {
+        const pending = this.#messagesPendingFirstAck;
+        if (pending === undefined || pending.length === 0 || !this.#stalledAfterHandshake.isObserved) {
+            return;
+        }
+        if (this.role !== "central" || this.fragmentSize <= MatterBle.MINIMUM_ATT_MTU) {
+            return;
+        }
+        return pending;
     }
 
     /**

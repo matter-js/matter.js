@@ -4,12 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClientBehavior } from "#behavior/cluster/ClientBehavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
-import { ValidatedElements } from "#behavior/cluster/ValidatedElements.js";
-import { MaybePromise } from "@matter/general";
+import { ClusterImplementationError, ValidatedElements } from "#behavior/cluster/ValidatedElements.js";
+import { GroupKeyManagementServer } from "#behaviors/group-key-management";
+import { GroupsServer } from "#behaviors/groups";
+import { ScenesManagementServer } from "#behaviors/scenes-management";
+import { MatterAggregateError, MaybePromise } from "@matter/general";
 import type { Model } from "@matter/model";
 import { AttributeElement, ClusterModel, CommandElement, EventElement, FieldElement } from "@matter/model";
 import { ClusterType } from "@matter/types";
+import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
+import { MockEndpointType } from "../mock-behavior.js";
 
 function makeCluster(options: {
     commands?: Record<string, { id: number; conformance: string; response?: string; direction?: string }>;
@@ -165,8 +171,8 @@ function makeBehaviorType(options: {
     return TestBehavior as ClusterBehavior.Type;
 }
 
-function validate(type: ClusterBehavior.Type) {
-    return new ValidatedElements(type);
+function validate(type: ClusterBehavior.Type, options?: ValidatedElements.Options) {
+    return new ValidatedElements(type, undefined, options);
 }
 
 describe("ValidatedElements", () => {
@@ -491,6 +497,174 @@ describe("ValidatedElements", () => {
             const result = validate(type);
             expect(result.commands.has("cmdA")).true;
             expect(result.commands.has("cmdB")).true;
+        });
+    });
+    describe("unimplemented mandatory commands", () => {
+        const schema = makeCluster({
+            features: { FT: { bit: 0, name: "Feature" }, OT: { bit: 1, name: "Other" } },
+            supportedFeatures: ["FT"],
+            commands: {
+                CmdA: { id: 1, conformance: "M" },
+                CmdB: { id: 2, conformance: "FT" },
+                CmdC: { id: 3, conformance: "OT" },
+                CmdD: { id: 4, conformance: "CmdA" },
+            },
+        });
+
+        function unimplementedOf(result: ValidatedElements) {
+            return (result.errors ?? []).filter(({ message }) => message.startsWith("Throws unimplemented exception"));
+        }
+
+        it("warns for each mandatory command that throws unimplemented", () => {
+            const result = validate(makeBehaviorType({ schema }));
+
+            expect(unimplementedOf(result)).deep.equals([
+                { element: "TestBehavior.cmdA", message: "Throws unimplemented exception", fatal: false },
+                { element: "TestBehavior.cmdB", message: "Throws unimplemented exception", fatal: false },
+            ]);
+            expect(result.commands.size).equals(0);
+        });
+
+        it("is fatal for each mandatory command that throws unimplemented in strict mode", () => {
+            const result = validate(makeBehaviorType({ schema, implementedCommands: ["cmdA"] }), { strict: true });
+
+            expect(unimplementedOf(result)).deep.equals([
+                {
+                    element: "TestBehavior.cmdB",
+                    message: "Throws unimplemented exception, refused by strict validation",
+                    fatal: true,
+                },
+                {
+                    element: "TestBehavior.cmdD",
+                    message: "Throws unimplemented exception, refused by strict validation",
+                    fatal: true,
+                },
+            ]);
+            expect(() => result.report()).throws(ClusterImplementationError);
+        });
+
+        it("is fatal for a mandatory command without implementation", () => {
+            const type = makeBehaviorType({ schema, implementedCommands: ["cmdB"] });
+            Object.defineProperty(type.prototype, "cmdA", { value: undefined });
+
+            const result = validate(type);
+
+            expect(result.errors).deep.equals([
+                { element: "TestBehavior.cmdA", message: "Implementation missing", fatal: true },
+            ]);
+        });
+
+        it("is fatal for a conditionally required command without implementation", () => {
+            const type = makeBehaviorType({ schema, implementedCommands: ["cmdA", "cmdB"] });
+            Object.defineProperty(type.prototype, "cmdD", { value: undefined });
+
+            const result = validate(type);
+
+            expect(result.errors).deep.equals([
+                { element: "TestBehavior.cmdD", message: "Implementation missing", fatal: true },
+            ]);
+        });
+
+        it("reports a mandatory command that is not a function once", () => {
+            const type = makeBehaviorType({ schema, implementedCommands: ["cmdB"] });
+            Object.defineProperty(type.prototype, "cmdA", { value: 1 });
+
+            const result = validate(type);
+
+            expect(result.errors).deep.equals([
+                { element: "TestBehavior.cmdA", message: "Implementation is not a function", fatal: true },
+            ]);
+        });
+
+        for (const server of [GroupsServer, ScenesManagementServer, GroupKeyManagementServer]) {
+            it(`accepts the default ${server.name} in strict mode`, () => {
+                expect(new ValidatedElements(server, undefined, { strict: true }).errors).undefined;
+            });
+        }
+
+        it("accepts a cluster that implements its mandatory commands in strict mode", () => {
+            const result = validate(makeBehaviorType({ schema, implementedCommands: ["cmdA", "cmdB", "cmdD"] }), {
+                strict: true,
+            });
+
+            expect(result.errors).undefined;
+            expect([...result.commands]).deep.equals(["cmdA", "cmdB", "cmdD"]);
+        });
+    });
+
+    describe("element IDs", () => {
+        it("refuses illegal attribute, command and event IDs together", () => {
+            const schema = makeCluster({
+                attributes: { IllegalAttribute: { id: 0xfff1_5000, conformance: "O" } },
+                commands: { IllegalCommand: { id: 0xfff1_0100, conformance: "O" } },
+                events: { IllegalEvent: { id: 0xfff1_0100, conformance: "O" } },
+            });
+
+            const result = validate(makeBehaviorType({ schema }));
+
+            expect(result.errors?.filter(e => e.fatal).map(e => e.element)).deep.equals([
+                "TestBehavior.IllegalAttribute",
+                "TestBehavior.IllegalCommand",
+                "TestBehavior.IllegalEvent",
+            ]);
+            expect(() => result.report()).throws(ClusterImplementationError);
+        });
+
+        it("refuses an illegal cluster ID", () => {
+            const schema = new ClusterModel({ id: 0xfff1_0001, name: "IllegalMei", revision: 1 });
+
+            const result = validate(makeBehaviorType({ schema }));
+
+            expect(result.errors?.find(e => e.element === "TestBehavior.cluster")?.message).match(
+                /Invalid cluster ID 0xfff10001/,
+            );
+        });
+
+        it("refuses an illegal namespace cluster ID next to a legal schema", () => {
+            const type = ClusterBehavior.for(
+                ClusterType({ id: 0xfff1_0002, name: "IllegalNamespace", revision: 1 }),
+                makeCluster({}),
+            );
+
+            expect(validate(type).errors?.find(e => e.element.endsWith(".cluster"))?.message).match(
+                /Invalid cluster ID 0xfff10002/,
+            );
+        });
+
+        it("accepts a command without a Matter ID", () => {
+            const schema = makeCluster({ commands: { LocalOnly: { id: CommandElement.NO_ID, conformance: "O" } } });
+
+            expect(validate(makeBehaviorType({ schema })).errors?.filter(e => e.fatal)).undefined;
+        });
+
+        it("reports an illegal ID for every behavior that hosts the schema", () => {
+            const schema = makeCluster({ attributes: { IllegalAttribute: { id: 0xfff1_5000, conformance: "O" } } });
+            const type = makeBehaviorType({ schema });
+
+            validate(type);
+
+            expect(validate(type).errors?.some(e => e.element === "TestBehavior.IllegalAttribute")).true;
+        });
+
+        it("lets a client behavior model a cluster with an illegal ID", () => {
+            const namespace = ClusterType({ id: 0xfff1_0001, name: "IllegalMei", revision: 1 });
+
+            expect(() => ClientBehavior(namespace)).not.throws();
+        });
+
+        it("fails endpoint initialization for a hosted cluster with an illegal ID", async () => {
+            const schema = makeCluster({ attributes: { IllegalAttribute: { id: 0xfff1_5000, conformance: "O" } } });
+
+            const error = await MockEndpoint.create(MockEndpointType.with(makeBehaviorType({ schema }))).then(
+                () => undefined,
+                (error: unknown) => error,
+            );
+
+            const cause = error instanceof MatterAggregateError ? error.errors[0]?.cause : undefined;
+            expect(cause).instanceOf(ClusterImplementationError);
+            expect(cause instanceof ClusterImplementationError && String(cause.errors[0])).match(
+                /IllegalAttribute.*Invalid attribute ID 0xfff15000/,
+            );
         });
     });
 });

@@ -124,7 +124,7 @@ describe("PasePairing", () => {
             }
         }
 
-        async function pairWithIterations(iterations: number) {
+        async function pairWithIterations(iterations: number, { answer = true } = {}) {
             const crypto = new CountingCrypto();
             const sent = new Array<{ type: number; payload: Bytes }>();
             const response = TlvUnboundedPbkdfParamResponse.encode({
@@ -141,7 +141,7 @@ describe("PasePairing", () => {
                     sent.push({ type, payload });
                 },
                 nextMessage: async () => {
-                    if (sent.length > 1) {
+                    if (sent.length > 1 || !answer) {
                         throw new UnexpectedDataError("Test stops after Pake1");
                     }
                     return { payloadHeader: { messageType: SecureMessageType.PbkdfParamResponse }, payload: response };
@@ -150,8 +150,11 @@ describe("PasePairing", () => {
             };
             const sessions = { crypto, getNextAvailableSessionId: async () => 1 };
 
+            let pbkdfParamResponses = 0;
             const error = await new PaseClient(sessions as any)
-                .pair({} as any, exchange as any, {} as any, 20202021)
+                .pair({} as any, exchange as any, {} as any, 20202021, {
+                    onPbkdfParamResponse: () => pbkdfParamResponses++,
+                })
                 .then(
                     () => undefined,
                     (e: unknown) => e,
@@ -161,7 +164,7 @@ describe("PasePairing", () => {
                 .filter(({ type }) => type === SecureMessageType.StatusReport)
                 .map(({ payload }) => SecureChannelStatusMessage.decode(payload).protocolStatus);
 
-            return { error, pbkdfIterations: crypto.pbkdfIterations, statusReports };
+            return { error, pbkdfIterations: crypto.pbkdfIterations, statusReports, pbkdfParamResponses };
         }
 
         for (const iterations of [999, 100_001, 2 ** 31, 0xffff_ffff]) {
@@ -185,6 +188,18 @@ describe("PasePairing", () => {
                 expect(pbkdfIterations).deep.equal([iterations]);
             });
         }
+
+        it("calls onPbkdfParamResponse once the responder answers the PBKDFParamRequest", async () => {
+            const { pbkdfParamResponses } = await pairWithIterations(1000);
+
+            expect(pbkdfParamResponses).equal(1);
+        });
+
+        it("does not call onPbkdfParamResponse when the responder does not answer", async () => {
+            const { pbkdfParamResponses } = await pairWithIterations(1000, { answer: false });
+
+            expect(pbkdfParamResponses).equal(0);
+        });
     });
 
     describe("Test PASE Spake2 process", () => {

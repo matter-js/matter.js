@@ -12,6 +12,7 @@ import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { OtaRequestorEndpoint } from "#endpoints/ota-requestor";
 import { ServerNode } from "#node/ServerNode.js";
 import { Bytes, createPromise, Crypto, Environment, MaybePromise, StandardCrypto } from "@matter/general";
+import { MockSite } from "@matter/node/testing";
 import {
     DclOtaUpdateService,
     OtaImageWriter,
@@ -22,7 +23,6 @@ import {
 import { VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
-import { MockSite } from "../../node/mock-site.js";
 
 /**
  * Generate random test payload data of specified size.

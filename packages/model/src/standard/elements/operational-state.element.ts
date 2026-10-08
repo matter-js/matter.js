@@ -84,7 +84,8 @@ export const OperationalState = Cluster(
         Field({ name: "Stopped", id: 0x0, conformance: "M" }),
         Field({ name: "Running", id: 0x1, conformance: "M" }),
         Field({ name: "Paused", id: 0x2, conformance: "M" }),
-        Field({ name: "Error", id: 0x3, conformance: "M" })
+        Field({ name: "Error", id: 0x3, conformance: "M" }),
+        Field({ name: "ManufacturerStates", constraint: "128 to 191" })
     ),
 
     Datatype(
@@ -101,7 +102,8 @@ export const OperationalState = Cluster(
         Field({ name: "NoError", id: 0x0, conformance: "M" }),
         Field({ name: "UnableToStartOrResume", id: 0x1, conformance: "M" }),
         Field({ name: "UnableToCompleteOperation", id: 0x2, conformance: "M" }),
-        Field({ name: "CommandInvalidInState", id: 0x3, conformance: "M" })
+        Field({ name: "CommandInvalidInState", id: 0x3, conformance: "M" }),
+        Field({ name: "ManufacturerError", constraint: "128 to 191" })
     ),
 
     Datatype(

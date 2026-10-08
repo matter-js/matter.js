@@ -7,46 +7,56 @@
 import { JsonFileStorageDriver } from "#storage/index.js";
 
 import * as assert from "node:assert";
-import { readFile, unlink } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
-const TEST_STORAGE_LOCATION = resolve(tmpdir(), "matterjs-test-storage.json");
+// The driver commits on a real timer, so a driver left open writes into whichever test runs when it fires
+const openStorages = new Array<JsonFileStorageDriver>();
 
 async function createJsonFileStorage(path: string) {
     // Tests use a string path directly (not DataNamespace), so we construct + initialize manually
     const storage = new JsonFileStorageDriver(path);
+    openStorages.push(storage);
     await storage.initialize();
     return storage;
 }
 
 describe("Storage in JSON File", () => {
+    let testDir: string;
+    let storagePath: string;
+
     beforeEach(async () => {
+        testDir = await mkdtemp(resolve(tmpdir(), "matterjs-test-storage-"));
+        storagePath = resolve(testDir, "storage.json");
+    });
+
+    afterEach(async () => {
         try {
-            await unlink(TEST_STORAGE_LOCATION);
-        } catch {
-            // Ignore
+            for (const storage of openStorages.splice(0)) {
+                await storage.close();
+            }
+        } finally {
+            await rm(testDir, { recursive: true, force: true });
         }
     });
 
     it("write and read success", async () => {
-        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(storagePath);
 
         storage.set(["context"], "key", "value");
 
         const value = storage.get(["context"], "key");
         assert.equal(value, "value");
 
-        await MockTime.advance(2 * 1000);
-
         await storage.committed;
 
-        const storageRead = await createJsonFileStorage(TEST_STORAGE_LOCATION);
+        const storageRead = await createJsonFileStorage(storagePath);
 
-        const valueRead = storage.get(["context"], "key");
+        const valueRead = storageRead.get(["context"], "key");
         assert.equal(valueRead, "value");
 
-        const fileContent = await readFile(TEST_STORAGE_LOCATION);
+        const fileContent = await readFile(storagePath);
         assert.equal(
             fileContent.toString(),
             `{
@@ -55,13 +65,10 @@ describe("Storage in JSON File", () => {
  }
 }`,
         );
-
-        await storageRead.close();
-        await storage.close();
     });
 
     it("write and delete success", async () => {
-        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(storagePath);
 
         storage.set(["context"], "key", "value");
 
@@ -71,29 +78,24 @@ describe("Storage in JSON File", () => {
         storage.delete(["context"], "key");
         assert.equal(storage.get(["context"], "key"), undefined);
 
-        await MockTime.advance(2 * 1000);
-
         await storage.committed;
 
-        const storageRead = await createJsonFileStorage(TEST_STORAGE_LOCATION);
+        const storageRead = await createJsonFileStorage(storagePath);
 
-        const valueRead = storage.get(["context"], "key");
+        const valueRead = storageRead.get(["context"], "key");
         assert.equal(valueRead, undefined);
 
-        const fileContent = await readFile(TEST_STORAGE_LOCATION);
+        const fileContent = await readFile(storagePath);
         assert.equal(
             fileContent.toString(),
             `{
  "context": {}
 }`,
         );
-
-        await storageRead.close();
-        await storage.close();
     });
 
     it("Allows root-level keys with empty context", async () => {
-        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(storagePath);
         storage.set([], "key", "value");
         assert.equal(storage.get([], "key"), "value");
         assert.deepEqual(storage.keys([]), ["key"]);
@@ -102,7 +104,7 @@ describe("Storage in JSON File", () => {
     });
 
     it("Throws error when context segment is empty on set", async () => {
-        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(storagePath);
         assert.throws(
             () => {
                 storage.set([""], "key", "value");
@@ -114,7 +116,7 @@ describe("Storage in JSON File", () => {
     });
 
     it("Throws error when key is empty on set", async () => {
-        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(storagePath);
         assert.throws(
             () => {
                 storage.set(["context"], "", "value");
@@ -126,7 +128,7 @@ describe("Storage in JSON File", () => {
     });
 
     it("Throws error when context segment is empty on get", async () => {
-        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(storagePath);
         assert.throws(
             () => {
                 storage.get([""], "key");
@@ -138,7 +140,7 @@ describe("Storage in JSON File", () => {
     });
 
     it("Throws error when key is empty on get", async () => {
-        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(storagePath);
         assert.throws(
             () => {
                 storage.get(["context"], "");
@@ -147,13 +149,5 @@ describe("Storage in JSON File", () => {
                 message: "Key must not be empty.",
             },
         );
-    });
-
-    after(async () => {
-        try {
-            await unlink(TEST_STORAGE_LOCATION);
-        } catch {
-            // Ignore
-        }
     });
 });

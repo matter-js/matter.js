@@ -10,6 +10,7 @@ import {
     ClusterModel,
     ClusterModifier,
     FeatureSet,
+    FieldModel,
     GeneratorScope,
     GLOBAL_IDS,
     Metatype,
@@ -122,7 +123,7 @@ export function ClusterType(input: ClusterModel | RetiredClusterType.Options): o
     // Core identity
     if (model.id !== undefined) {
         // A peer may report an ID outside the legal MEI ranges and we model the device as it reports itself.  IDs of
-        // clusters we host ourselves are validated by ClusterBehavior.for().
+        // clusters we host ourselves are validated when the server behavior initializes.
         props.id = ClusterId(model.id, false);
     }
     props.name = model.name;
@@ -258,7 +259,7 @@ function installDatatypeGetters(model: ClusterModel, lazy: (name: string, factor
             // Error classes for cluster status code enums
             if (definer.name === "StatusEnum" || definer.name === "StatusCodeEnum") {
                 for (const field of definer.children) {
-                    if (field.name === "Success") {
+                    if (field.name === "Success" || (field instanceof FieldModel && field.isEnumRange)) {
                         continue;
                     }
 

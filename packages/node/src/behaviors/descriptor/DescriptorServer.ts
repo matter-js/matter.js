@@ -83,7 +83,8 @@ export class DescriptorServer extends DescriptorBehavior {
     }
 
     /**
-     * Extend device type metadata.  This is a shortcut for deduped insert into the deviceTypeList cluster attribute.
+     * Extend device type metadata.  This is a shortcut for deduped insert into the deviceTypeList cluster attribute.  A
+     * device type that is already listed keeps its listed revision.
      *
      * @param deviceTypes an array of objects or named device types as defined in {@link Matter}
      */
@@ -101,7 +102,7 @@ export class DescriptorServer extends DescriptorBehavior {
             }
 
             for (const existingDeviceType of list) {
-                if (isDeepEqual(newDeviceType, existingDeviceType)) {
+                if (existingDeviceType.deviceType === newDeviceType.deviceType) {
                     continue nextInput;
                 }
             }
@@ -110,9 +111,13 @@ export class DescriptorServer extends DescriptorBehavior {
     }
 
     /**
-     * Add semantic tags.  This is a shortcut for deduped insert into the tagList cluster attribute.
+     * Add semantic tags.  This is a shortcut for deduped insert into the tagList cluster attribute.  A tag with the
+     * same manufacturer code, namespace and tag as a listed one is not added again; a non-null label given with it
+     * replaces the listed label, a `null` or missing label keeps it.
      *
      * You must enable the "TagList" feature to use this method.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 9.5.6.5
      */
     addTags(...tags: Semtag[]) {
         // TODO - should automatically enable the feature if it's not enabled
@@ -129,10 +134,10 @@ export class DescriptorServer extends DescriptorBehavior {
                     existingTag.namespaceId === newTag.namespaceId &&
                     existingTag.tag === newTag.tag
                 ) {
-                    if (existingTag.label !== newTag.label && newTag.label !== null && newTag.label !== undefined) {
+                    if (newTag.label !== null && newTag.label !== undefined && existingTag.label !== newTag.label) {
                         existingTag.label = newTag.label;
-                        continue nextInput;
                     }
+                    continue nextInput;
                 }
             }
 

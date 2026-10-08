@@ -8,8 +8,8 @@ import { BridgedDeviceBasicInformationServer } from "#behaviors/bridged-device-b
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
+import { MockServerNode } from "@matter/node/testing";
 import { MockEndpoint } from "../endpoint/mock-endpoint.js";
-import { MockServerNode } from "../node/mock-server-node.js";
 
 export const BridgedLightDevice = OnOffLightDevice.with(BridgedDeviceBasicInformationServer);
 

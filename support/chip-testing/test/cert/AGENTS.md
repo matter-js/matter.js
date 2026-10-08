@@ -1087,6 +1087,12 @@ narrowed it to that one option (autoSubscribe:false present and hanging vs. abse
 completing in under 5 minutes). Don't reach for `autoSubscribe: false` again for a chip-flavor
 concern; whatever it's meant to fix, it costs the entire chip-local run.
 
+**One per-peer exception.** `CommissioningTarget.withoutSubscription` leaves a single commissioned
+peer without the subscription and skips the wait for it. TC-ACT-3.2 sets it, because CHIP's bridge
+app cannot answer the subscription's priming read; that TC runs on chip-local with the flag. It is
+not a run-wide setting, and a test case that sets it may only use the calls that go straight to the
+device (the flag's JSDoc lists them).
+
 What actually fixes `decommission()` refusing at cleanup (the bug `autoSubscribe: false` was
 originally shipped for) is `keepSubscriptions: true` on this TC's own subscribes
 (`InProcessCertNodeApi.subscribe`, `InProcessControllerAdapter.ts`) — verified alone, with
@@ -1609,15 +1615,17 @@ Two of those printed codes corrected the first implementation, and both are easy
 **"Terminates commissioning" is two different claims, and they need two different checks.** Steps 2,
 3, 5, 7 and 8 are payload refusals — `requireRefusal`, accepting only `OnboardingPayloadRefusedError`.
 Step 4 hands over a well-formed code naming a device that is not there, so the DUT fails for lack of a
-commissionee; `requireNoCommissioning` accepts any failure there and only a *success* fails the step.
+commissionee; `requireGiveUp` first observes the TH advertising, then accepts only a give-up
+(`isCommissioningGiveUp`).
 The evidence keeps them apart: on chip-tool, steps 3/7/8 record `Run command failure:
-src/setup_payload/…` while step 4 records a bare command failure.
+src/setup_payload/…` while step 4 records a bare command failure plus chip-tool's own
+`[CTL] Discovery timed out` line (`chipToolDiscoveryGaveUp`).
 
 **Step 4 needs a discovery bound, not a longer wait.** matter.js looks for a commissionable device for
 the specification's 3-minute minimum commissioning window (`CommissioningDiscovery` defaults
 `timeout` to `Minutes(3)`), so a step budget under that reports "neither resolved nor rejected" — as
 it did until `CommissioningTarget.giveUpAfterMs` was added. matter.js maps it to that discovery
-timeout; chip-tool cannot be bounded and says so, stopping on its own after ~30s, so the step's own
+timeout; chip-tool cannot be bounded and says so, stopping on its own after 30 s, so the step's own
 budget has to outlast chip-tool rather than matter.js.
 
 **Step 6: a manual code's vendor id is not informational, and both controllers act on it.** The
@@ -1654,10 +1662,22 @@ Two traps behind that, both of which a green run hid at first:
   Do not "fix" a failure there by reverting to the matching id — that restores a step that proves
   nothing.
 
-**`requireNoCommissioning` must refuse a payload refusal.** Without the complementary predicate every
+**`requireGiveUp` must refuse a payload refusal.** Without the complementary predicate every
 outcome that satisfies `requireRefusal` also satisfies it, so a malformed generated code would make
 step 4 pass at ~1ms having never reached discovery. The two checks are only a partition because the
 predicate says so.
+
+## The 11-digit block (`TC-DD-3.15`, `TC-DD-3.16`)
+
+**The 11-digit code is the TH's own artifact.** Both flavors print it for their standard flow (chip
+`Manual pairing code: [<11 digits>]`, matter.js `… manual pairing code: <11 digits>`), and
+`thPrintedManualCode` reads it the way `thQrPayload` reads the QR payload. TC-DD-3.16 builds every
+substitution from `thElevenDigitCodeParts`, and each generating step checks its code against the printed
+code with `unchangedFrom`, which is what ties it to "the manual code from Step 1". TC-DD-3.15's 21-digit
+half has no printed form on the standard flow: matter.js's `ManualPairingCodeCodec` renders the TH's
+identity and step 2.a reads it back with `manualPairingCodeDigits`. TC-DD-3.17 keeps
+`thManualPairingCode`, because its negative codes need values the codec refuses to write. `tc-dd-support.test.ts` asserts all 17
+11-digit codes TC-DD-3.16 prints.
 
 ## A transport the controller has no radio for is not applicable, not skipped (`TC-DD-3.11`)
 
@@ -1909,6 +1929,45 @@ payloads is also not enough — two could differ only in passcode and leave disc
 with the same vendor id, so the attribute value alone cannot tell them apart and swapping the two refs
 would satisfy either step.
 
+## Compressed fabric id comes from the TH, not the DUT (`TC-SC-4.8`)
+
+The plan says "extract the Compressed Fabric ID assigned from DUT to TH" and gives no method.
+`CertNodeApi.operationalMdnsInstanceName()` is not one: the in-process adapter computes it from the
+DUT's own fabric, so it is the same for every node by construction, and the chip-tool adapter derives
+it from the TH's own `Fabrics` attribute. The TC uses it only for the node id the DUT assigned.
+
+The TH states the value in its own log each time it advertises a fabric:
+`Advertise operational node <CFID>-<NODE>` (chip, `app/server/Dnssd.cpp`, both ids fixed-width
+uppercase hex) and `MdnsAdvertisement Publishing kind: operational service: mdns:<CFID>-<NODE>…`
+(matter.js; note the `mdns:` prefix). Each TH's own log is searched from a mark taken before the
+commissioning, for the node id the DUT just assigned.
+
+The compressed fabric id is never taken from the network: a probe cannot witness a transition (see
+"Freshness").
+
+## A TH advertisement the TH cannot produce (`TC-SC-4.2`)
+
+The plan has the TH add an unknown TXT key "by any means". A chip TH advertises only what its build
+does, so the harness publishes a second commissionable record from its own mDNS responder
+(`advertiseCommissionableAlias` in `src/cert/mdns-alias.ts`), pointing at the TH's own port and carrying
+`AB=12345`. CHIP's manual procedure also publishes a second record (`avahi-publish-service`), but as a
+distractor next to the TH's real record, on a dummy port. Ours is the only record that leads to the TH:
+
+- **It names a discriminator nothing else advertises** (the TH's own XOR `0xaaa`), and step 2 hands the
+  DUT the TH's QR payload with that discriminator. Step 0 (`recordDiscriminatorHonored`) establishes that
+  the DUT uses the discriminator at all; without it, a DUT that ignored it would reach the TH's own record
+  and pass. The value differs from the inverted one step 0 offers, which nothing may answer.
+- **It copies the TH's identity from the TH's QR payload**, and step 1 accepts only a discovered record
+  whose VP matches it. The shared cache can still hold a record an earlier device left for discriminator
+  3840; a matter.js DUT passes over an alias whose VP does not match its code.
+
+Step 1 reads `AB=12345` back from this process's DNS-SD cache (`cachedTxtValue`), which shows the record
+that went out. The alias advertises the harness's own addresses, so the TH must run on this host
+(`chip-local`, `matterjs`).
+
+**Cleanup decommissions before closing the alias.** The alias's goodbye expires the A/AAAA records of the
+host name this process shares, which an in-process matterjs TH also announces under.
+
 ## What a commissioning step owes its own evidence
 
 A step that commissions from an onboarding code used to record two things: that the commissioning
@@ -1916,13 +1975,22 @@ succeeded, and that the TH logged it completing. Neither says the DUT read the c
 directory used to state — "commissioning from the payload is itself evidence the DUT parsed it" — is
 retired.
 
-**`commissionByTarget` records what the DUT read from the code before it uses it.** All twelve
-`commissionByQr` call sites get it, and `recordParse` compares that reading against the TH's own
-discriminator and passcode rather than merely reporting it. Do not add a second `recordParse` beside a
+**`commissionByTarget` records what the DUT read from the code before it uses it.** Every
+`commissionByQr` and `commissionByManualCode` call gets it. `recordParse` / `recordManualParse` compare
+that reading against the TH's own discriminator and passcode, and `recordManualParse` also against the
+vendor and product id the code carries, rather than merely reporting it. Do not add a second `recordParse` beside a
 `commissionByQr` in the same step — it records the same claim twice. Where a scan step and a
 commissioning step are different steps, both legitimately parse: the scan step's claim is that the
 payload was *scanned*, the commissioning step's is about the code that commissioning used. Their
 verdicts sit under different labels for that reason.
+
+**The commissioning response and the TH's completion line go into the caller's `checks`.**
+`commissionByQr` and `commissionByManualCode` take the `checks` list of the step's `withChecks`, so the
+checks a step makes after the commissioning (TC-SC-4.8's operational advertisement and fabric id
+comparison, TC-DD-3.18's `recordNotCommissioned`) still reach the evidence when that line is missing.
+Both are taken even when the DUT's commissioning throws; its error then fails the step. A helper that
+checks more after commissioning takes the step's list too, so a value it extracts still reaches the
+step's comparison when a check inside the helper fails.
 
 **What that still does not prove, and what does.** A commissioning that succeeds proves the passcode
 by itself: SPAKE2+ cannot complete on a wrong one. It proves nothing about the discriminator. On a
@@ -1937,27 +2005,23 @@ lands far outside that span whatever the plan declares — and the helper throws
 the run anyway, since that would turn the control into an ordinary commissioning.
 
 **Because a refusal is what a pass looks like here, two conditions are established rather than
-assumed.** The TH is observed advertising first, or the DUT gives up because there was nothing to find
-and the check passes on the TH's absence. And only a give-up counts (`isCommissioningGiveUp`), where
-`requireNoCommissioning` takes every failure but a payload refusal — that helper serves a plan with no
-commissionee at all, so a controller that would not start satisfies it.
+assumed.** The TH is observed advertising first; otherwise the DUT would give up because there was
+nothing to find, and the check would pass on the TH's absence. Only a give-up counts
+(`isCommissioningGiveUp`), so a controller that would not start does not pass. Both checks are
+`CommissioningRefusals.requireGiveUp`'s, which the manual-code plans call directly.
 
-**On chip-tool the control cannot be run at all.** `ChipToolCommandError` covers discovery, PASE,
-attestation, CASE, timeout and argument-parse failures alike, so a give-up is indistinguishable from a
-controller that failed for any other reason — and the attempt would spend chip-tool's own discovery
-timeout to record a pass that examined nothing. The step records an `unverified` check carrying
-`accepted` instead, and makes no attempt. This is the shape to reach for whenever a controller cannot
-exhibit the thing a check is about: state the gap in the bundle, do not spend time producing a verdict
-that could not have failed.
+**On chip-tool the give-up is read from chip-tool's own log.** `ChipToolCommandError` covers
+discovery, PASE, attestation, CASE, timeout and argument-parse failures alike, so the rejection alone
+cannot tell a give-up from a controller that failed for any other reason. `chipToolDiscoveryGaveUp`
+settles it: `[CTL] Discovery timed out` with no `Attempting PASE connection` before it. chip-tool cannot
+be bounded, so the step spends chip-tool's own discovery timeout of 30 seconds.
 
 **Budgets.** `ABSENT_DEVICE_GIVE_UP` (20s) is what the DUT is asked to spend; `ABSENT_DEVICE_WAIT`
 (90s) is how long the harness waits for that give-up. They must not be equal: a wait equal to the
 deadline it is waiting on observes the attempt still pending and records the DUT as having neither
-onboarded nor refused. Only matter.js reaches the attempt, and it honors the bound, so the slack
-between the two is for a loaded runner delivering the rejection late rather than for a controller
-that ignores the deadline. Erring long only delays reporting a DUT that hangs; erring short fails a
-working one. If the chip-tool path ever runs the attempt, the wait has to outlast chip-tool's own
-give-up instead — TC-DD-3.17 step 4 documents that as roughly 45 seconds and sets this same pair.
+onboarded nor refused. matter.js honors the bound. chip-tool ignores it and gives up on its own after
+30 s (`CHIP_CONFIG_SETUP_CODE_PAIRER_DISCOVERY_TIMEOUT_SECS`), so the wait outlasts both.
+Erring long only delays reporting a DUT that hangs; erring short fails a working one.
 
 **Where it goes.** A precondition step numbered `0`, before the first commissioning whose evidence
 rests on it, following the `0.1`/`0.2` precedent in TC-IDM-1.3. The claim is about the commissioner
@@ -2419,7 +2483,7 @@ re-establishes is one the peer must serve over TCP — a step that read without 
 over MRP and still find a session to report.
 
 **Its claim is not attributable from the device's log, and trying was a dead end worth recording.**
-The cert adapter leaves sustained subscriptions on, so a controller re-establishes a session on its
+The cert adapter leaves sustained subscriptions on for these cases, so a controller re-establishes a session on its
 own schedule — a lost subscription reconnects by establishing one. A check that matches a
 CASE-establishment line and calls it this step's therefore races either way around whatever mark it
 takes: a mark before the reconnect matches a line the step's read did not cause, and a mark after it

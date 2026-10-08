@@ -38,19 +38,13 @@ import {
 } from "@matter/main";
 import { BasicInformationClient } from "@matter/main/behaviors/basic-information";
 import { DescriptorClient } from "@matter/main/behaviors/descriptor";
-import { OperationalCredentialsClient } from "@matter/main/behaviors/operational-credentials";
 import {
     OtaSoftwareUpdateProviderClient,
     OtaSoftwareUpdateProviderServer,
 } from "@matter/main/behaviors/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestorClient } from "@matter/main/behaviors/ota-software-update-requestor";
 import { WebRtcTransportRequestorServer } from "@matter/main/behaviors/web-rtc-transport-requestor";
-import {
-    GeneralCommissioning,
-    OperationalCredentials,
-    OtaSoftwareUpdateProvider,
-    OtaSoftwareUpdateRequestor,
-} from "@matter/main/clusters";
+import { GeneralCommissioning, OtaSoftwareUpdateProvider, OtaSoftwareUpdateRequestor } from "@matter/main/clusters";
 import { CameraControllerDevice } from "@matter/main/devices";
 import { OtaProviderEndpoint } from "@matter/main/endpoints/ota-provider";
 import type { BdxInit, StorageScope } from "@matter/main/protocol";
@@ -2284,18 +2278,7 @@ class InProcessCertNodeApi implements CertNodeApi {
 
     decommission(): Promise<void> {
         return runTagged(this.#adapterId, async () => {
-            const peer = this.#peer;
-
-            // Decommissioning acts through the peer's OperationalCredentials behavior, which the first
-            // report carrying that cluster installs; a peer whose structure read aborted has none, and
-            // reading it here is what installs it. Only that condition may be pre-empted: any other
-            // failure is the step's outcome, including a refusal a step means to assert.
-            if (peer.lifecycle.isCommissioned && !peer.behaviors.has(OperationalCredentialsClient)) {
-                logger.info(`Reading ${peer.id}'s credentials, which decommissioning it needs`);
-                await this.readAttribute({ endpoint: 0, cluster: OperationalCredentials.id });
-            }
-
-            await peer.decommission();
+            await this.#peer.decommission();
         });
     }
 
@@ -2656,22 +2639,25 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 await this.#attestation.construction;
             }
 
-            const controller = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
-                environment: this.#env,
-                id: this.id,
-                commissioning: { enabled: false },
-                controller: { adminFabricLabel: this.id },
-                network: {
-                    autoStartCommissionedPeers: false,
+            const controller = await ServerNode.create(
+                ServerNode.RootEndpointWithoutGroupcast.with(ControllerBehavior),
+                {
+                    environment: this.#env,
+                    id: this.id,
+                    commissioning: { enabled: false },
+                    controller: { adminFabricLabel: this.id },
+                    network: {
+                        autoStartCommissionedPeers: false,
 
-                    // Outgoing only: this controller is a TCP client, and `tcp: true` would also have it
-                    // listen and advertise as a TCP server, which no cert test asks of a controller.
-                    ...(this.#transport === "tcp"
-                        ? { tcp: { outgoing: true }, transportPreference: "tcp" as const }
-                        : {}),
+                        // Outgoing only: this controller is a TCP client, and `tcp: true` would also have it
+                        // listen and advertise as a TCP server, which no cert test asks of a controller.
+                        ...(this.#transport === "tcp"
+                            ? { tcp: { outgoing: true }, transportPreference: "tcp" as const }
+                            : {}),
+                    },
+                    subscriptions: { persistenceEnabled: false },
                 },
-                subscriptions: { persistenceEnabled: false },
-            });
+            );
             this.#controller = controller;
 
             const fabricAuthority = await controller.env.load(FabricAuthority);
@@ -2737,14 +2723,15 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     commission(target: CommissioningTarget): Promise<CertNodeRef> {
         return runTagged(this.id, async () => {
             const { identifierData, passcode, vendorId, productId } = resolveCommissioningTarget(target);
-            // A commissioned peer holds the sustained wildcard subscription that bootstraps its own structure
-            // read, so the standalone post-commissioning read is suppressed — one read, not two.
+            // The sustained wildcard subscription bootstraps the peer's structure read, so the standalone
+            // post-commissioning read is suppressed — one read, not two, and none without a subscription.
             const peer = await this.#startedController.peers.commission({
                 ...identifierData,
                 passcode,
                 vendorId,
                 productId,
                 autoStateInitialize: false,
+                autoSubscribe: !target.withoutSubscription,
                 caseConnectionTimeout: target.singleHandshakeAttempt ? SINGLE_HANDSHAKE_TIMEOUT : undefined,
                 timeout: target.giveUpAfterMs === undefined ? undefined : Millis(target.giveUpAfterMs),
                 regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.IndoorOutdoor,
@@ -2766,7 +2753,9 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             if (address === undefined) {
                 throw new InternalError(`Commissioned peer ${peer.id} has no peer address`);
             }
-            await settlePeer(peer);
+            if (!target.withoutSubscription) {
+                await settlePeer(peer);
+            }
             return address.nodeId.toString();
         });
     }

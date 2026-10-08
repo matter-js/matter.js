@@ -20,6 +20,7 @@ import {
 } from "#model";
 import { ModelBounds } from "@matter/types";
 import { documentationOf } from "../util/documentation.js";
+import { isEnumRange } from "../util/enum-ranges.js";
 import { ScopeFile } from "../util/ScopeFile.js";
 import { asObjectKey, camelize, serialize } from "../util/string.js";
 import { Block, Entry } from "../util/TsFile.js";
@@ -176,6 +177,9 @@ export class TlvGenerator {
                         if (dt !== undefined) {
                             dts.add(dt);
                         }
+                        if (m.children.some(isEnumRange)) {
+                            dts.add("number");
+                        }
                     }
                     if (dts.size) {
                         this.importTlv("number", "TlvEnum");
@@ -282,6 +286,9 @@ export class TlvGenerator {
 
         this.definitions.insertingBefore(enumBlock, () => {
             model.children.forEach(child => {
+                if (isEnumRange(child)) {
+                    return;
+                }
                 let name = child.name;
                 if (name.match(/^\d+$/)) {
                     // Typescript doesn't allow numeric enum keys
@@ -302,7 +309,7 @@ export class TlvGenerator {
     defineErrors(enumName: string, model: ValueModel, block: Block) {
         for (const field of model.fields) {
             let { name: errName } = field;
-            if (errName === "Success") {
+            if (errName === "Success" || isEnumRange(field)) {
                 continue;
             }
 

@@ -10,8 +10,8 @@ import { EndpointBehaviorsError } from "#endpoint/errors.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { StateStream } from "#node/integration/StateStream.js";
 import { Abort, ImplementationError, Lifecycle, Millis } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import type { CommissionableDevice } from "@matter/protocol";
-import { MockServerNode } from "../mock-server-node.js";
 
 class FailingOnOffServer extends OnOffServer {
     override initialize() {

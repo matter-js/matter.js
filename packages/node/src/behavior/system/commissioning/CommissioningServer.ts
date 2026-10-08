@@ -112,27 +112,17 @@ export class CommissioningServer extends Behavior {
     }
 
     handleFabricChange(fabricIndex: FabricIndex, fabricAction: CommissioningServer.FabricAction) {
-        // Do not consider commissioned so long as there is an active failsafe timer as commissioning may not be
-        // complete and could still be rolled back
-        if (this.env.has(FailsafeContext)) {
+        // An added or updated fabric counts only once the fail-safe ends, because the fail-safe may still roll it back.
+        // A deletion is final, whoever holds the fail-safe
+        if (fabricAction !== "deleted" && this.env.has(FailsafeContext)) {
             const failsafe = this.env.get(FailsafeContext);
-            if (fabricAction === "added" || fabricAction === "updated") {
-                // Added or updated fabric with active Failsafe are temporary and should not be considered until failsafe ends
-                if (failsafe.construction.status !== Lifecycle.Status.Destroyed) {
-                    if (failsafe.fabricIndex === fabricIndex) {
-                        this.#monitorFailsafe(failsafe);
-                        return;
-                    } else {
-                        throw new MatterFlowError(
-                            `Failsafe owns a different fabricIndex then ${failsafe.forUpdateNoc ? "updated" : "added"}: ${failsafe.fabricIndex} vs. ${fabricIndex}`,
-                        );
-                    }
-                }
-            } else if (fabricAction === "deleted") {
-                // Removed fabric with active Failsafe are ignored but should match the failsafe one
-                if (failsafe.fabricIndex !== fabricIndex) {
+            if (failsafe.construction.status !== Lifecycle.Status.Destroyed) {
+                if (failsafe.fabricIndex === fabricIndex) {
+                    this.#monitorFailsafe(failsafe);
+                    return;
+                } else {
                     throw new MatterFlowError(
-                        `Failsafe owns a different fabricIndex then removed: ${failsafe.fabricIndex} vs. ${fabricIndex}`,
+                        `Failsafe owns a different fabricIndex than ${failsafe.forUpdateNoc ? "updated" : "added"}: ${failsafe.fabricIndex} vs. ${fabricIndex}`,
                     );
                 }
             }
@@ -143,13 +133,9 @@ export class CommissioningServer extends Behavior {
         this.events.fabricsChanged.emit(fabricIndex, fabricAction);
 
         if (doFactoryReset) {
-            const sessions = this.agent.get(SessionsBehavior);
-            if (Object.keys(sessions.state.sessions).length > 0) {
-                // We have still open sessions, wait for them to close
-                this.reactTo(sessions.events.closed, this.#resetAfterSessionsClear);
-            } else {
-                this.#triggerFactoryReset();
-            }
+            this.internal.resetPending = true;
+            this.reactTo(this.agent.get(SessionsBehavior).events.closed, this.#resetWhenIdle);
+            this.#resetWhenIdle();
         }
     }
 
@@ -177,40 +163,79 @@ export class CommissioningServer extends Behavior {
         return true;
     }
 
-    #resetAfterSessionsClear() {
-        const sessions = this.agent.get(SessionsBehavior);
-        if (Object.keys(sessions.state.sessions).length === 0) {
-            this.#triggerFactoryReset();
+    get #activeFailsafe() {
+        if (!this.env.has(FailsafeContext)) {
+            return;
         }
+        const failsafe = this.env.get(FailsafeContext);
+        return failsafe.construction.status === Lifecycle.Status.Destroyed ? undefined : failsafe;
     }
 
-    #triggerFactoryReset() {
-        this.env.runtime.add((this.endpoint as ServerNode).erase().catch(e => MutexClosedError.accept(e)));
-    }
-
-    #monitorFailsafe(failsafe: FailsafeContext) {
-        if (this.internal.unregisterFailsafeListener) {
+    /**
+     * Factory resets the node after it lost its last fabric, once no fail-safe is armed and no session remains.  A
+     * fabric that exists once the fail-safe ended, such as one a commissioning completed, cancels the reset.
+     */
+    #resetWhenIdle() {
+        if (!this.internal.resetPending) {
             return;
         }
 
-        // Callback that listens to the failsafe for destruction and triggers commissioning status update
-        const listener = this.callback(function (this: CommissioningServer, status: Lifecycle.Status) {
-            if (status === Lifecycle.Status.Destroyed) {
-                if (failsafe.fabricIndex !== undefined) {
-                    this.handleFabricChange(failsafe.fabricIndex, failsafe.forUpdateNoc ? "updated" : "added");
-                }
-                this.internal.unregisterFailsafeListener?.();
-            }
-        });
+        // A fabric added under the fail-safe is still in the fabric list until the fail-safe commits or rolls it back
+        const failsafe = this.#activeFailsafe;
+        if (failsafe !== undefined) {
+            this.reactTo(failsafe.construction.change, this.#resetWhenIdle);
+            return;
+        }
 
-        // Callback that removes above listener
-        this.internal.unregisterFailsafeListener = this.callback(function (this: CommissioningServer) {
-            failsafe.construction.change.off(listener);
-            this.internal.unregisterFailsafeListener = undefined;
-        });
+        if (this.env.get(FabricManager).fabrics.length) {
+            this.#endPendingReset();
+            return;
+        }
 
-        // Register the listener
+        if (Object.keys(this.agent.get(SessionsBehavior).state.sessions).length > 0) {
+            return;
+        }
+
+        this.#endPendingReset();
+        this.env.runtime.add((this.endpoint as ServerNode).erase().catch(e => MutexClosedError.accept(e)));
+    }
+
+    #endPendingReset() {
+        this.internal.resetPending = false;
+        this.stopReacting({ reactor: this.#resetWhenIdle }).catch(error =>
+            logger.warn("Failed to stop waiting for the factory reset", error),
+        );
+    }
+
+    #monitorFailsafe(failsafe: FailsafeContext) {
+        if (this.internal.monitoredFailsafe) {
+            return;
+        }
+
+        const listener = (this.internal.failsafeListener ??= this.callback(this.#failsafeChanged));
+        this.internal.monitoredFailsafe = failsafe;
         failsafe.construction.change.on(listener);
+    }
+
+    /** Updates the commissioning status once the monitored failsafe ends */
+    #failsafeChanged(status: Lifecycle.Status) {
+        const failsafe = this.internal.monitoredFailsafe;
+        if (status !== Lifecycle.Status.Destroyed || failsafe === undefined) {
+            return;
+        }
+
+        if (failsafe.fabricIndex !== undefined) {
+            this.handleFabricChange(failsafe.fabricIndex, failsafe.forUpdateNoc ? "updated" : "added");
+        }
+        this.#stopMonitoringFailsafe();
+    }
+
+    #stopMonitoringFailsafe() {
+        const { monitoredFailsafe, failsafeListener } = this.internal;
+        if (monitoredFailsafe !== undefined && failsafeListener !== undefined) {
+            monitoredFailsafe.construction.change.off(failsafeListener);
+        }
+        this.internal.monitoredFailsafe = undefined;
     }
 
     async #enterOnlineMode() {
@@ -255,7 +280,7 @@ export class CommissioningServer extends Behavior {
     #enterOfflineMode() {
         this.internal.mutex.run(async () => {
             await this.env.close(DeviceCommissioner);
-            this.internal.unregisterFailsafeListener?.();
+            this.#stopMonitoringFailsafe();
             await this.env.close(FailsafeContext);
         });
     }
@@ -351,7 +376,12 @@ export namespace CommissioningServer {
     }
 
     export class Internal {
-        unregisterFailsafeListener?: () => void = undefined;
+        /** The failsafe whose end updates the commissioning status */
+        monitoredFailsafe?: FailsafeContext = undefined;
+
+        failsafeListener?: (status: Lifecycle.Status) => void = undefined;
+
+        resetPending = false;
 
         /**
          * We use this to synchronize internal state transitions that would otherwise have race conditions due to the

@@ -22,6 +22,10 @@ import { WebReporter } from "./web-reporter.js";
 // to perform timeout handling ourselves so avoiding for now
 const TEST_HOOK_TIMEOUT = 60000;
 
+// Mocha's 2 s default fails tests that commission nodes: they run real crypto, which loaded CI runners and the browser
+// leg stretch past it
+const DEFAULT_TEST_TIMEOUT = 10_000;
+
 const beforeOneHook = Symbol("before-hook");
 const afterOneHook = Symbol("after-hook");
 
@@ -51,6 +55,8 @@ export function afterOne(test: HookableTest, fn: Mocha.Func | Mocha.AsyncFunc) {
 }
 
 export function generalSetup(mocha: Mocha) {
+    mocha.timeout(DEFAULT_TEST_TIMEOUT);
+
     const Base = (mocha.constructor as typeof Mocha).reporters.Base;
 
     // White text, 16-bit and 256-bit green background
