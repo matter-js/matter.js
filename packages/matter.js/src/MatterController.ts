@@ -35,6 +35,7 @@ import {
     isDeepEqual,
     isObject,
     Logger,
+    MatterAggregateError,
     MatterError,
     Minutes,
     MockStorageService,
@@ -759,10 +760,17 @@ export class MatterController {
 
     async close() {
         this.#migratedPeerObservers.close();
-        await this.#legacyPeerStore?.close();
-        await this.#node?.close();
-        this.#clients = undefined;
-        await this.#construction.close();
+        await MatterAggregateError.settleSeries(
+            [
+                () => this.#legacyPeerStore?.close(),
+                () => this.#node?.close(),
+                () => {
+                    this.#clients = undefined;
+                },
+                () => this.#construction.close(),
+            ],
+            "Error closing controller",
+        );
     }
 
     getActiveSessionInformation() {

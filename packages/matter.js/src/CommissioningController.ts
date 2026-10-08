@@ -12,6 +12,7 @@ import {
     Environment,
     ImplementationError,
     Logger,
+    MatterAggregateError,
     MatterError,
     Minutes,
     Observable,
@@ -531,7 +532,13 @@ export class CommissioningController {
         if (peerId === undefined) {
             return undefined;
         }
-        return this.#initializedNodes.get(peerId);
+        const node = this.#initializedNodes.get(peerId);
+        if (node?.isClosed) {
+            this.#initializedNodes.delete(peerId);
+            this.#nodeChangeObservers.delete(peerId);
+            return undefined;
+        }
+        return node;
     }
 
     /**
@@ -569,13 +576,16 @@ export class CommissioningController {
                 logger.warn(`Decommissioning node ${nodeId} failed with error, remove node anyway: ${error}`);
             }
         }
-        if (node !== undefined) {
-            node.close(!decommissionSuccess);
-        }
-        await controller.removeNode(nodeId);
-        if (node !== undefined) {
-            this.#initializedNodes.delete(node.id);
-            this.#nodeChangeObservers.delete(node.id);
+        try {
+            await MatterAggregateError.settleSeries(
+                [() => node?.close(!decommissionSuccess), () => controller.removeNode(nodeId)],
+                `Error removing node ${nodeId}`,
+            );
+        } finally {
+            if (node !== undefined) {
+                this.#initializedNodes.delete(node.id);
+                this.#nodeChangeObservers.delete(node.id);
+            }
         }
     }
 
@@ -789,16 +799,21 @@ export class CommissioningController {
      */
     async close() {
         this.#observers.close();
-        for (const node of this.#initializedNodes.values()) {
-            node.close();
+        try {
+            await MatterAggregateError.settleSeries(
+                [
+                    ...[...this.#initializedNodes.values()].map(node => () => node.close()),
+                    () => this.#controllerInstance?.close(),
+                ],
+                "Error closing commissioning controller",
+            );
+        } finally {
+            this.#controllerInstance = undefined;
+            this.#initializedNodes.clear();
+            this.#nodeChangeObservers.clear();
+            this.#ipv4Disabled = undefined;
+            this.#started = false;
         }
-        await this.#controllerInstance?.close();
-
-        this.#controllerInstance = undefined;
-        this.#initializedNodes.clear();
-        this.#nodeChangeObservers.clear();
-        this.#ipv4Disabled = undefined;
-        this.#started = false;
     }
 
     /** Return the port used by the controller for the UDP interface. */

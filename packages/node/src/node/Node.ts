@@ -130,7 +130,9 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
     }
 
     protected async startWithMutex() {
-        this.env.runtime.add(this);
+        if (this.isRuntimeWorker) {
+            this.env.runtime.add(this);
+        }
 
         try {
             await this.construction.ready;
@@ -161,7 +163,9 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
                     logger.warn("Error closing network runtime", asError(e));
                 });
             }
-            this.env.runtime.delete(this);
+            if (this.isRuntimeWorker) {
+                this.env.runtime.delete(this);
+            }
             throw e;
         }
     }
@@ -275,6 +279,21 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
 
     protected abstract prepareRuntimeShutdown(): Promise<void>;
 
+    /**
+     * Whether the node registers with the environment's runtime when it starts, so that shutting down the runtime
+     * closes it.
+     */
+    protected get isRuntimeWorker() {
+        return true;
+    }
+
+    /**
+     * Sections this node adds to its diagnostics, each a heading followed by its content.
+     */
+    protected get diagnosticSections(): unknown[] {
+        return [];
+    }
+
     get [DiagnosticPresentation.name]() {
         return ["Runtime for", Diagnostic.strong(this.toString())];
     }
@@ -288,6 +307,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
                 Diagnostic.list([super[Diagnostic.value]]),
                 Diagnostic.strong("Activity"),
                 nodeActivity[Diagnostic.value],
+                ...this.diagnosticSections,
             ],
         });
     }

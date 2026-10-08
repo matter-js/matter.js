@@ -19,6 +19,7 @@ import type { Environment } from "@matter/general";
 import {
     asyncNew,
     Construction,
+    Diagnostic,
     DiagnosticSource,
     errorOf,
     Identity,
@@ -134,6 +135,17 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
             [() => this.#peers?.close(), () => super[Construction.destruct](), () => ServerEnvironment.close(this)],
             `Error destroying server node ${this}`,
         );
+    }
+
+    protected override get diagnosticSections() {
+        const peers = this.#peers;
+        if (peers === undefined || peers.size === 0) {
+            return [];
+        }
+        return [
+            Diagnostic.strong("Peers"),
+            Diagnostic.list([...peers].map(peer => `${peer} ${peer.lifecycle.isOnline ? "online" : "offline"}`)),
+        ];
     }
 
     override async prepareRuntimeShutdown() {

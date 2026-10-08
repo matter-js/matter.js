@@ -149,6 +149,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: A peer stopped after losing its sessions, as when its controller goes offline, reports `Disconnected` instead of staying `Reconnecting`
+    - Fix: Started peers close during their controller's teardown instead of in parallel with it, so shutting down no longer reports their endpoints as deleted
     - Fix: `ChangeNotificationService` reports nothing once its node begins destruction, so consumers such as the shell no longer see every endpoint of every peer as deleted on shutdown
     - Fix: AddNOC and UpdateNOC answer `InvalidNodeOpId` for a NOC whose node ID is outside the operational range
     - Fix: AddNOC answers `InvalidAdminSubject` for a CASE Authenticated Tag with version 0 as admin subject
@@ -305,6 +307,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The composed OnOff device example creates as many endpoints as `--num` asks for (default 2) instead of one fewer; a node stored by an earlier run gains the missing endpoint on its next start
 
 - @project-chip/matter.js
+    - Fix: A closed `PairedNode` no longer starts a subscription, read or connection, and `CommissioningController.close()` closes the controller even when closing a node fails
+    - Fix: `PairedNode.close()` finishes its cleanup when a handler or callback throws, `getNode()` returns a new `PairedNode` for a node whose instance was closed, and `CommissioningController.removeNode()` removes the node even when closing it fails
     - Fix: PASE with a known address reports a wrong passcode instead of falling back to discovery
     - Fix: PASE with an unreachable known address falls back to discovery instead of failing with "Could not connect to device"
 
