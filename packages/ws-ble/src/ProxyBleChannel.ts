@@ -103,9 +103,9 @@ export class ProxyBleCentralInterface implements Transport {
             address: peripheralAddress,
         });
 
-        const mtu = MatterBle.btpSegmentSizeFromAttMtu(peripheralMtu ?? 0);
+        const segmentSize = MatterBle.btpSegmentSizeFromAttMtu(peripheralMtu ?? 0);
         logger.info(
-            `Connected to ${peripheralAddress}, handle=${connection_handle}, BTP segment size=${mtu} bytes (peripheral ATT_MTU up to ${peripheralMtu ?? "n/a"}), rssi=${rssi ?? "n/a"}`,
+            `Connected to ${peripheralAddress}, handle=${connection_handle}, BTP segment size=${segmentSize} bytes (peripheral ATT_MTU up to ${peripheralMtu ?? "n/a"}), rssi=${rssi ?? "n/a"}`,
         );
 
         // The owner connection's observables outlive a failed open; a leaked observer would corrupt the next channel on
@@ -199,7 +199,7 @@ export class ProxyBleCentralInterface implements Transport {
                 // notifications are enabled (no round-trip between Write Response and CCCD enable).
                 const btpHandshakeRequest = BtpCodec.encodeBtpHandshakeRequest({
                     versions: MatterBle.BTP_SUPPORTED_VERSIONS,
-                    attMtu: mtu,
+                    attMtu: segmentSize,
                     clientWindowSize: MatterBle.BTP_MAXIMUM_WINDOW_SIZE,
                 });
                 logger.debug(`Sending BTP handshake request on C1 and subscribing C2 atomically`);
@@ -274,6 +274,7 @@ export class ProxyBleCentralInterface implements Transport {
                         onMatterMessageListener(channelRef.channel, data);
                     }
                 },
+                segmentSize,
             );
             sessionRef.session = btpSession;
 
