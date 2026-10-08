@@ -68,9 +68,8 @@ describe("PairedNode close", () => {
             const node = await MockTime.resolve(controller.getNode(nodeId), { macrotasks: true });
 
             node.connect({ subscribeMaxIntervalCeilingSeconds: 60 });
-            const closing = node.close();
+            node.close();
             await idle(controller, node);
-            await closing;
 
             expect(networkOf(node).autoSubscribe).false;
             expect(node.connectionState).equals(NodeStates.Disconnected);
@@ -84,9 +83,8 @@ describe("PairedNode close", () => {
             expect(networkOf(node).isDisabled).true;
 
             node.connect({ subscribeMaxIntervalCeilingSeconds: 60 });
-            const closing = node.close();
+            node.close();
             await idle(controller, node);
-            await closing;
 
             expect(networkOf(node).isDisabled).true;
             expect(networkOf(node).autoSubscribe).false;
@@ -99,18 +97,17 @@ describe("PairedNode close", () => {
             await MockTime.resolve(node.disconnect(), { macrotasks: true });
             await idle(controller, node);
 
-            let closing: Promise<void> | undefined;
+            let closedWhileEnabling = false;
             node.node.eventsOf(NetworkClient).isDisabled$Changed.on(isDisabled => {
                 if (!isDisabled) {
-                    closing = node.close();
+                    closedWhileEnabling = true;
+                    node.close();
                 }
             });
             const counter = countReadDataOf(controller, node);
 
             node.connect({ autoSubscribe: false });
             await idle(controller, node);
-            const closedWhileEnabling = closing !== undefined;
-            await closing;
 
             expect(closedWhileEnabling).true;
             expect(counter.changes).equals(0);
@@ -125,9 +122,8 @@ describe("PairedNode close", () => {
             const node = await MockTime.resolve(controller.getNode(nodeId), { macrotasks: true });
 
             const reconnecting = node.reconnect();
-            const closing = node.close();
+            node.close();
             await MockTime.resolve(reconnecting, { macrotasks: true });
-            await MockTime.resolve(closing, { macrotasks: true });
             await idle(controller, node);
 
             expect(networkOf(node).autoSubscribe).false;
@@ -144,20 +140,19 @@ describe("PairedNode close", () => {
             node.events.initialized.on(() => void emitted.push("initialized"));
             node.events.initializedFromRemote.on(() => void emitted.push("initializedFromRemote"));
 
-            let closing: Promise<void> | undefined;
+            let closedDuringRead = false;
             const changes = controller.node.env.get(ChangeNotificationService).change;
             const closeOnFirstChange = (change: ChangeNotificationService.Change) => {
                 if (isReadDataOf(node, change)) {
                     changes.off(closeOnFirstChange);
-                    closing = node.close();
+                    closedDuringRead = true;
+                    node.close();
                 }
             };
             changes.on(closeOnFirstChange);
 
             node.connect({ autoSubscribe: false });
             await idle(controller, node);
-            const closedDuringRead = closing !== undefined;
-            await closing;
 
             expect(closedDuringRead).true;
             expect(emitted).deep.equals([]);
@@ -174,7 +169,7 @@ describe("PairedNode close", () => {
             await MockTime.resolve(node.events.initialized, { macrotasks: true });
             expect(activeSubscriptionsOf(device)).equals(1);
 
-            await MockTime.resolve(node.close(), { macrotasks: true });
+            node.close();
             await idle(controller, node);
             const [light] = device.parts;
             await MockTime.resolve(light.setStateOf(OnOffServer, { onOff: true }), { macrotasks: true });
@@ -185,74 +180,21 @@ describe("PairedNode close", () => {
             expect(networkOf(node).autoSubscribe).true;
         });
 
-        it("waits for the handlers of the decommissioned event", async () => {
+        it("finishes closing when a decommissioned handler throws", async () => {
             await using site = new LegacyControllerSite();
             const { controller, nodeId } = await site.addCommissionedPair();
             const node = await MockTime.resolve(controller.getNode(nodeId), { macrotasks: true });
 
-            let handled = false;
-            node.events.decommissioned.on(async () => {
-                await Time.sleep("decommissioned handler", Seconds(1));
-                handled = true;
-            });
-
-            await MockTime.resolve(node.close(true), { macrotasks: true });
-
-            expect(handled).true;
-        });
-
-        it("finishes closing when a decommissioned handler rejects", async () => {
-            await using site = new LegacyControllerSite();
-            const { controller, nodeId } = await site.addCommissionedPair();
-            const node = await MockTime.resolve(controller.getNode(nodeId), { macrotasks: true });
-
-            node.events.decommissioned.on(async () => {
+            node.events.decommissioned.on(() => {
                 throw new HandlerError("decommissioned handler failed");
             });
 
-            const closing = node.close(true);
-            await expect(MockTime.resolve(closing, { macrotasks: true })).rejectedWith("decommissioned handler failed");
-
-            expect(node.connectionState).equals(NodeStates.Disconnected);
-            expect(node.close()).equals(closing);
+            node.close(true);
             await idle(controller, node);
+
+            expect(node.isClosed).true;
+            expect(node.connectionState).equals(NodeStates.Disconnected);
             expect(node.construction.status).equals(Lifecycle.Status.Destroyed);
-        });
-
-        it("makes a second close wait for the first", async () => {
-            await using site = new LegacyControllerSite();
-            const { controller, nodeId } = await site.addCommissionedPair();
-            const node = await MockTime.resolve(controller.getNode(nodeId), { macrotasks: true });
-
-            let handled = false;
-            node.events.decommissioned.on(async () => {
-                await Time.sleep("decommissioned handler", Seconds(1));
-                handled = true;
-            });
-
-            const first = node.close(true);
-            const second = node.close();
-            await MockTime.resolve(second, { macrotasks: true });
-
-            expect(second).equals(first);
-            expect(handled).true;
-        });
-
-        it("waits in decommission() for the handlers of the decommissioned event", async () => {
-            await using site = new LegacyControllerSite();
-            const { controller, nodeId } = await site.addCommissionedPair();
-            const node = await MockTime.resolve(controller.connectNode(nodeId), { macrotasks: true });
-            await MockTime.resolve(node.events.initialized, { macrotasks: true });
-
-            let handled = false;
-            node.events.decommissioned.on(async () => {
-                await Time.sleep("decommissioned handler", Seconds(1));
-                handled = true;
-            });
-
-            await MockTime.resolve(node.decommission(), { macrotasks: true });
-
-            expect(handled).true;
         });
 
         it("is replaced by a new instance on the next getNode()", async () => {
@@ -261,7 +203,7 @@ describe("PairedNode close", () => {
             const node = await MockTime.resolve(controller.connectNode(nodeId), { macrotasks: true });
             await MockTime.resolve(node.events.initialized, { macrotasks: true });
 
-            await MockTime.resolve(node.close(), { macrotasks: true });
+            node.close();
             const next = await MockTime.resolve(controller.getNode(nodeId), { macrotasks: true });
 
             expect(next).not.equals(node);
@@ -278,7 +220,7 @@ describe("PairedNode close", () => {
             expect(networkOf(node).autoSubscribe).true;
             const defaultSubscription = networkOf(node).defaultSubscription;
 
-            await MockTime.resolve(node.close(), { macrotasks: true });
+            node.close();
 
             node.connect({ subscribeMaxIntervalCeilingSeconds: 3600 });
             await MockTime.resolve(node.reconnect(), { macrotasks: true });
@@ -296,12 +238,38 @@ describe("CommissioningController close", () => {
         MockTime.init();
     });
 
+    it("removes a node although closing its paired node fails", async () => {
+        await using site = new LegacyControllerSite();
+        const { controller, nodeId } = await site.addCommissionedPair();
+        await MockTime.resolve(
+            controller.connectNode(nodeId, {
+                autoConnect: false,
+                stateInformationCallback: (_nodeId, state) => {
+                    if (state === NodeStateInformation.Decommissioned) {
+                        throw new StateCallbackError("State callback failed");
+                    }
+                },
+            }),
+            { macrotasks: true },
+        );
+
+        let removeError: unknown;
+        try {
+            await MockTime.resolve(controller.removeNode(nodeId, false), { macrotasks: true });
+        } catch (error) {
+            removeError = error;
+        }
+
+        expect(removeError).instanceOf(MatterAggregateError);
+        expect(controller.getCommissionedNodes()).not.contains(nodeId);
+    });
+
     it("closes the controller node and allows a restart when closing a paired node fails", async () => {
         await using site = new LegacyControllerSite();
         const { controller, nodeId } = await site.addCommissionedPair();
 
         let failOnDisconnect = true;
-        await MockTime.resolve(
+        const node = await MockTime.resolve(
             controller.connectNode(nodeId, {
                 autoConnect: false,
                 stateInformationCallback: (_nodeId, state) => {
@@ -323,6 +291,7 @@ describe("CommissioningController close", () => {
         failOnDisconnect = false;
 
         expect(serverNode.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(node.construction.status).equals(Lifecycle.Status.Destroyed);
         expect(closeError).instanceOf(MatterAggregateError);
         expect(() => controller.node).throws(ImplementationError);
 

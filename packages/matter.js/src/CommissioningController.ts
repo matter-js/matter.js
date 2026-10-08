@@ -576,10 +576,10 @@ export class CommissioningController {
                 logger.warn(`Decommissioning node ${nodeId} failed with error, remove node anyway: ${error}`);
             }
         }
-        if (node !== undefined) {
-            await node.close(!decommissionSuccess);
-        }
-        await controller.removeNode(nodeId);
+        await MatterAggregateError.settleSeries(
+            [() => node?.close(!decommissionSuccess), () => controller.removeNode(nodeId)],
+            `Error removing node ${nodeId}`,
+        );
         if (node !== undefined) {
             this.#initializedNodes.delete(node.id);
             this.#nodeChangeObservers.delete(node.id);
@@ -799,9 +799,7 @@ export class CommissioningController {
         try {
             await MatterAggregateError.settleSeries(
                 [
-                    ...[...this.#initializedNodes.values()]
-                        .filter(node => !node.isClosed)
-                        .map(node => () => node.close()),
+                    ...[...this.#initializedNodes.values()].map(node => () => node.close()),
                     () => this.#controllerInstance?.close(),
                 ],
                 "Error closing commissioning controller",

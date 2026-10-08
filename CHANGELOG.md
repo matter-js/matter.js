@@ -308,7 +308,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @project-chip/matter.js
     - Fix: A closed `PairedNode` no longer starts a subscription, read or connection, and `CommissioningController.close()` closes the controller even when closing a node fails
-    - Fix: `PairedNode.close()` ends the node's subscription again and returns a promise, the same for every call, that waits for the `decommissioned` handlers, which `PairedNode.events.decommissioned` now types as an `AsyncObservable`, and `getNode()` returns a new `PairedNode` for a node whose instance was closed
+    - Fix: `PairedNode.close()` ends the node's subscription again and finishes its cleanup when a handler or callback throws, `getNode()` returns a new `PairedNode` for a node whose instance was closed, and `CommissioningController.removeNode()` removes the node even when closing it fails
     - Fix: PASE with a known address reports a wrong passcode instead of falling back to discovery
     - Fix: PASE with an unreachable known address falls back to discovery instead of failing with "Could not connect to device"
 

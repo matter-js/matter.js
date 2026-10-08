@@ -265,8 +265,6 @@ export class PairedNode {
     #decommissioned = false;
     readonly #peerAddress: PeerAddress;
     #closing = false;
-    #closed?: Promise<void>;
-    #decommissionReported?: Promise<void>;
 
     /**
      * Endpoint structure change information that are checked when updating structure
@@ -286,7 +284,7 @@ export class PairedNode {
         nodeEndpointAdded: Observable<[EndpointNumber]>(),
         nodeEndpointRemoved: Observable<[EndpointNumber]>(),
         nodeEndpointChanged: Observable<[EndpointNumber]>(),
-        decommissioned: AsyncObservable<[void]>(),
+        decommissioned: Observable<[void]>(),
         connectionAlive: Observable<[void]>(),
     };
 
@@ -344,12 +342,7 @@ export class PairedNode {
                     break;
             }
         });
-        this.#observers.on(this.#clientNode.lifecycle.decommissioned, () => {
-            MaybePromise.catch(
-                () => this.#handleNodeDecommissioning(),
-                error => logger.warn(this.#peerAddress, "Error reporting decommissioning", error),
-            );
-        });
+        this.#observers.on(this.#clientNode.lifecycle.decommissioned, () => this.#handleNodeDecommissioning());
         this.#observers.on(
             this.#clientNode.eventsOf(NetworkClient).subscriptionStatusChanged,
             this.#handleSubscriptionStatusChanged.bind(this),
@@ -1349,18 +1342,13 @@ export class PairedNode {
 
         await this.#clientNode.decommission();
 
-        await this.#handleNodeDecommissioning();
+        this.#handleNodeDecommissioning();
     }
 
-    /**
-     * Report the decommissioning once.  The node's lifecycle event starts the report without waiting for it, so a later
-     * caller waits for that same report.
-     */
     #handleNodeDecommissioning() {
-        return (this.#decommissionReported ??= this.#reportDecommissioning());
-    }
-
-    async #reportDecommissioning() {
+        if (this.#decommissioned) {
+            return;
+        }
         this.#decommissioned = true;
 
         this.#updateEndpointStructureTimer?.stop();
@@ -1369,7 +1357,15 @@ export class PairedNode {
 
         this.#setConnectionState(NodeStates.Disconnected);
 
-        await this.events.decommissioned.emit();
+        this.#emitDecommissioned();
+    }
+
+    /** The event is synchronous; a promise an untyped handler returns anyway is not awaited, only its failure logged. */
+    #emitDecommissioned() {
+        MaybePromise.catch(
+            () => this.events.decommissioned.emit(),
+            error => logger.warn(this.#peerAddress, "Error in decommissioned handler", error),
+        );
     }
 
     /**
@@ -1480,16 +1476,11 @@ export class PairedNode {
         await this.#commissioningController.disconnectNode(this.nodeId);
     }
 
-    /**
-     * Closes the subscription and ends all timers used by this PairedNode instance.
-     *
-     * Every call returns the same promise, which settles once the first call finished.
-     */
-    close(sendDecommissionedStatus = false): Promise<void> {
-        return (this.#closed ??= this.#close(sendDecommissionedStatus));
-    }
-
-    async #close(sendDecommissionedStatus: boolean) {
+    /** Closes the subscription and ends all timers used by this PairedNode instance. */
+    close(sendDecommissionedStatus = false) {
+        if (this.#closing) {
+            return;
+        }
         this.#closing = true;
         this.#observers.close();
         this.#updateEndpointStructureTimer.stop();
@@ -1503,10 +1494,10 @@ export class PairedNode {
 
         try {
             if (sendDecommissionedStatus) {
-                await this.#handleNodeDecommissioning();
+                this.#handleNodeDecommissioning();
             }
-        } finally {
             this.#setConnectionState(NodeStates.Disconnected);
+        } finally {
             MaybePromise.catch(
                 () => this.#construction.close(),
                 error => logger.warn(this.#peerAddress, "Error closing paired node", error),
@@ -1775,7 +1766,7 @@ export namespace PairedNode {
         structureChanged: Observable<[void]>;
 
         /** Emitted when the node is decommissioned. */
-        decommissioned: AsyncObservable<[void]>;
+        decommissioned: Observable<[void]>;
 
         /** Emitted when a subscription alive trigger is received (max interval trigger or any data update) */
         connectionAlive: Observable<[void]>;
