@@ -13,6 +13,7 @@
  */
 
 import {
+    Bytes,
     createPromise,
     Logger,
     PromiseTimeoutError,
@@ -25,7 +26,9 @@ import {
 import {
     BLE_PROXY_PROTOCOL_VERSION,
     BleProxyCommand,
+    decodeBinaryFrame,
     encodeBinaryFrame,
+    type BinaryFrame,
     type BleProxyCommandName,
     type CommandMessage,
 } from "../../src/BleProxyProtocol.js";
@@ -51,6 +54,8 @@ export class BleProxyTestClient {
     #commandHandlers = new Map<BleProxyCommandName, CommandHandler>();
     #receivedCommands = new Array<CommandMessage>();
     #commandWaiters = new Array<{ command: BleProxyCommandName; resolve: (msg: CommandMessage) => void }>();
+    #binaryFrames = new Array<BinaryFrame>();
+    #binaryFrameWaiters = new Array<{ count: number; resolve: () => void }>();
 
     /** Perform the hello handshake over `connection` and start processing subsequent messages. */
     async connect(connection: HttpEndpoint.WsConnection): Promise<void> {
@@ -113,6 +118,21 @@ export class BleProxyTestClient {
         return [...this.#receivedCommands];
     }
 
+    /** Binary frames the hub sent, in arrival order. */
+    get binaryFrames(): BinaryFrame[] {
+        return [...this.#binaryFrames];
+    }
+
+    /** Resolves once the hub has sent at least `count` binary frames. */
+    whenBinaryFrames(count: number): Promise<void> {
+        if (this.#binaryFrames.length >= count) {
+            return Promise.resolve();
+        }
+        const { promise, resolver } = createPromise<void>();
+        this.#binaryFrameWaiters.push({ count, resolve: resolver });
+        return promise;
+    }
+
     async close(): Promise<void> {
         const writer = this.#writer;
         this.#writer = undefined;
@@ -136,8 +156,7 @@ export class BleProxyTestClient {
                 return;
             }
             if (typeof value !== "string") {
-                // The test client only speaks the JSON command/event envelope, matching what the ownership and
-                // scan-broadcast tests exercise.
+                this.#receiveBinaryFrame(Bytes.of(value));
                 continue;
             }
 
@@ -171,6 +190,17 @@ export class BleProxyTestClient {
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             await this.#write(JSON.stringify({ id: msg.id, success: false, error: "test_error", message }));
+        }
+    }
+
+    #receiveBinaryFrame(data: Uint8Array): void {
+        this.#binaryFrames.push(decodeBinaryFrame(data));
+        const count = this.#binaryFrames.length;
+        for (const waiter of [...this.#binaryFrameWaiters]) {
+            if (count >= waiter.count) {
+                this.#binaryFrameWaiters.splice(this.#binaryFrameWaiters.indexOf(waiter), 1);
+                waiter.resolve();
+            }
         }
     }
 

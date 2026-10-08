@@ -14,6 +14,7 @@
 
 import {
     Bytes,
+    createPromise,
     Duration,
     Environment,
     errorOf,
@@ -24,6 +25,7 @@ import {
     WsProxyCommandError,
     WsProxyConnection,
     Seconds,
+    Time,
     WebSocketClient,
     withTimeout,
 } from "@matter/general";
@@ -53,6 +55,12 @@ const MATTER_SERVICE_UUID = "fff6";
 const INTERVIEW_TIMEOUT = Seconds(30);
 const LAZY_DISCOVERY_TIMEOUT = Seconds(10);
 const ADAPTER_POWER_ON_TIMEOUT = Seconds(10);
+
+/** How long a connect waits for an ATT_MTU exchange still in flight; the native central in nodejs-ble waits as long. */
+const ATT_MTU_SETTLE_TIMEOUT = Seconds(2);
+
+/** The ATT_MTU every LE link starts with and keeps until an exchange negotiates a larger one. */
+const DEFAULT_ATT_MTU = 23;
 
 /** Connection handles travel in the binary frame's two-byte handle field. */
 const MAX_CONNECTION_HANDLE = 0xffff;
@@ -103,6 +111,41 @@ function timeoutAfter<T>(promise: Promise<T>, timeout: Duration, message: string
     });
 }
 
+/**
+ * Resolve the peripheral's ATT_MTU, waiting briefly when the exchange is still in flight; undefined if it does not
+ * complete in time or the peripheral disconnects meanwhile.
+ *
+ * noble reports the negotiated MTU through an event and leaves `Peripheral.mtu` null until it arrives, which can be
+ * after the interview completes.  The hub derives the BTP segment size from what the connect reports, and an unknown
+ * MTU would pin the session to the 20-byte minimum for its whole life.
+ */
+async function attMtuOf(peripheral: Peripheral) {
+    if (peripheral.mtu !== null) {
+        return peripheral.mtu;
+    }
+
+    const { promise, resolver } = createPromise<number | undefined>();
+    let settled = false;
+    const settle = (mtu?: number) => {
+        if (settled) {
+            return;
+        }
+        settled = true;
+        settleTimeout.stop();
+        peripheral.removeListener("mtu", onMtu);
+        peripheral.removeListener("disconnect", onDisconnect);
+        resolver(mtu);
+    };
+    const onMtu = (mtu: number) => settle(mtu);
+    const onDisconnect = () => settle();
+    const settleTimeout = Time.getTimer("BLE proxy ATT_MTU exchange", ATT_MTU_SETTLE_TIMEOUT, () => settle()).start();
+
+    peripheral.on("mtu", onMtu);
+    peripheral.on("disconnect", onDisconnect);
+
+    return await promise;
+}
+
 function requireString(args: Record<string, unknown>, key: string): string {
     const value = args[key];
     if (typeof value !== "string") {
@@ -133,6 +176,7 @@ function optionalFlag(args: Record<string, unknown>, key: string): boolean {
 export class NobleBleProxyClient {
     readonly #serverUrl: string;
     readonly #hciId?: number;
+    readonly #providedNoble?: Noble;
     readonly #environment: Environment;
     #connection?: WsProxyConnection;
     #noble?: Noble;
@@ -157,6 +201,7 @@ export class NobleBleProxyClient {
     constructor(options: NobleBleProxyClient.Options) {
         this.#serverUrl = options.serverUrl;
         this.#hciId = options.hciId;
+        this.#providedNoble = options.noble;
         this.#environment = options.environment ?? Environment.default;
     }
 
@@ -253,11 +298,13 @@ export class NobleBleProxyClient {
     }
 
     async #loadNoble(): Promise<void> {
-        if (this.#hciId !== undefined) {
-            process.env.NOBLE_HCI_DEVICE_ID = this.#hciId.toString();
+        let noble = this.#providedNoble;
+        if (noble === undefined) {
+            if (this.#hciId !== undefined) {
+                process.env.NOBLE_HCI_DEVICE_ID = this.#hciId.toString();
+            }
+            noble = nobleInstanceOf((await import("@stoprocent/noble")).default);
         }
-
-        const noble = nobleInstanceOf((await import("@stoprocent/noble")).default);
         this.#noble = noble;
 
         // Noble's own warnings (unknown peripheral, missing service, …) are only visible here; the proxy runs in a
@@ -475,8 +522,17 @@ export class NobleBleProxyClient {
                 );
             }
 
-            mtu = peripheral.mtu ?? 23;
-            logger.info(`[GATT] handle=${handle} ready mtu=${mtu}`);
+            const attMtu = await attMtuOf(peripheral);
+            if (disconnectedReason !== undefined) {
+                throw new WsProxyCommandError(BleProxyErrorCode.NotConnected, disconnectedReason);
+            }
+            if (attMtu === undefined) {
+                mtu = DEFAULT_ATT_MTU;
+                logger.info(`[GATT] handle=${handle} ready, ATT_MTU exchange did not complete, reporting mtu=${mtu}`);
+            } else {
+                mtu = attMtu;
+                logger.info(`[GATT] handle=${handle} ready mtu=${mtu}`);
+            }
         } catch (error) {
             const reason = disconnectedReason ?? errorOf(error).message;
             logger.error(`[CONN] handle=${handle} failed: ${reason}`);
@@ -891,6 +947,13 @@ export namespace NobleBleProxyClient {
 
         /** Bluetooth adapter to bind, e.g. 0 for hci0.  Linux only; the platform default is used when unset. */
         hciId?: number;
+
+        /**
+         * Noble instance to drive instead of the `@stoprocent/noble` default, for example one created with noble's
+         * `withBindings()`.  {@link hciId} does not apply to it.  The client takes it over:
+         * {@link NobleBleProxyClient.close} stops it.
+         */
+        noble?: Noble;
 
         /** Environment supplying the {@link WebSocketClient}.  Defaults to {@link Environment.default}. */
         environment?: Environment;

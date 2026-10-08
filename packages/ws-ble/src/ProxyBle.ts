@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError, type Environment, type Transport } from "@matter/general";
-import { Ble, type BlePeripheralInterface, type Scanner } from "@matter/protocol";
+import { ImplementationError, type Environment } from "@matter/general";
+import { Ble, type BlePeripheralInterface } from "@matter/protocol";
 import type { BleProxyHandler } from "./BleProxyHandler.js";
 import { ProxyBleCentralInterface } from "./ProxyBleChannel.js";
 import { ProxyBleClient } from "./ProxyBleClient.js";
@@ -35,14 +35,14 @@ export class ProxyBle extends Ble {
         throw new ImplementationError("BLE Proxy only supports central mode, not peripheral");
     }
 
-    get centralInterface(): Transport {
+    get centralInterface(): ProxyBleCentralInterface {
         if (!this.#bleCentralInterface) {
-            this.#bleCentralInterface = new ProxyBleCentralInterface(this.scanner as ProxyBleScanner, this.#handler);
+            this.#bleCentralInterface = new ProxyBleCentralInterface(this.scanner, this.#handler);
         }
         return this.#bleCentralInterface;
     }
 
-    get scanner(): Scanner {
+    get scanner(): ProxyBleScanner {
         if (!this.#bleScanner) {
             if (!this.#proxyBleClient) {
                 this.#proxyBleClient = new ProxyBleClient(this.#handler);
