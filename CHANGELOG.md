@@ -11,720 +11,242 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
-- @matter/\*:
-    - Upgraded to Matter specification version 1.6.1. The Groupcast cluster and the Access Control auxiliary ACL are no longer provisional, and the device types that gained a Groupcast condition report their new revision. `BasicInformation.specificationVersion` defaults to 1.6.1 (`0x01060100`)
-    - Breaking: `Status.UnreportableAttribute` (0x8c) and `Status.NoUpstreamSubscription` (0xc5) are removed, as Matter 1.6.1 deletes both status codes
-    - Enhancement: Specification references in API documentation name the Matter 1.6.1 documents, and references that pointed at the wrong section are corrected
-    - Enhancement: More global datatypes, such as `bool`, `epoch-us` and `Status`, carry their specification documentation and a precise section reference
+- Breaking: Matter 1.6.1 specification introduces some changes, as always with new Matter specification versions. You might need to adjust your code.
+    - The Groupcast cluster and the Access Control auxiliary ACL are enabled by default for devices and bridges
+    - See the @matter/model and @matter/node sections below for more specific details
+
+- @matter/examples
+    - Fix: The composed OnOff device example creates as many endpoints as `--num` asks for (default 2)
 
 - @matter/general
-    - Fix: The HTML log format escapes `&` and `<` correctly
-    - Fix: `ServerAddress.selectionPreferenceOf` ranks a non-IP address such as BLE after IPv4 instead of equal to it
-    - Fix: Ensure that `ObserverGroup.off()` removes an observer the group bound to a target, and that `has()` finds it
-    - Fix: Ensure that `ObservableValue.offError()` removes only the given handler and keeps other error handlers and pending awaiters
-    - Fix: Ensure that `Lifetime.details` keeps what is written to it and lifetime diagnostics show every detail
-    - Fix: Ensure that `MdnsSocket.close()` waits for message handlers that are still running
-    - Fix: `ServerAddressSet.compareHealth` ranks a healthy address before an unused one in either argument order
-    - Fix: Supporting Timers with intervals longer than 2^31-1 ms (about 24.8 days)
-    - Fix: DNS-SD discovery no longer takes records from the known-answer list of mDNS queries, its own looped-back queries included. A link-local address learned on one interface was stored under every interface such a query arrived on, so a controller could dial a node through the wrong interface and spend its connection attempt waiting for a timeout
-    - Fix: `FormattedText` nests list items by their indent, so an item that outdents between two open levels sits beside the deeper level instead of below it, and an indented numbered list nests instead of merging into its parent
-    - Feature: `Crypto` creates, signs and verifies ML-DSA-44 and ML-DSA-65 (FIPS 204), the algorithms PQC Phase 1 allows for PAA and PAI certificates. Node.js signs and verifies natively where its crypto supports ML-DSA; key generation and all other runtimes use `@noble/post-quantum`, which loads only when an ML-DSA operation first needs it. `MlDsa` encodes and decodes the RFC 9881 public keys and algorithm identifiers, and `NodeJsCryptoApiLike` gains optional `sign` and `verify` members for the native path
-    - Fix: `MockFetch` serves a binary `Uint8Array` response that is a view into a larger buffer as just that view, not the whole buffer
-    - Enhancement: `X509.UnsignedCertificate.publicKey` accepts an ML-DSA SubjectPublicKeyInfo (`MlDsa.PublicKeyInfo`), and `MlDsa.isPrivateKey()` tells an ML-DSA private key from an EC JWK
-    - Fix: `StandardCrypto` computes SHA3-256, SHA-512/224 and SHA-512/256 without Web Crypto, which lacks SHA-512/224 and SHA-512/256 and, on some runtimes, SHA3-256, so a DCL CRL or OTA image with a SHA3-256 digest verifies wherever `StandardCrypto` is in use
-    - Fix: `isDeepEqual` compares `Date` values by their time and `Map` and `Set` values by their entries; it treated any two dates, any two maps and any two sets as equal
-    - Fix: The plain log format puts the `+` or `-` of an added or deleted list entry on that entry's line instead of at the end of the line before it
-    - Fix: `serializeToJs` writes a `Date` with its ISO timestamp instead of as `new Date(undefined)`
-    - Breaking: `Observable` has `observed`, an `ObservableValue` of `isObserved` that emits when it changes. It is created on first access; an observable whose `observed` nobody accesses does not track it. An implementation of the `Observable` interface that does not extend `BasicObservable` must add it
-    - Fix: An `ObservableProxy` without observers no longer counts as an observer of its target, so `isObserved` of an event a behavior only accessed through `this.events` is `false`
-    - Fix: `QuietObservable.isObservedBy()` no longer recurses without end when its sink does not report the observer, or when it has no sink
-    - Fix: `UdpMulticastServer.create()` closes the sockets it already opened when it fails, such as the IPv4 socket when the IPv6 socket cannot be created
+    - Feature: `Crypto` creates, signs and verifies ML-DSA-44 and ML-DSA-65 (FIPS 204) keys, natively on Node.js where available and via `@noble/post-quantum` otherwise
+    - Enhancement: Log messages name the environment they come from (`Diagnostic.Message.origin`), shown in brackets after the facility
+    - Enhancement: Added `TransportClosedError` for an operation on a transport connection that is already closed
+    - Enhancement: Storage drivers state how long dirty values may be buffered via `StorageDriver.writeCoalescingInterval`
+    - Fix: DNS-SD discovery ignores the known-answer records of mDNS queries, so a controller no longer dials a node through the wrong interface
+    - Fix: DNS-SD honors the cache-flush bit and goodbyes after a re-announcement, ignores invalid SRV records, resolves A/AAAA for the SRV target host, and keeps an mDNS message that has one unreadable record
+    - Fix: Crypto auto-detection uses Node.js-style crypto only where it offers SHA-256 and `aes-128-ccm`, otherwise falls back to `StandardCrypto`, and no longer breaks the package import when nothing usable is found
+    - Fix: `StandardCrypto` supports computation of SHA3-256, SHA-512/224 and SHA-512/256 on every runtime
+    - Fix: Timers support intervals longer than 2^31-1 ms (about 24.8 days)
+    - Fix: A failing log destination no longer breaks the code that logged
+    - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver throws `NoProviderError`
+    - Fix: Corrects log formatting of HTML escaping, `FormattedText` list nesting, list diff markers and `Lifetime.details`
+    - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
 
 - @matter/model
-    - Feature: An enum member without an ID and with a range constraint stands for a range of values (`FieldModel.isEnumRange`); the standard model defines the manufacturer ranges of Mode Base, Operational State, Closure Control and Illuminance Measurement enums
-    - Fix: Ensure that model validation reports an enum name or an enum ID 0 that appears twice
-    - Fix: Ensure that `AttributeModel.fabricScoped` is true only for `F` and `S` access and `CommandModel.fabricScoped` only for `F`; `AttributeModel.fabricSensitive` is added
-    - Enhancement: `DecodedBitmap()` takes options to select members by conformance and, with `complete`, to name clear members as `false` or 0
-    - Fix: `EncodedBitmap()`, `DecodedBitmap()` and a bitmap default built from member defaults place every member at its full width, the last bit of a multi-bit member and bits 31 to 63 included, and a member with no upper bound from its lowest bit. `DecodedBitmap` values may be a `bigint` where a number cannot hold a member exactly, and both functions take an optional `Scope` to resolve a bitmap datatype a cluster inherits
-    - Enhancement: Model lookups (`clusters`, `deviceTypes`, `datatypes`, `fields` and `attributes` of a `MatterModel`; `attributes`, `commands`, `events`, `datatypes` and `fields` of a `ClusterModel`) reuse their index until the children of the model, of a model it derives from or, for attributes, of its root change, instead of rebuilding the model scope on each access. `Matter.clusters(id)` drops from about 180 µs to under 1 µs and `cluster.attributes(id)` from 50–110 µs to about 2 µs
-    - Fix: Child lookups (`Model.get()`, `Model.all()`, `children.select()`) follow changes made by `splice()`, so they no longer return a removed child or miss an added one; duplicate IDs resolve in list order and names such as `constructor` match nothing. A child that `splice()` removes and adds back keeps its parent
-    - Fix: `MatterModel.permanentDatatypes` lists seed datatypes only and keeps a seed datatype replaced by one of the same name
-    - Fix: A model's `children` keep each child's parent and the lookups consistent through every array method: `reverse()`, `sort()`, `shift()`, `pop()`, `unshift()`, `length` truncation and `delete children[i]`, which removes the child instead of leaving a hole. Inserting a child that is already listed moves it, listing a model twice in one call throws `ImplementationError`, `fill()` and `copyWithin()` are not supported, `splice(i)` without a delete count removes to the end as on an array, and an invalid `length` throws. Changing the children of a finalized model throws `ImplementationError` before anything changes. `Model.all()` without ID or name visits children in list order
-    - Enhancement: Feature conformance analysis supports a choice set bounded from above, such as `O.a-`, and a choice set a member joins under several conditions, such as `[!A & !B].a`
-    - Feature: Conformance `Z` (obsolete) parses as `Conformance.Flag.Obsolete`, and `isObsolete` reports it on `Conformance`, `ValueModel` and `RequirementModel`. `Z` combined with anything else is a conformance error
-    - Feature: `Conformance.applicabilityFor()` takes `deprecatedIsOptional`, which reads deprecated ("D") and obsolete ("Z") conformance as optional instead of disallowed
-    - Feature: `Specification.ENABLE_FORWARD_MATTER_FEATURES` (off in releases) and `Specification.isForwardFeatureEnabled()` gate behaviour implemented ahead of a released specification
-    - Feature: Forward feature `delay-report-data` (DelayReportData on invoke)
-    - Fix: A constraint bound the specification computes from numbers alone, such as `2^62` or `(2^62) - 1`, is restated as the number it computes once its units are counted, so model validation judges it against the type and the TLV schema carries it. `Constraint.constantOf()` computes such an expression; one that names a value stays an expression. The constraint evaluator compares bigint with number arguments in `minOf` and `maxOf`, multiplies bigints, and no longer throws for a fractional power beyond the safe integers or a negative exponent of zero
-    - Fix: A default an override removes with `FieldValue.None` is no default in a model that was not validated, such as a schema handed to `withClusters`. A boolean field read it as `true`, a string field as `"[object Object]"`, and a list, struct or bitmap got a synthesized value where a validated model stores none. `FieldValue.stated()` returns the value a definition states, without the marker
-    - Fix: A list whose type requires at least one entry gets no empty default when the requirement is inherited
-    - Enhancement: Generated documentation keeps the nesting of lists in the specification
-    - Breaking: A Window Covering with both the Lift and Tilt features rejects `type` `Shutter`, which the specification allows only with one of them
-    - Breaking: A Window Covering's `endProductType` must be one that the specification allows for its Lift and Tilt features. The default `RollerShade` is allowed only for a covering that lifts and does not tilt, so a covering with the Tilt feature must set `endProductType`, as it already had to set `type`
-    - Breaking: `percent` values are bounded to 0 to 100 and `percent100ths` values to 0 to 10000 as the specification defines, so an attribute that states no range of its own, such as Resource Monitoring `Condition`, rejects a larger value
-    - Enhancement: `MergedModel` merges a local override's quality with the quality the specification states, so an override can add or remove a single flag
-    - Fix: The Color Control `Primary1..6` X, Y and Intensity attributes are optional where `NumberOfPrimaries` does not require them, as the specification defines; a light that supplied one without enough primaries failed to start
-    - Breaking: A device type's feature requirement names the feature by its code (`LITS`), not by its uppercased title (`LONGIDLETIMESUPPORT`), and `RequirementResolver.featureOf` matches only the exact code
-    - Breaking: `ValidateModel` reports errors only in the result it returns and no longer records them on the models it validates, so validating a model twice reports its errors once each time, and validating a model whose metadata comes from a loaded resource bundle no longer throws or writes into the shared bundle. `Model.errors`, `Model.valid` and `Model.error()` are deprecated; use `ValidateModel(model).errors`. `Resource.errors` is deprecated and no longer set. Until they are removed, the errors a model carries come from its definition and `error()`, stay on the model, carry over to a clone, and are reported by `ValidateModel`
-    - Feature: `DeviceTypeConformance.check()` and `DeviceTypeConformance.misplacedSingletons()` judge endpoints of any tree that a `DeviceTypeFacts` provider describes against their device types, within a `DeviceTypeValidationPass`, and report `DeviceTypeViolation`s
-    - Fix: `DeviceTypeConformance.check()` exempts only bridged devices, children that list the BridgedNode device type, from the TagList an Aggregator's duplicate children otherwise need
-    - Breaking: `ModelDiff` reports changed properties of an element in both models, not only added and deleted elements, and its entries are `add`, `delete`, `change` and `summary`; a summary counts added, deleted and changed children separately. It ignores documentation, matches a feature requirement by the feature it names, and compares alike three spellings of one conformance: a feature without conformance and "O", adjacent entries of an otherwise list and their disjunction, and a condition reference in any case and the condition as declared
-    - Feature: `ClusterModel.bindable` (`false` for the OTA Software Update Provider and WebRTC Transport clusters) and `effectiveBindable` state whether a binding entry may direct a client of the cluster, and `DeviceTypeConformance.missingBaseServersOf()` names the server clusters the Base device type requires that an endpoint lacks. Such a client does not count for the Base `Client` condition, so an endpoint whose only application clients are OTA or WebRTC clients needs no Binding
-    - Fix: Device type validation counts a server or client cluster whose schema is an extension, such as one from a behavior's `alter()` or `enable()`, for the Base `Server` and `Client` conditions. `ClusterModel.effectiveClassification` resolves the classification an extension inherits
-    - Enhancement: `RequirementResolver.featureMatching` finds a feature requirement's feature by code or title, and `RequirementResolver.declaredConformanceOf` spells a requirement's condition references as declared
-
-- @matter/cli-tool
-    - Fix: `diff-spec` accepts patch revisions such as `1.6.1`. Without arguments it compares the current revision with the one before it, 1.6.1 with 1.6 instead of 1.5, and names both revisions above the diff
-
-- @matter/types
-    - Enhancement: The cluster, attribute, command, event and MEI ID validators name the legal range in their error message
-    - Fix: The cluster, attribute, command, event, field and device type ID validators refuse values that are not 32-bit unsigned integers instead of accepting them after the bits wrapped
-    - Feature: `VendorId.isOperational()` tells whether a vendor ID may identify a fabric administrator: a valid vendor ID other than 0x0000
-    - Feature: `CaseAuthenticatedTag.isValid()` and `NodeId.isValidCaseAuthenticatedTag()` tell whether a value or subject is a CASE Authenticated Tag with a version other than 0, without throwing
-    - Breaking: Fields of an enum with a manufacturer range are typed `Enum | number`, and Illuminance Measurement `LightSensorType` is typed `LightSensorType | number`
-    - Fix: A bitmap class such as `Groups.NameSupportAttribute` applies the defaults its members state, and one constructed from a number sets a multi-bit member at its full width and members above bit 31. An instance built from the default or a number names every conformant member and no other
-    - Fix: `CommissioningOptions.Configuration.advertisementWindow` applies to windows an uncommissioned node opens itself and defaults to 48 hours; a commissioned node's own window stays open for 15 minutes
-    - Feature: `TlvInvokeRequest` carries the optional `delayReportData` field (`TlvDelayReportData`); matter.js acts on it only behind the `delay-report-data` forward feature. Decoding is not behind the flag: an InvokeRequest whose field 3 is not a structure is now rejected, where it was skipped before, and a missing `delayMinMs` or `delayJitterWindowMs` subfield of a present `delayReportData` decodes as 0
-    - Fix: The TLV schema of a field whose constraint states a computed bound, such as the `-2^62 to 2^62` of Electrical Power and Energy Measurement values and the measurement accuracy structs, carries both bounds; it dropped one or both. The runtime validator already enforced them. As for any other bound, a controller drops a reported attribute whose value lies beyond it, and logs a warning. `ModelBounds` derives its bounds from `EncodedConstraint`
-    - Breaking: The DCL schema types follow Matter 1.6.1 and use the field names of the DCL REST API. A text or number field is optional where the specification makes it optional; the DCL sends such a field as `""` or `0` when unset, and `DclClient` returns it as `undefined`. Bitmaps and lists stay required, because `0` and `[]` are real values there. `DeviceSoftwareComplianceDclSchema` adds the compliance record fields except the four deprecated ones, requires `certificationType`, `date`, `owner`, `history` and `softwareVersionCertificationStatus`, has `specificationVersion` (absent in schema version 0 records), and renames `cdVersionNumber` and `cdCertificateId` to `cDVersionNumber` and `cDCertificateId`; the new `ComplianceHistoryItemDclSchema` types `history`. `DeviceModelDclSchema` renames `deviceTypeID` to `deviceTypeId` and `enhancedSetupFlowMaintenanceUrl` to `maintenanceUrl`, and adds `creator` and the ICD and factory reset hint fields. `VendorDclSchema` renames `vendorLandingPageUrl` to `vendorLandingPageURL` and adds `creator`. `ProductAttestationDclSchema` types `approvals` and `rejects` as lists, and requires `subject`, `subjectAsText` and `certificateType`. `OperationalCertificateDclSchema` replaces `isVidVerificationSigner` with `certificateType` (new type `DclCertificateType`) and adds `subjectAsText`. `DeviceSoftwareVersionModelDclSchema` adds `creator` and deprecates `specificationVersion`. `SoftwareVersionCertificationStatusEnum` is a deprecated alias of `SoftwareVersionCertificationStatus`
-    - Breaking: Color Control `coupleColorTempToLevelMinMireds` and `startUpColorTemperatureMireds` are typed mandatory with the `ColorTemperature` feature, as the specification defines; a light already had to set them to start
-    - Breaking: The semantic tag fields of the provisional Ambient Context Sensing cluster (`ambientContextTypeSupported`, `ambientContextSensed`, `countingObject`, `ambientContextType`) are of type `Semtag` (`mfgCode`, `namespaceId`, `tag`, `label`) instead of `ModeSelect.SemanticTag`, so they encode as the specification defines
-    - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
-
-- @matter/protocol
-    - Fix: `Noc.verify()` throws `OperationalNodeIdError`, a `CertificateError`, when the NOC's node ID is outside the operational range
-    - Fix: `FailsafeContext.buildFabric()` refuses a CASE Authenticated Tag with version 0 as admin subject
-    - Fix: `FabricAuthority.createFabric()` throws `ImplementationError` for admin vendor ID 0x0000 or above 0xFFF4, which devices refuse in AddNOC
-    - Fix: Ensure that `BleScanner` forgets a discovered device after 15 minutes of scanning without its advertisement, or, for a client that reports no listening time, 15 minutes after the later of its last report and the end of the last discovery
-    - Fix: Commissioning tries a device's addresses in ranked order instead of reverse order, so a lower-ranked unreachable address no longer delays PASE
-    - Fix: Commissioning tries a device's next address as soon as the last attempt fails, or 10 s after it started, instead of every 15 s, and not while the device is answering an earlier attempt
-    - Fix: Commissioning with known addresses tries a repeated address only once, so a duplicate no longer costs the device an extra failed PASE attempt
-    - Feature: PASE throws `PasscodeMismatchError`, a subclass of `UnexpectedDataError`, when the device's key confirmation does not verify, as happens with a wrong passcode
-    - Fix: A wrong passcode stops commissioning on the other addresses of the same discovered device, so it costs the device one failed PASE attempt instead of one per address
-    - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status or does not answer it in time
-    - Fix: A missing response no longer closes the commissioning PASE session; commissioning closes it on every exit
-    - Feature: A `NodeSession` created with `suppressPeerLoss` stays open on communication failures of its exchanges; its owner closes it
-    - Fix: The periodic failsafe re-arm during BLE commissioning no longer shortens a longer failsafe armed for a network scan or connect
-    - Fix: Ensure that a controller treats any message from a LIT ICD peer as a wake signal and resubscribes at once, instead of waiting for the next Check-In
-    - Breaking: `IcdPeerWakefulness` API renamed (`noteActive()`, `nextCheckInDue`, `holdSubscription()`); ICD timing constants moved to `IcdPeerSchedule`
-    - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status
-    - Fix: A node advertises one DNS-SD host name on all its interfaces, so a controller that hears it on several interfaces reports its host name
-    - Fix: An `MdnsService` that cannot open its socket removes itself from the environment and the runtime, so a node started afterwards creates a new one instead of failing again, and the runtime can stop
-    - Fix: A closed `MdnsService` no longer stays registered as a runtime worker, so the runtime can go inactive after its nodes close
-    - Feature: `PersistedMessageCounter` and `DeviceCertification` have `close()`
-    - Enhancement: `RebootResubscribeArmer.arm()` takes the delay the device waits before it applies, and its return deadline covers that delay
-    - Fix: `DeviceCommissioner.allowBasicCommissioning()` and `allowEnhancedCommissioning()` take `DeviceCommissioner.WindowOptions` (timeout, whether an Administrator opens the window, close callback) instead of a close callback, and close the window after its timeout. An Administrator's window replaces a window the node opened itself, the node opening its own window again restarts it, and any other overlap throws `MatterFlowError`. `windowStatus` reports the open window and `isAdministratorWindowOpen` whether an Administrator's window is open or waiting to open
-    - Fix: A server sends no Status Response to an Invoke or Write request with SuppressResponse set to TRUE, errors included, as the CHIP SDK 1.6.1 does. A failure after the peer acknowledged an InvokeResponse chunk is still reported
-    - Feature: `Invoke()` accepts `delayReportData` to ask the server to hold off the next report of the subscriptions on the endpoints the commands target; such a request is not batched with others. Behind the `delay-report-data` forward feature: while `Specification.ENABLE_FORWARD_MATTER_FEATURES` is off, the `Invoke()` factory refuses it with a `MalformedRequestError`. `Invoke.beforeDispatch` tells a server the endpoints an invoke dispatches to, before any command runs
-    - Feature: PAA, PAI and DAC certificates parse, verify, sign and encode with ML-DSA-44 and ML-DSA-65 signatures, and PAA and PAI certificates with ML-DSA keys, up to the 10240-byte PQC Phase 1 limit. `Certificate.publicKey` returns the key tagged by algorithm, `Certificate.verifySignature()` checks a certificate against its issuer's key, and `certificateSignatureOf()` / `verifyCertificateSignature()` do the same for other signed DER such as CRLs. `DeviceAttestationValidator` accepts PQC PAAs and PAIs and rejects a PAI with a stronger algorithm than its PAA, and the DCL trust store accepts PQC PAAs. Not yet supported: transferring PQC chains over the Operational Credentials cluster (a device refuses to serve a chain above 600 bytes). While `Specification.ENABLE_FORWARD_MATTER_FEATURES` is off, matter.js accepts no ML-DSA certificate from others: `Paa`, `Pai` and `Dac.fromAsn1()`, and so attestation, the DCL trust store and CRL authentication, reject ML-DSA certificates. Constructing, signing and encoding ML-DSA certificates in code stays available
-    - Fix: `DclCertificateService` skips a PAA certificate from the DCL that does not parse instead of storing it, and skips a seed certificate that does not parse instead of ending the seed stream. A malformed record no longer aborts the other records of the same DCL subject, and a DCL or seed record whose certificate SKID differs from the SKID it is filed under is skipped instead of being stored under the wrong key
-    - Breaking: `Certificate.signature` is a `CertificateSignature` (`EcdsaSignature` or `MlDsaSignature`) for attestation certificates; operational certificates still return `EcdsaSignature`
-    - Enhancement: `OccurrenceManager.clear()` and `EventStore.clear()` accept `keepNumbering`, which discards the stored events but keeps numbering after the event numbers already used, also across a restart. A custom `EventStore` that ignores it numbers from 1 again
-    - Fix: The built-in event stores hand out an event number only once the reservation covering it is stored, and `close()` waits for that write, so a restart right after a new reservation no longer reuses event numbers
-    - Fix: `NonvolatileEventStore` keeps its event number reservation, so numbering continues across a restart after its events were deleted, and it no longer logs a conversion warning for it. Like `VolatileEventStore`, it now reserves numbers in blocks of `numberBlockSize`, so numbering may skip ahead by up to that many after a restart
-    - Fix: `VolatileEventStore` converts events a non-volatile store left behind instead of failing to load
-    - Fix: `VolatileEventStore.delete()` frees the deleted event
-    - Breaking: `Dac` rejects a certificate whose public key is not a well-formed EC P-256 key (including ML-DSA and unknown algorithms or curves) when it is constructed or parsed, instead of later when the key is used
-    - Fix: A DER certificate whose outer signature algorithm differs from the one in its TBSCertificate is rejected, as RFC 5280 requires
-    - Fix: `DclCertificateService` uses a revocation list only once it is authenticated as Matter Core §6.2.6.1 and §11.23.11.6 require. The CRL signer must be an approved self-signed PAA, a signer the entry's PAA delegated, the entry's PAI (stating the entry's VendorID), or a signer that PAI delegated, with the cRLSign key usage and the CA flag its form requires, and issuers with keyCertSign; the CRL's Authority Key Identifier must name the signer, its signature must verify, and a CRL with an unsupported critical extension (such as a delta CRL indicator) is refused. A CRL failing any of these is now ignored instead of being used unchecked; names compare as RFC 5280 §7.1 defines, so a CRL may encode its issuer as another string type than its signer's certificate. Revocations are filed under the authority's name, so an indirect CRL's entries match, and entries a `certificateIssuer` attributes to another authority are ignored. The revocations of every distribution point of an issuer are combined instead of only the first one's, several CRLs of the same vendor and issuer must each name their URL in a critical Issuing Distribution Point, and a distribution point whose server failed (5xx, timeout) is tried again on the next lookup instead of being missing for the cache's lifetime, while one that is gone or does not match its DCL digest waits for the cache to expire. Distribution points download in parallel. CRLs signed with ML-DSA are verified while `Specification.ENABLE_FORWARD_MATTER_FEATURES` is on
-    - Breaking: Sending a group message the fabric holds no usable key for fails with a `NoUsableGroupKeyError`: `GroupKeySetMissingError` where no key set is mapped to the group (was `ImplementationError`) or the mapped key set does not exist (was `MatterFlowError`), and `GroupKeyNotStartedError` where every epoch key starts in the future (was `ImplementationError`)
-    - Enhancement: The log line of an outgoing group invoke or write names the group it is sent to
-    - Fix: `ConstraintError` names the constraint the value violated, as the schema states or inherits it; for a list entry that is the entry constraint of the list rather than the entry's own. `ConstraintError` takes that constraint as an optional fourth argument
-    - Fix: `DclVendorInfoService.productInfoFor()` returns the product's `deviceTypeID` and `enhancedSetupFlowMaintenanceUrl`, which were always `undefined` because the DCL names these fields `deviceTypeId` and `maintenanceUrl`. Optional text and URL fields the DCL sends empty are `undefined` instead of `""`, `lsfRevision` and `enhancedSetupFlowTCRevision` are `undefined` when their URL is not set, and `enhancedSetupFlowOptions` is always set
-    - Breaking: `DclClient` maps every DCL record to its schema type: optional fields the DCL sends as `""` or `0` are `undefined`, and `otaFileSize` is a `bigint` instead of the decimal string the DCL sends. `DclOtaUpdateService.checkForUpdate()` returns `otaFileSize` as `bigint` too; code that serializes the record with `JSON.stringify` must handle `bigint`. A file size of `"0"` no longer fails the OTA size check, and a checksum with `otaChecksumType` `0` is verified as SHA-256 instead of being rejected. The REST response types in `DclRestApiTypes` use the new `*Raw` record types
-    - Breaking: `DclClient` ignores vendor, certificate and revocation point records with a schema version other than 0 and logs a warning. `fetchRevocationDistributionPointsByIssuer()` rejects a response with an unsupported schema version, and `fetchComplianceInfo()` a compliance record with a schema version other than 0 and 1
-    - Feature: `DclClient.fetchComplianceInfo()` reads the compliance record of a software version. OTA update checks take `specificationVersion` from it, because the DCL no longer fills the field on the software version record. `DclOtaUpdateService` stores the specification version with a stored image, also when it reuses an image already stored, and returns it from `find()` and for stored updates; `updateInfoFromStream()` and `createUpdateInfoFromFile()` accept it as an option
-    - Breaking: `DclVendorInfo` is a deprecated alias of `VendorDclSchema`, so `vendorID` is a `VendorId` and `schemaVersion` is required
-    - Feature: Groupcast support (Matter 1.6.1): group session handling for multicast send and receive including Groupcast testing events
-    - Breaking: Outgoing group messages use message privacy, and a received group message is decrypted only with key sets that a group maps to in the fabric's GroupKeyMap
-    - Breaking: `GroupMessageEventInfo` no longer has `destIp`; the Groupcast testing listener derives the destination from the message's group id
-    - Breaking: `Message` carries the source address of an inbound group datagram in `receivedFrom`; `GroupSession` no longer has that property, which a second datagram on the same session could overwrite before the first was reported
-    - Enhancement: `IcdCounter.advance()` moves the ICD counter by up to 2^32 − 1, for test event triggers that invalidate counter values
-    - Fix: A commissioner rejects a `PBKDFParamResponse` whose PBKDF iteration count is outside 1000..100000 and answers `InvalidParam`, instead of deriving the PASE key with whatever count the device sent. A PASE message that fails schema validation is reported as an `UnexpectedDataError` naming the message and field, and ends only the commissioning candidate that sent it, instead of cancelling every other candidate. The commissioner passes each address of a device as a separate candidate, so its other addresses are still tried
-    - Fix: A new PASE or CASE session never gets local session ID 0, the ID of the unsecured session. Roughly one start in 65536 gave the first session ID 0, so the peer's replies were dropped as unsecured and commissioning failed with `peer-unresponsive`. After all IDs are taken, reusing the session with the highest ID no longer hands out an ID above 65535 next
-    - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
-    - Fix: A controller times the liveness of its subscriptions on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A forward step of the wall clock, such as an NTP correction, timed out healthy subscriptions and resubscribed; a backward step delayed the detection of a lost subscription by the length of the step
-    - Fix: Sessions time their activity on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step classified the peer as active or idle wrongly, which sets the MRP retransmission intervals, and could make a node pick, evict or keep after a peer loss the wrong session
-    - Breaking: `Session.timestamp`, `activeTimestamp` and `createdAt`, and the `asOf` of `PeerLossContext` and `SessionManager.handlePeerShutdown()`, are on the clock of `Time.nowUs`, not `Time.nowMs`; the timestamps `getActiveSessionInformation()` and `SessionsBehavior` report stay wall-clock times
-    - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
+    - Breaking: Provisional elements are always treated as optional
+    - Feature: Model support for device type requirements (conditions, locations, component counts), see [Device Type Validation](docs/DEVICE_TYPE_VALIDATION.md)
+    - Feature: Enum members can define manufacturer value ranges (`FieldModel.isEnumRange`)
+    - Feature: Conformance `Z` (obsolete) is supported (`Conformance.Flag.Obsolete`, `isObsolete`)
+    - Enhancement: Model lookups reuse their index until the model changes, e.g. `Matter.clusters(id)` drops from about 180 µs to under 1 µs
+    - Enhancement: Device type and condition documentation carries the specification prose
+    - Adjustment: `ValidateModel` reports errors only in its result; `Model.errors`, `Model.valid`, `Model.error()` and `Resource.errors` are deprecated
+    - Fix: `percent` and `percent100ths` values are bounded to 0–100 and 0–10000 as the specification defines
+    - Fix: Specification constraints are enforced completely, including exact 64-bit bounds, units, computed bounds and bounds referencing other elements (e.g. `OccupancySensing.HoldTime`)
+    - Fix: Feature conformance handles disjunctions, choice sets, otherwise lists and provisional choice sets correctly; unconditionally mandatory features are always selected
+    - Fix: Bitmap encoding and decoding place every member at its full width, including bits 31–63
+    - Fix: The Color Control `Primary1..6` attributes are optional where `NumberOfPrimaries` does not require them
+    - Fix: TemperatureMeasurement `MinMeasuredValue` and `MaxMeasuredValue` default to `null`
+    - Fix: The Base and Heat Pump device types carry their revision, conditions and element requirements, and device type requirements carry instance-count constraints
+    - Fix: `AnnounceOtaProvider` is fabric-scoped
+    - Fix: A boolean default of `0` is false, fractional defaults keep their fraction, `FieldValue.None` removes a default, and quality definitions given as arrays load
 
 - @matter/node
+    - Breaking: Default cluster servers (`ColorControlServer`, `DoorLockServer`, `ElectricalEnergyMeasurementServer`, `LevelControlServer`, `ModeSelectServer`, `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer`, `WindowCoveringServer`) select no features; select them with `.with(...)` or use the device type requirement definitions. `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer`, `WindowCoveringServer` and `ElectricalEnergyMeasurementServer` cannot be added without a selection, and `DoorLockDevice`, `SpeakerDevice` and `ModeSelectDevice` are affected too.
+    - Breaking: A Window Covering rejects a `type` or `endProductType` the specification does not allow for its Lift and Tilt features; a covering with Tilt must set `endProductType`
+    - Breaking: Server endpoints are checked against their device types (`endpoint.validation`: `off`, `warn` (default) or `strict`); see [Device Type Validation](docs/DEVICE_TYPE_VALIDATION.md)
+    - Breaking: A server cluster that a device type of the node declares a singleton refuses construction with `DeviceTypeConformanceError` on an endpoint whose device types neither declare it nor list the cluster
+    - Breaking: Adding a server cluster fails when its selected features violate its FeatureMap conformance, and local writes reject bitmap bits the selected features do not allow
+    - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to enable them - only allowed for development
+    - Breaking: Device type requirements stating an exact value are enforced exactly, e.g. `MinLevel` 1 and `MaxLevel` 254 on eight device types
+    - Breaking: Mode Base derived clusters require at least two `SupportedModes`
+    - Breaking: The Closure, Closure Panel and Electrical Energy Tariff device types require a `descriptor.tagList`
+    - Breaking: A behavior subclass inherits its parent's static `schema`, so subclass state is validated and persisted like the parent's
+    - Breaking: `DoorLockServer` enforces operating modes, wrong-code lockout and user types, and its lock command handlers are `async`; hardware interaction logic belongs in `handleLockOperation`
+    - Breaking: `LevelControlServer` and `ColorControlServer` `transitionEndTimeMs` is now `transitionEndTime` (a `Timestamp`)
+    - Breaking: `LevelControlServer.couple()` takes the target level as third argument; overrides must pass it
+    - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object
+    - Breaking: An unreported client node attribute reads its default (or the specification fallback) when mandatory and `undefined` otherwise; configured options and environment variables no longer seed client node state
+    - Breaking: Changing any attribute of a client node sends a write to the peer; attributes the peer cannot express are declined locally
+    - Breaking: `discoveryCapabilities` moved from `CommissioningClient.CommissioningOptions` to `Discovery.Options`, declare such options as `CommissioningDiscovery.Options`; `Discovery.Options.scannerFilter` is removed
+    - Breaking: A commissionable advertisement with vendor or product ID 0 reports it as `undefined`
+    - Breaking: Commissioning or decommissioning a node that is gone rejects with `DestroyedDependencyError` or `CrashedDependencyError`, and a concurrent attempt with `FabricOperationInProgressError`
     - Breaking: An endpoint whose number another endpoint of the same node or `ClientNode` uses is refused with `IdentityConflictError`, and the existing endpoint keeps its number
     - Breaking: `parts.delete()` and `parts.clear()`, also on `agent.parts`, throw `ImplementationError`; remove an endpoint with its `close()` or `delete()`
     - Breaking: Adding an endpoint with the number of an erased endpoint that is still a part of its parent is refused
     - Breaking: An essential endpoint whose initialization fails in `add()` is closed instead of reset, so the same instance cannot be added again
+    - Deprecation: `ClientNodeInteraction.localStateFor()` will be removed in 0.19
+    - Feature: Finalized the `ClientNode` API for controllers: `ServerNode.peers.commissioned`, `ClientNode.disable()`/`enable()`, connection state, split commissioning, opening commissioning windows on peers and more; see [Controller migration guide](docs/MIGRATION_CONTROLLER_018.md)
+    - Feature: Groupcast cluster (`GroupcastServer`) and AccessControl `Auxiliary` feature; group commands via `ClientGroup` endpoints and group bindings
+    - Feature: `ServerNode.RootEndpoint` includes `GroupcastServer` and selects the AccessControl `Auxiliary` feature by default; use `ServerNode.RootEndpointWithoutGroupcast` to opt out. A node type with its own AccessControl server must select `Auxiliary` (e.g. `.with("Extension", "Auxiliary")`), and a Group ACL entry without targets no longer grants access on endpoint 0
+    - Feature: `Behavior.reactorTimer()` and `Behavior.periodicReactorTimer()` create timers that stop when the behavior closes
+    - Feature: `Behavior.markChanged()` reports an attribute a behavior computes on read to subscriptions
+    - Feature: `DoorLockServer` supports schedule users, `ExpiringUser`, `DisposableUser` and `ForcedUser`, and a lock implementation drives hardware via `handleLockOperation`
+    - Feature: `OtaSoftwareUpdateProviderServer` state `applyDelay` sets the `DelayedActionTime` for an apply
+    - Enhancement: The commissioning test harness (`MockSite`, `MockServerNode`, …) is exported at `@matter/node/testing`
+    - Enhancement: Added `EndpointLifecycle.isReadable` and `isGone`
+    - Enhancement: (@RaHehl) `ClientNode.openEnhancedCommissioningWindow` also returns the passcode, discriminator, vendor and product ID and timeout
+    - Enhancement: Commissioning accepts `caseConnectionTimeout`; commissioning state records the device `hostname`
+    - Enhancement: `SoftwareUpdateManager` supports `maxBdxBlockSize` and `bdxAdditionalMrpDelay`; OTA requestor query and apply delays are configurable (`announcedUpdateQueryDelay`, `minimumQueryInterval`, `minimumApplyDelay`)
+    - Enhancement: `IcdClient` emits `counterStart$Changed` after a registration or key refresh has committed
+    - Enhancement: `WebRtcTransportRequestorServer` reports refused signaling via its `refused` event
+    - Enhancement: Device type requirements honor relaxed mandatory elements and revision-gated features
+    - Enhancement: Adding endpoints under an aggregator is faster
+    - Enhancement: In `strict` validation mode a cluster server refuses construction when a mandatory command throws `Behavior.unimplemented`
+    - Enhancement: `IdentityConflictError` is exported
+    - Adjustment: `ChangeNotificationService.Change` has a new kind `"readable"`, emitted when an endpoint's state becomes readable; consumers that switch on kind must handle or ignore it
+    - Adjustment: Device types with a mandatory client application cluster include `BindingServer`; `behaviors.require(BindingServer, options)` no longer sets its state (use `add()` or `setStateOf()`), and an own `BindingServer` implementation subclass must be declared with `.with()` on the endpoint on creation
+    - Adjustment: A binding entry resolves only once something observes `binding.established`, and is ignored for the OTA Provider and WebRTC Transport clients
+    - Adjustment: A node with commissioning disabled binds an ephemeral operational port instead of 5540 when `NetworkServer.port` is unset (default Controller behavior)
+    - Adjustment: `NetworkServer.State.clientCacheFlushInterval` defaults to the storage driver's `writeCoalescingInterval` and allows to adjust the flush interval for all clients at once
+    - Adjustment: A commissioned peer's fabric label is reconciled to the controller's once after its first subscription
+    - Adjustment: Cluster, attribute, command and event IDs of hosted clusters are validated when their server behavior initializes
+    - Adjustment: `IdentifyServer` offers `TriggerEffect` only when the device type requires it or it is implemented or enabled
+    - Adjustment: A server rejects an obsolete (`Z`) element; a client sends and decodes it
+    - Fix: `.with()` on a behavior subclass that declares own attributes or commands replaces the default behavior instead of running next to it; an endpoint refuses two behaviors for the same cluster
+    - Fix: Closing or factory resetting a node closes all its parts, peers and services even when one step fails, releases storage and mDNS, and erases leftover peers, CA key material and BDX blobs
+    - Fix: Shutting down a controller no longer reports peer endpoints as deleted
+    - Fix: (@RaHehl) A node stopped and started again re-establishes its subscriptions, can be commissioned again and keeps no stale events
+    - Fix: (@RaHehl) A freshly commissioned node re-establishes its subscriptions after its next restart, and client subscription reports after a restart are accepted
+    - Fix: Commissioning windows the node opens itself close after 48 hours (uncommissioned) or 15 minutes (commissioned), and Administrator commissioning commands can replace or revoke them
+    - Fix: `RemoveFabric` while another fabric's fail-safe is armed updates the fabric state, and the factory reset waits until no fail-safe is armed
+    - Fix: AddNOC validates node ID, CASE Authenticated Tag version and admin vendor ID; UpdateNOC validates the node ID; SetVIDVerificationStatement refuses vendor ID 0x0000
+    - Fix: Fabric-sensitive list reads return only the accessing fabric's entries in all cases, removing a fabric deletes its entries, and local writes of fabric-scoped entries need a `fabricIndex`
+    - Fix: When a server cluster's features change, only persisted values that fail validation are dropped
+    - Fix: A failed or deleted `ClientNode` (decommission, load failure, concurrent discovery) no longer causes duplicate peers or unhandled errors; decommissioning closes the protocol peer and deletes its resumption record
+    - Fix: Commissioning skips a device whose advertised vendor or product ID contradicts the onboarding payload
+    - Fix: Client reads return current values of changes-omitted attributes in all cases
+    - Fix: A peer's endpoint tree follows each endpoint's `PartsList`, so bridged composed devices are structured correctly
+    - Fix: A peer's state drops attributes its `AttributeList` omits, records the peer's `ClusterRevision`, migrates values persisted under property names, and hides storage metadata
+    - Fix: The remote API (WebSocket, MQTT) supports `add` on list attributes, validates peer writes as the peer does, and its change streams survive endpoint crashes and resets
+    - Fix: Structs get defaults only for supported fields, in encoded units and as own copies; a write can no longer replace the prototype via `__proto__`
+    - Fix: Inherited qualities and constraints (quieter, nullable, atomic, list) take effect, and constraint bounds on bitmaps, durations and enums are enforced
+    - Fix: An unimplemented mandatory command answers `UNSUPPORTED_COMMAND`
+    - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
+    - Fix: Behavior creation no longer fails with "Cannot define constraint for unsupported metatype" for constraints on structs or dates
+    - Fix: A behavior subclass or `.set()` variant keeps its own `State` and `Events`, so `CommissioningClient`, `IcdClient` and `ScenesManagementServer` keep their customized nonvolatile fields
+    - Fix: `HttpServer`, `MqttServer` and `WebSocketServer` convert environment values to their types, so `MATTER_MQTT_ENABLED=false` disables MQTT
+    - Fix: Event reads and subscriptions see new events after a factory reset, and creating a peer no longer closes the node's event manager
+    - Fix: An overridden `AccessControlServer.extensionEntryAccessCheck` also applies to fabrics commissioned after the node went online
+    - Fix: `ArmFailSafe` over CASE answers `BusyWithOtherAdmin` while any commissioning window is open
+    - Fix: Device type validation counts extended clusters for the Base conditions and no longer reports multi-instance components as duplicates
+    - Fix: A window covering without Lift no longer states a lift direction in `ConfigStatus`
+    - Fix: Enum values in a manufacturer range are accepted
+    - Fix: Subscriptions send keep-alives on time, report concrete paths only for changed attributes, and report computed quieter attributes
+    - Fix: Subscriptions, ICD active windows and diagnostics timers use the monotonic clock, so wall-clock steps no longer disturb them
+    - Fix: The Descriptor `PartsList` reports replacements, lists parts in order, follows `DeviceTypeList` changes, and names only a bridged node's own children
+    - Fix: `DescriptorServer.addTags` and `addDeviceTypes` no longer add duplicates
+    - Fix: Level Control and Color Control `Stop`, `*WithOnOff` and `RemainingTime` behave as specified; level coupling no longer fails or stays blocked on locked transactions
+    - Fix: `Thermostat.Presets` writes are validated, stored, persisted and reported; atomic writes report every attribute and commit together
+    - Fix: (@Luligu, @lboue) `DoorLockServer` credential handling uses correct indices, status codes and user creation
+    - Fix: `SwitchServer` handles positions, long press and multi-press as specified and no longer leaks a reactor per press
+    - Fix: OTA requestors send `NotifyUpdateApplied` after an update, keep `DelayedOnQuery` while a provider is busy, recover when `applyUpdate` fails, and skip an update without consent
+    - Fix: OTA providers wait for the restart only after `DelayedActionTime`, and send that delay in seconds
+    - Fix: Group key, LeaveGroup and GroupcastTesting handling follows the specification; a failed multicast join is retried instead of failing
+    - Fix: Group bindings resolve once a group key exists, and a disposed binding no longer resolves
+    - Fix: `ServiceAreaServer` without the Maps feature no longer fails to initialize
+    - Fix: A node whose fabric was created before start counts as commissioned and advertises operationally
+    - Fix: `ChangeNotificationService` reports nothing once its node is being destroyed, keeps working after a factory reset, and carries `timestampKind` on events
+    - Fix: A peer cluster ID outside the allowed ranges no longer fails node initialization
+    - Fix: `endpoints.size` no longer double-counts the root endpoint
+    - Fix: `RemoteServer` declares `certificate` and `key` as PEM strings
     - Fix: Adding an endpoint below one of its own descendants fails with `ImplementationError` instead of creating a cycle
     - Fix: An endpoint created with `ClientNodeEndpoints.require()` on a running `ClientNode` is reused when the peer later reports that endpoint
-    - Enhancement: `IdentityConflictError` is exported
-    - Fix: A peer stopped after losing its sessions, as when its controller goes offline, reports `Disconnected` instead of staying `Reconnecting`
-    - Fix: Started peers close during their controller's teardown instead of in parallel with it, so shutting down no longer reports their endpoints as deleted
-    - Fix: `ChangeNotificationService` reports nothing once its node begins destruction, so consumers such as the shell no longer see every endpoint of every peer as deleted on shutdown
-    - Fix: AddNOC and UpdateNOC answer `InvalidNodeOpId` for a NOC whose node ID is outside the operational range
-    - Fix: AddNOC answers `InvalidAdminSubject` for a CASE Authenticated Tag with version 0 as admin subject
-    - Fix: AddNOC answers `InvalidCommand` for admin vendor ID 0x0000 or above 0xFFF4
-    - Fix: SetVIDVerificationStatement refuses vendor ID 0x0000 with `ConstraintError`
-    - Fix: Ensure that a feature change of a server cluster drops only the persisted values that fail validation under the new features, not all of them
-    - Breaking: `Behaviors.validateRequirements()` is removed; nothing called it, and `DeviceTypeConformanceService` checks device type requirements
-    - Fix: Ensure that a client read returns the peer's current values of changes-omitted attributes, which the subscription does not report, instead of cached ones
-    - Fix: Ensure that a peer's endpoint is installed and announced only after the endpoint that owns it is on the node
-    - Fix: A `ServerNode` whose construction failed early can be closed
-    - Fix: Closing a node or endpoint continues past a failing step, so its other parts, its behaviors, network runtime, peers and services still close and a `ServerNode` releases the storage lock it holds
-    - Feature: `Behavior.reactorTimer()` and `Behavior.periodicReactorTimer()` create a timer that runs a reactor of the behavior and stops when the behavior closes to prevent leaking them
-    - Fix: Ensure that a value in the manufacturer range of an enum is accepted; Illuminance Measurement `LightSensorType` rejects the reserved values 2 to 63 and 255
-    - Fix: Ensure that a read of a fabric-sensitive list attribute returns only the accessing fabric's entries and removing a fabric deletes its entries from such lists
-    - Fix: Ensure that `DescriptorServer.addTags` does not add a tag that is already listed and only updates its label when one is given
-    - Fix: Ensure that `DescriptorServer.addDeviceTypes` does not list a device type a second time with another revision
-    - Enhancement: In `strict` validation mode (`endpoint.validation`) a cluster server, the root endpoint's included, refuses construction when a command its conformance requires throws `Behavior.unimplemented`
-    - Enhancement: The commissioning test harness (`MockSite`, `MockServerNode`, `MockExchange` and the node helpers) is exported at `@matter/node/testing`, for tests that run under `@matter/testing`
-    - Fix: `ClientNode.decommission()` no longer throws for a peer commissioned with `autoSubscribe` and `autoStateInitialize` disabled
-    - Fix: A read that runs while a data report is still arriving no longer lets a descriptor in that report delete a cluster whose data came earlier in the same report
-    - Fix: A peer's state drops the value of an attribute its `AttributeList` omits, such as one a firmware update removed, also when the value was cached before the list changed; such a cluster is read again in full after the controller starts. `Datasource.ExternallyMutableStore` has an optional `invalidateVersion()`
-    - Fix: After a node restarts, the data reports of the client subscriptions it sets up again are no longer rejected, so changes arrive right away instead of only when a subscription times out and is re-established
-    - Fix: A closed subscription releases its diagnostic lifetime, so a long-running device no longer keeps one per subscription it ever served
-    - Fix: A closed node closes its group message counter, its device certification, the controller's fabric authority and its client subscriptions
-    - Fix: An OTA provider that allows an apply with a `DelayedActionTime` expects the device's restart only after that delay plus the time to apply and restart; it gave up three minutes after allowing the apply and replaced the subscription the device was about to resume
-    - Feature: `OtaSoftwareUpdateProviderServer` state `applyDelay` sets the `DelayedActionTime` a provider allows an apply with
-    - Fix: A commissioning window the node opens itself closes after 48 hours (by default) if the node is not commissioned and after 15 minutes if it is; it previously stayed open until the node stopped
-    - Fix: `AdministratorCommissioningServer` leaves the window and its timeout to `DeviceCommissioner`; `Internal.commissioningWindowTimeout` is gone
-    - Fix: `OpenCommissioningWindow` and `OpenBasicCommissioningWindow` replace a window the node opened itself, and `RevokeCommissioning` closes it. Previously such an open failed with `Failure` or left the cluster unaware of its window, and every further open was answered with `Busy` until the node restarted. A window an Administrator opened still answers `Busy`
-    - Fix: `ArmFailSafe` over CASE answers `BusyWithOtherAdmin` while any commissioning window is open, including one the node opened itself
-    - Fix: `RemoveFabric` while a fail-safe is armed for another fabric, or not yet for any fabric, no longer throws `MatterFlowError` before the commissioned state and `fabricsChanged` are updated. After the last fabric is removed, the factory reset waits until no fail-safe is armed and is skipped if a commissioning added a fabric
-    - Fix: `GroupcastServer` LeaveGroup with GroupID 0 and an Endpoints list removes those endpoints from every group of the fabric; it removed all groups with all their endpoints
-    - Fix: `GroupKeyManagementServer` accepts a `KeySetWrite` with any `GroupKeyMulticastPolicy` and ignores the field, which has no effect; it rejected every value but PerGroupID with INVALID_COMMAND. `KeySetRead` reports PerGroupID
-    - Fix: A `GroupcastTesting` request without `DurationSeconds` ends testing after 60 seconds; testing previously never ended
-    - Fix: A node stopped with `stop()` and started again re-establishes its subscriptions, and afterwards stores only the subscriptions of its current run; it previously re-established none and kept storing subscriptions it could not re-establish
-    - Fix: A node with the default volatile event store keeps none of its earlier events across `stop()` and `start()`, as across a restart; it previously reported them, including `ShutDown`, again to reads and subscriptions without an event filter
-    - Fix: `ServiceAreaServer` without the Maps feature no longer fails to initialize
-    - Fix: `GeneralDiagnosticsServer` uses the monotonic clock when available and clamps elapsed time to zero otherwise, so a backward wall-clock step (e.g. an NTP correction) no longer sends `totalOperationalHoursCounter` below its uint64 minimum, which made taking the node offline fail
-    - Fix: `GeneralDiagnosticsServer.upTime` again counts time the host spent in system sleep, where the wall clock advanced but the monotonic clock did not; a backward wall-clock step afterwards still cannot make it negative or lower than already reported
-    - Fix: (@RaHehl) A node stopped with `stop()` and started again can be commissioned again: an uncommissioned node previously failed to start with "Required dependency CommissioningConfigProvider is not available", and a commissioned node answered `ArmFailSafe`, `OpenCommissioningWindow` and `OpenBasicCommissioningWindow` with `Failure`
-    - Fix: An OTA requestor that a provider answers `Busy` keeps `UpdateState` at `DelayedOnQuery` until its retry; it reset the attribute to `Idle` in the same transaction, so a read never showed the wait. After three `Busy` retries it treats the provider as having no update and waits for its next regular query; before, it queried a `Busy` provider again without limit
-    - Fix: A deprecated or obsolete attribute that a device reports is an optional attribute of the client behavior, so it has `$Changing` and `$Changed` events and a property on the behavior's state class
-    - Fix: After a factory reset, event reads and subscriptions still see new events: the node keeps its cleared event manager instead of creating a second one they did not know about
-    - Fix: Creating a peer no longer closes the node's own event manager
-    - Fix: The remote API (WebSocket, MQTT) `add` method appends the requested entry to a list attribute and validates it; it failed for every list attribute
-    - Feature: An invoke with DelayReportData holds off the next report of every subscription that selects an endpoint the invoke dispatches to, by DelayMinMs plus a random jitter below DelayJitterWindowMs; a deferral that ends earlier is kept, and no report is held past the send interval after the last report was sent, counted from when its sending started. Behind the `delay-report-data` forward feature; while `Specification.ENABLE_FORWARD_MATTER_FEATURES` is off the field is ignored. `ServerSubscription.deferReports()`, which holds off a subscription's next report, is available regardless
-    - Enhancement: The log line of an inbound invoke received as a group message names the group
-    - Feature: A server rejects an obsolete (`Z`) element or value as it does a disallowed one; a client sends and decodes it without declining it locally
-    - Fix: The remote API validates a write or command on a peer as the peer's own actions do, so the device decides on conformance and a device's response is not rejected for conformance
-    - Fix: A command invoked on a `ClientGroup` endpoint, such as the endpoint of a group binding, is sent as a group command without an endpoint in its path instead of failing with `InvalidGroupOperationError`. A group command with a response resolves to `undefined`
-    - Fix: A group binding resolves once the fabric holds a key for the group, whether or not its source endpoint is a member of the group, including a key provisioned after the binding was written; a key whose epoch keys all start in the future counts as held, and a send through a binding whose key has gone away fails with a `NoUsableGroupKeyError`
-    - Fix: A binding entry that is still waiting to resolve when its endpoint is disposed no longer resolves afterwards
-    - Fix: A quality or constraint an element inherits from its type or from the element it overrides now takes effect where only its own was read: an inherited quieter quality (Q) makes an event or `$Changed` event quiet, an inherited nullable quality (X) lets `null` through a cast, an inherited atomic quality (T) admits the attribute to an atomic write, and an inherited list constraint is enforced. A derived behavior whose schema makes an element quieter replaces the event its base built, so the element's changes are reported
-    - Breaking: The `SupportedModes` attribute of the mode clusters derived from Mode Base (Device Energy Management Mode, Dishwasher Mode, Energy EVSE Mode, Laundry Washer Mode, Microwave Oven Mode, Oven Mode, Refrigerator And Temperature Controlled Cabinet Mode, RVC Clean Mode, RVC Run Mode, Water Heater Mode) enforces the 2 to 255 entries Mode Base defines and has no empty default, so a server of one of these clusters must configure at least two modes
-    - Fix: An OTA provider refusing an apply it holds no consent for sent `DelayedActionTime` as milliseconds, so a requestor honoring it waited 24 hours rather than two minutes
-    - Breaking: `ServerNode.RootEndpoint` includes `GroupcastServer` (Listener, Sender and PerGroup features) and selects the AccessControl `Auxiliary` feature, as Matter 1.6.1 requires Groupcast on the root of a node with a Groups server. This applies to controllers built on `ServerNode.RootEndpoint`; the legacy `CommissioningController` and the shell build on `ServerNode.RootEndpointWithoutGroupcast`. A node type that installs its own AccessControl server must select `Auxiliary` on it, e.g. `MyAccessControlServer.with("Extension", "Auxiliary")`, or build on the new `ServerNode.RootEndpointWithoutGroupcast`. The `ServerNode.RootEndpoint` type does not include Groupcast; read its state with `node.stateOf(GroupcastServer)`. The GroupKeyManagement `Groupcast` feature stays provisional and is still rejected. With the `Auxiliary` feature, a Group ACL entry without targets no longer grants access on endpoint 0
-    - Breaking: `.with()` on a subclass of a cluster behavior that declares its own attributes or commands keeps the behavior id, so the variant replaces the default behavior instead of running next to it with an empty state of its own. State such a variant stored under its previous id (the subclass name) is not carried over. An endpoint refuses two behaviors for the same cluster
-    - Feature: `GroupcastServer` (Groupcast cluster) and the AccessControl `Auxiliary` feature are available. Auxiliary entries are split to the subject and target limits per entry, and an ACL write with an entry that includes `AuxiliaryType` fails with `FAILURE`
-    - Fix: An overridden `AccessControlServer.extensionEntryAccessCheck` also applies to fabrics commissioned after the node went online
-    - Fix: A failed multicast join for a group no longer fails the command or node start that triggered it; the node retries the join every 30 seconds, and a multicast address counts as joined only after the join succeeded
-    - Fix: A node whose fabric was created before it started (a controller calling `FabricAuthority.defaultFabric()` before `start()` on first run) now counts as commissioned once online and advertises operationally, as it already did after a restart, so an ICD can resolve such a controller to send it Check-Ins
-    - Fix: Decommissioning a peer whose structure read never finished no longer reports an unhandled `uninitialized-dependency` error: the observer watching for that read now detaches when the node goes away, instead of reading state from a node that is closing
-    - Fix: (@RaHehl) A freshly commissioned node, also one commissioned again after a factory reset, re-establishes its subscriptions after its next restart; it previously persisted none until it had been restarted once
-    - Breaking: A subclass of a behavior with a static `schema` takes that schema whichever class resolves first, so it validates and persists state as its parent does. Newly persisted in such subclasses: `uniqueId` of `BasicInformationServer` and `BridgedDeviceBasicInformationServer`, `totalOperationalHoursCounter` of `GeneralDiagnosticsServer`, `groupKeySets` of `GroupKeyManagementServer`, `persistedPresets` of `ThermostatBaseServer`, `updateInProgressDetails` and `activeOtaProviders` of `OtaSoftwareUpdateRequestorServer`, the subscriptions of `SubscriptionsServer`, the passcode and discriminator of `CommissioningServer`, and five `NetworkClient` fields. Stored values take precedence over changed defaults, and state that does not match the schema is rejected. `HttpServer`, `MqttServer` and `WebSocketServer` convert environment values to their declared types, so `MATTER_MQTT_ENABLED=false` disables the service
-    - Breaking: Once a behavior resolves, its static `schema` returns the effective schema, including what a subclass adds, and the class keeps no own `schema` property. A subclass declaring `schema` as a static accessor is rejected with an `ImplementationError`
-    - Fix: A behavior subclass or a `.set()` variant no longer takes over its parent's decorated `State` or `Events`, so `CommissioningClient`, `IcdClient` and `ScenesManagementServer` keep their nonvolatile fields; `.with()`, `.enable()` and `.alter()` keep the fields a subclass's own `State` declares
-    - Breaking: `EventsBehavior` validates its `buffers` configuration, which no longer accepts a `critical` allowance
-    - Fix: An OTA requestor subclass sends `NotifyUpdateApplied` with its update token and emits `VersionApplied` after the restart an update causes. An update from an older matter.js version into this one still sends neither, because the older version stored no update record. The update record is stored before `applyUpdate` runs in its own transaction; no update query runs while it applies. If `applyUpdate` throws, the requestor forgets the update and returns to idle with reason `Failure`. An `applyUpdate` whose update fails, or that keeps the node running, deletes the downloaded file
-    - Fix: An OTA requestor no longer downloads and applies an update after asking the user for consent failed
-    - Fix: `RemoteServer` declares `certificate` and `key` as PEM strings
-    - Enhancement: `IcdClient` emits `counterStart$Changed` after a registration, a key refresh or a cleared registration has committed, so a listener can read the new key from state; `keyRefreshed` fires before that
-    - Enhancement: An OTA requestor's two-minute floors on re-querying a provider and on re-sending an `ApplyUpdateRequest` are overridable (`minimumQueryInterval`, `minimumApplyDelay`), so a test harness need not wait them out; a product lowering them does not conform
-    - Fix: The Descriptor `PartsList` now reports a replacement of an endpoint that leaves the number of parts unchanged, and lists parts in numeric order
-    - Fix: Closing or erasing an endpoint whose parts never received a number, such as the parts of a non-essential endpoint that failed to initialize, no longer logs `uninitialized-dependency` errors, and erasing removes their persisted state
-    - Enhancement: A server endpoint's structure is checked against the device types it declares, at construction and as it changes afterward, and each violation is logged as a warning; `endpoint.validation` (`MATTER_ENDPOINT_VALIDATION`: `off`, `warn` or `strict`, default `warn`) turns the checks off or refuses construction instead, `DeviceTypeConformanceService.validate()` checks on request and returns the violations per endpoint, and `Endpoint.Options.deviceConditions` states conditions the structure does not show
-    - Breaking: A server cluster that a device type of the node declares a singleton refuses construction with `DeviceTypeConformanceError` on an endpoint whose device types neither declare the singleton nor list the cluster as a server cluster; with `endpoint.validation` `off` only when a device type above the endpoint declares the singleton
-    - Enhancement: Adding endpoints under an aggregator is faster, as the Descriptor `PartsList` update no longer rebuilds a model scope for each device type lookup
-    - Fix: The Descriptor `PartsList` follows a `DeviceTypeList` change that starts or stops listing every descendant, such as adding the Aggregator device type at runtime, instead of waiting for the next change to the endpoint tree
-    - Fix: Device type validation judges an endpoint added below an endpoint whose siblings are still being constructed without judging those unfinished endpoints, so strict mode no longer refuses it for a composition that completes once the siblings are constructed, and warn mode logs no violation that clears right after
-    - Fix: An endpoint without an index, such as a composed device, stops watching a part once the part is destroyed instead of keeping the destroyed part referenced until the endpoint itself closes
-    - Enhancement: `EndpointType.is()` tells whether a value is shaped like an endpoint type
-    - Breaking: The Closure, Closure Panel and Electrical Energy Tariff device types include `DescriptorServer.with("TagList")`, as they require. An endpoint of these device types must set `descriptor.tagList` to 1 to 6 tags, or it fails to initialize
-    - Breaking: The generated device types with a mandatory client application cluster (such as `OnOffLightSwitchDevice`, `DimmerSwitchDevice`, `ThermostatControllerDevice`; 14 in all) include `BindingServer`, as the Base device type requires, so their `binding` state is typed and their endpoints list the Binding cluster in `ServerList`. Any other server endpoint of a simple device type with a client application cluster receives a `BindingServer` too, judged as device type validation judges it and also with `endpoint.validation` `off`; a Binding server the endpoint declares stays. A controller can then write binding entries to these endpoints; once the application observes `binding.established`, the node registers the bound peers and opens CASE sessions to them. On these endpoints `behaviors.require(BindingServer, options)` no longer sets the state; pass it to `add()` or use `setStateOf()`. A `BindingServer` subclass must be declared with `.with()`, because requiring it at runtime throws
-    - Breaking: A binding entry does not install the OTA Software Update Provider and WebRTC Transport clients on its target, whose clusters choose their peer themselves; an entry that matches only such clients, including a self-binding, is ignored with a warning that names the cluster
-    - Breaking: A binding entry resolves only once something observes `binding.established` of its endpoint; until the first observer attaches, the node registers no peer and opens no CASE session for it. An entry written earlier resolves when an observer attaches, also after an earlier `once` observer was used up. An entry is logged at info level each time it starts waiting; the former warning for an established entry without observer is gone
-    - Feature: `ClusterBehavior.typesOf()` returns the cluster behaviors of a list of behavior types
-    - Fix: A subscription keep-alive that falls due while a report is still being sent goes out when that report completes. Before, it was skipped until the next send interval ended, so the gap between reports could exceed the subscription's max interval and a controller could drop the subscription
-    - Fix: A subscription times its min interval floor and DelayReportData deferrals on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A backward step of the wall clock, such as an NTP correction, held reports and keep-alives for up to the length of the step; a forward step let a report through inside the MinIntervalFloor and ended a deferral early
-    - Fix: Decommissioning a node closes its protocol `Peer` and deletes its session resumption record; before, the peer was dropped from the `PeerSet` while still open, so its timers kept running until the process ended
-    - Fix: A factory reset closes the `FabricAuthority` the node owns, such as the one the OTA provider or WebRTC requestor created, instead of only removing it from the environment
-    - Fix: An ICD times its active window on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or extended the window, and after a backward step the device answered a StayActiveRequest with an active time as long as the step
-    - Fix: `SwitchServer` decides position changes and debounce, long press and multi-press timer expiries when they occur, not when their reactions run. A move between two pressed positions does not count as a further press and, after a reported LongPress, generates no InitialPress. MultiPressOngoing stops at `MultiPressMax` with MultiPressComplete(0) at the end of the aborted sequence, whose further presses report no InitialPress and no ShortRelease. `resetState()` returns a promise while it waits for the switch state lock, then drops pending debounced positions, timers and events. The server no longer leaks a reactor per press
-    - Fix: Discovery and `Peers.forDescriptor()` return the `ClientNode` still under construction for a device instead of creating a second node for it, so concurrent discoveries no longer create duplicate peers
-    - Fix: A Thermostat atomic write's CommitWrite reports a status for every attribute the request names, in the request's order, and stores the attributes of one atomic write together or not at all
-    - Breaking: `ChangeNotificationService.Change` has a new kind `"readable"`, emitted when an endpoint's state becomes readable after its construction completes; a `switch` that requires every kind must handle it
-    - Feature: `EndpointLifecycle.isReadable` and `isGone` tell whether an endpoint's state is readable and whether it is going away
-    - Fix: MQTT and remote change streams keep running when an endpoint crashes, closes or resets, or a peer fails to load, resend the state they skipped once the endpoint is readable, deliver the initial state under a node filter, and report deletes only for endpoints and peers they reported or the consumer named in `versions`. `ChangeNotificationService` reports deletes and readability for peers restored from storage too, and discovery and `Peers.forDescriptor()` no longer reuse a peer whose deletion has begun
-    - Fix: Ensure that a failed `ClientNode.decommission()` keeps the node usable and that a node being deleted is not revived by a late interaction or event
-    - Breaking: Ensure that commissioning or decommissioning a node that is gone rejects with `DestroyedDependencyError` or `CrashedDependencyError` instead of `CommissioningError`, and a concurrent attempt with the new `FabricOperationInProgressError`
-
-- @matter/testing
-    - Breaking: `forFlavor()` and `LogExpectOptions.flavor` take a `LogFlavor` (a `DeviceFlavor`, or `"chip"`/`"matterjs"`) instead of a string; `flavorFamily()` answers which family a flavor belongs to, and a flavor of neither family, such as `python-wrapped`, selects no variant
-    - Feature: `CommissioningTarget.withoutSubscription` commissions a certification peer without the sustained subscription and without waiting for one
-    - Feature: `MockForwardFeatures.enableAll()` enables every forward feature for a whole run, for a harness that tests against peers of the next Matter line
-    - Fix: CHIP test runs on one Docker daemon take turns with the shared harness containers instead of recreating each other's `chip` container, which ended the other run with exit code 137. A run holds a lock while it uses the harness and waits while another run holds it (`MATTER_CHIP_HARNESS_WAIT_MINUTES`, default 60; `0` fails at once with `HarnessBusyError` when another run holds it). The lock ends with the process that holds it; a lock that does not run for 30 s is left over and fails the run with the command that removes it
-    - Fix: A certification step that made a controller call that may change the device and is then refused by the controller fails the run instead of being recorded as skipped, as a step that already recorded a check does
-    - Enhancement: An unknown `MATTER_CERT_DEVICE` or `MATTER_CERT_CONTROLLER` value throws `CertConfigError`
-    - Enhancement: `CertNodeApi.observeEvents()` reports a node's events through the subscription the controller already sustains, so a case still sees what a peer reports as it shuts down rather than losing them with the second session a subscription of its own would need; `subscribeEvents()` remains for a case whose subject is the subscribe request itself. Every `CertNodeApi` implementation must provide the new method
-    - Enhancement: `BackchannelCommand.SendOnOffToBindings` asks a binding client to send an OnOff command to the targets of its bindings
-    - Enhancement: A certification step that finds from the devices of its run that the plan does not apply it throws `CertStepNotApplicableError`, and is recorded as skipped with its reason and counted in `RunRecord.planConditionSkips`; thrown after the step recorded a check or made a controller call that may change the device, it fails the run
-    - Enhancement: A certification case whose DUT is a device takes the DUT's own app PICS from the device role named `dut` (`CertTestDefinition.dutApp`), so the DUT need not be the device the harness starts first
-    - Enhancement: `CertNodeApi.scriptOtaProvider()` can have the controller's provider answer `ApplyUpdateResponse` `Proceed` with a `DelayedActionTime` of its own, so a case can ask a requestor to defer an apply the provider allowed
-    - Enhancement: `CertNodeApi.serveOtaUpdate()` can keep recording after the exchange settles via `ServeOtaUpdateOptions.observeAfterMs`, reporting the window as `OtaBdxTransfer.observedMs`, so a case claiming a node sent nothing can show the window it watched
-    - Enhancement: `CertNodeApi.scriptOtaProvider()` can have the controller's provider answer `UpdateAvailable` for an image it does not hold, with the `softwareVersion` and `imageUri` the case names, so a case can offer an update a node must refuse
-    - Enhancement: `CertNodeApi.serveOtaUpdate()` can wait for the node's `NotifyUpdateApplied` after allowing the apply, via `ServeOtaUpdateOptions.notifyAppliedTimeoutMs`
-    - Enhancement: A certification step can have its controller act as a node's ICD Check-In client via `CertNodeApi.icdClient()`: register, end its own subscription so the node sends Check-Ins, and read the Check-Ins and key refreshes it accepted. chip-tool refuses it. Every `CertNodeApi` implementation must provide the new method
-    - Enhancement: A certification controller's ICD client can also unregister from a node and ask it to stay active (`CertIcdClientApi.unregister()`, `.stayActive()`); every `CertIcdClientApi` implementation must provide both
-    - Enhancement: The certification app `lit-icd` maps to CHIP's `lit-icd-app` binary
-    - Enhancement: A certification controller can judge device attestation against the chip test roots and revocation information a case installs, via `ControllerAdapterOptions.attestation` and `ControllerAdapter.attestation`. Such a controller refuses an error-level attestation finding and names it, where a controller without the option accepts whatever a test device presents; chip-tool refuses the option, since it reads revocation from a file its process was started with
-    - Enhancement: A certification controller's WebRTC signal records carry what the signaling stated — an offer's or answer's session description, and the ICE candidates a peer sent — via `WebRtcSignalRecord.sdp` and `.candidates`, so a case can drive a peer connection of its own
-    - Enhancement: A certification step can have its controller stage an OTA image for a node and serve it over BDX, via `CertNodeApi.serveOtaUpdate()`, which reports what the resulting transfer negotiated and moved
-    - Enhancement: `CertNodeApi.serveOtaUpdate()` also reports the OTA commands the controller's own provider answered, and the new `CertNodeApi.announceOtaProvider()` announces a provider to a node without staging anything. Every `CertNodeApi` implementation must provide the new method
-    - Enhancement: A certification test can give each of its devices its own app arguments, via `certTest`'s `appArgs`, and the evidence bundle records what each role was started with. A role's arguments may be given per implementation (`{ chip, matterjs }`), for a flag only one of them understands
-    - Fix: A chip `ota-provider` certification device starts without a case naming an image: the app exits at startup unless given one, and the harness supplies a placeholder where the case named none
-    - Enhancement: `CertNodeApi.scriptOtaProvider()` has the controller's own OTA provider answer a case's next commands, so a plan step about a `Busy`, a deferred apply or a `UserConsentNeeded` can be driven
-    - Breaking: A certification step can ask whether a PICS expression holds for its run, via `CertStepContext.picsMet()`, so a plan outcome that depends on a PICS answer is checked either way. Code building a `CertStepContext` must provide it, and a run with no active PICS fails a step that asks, with `PicsUnansweredError`. `CertTest.contextFor()` returns the new `CertStepWiring`, which leaves it out, and `PromptDrivenPythonTest` and `PromptHandler.action` take one
-    - Breaking: `CertNodeApi.announceOtaProvider()` can keep recording after the node's query via `observeMs`, and reports the window it covered as `OtaAnnouncement.observedMs`, so a case can assert what the node did not send in it; every recorded `QueryImage` carries its receipt time as `OtaQueryImageExchange.receivedAtMs`. Every implementation must report both
-    - Enhancement: A certification step costing minutes of real time declares `longRunning`, and runs only where the run asked for it (`MATTER_CERT_LONG_RUNNING`); `RunRecord.longRunningSkips` counts what a run left out
-    - Breaking: `BackchannelCommand.SimulateLongPress` carries the switch's `featureMap`, which a chip test app requires to decide which events a press produces
-    - Enhancement: A certification step can ask which sessions a controller holds with a node, and can drop the connection beneath a named one, via `CertNodeApi.sessions()` and `CertNodeApi.severTransportConnection()`
-    - Enhancement: A certification step's read may require a session that permits large payloads via `ReadAttributeOptions.largeMessage`
-    - Enhancement: Chip certification test devices take simulation commands through the named pipe their app opens, so a step that operates the device runs against a chip app rather than skipping
-    - Enhancement: Chip certification test devices also take simulation commands through their app's standard input, one character per poll interval, which is how chip's bridge app is operated
-    - Enhancement: The matter.js bridge test device exposes the devices chip's bridge app does, on the same endpoints, and takes the same simulation commands
-    - Enhancement: A certification run's evidence names every device it ran, each with its role, app, app variant, flavor and image revision, through `RunRecord.run.devices`; the single `run.device` and `run.chipRef` fields are gone, and a device that exits names its role. A device a wrapped python script spawns for itself is recorded as the new `python-wrapped` flavor, which no run can select
-    - Enhancement: A certification run may declare devices running different apps, so a case can drive two device roles at once
-    - Enhancement: A certification step can ask what a controller holds for a node — its endpoints, or one attribute's value — rather than only what a read returns, via `CertNodeApi.clientEndpoints()` and `CertNodeApi.clientAttribute()`
-    - Enhancement: A certification step subscribing to events may ask for them urgently via `SubscribeEventOptions.urgent`, so a device reports them as they occur rather than at the subscription's maximum interval
-    - Enhancement: A certification controller can host a WebRTC transport requestor cluster via `ControllerAdapterOptions.webRtcRequestor`, so a case whose peer initiates signaling has somewhere for the peer's `Offer` to land; `ControllerAdapter.webRtcRequestor` registers the sessions signaling is accepted for and reports each signal the peer sent, accepted or refused
-    - Enhancement: A certification test requests a transport preference for its controllers via `certTest`'s `transport` option; `"tcp"` asks for a TCP-backed session where the peer supports one, and adapters receive the request through `ControllerAdapterOptions`
-    - Enhancement: A certification step whose check could not be evaluated ends `"unverified"` and fails the run, unless the check states why the claim cannot be observed
-    - Enhancement: Per-step certification PICS is evaluated on chip device flavors too, and `result.json` reports how many steps their PICS excluded
-    - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
-    - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
-    - Feature: `MockTime.stepWallClock()` steps the wall clock (`now`, `nowMs`) without moving the monotonic clock (`nowUs`), on which mock timers run, as an NTP step does
-    - Fix: The chip-tool YAML test shim of the matter.js controller reports the FeatureMap bits a device sets; it reported every FeatureMap as 0. Writes and commands encode a bitmap a step gives as a number, and the value of a multi-bit field, instead of sending 0 or 1
-    - Fix: The YAML test controllers no longer space their exchanges with a peer 100 ms apart, matching chip-tool
-    - Fix: The chip-tool YAML test shim of the matter.js controller sends a write as a timed write when its step declares `timedInteractionTimeoutMs`
-    - Enhancement: Tests get 10 s before they time out instead of Mocha's 2 s default
-    - Fix: `MockTime.resolve` holds virtual time while a `Blob` is read, as it does for crypto, so a slow host no longer expires protocol timeouts during a read
-    - Fix: A `MockTime.resolve` left running by a test that timed out stops moving the clock once the next test starts, instead of failing the tests that follow
-
-- @matter/examples
-    - Fix: The composed OnOff device example creates as many endpoints as `--num` asks for (default 2) instead of one fewer; a node stored by an earlier run gains the missing endpoint on its next start
-
-- @project-chip/matter.js
-    - Fix: A closed `PairedNode` no longer starts a subscription, read or connection, and `CommissioningController.close()` closes the controller even when closing a node fails
-    - Fix: `PairedNode.close()` finishes its cleanup when a handler or callback throws, `getNode()` returns a new `PairedNode` for a node whose instance was closed, and `CommissioningController.removeNode()` removes the node even when closing it fails
-    - Fix: PASE with a known address reports a wrong passcode instead of falling back to discovery
-    - Fix: PASE with an unreachable known address falls back to discovery instead of failing with "Could not connect to device"
-
-- @matter/general
-    - Breaking: `camelize()` treats a pluralised acronym as one word wherever it occurs in an identifier, so `TariffComponentIDs` normalises to `tariffComponentIds` where it previously passed through unchanged
-    - Enhancement: A log message names where it came from via `Diagnostic.Message.origin`, which `Logger.get()` accepts and `Environment.logger()` supplies from `Environment.logOrigin`, so a destination can attribute a line written from a socket or timer callback
-    - Enhancement: Log output names a message's origin in brackets after the facility, at the start of the message text, for the environments below the outermost one
-    - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
-    - Enhancement: `StorageService.isBlobConfigured` reports whether blob drivers are registered
-    - Fix: `NodeJsStyleCrypto.computeHash` names a digest the way Node.js's crypto API does. It passed the Web Crypto spelling, which Node.js accepts as an alias while stricter emulations of its API reject it
-    - Fix: `NodeJsStyleCrypto.computeHash` reports `CryptoInputError` naming an algorithm it does not support, where an untyped caller previously reached the underlying API with it
-    - Fix: Crypto auto-detection claims the default `Crypto` only where the detected API offers the SHA-256 digest and the `aes-128-ccm` cipher and decipher, so `StandardCrypto` serves a runtime whose emulation lacks them rather than being shut out by load order. The detected API is claimed regardless where the runtime offers no Web Crypto, and where the process restricts its cryptographic provider as FIPS mode does, so nothing is left without crypto and no deliberate restriction is evaded
-    - Enhancement: `nodeCryptoDefect` reports which of those primitives a Node.js-style crypto API cannot offer, and `NodeJsCryptoApiLike` gains an optional `getFips()` for runtimes that report a restricted provider
-    - Fix: Crypto auto-detection no longer aborts the import of this package where the runtime offers neither a usable Node.js-style API nor a usable Web Crypto. It reports that it found none and leaves `Crypto` unset
-    - Fix: `MockCrypto` defaults to the standard implementation where the detected Node.js-style API cannot serve Matter, via the new `NodeJsStyleCrypto.providesDefault`. It keyed on a Node.js-style API merely being present, which an incomplete emulation also satisfies
 
 - @matter/nodejs
-    - Fix: Ensure that `FileStorageDriver.contexts()` lists only contexts that hold keys, so a context emptied by `clearAll` or `delete`, or one that was only read, is no longer listed
-    - Fix: The Node.js environment uses standard crypto where Node.js's crypto module offers no SHA-256 digest, or no `aes-128-ccm` cipher or decipher, which is the case on Bun and Deno, and says which was missing. It previously made that choice by runtime name, so it covered Bun alone and left Deno on an implementation that fails commissioning. Where the process restricts its cryptographic provider it keeps Node.js crypto rather than evading the restriction, and reports that Matter will fail where it needs the missing primitive
-    - Enhancement: `NodeJsCrypto.defect` states which primitive Node.js's crypto module cannot offer, `NodeJsCrypto.providerIsRestricted` whether this process restricts its cryptographic provider, and `cryptoFor` chooses an implementation from a reported defect
-    - Fix: `NodeJsUdpSocket.create()` closes the bound socket when it cannot configure it, such as for a network interface that does not exist, so the port is not held
+    - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument
+    - Adjustment: `SqliteStorageDriver` and `JsonFileStorageDriver` report a `writeCoalescingInterval` of `Instant`
+    - Fix: Bun and Deno use standard crypto where Node.js crypto lacks SHA-256 or `aes-128-ccm`
+    - Fix: `--storage-clear`/`MATTER_STORAGE_CLEAR` clears the storage on start again
+    - Fix: `FileStorageDriver.contexts()` lists only contexts that hold keys
+    - Fix: `NodeJsUdpSocket.create()` closes the socket when it cannot configure it
 
 - @matter/nodejs-ble
-    - Enhancement: `NobleBleClient` reports how long its radio actually scanned as `BleScannerClient.listeningTime`
-    - Fix: `NobleBleClient` asks noble to scan again once the Bluetooth adapter powers on
-    - Fix: `NobleBleClient` stops a scan it requested that only took effect after it was no longer wanted
-
-- @matter/protocol
-    - Breaking: `ClientSubscriptions.lastReportStartedAtFor()` and `PeerSubscription.lastReportStartedAt` are removed; the new `ClientSubscriptions.reportStarted` observable emits the session each inbound report arrives over
-    - Fix: A subscription report a peer flushed while shutting down no longer counts as evidence that its subscription survived the reboot, so the controller re-subscribes after the grace window instead of waiting out the full subscription timeout
-    - Enhancement: `DclCertificateService` can be constructed `offline`, where it reaches no network and answers from what it was seeded and told about revocation
-    - Enhancement: A commissioner can be given revocation information the DCL does not publish, through `DclCertificateService.installRevocations()` or the new `revocations` option. `DclCertificateService.parseRevocationSet()` reads such a set in the format the CHIP SDK's revocation-set tool writes. The entries stay in memory and only add revocations — a serial they do not name is still checked against the DCL
-    - Enhancement: A BDX message the node sends names its block counter on the log line the exchange already writes for it, with a Block's or BlockEof's data length, a BlockQueryWithSkip's skip offset, and the counter and length of the block an ack or a driving receiver's next query reports having received. A transfer flow also names the negotiated maximum block size and the start offset when it starts
-    - Enhancement: `BdxSession` reports the `*Init` a responder received and what its transfer settled on, so a responder's own account of what it granted is readable without decoding the wire
-    - Enhancement: `ExchangeManager` and `SessionManager` take a log origin through their context and are given their node's, so their log lines name the node that wrote them. Other components still log without one
-    - Enhancement: `ClientRequest.largeMessage` requires a session that permits large payloads for any interaction, not only a command invocation; such an interaction establishes a TCP-backed session or fails rather than falling back to MRP
-    - Enhancement: A `BleScannerClient` may state via the new optional `isPeripheralReachable()` whether a peripheral it discovered can still be reached, and the scanner offers only reachable peripherals for commissioning. A transport that routes BLE through remote proxies no longer offers peripherals whose proxy is gone
-    - Fix: A running BLE discovery is woken by any advertisement of a device matching its query, not only by an address it has never seen, so a device that becomes a candidate again during the discovery is handed to it. Each device is still offered once per discovery
-    - Fix: A later BLE discovery no longer offers a device that was just commissioned over BLE, via the new optional `Scanner.forgetCommissionedDevice()`
-    - Fix: A later BLE discovery no longer offers a device that was just commissioned through another transport and advertises its vendor, as the commissioner passes the new `CommissionableDeviceIdentity` to `Scanner.forgetCommissionedDevice()`
-    - Fix: A BLE peripheral silent through a minute of listening, as reported by the new optional `BleScannerClient.listeningTime`, is no longer offered for commissioning
-    - Enhancement: New `BleListeningClock` accumulates a BLE client's scan time for `BleScannerClient.listeningTime`
-    - Fix: Concurrent BLE discoveries share one scan and each waits for its own result
-    - Fix: A BLE scan start that never completes fails the waiting discoveries after 10 s instead of leaving them waiting
-    - Fix: A session or exchange ending because its transport connection dropped reports `TransportClosedError` instead of an untyped error
-    - Fix: A CASE pairing failure reaches the caller even when reporting it to the peer fails; the report's own failure is logged instead of replacing the pairing error
-
-- @matter/model
-    - Fix: The Base device type records the revision its specification section states, which is 3. It has no device type id, so no Descriptor `DeviceTypeList` entry carried one and `DeviceTypeModel.revision` answered 1
-    - Enhancement: `DeviceTypeModel.declaredRevision` states the revision a device type records for itself, or `undefined` where it records none, which `revision` cannot express because it answers 1 for both
-    - Fix: A device type's documentation carries the prose its specification chapter states below a subsection heading. Sixty-two device types gain text, and the Base device type is documented at all for the first time. Each subsection appears under a heading of its own depth, so a chapter that repeats a subsection name states which operation each one belongs to
-    - Fix: A condition carries the prose of the section that describes it, and an element requirement carries the section its table came from, so a section such as `device§8.5.6` has a cross reference
-    - Fix: Scraping says which device library chapter it ignores and how many sections below it go with it, rather than dropping them without a word
-    - Fix: Generated documentation drops an image's alt text and a table or figure caption, which name the artifact rather than describing the subject, and resolves a reference link such as `[[Aliro]](#ref_Aliro)` to the name it refers to
-    - Fix: The Heat Pump device type carries the eight element requirements its specification section states; the column heading that section uses discarded every row
-    - Fix: The Base device type's conditions carry their descriptions; nine of twenty-three were discarded because their table heads the column `Summary`
-    - Fix: A device type requirement carries the instance-count constraint the specification states, such as `min 1`
-    - Fix: `AnnounceOtaProvider` is fabric-scoped, which its command's field table states and its Access column omits
-    - Breaking: Eleven model elements whose names contain a pluralised acronym are renamed for consistency with the singular form, such as `TariffComponentIDs` to `TariffComponentIds`
-    - Enhancement: `Conformance.isProvisional` states whether the specification has not finished an element, which reads as optional and so cannot be told from a plain optional otherwise
-    - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children
-    - Fix: The constraint parser no longer reads `any` or `MS` as stating no bound. Both are artifacts of the specification's tables and are now removed while scraping, so a hand-written cluster definition may state a bound naming a value spelled `Any` or `MS`, and one that states neither name reports `UNRESOLVED_CONSTRAINT_NAME`
-    - Enhancement: `Constraint.referencesOf` states each name a constraint holds along with what the constraint does with it — compare a bound against it, take the values allowed from it, or take a member of it — where it previously stated the name alone. `Constraint.validateReferences` is replaced by it
-    - Enhancement: `Metatype.boundKind` states what a constraint on a value of a metatype states, and `Metatype.holdsNumber` and `Metatype.holdsRecord` how such a value is held, which decides what a bound may compare against and what a member access may take. `Metatype.native` now reports a bitmap as an object, agreeing with `Metatype.Native`, and `Metatype.Native` covers durations
-    - Enhancement: `ValueModel.memberNamed` resolves the name a constraint or conformance states for a value of an enumerated type. Constraint encoding, definition validation, the conformance aspect and the conformance compiler now share it; the compiler previously read a member's `id` rather than its effective id, so a member whose definition omits one resolved to nothing
-    - Fix: The operand of `in` states its name in the case every other name a constraint holds uses, so `Constraint.referencesOf` reports one spelling
-    - Fix: The operand of `in` names an element holding the values allowed, so a value of the constrained type no longer answers it
-    - Fix: A constraint taking a member of a computed value, such as `min minOf(A, B).C` or `min A.minOf(B, C)`, reports `UNEVALUABLE_MEMBER_ACCESS` rather than reporting its member as an unresolved name. An access evaluates only where the value before `.` is a record and the name after it a member of one, so such a bound admits every value
-    - Fix: A name a constraint states that resolves to a value the constraint cannot use — a bound comparing against a record, a membership set naming a single value, an access taking a member of a value held as a number — reports `UNUSABLE_CONSTRAINT_NAME`. It reports that alone, where before a name could be reported both unusable and unresolved
-    - Fix: A constraint bounding a value with neither a magnitude nor a length reports `UNBOUNDABLE_TYPE`
-    - Fix: A constraint bounding the entries of a list in one of its alternatives reports `UNENFORCEABLE_ENTRY_BOUND`, as nothing enforces such a bound
-    - Fix: `TlsClientManagement.FindEndpointResponse.Endpoint` states no bound. The specification bounds it by `0 to 65534`, which is the bound of the endpoint ID rather than of the struct the field holds
-    - Enhancement: A condition requirement records where it asserts its condition via `RequirementModel.location` (`Root`, `Self` or `Descendant`), and carries the constraint the specification states for it
-    - Enhancement: `RequirementModel.componentCountRange` gives the range of endpoint counts that a component device type requirement's constraint allows
-    - Enhancement: New `RequirementResolver` resolves the condition and feature names a device type requirement's conformance references, the endpoint scope they resolve in, and the cluster, feature, attribute, command, event or component device type a requirement names; new `requirementApplicability()` evaluates a requirement's conformance against the names true for an endpoint
-    - Fix: A condition reference in a device type requirement's conformance is spelled as the model declares the condition, such as `Sit | Lit` rather than `SIT | LIT`, so evaluating the conformance matches the condition
-    - Breaking: `Conformance.validateReferences` checks a name inside optional conformance or a choice, such as `[X]` or `[X].a+`, so a model whose bracketed conformance names something undefined no longer validates
-    - Breaking: Model validation checks device type requirements and reports a conformance name that does not resolve (`UNRESOLVED_CONFORMANCE_NAME`) or is spelled other than as declared (`NONCANONICAL_CONFORMANCE_NAME`), a condition requirement naming no condition (`UNRESOLVED_CONDITION`), a location on a requirement that is not a condition requirement (`LOCATION_NOT_APPLICABLE`), a component requirement naming no defined device type (`UNRESOLVED_DEVICE_TYPE`), a cluster requirement naming no defined cluster (`UNRESOLVED_CLUSTER`), and a required feature, element or command field its cluster does not define (`UNSATISFIABLE_REQUIREMENT`)
-    - Breaking: A feature, attribute, command, event or command field requirement must be parented by a server or client cluster requirement (`ILLEGAL_REQUIREMENT_PARENT`); any parent previously passed. A command field requirement is now also checked against its cluster's commands
-
-- @matter/node
-    - Documentation: `ClientNode`, `Peers.get` and `ClientNodeStores.allocateId` say how long a `PeerAddress` names the same device, and `ControllerBehavior.allocatePeerAddress` states when an address of a removed peer can be issued to another one
-    - Breaking: A device type requirement that states an exact value emits that value as both bounds. `MinLevel` accepted 2 and `MaxLevel` accepted 255 on eight device types, where the specification mandates exactly 1 and exactly 254
-    - Enhancement: (@RaHehl) `ClientNode.openEnhancedCommissioningWindow` (and `CommissioningClient`) also returns the passcode, long discriminator, vendor and product ID it encodes into the pairing codes, and the commissioning timeout sent to the device
-    - Enhancement: A device type that relaxes a cluster's mandatory element to optional is honoured. Temperature Sensor and Room Air Conditioner required `KeypadLockout`, which the specification makes optional for them
-    - Enhancement: A device type feature gated on `Rev >= vN` is enabled when the device type's revision satisfies it, which enables `ChangeEvent` on Water Freeze Detector, Water Leak Detector and Rain Sensor
-    - Enhancement: A generated requirement's documentation says when the specification states a cluster is provisional, rather than reporting it as plainly optional
-    - Fix: A generated device type no longer emits an empty `mandatory: {}`, and states `mandatory` before `optional` regardless of which it has
-    - Enhancement: An OTA requestor's wait before querying a provider that announced an update can be set through `announcedUpdateQueryDelay`, so a node alone with its provider can shorten the random window the specification prefers
-    - Enhancement: `WebRtcTransportRequestorServer` reports signaling it answered `NotFound` via its new `refused` event, which names the session id the peer asked about
-    - Fix: `WebRtcTransportRequestorServer.iceCandidates` reports `ConstraintError` for an empty candidate list, which is what the field's `min 1` constraint states and what a peer already receives from schema validation. It reported `InvalidCommand`
-    - Fix: A constraint error naming an entry of a list states the position of that entry, where an entry holding no value previously shifted every position after it
-    - Fix: A bound the specification states on a bitmap is enforced. An upper bound states what the reserved-bit check already enforces, but a lower bound such as `FanControl.RockSupport`'s `min 1` states a flag that must be set, which nothing checked. A cluster implementation that supports rocking or wind and leaves the corresponding attribute with no flag set now fails validation where it previously passed
-    - Fix: A bound on a duration is enforced rather than ignored. A duration is held as a number of milliseconds, and a constraint bounding one states milliseconds too
-    - Fix: A constraint on a value no bound can be checked against, such as a struct or a date, no longer fails behavior creation with `Cannot define constraint for unsupported metatype`. A list whose entries are of such a type reaches this when the constraint bounds its entries
-    - Fix: A value of an enumerated type whose definition states no ID is judged by its effective ID, which is its position among its siblings. Such a value was refused as undefined in the enumeration, and a conformance naming it resolved to nothing
-    - Fix: A node that factory resets keeps the services it already opened, rather than installing a second set over them. Closing the node then releases its share of the mDNS service, so a process that resets a node can exit, and releases its storage handle and directory lock
-    - Fix: A holder of `ChangeNotificationService.change` keeps receiving updates after a node factory resets
-    - Fix: A node whose construction fails releases the storage its store had already opened
-    - Fix: A factory reset erases the blobs a BDX transfer left behind
-    - Fix: `Endpoint.behaviors.has()` answers `false` rather than `undefined` for a behavior the endpoint does not support at all
-    - Fix: A peer's endpoint tree follows the `PartsList` of the endpoint each part belongs to, so a bridged composed device's own endpoints are no longer attached to the aggregator
-    - Fix: A peer's endpoint whose device types are all utility types, as a bridge's composed device is, reports those device types rather than remaining of unknown type
-    - Fix: A peer endpoint that no `PartsList` names is left out of the node rather than taking the endpoints it claims out of the tree with it; a root composes its list of every descendant, so an endpoint absent from it is not part of the node
-    - Fix: A peer endpoint the root stops naming while it still holds endpoints the root does name is kept rather than erased, which would have closed those endpoints with it
-    - Fix: `DoorLockServer` reserves credential index 0 for the programming PIN, refusing it for any other credential type and refusing any other index for the programming PIN. The programming PIN counts as one credential rather than one of the PIN credentials, and reports no next index
-    - Fix: (@Luligu) Corrects status codes returned by `DoorLockServer.setCredential` for duplicating another credential of the same type and adding an occupied credential index
-    - Fix: `DoorLockServer.setCredential` creates the user alongside the credential when the request carries no user index
-    - Fix: `DoorLockServer.setCredential` reports `NextCredentialIndex` on a failing response as well as a successful one
-    - Fix: `DoorLockServer.setCredential` reports `OCCUPIED` when no user slot remains for a new credential
-    - Fix: `DoorLockServer.setCredential` answers `INVALID_COMMAND` when the user fields a request carries do not match the use case it states
-    - Fix: `DoorLockServer` stores each enumerated field of a user or credential record as its Matter enumeration, so a value the enumeration does not define is refused rather than kept
-    - Fix: A bridged node's `PartsList` names its own children rather than every endpoint below it
-    - Fix: A constraint that bounds an enumerated value to named values of its own type, such as the `add, modify` of a door lock's operation type, is now applied. A cluster that refuses a payload it cannot validate, as `DoorLock` does, answers a client naming another value with `INVALID_COMMAND` instead of acting on it
-    - Fix: Creating a struct fills in a default only for a field the cluster supports, so a field a device does not set stays absent instead of carrying the fallback its schema states. A write of a list entry that omits a feature-gated field is accepted, where it previously failed validation against the field it had filled in. Affects `Thermostat` preset names and setpoints, `Descriptor` tag labels, `MediaPlayback` track attributes and the feature-gated members of `ClosureControl`, `ClosureDimension`, `ElectricalEnergyMeasurement`, `CommodityPrice` and `CommodityTariff`
-    - Fix: A struct field's default is stored in the units and shape of its datatype: a preset created without a cooling setpoint reads `2600` rather than the schema's `26°C` notation, and a bitmap default arrives decoded
-    - Fix: Each struct created by a write receives its own copy of a list or bitmap default instead of sharing one instance
-    - Fix: A nullable field the active features make mandatory holds `null` when a write omits it, where a field made mandatory by a feature expression previously stayed absent
-    - Fix: A write that names an inherited property, such as `__proto__` or `toString`, is refused like any other property the cluster does not declare; `__proto__` previously replaced the prototype of the value being written
-    - Fix: `ClientStructure.applyWireChanges` applies the change it is given. A client node keys each member of a cluster by attribute ID, and a change from the remote API addresses members by property name, so values landed under a key reads were never served from: the update was invisible and never persisted. Values now convert as the change is applied
-    - Fix: `ClientStructure.applyWireChanges` regenerates a behavior whose cluster definition changed and prunes attributes the cluster dropped, as the Matter protocol path already did
-    - Fix: Validation honors the conformance and quality an element inherits, so an element overridden by an operational extension is no longer judged as if it stated neither
-    - Fix: A write from local code that adds an entry to a fabric-scoped list without a `fabricIndex` now fails validation instead of storing an entry that belongs to no fabric. Writes from a peer are unaffected — the accessing fabric is supplied for them
-    - Fix: Assigning a whole list to a fabric-scoped attribute that held none merges through the managed list, so its entries are fabric-filtered and carry the accessing fabric; it previously bypassed both
-    - Fix: A `ConformanceError` names the conformance the decision was made on rather than the element's own
-    - Fix: A mandatory command a cluster leaves unimplemented is no longer dispatched; an invoke answers `UNSUPPORTED_COMMAND`, matching what the cluster advertises in `AcceptedCommandList`
-    - Fix: A discovered peer cluster records the `ClusterRevision` the peer reports rather than the standard cluster's, and peers differing only in revision no longer share a behavior
-    - Fix: (@lboue) `DoorLockServer` denies a `WeekDayScheduleUser`, `YearDayScheduleUser` or `ScheduleRestrictedUser` outside its schedules, and when it has none
-    - Fix: (@lboue) `DoorLockServer` disables a user of type `ExpiringUser` once `ExpiringUserTimeout` minutes have passed since its first use, also across a restart, and emits `LockUserChange`; it denies such a user while `ExpiringUserTimeout` is not set
-    - Breaking: Ensure that `DoorLockServer` refuses remote lock operations in the `Privacy` and `NoRemoteLockUnlock` operating modes, during a wrong-code lockout and for a `NonAccessUser`, and accepts only an `OperatingMode` that `SupportedOperatingModes` marks as supported
-    - Breaking: The `DoorLockServer` lock command handlers are `async`; an override must `await` its `super` call, and hardware belongs in `handleLockOperation`
-    - Fix: Ensure that `DoorLockServer` disables a `DisposableUser` after it unlocks once, reports `ForcedUser` operations with the `ForcedUser` alarm, counts an omitted required PIN as a wrong code and reports `UnboltDoor` as an `Unlock` to `Unlocked`
-    - Fix: Ensure that `DoorLockServer` emits `LockUserChange` for schedule changes and reports the affected user and index in its `LockUserChange` and `LockOperationError` events
-    - Feature: Ensure that a lock implementation can drive its hardware by overriding `DoorLockServer.handleLockOperation` and report a failure reason with `LockOperationFailedError`
-
-- @matter/types
-    - Enhancement: `hasNumberTlvMapping()` states whether a model's integer or bitmap width has a TLV codec. Generation uses it to refuse a model that declares a width with none, rather than letting the width reach an invoke or write and throw there
-    - Breaking: A property whose name contains a pluralised acronym is now camelised the way the singular already was, so `tariffComponentIDs` is `tariffComponentIds`. Eight properties are renamed: `tariffComponentIDs`, `dayEntryIDs`, `dayPatternIDs`, `uniqueLocationIDs`, `uniqueLocationIDsLastEdit`, `groupKeySetIDs`, `messageIDs` and `activeMessageIDs`
-    - Fix: A `status` field in a cluster that defines its own status codes is now `Status | <Cluster>.StatusCode`, so producing a cluster-specific code needs no cast and consuming one needs narrowing. This affects `DoorLock.SetCredentialResponse` and the DoorLock schedule responses
-
-- @matter/protocol
-    - Fix: A peer that negotiates zero paths per invoke is treated as accepting one path; invoking a command on such a peer previously exhausted the heap and crashed the process
-    - Enhancement: `SessionManager` refuses a local `maxPathsPerInvoke` below one, on construction and via `sessionParameters`
-    - Enhancement: A group message's log line names the port beside the multicast address it went to, in the usual IPv6 form (`dest: [ff35:40:…]:5540`)
-    - Fix: A command whose payload does not match the command's schema is answered with `INVALID_COMMAND` instead of `FAILURE`
-    - Fix: `UpdateFabricLabel` accepts an empty label, as the specification's `max 32` constraint sets no minimum; it previously failed the command
-    - Enhancement: An interaction can be abandoned by the caller: `ClientRequest.abort` takes an `AbortSignal`, honored for read, write, invoke and subscribe
-    - Fix: An error escaping a command handler with no defined status code answers that command with `FAILURE` inside the `InvokeResponse` instead of terminating the message with a status response, so the other commands of a batch invoke keep their results. Under `SuppressResponse` such a command now sends no response at all, as for any other generated status
-    - Fix: A device that returns an empty or malformed DAC, PAI, attestation elements or Certification Declaration during commissioning now fails attestation with a finding that names the unreadable field, instead of an opaque decoder message
-    - Fix: A certificate extension matter.js does not interpret is no longer decoded, so a proprietary extension can no longer fail the whole certificate; an extension matter.js does read is rejected with a `CertificateError` when its value is missing
-
-- @project-chip/matter.js
-    - Enhancement: `InteractionClient`'s read, write, invoke and subscribe options take an `abort` signal, forwarded to the interaction
-    - Fix: `InteractionClient.setAttribute()` and `setMultipleAttributes()` send a timed write only when the caller asks for one or an attribute requires it; every write was sent as a timed write, so every group write failed
-
-- @matter/general
-    - Fix: A worker cancelled while it was still starting is no longer closed once the runtime has taken on work again
-    - Fix: A worker cancelled more than once while it was still starting is closed once rather than once per cancellation
-    - Fix: `deepCopy` copies a `Date` as a `Date` rather than an empty object
-    - Fix: A log destination that throws no longer propagates the failure into the code that logged; the remaining destinations still receive the message and the broken destination is reported once
-    - Fix: `DataReader` throws `DataReadError` when a read would pass the end of the buffer; `readByteArray` and `readUtf8String` no longer return short data
-    - Fix: `DerCodec.decode` reports truncated input as `DerError` instead of a `RangeError`, and rejects a length that overflows or uses the indefinite-length encoding instead of decoding a value as present and empty
-    - Fix: One unreadable record in an mDNS message no longer discards the whole message
-    - Enhancement: `Transaction.lock()` takes an exclusive lock on resources without a promise where they are free, and waits instead of throwing where another transaction holds them
-    - Breaking: `DnssdNames.Context.goodbyeProtectionWindow` and `DnssdNames.defaults.goodbyeProtectionWindow` are now `evictionDelay`, and `DnssdName.deleteRecord` no longer takes an `ifOlderThan` argument
-    - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors
-    - Enhancement: A storage driver states how long a consumer may buffer dirty values via `StorageDriver.writeCoalescingInterval`, defaulting to 20 minutes; `MemoryStorageDriver` reports `Instant`
-    - Enhancement: `Transaction.Participant` gains `settled()`, invoked once after every participant's pre-commit reports no further mutation and before any of them writes; throwing there rejects the commit, and writes and further participants are refused while it runs
-    - Enhancement: `Transaction.Participant` gains `conclusion(outcome)`, which runs once per commit cycle or rollback — including the commit phase two failure that skips both `postCommit` and `rollback` — and states whether the transaction committed, rolled back, or ended inconsistent; it runs with the transaction's locks released and further writes refused
-    - Fix: A post-commit handler that rejects no longer detaches the remaining participants' post-commit work from the transaction
-    - Adjustment: `postCommit` and the new `conclusion` reach the participants commit phase two dispatched, so a participant that joins while its values are written — as a store does — is now told the outcome; one that joins after phase two has passed it is not, having run no phase at all
-    - Adjustment: A rollback completes once its participants have been told the outcome; where a participant reports asynchronously, a rollback that failed now rejects instead of throwing synchronously
-    - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
-    - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
-    - Fix: DNS-SD honors a goodbye that arrives shortly after the same record was re-announced
-    - Fix: DNS-SD honors the mDNS cache-flush bit
-    - Fix: DNS-SD resolution queries A/AAAA for the SRV target host instead of the service instance name
-    - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
-
-- @matter/model
-    - Fix: A constraint that names a bound held by another element, written `<Element>.<Field>`, now applies that bound instead of accepting every value. This enforces `OccupancySensing.HoldTime`, `AmbientContextSensing.HoldTime` and `SoilMeasurement.SoilMoistureMeasuredValue` against their declared limits, on client writes, on assignment and on the stored value at startup
-    - Fix: A constraint that bounds a value to named values of its own enumeration, such as the `add, modify` of a door lock's operation type, states those values rather than names that resolve to nothing, so `EncodedConstraint()` now reports the bound the specification states. Validating such a field does not yet apply the bound
-    - Enhancement: Model validation reports a constraint that names an element which does not resolve, since such a bound is silently skipped and the value accepted unchecked
-    - Fix: A constraint of `any` or `MS`, neither of which the constraint language defines, states no bound rather than a bound naming a value that does not exist, and the fields that carried one no longer state a constraint at all
-    - Fix: `JointFabricDatastore.DatastoreAccessControlEntryStruct` states its `Subjects` and `Targets` as unbounded; they were bounded by attributes of the `AccessControl` cluster, which a constraint cannot reach, so the bound never applied
-    - Enhancement: `StoredDefaultValue()` states the default a value store holds for a member, beside the existing `SelectDefaultValue()` and `MandatoryDefaultValue()`
-    - Fix: Conformance applicability reports a term that compares a value as conditional rather than optional, so an element the record's own contents decide is no longer treated as mandatory when the features around the comparison are supported
-    - Enhancement: `ClusterModel.statusCodes` gives the cluster's own status code definition, inherited by a derived cluster like the other member accessors
-    - Fix: TemperatureMeasurement's MinMeasuredValue and MaxMeasuredValue now default to `null` ("range unavailable"), like the other measurement clusters, instead of -27315 and 32767, and carry the constraints the specification states rather than hand-written ones
-    - Fix: A device type requiring several instances of one component, such as `BatteryStorage` with two electrical sensors and two power sources, no longer reports each instance as a duplicate of the others
-    - Enhancement: The model build reports an instance number stated on a requirement other than a component device type, where the specification numbers nothing
-    - Enhancement: A model element's `extend()` can remove an inherited quality, stated as `!N` in the quality definition; the removal survives further extension, and a definition that extends one carrying a removal may state the quality again
-    - Fix: A quality definition given as an array of flags, such as `["N", "T"]`, loads those flags instead of reading as empty
-    - Fix: A quality states which of its flags are not qualities, so a definition another rewrites still carries the flags it could not parse and the errors they raise
-    - Fix: A value whose type derives from an enum, as a status code does, is judged by the integer type that holds it, so the numeric definition rules no longer skip it and a scene-capable attribute of such a type is no longer refused
-    - Breaking: A provisional element is no longer mandatory; conformance following a `P` describes the conformance intended once the element leaves provisional state
-    - Enhancement: `FeatureSelectionErrors()` assesses a cluster's selected features against the combinations its FeatureMap conformance disallows
-    - Enhancement: `FeatureSet.resolve()` resolves a feature short code, title or camelized title to a short code
-    - Enhancement: New `EncodedConstraint()` restates every bound of a constraint in the units the value is encoded in
-    - Enhancement: New `EncodedConstraint.bounds()` reports which of a constraint's bounds state a number in encoding units and which state a unit with no known scale
-    - Fix: The model build rejects a value stating a unit with no known scale, a fraction an integer type cannot hold, or a negative an unsigned type cannot hold
-    - Fix: The model build rejects a bound or default stating a number outside the range of the integer type that carries it, such as the `300` of a `0 to 300` constraint on a `uint8`
-    - Fix: The model build rejects a bound or default stating a magnitude beyond the range of the float type that carries it, such as the `1e300` of a `single`
-    - Fix: A constraint bound keeps the magnitude it states: the parser accumulated digits as a number, so `max 18446744073709551615` became 18446744073709552000 and a `uint64` bound admitted values above the type. A bound a number cannot state exactly is now a bigint
-    - Fix: A bitmap or enum value states its magnitude exactly, so a `map64` value no longer loses precision passing through `FieldValue.cast()`
-    - Breaking: `FieldValue.numericValue()` returns a `bigint` for a magnitude a number cannot state exactly, so a 64 bit bound and default keep what they say. `FieldValue.countValue()` is the number-valued form, for a length, a bit position or a count
-    - Fix: `Metatype.cast()` to a float reads a number stated as text instead of refusing it
-    - Fix: A default stating a number no integer form matches, such as `1e-3`, is rejected instead of stored as the digits preceding the exponent
-    - Fix: `FieldValue.cast()` treats "no value" as a value of every type, so an override removes a default rather than making the value invalid
-    - Fix: A rejected default is reported as the value it states and the type that rejected it
-    - Fix: `FieldValue.cast()` reads a duration, which it previously rejected whatever the value stated
-    - Fix: `ValidateModel()` no longer writes a normalized default to a final model, which threw because a final model is frozen; it reports on such a model without normalizing it
-    - Fix: A percentage on a type other than `percent` or `percent100ths` no longer resolves to the printed number as though it were already encoded
-    - Fix: A constraint bound's unit takes its scale from the types the value derives from, not from its own type name alone
-    - Enhancement: New `Scope.isMandatory()` tells whether a member is mandatory under a schema's supported features, and the new `MandatoryDefaultValue()` computes the value such a member assumes when no real value exists (schema default, else the specification's fallback value, recursing into structs) — the basis for what an unreported client node attribute reads, usable wherever schema-derived fallback values are needed; `SelectDefaultValue()` exposes the shallow variant used for server state seeding
-    - Fix: A cluster's feature table no longer selects features; a feature the specification makes unconditionally mandatory is always selected
-    - Fix: Feature selection records against `operationalIsSupported` so a feature's `default` conveys only the specification's fallback value
-    - Fix: A feature mandated by any of several alternatives, such as `DoorLock.User`, is now reported as required
-    - Fix: A feature conformance that is a bracketed disjunction, such as `[VDO | SNP]`, is illegal only when none of its alternatives is selected
-    - Fix: A choice set whose members are gated on a conformance expression, such as `[!PA].a` or `[PS].b`, requires a selection only where the gate admits a member, and rejects a member the gate excludes
-    - Fix: An entry of an otherwise conformance applies only where the entries preceding it do not, and a feature is disallowed where no entry applies
-    - Fix: A choice set whose members are all provisional, such as the `Groupcast` and `AmbientContextSensing` feature sets, no longer requires a selection
-    - Fix: A boolean whose specification default is `0` now defaults to false instead of true
-    - Fix: A fractional temperature or percentage default keeps its fraction
-    - Fix: The bits of a bitmap carry the conformance the specification states for them
-    - Fix: An event of a derived cluster takes the priority of the event it derives from
-    - Fix: A derived cluster's changes to the fields of an inherited struct now apply correctly
-    - Fix: An element whose access states a privilege but neither read nor write, such as `JointFabricAdministrator.AdministratorFabricIndex`, is read-only (but formally Spec-incompliant)
-    - Fix: A constraint that bounds a value by a field named like a constraint keyword, such as the `Min` of ClosureDimension's range structs, survives serialization
-
-- @matter/node
-    - Fix: `Stop` and `StopWithOnOff` set `RemainingTime` to zero and report it, including where the application manages transitions and stated an end time
-    - Fix: `StopMoveStep` and `MoveColor` with both rates zero set Color Control's `RemainingTime` to zero and report it, and clear the end time stated where the application manages transitions. `StopMoveStep` leaves the remaining time alone while a color loop runs, since a color loop ends only on `ColorLoopSet`
-    - Fix: A Color Control color mode switch no longer discards the promise from `stopAllColorMovement()`, so an asynchronous override of it completes before the color values are converted
-    - Breaking: The `transitionEndTimeMs` state field on `LevelControlServer` and `ColorControlServer` is now `transitionEndTime`, a `Timestamp`; the value is unchanged but the name and type are not
-    - Fix: `MoveToLevelWithOnOff`, `MoveWithOnOff` and `StepWithOnOff` build their options from the Options attribute and the request's mask and override, so `CoupleColorTempToLevel` couples color temperature to the level for them as it already did for `MoveToLevel`, `Move` and `Step`
-    - Fix: `StopWithOnOff` stops a transition on a device that is off; the ExecuteIfOff option gates the commands without On/Off only
-    - Fix: `MoveWithOnOff` and `StepWithOnOff` turn the device off when the level they reach is the minimum, and leave a device that is off alone when the level moves down
-    - Fix: A level change that couples On/Off or color temperature waits for a transaction holding those clusters instead of failing
-    - Behavior: `LevelControlServer.couple()` takes the target level as a third argument, which is what decides whether the device turns off; an override that omits it loses that decision
-    - Breaking: Default server exports no longer inherit the features their base implementation enables internally.
-        - `ColorControlServer`, `DoorLockServer`, `ElectricalEnergyMeasurementServer`, `LevelControlServer`, `ModeSelectServer`, `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer` and `WindowCoveringServer` now select no features. Select the features your device supports with `.with(...)` or use the DeviceType specific Requirement definitions of these clusters which automatically enable the needed features for the device type
-        - `PowerSourceServer`, `PowerTopologyServer`, `SmokeCoAlarmServer`, `SwitchServer`, `ThermostatServer`, `WindowCoveringServer` and `ElectricalEnergyMeasurementServer` now require a selection to be added to an endpoint at all. The `DoorLockDevice`, `SpeakerDevice` and `ModeSelectDevice` device types alias these exports, so their clusters also select no features and advertise a different FeatureMap.
-        - Verify the feature set of every device you compose. Persisted cluster state resets once for affected devices because it is keyed by feature selection
-    - Breaking: `Discovery.Options.scannerFilter` is removed; state the transports to discover on with `discoveryCapabilities`
-    - Breaking: `discoveryCapabilities` moved from `CommissioningClient.CommissioningOptions` to `Discovery.Options`; it reaches discovery through `ServerNode.peers.commission()` and `peers.discover()`, and never had an effect on `ClientNode.commission()`. Code that declares its commissioning options as `CommissioningClient.CommissioningOptions` and sets `discoveryCapabilities` no longer compiles - declare them as `CommissioningDiscovery.Options` instead
-    - Breaking: A LongIdleTimeSupport ICD must select CheckInProtocolSupport and UserActiveModeTrigger
-    - Breaking: A node that accepts more than one path per invoke must select the General Diagnostics DataModelTest feature
-    - Breaking: An unreported client node attribute reads its schema default, else the specification's fallback value for its type, when the attribute is mandatory under the peer's supported features, and `undefined` otherwise — regardless of the peer's AttributeList (an enum attribute reads `undefined`, as the specification defines its fallback as manufacturer-specific). The value is a detached copy, so mutating a struct or list read from an unreported attribute does not write through
-    - Breaking: Configured options, environment variables, and state-class field initializers no longer seed a client node's cluster state; the peer's reports are the only source of values
-    - Breaking: Adding a server cluster to an endpoint fails when its selected features violate the conformance of its FeatureMap
-    - Breaking: A local write or invoke rejects a bitmap bit whose conformance the cluster's selected features do not satisfy, wherever the bitmap appears — an attribute, a command field, a struct member or an event field. So `LevelControl.Options.ExecuteIfOff` (also as the `optionsMask` or `optionsOverride` of `MoveToLevel`, `Move`, `Step` and `Stop`) needs Lighting or OnOff, a `ColorControl.ColorCapabilities` bit needs its color feature, a `WindowCovering.ConfigStatus` position or encoder bit needs the matching position-aware feature, `Thermostat.RemoteSensing.Occupancy` needs Occupancy, a closure's latch control mode needs Latching, and a `Messages.MessageControl` bit needs its messaging feature. Only a bit the value sets is judged, only what the conformance decides without a record around it, and a write or invoke carrying a remote subject stays permissive
-    - Breaking: Provisional elements are no longer implemented by default; supply a state value or use `ClusterBehavior.enable()` to implement one
-    - Breaking: `SoftwareUpdateManager.addUpdateConsent()` and `forceUpdate()` take the update as an object instead of three positional arguments, so it can carry per-update options
-    - Breaking: Ensure that changing any attribute of a client node sends a write to the peer; an attribute the peer's cluster type cannot express, including the global attributes, is declined locally with `UnsupportedWrite` or `UnsupportedAttribute`
-    - Breaking: A commissionable advertisement stating vendor or product ID 0 now reports it absent (undefined)
-    - Removed: `StructManager.assertDirectReadAuthorized()` and the direct-read authorization it backed, unused since the legacy cluster API was dropped
-    - Deprecation: `ClientNodeInteraction.localStateFor()` is scheduled for removal in 0.19 together with the legacy controller API
-    - Feature: Added `ServerNode.peers.commissioned` returning the commissioned `ClientNode`s
-    - Feature: Added `ClientNode.disable()`/`enable()` to persistently disable/enable a commissioned peer
-    - Feature: Added a `ClientNode` connection-state engine — `lifecycle.connectionState`/`connectionStateChanged`/`isConnected` and the `NodeConnectionState` enum
-    - Feature: Added `ClientNodeLifecycle.isSeeded` and the `seeded` event, indicating a peer node's structure has been read from the device at least once
-    - Feature: Added `Behaviors.forCluster(clusterId)` to resolve a cluster behavior type by numeric cluster id
-    - Feature: A behavior reports an attribute it computes on read via the new protected `Behavior.markChanged()`
-    - Feature: Added `openBasicCommissioningWindow`/`openEnhancedCommissioningWindow` on `CommissioningClient`/`ClientNode` to open a commissioning window on a commissioned peer
-    - Feature: Added split/delegated commissioning — `CommissioningClient.CommissioningOptions.finalizeCommissioning` plus `ServerNode.peers.completeCommissioning(nodeId, discoveryData?, options?)`
-    - Feature: Added `NetworkServer.autoStartCommissionedPeers` (default true) to opt out of auto-starting commissioned peers when the node goes online
-    - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it
-    - Enhancement: `SoftwareUpdateManager` caps the BDX block size for OTA transfers via `maxBdxBlockSize` and overrides their MRP retransmission margin via `bdxAdditionalMrpDelay`, either generally in its state or per update when giving consent
-    - Enhancement: `network.profiles` accepts `bdxAdditionalMrpDelay`
-    - Enhancement: A node's commissioning state records the `hostname` the device's SRV record names, alongside its addresses
-    - Enhancement: Discovery reports at notice level, naming an installed BLE scanner it was not asked to use, and reports a discovery that asks for BLE where BLE is not enabled
-    - Enhancement: Discovery warns where no scanner takes part in it at all
-    - Enhancement: `Discovery.Options` accepts `discoveryCapabilities` to select the transports to discover on, so a caller no longer builds a `scannerFilter` for it
-    - Adjustment: A node with commissioning disabled (e.g. a controller) now binds an ephemeral operational port instead of the standard Matter port (5540) when `NetworkServer.port` is unset; commissionable nodes still default to 5540 and an explicit port is always honored
-    - Adjustment: A device commissioning passes over because its advertised vendor or product contradicts the onboarding payload is reported at notice level
-    - Adjustment: A commissioned peer's fabric label is new reconciled to the controller's once after its subscription is first established on start by `ClientNode`
-    - Adjustment: `NetworkServer.State.clientCacheFlushInterval` defaults to the storage driver's `writeCoalescingInterval` instead of a fixed 20 minutes; set it to `Instant` to persist every change immediately
-    - Adjustment: A `SoftwareUpdateManager.State.announcementInterval` of `Instant` disables OTA provider announcements
-    - Fix: A constraint whose bound carries a unit, such as the `0.01% to 100.00%` of a `percent100ths` value, is enforced in the units the value is encoded in
-    - Fix: A window covering with no Lift feature no longer states a lift movement direction in `ConfigStatus`
-    - Fix: Struct validation resolves a member stored under its TLV tag number, so a constraint violation there is caught and a mandatory member present only at its id no longer raises a conformance error
-    - Fix: `Thermostat.Presets` reports to subscribers and advances the cluster's data version when the presets change
-    - Fix: A local write of `Thermostat.Presets` is stored instead of silently discarded, and an invalid one rejects the caller's write
-    - Fix: `Thermostat.Presets` is validated and staged for an atomic write on every endpoint that selects the Presets feature, not only where the application passed a `presets` value; presets such an endpoint stored before are ignored
-    - Fix: A preset write is refused for referencing the active preset only when it removes that preset; a thermostat starting with an `ActivePresetHandle` that names no preset stores null instead of refusing to start
-    - Fix: A preset write that would store a preset without a handle is refused, including where an application observer removed the handle the thermostat issued
-    - Fix: A preset handle the thermostat generates is persisted, so it still addresses the preset after a restart
-    - Fix: Two presets sharing a scenario and carrying no name are refused on an atomic write, as they already were on a local one
-    - Fix: A state class serving an attribute from an accessor sees the values of the writing transaction
-    - Fix: A write refused by pre-commit validation is announced again when the same value is written a second time on one transaction
-    - Fix: A report for a quieter attribute a behavior computes on read carries an advanced cluster data version, so a subscription no longer discards it as one it already has
-    - Fix: `LevelControl.RemainingTime` and `ColorControl.RemainingTime` report the time left in a transition; the attribute read 0 on any endpoint whose application did not itself pass a `remainingTime` value
-    - Fix: `endpoints.size` no longer double-counts the root endpoint
-    - Fix: The log line for an opened commissioning window states the timeout as a duration, not as a millisecond count labelled seconds
-    - Fix: A commissioned peer's connection state leaves `Connected` as soon as its last operational session is lost
-    - Fix: `ChangeNotificationService` event occurrences carry a `timestampKind` naming which of the four wire variants the timestamp is (`epoch`, `system`, `epoch-delta`, `system-delta`), so a consumer forwarding an event no longer has to guess its clock or whether it is absolute or a delta from the previous event
-    - Fix: `IdentifyServer` no longer offers the optional `TriggerEffect` command unless the device type requires it, an own command implementation has been added via an override or suppression is disabled; `IdentifyServer.enable({ commands: { triggerEffect: true } })`, `IdentifyServer.alter({ commands: { triggerEffect: { optional: false } } })` and an override of `suppressTriggerEffect()` also offer it
-    - Fix: `ClusterBehavior.with()` rejects a feature the cluster does not define
-    - Fix: Client node values persisted under property names by earlier versions are migrated to their attribute id on load, so they stay readable
-    - Fix: Writing a fabric-scoped list entry that stems from a cluster whose schema could not be resolved no longer produces two conflicting fabricIndex fields
-    - Fix: A rejected write to an attribute served by dynamic properties restores the previous value instead of deleting the property, and a rejected write to a previously absent attribute leaves no slot behind instead of one holding `undefined`
-    - Fix: Factory reset removes commissioned peers and the certificate authority's key material; a peer that cannot be torn down no longer blocks the reset
-    - Fix: A client node's storage metadata no longer surfaces as state: a peer report that only bumps the data version emits no change notification, and `__version__` no longer appears among the changed properties or in cluster state
-    - Fix: A peer that cannot be loaded, such as one whose fabric is missing locally, is reported with its actual cause instead of escaping as an unhandled rejection
-    - Fix: Commissioning passes over a discovered device whose advertised vendor or product ID disagrees with the onboarding payload's
-    - Fix: A level change that couples to On/Off no longer leaves the coupling blocked when its transaction rolls back
-    - Fix: A cluster's feature selection is recorded as persisted only once the store accepted the values it travels with, so a failed write no longer leaves a later feature change undetected
-    - Fix: Validating a state class that serves properties dynamically passes it the endpoint, as every other caller does
-    - Fix: A peer that reports a cluster ID outside the ranges the specification allows no longer fails node initialization
-    - Adjustment: A hosted cluster's cluster, attribute, command and event IDs are validated when its server behavior initializes on an endpoint, for every cluster behavior however it is defined; a peer's or client's IDs stay as reported
-    - Fix: Two peer clusters whose attribute or command IDs differ by 32 no longer share one generated behavior
-
-- @matter/matter.js
-    - Adjustment: The duplicate "BLE is not enabled" log lines are gone; a node reports missing BLE support once, where it decides on it
-
-- @matter/nodejs
-    - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument; clearing is handled by `StorageService`
-    - Adjustment: `SqliteStorageDriver` and `JsonFileStorageDriver` report a `writeCoalescingInterval` of `Instant`, so client cache data is no longer held back for 20 minutes on these drivers
-    - Fix: Ensure that `--storage-clear`/`MATTER_STORAGE_CLEAR` is honored again and clears the storage on start
-
-- @matter/nodejs-ble
-    - Enhancement: Waiting for the Bluetooth adapter to power on before scanning or advertising is reported at notice level, naming what to check, and its start is reported once the adapter is up
-    - Fix: A connection attempt that BLE reports as failed is retried instead of failing commissioning on the first try
-    - Fix: A peripheral whose connection attempt failed is no longer rejected as unusable for the lifetime of the process
-    - Fix: Giving up on a peripheral reports the last connection failure as cause
-    - Fix: A disconnect that never completes no longer leaves the channel request pending forever
-    - Fix: Aborting a BLE connection attempt now stops its retries and releases a link the attempt already established
-    - Fix: A peripheral that completes the BTP handshake but then never responds to data is retried once with the minimum BTP segment size instead of failing commissioning
-    - Fix: A pending ATT_MTU exchange is awaited briefly, so a late MTU no longer pins the BTP segment size to the minimum
-    - Fix: Opening a BLE channel no longer waits beyond the handshake timeout or an abort when the handshake write or subscribe never completes
-    - Fix: Stopping an advertisement that was still waiting for the Bluetooth adapter retracts it, so the adapter powering on no longer starts an advertisement that was already given up on
-    - Fix: Shutdown no longer hangs when Bluetooth is enabled but no adapter is usable; the Bluetooth driver is now always stopped, which releases the handle that kept the process alive
+    - Enhancement: `NobleBleClient` reports its actual scan time as `BleScannerClient.listeningTime`
+    - Fix: Failed BLE connection attempts are retried, an abort stops the retries, and a stalled peer is retried with the minimum BTP segment size
+    - Fix: Scans restart once the adapter powers on, and scans and advertisements no longer wanted are stopped
+    - Fix: Shutdown no longer hangs when no Bluetooth adapter is usable
 
 - @matter/nodejs-shell
-    - Fix: A cluster whose ID lies outside the ranges the specification allows is addressable instead of raising an error
-    - Feature: Added `--cleanup-legacy-storage` to irreversibly remove the leftover pre-0.16 storage artifacts once they have been migrated to the current format
-    - Fix: Attribute changes log one line per attribute, naming the attribute, instead of one line per cluster report carrying every changed attribute of that report
-    - Fix: Attribute, event and connection-state log lines are recognized by the web UI again, so node tiles and device values update; event lines name the peer and render their timestamp according to the wire variant the device sent
+    - Feature: Added `--cleanup-legacy-storage` to remove leftover pre-0.16 storage artifacts
+    - Fix: Attribute changes log one line per attribute, and the web UI recognizes attribute, event and connection-state lines again
+    - Fix: Clusters with IDs outside the allowed ranges are addressable
 
 - @matter/protocol
-    - Deprecation: The legacy `DecodedDataReport` / `Decoded{Attribute,Event}Report*` types and the `normalize*` / `normalizeAndDecode*` helpers now announce removal in 0.19 instead of 0.18
-    - Deprecation: The legacy `ClusterType` command request surface (`Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand`) and `SessionManager.owner` are scheduled for removal in 0.19
-    - Enhancement: Network profiles accept a separate `bdxAdditionalMrpDelay` for bulk transfer, defaulting to the profile's messaging margin
-    - Enhancement: New `CertificateAuthority.erase()` discards the authority's key material, persisted and in memory
-    - Enhancement: A discovered commissionable device reports the `hostname` its SRV record names
-    - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it; defaults to the previous fixed 4m15s
-    - Breaking: `BtpSessionHandler.createAsCentral()` requires the segment size offered in the handshake request and rejects an invalid one with `ImplementationError`
-    - Enhancement: `BtpSessionHandler.stalledAfterHandshake` reports a peer that answers the handshake and then nothing else, carrying the messages it never acknowledged
-    - Enhancement: New `BtpSessionHandler.suspend()` ends a BTP session without closing the BLE connection
-    - Enhancement: New `BtpCodec.isHandshakeResponse()` identifies a BTP handshake response without a session to decode against
-    - Fix: A central BTP session never uses a segment size larger than the one it offered
-    - Fix: A failed write to the BLE transport closes the BTP session
-    - Fix: Cancelling BLE commissioning aborts the in-flight channel open
-    - Fix: A concrete subscription path is reported only when that attribute changed; it was previously reported whenever any other attribute of the same cluster changed
-    - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves
-    - Fix: mDNS advertisements set the cache-flush bit on the SRV, TXT and address records unique to the node
-    - Fix: mDNS known-answer suppression compares what identifies a record
-    - Fix: mDNS known-answer suppression only applies while more than half the known answer's lifetime remains
-    - Fix: an mDNS response drops the cache-flush bit where it no longer carries the whole record set
-    - Fix: a unicast mDNS response does not carry the cache-flush bit
+    - Breaking: Outgoing group messages use message privacy; matter.js based devices <0.18 will not receive them
+    - Breaking: Received group messages are decrypted only with key sets mapped in the GroupKeyMap
+    - Breaking: Sending a group message without a usable key fails with `NoUsableGroupKeyError` (`GroupKeySetMissingError` or `GroupKeyNotStartedError`)
+    - Breaking: `DclClient` maps DCL records to their schema types (empty values become `undefined`, `otaFileSize` is a `bigint`) and ignores records with unsupported schema versions
+    - Deprecation: The legacy `DecodedDataReport` types and `normalize*` helpers, `Invoke.LegacyCommandRequest`, `Specifier.ClusterTypeCommand` and `SessionManager.owner` will be removed in 0.19
+    - Feature: Groupcast support (Matter 1.6.1) for multicast group sessions
+    - Feature: `DclClient.fetchComplianceInfo()` reads a software version's compliance record, used by OTA update checks
+    - Feature: PASE throws `PasscodeMismatchError` on a wrong passcode to allow better user guidance
+    - Enhancement: Interactions can be aborted via `ClientRequest.abort`
+    - Enhancement: `ClientRequest.largeMessage` requires a TCP-backed session for any interaction
+    - Enhancement: `DclCertificateService` can run `offline` and accepts extra revocation information (`installRevocations()`, `revocations`)
+    - Enhancement: A custom `BleScannerClient` may report `listeningTime` and `isPeripheralReachable()`, so stale or unreachable peripherals are not offered for commissioning
+    - Enhancement: Network profiles can define BDX transfer delays separately via `bdxAdditionalMrpDelay`
+    - Adjustment: `DclVendorInfo` is a deprecated alias of `VendorDclSchema`
+    - Fix: Commissioning tries addresses in ranked order and once each, moves on faster, and stops on a wrong passcode
+    - Fix: Commissioning continues when the device rejects or does not answer ScanNetworks
+    - Fix: The commissioning PASE session stays open on a missing response and is closed on every commissioning exit
+    - Fix: PASE validates PBKDF parameters and message contents
+    - Fix: New PASE and CASE sessions never use local session ID 0
+    - Fix: The failsafe re-arm during BLE commissioning no longer shortens a longer failsafe
+    - Fix: BLE discovery shares one scan, handles timeouts, forgets stale or just-commissioned devices and offers only reachable ones
+    - Fix: BTP sessions respect the offered segment size, close on write failures and abort on cancel
+    - Fix: A controller resubscribes at once on any message from a LIT ICD peer
+    - Fix: A controller re-subscribes after a peer reboot instead of trusting reports flushed during shutdown
+    - Fix: Subscription liveness, session activity and reachability probes use the monotonic clock
+    - Fix: A node advertises one DNS-SD host name, sets the mDNS cache-flush bit correctly, and applies known-answer suppression as specified
+    - Fix: A node can start after mDNS failed to open its socket, and the process can exit after all nodes closed
+    - Fix: Event stores never reuse event numbers across restarts
+    - Fix: The DCL certificate service authenticates CRLs before using them, combines all distribution points, and skips malformed records
+    - Fix: Certificates with mismatching signature algorithms are rejected, proprietary extensions no longer fail parsing, and malformed attestation data fails with a clear finding
+    - Fix: A server sends no response under SuppressResponse, answers schema mismatches with `INVALID_COMMAND`, and answers handler errors with `FAILURE` per command
+    - Fix: `UpdateFabricLabel` accepts an empty label
+    - Fix: Prevents a crash when a peer negotiates zero paths per invoke; `SessionManager` refuses a local `maxPathsPerInvoke` below one
+    - Fix: `maxIntervalCeiling` is sent as requested
+    - Fix: `Noc.verify()`, `FailsafeContext.buildFabric()` and `FabricAuthority.createFabric()` validate node ID, CAT version and vendor ID
+    - Fix: `ConstraintError` names the violated constraint
+    - Fix: A CASE pairing failure reaches the caller
 
 - @matter/react-native
-    - Fix: Ensure that `ReactNativeBle.scanner` returns one `BleScanner`, so the scanner the controller uses keeps receiving advertisements
-    - Fix: The `storage.clear` variable now clears the storage on start as it does on Node.js
-
-- @matter/types
-    - Adjustment: `ClusterType()` no longer validates the cluster ID of the model it is given
-    - Breaking: `ModelBounds.createNumberBounds()` states a bound as a `bigint` where it lies beyond the safe integers, and states both `min` and `max` where it previously omitted an absent bound; `createLengthBounds()` still states a number, as a length counts what a message can carry
-    - Breaking: `TlvNumericSchema.bound()` states the base type of the schema it bounds in `baseTypeMin` and `baseTypeMax`, where it previously stated the bound; the bound is stated by `min` and `max`. The class gains a protected `constrain()`
-    - Breaking: A bounded 64 bit schema states its datatype again, so a legacy `ClusterType()` cluster derives the type and constraint of such an attribute instead of neither, and enforces a range it previously left open
-    - Fix: A nullable 64 bit integer reserves the value that encodes null from its type rather than from its constraint, so it neither refuses the extreme its constraint states nor admits the sentinel. `ElectricalPowerMeasurement`'s `Frequency` and `PowerFactor` refused their own maximum and minimum
-    - Breaking: `TlvNumericSchema.bound()` refuses a bound stated as a number that the number holds only approximately, such as `9223372036854775807` on a `uint64`, which rounded to 2^63 and admitted a value above the stated maximum. State such a bound as a `bigint`
-    - Breaking: Provisional cluster elements are now typed as optional rather than always present
-    - Breaking: An onboarding payload's vendor and product ID are reported absent (undefined) where it states none instead of 0
-    - Feature: Added the `ClusterLookup` namespace for cluster/attribute/command/event name↔id resolution (optional `MatterModel` for custom clusters)
-    - Deprecation: The `ClusterType()` factory compat layer (`RetiredClusterType`, `RetiredElements`, the TLV `element` reverse mapping) is scheduled for removal in 0.19
-    - Deprecation: The generated `Cluster`, `Complete` and `<Name>Cluster` aliases and the `ClusterType.WithCompat` `with()` shim are scheduled for removal in 0.19
-    - Fix: `Cluster.with()` rejects a feature the cluster does not define and returns one frozen namespace per selection
-    - Fix: An onboarding payload carrying a vendor ID past the last test vendor, or a product ID of 0 beside a real vendor ID, is now rejected
-    - Fix: Fixes Base38 decoding which rejected payloads whose length was a multiple of three bytes
-    - Fix: A manual pairing code whose `VID_PID_PRESENT` bit disagrees with its length is now rejected
+    - Fix: `ReactNativeBle.scanner` returns the same `BleScanner` on every access
+    - Fix: `storage.clear` clears the storage on start
 
 - @matter/testing
-    - Enhancement: `certTest()` defines controller-side certification tests with per-step PICS gating, device-log expectations, and evidence recording; devices run as chip apps (docker or local binary) or matter.js test apps, selected via `MATTER_CERT_DEVICE`
-    - Enhancement: A cert test step can declare itself `notApplicable`, recording it as skipped with a reason instead of running it
-    - Enhancement: `PromptDrivenPythonTest` drives chip python test scripts that prompt for manual commissioning steps
-    - Enhancement: `matter-test`'s post-test clean-exit grace period is overridable via `MATTER_TEST_SHUTDOWN_TIMEOUT_MS`
-    - Enhancement: `MATTER_CHIP_BINS_SOURCE=cert-bins` selects project-chip's official `connectedhomeip/chip-cert-bins` binaries for the classic yaml/python tests and `chip-local` cert-test subjects
-    - Enhancement: A cert test's attached device/controller logs now carry a banner marking each step's start and end, alongside its verdict
-    - Enhancement: Certification controller tests run against a controller × device matrix, adding chip-tool as a second controller alongside matter.js's own
-    - Breaking: Removed the unused `PicsFile.Values` type; use `PicsValues`
-    - Enhancement: New `PicsFile.with()` returns a copy of a PICS file with values overridden
-    - Fix: `PromptDrivenPythonTest` now fails a run in which none of its prompt handlers fired, instead of trusting the script's own verdict
-    - Enhancement: A python-wrapped cert test's evidence attaches the script's own output alongside the controller log
-    - Fix: A composite `PicsSource` no longer patches the PICS file cached for its first source
-    - Fix: TC-SC-3.5 turns off `PICS_SDK_CI_ONLY` so the script prompts for commissioning instead of acting as its own commissioner, and drives whichever controller `MATTER_CERT_CONTROLLER` selects
-    - Enhancement: A cert test's controller reads and subscribes to events via `CertNodeApi.readEvents()`/`subscribeEvents()`, on both the matter.js and the chip-tool controller
-    - Enhancement: A cert test's controller sends an invoke or attribute write as a timed interaction via `CertNodeApi`'s `timedInteractionTimeoutMs`, on both the matter.js and the chip-tool controller
-    - Enhancement: A cert test's controller invokes several commands in one request via `CertNodeApi.invokeBatch()`, which reports each answer in arrival order
-    - Enhancement: `certTest()` accepts `appVariant` to run a variant of the device app CHIP builds as its own binary, such as `nlfaultinject`
-    - Enhancement: A cert test declares a cluster outside the Matter specification with the model annotations and `registerCertCustomCluster()`, and both controllers then address it
-    - Fix: A cert test's own PICS expression now gates the test, which previously only tinted its label in the report; a controller declares the client capabilities the device's PICS file cannot, and those overlay it
-    - Enhancement: `certTest()` accepts test-level `flavors`, skipping a test whose device cannot exist on the run's flavor before the device starts
-    - Enhancement: A cert test's controller commissions from a QR onboarding payload via `CommissioningTarget.qrPairingCode`, on both the matter.js and the chip-tool controller
+    - Feature: New certification test framework (`certTest()`) runs controller-side certification tests against chip and matter.js devices with matter.js and chip-tool controllers; see [Certification controller tests](support/chip-testing/README.md#certification-controller-tests-testcert)
+    - Feature: `MockTime.stepWallClock()` steps the wall clock without moving the monotonic clock
+    - Fix: `MockTime.resolve` holds virtual time during `Blob` reads and stops after a test timeout
+
+- @matter/types
+    - Breaking: Properties with a pluralised acronym are renamed, such as `tariffComponentIDs` to `tariffComponentIds` (eight properties)
+    - Breaking: Provisional cluster elements are typed as optional
+    - Breaking: Fields of an enum with a manufacturer range are typed `Enum | number`
+    - Breaking: The DCL schema types follow Matter 1.6.1 and the DCL REST field names
+    - Breaking: Color Control `coupleColorTempToLevelMinMireds` and `startUpColorTemperatureMireds` are mandatory with the `ColorTemperature` feature
+    - Breaking: Ambient Context Sensing semantic tag fields use `Semtag`
+    - Breaking: Onboarding payload vendor and product ID are `undefined` where not stated
+    - Deprecation: The `ClusterType()` compat layer and the generated `Cluster`, `Complete` and `<Name>Cluster` aliases will be removed in 0.19
+    - Feature: Added the `ClusterLookup` namespace for cluster element name/ID resolution
+    - Feature: Added `VendorId.isOperational()`, `CaseAuthenticatedTag.isValid()` and `NodeId.isValidCaseAuthenticatedTag()`
+    - Enhancement: ID validators name the legal range in their error message
+    - Adjustment: A legacy `ClusterType()` cluster enforces the bounds of 64-bit attributes
+    - Fix: A cluster-specific `status` field is typed `Status | <Cluster>.StatusCode`
+    - Fix: ID validators refuse values that are not 32-bit unsigned integers
+    - Fix: Bitmap classes apply member defaults and full member widths
+    - Fix: TLV schemas carry computed bounds, nullable 64-bit integers reserve the null value correctly, and fully qualified 4-octet tags decode
+    - Fix: Onboarding payloads decode Base38 correctly and reject invalid vendor IDs, product IDs and manual codes
+    - Fix: `Cluster.with()` rejects unknown features and returns one frozen namespace per selection
 
 - @project-chip/matter.js
-    - Deprecation: Every class, type, and function of the legacy controller API is now marked deprecated and scheduled for removal in 0.19; use the `ServerNode.peers` / `ClientNode` API of `@matter/node` instead
-    - Feature: `CommissioningController` accepts `clientCacheFlushInterval` to override how long node state is buffered before it is written to storage
+    - Deprecation: The legacy controller API is deprecated and will be removed in 0.19; use `ServerNode.peers` / `ClientNode` (see [Controller migration guide](docs/MIGRATION_CONTROLLER_018.md))
+    - Feature: `CommissioningController` accepts `clientCacheFlushInterval`
+    - Enhancement: `InteractionClient` options take an `abort` signal
+    - Fix: `InteractionClient` sends a timed write only when requested or required, so group writes work
+    - Fix: A closed `PairedNode` starts no interaction, and closing nodes or the controller completes even when a step fails
+    - Fix: PASE with a known address reports a wrong passcode, and falls back to discovery when the address is unreachable
 
 ## 0.17.9 (2026-08-06)
 
