@@ -100,6 +100,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: A server rejects an obsolete (`Z`) element; a client sends and decodes it
     - Fix: `.with()` on a behavior subclass that declares own attributes or commands replaces the default behavior instead of running next to it; an endpoint refuses two behaviors for the same cluster
     - Fix: Closing or factory resetting a node closes all its parts, peers and services even when one step fails, releases storage and mDNS, and erases leftover peers, CA key material and BDX blobs
+    - Fix: A peer reporting a session idle or active interval above one hour in its CASE/PASE session parameters no longer fails validation when these are stored
+    - Fix: A peer advertising a vendor-specific device type no longer prevents storing its addresses and session parameters
     - Fix: Shutting down a controller no longer reports peer endpoints as deleted
     - Fix: (@RaHehl) A node stopped and started again re-establishes its subscriptions, can be commissioned again and keeps no stale events
     - Fix: (@RaHehl) A freshly commissioned node re-establishes its subscriptions after its next restart, and client subscription reports after a restart are accepted
@@ -180,6 +182,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: A custom `BleScannerClient` may report `listeningTime` and `isPeripheralReachable()`, so stale or unreachable peripherals are not offered for commissioning
     - Enhancement: Network profiles can define BDX transfer delays separately via `bdxAdditionalMrpDelay`
     - Adjustment: `DclVendorInfo` is a deprecated alias of `VendorDclSchema`
+    - Fix: DNS-SD discovery ignores malformed or out-of-range `D`, `CM`, `VP`, `DT` and `PH` values
     - Fix: Commissioning tries addresses in ranked order and once each, moves on faster, and stops on a wrong passcode
     - Fix: Commissioning continues when the device rejects or does not answer ScanNetworks
     - Fix: The commissioning PASE session stays open on a missing response and is closed on every commissioning exit
