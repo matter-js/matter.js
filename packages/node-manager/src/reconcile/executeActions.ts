@@ -21,6 +21,11 @@ const logger = Logger.get("Reconciler");
 export interface ReconcileTarget {
     readonly node: ClientNode;
     /**
+     * Aborted once the peer is no longer the reconciler's to write to. The executor stops before its next device
+     * call; a device call already under way still has its outcome recorded.
+     */
+    readonly signal: AbortSignal;
+    /**
      * Record what became of an item, for the intent `ifGeneration` names.
      *
      * The generation reaches the write because the item may have been replaced while the action ran: the store
@@ -74,6 +79,12 @@ export async function executeActions(
     removes.sort((a, b) => priority(b.item, registry) - priority(a.item, registry));
 
     for (const { item, action } of [...others, ...removes]) {
+        if (target.signal.aborted) {
+            logger.debug(
+                `Stopping the pass for ${target.node.id} before ${item.kind}:${item.key}: the peer was unwired`,
+            );
+            return;
+        }
         switch (action) {
             case "apply":
             case "retry": {
@@ -151,6 +162,7 @@ export async function executeActions(
             }
 
             case "skip":
+            case "drifted":
                 break;
         }
     }

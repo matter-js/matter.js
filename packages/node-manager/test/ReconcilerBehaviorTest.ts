@@ -12,7 +12,7 @@
 
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
 import { planActions } from "#reconcile/planActions.js";
-import { refreshCapacities } from "#ReconcilerBehavior.js";
+import { buildVerifyResult, refreshCapacities } from "#ReconcilerBehavior.js";
 import { ClientNode, ItemKind, ItemKindRegistry, itemMapKey, ManagedItem } from "@matter/node";
 import { Status, StatusResponseError } from "@matter/types";
 
@@ -53,11 +53,13 @@ const STUB_NODE = {} as ClientNode;
 
 function makeTarget(
     items: Record<string, ManagedItem> = {},
+    signal = new AbortController().signal,
 ): ReconcileTarget & { items: Record<string, ManagedItem>; log: string[] } {
     const state = { ...items };
     const log = new Array<string>();
     return {
         node: STUB_NODE,
+        signal,
         items: state,
         log,
         // Mirrors DesiredStateBehavior: the generation is compared where the write happens, so a replacement
@@ -144,7 +146,9 @@ describe("executeActions (executor)", () => {
         const id = "fake:key1";
         const target = makeTarget({ [id]: pendingItem("fake", "key1") });
 
-        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        const planned = planActions(Object.values(target.items), {
+            recoverable: () => false,
+        });
         await executeActions(target, planned, registry);
 
         expect(fake.applied).deep.equals(["key1"]);
@@ -160,7 +164,9 @@ describe("executeActions (executor)", () => {
             "fake:rem": deletePendingItem("fake", "rem"),
         });
 
-        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        const planned = planActions(Object.values(target.items), {
+            recoverable: () => false,
+        });
         await executeActions(target, planned, registry);
 
         // The status is what lets a waiting task finish and the next be admitted, so the count must lead it.
@@ -174,7 +180,9 @@ describe("executeActions (executor)", () => {
         registry.register(fake);
         const target = makeTarget({ "fake:bad": pendingItem("fake", "bad") });
 
-        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        const planned = planActions(Object.values(target.items), {
+            recoverable: () => false,
+        });
         await executeActions(target, planned, registry);
 
         expect(target.log).deep.equals(["refresh fake", "status fake:bad commitFailed"]);
@@ -189,7 +197,9 @@ describe("executeActions (executor)", () => {
         registry.register(kind);
         const target = makeTarget({ "fake:rem": deletePendingItem("fake", "rem") });
 
-        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        const planned = planActions(Object.values(target.items), {
+            recoverable: () => false,
+        });
         await executeActions(target, planned, registry);
 
         expect(target.log).deep.equals(["refresh fake", "drop fake:rem"]);
@@ -204,7 +214,9 @@ describe("executeActions (executor)", () => {
             target.items["fake:swap"] = { ...target.items["fake:swap"], generation: 2 };
         };
 
-        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        const planned = planActions(Object.values(target.items), {
+            recoverable: () => false,
+        });
         await executeActions(target, planned, registry);
 
         // The device changed either way; only the status belongs to the intent that is gone.
@@ -220,7 +232,9 @@ describe("executeActions (executor)", () => {
         const id = "fake:bad";
         const target = makeTarget({ [id]: pendingItem("fake", "bad") });
 
-        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        const planned = planActions(Object.values(target.items), {
+            recoverable: () => false,
+        });
         await executeActions(target, planned, registry);
 
         expect(fake.applied).deep.equals([]);
@@ -236,7 +250,9 @@ describe("executeActions (executor)", () => {
         const id = "fake:rem1";
         const target = makeTarget({ [id]: deletePendingItem("fake", "rem1") });
 
-        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        const planned = planActions(Object.values(target.items), {
+            recoverable: () => false,
+        });
         await executeActions(target, planned, registry);
 
         expect(fake.removed).deep.equals(["rem1"]);
@@ -251,7 +267,9 @@ describe("executeActions (executor)", () => {
         const id = "fake:dropme";
         const target = makeTarget({ [id]: itemWithState("fake", "dropme", "commitFailed", 0x01) });
 
-        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        const planned = planActions(Object.values(target.items), {
+            recoverable: () => false,
+        });
         await executeActions(target, planned, registry);
 
         expect(fake.applied).deep.equals([]);
@@ -268,7 +286,6 @@ describe("executeActions (executor)", () => {
         const target = makeTarget({ [id]: itemWithState("fake", "retry1", "commitFailed", 0x82) });
 
         const planned = planActions(Object.values(target.items), {
-            verify: false,
             recoverable: item => fake.recoverable(item.status.failureCode ?? 0),
         });
         await executeActions(target, planned, registry);
@@ -295,8 +312,11 @@ describe("executeActions (executor)", () => {
         const target = makeTarget({ [id]: drifted });
 
         const planned = planActions(Object.values(target.items), {
-            verify: true,
-            verifyResult: { driftedKeys: new Set([itemMapKey("fake", "drift1")]) },
+            verify: {
+                result: { verified: new Set(), unread: new Map(), drifted: new Set([itemMapKey("fake", "drift1")]) },
+                disposition: "reapply",
+                canReapply: () => true,
+            },
             recoverable: () => false,
         });
         await executeActions(target, planned, registry);
@@ -313,11 +333,41 @@ describe("executeActions (executor)", () => {
         const id = "fake:stable";
         const target = makeTarget({ [id]: itemWithState("fake", "stable", "committed") });
 
-        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        const planned = planActions(Object.values(target.items), {
+            recoverable: () => false,
+        });
         await executeActions(target, planned, registry);
 
         expect(fake.applied).deep.equals([]);
         expect(target.items[id]?.status.state).equals("committed");
+    });
+});
+
+describe("executeActions (unwired peer)", () => {
+    it("stops before its next device call once the peer is unwired, and records the call already made", async () => {
+        const registry = new ItemKindRegistry();
+        const fake = new FakeKind();
+        registry.register(fake);
+        const unwired = new AbortController();
+        const target = makeTarget(
+            {
+                "fake:a": pendingItem("fake", "a"),
+                "fake:b": pendingItem("fake", "b"),
+                "fake:rem": deletePendingItem("fake", "rem"),
+            },
+            unwired.signal,
+        );
+        const refresh = target.refreshCapacity;
+        target.refreshCapacity = async kind => {
+            unwired.abort();
+            await refresh(kind);
+        };
+
+        await executeActions(target, planActions(Object.values(target.items), { recoverable: () => false }), registry);
+
+        expect(fake.applied).deep.equals(["a"]);
+        expect(fake.removed).deep.equals([]);
+        expect(target.log).deep.equals(["refresh fake", "status fake:a committed"]);
     });
 });
 
@@ -334,7 +384,9 @@ describe("executeActions (failure paths)", () => {
 
         const id = "fake:gone";
         const target = makeTarget({ [id]: itemWithState("fake", "gone", "deletePending") });
-        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        const planned = planActions(Object.values(target.items), {
+            recoverable: () => false,
+        });
         await executeActions(target, planned, registry);
 
         // Still there, carrying why: dropping it would claim the device no longer holds what it does.
@@ -355,7 +407,9 @@ describe("executeActions (failure paths)", () => {
         const target = makeTarget({ [id]: deletePendingItem("fake", "ghost") });
         await executeActions(
             target,
-            planActions(Object.values(target.items), { verify: false, recoverable: () => false }),
+            planActions(Object.values(target.items), {
+                recoverable: () => false,
+            }),
             registry,
         );
 
@@ -368,7 +422,9 @@ describe("executeActions (failure paths)", () => {
         const registry = new ItemKindRegistry();
         const id = "ghost:k1";
         const target = makeTarget({ [id]: pendingItem("ghost", "k1") });
-        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        const planned = planActions(Object.values(target.items), {
+            recoverable: () => false,
+        });
         await executeActions(target, planned, registry);
 
         expect(target.items[id]?.status.state).equals("commitFailed");
@@ -388,7 +444,9 @@ describe("executeActions (failure paths)", () => {
             await write(kind, key, itemState, code, ifGeneration);
         };
 
-        const planned = planActions([pendingItem("fake", "raced")], { verify: false, recoverable: () => false });
+        const planned = planActions([pendingItem("fake", "raced")], {
+            recoverable: () => false,
+        });
         await executeActions(target, planned, registry);
 
         // The replacement is still waiting for its own apply. Marking it committed would tell a task the intent
@@ -407,7 +465,6 @@ describe("executeActions (failure paths)", () => {
         const id = "fake:retried";
         const target = makeTarget({ [id]: itemWithState("fake", "retried", "commitFailed", 0x82, "remove") });
         const planned = planActions(Object.values(target.items), {
-            verify: false,
             recoverable: item => item.status.failureCode === 0x82,
         });
         expect(planned[0].action).equals("remove");
@@ -424,7 +481,9 @@ describe("executeActions (failure paths)", () => {
         const target = makeTarget({ [id]: deletePendingItem("ghost", "k1") });
         await executeActions(
             target,
-            planActions(Object.values(target.items), { verify: false, recoverable: () => false }),
+            planActions(Object.values(target.items), {
+                recoverable: () => false,
+            }),
             registry,
         );
 
@@ -441,7 +500,9 @@ describe("executeActions (failure paths)", () => {
 
         const id = "fake:refused";
         const target = makeTarget({ [id]: itemWithState("fake", "refused", "commitFailed", 0x85) });
-        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        const planned = planActions(Object.values(target.items), {
+            recoverable: () => false,
+        });
         expect(planned[0].action).equals("abandon");
         await executeActions(target, planned, registry);
 
@@ -462,7 +523,9 @@ describe("executeActions (failure paths)", () => {
         });
         await executeActions(
             target,
-            planActions(Object.values(target.items), { verify: false, recoverable: () => false }),
+            planActions(Object.values(target.items), {
+                recoverable: () => false,
+            }),
             registry,
         );
 
@@ -492,9 +555,92 @@ describe("refreshCapacities", () => {
         registry.register(counted("two", reads));
         const written = new Array<string>();
 
-        await refreshCapacities(STUB_NODE, registry, kind => written.push(kind), "two");
+        await refreshCapacities(STUB_NODE, registry, kind => written.push(kind), new AbortController().signal, "two");
 
         expect(reads).deep.equals(["two"]);
         expect(written).deep.equals(["two"]);
+    });
+
+    it("reads no further kind once the pass's signal is aborted", async () => {
+        const reads = new Array<string>();
+        const unwired = new AbortController();
+        const registry = new ItemKindRegistry();
+        registry.register({
+            ...counted("one", reads),
+            async capacity() {
+                reads.push("one");
+                unwired.abort();
+                return { limit: 4, used: 1 };
+            },
+        });
+        registry.register(counted("two", reads));
+
+        await refreshCapacities(STUB_NODE, registry, () => {}, unwired.signal);
+
+        expect(reads).deep.equals(["one"]);
+    });
+});
+
+describe("buildVerifyResult", () => {
+    const readError = new StatusResponseError("read failed", Status.Failure);
+
+    function verifying(kind: string, outcomes: Record<string, boolean | "throws">, reads: string[]): ItemKind {
+        return {
+            kind,
+            priority: 0,
+            async apply() {},
+            async verify(_node, item) {
+                reads.push(`${kind}:${item.key}`);
+                const outcome = outcomes[item.key];
+                if (outcome === "throws") {
+                    throw readError;
+                }
+                return outcome ?? true;
+            },
+        };
+    }
+
+    const committed = (kind: string, key: string) => itemWithState(kind, key, "committed");
+
+    it("reports verified, drifted and unread items apart, and a throwing verify does not stop the loop", async () => {
+        const reads = new Array<string>();
+        const registry = new ItemKindRegistry();
+        registry.register(verifying("v", { ok: true, moved: false, boom: "throws", after: true }, reads));
+
+        const result = await buildVerifyResult(
+            STUB_NODE,
+            [committed("v", "ok"), committed("v", "moved"), committed("v", "boom"), committed("v", "after")],
+            registry,
+            new AbortController().signal,
+        );
+
+        expect([...result.verified]).deep.equals([itemMapKey("v", "ok"), itemMapKey("v", "after")]);
+        expect([...result.drifted]).deep.equals([itemMapKey("v", "moved")]);
+        expect([...result.unread]).deep.equals([[itemMapKey("v", "boom"), readError]]);
+        expect(reads).deep.equals(["v:ok", "v:moved", "v:boom", "v:after"]);
+    });
+
+    it("reads no further item once the pass's signal is aborted", async () => {
+        const reads = new Array<string>();
+        const unwired = new AbortController();
+        const registry = new ItemKindRegistry();
+        registry.register({
+            ...verifying("v", {}, reads),
+            async verify(_node, item) {
+                reads.push(`v:${item.key}`);
+                unwired.abort();
+                return true;
+            },
+        });
+
+        const result = await buildVerifyResult(
+            STUB_NODE,
+            [committed("v", "first"), committed("v", "second")],
+            registry,
+            unwired.signal,
+        );
+
+        expect(reads).deep.equals(["v:first"]);
+        expect([...result.verified]).deep.equals([itemMapKey("v", "first")]);
     });
 });

@@ -49,4 +49,27 @@ describe("DesiredState integration", () => {
         });
         await node2.close();
     });
+
+    it("does NOT persist enforcement records across a restart", async () => {
+        const environment = new Environment("test");
+        const RootEndpoint = MockServerNode.RootEndpoint.with(DesiredStateBehavior);
+
+        const node1 = await MockServerNode.create(RootEndpoint, { environment, id: "drifttest" });
+        await node1.act(agent => {
+            const ds = agent.get(DesiredStateBehavior);
+            ds.setIntent("acl", "1", { privilege: 5 }, "maintain");
+            ds.updateStatus("acl", "1", "committed");
+            ds.hold("acl", "1");
+            expect(ds.enforcementOf("acl", "1")?.held).equals(true);
+        });
+        await node1.close();
+
+        const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "drifttest" });
+        await node2.act(agent => {
+            const ds = agent.get(DesiredStateBehavior);
+            expect(ds.getItem("acl", "1")).not.equals(undefined);
+            expect(ds.enforcementOf("acl", "1")).equals(undefined);
+        });
+        await node2.close();
+    });
 });

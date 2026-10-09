@@ -118,6 +118,13 @@ export class TaskPeerUnavailableError extends TaskError {}
 /** A task's forward work failed terminally; the manager spawns a rollback to undo its changeSet. */
 export class TaskFailedError extends TaskError {}
 
+/**
+ * An item the run waits on is held: the device kept reverting it, and the reconciler stopped re-applying it once
+ * its drift budget was spent. Nothing writes the item again until an operator calls `ReconcilerBehavior.retry()`,
+ * removes the intent or writes a new one, so waiting on it would park the run for good.
+ */
+export class TaskItemHeldError extends TaskFailedError {}
+
 /** A task's planned changes would exceed a node's device capacity for some item kind. */
 export class TaskCapacityExceededError extends TaskError {}
 

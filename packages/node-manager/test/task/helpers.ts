@@ -16,6 +16,7 @@ import {
     ClientNode,
     CommissioningClient,
     DesiredStateBehavior,
+    ItemEnforcement,
     ItemKind,
     ItemMode,
     ItemState,
@@ -361,9 +362,12 @@ export class FakePeer {
     /** The capacity snapshot a reconciler refresh would have left, which admission reads. */
     readonly capacities: Record<string, CapacityInfo> = {};
 
+    /** Enforcement records, keyed by {@link itemMapKey}, as the reconciler would have left them. */
+    readonly enforcement: Record<string, ItemEnforcement> = {};
+
     stateOf(type: unknown): unknown {
         return type === DesiredStateBehavior
-            ? { items: this.items, capacities: this.capacities }
+            ? { items: this.items, capacities: this.capacities, enforcement: this.enforcement }
             : { isDisabled: this.networkDisabled };
     }
 
@@ -381,7 +385,7 @@ export class FakePeer {
 
     maybeStateOf(type: unknown): unknown {
         if (type === DesiredStateBehavior) {
-            return { items: this.items, capacities: this.capacities };
+            return { items: this.items, capacities: this.capacities, enforcement: this.enforcement };
         }
         return type === CommissioningClient ? { peerAddress: this.address } : undefined;
     }

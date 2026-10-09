@@ -19,6 +19,7 @@ import {
     TaskFindingCode,
     TaskForeignFabricError,
     TaskIdentityExhaustedError,
+    TaskItemHeldError,
     TaskManagerClosingError,
     TaskNoLongerTrackedError,
     TaskNoManagedFabricError,
@@ -114,6 +115,7 @@ describe("task error taxonomy", () => {
         // An error that ends a run, or stops a driver, is not answering a caller's request.
         for (const notARefusal of [
             new TaskFailedError(""),
+            new TaskItemHeldError(""),
             new TaskCapacityExceededError(""),
             new TaskPeerUnavailableError(""),
             new RotationPreconditionError(""),
