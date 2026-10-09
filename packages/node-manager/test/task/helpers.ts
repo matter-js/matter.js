@@ -16,7 +16,7 @@ import {
     ClientNode,
     CommissioningClient,
     DesiredStateBehavior,
-    ItemDrift,
+    ItemEnforcement,
     ItemKind,
     ItemMode,
     ItemState,
@@ -362,12 +362,12 @@ export class FakePeer {
     /** The capacity snapshot a reconciler refresh would have left, which admission reads. */
     readonly capacities: Record<string, CapacityInfo> = {};
 
-    /** Drift marks, keyed by {@link itemMapKey}, as the reconciler would have left them. */
-    readonly drifts: Record<string, ItemDrift> = {};
+    /** Enforcement records, keyed by {@link itemMapKey}, as the reconciler would have left them. */
+    readonly enforcement: Record<string, ItemEnforcement> = {};
 
     stateOf(type: unknown): unknown {
         return type === DesiredStateBehavior
-            ? { items: this.items, capacities: this.capacities, drifts: this.drifts }
+            ? { items: this.items, capacities: this.capacities, enforcement: this.enforcement }
             : { isDisabled: this.networkDisabled };
     }
 
@@ -385,7 +385,7 @@ export class FakePeer {
 
     maybeStateOf(type: unknown): unknown {
         if (type === DesiredStateBehavior) {
-            return { items: this.items, capacities: this.capacities, drifts: this.drifts };
+            return { items: this.items, capacities: this.capacities, enforcement: this.enforcement };
         }
         return type === CommissioningClient ? { peerAddress: this.address } : undefined;
     }

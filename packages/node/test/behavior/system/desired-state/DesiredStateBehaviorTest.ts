@@ -6,8 +6,8 @@
 
 import { DesiredStateBehavior } from "#behavior/system/desired-state/DesiredStateBehavior.js";
 import { AclCapacityExceededError } from "#behavior/system/desired-state/errors.js";
-import { ItemDrift, ManagedItem } from "#behavior/system/desired-state/types.js";
-import { Timestamp } from "@matter/general";
+import { ItemEnforcement, ManagedItem, currentReapplies } from "#behavior/system/desired-state/types.js";
+import { Minutes, Timestamp } from "@matter/general";
 import { MockEndpoint } from "../../../endpoint/mock-endpoint.js";
 
 describe("DesiredStateBehavior", () => {
@@ -110,14 +110,36 @@ describe("DesiredStateBehavior", () => {
         });
     });
 
-    describe("drift mark", () => {
-        const recorded: ItemDrift = { confirmedAt: Timestamp(1000), disposition: "recorded" };
-        const held: ItemDrift = { confirmedAt: Timestamp(2000), disposition: "held" };
+    it("never reuses a generation for a key, even after the item was dropped", async () => {
+        await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+        await endpoint.act(agent => {
+            const ds = agent.get(DesiredStateBehavior);
+            const original = ds.setIntent("acl", "1", { privilege: 5 }, "maintain");
+            ds.updateStatus("acl", "1", "committed");
+            ds.dropItem("acl", "1");
+
+            const readded = ds.setIntent("acl", "1", { privilege: 5 }, "maintain");
+            expect(readded.generation).greaterThan(original.generation);
+
+            // A slow operation on the dropped original carries its generation; none of its writes may land.
+            ds.updateStatus("acl", "1", "committed", undefined, original.generation);
+            expect(ds.getItem("acl", "1")?.status.state).equals("pending");
+            ds.updateStatus("acl", "1", "committed");
+            ds.markDrift("acl", "1", original.generation);
+            ds.recordReapply("acl", "1", Minutes(10), original.generation);
+            expect(ds.enforcementOf("acl", "1")).equals(undefined);
+            ds.dropItem("acl", "1", original.generation);
+            expect(ds.getItem("acl", "1")).not.equals(undefined);
+        });
+    });
+
+    describe("enforcement record", () => {
+        const window = Minutes(10);
 
         function track(ds: DesiredStateBehavior) {
-            const edges = new Array<[string, string, ItemDrift | undefined]>();
-            ds.events.itemDriftChanged.on((kind, key, drift) => {
-                edges.push([kind, key, drift]);
+            const edges = new Array<[string, string, ItemEnforcement | undefined]>();
+            ds.events.itemEnforcementChanged.on((kind, key, enforcement) => {
+                edges.push([kind, key, enforcement]);
             });
             return edges;
         }
@@ -128,108 +150,280 @@ describe("DesiredStateBehavior", () => {
             return item;
         }
 
-        it("markDrift sets the mark and emits once per change of disposition", async () => {
+        /** A committed item with an observed drift, a hold and one re-apply. */
+        function enforced(ds: DesiredStateBehavior) {
+            const item = committed(ds);
+            ds.recordReapply("acl", "1", window);
+            ds.hold("acl", "1");
+            return item;
+        }
+
+        it("markDrift records an observed drift and emits once", async () => {
+            MockTime.reset(1000);
             await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
-            await endpoint.act(agent => {
+            await endpoint.act(async agent => {
                 const ds = agent.get(DesiredStateBehavior);
                 committed(ds);
                 const edges = track(ds);
 
-                ds.markDrift("acl", "1", recorded);
-                expect(ds.driftOf("acl", "1")).deep.equals(recorded);
-                expect(edges).deep.equals([["acl", "1", recorded]]);
+                ds.markDrift("acl", "1");
+                const expected: ItemEnforcement = {
+                    drift: { confirmedAt: Timestamp(1000) },
+                    held: false,
+                    reappliesUntil: [],
+                };
+                expect(ds.enforcementOf("acl", "1")).deep.equals(expected);
+                expect(edges).deep.equals([["acl", "1", expected]]);
 
-                ds.markDrift("acl", "1", { ...recorded, confirmedAt: Timestamp(1500) });
+                await MockTime.advance(500);
+                ds.markDrift("acl", "1");
+                expect(ds.enforcementOf("acl", "1")?.drift?.confirmedAt).equals(1000);
                 expect(edges.length).equals(1);
-
-                ds.markDrift("acl", "1", held);
-                expect(ds.driftOf("acl", "1")).deep.equals(held);
-                expect(edges.length).equals(2);
-                expect(edges[1]).deep.equals(["acl", "1", held]);
             });
         });
 
-        it("markDrift ignores a stale generation, a pending item and a missing item", async () => {
+        it("hold records the drift and the hold, and emits once per change", async () => {
             await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
             await endpoint.act(agent => {
                 const ds = agent.get(DesiredStateBehavior);
+                committed(ds);
+                ds.markDrift("acl", "1");
                 const edges = track(ds);
 
-                ds.markDrift("acl", "9", recorded);
-                expect(ds.driftOf("acl", "9")).equals(undefined);
+                ds.hold("acl", "1");
+                expect(ds.enforcementOf("acl", "1")?.held).equals(true);
+                expect(ds.enforcementOf("acl", "1")?.drift).not.equals(undefined);
+                expect(edges.length).equals(1);
 
-                const item = ds.setIntent("acl", "1", {}, "maintain");
-                ds.markDrift("acl", "1", recorded, item.generation);
-                expect(ds.driftOf("acl", "1")).equals(undefined);
-
-                ds.updateStatus("acl", "1", "committed");
-                ds.markDrift("acl", "1", recorded, item.generation + 1);
-                expect(ds.driftOf("acl", "1")).equals(undefined);
-
-                expect(edges).deep.equals([]);
-
-                ds.markDrift("acl", "1", recorded, item.generation);
-                expect(ds.driftOf("acl", "1")).deep.equals(recorded);
+                ds.hold("acl", "1");
                 expect(edges.length).equals(1);
             });
         });
 
-        const writers: Record<string, (ds: DesiredStateBehavior) => void> = {
+        for (const [name, write] of Object.entries({
+            markDrift: (ds: DesiredStateBehavior, generation?: number) => ds.markDrift("acl", "1", generation),
+            hold: (ds: DesiredStateBehavior, generation?: number) => ds.hold("acl", "1", generation),
+            recordReapply: (ds: DesiredStateBehavior, generation?: number) => {
+                ds.recordReapply("acl", "1", window, generation);
+            },
+        })) {
+            it(`${name} ignores a missing item, a pending item and a stale generation`, async () => {
+                await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+                await endpoint.act(agent => {
+                    const ds = agent.get(DesiredStateBehavior);
+                    const edges = track(ds);
+
+                    write(ds);
+                    expect(ds.enforcementOf("acl", "1")).equals(undefined);
+
+                    const item = ds.setIntent("acl", "1", {}, "maintain");
+                    write(ds, item.generation);
+                    expect(ds.enforcementOf("acl", "1")).equals(undefined);
+
+                    ds.updateStatus("acl", "1", "committed");
+                    write(ds, item.generation + 1);
+                    expect(ds.enforcementOf("acl", "1")).equals(undefined);
+                    expect(edges).deep.equals([]);
+
+                    write(ds, item.generation);
+                    expect(ds.enforcementOf("acl", "1")).not.equals(undefined);
+                });
+            });
+        }
+
+        it("releaseHold ignores a missing item, a pending item and a stale generation", async () => {
+            await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+            await endpoint.act(agent => {
+                const ds = agent.get(DesiredStateBehavior);
+                ds.releaseHold("acl", "9");
+                expect(ds.enforcementOf("acl", "9")).equals(undefined);
+
+                const item = enforced(ds);
+                ds.releaseHold("acl", "1", item.generation + 1);
+                expect(ds.enforcementOf("acl", "1")?.held).equals(true);
+
+                ds.updateStatus("acl", "1", "pending");
+                ds.releaseHold("acl", "1", item.generation);
+                expect(ds.enforcementOf("acl", "1")?.held).equals(true);
+
+                ds.updateStatus("acl", "1", "committed");
+                ds.releaseHold("acl", "1", item.generation);
+                expect(ds.enforcementOf("acl", "1")).equals(undefined);
+            });
+        });
+
+        it("recordReapply says whether it recorded", async () => {
+            await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+            await endpoint.act(agent => {
+                const ds = agent.get(DesiredStateBehavior);
+                const item = committed(ds);
+                expect(ds.recordReapply("acl", "1", window, item.generation + 1)).equals(false);
+                expect(ds.recordReapply("acl", "1", window, item.generation)).equals(true);
+            });
+        });
+
+        it("enforcementOf reports nothing once the only re-applies have stopped counting", async () => {
+            await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+            await endpoint.act(async agent => {
+                const ds = agent.get(DesiredStateBehavior);
+                committed(ds);
+                ds.recordReapply("acl", "1", window);
+                ds.recordReapply("acl", "1", Minutes(20));
+                expect(ds.enforcementOf("acl", "1")?.reappliesUntil.length).equals(2);
+
+                await MockTime.advance(Minutes(11));
+                expect(ds.enforcementOf("acl", "1")?.reappliesUntil.length).equals(1);
+
+                await MockTime.advance(Minutes(10));
+                expect(ds.enforcementOf("acl", "1")).equals(undefined);
+            });
+        });
+
+        it("clearDrift ends the observed drift but not the hold", async () => {
+            await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+            await endpoint.act(agent => {
+                const ds = agent.get(DesiredStateBehavior);
+                enforced(ds);
+                const edges = track(ds);
+
+                ds.clearDrift("acl", "1");
+
+                const after = ds.enforcementOf("acl", "1");
+                expect(after?.drift).equals(undefined);
+                expect(after?.held).equals(true);
+                expect(after?.reappliesUntil.length).equals(1);
+                expect(edges).deep.equals([["acl", "1", after]]);
+
+                ds.clearDrift("acl", "1");
+                expect(edges.length).equals(1);
+            });
+        });
+
+        it("clearDrift of a drift-only record removes the record", async () => {
+            await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+            await endpoint.act(agent => {
+                const ds = agent.get(DesiredStateBehavior);
+                committed(ds);
+                ds.markDrift("acl", "1");
+                const edges = track(ds);
+
+                ds.clearDrift("acl", "1");
+
+                expect(ds.enforcementOf("acl", "1")).equals(undefined);
+                expect(edges).deep.equals([["acl", "1", undefined]]);
+            });
+        });
+
+        it("updateStatus ends the observed drift and keeps the hold and the re-applies", async () => {
+            await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+            await endpoint.act(agent => {
+                const ds = agent.get(DesiredStateBehavior);
+                enforced(ds);
+                const edges = track(ds);
+
+                ds.updateStatus("acl", "1", "committed");
+
+                const after = ds.enforcementOf("acl", "1");
+                expect(after?.drift).equals(undefined);
+                expect(after?.held).equals(true);
+                expect(after?.reappliesUntil.length).equals(1);
+                expect(edges).deep.equals([["acl", "1", after]]);
+            });
+        });
+
+        const resets: Record<string, (ds: DesiredStateBehavior) => void> = {
             setIntent: ds => {
                 ds.setIntent("acl", "1", { privilege: 3 }, "maintain");
             },
             removeIntent: ds => ds.removeIntent("acl", "1"),
             dropItem: ds => ds.dropItem("acl", "1"),
-            updateStatus: ds => ds.updateStatus("acl", "1", "committed"),
         };
 
-        for (const [name, write] of Object.entries(writers)) {
-            it(`${name} clears an existing mark and emits the clearing edge`, async () => {
+        for (const [name, write] of Object.entries(resets)) {
+            it(`${name} removes the whole record, re-applies included, and emits the clearing edge`, async () => {
                 await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
                 await endpoint.act(agent => {
                     const ds = agent.get(DesiredStateBehavior);
-                    committed(ds);
-                    ds.markDrift("acl", "1", recorded);
+                    enforced(ds);
                     const edges = track(ds);
 
                     write(ds);
 
-                    expect(ds.driftOf("acl", "1")).equals(undefined);
+                    expect(ds.enforcementOf("acl", "1")).equals(undefined);
                     expect(edges).deep.equals([["acl", "1", undefined]]);
                 });
             });
 
-            it(`${name} without a mark emits no drift event`, async () => {
+            it(`${name} of an item with re-applies only removes them without an event`, async () => {
                 await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
                 await endpoint.act(agent => {
                     const ds = agent.get(DesiredStateBehavior);
                     committed(ds);
+                    ds.recordReapply("acl", "1", window);
                     const edges = track(ds);
 
                     write(ds);
 
+                    expect(ds.enforcementOf("acl", "1")).equals(undefined);
                     expect(edges).deep.equals([]);
                 });
             });
         }
 
-        it("clearDrift emits only when a mark existed", async () => {
+        it("a re-added item starts with no re-applies", async () => {
             await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
             await endpoint.act(agent => {
                 const ds = agent.get(DesiredStateBehavior);
                 committed(ds);
+                ds.recordReapply("acl", "1", window);
+                ds.recordReapply("acl", "1", window);
+                ds.dropItem("acl", "1");
+
+                ds.setIntent("acl", "1", { privilege: 5 }, "maintain");
+                ds.updateStatus("acl", "1", "committed");
+
+                expect(currentReapplies(ds.enforcementOf("acl", "1"))).equals(0);
+            });
+        });
+
+        it("recordReapply counts within the window, forgets older ones and emits nothing", async () => {
+            await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+            await endpoint.act(async agent => {
+                const ds = agent.get(DesiredStateBehavior);
+                committed(ds);
                 const edges = track(ds);
 
-                ds.clearDrift("acl", "1");
-                expect(edges).deep.equals([]);
+                ds.recordReapply("acl", "1", window);
+                await MockTime.advance(Minutes(6));
+                ds.recordReapply("acl", "1", window);
+                expect(currentReapplies(ds.enforcementOf("acl", "1"))).equals(2);
 
-                ds.markDrift("acl", "1", recorded);
-                ds.clearDrift("acl", "1");
-                expect(ds.driftOf("acl", "1")).equals(undefined);
-                expect(edges).deep.equals([
-                    ["acl", "1", recorded],
-                    ["acl", "1", undefined],
-                ]);
+                await MockTime.advance(Minutes(6));
+                expect(currentReapplies(ds.enforcementOf("acl", "1"))).equals(1);
+
+                ds.recordReapply("acl", "1", window);
+                expect(ds.enforcementOf("acl", "1")?.reappliesUntil.length).equals(2);
+                expect(edges).deep.equals([]);
+            });
+        });
+
+        it("releaseHold ends the hold and starts the re-applies over, and keeps the observed drift", async () => {
+            await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+            await endpoint.act(agent => {
+                const ds = agent.get(DesiredStateBehavior);
+                const item = enforced(ds);
+                const edges = track(ds);
+
+                ds.releaseHold("acl", "1", item.generation + 1);
+                expect(ds.enforcementOf("acl", "1")?.held).equals(true);
+
+                ds.releaseHold("acl", "1", item.generation);
+
+                const after = ds.enforcementOf("acl", "1");
+                expect(after?.held).equals(false);
+                expect(after?.reappliesUntil).deep.equals([]);
+                expect(after?.drift).not.equals(undefined);
+                expect(edges).deep.equals([["acl", "1", after]]);
             });
         });
     });

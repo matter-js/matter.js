@@ -8,7 +8,7 @@ import { ManagedFabric, managedFabricOf } from "#ManagedFabric.js";
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
 import { BUILT_IN_KINDS } from "#reconcile/kinds.js";
 import { PeerWiring } from "#reconcile/PeerWiring.js";
-import { DriftDisposition, planActions, PlannedAction, VerifyPlan, VerifyResult } from "#reconcile/planActions.js";
+import { DriftDisposition, planActions, PlannedAction, VerifyResult } from "#reconcile/planActions.js";
 import {
     Duration,
     ImplementationError,
@@ -32,6 +32,7 @@ import {
     ManagedItem,
     NetworkClient,
     Node,
+    currentReapplies,
     ServerNode,
 } from "@matter/node";
 import { Fabric, FabricManager, SustainedSubscription } from "@matter/protocol";
@@ -44,15 +45,23 @@ export function defaultRecoverable(code: number): boolean {
     return code === Status.Timeout || code === Status.Busy;
 }
 
+/**
+ * Read the capacity of every kind that reports one, or of `only`, and hand each to `setCapacity`. Stops before the
+ * next device read once `signal` is aborted.
+ */
 export async function refreshCapacities(
     node: ClientNode,
     registry: ItemKindRegistry,
     setCapacity: (kind: string, info: CapacityInfo) => void,
+    signal: AbortSignal,
     only?: string,
 ): Promise<void> {
     for (const kind of registry.all()) {
         if (kind.capacity === undefined || (only !== undefined && kind.kind !== only)) {
             continue;
+        }
+        if (signal.aborted) {
+            return;
         }
         try {
             setCapacity(kind.kind, await kind.capacity(node));
@@ -75,10 +84,15 @@ export function shouldStartSweep(internal: { disposed: boolean }): boolean {
     return !internal.disposed;
 }
 
+/**
+ * Read every committed item live. Stops before the next device read once `signal` is aborted; items not read by
+ * then are in none of the result's sets.
+ */
 export async function buildVerifyResult(
     node: ClientNode,
     items: readonly ManagedItem[],
     registry: ItemKindRegistry,
+    signal: AbortSignal,
 ): Promise<VerifyResult> {
     const verified = new Set<string>();
     const drifted = new Set<string>();
@@ -91,6 +105,9 @@ export async function buildVerifyResult(
         const kind = registry.get(item.kind);
         if (kind?.verify === undefined) {
             continue;
+        }
+        if (signal.aborted) {
+            break;
         }
         try {
             ((await kind.verify(node, item)) ? verified : drifted).add(mapKey);
@@ -366,7 +383,7 @@ export class ReconcilerBehavior extends Behavior {
         if (this.internal.peers.has(peer)) {
             return;
         }
-        const wiring = new PeerWiring(() => this.endpoint.stateOf(ReconcilerBehavior).driftBudget);
+        const wiring = new PeerWiring();
         this.internal.peers.set(peer, wiring);
         const { observers } = wiring;
 
@@ -433,10 +450,14 @@ export class ReconcilerBehavior extends Behavior {
         if (pass === undefined) {
             return;
         }
-        if (pass.refreshCapacity) {
-            await this.#refreshCapacity(peer);
+        const signal = this.#wiredSignal(peer);
+        if (signal === undefined) {
+            return;
         }
-        await this.#reconcileEndpoint(peer, { verify: pass.verify, disposition: "record" });
+        if (pass.refreshCapacity) {
+            await this.#refreshCapacity(peer, signal);
+        }
+        await this.#reconcileEndpoint(peer, signal, { verify: pass.verify, disposition: "record" });
     }
 
     async #unwirePeer(peer: ClientNode) {
@@ -450,10 +471,10 @@ export class ReconcilerBehavior extends Behavior {
 
     // Called between a device write and the status that write earns, so it may not throw: a failed refresh leaves
     // the previous count, which the device's refusal of a later write still backs.
-    async #refreshCapacity(peer: ClientNode, only?: string) {
+    async #refreshCapacity(peer: ClientNode, signal: AbortSignal, only?: string) {
         const updates = new Array<[string, CapacityInfo]>();
-        await refreshCapacities(peer, this.internal.registry, (kind, info) => updates.push([kind, info]), only);
-        if (updates.length === 0) {
+        await refreshCapacities(peer, this.internal.registry, (kind, info) => updates.push([kind, info]), signal, only);
+        if (updates.length === 0 || signal.aborted) {
             return;
         }
         try {
@@ -493,7 +514,8 @@ export class ReconcilerBehavior extends Behavior {
      * pass task gates call.
      *
      * Resolves without doing anything while no fabric is managed, including when the fabric leaves while the pass
-     * waits for the peer's lock; a caller that needs a fresh read must ask whether the fabric is still managed.
+     * waits for the peer's lock, and when the peer is unwired before or during the pass; a caller that needs a fresh
+     * read must ask whether the fabric is still managed.
      *
      * @throws ImplementationError when the peer is not on the managed fabric
      * @throws the first live-read error of the pass, after the pass has applied what it could read, so a caller
@@ -505,23 +527,25 @@ export class ReconcilerBehavior extends Behavior {
         }
         logger.debug(`Reconcile ${peer.id}${options?.verify ? " (verify)" : ""}`);
         // Serialize on the peer's node-level mutex so an explicit reconcile never overlaps a triggered pass.
-        const verifyResult = await this.#mutexFor(peer).produce(async () =>
-            this.#stillManagedAfterWait(peer, "reconcile")
-                ? this.#reconcileEndpoint(peer, { verify: options?.verify ?? false, disposition: "reapply" })
-                : undefined,
-        );
+        const verifyResult = await this.#mutexFor(peer).produce(async () => {
+            const signal = this.#stillManagedAfterWait(peer, "reconcile") ? this.#wiredSignal(peer) : undefined;
+            return signal === undefined
+                ? undefined
+                : this.#reconcileEndpoint(peer, signal, { verify: options?.verify ?? false, disposition: "reapply" });
+        });
         throwFirstUnread(verifyResult);
     }
 
     /**
      * Take an item out of `held`: run one verify pass for the peer, serialized with the passes triggers schedule, in
-     * which the item may be written back whatever its mark and budget say. Only a write-back changes anything: it
-     * clears the mark and starts the item's re-apply budget over, with this write as its first spend. A device that
-     * holds the item again clears the mark as any verify does; a failed read leaves mark and budget as they were.
-     * The peer's other items are handled as `reconcile(peer, { verify: true })` handles them.
+     * which the item may be written back whatever its hold and budget say. A successful live read of the item ends
+     * its hold and starts its re-apply budget over; a drifted item is then written back, and that write is the first
+     * spend. A failed read leaves hold and budget as they were. The peer's other items are handled as
+     * `reconcile(peer, { verify: true })` handles them.
      *
      * Resolves without doing anything while no fabric is managed, including when the fabric leaves while the pass
-     * waits for the peer's lock; a caller that needs a fresh read must ask whether the fabric is still managed.
+     * waits for the peer's lock, and when the peer is unwired before or during the pass; a caller that needs a fresh
+     * read must ask whether the fabric is still managed.
      *
      * @param kind the kind as the reconciler registered it — the instance, as a task names a kind, not its name
      * @throws ImplementationError when the peer is not on the managed fabric, when `kind` is not the registered
@@ -544,16 +568,30 @@ export class ReconcilerBehavior extends Behavior {
             );
         }
         logger.info(`Retrying ${peer.id} ${kind.kind}:${key}`);
-        const verifyResult = await this.#mutexFor(peer).produce(async () =>
-            this.#stillManagedAfterWait(peer, "retry")
-                ? this.#reconcileEndpoint(peer, {
+        const verifyResult = await this.#mutexFor(peer).produce(async () => {
+            const signal = this.#stillManagedAfterWait(peer, "retry") ? this.#wiredSignal(peer) : undefined;
+            return signal === undefined
+                ? undefined
+                : this.#reconcileEndpoint(peer, signal, {
                       verify: true,
                       disposition: "reapply",
                       retrying: itemMapKey(kind.kind, key),
-                  })
-                : undefined,
-        );
+                  });
+        });
         throwFirstUnread(verifyResult);
+    }
+
+    /**
+     * The signal a pass for the peer runs under, taken once when the pass starts; `undefined` when the peer is not
+     * wired, and the pass is then dropped.
+     */
+    #wiredSignal(peer: ClientNode): AbortSignal | undefined {
+        const signal = this.internal.peers.get(peer)?.signal;
+        if (signal === undefined || signal.aborted) {
+            logger.debug(`Pass for ${peer.id} dropped: the peer is not wired`);
+            return undefined;
+        }
+        return signal;
     }
 
     /**
@@ -597,9 +635,15 @@ export class ReconcilerBehavior extends Behavior {
         return this.internal.registry.get(kind);
     }
 
-    async #runExecutor(peer: ClientNode, planned: PlannedAction[], registry: ItemKindRegistry): Promise<void> {
+    async #runExecutor(
+        peer: ClientNode,
+        planned: PlannedAction[],
+        registry: ItemKindRegistry,
+        signal: AbortSignal,
+    ): Promise<void> {
         const target: ReconcileTarget = {
             node: peer,
+            signal,
             updateStatus(kind, key, state, code, ifGeneration) {
                 return Promise.resolve(
                     peer.act(agent =>
@@ -615,102 +659,116 @@ export class ReconcilerBehavior extends Behavior {
             currentItem(kind, key) {
                 return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
             },
-            refreshCapacity: kind => this.#refreshCapacity(peer, kind),
+            refreshCapacity: kind => this.#refreshCapacity(peer, signal, kind),
         };
         await executeActions(target, planned, registry);
     }
 
+    /**
+     * One pass for the peer. Resolves `undefined` — nothing read, nothing to reject with — when `signal` is aborted at
+     * any point, so a caller never acts on a pass for a peer that is no longer wired.
+     */
     async #reconcileEndpoint(
         peer: ClientNode,
+        signal: AbortSignal,
         options: {
             verify: boolean;
             disposition: DriftDisposition;
-            /** The {@link itemMapKey} of an item {@link retry} may write back whatever its mark and budget say. */
+            /** The {@link itemMapKey} of an item {@link retry} may write back whatever its hold and budget say. */
             retrying?: string;
         },
     ): Promise<VerifyResult | undefined> {
         const items = Object.values(peer.stateOf(DesiredStateBehavior).items);
 
-        const result = options.verify ? await buildVerifyResult(peer, items, this.internal.registry) : undefined;
-
-        let drift: { verify: VerifyPlan; wiring: PeerWiring } | undefined;
-        if (result !== undefined) {
-            // Asked after the read: a peer unwired while it was out is no longer ours to mark or write back to.
-            const wiring = this.internal.peers.get(peer);
-            if (wiring !== undefined) {
-                drift = {
-                    wiring,
-                    verify: {
-                        result,
-                        disposition: options.disposition,
-                        canReapply: item =>
-                            itemMapKey(item.kind, item.key) === options.retrying ||
-                            this.#canReapply(peer, wiring, item),
-                    },
-                };
-            } else {
-                logger.debug(`Verify of ${peer.id} discarded: the peer was unwired while its live read was out`);
-            }
+        const result = options.verify
+            ? await buildVerifyResult(peer, items, this.internal.registry, signal)
+            : undefined;
+        if (signal.aborted) {
+            logger.debug(`Pass for ${peer.id} discarded: the peer was unwired while its live read was out`);
+            return undefined;
         }
 
         const planned = planActions(items, {
-            verify: drift?.verify,
+            verify:
+                result === undefined
+                    ? undefined
+                    : {
+                          result,
+                          disposition: options.disposition,
+                          canReapply: item =>
+                              itemMapKey(item.kind, item.key) === options.retrying || this.#canReapply(peer, item),
+                      },
             recoverable: item =>
                 this.internal.registry.get(item.kind)?.recoverable?.(item.status.failureCode ?? 0) ??
                 defaultRecoverable(item.status.failureCode ?? 0),
         });
 
-        if (drift !== undefined) {
-            await this.#recordDrift(peer, planned, drift.verify.result, drift.wiring, options.retrying);
+        if (result !== undefined) {
+            await this.#recordDrift(peer, planned, result, options.retrying);
         }
 
-        await this.#runExecutor(peer, planned, this.internal.registry);
+        await this.#runExecutor(peer, planned, this.internal.registry, signal);
+        if (signal.aborted) {
+            logger.debug(`Pass for ${peer.id} discarded: the peer was unwired while it wrote`);
+            return undefined;
+        }
         return result;
     }
 
-    /** A held item stays held, whatever its budget says, until something writes it or {@link retry} re-applies it. */
-    #canReapply(peer: ClientNode, wiring: PeerWiring, item: ManagedItem): boolean {
-        const held = peer.stateOf(DesiredStateBehavior).drifts[itemMapKey(item.kind, item.key)]?.disposition === "held";
-        return !held && wiring.budget.left(item);
+    /** A held item stays held, whatever its budget says, until an action ends the hold. */
+    #canReapply(peer: ClientNode, item: ManagedItem): boolean {
+        const enforcement = peer.stateOf(DesiredStateBehavior).enforcement[itemMapKey(item.kind, item.key)];
+        return (
+            enforcement?.held !== true &&
+            currentReapplies(enforcement) < this.endpoint.stateOf(ReconcilerBehavior).driftBudget.count
+        );
     }
 
     /**
-     * Write what a verify pass found into the drift marks, and charge the re-apply budget of every item written
-     * back; the item a {@link retry} writes back starts its budget over with that write.
+     * Write what a verify pass found into the items' enforcement records: observed drift, holds, and a re-apply for
+     * every item written back. A successful read of the item a {@link retry} names ends its hold first.
      *
-     * A mark is never cleared here for an item being re-applied: the status write of a successful apply clears it.
+     * The observed drift of an item being re-applied is not cleared here: the status write of a successful apply
+     * clears it.
      */
     async #recordDrift(
         peer: ClientNode,
         planned: readonly PlannedAction[],
         verifyResult: VerifyResult,
-        wiring: PeerWiring,
         retrying: string | undefined,
     ): Promise<void> {
+        const { count, window } = this.endpoint.stateOf(ReconcilerBehavior).driftBudget;
         await peer.act(agent => {
             const ds = agent.get(DesiredStateBehavior);
             for (const { item, action, drift } of planned) {
-                const { kind, key, mode } = item;
+                const { kind, key, mode, generation } = item;
                 const mapKey = itemMapKey(kind, key);
-                const previous = ds.driftOf(kind, key);
+                const verified = verifyResult.verified.has(mapKey);
+                if (!verified && !verifyResult.drifted.has(mapKey)) {
+                    continue;
+                }
 
-                if (verifyResult.verified.has(mapKey)) {
-                    if (previous !== undefined) {
+                if (mapKey === retrying) {
+                    ds.releaseHold(kind, key, generation);
+                }
+                const previous = ds.enforcementOf(kind, key);
+
+                if (verified) {
+                    if (previous?.drift !== undefined) {
                         ds.clearDrift(kind, key);
                         logger.debug(`Drift on ${peer.id} ${kind}:${key} ended: the device holds the item again`);
                     }
                     continue;
                 }
-                if (!verifyResult.drifted.has(mapKey)) {
-                    continue;
-                }
 
                 if (action === "apply") {
-                    if (mapKey === retrying) {
-                        wiring.budget.reset(item);
+                    const firstInWindow = currentReapplies(previous) === 0;
+                    if (!ds.recordReapply(kind, key, window, generation)) {
+                        logger.debug(
+                            `Drift on ${peer.id} ${kind}:${key} not counted: the item changed during the read`,
+                        );
+                        continue;
                     }
-                    const firstInWindow = wiring.budget.spent(item) === 0;
-                    wiring.budget.spend(item);
                     if (mode !== "maintain") {
                         logger.debug(`Drift on ${peer.id} ${kind}:${key} (${mode}): re-applying on an explicit verify`);
                     } else if (firstInWindow) {
@@ -724,21 +782,23 @@ export class ReconcilerBehavior extends Behavior {
                 if (action !== "drifted" || drift === undefined) {
                     continue;
                 }
-                // The item may have been rewritten while the read was out; a mark then belongs to no read.
-                ds.markDrift(kind, key, { confirmedAt: Time.nowMs, disposition: drift }, item.generation);
-                if (ds.driftOf(kind, key)?.disposition !== drift) {
-                    logger.debug(`Drift on ${peer.id} ${kind}:${key} not recorded: the item changed during the read`);
-                    continue;
+                // The generation guards against an item rewritten while the read was out; its record is new.
+                if (drift === "held") {
+                    ds.hold(kind, key, generation);
+                } else {
+                    ds.markDrift(kind, key, generation);
                 }
-                if (previous?.disposition === drift) {
-                    logger.debug(`Drift on ${peer.id} ${kind}:${key} (${mode}) confirmed again; still ${drift}`);
-                } else if (drift === "held") {
-                    const { count, window } = this.endpoint.stateOf(ReconcilerBehavior).driftBudget;
+                const now = ds.enforcementOf(kind, key);
+                if (now?.drift === undefined) {
+                    logger.debug(`Drift on ${peer.id} ${kind}:${key} not recorded: the item changed during the read`);
+                } else if (drift === "held" && previous?.held !== true) {
                     logger.warn(
                         `Drift on ${peer.id} ${kind}:${key} (${mode}) held: re-applied ${count} times within ${Duration.format(window)} and changed again, so it is not written back any more. It needs an action: ReconcilerBehavior.retry(), removing the intent, or writing a new intent`,
                     );
-                } else {
+                } else if (drift === "recorded" && previous?.drift === undefined) {
                     logger.notice(driftNotice(peer, item));
+                } else {
+                    logger.debug(`Drift on ${peer.id} ${kind}:${key} (${mode}) confirmed again; still ${drift}`);
                 }
             }
         });
@@ -766,8 +826,12 @@ export namespace ReconcilerBehavior {
 
         /**
          * How often a drifted item is re-applied: at most `count` times within `window`, counting every re-apply —
-         * scheduled passes, explicit verifies and task gates alike. The next drift after that marks the item `held`,
-         * and it stays held until {@link ReconcilerBehavior.retry}, a removed intent or a new one.
+         * scheduled passes, explicit verifies and task gates alike. The next drift after that holds the item, and it
+         * stays held until {@link ReconcilerBehavior.retry}, a removed intent or a new one. The re-applies are
+         * recorded in the item's `ItemEnforcement`, so they live as long as the item.
+         *
+         * A changed `count` applies at once. A changed `window` applies to re-applies made afterwards: each counts for
+         * the window in force when it was made.
          */
         driftBudget: { count: number; window: Duration } = { count: 3, window: Minutes(10) };
 

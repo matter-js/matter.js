@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ItemDrift, ManagedItem, itemMapKey } from "@matter/node";
+import { ManagedItem, itemMapKey } from "@matter/node";
 
 /**
  * What a pass does with a `converge` drift it confirms: write it back, or only record it. `maintain` drift is
@@ -25,8 +25,11 @@ export interface VerifyResult {
 export interface PlannedAction {
     item: ManagedItem;
     action: ReconcileAction;
-    /** Set exactly when `action` is `drifted`. */
-    drift?: ItemDrift["disposition"];
+    /**
+     * Set exactly when `action` is `drifted`: `held` when the item may not be written back any more, `recorded` when
+     * only this pass's disposition kept it from being written.
+     */
+    drift?: "recorded" | "held";
 }
 
 /** What a verify pass found, and what it may do about a drift. */

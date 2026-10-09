@@ -20,7 +20,7 @@ import {
     AclCapacityExceededError,
     ClientNode,
     DesiredStateBehavior,
-    ItemDrift,
+    ItemEnforcement,
     ItemKind,
     itemMapKey,
     ServerNode,
@@ -254,10 +254,18 @@ function captureReconcilerLog() {
     return lines;
 }
 
+/** What an enforcement record says about drift: held, an observed drift only, or nothing. */
+function dispositionOf(enforcement: ItemEnforcement | undefined) {
+    if (enforcement?.held) {
+        return "held";
+    }
+    return enforcement?.drift === undefined ? undefined : "recorded";
+}
+
 function driftEvents(peer: ClientNode) {
-    const events = new Array<ItemDrift | undefined>();
-    peer.eventsOf(DesiredStateBehavior).itemDriftChanged.on((_kind, _key, drift) => {
-        events.push(drift);
+    const events = new Array<"held" | "recorded" | undefined>();
+    peer.eventsOf(DesiredStateBehavior).itemEnforcementChanged.on((_kind, _key, enforcement) => {
+        events.push(dispositionOf(enforcement));
     });
     return events;
 }
@@ -288,7 +296,8 @@ describe("drift dispositions", () => {
         expect(peer.stateOf(DesiredStateBehavior).items[itemMapKey("acl", "k1")]?.status.state).equals("committed");
     }
 
-    const driftOf = (peer: ClientNode) => peer.stateOf(DesiredStateBehavior).drifts[itemMapKey("acl", "k1")];
+    const driftOf = (peer: ClientNode) =>
+        dispositionOf(peer.stateOf(DesiredStateBehavior).enforcement[itemMapKey("acl", "k1")]);
 
     it("records a converge drift on a scheduled verify pass and does not write it", async () => {
         await using site = new MockSite();
@@ -302,8 +311,8 @@ describe("drift dispositions", () => {
         await scheduledVerify(controller, peer);
 
         expect(hasOurs(device)).equals(false);
-        expect(driftOf(peer)?.disposition).equals("recorded");
-        expect(events.map(e => e?.disposition)).deep.equals(["recorded"]);
+        expect(driftOf(peer)).equals("recorded");
+        expect(events).deep.equals(["recorded"]);
         expect(peer.stateOf(DesiredStateBehavior).items[itemMapKey("acl", "k1")]?.status.state).equals("committed");
         const notices = log.filter(line => line.level === LogLevel.NOTICE);
         expect(notices.map(line => line.text)).deep.equals([
@@ -323,7 +332,7 @@ describe("drift dispositions", () => {
         await committedAcl(controller, peer, "converge");
         await dropOurs(device);
         await scheduledVerify(controller, peer);
-        expect(driftOf(peer)?.disposition).equals("recorded");
+        expect(driftOf(peer)).equals("recorded");
 
         const events = driftEvents(peer);
         await MockTime.resolve(
@@ -343,7 +352,7 @@ describe("drift dispositions", () => {
         const fabricIndex = device.state.accessControl.acl.find(e => e.subjects?.[0] === SUBJECT)!.fabricIndex;
         await dropOurs(device);
         await scheduledVerify(controller, peer);
-        expect(driftOf(peer)?.disposition).equals("recorded");
+        expect(driftOf(peer)).equals("recorded");
 
         await MockTime.resolve(
             device.act("restore-our-acl", agent => {
@@ -380,7 +389,7 @@ describe("drift dispositions", () => {
         await dropOurs(device);
         await scheduledVerify(controller, peer);
         expect(hasOurs(device)).equals(false);
-        expect(driftOf(peer)?.disposition).equals("held");
+        expect(driftOf(peer)).equals("held");
         const warnings = log.filter(line => line.level === LogLevel.WARN).map(line => line.text);
         expect(warnings.length).equals(1);
         expect(warnings[0]).contains(`${peer.id} acl:k1`);
@@ -400,7 +409,7 @@ describe("drift dispositions", () => {
         await scheduledVerify(controller, peer);
 
         expect(script.applies).equals(1);
-        expect(scriptedDriftOf(peer, "scripted")?.disposition).equals("held");
+        expect(scriptedDriftOf(peer, "scripted")).equals("held");
         expect(events).deep.equals([]);
     });
 
@@ -423,7 +432,7 @@ describe("drift dispositions", () => {
             await explicitVerify(controller, peer);
 
             expect(script.applies).equals(3);
-            expect(scriptedDriftOf(peer, "scripted")?.disposition).equals("held");
+            expect(scriptedDriftOf(peer, "scripted")).equals("held");
             expect(log.filter(line => line.level === LogLevel.WARN).length).equals(1);
         });
     }
@@ -438,12 +447,12 @@ describe("drift dispositions", () => {
         script.answer = false;
         await explicitVerify(controller, peer);
         await explicitVerify(controller, peer);
-        expect(scriptedDriftOf(peer, "scripted")?.disposition).equals("held");
+        expect(scriptedDriftOf(peer, "scripted")).equals("held");
 
         const events = driftEvents(peer);
         await scheduledVerify(controller, peer);
 
-        expect(scriptedDriftOf(peer, "scripted")?.disposition).equals("held");
+        expect(scriptedDriftOf(peer, "scripted")).equals("held");
         expect(events).deep.equals([]);
     });
 
@@ -459,20 +468,79 @@ describe("drift dispositions", () => {
             await scheduledVerify(controller, peer);
         }
         expect(hasOurs(device)).equals(false);
-        expect(driftOf(peer)?.disposition).equals("held");
+        expect(driftOf(peer)).equals("held");
 
         const events = driftEvents(peer);
         await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).retry(peer, Acl, "k1")));
 
         expect(hasOurs(device)).equals(true);
         expect(driftOf(peer)).equals(undefined);
-        expect(events).deep.equals([undefined]);
+        // The hold ends when the read succeeds; the observed drift when the write-back lands.
+        expect(events).deep.equals(["recorded", undefined]);
 
         // retry()'s own re-apply is the one spend in the new budget, so one more drift is re-applied, not held.
         await dropOurs(device);
         await scheduledVerify(controller, peer);
         expect(hasOurs(device)).equals(true);
         expect(driftOf(peer)).equals(undefined);
+    });
+
+    it("keeps a held item held when the device holds it again, until retry() starts its budget over", async () => {
+        await using site = new MockSite();
+        const { controller, peer, script } = await heldScripted(site, Minutes(10));
+        const record = () => peer.stateOf(DesiredStateBehavior).enforcement[itemMapKey("scripted", "k")];
+
+        // Another administrator restores our value.
+        script.answer = true;
+        const events = driftEvents(peer);
+        await scheduledVerify(controller, peer);
+        expect(record()?.held).equals(true);
+        expect(record()?.drift).equals(undefined);
+        expect(events).deep.equals(["held"]);
+
+        // The window has not ended and nothing acted, so a new drift is not written back.
+        script.answer = false;
+        await scheduledVerify(controller, peer);
+        expect(script.applies).equals(1);
+        expect(record()?.held).equals(true);
+
+        // retry() on a device that holds the item writes nothing and ends the hold with a fresh budget.
+        script.answer = true;
+        await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).retry(peer, script.kind, "k")));
+        expect(script.applies).equals(1);
+        expect(record()).equals(undefined);
+
+        script.answer = false;
+        await scheduledVerify(controller, peer);
+        expect(script.applies).equals(2);
+        expect(record()?.held).not.equals(true);
+    });
+
+    it("gives an item removed and added again within the window a fresh budget", async () => {
+        await using site = new MockSite();
+        const { controller } = await controllerWithReconciler(site, {
+            driftBudget: { count: 3, window: Minutes(10) },
+        });
+        const peer = await subscribedPeer(controller, "peer1");
+        const script = await committedScripted(controller, peer, "scripted", "maintain");
+        script.answer = false;
+        for (let i = 0; i < 3; i++) {
+            await scheduledVerify(controller, peer);
+        }
+        expect(script.applies).equals(3);
+
+        await peer.act(agent => agent.get(DesiredStateBehavior).removeIntent("scripted", "k"));
+        await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
+        expect(peer.stateOf(DesiredStateBehavior).items[itemMapKey("scripted", "k")]).equals(undefined);
+        await peer.act(agent => agent.get(DesiredStateBehavior).setIntent("scripted", "k", {}, "maintain"));
+        await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
+        expect(script.applies).equals(4);
+
+        for (let i = 0; i < 3; i++) {
+            await scheduledVerify(controller, peer);
+        }
+        expect(script.applies).equals(7);
+        expect(scriptedDriftOf(peer, "scripted")).equals(undefined);
     });
 
     it("retry() refuses an item the peer does not hold, and a kind it was not given by the reconciler", async () => {
@@ -503,14 +571,14 @@ describe("drift dispositions", () => {
         await expect(
             MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).retry(peer, script.kind, "k"))),
         ).rejectedWith(StatusResponseError, readError.message);
-        expect(scriptedDriftOf(peer, "scripted")?.disposition).equals("held");
+        expect(scriptedDriftOf(peer, "scripted")).equals("held");
         expect(events).deep.equals([]);
 
         // The budget is still spent, so a scheduled pass finding the drift again neither writes nor un-holds it.
         script.answer = false;
         await scheduledVerify(controller, peer);
         expect(script.applies).equals(1);
-        expect(scriptedDriftOf(peer, "scripted")?.disposition).equals("held");
+        expect(scriptedDriftOf(peer, "scripted")).equals("held");
 
         await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).retry(peer, script.kind, "k")));
         expect(script.applies).equals(2);
@@ -582,6 +650,158 @@ describe("drift dispositions", () => {
         expect(log.filter(line => line.level >= LogLevel.WARN)).deep.equals([]);
     });
 
+    it("applies no pending item in a pass whose fabric left while its live read was out", async () => {
+        await using site = new MockSite();
+        const { controller } = await controllerWithReconciler(site);
+        const peer = await subscribedPeer(controller, "peer1");
+        const script = await committedScripted(controller, peer, "scripted", "converge");
+        const plain = await plainKind(controller);
+
+        let release!: () => void;
+        const entered = new Promise<void>(resolve => {
+            script.hold = { entered: resolve, released: new Promise<void>(r => (release = r)) };
+        });
+        // One pass carries both: the pending item joins the verify pass the version change schedules.
+        await MockTime.resolve(
+            peer.act(agent => {
+                agent.get(DesiredStateBehavior).setIntent("plain", "k", {});
+                peer.lifecycle.softwareVersionChanged.emit(1, agent.context);
+            }),
+        );
+        await MockTime.resolve(entered);
+        script.hold = undefined;
+        script.answer = false;
+
+        const events = driftEvents(peer);
+        const fabrics = controller.env.get(FabricManager);
+        await MockTime.resolve(fabrics.fabrics[0].delete(), { macrotasks: true });
+        const log = captureReconcilerLog();
+        release();
+        await pumpFor(Seconds(1), 5, () => false);
+
+        expect(plain.applies).equals(0);
+        expect(events).deep.equals([]);
+        expect(log.filter(line => line.level >= LogLevel.WARN)).deep.equals([]);
+    });
+
+    it("resolves an explicit verify whose fabric left while its failing live read was out", async () => {
+        await using site = new MockSite();
+        const { controller } = await controllerWithReconciler(site);
+        const peer = await subscribedPeer(controller, "peer1");
+        const script = await committedScripted(controller, peer, "scripted", "converge");
+
+        let release!: () => void;
+        const entered = new Promise<void>(resolve => {
+            script.hold = { entered: resolve, released: new Promise<void>(r => (release = r)) };
+        });
+        const pass = controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer, { verify: true }));
+        await MockTime.resolve(entered);
+        script.hold = undefined;
+        script.answer = "throws";
+
+        const fabrics = controller.env.get(FabricManager);
+        await MockTime.resolve(fabrics.fabrics[0].delete(), { macrotasks: true });
+        release();
+
+        await MockTime.resolve(pass, { macrotasks: true });
+    });
+
+    it("resolves an explicit verify whose fabric left during its write-back, though another read failed", async () => {
+        await using site = new MockSite();
+        const { controller } = await controllerWithReconciler(site);
+        const peer = await subscribedPeer(controller, "peer1");
+        const failing = await committedScripted(controller, peer, "failing", "converge");
+        const moved = await committedScripted(controller, peer, "moved", "converge", true);
+        failing.answer = "throws";
+        moved.answer = false;
+
+        let release!: () => void;
+        const entered = new Promise<void>(resolve => {
+            moved.applyHold = { entered: resolve, released: new Promise<void>(r => (release = r)) };
+        });
+        const pass = controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer, { verify: true }));
+        await MockTime.resolve(entered);
+
+        const fabrics = controller.env.get(FabricManager);
+        await MockTime.resolve(fabrics.fabrics[0].delete(), { macrotasks: true });
+        const capacityReads = moved.capacityReads;
+        release();
+
+        await MockTime.resolve(pass, { macrotasks: true });
+        expect(moved.applies).equals(1);
+        expect(moved.capacityReads).equals(capacityReads);
+    });
+
+    it("drops a scheduled pass whose peer was unwired during its capacity refresh, its capacity write and live reads included", async () => {
+        await using site = new MockSite();
+        const { controller } = await controllerWithReconciler(site);
+        const peer = await subscribedPeer(controller, "peer1");
+        const plain = await plainKind(controller);
+        const script = await committedScripted(controller, peer, "scripted", "converge");
+
+        let hold: { entered: () => void; released: Promise<void> } | undefined;
+        await controller.act(agent =>
+            agent.get(ReconcilerBehavior).registerItemKind({
+                kind: "counted",
+                // Refreshed last, so no built-in kind's capacity read runs after the fabric is gone.
+                priority: 1000,
+                async apply() {},
+                async capacity() {
+                    if (hold !== undefined) {
+                        const { entered, released } = hold;
+                        hold = undefined;
+                        entered();
+                        await released;
+                    }
+                    return { limit: 10, used: 0 };
+                },
+            }),
+        );
+
+        // The peer's state is unreadable once its fabric is gone, so a capacity write shows only as the act that
+        // carries it; the node's own teardown acts too. Matched by the actor's source, which bundling keeps.
+        let peerWrites = 0;
+        const act = peer.act;
+        Object.defineProperty(peer, "act", {
+            configurable: true,
+            value: (...args: unknown[]) => {
+                if (String(args[0]).includes("setCapacity")) {
+                    peerWrites++;
+                }
+                return Reflect.apply(act, peer, args);
+            },
+        });
+        try {
+            // The spy sees the capacity write of an undisturbed pass.
+            await scheduledVerify(controller, peer);
+            expect(peerWrites).greaterThan(0);
+            peerWrites = 0;
+
+            let release!: () => void;
+            const entered = new Promise<void>(resolve => {
+                hold = { entered: resolve, released: new Promise<void>(r => (release = r)) };
+            });
+            // A version change refreshes capacity before its pass reads the items, so the pending item is in that read.
+            await MockTime.resolve(peer.act(agent => peer.lifecycle.softwareVersionChanged.emit(1, agent.context)));
+            await MockTime.resolve(entered);
+            await peer.act(agent => agent.get(DesiredStateBehavior).setIntent("plain", "k", {}));
+
+            const fabrics = controller.env.get(FabricManager);
+            await MockTime.resolve(fabrics.fabrics[0].delete(), { macrotasks: true });
+            const log = captureReconcilerLog();
+            const reads = script.reads;
+            release();
+            await pumpFor(Seconds(1), 5, () => false);
+
+            expect(script.reads).equals(reads);
+            expect(plain.applies).equals(0);
+            expect(peerWrites).equals(0);
+            expect(log.filter(line => line.level >= LogLevel.WARN)).deep.equals([]);
+        } finally {
+            Reflect.deleteProperty(peer, "act");
+        }
+    });
+
     it("confirms a held maintain drift again without writing, an event or a log line above debug", async () => {
         await using site = new MockSite();
         const { controller, device } = await controllerWithReconciler(site, {
@@ -593,14 +813,14 @@ describe("drift dispositions", () => {
             await dropOurs(device);
             await scheduledVerify(controller, peer);
         }
-        expect(driftOf(peer)?.disposition).equals("held");
+        expect(driftOf(peer)).equals("held");
 
         const events = driftEvents(peer);
         const log = captureReconcilerLog();
         await scheduledVerify(controller, peer);
 
         expect(hasOurs(device)).equals(false);
-        expect(driftOf(peer)?.disposition).equals("held");
+        expect(driftOf(peer)).equals("held");
         expect(events).deep.equals([]);
         expect(log.filter(line => line.level > LogLevel.DEBUG)).deep.equals([]);
     });
@@ -616,64 +836,68 @@ describe("drift dispositions", () => {
             await dropOurs(device);
             await scheduledVerify(controller, peer);
         }
-        expect(driftOf(peer)?.disposition).equals("held");
+        expect(driftOf(peer)).equals("held");
 
         const events = driftEvents(peer);
         await explicitVerify(controller, peer);
 
         expect(hasOurs(device)).equals(false);
-        expect(driftOf(peer)?.disposition).equals("held");
+        expect(driftOf(peer)).equals("held");
         expect(events).deep.equals([]);
     });
 
-    it("does not mark an item rewritten while its drift read was out", async () => {
-        await using site = new MockSite();
-        const { controller } = await controllerWithReconciler(site);
-        const peer = await subscribedPeer(controller, "peer1");
+    for (const mode of ["converge", "maintain"] as const) {
+        it(`does not mark or count a ${mode} item rewritten while its drift read was out`, async () => {
+            await using site = new MockSite();
+            const { controller } = await controllerWithReconciler(site);
+            const peer = await subscribedPeer(controller, "peer1");
 
-        let hold: { entered: () => void; released: Promise<void> } | undefined;
-        await controller.act(agent =>
-            agent.get(ReconcilerBehavior).registerItemKind({
-                kind: "slow",
-                priority: 0,
-                async apply() {},
-                async verify() {
-                    if (hold !== undefined) {
-                        hold.entered();
-                        await hold.released;
-                    }
-                    return false;
-                },
-            }),
-        );
-        await peer.act(async agent => {
-            const ds = agent.get(DesiredStateBehavior);
-            ds.setIntent("slow", "k", { value: 1 }, "converge");
-            await ds.updateStatus("slow", "k", "committed");
+            let hold: { entered: () => void; released: Promise<void> } | undefined;
+            await controller.act(agent =>
+                agent.get(ReconcilerBehavior).registerItemKind({
+                    kind: "slow",
+                    priority: 0,
+                    async apply() {},
+                    async verify() {
+                        if (hold !== undefined) {
+                            hold.entered();
+                            await hold.released;
+                        }
+                        return false;
+                    },
+                }),
+            );
+            await peer.act(async agent => {
+                const ds = agent.get(DesiredStateBehavior);
+                ds.setIntent("slow", "k", { value: 1 }, mode);
+                await ds.updateStatus("slow", "k", "committed");
+            });
+            await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
+
+            let release!: () => void;
+            const entered = new Promise<void>(resolve => {
+                hold = { entered: resolve, released: new Promise<void>(r => (release = r)) };
+            });
+            await MockTime.resolve(peer.act(agent => peer.lifecycle.softwareVersionChanged.emit(1, agent.context)));
+            await MockTime.resolve(entered);
+            hold = undefined;
+
+            // The rewrite lands committed, so only the generation tells the pending mark that it is stale.
+            await peer.act(async agent => {
+                const ds = agent.get(DesiredStateBehavior);
+                ds.setIntent("slow", "k", { value: 2 }, mode);
+                await ds.updateStatus("slow", "k", "committed");
+            });
+            const events = driftEvents(peer);
+            const log = captureReconcilerLog();
+            release();
+            await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
+
+            expect(peer.stateOf(DesiredStateBehavior).enforcement[itemMapKey("slow", "k")]).equals(undefined);
+            expect(events).deep.equals([]);
+            expect(log.filter(line => line.level > LogLevel.DEBUG)).deep.equals([]);
         });
-        await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
-
-        let release!: () => void;
-        const entered = new Promise<void>(resolve => {
-            hold = { entered: resolve, released: new Promise<void>(r => (release = r)) };
-        });
-        await MockTime.resolve(peer.act(agent => peer.lifecycle.softwareVersionChanged.emit(1, agent.context)));
-        await MockTime.resolve(entered);
-        hold = undefined;
-
-        // The rewrite lands committed, so only the generation tells the pending mark that it is stale.
-        await peer.act(async agent => {
-            const ds = agent.get(DesiredStateBehavior);
-            ds.setIntent("slow", "k", { value: 2 }, "converge");
-            await ds.updateStatus("slow", "k", "committed");
-        });
-        const events = driftEvents(peer);
-        release();
-        await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
-
-        expect(peer.stateOf(DesiredStateBehavior).drifts[itemMapKey("slow", "k")]).equals(undefined);
-        expect(events).deep.equals([]);
-    });
+    }
 
     it("keeps the mark of an item whose live read fails", async () => {
         await using site = new MockSite();
@@ -682,13 +906,13 @@ describe("drift dispositions", () => {
         const script = await committedScripted(controller, peer, "scripted", "converge");
         script.answer = false;
         await scheduledVerify(controller, peer);
-        expect(scriptedDriftOf(peer, "scripted")?.disposition).equals("recorded");
+        expect(scriptedDriftOf(peer, "scripted")).equals("recorded");
 
         script.answer = "throws";
         const events = driftEvents(peer);
         await scheduledVerify(controller, peer);
 
-        expect(scriptedDriftOf(peer, "scripted")?.disposition).equals("recorded");
+        expect(scriptedDriftOf(peer, "scripted")).equals("recorded");
         expect(events).deep.equals([]);
     });
 
@@ -706,7 +930,7 @@ describe("drift dispositions", () => {
         await scheduledVerify(controller, peer);
 
         expect(failing.reads).equals(readsBefore + 1);
-        expect(scriptedDriftOf(peer, "moved")?.disposition).equals("recorded");
+        expect(scriptedDriftOf(peer, "moved")).equals("recorded");
         // The one line above debug is the other item's drift: the failed read neither escapes the pass to the
         // peer's lock nor logs on its own.
         expect(log.filter(line => line.level > LogLevel.DEBUG).map(line => line.text)).deep.equals([
@@ -720,8 +944,12 @@ interface Script {
     answer: boolean | "throws";
     reads: number;
     applies: number;
+    /** Capacity reads, when the kind was created `withCapacity`. */
+    capacityReads: number;
     /** Parks the next live read until `released` settles. */
     hold?: { entered: () => void; released: Promise<void> };
+    /** Parks the next apply until `released` settles. */
+    applyHold?: { entered: () => void; released: Promise<void> };
     /** The registered kind, for `retry()`. */
     kind: ItemKind;
 }
@@ -732,12 +960,24 @@ async function committedScripted(
     peer: ClientNode,
     name: string,
     mode: "converge" | "maintain",
+    withCapacity = false,
 ): Promise<Script> {
+    const capacity = async () => {
+        script.capacityReads++;
+        return { limit: 10, used: 0 };
+    };
     const kind: ItemKind = {
+        ...(withCapacity ? { capacity } : {}),
         kind: name,
         priority: 0,
         async apply() {
             script.applies++;
+            const hold = script.applyHold;
+            if (hold !== undefined) {
+                script.applyHold = undefined;
+                hold.entered();
+                await hold.released;
+            }
         },
         async verify() {
             script.reads++;
@@ -751,7 +991,7 @@ async function committedScripted(
             return script.answer;
         },
     };
-    const script: Script = { answer: true, reads: 0, applies: 0, kind };
+    const script: Script = { answer: true, reads: 0, applies: 0, capacityReads: 0, kind };
     await controller.act(agent => agent.get(ReconcilerBehavior).registerItemKind(kind));
     await peer.act(async agent => {
         const ds = agent.get(DesiredStateBehavior);
@@ -771,7 +1011,7 @@ async function heldScripted(site: MockSite, window: Duration) {
     await scheduledVerify(pair.controller, peer);
     await scheduledVerify(pair.controller, peer);
     expect(script.applies).equals(1);
-    expect(scriptedDriftOf(peer, "scripted")?.disposition).equals("held");
+    expect(scriptedDriftOf(peer, "scripted")).equals("held");
     return { ...pair, peer, script };
 }
 
@@ -780,4 +1020,19 @@ async function explicitVerify(controller: ServerNode, peer: ClientNode) {
 }
 
 const scriptedDriftOf = (peer: ClientNode, name: string) =>
-    peer.stateOf(DesiredStateBehavior).drifts[itemMapKey(name, "k")];
+    dispositionOf(peer.stateOf(DesiredStateBehavior).enforcement[itemMapKey(name, "k")]);
+
+/** Register a kind that only counts its applies: no live read, so a pass reaches it only as pending work. */
+async function plainKind(controller: ServerNode) {
+    const plain = { applies: 0 };
+    await controller.act(agent =>
+        agent.get(ReconcilerBehavior).registerItemKind({
+            kind: "plain",
+            priority: 0,
+            async apply() {
+                plain.applies++;
+            },
+        }),
+    );
+    return plain;
+}

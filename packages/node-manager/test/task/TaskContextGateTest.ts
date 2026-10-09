@@ -9,7 +9,7 @@ import { GateControl, RunningTaskContext } from "#task/RunningTaskContext.js";
 import { TaskDefinition, RunRecord } from "#task/Task.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
-import { Observable, Timestamp } from "@matter/general";
+import { Observable } from "@matter/general";
 import { ClientNode, itemMapKey } from "@matter/node";
 import { PeerAddress } from "@matter/protocol";
 import { kindOf, FakePeer } from "./helpers.js";
@@ -285,7 +285,7 @@ describe("TaskContext gates", () => {
     it("fails with what to do when its verify pass leaves an awaited item held", async () => {
         const peer = new FakePeer("p1");
         peer.addItem("groupMembership", "1", "committed");
-        peer.drifts[itemMapKey("groupMembership", "1")] = { confirmedAt: Timestamp(0), disposition: "held" };
+        peer.enforcement[itemMapKey("groupMembership", "1")] = { held: true, reappliesUntil: [] };
         const { ctx } = makeContext(peer);
 
         const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]);

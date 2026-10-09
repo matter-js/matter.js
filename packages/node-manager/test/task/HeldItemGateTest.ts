@@ -17,17 +17,18 @@ import { awaitRun } from "./helpers.js";
 
 const PEER_ID = "peer1";
 
-/** A device that reverts the item after every write, so a live read always finds it drifted. */
+/** A device that reverts the item after every write, so a live read finds it drifted until `restored` is set. */
 const reverting = {
     applies: 0,
+    restored: false,
     kind: {
         kind: "reverting",
         priority: 0,
         async apply() {
             reverting.applies++;
         },
-        async verify() {
-            return false;
+        async verify(): Promise<boolean> {
+            return reverting.restored;
         },
     } satisfies ItemKind,
 };
@@ -59,6 +60,7 @@ describe("a task gate on an item the device keeps reverting", () => {
             });
             const peer = await subscribedPeer(controller, PEER_ID);
             reverting.applies = 0;
+            reverting.restored = false;
 
             await controller.act(agent => agent.get(ReconcilerBehavior).registerItemKind(reverting.kind));
             await peer.act(agent => {
@@ -79,11 +81,60 @@ describe("a task gate on an item the device keeps reverting", () => {
             await awaitRun(controller, TaskManagerBehavior, handle.runId, "failed");
 
             expect(reverting.applies).equals(1);
-            expect(peer.stateOf(DesiredStateBehavior).drifts[itemMapKey("reverting", "k")]?.disposition).equals("held");
+            expect(peer.stateOf(DesiredStateBehavior).enforcement[itemMapKey("reverting", "k")]?.held).equals(true);
             const error = await controller.act(agent => agent.get(TaskManagerBehavior).get(handle.runId)?.status.error);
             expect(error).match(/reverting:k on .* is held/);
         });
     }
+});
+
+describe("a task gate on a held item the device holds again", () => {
+    before(() => {
+        MockTime.init();
+    });
+
+    it("fails the run until retry() ends the hold", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair({
+            controller: { type: ControllerRoot, reconciler: { driftBudget: { count: 1, window: Minutes(10) } } },
+        });
+        const peer = await subscribedPeer(controller, PEER_ID);
+        reverting.applies = 0;
+        reverting.restored = false;
+
+        await controller.act(agent => agent.get(ReconcilerBehavior).registerItemKind(reverting.kind));
+        await peer.act(agent => {
+            const ds = agent.get(DesiredStateBehavior);
+            ds.setIntent("reverting", "k", {}, "maintain");
+            ds.updateStatus("reverting", "k", "committed");
+        });
+        for (let i = 0; i < 2; i++) {
+            await MockTime.resolve(
+                controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer, { verify: true })),
+            );
+        }
+        const held = () => peer.stateOf(DesiredStateBehavior).enforcement[itemMapKey("reverting", "k")]?.held;
+        expect(held()).equals(true);
+
+        reverting.restored = true;
+        await controller.act(agent => agent.get(TaskManagerBehavior).register(AwaitTask));
+        const failed = await controller.act(agent =>
+            agent.get(TaskManagerBehavior).run(AwaitTask, { peer: addressOf(peer)! }),
+        );
+        await awaitRun(controller, TaskManagerBehavior, failed.runId, "failed");
+        const error = await controller.act(agent => agent.get(TaskManagerBehavior).get(failed.runId)?.status.error);
+        expect(error).match(/reverting:k on .* is held/);
+        expect(held()).equals(true);
+
+        await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).retry(peer, reverting.kind, "k")));
+        expect(held()).equals(undefined);
+
+        const completed = await controller.act(agent =>
+            agent.get(TaskManagerBehavior).run(AwaitTask, { peer: addressOf(peer)! }),
+        );
+        await awaitRun(controller, TaskManagerBehavior, completed.runId, "completed");
+        expect(reverting.applies).equals(1);
+    });
 });
 
 describe("a task gate whose fabric leaves during its verify pass", () => {

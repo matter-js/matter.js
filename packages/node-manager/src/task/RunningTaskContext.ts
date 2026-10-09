@@ -10,7 +10,6 @@ import { asError, Logger, ObserverGroup } from "@matter/general";
 import {
     ClientNode,
     DesiredStateBehavior,
-    ItemDrift,
     ItemKind,
     itemMapKey,
     ItemMode,
@@ -249,7 +248,7 @@ export class RunningTaskContext implements TaskContext {
                         `${this.#whyAbandoned(current)}, so it will not commit`,
                 );
             }
-            if (this.#driftOf(item.peer, item.kind.kind, item.key)?.disposition === "held") {
+            if (this.#isHeld(item.peer, item.kind.kind, item.key)) {
                 throw new TaskItemHeldError(
                     `Task ${runLabel(this.record.runId)}: awaited intent ${item.kind.kind}:${item.key} on ${peerLabel(item.peer)} ` +
                         `is held: the device kept reverting it and its re-apply budget is spent. It needs ` +
@@ -263,8 +262,8 @@ export class RunningTaskContext implements TaskContext {
         return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
     }
 
-    #driftOf(peer: ClientNode, kind: string, key: string): ItemDrift | undefined {
-        return peer.stateOf(DesiredStateBehavior).drifts[itemMapKey(kind, key)];
+    #isHeld(peer: ClientNode, kind: string, key: string): boolean {
+        return peer.stateOf(DesiredStateBehavior).enforcement[itemMapKey(kind, key)]?.held === true;
     }
 
     /**

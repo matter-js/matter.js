@@ -53,11 +53,13 @@ const STUB_NODE = {} as ClientNode;
 
 function makeTarget(
     items: Record<string, ManagedItem> = {},
+    signal = new AbortController().signal,
 ): ReconcileTarget & { items: Record<string, ManagedItem>; log: string[] } {
     const state = { ...items };
     const log = new Array<string>();
     return {
         node: STUB_NODE,
+        signal,
         items: state,
         log,
         // Mirrors DesiredStateBehavior: the generation is compared where the write happens, so a replacement
@@ -341,6 +343,34 @@ describe("executeActions (executor)", () => {
     });
 });
 
+describe("executeActions (unwired peer)", () => {
+    it("stops before its next device call once the peer is unwired, and records the call already made", async () => {
+        const registry = new ItemKindRegistry();
+        const fake = new FakeKind();
+        registry.register(fake);
+        const unwired = new AbortController();
+        const target = makeTarget(
+            {
+                "fake:a": pendingItem("fake", "a"),
+                "fake:b": pendingItem("fake", "b"),
+                "fake:rem": deletePendingItem("fake", "rem"),
+            },
+            unwired.signal,
+        );
+        const refresh = target.refreshCapacity;
+        target.refreshCapacity = async kind => {
+            unwired.abort();
+            await refresh(kind);
+        };
+
+        await executeActions(target, planActions(Object.values(target.items), { recoverable: () => false }), registry);
+
+        expect(fake.applied).deep.equals(["a"]);
+        expect(fake.removed).deep.equals([]);
+        expect(target.log).deep.equals(["refresh fake", "status fake:a committed"]);
+    });
+});
+
 describe("executeActions (failure paths)", () => {
     it("records a failed removal instead of forgetting the item", async () => {
         class UnremovableKind extends FakeKind {
@@ -525,10 +555,29 @@ describe("refreshCapacities", () => {
         registry.register(counted("two", reads));
         const written = new Array<string>();
 
-        await refreshCapacities(STUB_NODE, registry, kind => written.push(kind), "two");
+        await refreshCapacities(STUB_NODE, registry, kind => written.push(kind), new AbortController().signal, "two");
 
         expect(reads).deep.equals(["two"]);
         expect(written).deep.equals(["two"]);
+    });
+
+    it("reads no further kind once the pass's signal is aborted", async () => {
+        const reads = new Array<string>();
+        const unwired = new AbortController();
+        const registry = new ItemKindRegistry();
+        registry.register({
+            ...counted("one", reads),
+            async capacity() {
+                reads.push("one");
+                unwired.abort();
+                return { limit: 4, used: 1 };
+            },
+        });
+        registry.register(counted("two", reads));
+
+        await refreshCapacities(STUB_NODE, registry, () => {}, unwired.signal);
+
+        expect(reads).deep.equals(["one"]);
     });
 });
 
@@ -562,11 +611,36 @@ describe("buildVerifyResult", () => {
             STUB_NODE,
             [committed("v", "ok"), committed("v", "moved"), committed("v", "boom"), committed("v", "after")],
             registry,
+            new AbortController().signal,
         );
 
         expect([...result.verified]).deep.equals([itemMapKey("v", "ok"), itemMapKey("v", "after")]);
         expect([...result.drifted]).deep.equals([itemMapKey("v", "moved")]);
         expect([...result.unread]).deep.equals([[itemMapKey("v", "boom"), readError]]);
         expect(reads).deep.equals(["v:ok", "v:moved", "v:boom", "v:after"]);
+    });
+
+    it("reads no further item once the pass's signal is aborted", async () => {
+        const reads = new Array<string>();
+        const unwired = new AbortController();
+        const registry = new ItemKindRegistry();
+        registry.register({
+            ...verifying("v", {}, reads),
+            async verify(_node, item) {
+                reads.push(`v:${item.key}`);
+                unwired.abort();
+                return true;
+            },
+        });
+
+        const result = await buildVerifyResult(
+            STUB_NODE,
+            [committed("v", "first"), committed("v", "second")],
+            registry,
+            unwired.signal,
+        );
+
+        expect(reads).deep.equals(["v:first"]);
+        expect([...result.verified]).deep.equals([itemMapKey("v", "first")]);
     });
 });

@@ -6,7 +6,7 @@
 
 import { DesiredStateBehavior } from "#behavior/system/desired-state/DesiredStateBehavior.js";
 import { ClientNode } from "#node/ClientNode.js";
-import { Environment, Timestamp } from "@matter/general";
+import { Environment } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 
 describe("DesiredState integration", () => {
@@ -50,7 +50,7 @@ describe("DesiredState integration", () => {
         await node2.close();
     });
 
-    it("does NOT persist drift marks across a restart", async () => {
+    it("does NOT persist enforcement records across a restart", async () => {
         const environment = new Environment("test");
         const RootEndpoint = MockServerNode.RootEndpoint.with(DesiredStateBehavior);
 
@@ -59,8 +59,8 @@ describe("DesiredState integration", () => {
             const ds = agent.get(DesiredStateBehavior);
             ds.setIntent("acl", "1", { privilege: 5 }, "maintain");
             ds.updateStatus("acl", "1", "committed");
-            ds.markDrift("acl", "1", { confirmedAt: Timestamp(1000), disposition: "recorded" });
-            expect(ds.driftOf("acl", "1")?.disposition).equals("recorded");
+            ds.hold("acl", "1");
+            expect(ds.enforcementOf("acl", "1")?.held).equals(true);
         });
         await node1.close();
 
@@ -68,7 +68,7 @@ describe("DesiredState integration", () => {
         await node2.act(agent => {
             const ds = agent.get(DesiredStateBehavior);
             expect(ds.getItem("acl", "1")).not.equals(undefined);
-            expect(ds.driftOf("acl", "1")).equals(undefined);
+            expect(ds.enforcementOf("acl", "1")).equals(undefined);
         });
         await node2.close();
     });

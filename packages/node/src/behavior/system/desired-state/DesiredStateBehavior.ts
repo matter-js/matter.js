@@ -6,15 +6,15 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
-import { Observable } from "@matter/general";
+import { Duration, Observable, Time, Timestamp } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { assertCanAddItems, CapacityCache } from "./capacity.js";
 import type { CapacityInfo } from "./ItemKind.js";
-import { itemMapKey, ItemDrift, ItemMode, ItemState, ManagedItem, newStatus } from "./types.js";
+import { ItemEnforcement, itemMapKey, ItemMode, ItemState, ManagedItem, newStatus } from "./types.js";
 
 /**
  * Per-ClientNode store of intended state. Holds persisted {@link ManagedItem}s and, volatile, the
- * observed device capacity cache and the drift marks of committed items. Passive: it tracks intent
+ * observed device capacity cache and the {@link ItemEnforcement} of committed items. Passive: it tracks intent
  * and status but performs no network I/O. The Reconciler (separate package) drives items toward the node.
  */
 export class DesiredStateBehavior extends Behavior {
@@ -22,6 +22,7 @@ export class DesiredStateBehavior extends Behavior {
 
     declare readonly state: DesiredStateBehavior.State;
     declare readonly events: DesiredStateBehavior.Events;
+    declare internal: DesiredStateBehavior.Internal;
 
     static override readonly schema = new DatatypeModel({
         name: "DesiredState",
@@ -44,10 +45,15 @@ export class DesiredStateBehavior extends Behavior {
             mode,
             status: newStatus("pending"),
             outstanding: "apply",
-            generation: (this.state.items[itemMapKey(kind, key)]?.generation ?? 0) + 1,
+            generation:
+                Math.max(
+                    this.state.items[itemMapKey(kind, key)]?.generation ?? 0,
+                    this.internal.droppedGenerations.get(itemMapKey(kind, key)) ?? 0,
+                ) + 1,
         };
+        this.internal.droppedGenerations.delete(itemMapKey(kind, key));
         this.state.items = { ...this.state.items, [itemMapKey(kind, key)]: item };
-        this.#removeDrift(kind, key);
+        this.#writeEnforcement(kind, key, undefined);
         this.events.itemChanged.emit(item);
         return item;
     }
@@ -65,7 +71,7 @@ export class DesiredStateBehavior extends Behavior {
             generation: existing.generation + 1,
         };
         this.state.items = { ...this.state.items, [id]: item };
-        this.#removeDrift(kind, key);
+        this.#writeEnforcement(kind, key, undefined);
         this.events.itemChanged.emit(item);
     }
 
@@ -86,7 +92,7 @@ export class DesiredStateBehavior extends Behavior {
         }
         const item: ManagedItem = { ...existing, status: newStatus(state, failureCode) };
         this.state.items = { ...this.state.items, [id]: item };
-        this.#removeDrift(kind, key);
+        this.#writeEnforcement(kind, key, withoutDrift(this.state.enforcement[id]));
         this.events.itemChanged.emit(item);
     }
 
@@ -107,45 +113,73 @@ export class DesiredStateBehavior extends Behavior {
         }
         const { [id]: _removed, ...rest } = this.state.items;
         this.state.items = rest;
-        this.#removeDrift(kind, key);
+        this.internal.droppedGenerations.set(id, existing.generation);
+        this.#writeEnforcement(kind, key, undefined);
         this.events.itemRemoved.emit(kind, key);
     }
 
     /**
-     * Record that a live read confirmed the item differs from the device.
+     * Record that a live read confirmed the item differs from the device, and the engine did not write it back.
      *
      * Written only beside a `committed` item, and, when `ifGeneration` is given, only if that is still the
      * intent the read was made for; see {@link updateStatus}. An item that is pending, being removed or gone
-     * has nothing the device is expected to hold, so nothing can have drifted from it.
-     *
-     * Emits {@link Events.itemDriftChanged} when the mark is new or its disposition changes; a repeated
-     * confirmation of the same disposition changes nothing.
+     * has nothing the device is expected to hold, so nothing can have drifted from it. A drift already observed
+     * keeps the time it was first confirmed.
      */
-    markDrift(kind: string, key: string, drift: ItemDrift, ifGeneration?: number): void {
-        const id = itemMapKey(kind, key);
-        const existing = this.state.items[id];
-        if (
-            existing === undefined ||
-            existing.status.state !== "committed" ||
-            (ifGeneration !== undefined && existing.generation !== ifGeneration)
-        ) {
-            return;
-        }
-        if (this.state.drifts[id]?.disposition === drift.disposition) {
-            return;
-        }
-        this.state.drifts = { ...this.state.drifts, [id]: drift };
-        this.events.itemDriftChanged.emit(kind, key, drift);
+    markDrift(kind: string, key: string, ifGeneration?: number): void {
+        this.#enforce(kind, key, ifGeneration, current =>
+            current.drift === undefined ? { ...current, drift: confirmedNow() } : current,
+        );
     }
 
-    /** Forget a drift mark, for example because a live read found the device restored. */
+    /**
+     * Record a confirmed drift the engine stopped writing back because the item's re-apply budget is spent.
+     * Written under the same conditions as {@link markDrift}.
+     *
+     * Only {@link releaseHold}, {@link setIntent}, {@link removeIntent} and {@link dropItem} end the hold.
+     * Engine-internal: an operator ends a hold through the reconciler's `retry()`, a removed intent or a new one.
+     */
+    hold(kind: string, key: string, ifGeneration?: number): void {
+        this.#enforce(kind, key, ifGeneration, current =>
+            current.held && current.drift !== undefined
+                ? current
+                : { ...current, drift: current.drift ?? confirmedNow(), held: true },
+        );
+    }
+
+    /** End the observed drift of an item because a live read found the device right again. A hold stays. */
     clearDrift(kind: string, key: string): void {
-        this.#removeDrift(kind, key);
+        this.#writeEnforcement(kind, key, withoutDrift(this.state.enforcement[itemMapKey(kind, key)]));
     }
 
-    /** The confirmed drift of an item, if this runtime knows of one. */
-    driftOf(kind: string, key: string): ItemDrift | undefined {
-        return this.state.drifts[itemMapKey(kind, key)];
+    /**
+     * Record one re-apply of the item after a drift, now; it counts against the item's re-apply budget for `window`.
+     * Written under the same conditions as {@link markDrift}. Engine-internal.
+     *
+     * @returns whether it was recorded, which is false for an item rewritten or no longer committed
+     */
+    recordReapply(kind: string, key: string, window: Duration, ifGeneration?: number): boolean {
+        return this.#enforce(kind, key, ifGeneration, current => ({
+            ...current,
+            reappliesUntil: [...current.reappliesUntil, Timestamp(Time.nowUs + window)],
+        }));
+    }
+
+    /**
+     * End the item's hold and start its re-apply budget over. Written under the same conditions as
+     * {@link markDrift}. Engine-internal: an operator calls the reconciler's `retry()`, which calls this once the
+     * item's live read succeeds.
+     */
+    releaseHold(kind: string, key: string, ifGeneration?: number): void {
+        this.#enforce(kind, key, ifGeneration, current => ({ ...current, held: false, reappliesUntil: [] }));
+    }
+
+    /**
+     * How far enforcement of the item has gone in this runtime, with only re-applies that still count against its
+     * budget; `undefined` when there is no observed drift, no hold and no such re-apply.
+     */
+    enforcementOf(kind: string, key: string): ItemEnforcement | undefined {
+        return current(this.state.enforcement[itemMapKey(kind, key)]);
     }
 
     getItem(kind: string, key: string): ManagedItem | undefined {
@@ -168,15 +202,45 @@ export class DesiredStateBehavior extends Behavior {
         return this.state.capacities[kind];
     }
 
-    /** The one place a mark is removed, so every writer of an item clears it the same way. */
-    #removeDrift(kind: string, key: string) {
+    #enforce(
+        kind: string,
+        key: string,
+        ifGeneration: number | undefined,
+        change: (current: ItemEnforcement) => ItemEnforcement,
+    ): boolean {
         const id = itemMapKey(kind, key);
-        if (this.state.drifts[id] === undefined) {
+        const existing = this.state.items[id];
+        if (
+            existing === undefined ||
+            existing.status.state !== "committed" ||
+            (ifGeneration !== undefined && existing.generation !== ifGeneration)
+        ) {
+            return false;
+        }
+        this.#writeEnforcement(kind, key, change(this.state.enforcement[id] ?? { held: false, reappliesUntil: [] }));
+        return true;
+    }
+
+    /**
+     * The one writer of {@link State.enforcement}. Expired re-applies are dropped, a record that then says nothing is
+     * removed, and {@link Events.itemEnforcementChanged} fires only when the observed drift or the hold changes.
+     */
+    #writeEnforcement(kind: string, key: string, change: ItemEnforcement | undefined) {
+        const id = itemMapKey(kind, key);
+        const previous = this.state.enforcement[id];
+        const next = change === previous ? previous : current(change);
+        if (previous === next) {
             return;
         }
-        const { [id]: _removed, ...rest } = this.state.drifts;
-        this.state.drifts = rest;
-        this.events.itemDriftChanged.emit(kind, key, undefined);
+        if (next === undefined) {
+            const { [id]: _removed, ...rest } = this.state.enforcement;
+            this.state.enforcement = rest;
+        } else {
+            this.state.enforcement = { ...this.state.enforcement, [id]: next };
+        }
+        if ((previous?.drift !== undefined) !== (next?.drift !== undefined) || !!previous?.held !== !!next?.held) {
+            this.events.itemEnforcementChanged.emit(kind, key, next);
+        }
     }
 
     /** See {@link assertCanAddItems}. */
@@ -191,20 +255,60 @@ export namespace DesiredStateBehavior {
         capacities: CapacityCache = {};
 
         /**
-         * Confirmed drifts, keyed by {@link itemMapKey}. Volatile: not in the schema, so a restart starts empty
-         * and the next verify finds a drift again.
+         * How far enforcement of each committed item has gone, keyed by {@link itemMapKey}. Volatile: not in the
+         * schema, so a restart starts empty and the next verify finds a drift again.
          *
-         * A mark exists only beside a committed item whose status has not been written since the drift was
-         * confirmed. `setIntent`, `removeIntent`, `dropItem` and `updateStatus` therefore clear it.
+         * A record has the item's lifetime: {@link setIntent}, {@link removeIntent} and {@link dropItem} remove it,
+         * so a rewritten or re-added item never inherits a hold or spent re-applies.
          */
-        drifts: Record<string, ItemDrift> = {};
+        enforcement: Record<string, ItemEnforcement> = {};
+    }
+
+    export class Internal {
+        /**
+         * The last generation of each dropped item, so a re-added item continues from it. Volatile: after a restart
+         * no operation of the previous process is left that could carry an old generation.
+         */
+        droppedGenerations = new Map<string, number>();
     }
 
     export class Events extends BaseEvents {
         itemChanged = new Observable<[item: ManagedItem]>();
         itemRemoved = new Observable<[kind: string, key: string]>();
 
-        /** A drift mark was set, changed disposition, or cleared (`drift` is then `undefined`). */
-        itemDriftChanged = new Observable<[kind: string, key: string, drift: ItemDrift | undefined]>();
+        /**
+         * An item's observed drift or hold began or ended. `enforcement` is the item's record now, `undefined` when it
+         * has none left.
+         */
+        itemEnforcementChanged = new Observable<
+            [kind: string, key: string, enforcement: ItemEnforcement | undefined]
+        >();
     }
+}
+
+/** The record with expired re-applies dropped, or `undefined` when nothing current is left. */
+function current(enforcement: ItemEnforcement | undefined): ItemEnforcement | undefined {
+    if (enforcement === undefined) {
+        return undefined;
+    }
+    const now = Time.nowUs;
+    const reappliesUntil = enforcement.reappliesUntil.filter(until => until > now);
+    if (enforcement.drift === undefined && !enforcement.held && reappliesUntil.length === 0) {
+        return undefined;
+    }
+    return reappliesUntil.length === enforcement.reappliesUntil.length
+        ? enforcement
+        : { ...enforcement, reappliesUntil };
+}
+
+function confirmedNow(): ItemEnforcement["drift"] {
+    return { confirmedAt: Time.nowMs };
+}
+
+function withoutDrift(enforcement: ItemEnforcement | undefined): ItemEnforcement | undefined {
+    if (enforcement?.drift === undefined) {
+        return enforcement;
+    }
+    const { drift: _ended, ...rest } = enforcement;
+    return rest;
 }

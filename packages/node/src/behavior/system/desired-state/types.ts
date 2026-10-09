@@ -55,21 +55,47 @@ export interface ManagedItem<I = unknown> {
      * An identity of its own rather than the intent value: an intent may be a primitive, and a caller may
      * write the same object twice, so comparing what was written cannot tell a replacement from the original.
      * A status write leaves it alone — only a new intent, or a removal, is a new thing to converge.
+     *
+     * Never reused for a `(kind, key)` within a process, even after the item was dropped and added again.
      */
     generation: number;
 }
 
-/** A confirmed drift of a committed item, known to this runtime only. */
-export interface ItemDrift {
-    /** When the live read confirmed it. */
-    confirmedAt: Timestamp;
+/**
+ * How far this runtime has gone in enforcing a committed item against drift. Volatile: a restart starts every item
+ * without one.
+ *
+ * The observed drift and the hold are separate facts. A drift ends when the device holds the item again; a hold ends
+ * only by an action, so an item another administrator restores for a moment does not resume enforcement on its own.
+ */
+export interface ItemEnforcement {
+    /**
+     * The drift a live read confirmed and the engine did not write back, with when it was first confirmed. Absent
+     * once a live read finds the device right again or the item is written.
+     */
+    drift?: { confirmedAt: Timestamp };
 
     /**
-     * What the engine did: left it for an explicit verify (`recorded`), or stopped writing it back after its re-apply
-     * budget ran out (`held`). A held item stays held until the reconciler's `retry()`, a removed intent or a new
-     * one.
+     * Whether the engine stopped writing the item back because its re-apply budget was spent. Ends only through the
+     * reconciler's `retry()`, a removed or new intent, or the item's removal.
      */
-    disposition: "recorded" | "held";
+    held: boolean;
+
+    /**
+     * For each re-apply after a drift, when it stops counting against the item's re-apply budget, on
+     * {@link Time.nowUs} (monotonic where the platform provides it), oldest first. May still hold expired entries;
+     * {@link currentReapplies} counts the rest.
+     */
+    reappliesUntil: readonly Timestamp[];
+}
+
+/** How many of the item's re-applies still count against its re-apply budget now. */
+export function currentReapplies(enforcement: ItemEnforcement | undefined): number {
+    if (enforcement === undefined) {
+        return 0;
+    }
+    const now = Time.nowUs;
+    return enforcement.reappliesUntil.filter(until => until > now).length;
 }
 
 export function newStatus(state: ItemState, failureCode?: number): StatusEntry {
