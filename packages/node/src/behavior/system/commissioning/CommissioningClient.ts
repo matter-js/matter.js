@@ -821,8 +821,7 @@ export namespace CommissioningClient {
      * Concrete version of {@link ProtocolSessionParameters}.
      */
     export class SessionParameters implements Partial<ProtocolSessionParameters> {
-        // SII/SAI should stay within one hour, but the session-parameter struct allows the full uint32 range, so the
-        // cap is not enforced here
+        // DNS-SD advertisements cap SII/SAI at one hour, but the session-parameter struct allows the full uint32 range.
         @field(1, duration.extend({ constraint: "max 4294967295" }))
         idleInterval?: Duration;
 
