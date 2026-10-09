@@ -102,4 +102,49 @@ describe("Peer descriptor", () => {
 
         expect(node.stateOf(CommissioningClient).deviceType).equals(0xfff10001);
     });
+
+    describe("reported session parameters", () => {
+        it("fill values the peer did not report from other sources", async () => {
+            await using site = new MockSite();
+            const { peer } = await commissionedPeer(site);
+            const { maxPathsPerInvoke, specificationVersion } = peer.basicInformation!;
+
+            peer.descriptor.sessionParameters = { idleInterval: Millis(2000), maxPathsPerInvoke: undefined };
+
+            expect(peer.sessionParameters).deep.include({
+                idleInterval: 2000,
+                maxPathsPerInvoke,
+                specificationVersion,
+            });
+        });
+
+        it("are the only thing marking TCP unsupported changes", async () => {
+            await using site = new MockSite();
+            const { peer } = await commissionedPeer(site);
+            peer.descriptor.sessionParameters = { idleInterval: Millis(2000) };
+
+            peer.markTcpUnsupported();
+
+            expect(peer.descriptor.sessionParameters).deep.equals({
+                idleInterval: 2000,
+                supportedTransports: { tcpClient: false, tcpServer: false },
+            });
+        });
+
+        it("of a known peer are not replaced by a descriptor added later", async () => {
+            await using site = new MockSite();
+            const { controller, peer } = await commissionedPeer(site);
+            const live = peer.descriptor.sessionParameters;
+            expect(live).not.undefined;
+
+            controller.env.get(PeerSet).addKnownPeer({
+                address: peer.address,
+                sessionParameters: { idleInterval: Millis(9999) },
+                discoveryData: { SII: Millis(8888) },
+            });
+
+            expect(peer.descriptor.sessionParameters).deep.equals(live);
+            expect(peer.descriptor.discoveryData?.SII).not.equals(8888);
+        });
+    });
 });

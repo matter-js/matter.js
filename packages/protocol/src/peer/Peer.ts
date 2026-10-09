@@ -273,18 +273,18 @@ export class Peer {
     get sessionParameters() {
         const bi = this.basicInformation;
         const dd = this.descriptor.discoveryData;
-        const descriptorParams = this.#descriptor.sessionParameters;
+        const reported = this.#descriptor.sessionParameters ?? {};
 
         const parameters = SessionParameters({
-            dataModelRevision: bi?.dataModelRevision,
-            maxPathsPerInvoke: bi?.maxPathsPerInvoke,
-            idleInterval: dd?.SII,
-            activeInterval: dd?.SAI,
-            activeThreshold: dd?.SAT,
-            ...descriptorParams,
+            ...reported,
+            dataModelRevision: reported.dataModelRevision ?? bi?.dataModelRevision,
+            maxPathsPerInvoke: reported.maxPathsPerInvoke ?? bi?.maxPathsPerInvoke,
+            idleInterval: reported.idleInterval ?? dd?.SII,
+            activeInterval: reported.activeInterval ?? dd?.SAI,
+            activeThreshold: reported.activeThreshold ?? dd?.SAT,
             // BasicInformation and the CASE-negotiated parameters report the same spec version, but one may update
             // before the other; take the newer so a stale descriptor value cannot mask a fresher BasicInformation read.
-            specificationVersion: Math.max(bi?.specificationVersion ?? 0, descriptorParams?.specificationVersion ?? 0),
+            specificationVersion: Math.max(bi?.specificationVersion ?? 0, reported.specificationVersion ?? 0),
         });
 
         // Only when the peer advertised no SII: a LIT ICD omits it, so the merged value is the 500ms default (or a
@@ -325,7 +325,7 @@ export class Peer {
      */
     markTcpUnsupported() {
         this.#descriptor.sessionParameters = {
-            ...this.sessionParameters,
+            ...this.#descriptor.sessionParameters,
             supportedTransports: { tcpClient: false, tcpServer: false },
         };
     }

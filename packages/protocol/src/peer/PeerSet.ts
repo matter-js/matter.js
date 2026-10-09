@@ -309,28 +309,24 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             peer = new Peer(descriptor, this.#peerContext);
             this.#applyDefaultPreference(peer);
             this.#peers.add(peer);
+            return peer;
         }
 
         if (descriptor.operationalAddress !== undefined) {
             peer.descriptor.operationalAddress = descriptor.operationalAddress;
         }
 
-        if (descriptor.discoveryData !== undefined) {
-            peer.descriptor.discoveryData = {
-                ...peer.descriptor.discoveryData,
-                ...descriptor.discoveryData,
-            };
-        }
-
         if (descriptor.caseAuthenticatedTags !== undefined) {
             peer.descriptor.caseAuthenticatedTags = descriptor.caseAuthenticatedTags;
         }
 
-        if (descriptor.sessionParameters !== undefined) {
-            peer.descriptor.sessionParameters = {
-                ...peer.descriptor.sessionParameters,
-                ...descriptor.sessionParameters,
-            };
+        // A known peer's discovery data and session parameters are live; the descriptor only fills what is unknown
+        if (peer.descriptor.discoveryData === undefined) {
+            peer.descriptor.discoveryData = descriptor.discoveryData;
+        }
+
+        if (peer.descriptor.sessionParameters === undefined) {
+            peer.descriptor.sessionParameters = descriptor.sessionParameters;
         }
 
         return peer;

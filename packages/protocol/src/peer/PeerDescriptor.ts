@@ -58,9 +58,10 @@ export interface PeerDescriptor {
     discoveryData?: DiscoveryData;
 
     /**
-     * Parameters from most recent session.
+     * Session parameters the peer reported in its most recent session.  Values the peer did not report are absent;
+     * {@link Peer.sessionParameters} supplies them from other sources and fallbacks.
      */
-    sessionParameters?: SessionParameters;
+    sessionParameters?: Partial<SessionParameters>;
 
     /**
      * Case Authenticated Tags (CATs) to use for operational CASE sessions with this node.
@@ -77,17 +78,18 @@ export class ObservablePeerDescriptor implements PeerDescriptor {
     #operationalAddress?: OperationalAddress;
     #discoveryData?: DiscoveryData;
     #caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
-    #sessionParameters?: SessionParameters;
+    #sessionParameters?: Partial<SessionParameters>;
     #onChange: () => void;
 
     constructor(
-        { address, operationalAddress, discoveryData, caseAuthenticatedTags }: PeerDescriptor,
+        { address, operationalAddress, discoveryData, caseAuthenticatedTags, sessionParameters }: PeerDescriptor,
         onChange: () => void,
     ) {
         this.#address = PeerAddress(address);
         this.#operationalAddress = operationalAddress;
         this.#discoveryData = discoveryData;
         this.#caseAuthenticatedTags = caseAuthenticatedTags;
+        this.#sessionParameters = sessionParameters ? { ...sessionParameters } : undefined;
         this.#onChange = onChange;
     }
 
@@ -125,7 +127,7 @@ export class ObservablePeerDescriptor implements PeerDescriptor {
         return this.#sessionParameters;
     }
 
-    set sessionParameters(value: SessionParameters | undefined) {
+    set sessionParameters(value: Partial<SessionParameters> | undefined) {
         if (value === undefined || isDeepEqual(value, this.#sessionParameters)) {
             return;
         }
