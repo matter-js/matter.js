@@ -1194,6 +1194,8 @@ export namespace CommissioningClient {
          * finalization and must drive it to completion before resolving: resolve on success, throw on failure.
          * `commission()` resolves or rejects with this hook's outcome — a throw rolls the commissioning back.
          *
+         * `discoveryData` carries the session intervals the device reported over PASE as SII/SAI/SAT.
+         *
          * For a delegated/split flow, hand `address.nodeId` and `discoveryData` to the controller that will finish
          * (typically a separate, network-side controller sharing this fabric) and **await** its
          * `serverNode.peers.completeCommissioning(nodeId, discoveryData)` from within this hook. Do not return before

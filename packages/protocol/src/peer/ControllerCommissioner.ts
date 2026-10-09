@@ -75,7 +75,8 @@ export interface CommissioningOptions extends Partial<ControllerCommissioningFlo
      * Commissioning completion callback
      *
      * This optional callback allows the caller to complete commissioning once PASE commissioning completes.  If it does
-     * not throw, the commissioner considers commissioning complete.
+     * not throw, the commissioner considers commissioning complete.  `discoveryData` carries the session intervals the
+     * device reported over PASE as SII/SAI/SAT, so the operational CASE session can be established with them.
      */
     finalizeCommissioning?: (peerAddress: PeerAddress, discoveryData?: DiscoveryData) => MaybePromise<void>;
 
@@ -624,12 +625,6 @@ export class ControllerCommissioner {
             Commissionee SHALL exit Commissioning Mode after 20 failed attempts.
          */
 
-        // The pase session has actual negotiated parameters from the device. Use them over the discoveryData
-        discoveryData = discoveryData ?? {};
-        discoveryData.SII = ephemeralSession.parameters.idleInterval;
-        discoveryData.SAI = ephemeralSession.parameters.activeInterval;
-        discoveryData.SAT = ephemeralSession.parameters.activeThreshold;
-
         const address = this.#determineAddress(fabric, commissioningOptions.nodeId);
         logger.info(`Start commissioning of node ${address.toString()} into fabric ${fabric.fabricId}`);
         const exchangeProvider = new DedicatedChannelExchangeProvider(this.#context.exchanges, ephemeralSession);
@@ -685,7 +680,13 @@ export class ControllerCommissioner {
                 }
 
                 if (performCaseCommissioning !== undefined) {
-                    await performCaseCommissioning(address, discoveryData);
+                    const { idleInterval, activeInterval, activeThreshold } = ephemeralSession.parameters;
+                    await performCaseCommissioning(address, {
+                        ...discoveryData,
+                        SII: idleInterval,
+                        SAI: activeInterval,
+                        SAT: activeThreshold,
+                    });
                     return;
                 }
 

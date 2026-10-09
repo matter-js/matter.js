@@ -100,6 +100,9 @@ describe("split commissioning", () => {
         expect(handoff).not.equals(undefined);
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(true);
 
+        // The device advertises default intervals as absent, so these can only come from its PASE session parameters
+        expect(handoff!.discoveryData).deep.include({ SII: 500, SAI: 300, SAT: 4000 });
+
         const b = await addControllerSharingFabric(
             site,
             "controllerB",

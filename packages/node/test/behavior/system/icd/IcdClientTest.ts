@@ -1156,16 +1156,13 @@ describe("IcdClient", () => {
             const protopeer = peer1.env.get(Peer);
             expect(protopeer.physicalProperties?.isLongIdleTimeOperating).true;
 
-            // An advertised SII is honored as-is, not floored.
-            const dd = protopeer.descriptor.discoveryData;
-            expect(dd?.SII).not.undefined;
-            expect(protopeer.sessionParameters.idleInterval).lessThan(LIT_MIN_IDLE_INTERVAL);
-
-            // A real LIT ICD omits SII; the controller then floors to LIT_MIN_IDLE_INTERVAL instead of the 500ms default.
-            if (dd) {
-                delete dd.SII;
-            }
+            // A LIT ICD advertises no SII; the controller then floors to LIT_MIN_IDLE_INTERVAL
+            expect(protopeer.descriptor.discoveryData?.SII).undefined;
             expect(protopeer.sessionParameters.idleInterval).equals(LIT_MIN_IDLE_INTERVAL);
+
+            // An advertised SII is honored as-is
+            protopeer.descriptor.discoveryData = { ...protopeer.descriptor.discoveryData, SII: Millis(300) };
+            expect(protopeer.sessionParameters.idleInterval).lessThan(LIT_MIN_IDLE_INTERVAL);
         });
 
         it("does not floor the idle interval for a non-LIT peer", async () => {

@@ -69,7 +69,7 @@ describe("Peer descriptor", () => {
     it("stores the intervals of a later session and restores them after a restart", async () => {
         await using site = new MockSite();
         const { controller, peer } = await commissionedPeer(site);
-        expect(peer.descriptor.discoveryData?.SII).not.undefined;
+        peer.descriptor.discoveryData = { ...peer.descriptor.discoveryData, SII: Millis(500), SAI: Millis(300) };
 
         peer.descriptor.sessionParameters = {
             ...peer.sessionParameters,
