@@ -15,6 +15,8 @@ import {
     Millis,
     ServerAddress,
     ServerAddressIp,
+    UINT16_MAX,
+    UINT32_MAX,
 } from "@matter/general";
 import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema, VendorId } from "@matter/types";
 import { SupportedTransportsBitmap, SupportedTransportsSchema } from "./SupportedTransportsBitmap.js";
@@ -70,26 +72,54 @@ export function DiscoveryData(kvs: ReadonlyMap<string, string>) {
     const dd: DiscoveryData = {};
 
     for (const key of kvs.keys()) {
+        const value = kvs.get(key);
+
         switch (key) {
-            case "VP":
             case "DN":
             case "RI":
             case "PI":
-                dd[key] = `${kvs.get(key)}`;
+                dd[key] = `${value}`;
                 break;
 
-            case "DT":
-            case "PH":
+            case "VP": {
+                // Vendor and product parse independently, as in CHIP; an invalid product leaves the vendor usable
+                const [vendor, product] = `${value}`.split("+");
+                const vendorId = parseTxtDecimal(vendor, UINT16_MAX);
+                if (vendorId === undefined) {
+                    break;
+                }
+                const productId = parseTxtDecimal(product, UINT16_MAX);
+                dd.VP = productId === undefined ? `${vendorId}` : `${vendorId}+${productId}`;
+                break;
+            }
+
+            case "DT": {
+                const num = parseTxtDecimal(value, UINT32_MAX);
+                if (num !== undefined) {
+                    dd.DT = num;
+                }
+                break;
+            }
+
+            case "PH": {
+                // § 4.3.1: a PH of 0 is illegal
+                const num = parseTxtDecimal(value, UINT32_MAX);
+                if (num) {
+                    dd.PH = num;
+                }
+                break;
+            }
+
             case "ICD": {
-                const num = Number(kvs.get(key));
+                const num = Number(value);
                 if (isFinite(num)) {
-                    dd[key] = num;
+                    dd.ICD = num;
                 }
                 break;
             }
 
             case "T": {
-                const num = Number(kvs.get(key));
+                const num = Number(value);
                 if (isFinite(num)) {
                     dd.T = SupportedTransportsSchema.decode(num);
                 }
@@ -100,16 +130,9 @@ export function DiscoveryData(kvs: ReadonlyMap<string, string>) {
             case "SAI":
             case "SAT": {
                 // Spec §4.3.4: if the value is invalid or out of range the key SHALL be treated as absent so that
-                // MRP defaults apply; encoding omits leading zeros, so treat them as invalid like CHIP does
-                const value = kvs.get(key);
-                if (value === undefined || !/^(0|[1-9]\d*)$/.test(value)) {
-                    break;
-                }
-                const num = Number(value);
-                if (key === "SAT" && (num === 0 || num > 65535)) {
-                    break;
-                }
-                if (key !== "SAT" && num > 3_600_000) {
+                // MRP defaults apply
+                const num = parseTxtDecimal(value, key === "SAT" ? UINT16_MAX : 3_600_000);
+                if (num === undefined || (key === "SAT" && num === 0)) {
                     break;
                 }
                 dd[key] = Millis(num);
@@ -119,6 +142,20 @@ export function DiscoveryData(kvs: ReadonlyMap<string, string>) {
     }
 
     return dd;
+}
+
+/**
+ * Parse a numeric DNS-SD TXT value.  Returns undefined unless the value is a decimal integer between 0 and {@link max}
+ * without leading zeros.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 4.3.1
+ */
+export function parseTxtDecimal(value: string | undefined, max: number) {
+    if (value === undefined || !/^(0|[1-9]\d*)$/.test(value)) {
+        return undefined;
+    }
+    const num = Number(value);
+    return num <= max ? num : undefined;
 }
 
 /**

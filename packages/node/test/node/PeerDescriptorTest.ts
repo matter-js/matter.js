@@ -4,11 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Crypto, MockCrypto, Seconds } from "@matter/general";
+import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
+import { Crypto, Millis, MockCrypto, Seconds } from "@matter/general";
 import { MockSite } from "@matter/node/testing";
 import { Peer, PeerSet } from "@matter/protocol";
 
-describe("Peer session parameters", () => {
+describe("Peer descriptor", () => {
     before(() => {
         MockTime.init();
     });
@@ -31,7 +32,7 @@ describe("Peer session parameters", () => {
 
         const peers = [...controller.env.get(PeerSet)];
         expect(peers).length.greaterThan(0);
-        return peers[0] as Peer;
+        return { controller, peer: peers[0] as Peer };
     }
 
     // Characterization: the paths per invoke of the session the peer negotiated bounds what we send, even where the
@@ -39,12 +40,42 @@ describe("Peer session parameters", () => {
     // reference implementation likewise reads only the session's value.
     it("bounds paths per invoke by the negotiated session rather than the reported attribute", async () => {
         await using site = new MockSite();
-        const peer = await commissionedPeer(site);
+        const { peer } = await commissionedPeer(site);
 
         expect(peer.basicInformation?.maxPathsPerInvoke).equals(10);
 
         peer.descriptor.sessionParameters = { ...peer.sessionParameters, maxPathsPerInvoke: 1 };
 
         expect(peer.sessionParameters.maxPathsPerInvoke).equals(1);
+    });
+
+    it("persists negotiated session intervals above the DNS-SD maximum", async () => {
+        await using site = new MockSite();
+        const { controller, peer } = await commissionedPeer(site);
+        const node = controller.peers.get("peer1")!;
+
+        // DNS-SD discovery drops SII/SAI above one hour, so only the session parameters carry them
+        peer.descriptor.discoveryData = { ...peer.descriptor.discoveryData, SII: undefined, SAI: undefined };
+        peer.descriptor.sessionParameters = {
+            ...peer.sessionParameters,
+            idleInterval: Millis(3_602_000),
+            activeInterval: Millis(3_603_000),
+        };
+        await MockTime.macrotask;
+
+        const { sessionParameters } = node.stateOf(CommissioningClient);
+        expect(sessionParameters?.idleInterval).equals(3_602_000);
+        expect(sessionParameters?.activeInterval).equals(3_603_000);
+    });
+
+    it("persists a vendor-specific advertised device type", async () => {
+        await using site = new MockSite();
+        const { controller, peer } = await commissionedPeer(site);
+        const node = controller.peers.get("peer1")!;
+
+        peer.descriptor.discoveryData = { ...peer.descriptor.discoveryData, DT: 0xfff10001 };
+        await MockTime.macrotask;
+
+        expect(node.stateOf(CommissioningClient).deviceType).equals(0xfff10001);
     });
 });

@@ -36,6 +36,7 @@ import {
 import {
     bool,
     datatype,
+    devtypeId,
     duration,
     fabricIdx,
     field,
@@ -820,10 +821,12 @@ export namespace CommissioningClient {
      * Concrete version of {@link ProtocolSessionParameters}.
      */
     export class SessionParameters implements Partial<ProtocolSessionParameters> {
-        @field(1, duration.extend({ constraint: "max 3600000" }))
+        // SII/SAI should stay within one hour, but the session-parameter struct allows the full uint32 range, so the
+        // cap is not enforced here
+        @field(1, duration.extend({ constraint: "max 4294967295" }))
         idleInterval?: Duration;
 
-        @field(2, duration.extend({ constraint: "max 3600000" }))
+        @field(2, duration.extend({ constraint: "max 4294967295" }))
         activeInterval?: Duration;
 
         @field(3, duration.extend({ constraint: "max 65535" }))
@@ -1002,7 +1005,7 @@ export namespace CommissioningClient {
         /**
          * Advertised device type.
          */
-        @field(uint16, nonvolatile)
+        @field(devtypeId, nonvolatile)
         deviceType?: DeviceTypeId;
 
         /**
