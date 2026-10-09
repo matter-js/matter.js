@@ -301,6 +301,11 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         }
     }
 
+    // A peer belongs to its host's Peers, which closes it within the host's teardown
+    protected override get isRuntimeWorker() {
+        return false;
+    }
+
     protected override get container() {
         return this.owner?.peers;
     }

@@ -118,6 +118,81 @@ describe("CommissionableMdnsScanner", () => {
         }
     });
 
+    it("ignores a device whose discriminator or commissioning mode is out of range", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({ socket: clientSocket, entropy: MockCrypto(0x01) });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        const txts = {
+            VALID00000000000: [`D=4095`, `CM=255`],
+            BIGDISCRIMINATOR: [`D=4096`, `CM=1`],
+            BIGCOMMISSIONMOD: [`D=3840`, `CM=256`],
+            EMPTYDISCRIMINAT: [`D=`, `CM=1`],
+        };
+
+        try {
+            const deviceFoundPromise = scanner.findCommissionableDevicesContinuously(
+                {},
+                () => {},
+                undefined,
+                undefined,
+            );
+
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: Object.entries(txts).flatMap(([instance, value]) => {
+                    const name = `${instance}._matterc._udp.local`;
+                    return [
+                        {
+                            name,
+                            recordType: DnsRecordType.TXT,
+                            recordClass: DnsRecordClass.IN,
+                            ttl: Seconds(120),
+                            value,
+                        },
+                        {
+                            name,
+                            recordType: DnsRecordType.SRV,
+                            recordClass: DnsRecordClass.IN,
+                            ttl: Seconds(120),
+                            value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                        },
+                    ] satisfies DnsRecord[];
+                }),
+                additionalRecords: [
+                    {
+                        name: HOSTNAME,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: SERVER_IPv4,
+                    },
+                ],
+            });
+
+            await MockTime.advance(10);
+            scanner.cancelCommissionableDeviceDiscovery({});
+            await deviceFoundPromise;
+
+            const found = Object.keys(txts).flatMap(instanceId =>
+                scanner
+                    .getDiscoveredCommissionableDevices({ instanceId })
+                    .map(({ deviceIdentifier, D, CM }) => ({ deviceIdentifier, D, CM })),
+            );
+            expect(found).deep.equals([{ deviceIdentifier: "VALID00000000000", D: 4095, CM: 255 }]);
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
+
     it("removes device from cache when TTL expires", async () => {
         const simulator = new NetworkSimulator();
         const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
