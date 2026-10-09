@@ -3815,6 +3815,7 @@ const PEER1_STATE = {
         rotatingIdentifier: undefined,
         pairingHint: 0x21,
         pairingInstructions: undefined,
+        advertisedIntervals: undefined,
         sessionParameters: {
             activeInterval: 300,
             activeThreshold: 4000,

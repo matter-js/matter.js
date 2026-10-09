@@ -229,7 +229,7 @@ off via a callback to complete the flow elsewhere. On the new API:
   — called immediately after PASE, before the main flow; return `false` to close the PASE session and stop.
 - **Legacy `PaseCommissioner` (PASE here, complete-CASE elsewhere)** is now: PASE-only commissioning via
   `finalizeCommissioning`, handing the result off to a controller that shares the same fabric (same CA root +
-  NOC signing key), which finishes with `serverNode.peers.completeCommissioning(nodeId, discoveryData?)`.
+  NOC signing key), which finishes with `serverNode.peers.completeCommissioning(nodeId, discoveryData?, { sessionParameters? })`.
 
   ```ts
   import { Crypto, Environment } from "@matter/general";
@@ -259,10 +259,10 @@ off via a callback to complete the flow elsewhere. On the new API:
   // so commission() resolves only once the device is fully committed (resolve on success, throw on failure):
   await serverNode.peers.commission({
       passcode, discriminator,
-      finalizeCommissioning: async (address, discoveryData) => {
-          // Across processes this hands the nodeId + discoveryData to the other controller and awaits its result
-          // over your own channel; the operational connect + CommissioningComplete happen there, not here.
-          await completingController.peers.completeCommissioning(address.nodeId, discoveryData);
+      finalizeCommissioning: async (address, discoveryData, sessionParameters) => {
+          // Across processes this hands the nodeId, discoveryData and PASE session parameters to the other controller
+          // and awaits its result over your own channel; the operational connect + CommissioningComplete happen there.
+          await completingController.peers.completeCommissioning(address.nodeId, discoveryData, { sessionParameters });
       },
   });
   ```

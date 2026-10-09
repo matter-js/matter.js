@@ -23,6 +23,7 @@ import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenge
 import { NodeSession } from "#session/NodeSession.js";
 import { PaseClient } from "#session/pase/PaseClient.js";
 import { SessionManager } from "#session/SessionManager.js";
+import { SessionParameters } from "#session/SessionParameters.js";
 import {
     Abort,
     asError,
@@ -75,10 +76,14 @@ export interface CommissioningOptions extends Partial<ControllerCommissioningFlo
      * Commissioning completion callback
      *
      * This optional callback allows the caller to complete commissioning once PASE commissioning completes.  If it does
-     * not throw, the commissioner considers commissioning complete.  `discoveryData` carries the session intervals the
-     * device reported over PASE as SII/SAI/SAT, so the operational CASE session can be established with them.
+     * not throw, the commissioner considers commissioning complete.  `sessionParameters` are those the device reported
+     * over PASE; the operational CASE session is established with them.
      */
-    finalizeCommissioning?: (peerAddress: PeerAddress, discoveryData?: DiscoveryData) => MaybePromise<void>;
+    finalizeCommissioning?: (
+        peerAddress: PeerAddress,
+        discoveryData?: DiscoveryData,
+        sessionParameters?: Partial<SessionParameters>,
+    ) => MaybePromise<void>;
 
     /**
      * Commissioning Flow Implementation as class that extends the official implementation to use for commissioning.
@@ -680,13 +685,7 @@ export class ControllerCommissioner {
                 }
 
                 if (performCaseCommissioning !== undefined) {
-                    const { idleInterval, activeInterval, activeThreshold } = ephemeralSession.parameters;
-                    await performCaseCommissioning(address, {
-                        ...discoveryData,
-                        SII: idleInterval,
-                        SAI: activeInterval,
-                        SAT: activeThreshold,
-                    });
+                    await performCaseCommissioning(address, discoveryData, ephemeralSession.reportedParameters);
                     return;
                 }
 
@@ -694,7 +693,7 @@ export class ControllerCommissioner {
                 peer.descriptor.discoveryData = discoveryData;
                 // PASE already negotiated the device's session parameters; seed them so the initial operational CASE
                 // transport decision (e.g. the TCP spec-version gate) has the device's spec version available.
-                peer.descriptor.sessionParameters = ephemeralSession.parameters;
+                peer.descriptor.sessionParameters = ephemeralSession.reportedParameters;
                 await peer.connect({
                     connectionTimeout: caseConnectionTimeout,
                     timing: caseConnectionTiming,

@@ -83,6 +83,7 @@ import {
     ScannerSet,
     SecureSession,
     SessionManager,
+    SessionParameters,
 } from "@matter/protocol";
 import {
     CaseAuthenticatedTag,
@@ -519,8 +520,18 @@ export class MatterController {
 
         // Wrap the optional PASE-only callback into the finalizeCommissioning hook understood by CommissioningClient
         const finalizeCommissioning = completeCommissioningCallback
-            ? async (peerAddress: PeerAddress, discoveryData?: DiscoveryData) => {
-                  const result = await completeCommissioningCallback(peerAddress.nodeId, discoveryData);
+            ? async (
+                  peerAddress: PeerAddress,
+                  discoveryData?: DiscoveryData,
+                  sessionParameters?: Partial<SessionParameters>,
+              ) => {
+                  // The legacy callback receives the PASE-reported intervals as discovery data
+                  const result = await completeCommissioningCallback(peerAddress.nodeId, {
+                      ...discoveryData,
+                      SII: sessionParameters?.idleInterval ?? discoveryData?.SII,
+                      SAI: sessionParameters?.activeInterval ?? discoveryData?.SAI,
+                      SAT: sessionParameters?.activeThreshold ?? discoveryData?.SAT,
+                  });
                   if (!result) {
                       throw new RetransmissionLimitReachedError("Device could not be discovered");
                   }

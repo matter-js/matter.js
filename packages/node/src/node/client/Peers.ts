@@ -59,6 +59,7 @@ import {
     PeerAddress,
     PeerLeftError,
     SessionManager,
+    SessionParameters,
 } from "@matter/protocol";
 import { FabricIndex, NodeId, Status } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
@@ -228,7 +229,13 @@ export class Peers extends EndpointContainer<ClientNode> {
         options?: Pick<
             CommissioningClient.CommissioningOptions,
             "autoSubscribe" | "defaultSubscription" | "autoStateInitialize"
-        >,
+        > & {
+            /**
+             * The session parameters the device reported over PASE, as handed off with the discovery data.  The
+             * operational CASE session is established with them.
+             */
+            sessionParameters?: Partial<SessionParameters>;
+        },
     ): Promise<ClientNode> {
         // Split commissioning can only finalize over THE fabric the initiating commissioner established (the one the
         // device's NOC belongs to).  Require it to already exist rather than auto-creating an empty fabric, which would
@@ -270,6 +277,7 @@ export class Peers extends EndpointContainer<ClientNode> {
                     // re-reads.
                     node.env.get(Peer).descriptor.discoveryData = discoveryData;
                 }
+                node.env.get(Peer).descriptor.sessionParameters = options?.sessionParameters;
 
                 // Mirror commission()'s post-commission setup so start() reads the node's structure (latching
                 // `seeded`) and, unless opted out, establishes the sustained subscription — otherwise the finalized

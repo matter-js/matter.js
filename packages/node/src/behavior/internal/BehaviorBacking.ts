@@ -5,7 +5,7 @@
  */
 
 import { isClientBehavior } from "#behavior/cluster/cluster-behavior-utils.js";
-import { Migration } from "#behavior/state/migrations/Migration.js";
+import { Migration } from "#behavior/state/migrations/index.js";
 import type { Agent } from "#endpoint/Agent.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { BehaviorInitializationError } from "#endpoint/errors.js";
