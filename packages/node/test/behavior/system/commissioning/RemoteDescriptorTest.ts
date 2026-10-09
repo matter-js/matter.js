@@ -201,11 +201,7 @@ describe("RemoteDescriptor", () => {
         it("ignores intervals beyond what DNS-SD can advertise", () => {
             const long = RemoteDescriptor.toLongForm({ SII: Millis(3_602_000), SAI: Millis(300), SAT: Millis(70_000) });
 
-            expect(long.advertisedIntervals).deep.equals({
-                idleInterval: undefined,
-                activeInterval: Millis(300),
-                activeThreshold: undefined,
-            });
+            expect(long.advertisedIntervals).deep.equals({ activeInterval: Millis(300) });
         });
 
         it("clears advertised intervals a node no longer advertises", () => {

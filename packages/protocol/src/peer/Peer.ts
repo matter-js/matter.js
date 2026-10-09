@@ -331,8 +331,8 @@ export class Peer {
     }
 
     /**
-     * Record that the peer does not support TCP despite advertising it.  Honored by {@link resolveTransports} and
-     * persisted across restart until a later session reports TCP server support.
+     * Record that the peer does not serve TCP although a TCP session to it was attempted.  Honored by
+     * {@link resolveTransports} and persisted across restart until a later session reports TCP server support.
      */
     markTcpUnsupported() {
         this.#descriptor.tcpUnsupported = true;

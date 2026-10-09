@@ -219,9 +219,9 @@ export class Peers extends EndpointContainer<ClientNode> {
      * finalize, reads the node's structure and (unless `autoSubscribe` is false) subscribes — exactly as
      * {@link commission} does, so the peer is seeded rather than a blind commissioned node — then registers it.
      * `discoveryData` and `sessionParameters` (from the hand-off) seed operational discovery and the CASE session
-     * establishment; `options` mirror the matching {@link commission} options.  Throws {@link CommissioningError} and removes the peer entry if discovery,
-     * connection, or `CommissioningComplete` fails; rejects as {@link runCommissioning} describes if the node is gone
-     * or busy.
+     * establishment; `options` mirror the matching {@link commission} options.  Throws {@link CommissioningError} and
+     * removes the peer entry if discovery, connection, or `CommissioningComplete` fails; rejects as
+     * {@link runCommissioning} describes if the node is gone or busy.
      */
     async completeCommissioning(
         nodeId: NodeId,

@@ -58,13 +58,15 @@ export interface PeerDescriptor {
     discoveryData?: DiscoveryData;
 
     /**
-     * Session parameters the peer reported in its most recent session.  Values the peer did not report are absent;
-     * {@link Peer.sessionParameters} supplies them from other sources and fallbacks.
+     * Session parameters the peer reported in its most recent session that reported any.  A session's report replaces
+     * the previous one as a whole; values it does not contain are absent, and {@link Peer.sessionParameters} supplies
+     * them from other sources and fallbacks.
      */
     reportedSessionParameters?: Partial<SessionParameters>;
 
     /**
-     * Set when connecting over TCP failed although the peer reported or advertised TCP support.
+     * Set when a TCP session to the peer reported no TCP server support while DNS-SD did not advertise it either.  A
+     * later session reporting TCP server support clears it.
      */
     tcpUnsupported?: boolean;
 

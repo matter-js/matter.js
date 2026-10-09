@@ -4,16 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { isObject } from "@matter/general";
+import { isObject, Millis } from "@matter/general";
 import { SessionIntervals } from "@matter/protocol";
 import { Migration } from "./Migration.js";
 
 /**
  * Older versions of CommissioningClient stored a peer's session parameters under `sessionParameters`: the full
  * effective set once a session existed, otherwise only the DNS-SD intervals.  The first becomes the reported set, the
- * second the advertised intervals.  Values already stored under the new keys are newer and win.
+ * second the advertised intervals.
  *
- * Only CommissioningClient state ever had `sessionParameters`; CommissioningServer shares the behavior id.
+ * The store is not rewritten, so this runs on every load; values under the new keys win.  Only CommissioningClient state
+ * ever had `sessionParameters`; CommissioningServer shares the behavior id.
  */
 Migration("commissioning", values => {
     const { sessionParameters } = values;
@@ -31,13 +32,13 @@ Migration("commissioning", values => {
         return;
     }
 
-    values.advertisedIntervals ??= {
-        idleInterval: advertisable(idleInterval, SessionIntervals.maxAdvertisedInterval),
-        activeInterval: advertisable(activeInterval, SessionIntervals.maxAdvertisedInterval),
-        activeThreshold: advertisable(activeThreshold, SessionIntervals.maxActiveThreshold),
-    };
+    values.advertisedIntervals ??= SessionIntervals.advertisable({
+        idleInterval: duration(idleInterval),
+        activeInterval: duration(activeInterval),
+        activeThreshold: duration(activeThreshold),
+    });
 });
 
-function advertisable(value: unknown, max: number) {
-    return typeof value === "number" && value <= max ? value : undefined;
+function duration(value: unknown) {
+    return typeof value === "number" ? Millis(value) : undefined;
 }

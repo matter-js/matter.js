@@ -215,11 +215,8 @@ describe("Peer descriptor", () => {
             const { site, state } = await restartWithLegacy({ idleInterval: 3_602_000, activeInterval: 300 });
             await using _site = site;
 
-            expect(state.advertisedIntervals).deep.equals({
-                idleInterval: undefined,
-                activeInterval: 300,
-                activeThreshold: undefined,
-            });
+            expect(state.advertisedIntervals?.activeInterval).equals(300);
+            expect(state.advertisedIntervals?.idleInterval).undefined;
         });
     });
 

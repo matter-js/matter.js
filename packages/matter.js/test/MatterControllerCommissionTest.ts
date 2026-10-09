@@ -67,9 +67,7 @@ describe("MatterController commission", () => {
                 },
             )
             .then(
-                () => {
-                    throw new Error("commission() did not reach the node");
-                },
+                () => expect.fail("commission() did not reach the node"),
                 error => {
                     if (!(error instanceof Captured)) {
                         throw error;

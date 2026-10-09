@@ -20,6 +20,7 @@ import {
     ClassExtends,
     Crypto,
     CRYPTO_PBKDF_ITERATIONS_MIN,
+    deepCopy,
     Diagnostic,
     Duration,
     ImplementationError,
@@ -427,6 +428,8 @@ export class CommissioningClient extends Behavior {
             this.state.peerAddress = undefined;
             this.state.commissionedAt = undefined;
             this.state.fabricIndexOnPeer = undefined;
+            this.state.reportedSessionParameters = undefined;
+            this.state.tcpUnsupported = undefined;
 
             await this.context.transaction.commit();
 
@@ -697,7 +700,7 @@ export class CommissioningClient extends Behavior {
             operationalAddress: OperationalAddress.from(this.state.addresses?.find(a => ServerAddress.isIp(a))),
             discoveryData: RemoteDescriptor.fromLongForm(this.state),
             caseAuthenticatedTags: this.state.caseAuthenticatedTags,
-            reportedSessionParameters: this.state.reportedSessionParameters,
+            reportedSessionParameters: deepCopy(this.state.reportedSessionParameters),
             tcpUnsupported: this.state.tcpUnsupported,
         });
 
@@ -1067,7 +1070,8 @@ export namespace CommissioningClient {
         advertisedIntervals?: AdvertisedIntervals;
 
         /**
-         * Set when connecting to the remote node over TCP failed although it reported or advertised TCP support.
+         * Set when a TCP session to the remote node reported no TCP server support; a later session reporting it clears
+         * the flag.
          */
         @field(bool, nonvolatile)
         tcpUnsupported?: boolean;

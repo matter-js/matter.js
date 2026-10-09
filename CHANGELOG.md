@@ -72,7 +72,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: A commissionable advertisement with vendor or product ID 0 reports it as `undefined`
     - Breaking: Commissioning or decommissioning a node that is gone rejects with `DestroyedDependencyError` or `CrashedDependencyError`, and a concurrent attempt with `FabricOperationInProgressError`
     - Deprecation: `ClientNodeInteraction.localStateFor()` will be removed in 0.19
-    - Feature: Finalized the `ClientNode` API for controllers: `ServerNode.peers.commissioned`, `ClientNode.disable()`/`enable()`, connection state, split commissioning, opening commissioning windows on peers and more; see [Controller migration guide](docs/MIGRATION_CONTROLLER_018.md)
+    - Feature: Finalized the `ClientNode` API for controllers: `ServerNode.peers.commissioned`, `ClientNode.disable()`/`enable()`, connection state, split commissioning (`finalizeCommissioning` hands off discovery data and PASE session parameters to `peers.completeCommissioning`), opening commissioning windows on peers and more; see [Controller migration guide](docs/MIGRATION_CONTROLLER_018.md)
     - Feature: Groupcast cluster (`GroupcastServer`) and AccessControl `Auxiliary` feature; group commands via `ClientGroup` endpoints and group bindings
     - Feature: `ServerNode.RootEndpoint` includes `GroupcastServer` and selects the AccessControl `Auxiliary` feature by default; use `ServerNode.RootEndpointWithoutGroupcast` to opt out. A node type with its own AccessControl server must select `Auxiliary` (e.g. `.with("Extension", "Auxiliary")`), and a Group ACL entry without targets no longer grants access on endpoint 0
     - Feature: `Behavior.reactorTimer()` and `Behavior.periodicReactorTimer()` create timers that stop when the behavior closes
@@ -103,8 +103,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A peer reporting a session idle or active interval above one hour in its CASE/PASE session parameters no longer fails validation when these are stored
     - Fix: A peer advertising a vendor-specific device type no longer prevents storing its addresses and session parameters
     - Fix: A commissioned peer's stored session intervals follow its latest session instead of keeping the values from commissioning or DNS-SD
-    - Fix: A peer's reported session parameters (`reportedSessionParameters`), DNS-SD intervals (`advertisedIntervals`) and TCP mark (`tcpUnsupported`) are stored separately and restored into the peer before its first session; the `sessionParameters` stored by older versions is migrated
-    - Enhancement: `Peers.completeCommissioning` accepts the PASE session parameters of a split commissioning as third argument
+    - Fix: A peer's reported session parameters, DNS-SD intervals and TCP mark are stored as `reportedSessionParameters`, `advertisedIntervals` and `tcpUnsupported` and restored before its first session
+    - Fix: `sessionParameters` stored by older versions moves to `reportedSessionParameters` or `advertisedIntervals`
     - Fix: Shutting down a controller no longer reports peer endpoints as deleted
     - Fix: (@RaHehl) A node stopped and started again re-establishes its subscriptions, can be commissioned again and keeps no stale events
     - Fix: (@RaHehl) A freshly commissioned node re-establishes its subscriptions after its next restart, and client subscription reports after a restart are accepted
