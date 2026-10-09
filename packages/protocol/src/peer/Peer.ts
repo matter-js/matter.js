@@ -170,7 +170,11 @@ export class Peer {
             });
 
             // A session the peer reported no parameters in leaves the previous report in place
-            this.#descriptor.sessionParameters = session.reportedParameters;
+            const { reportedParameters } = session;
+            this.#descriptor.reportedSessionParameters = reportedParameters;
+            if (reportedParameters?.supportedTransports?.tcpServer) {
+                this.#descriptor.tcpUnsupported = undefined;
+            }
 
             // Only pad when we actually know the peer's medium; the "unknown" fallback is deliberately not applied
             // here because it would inflate responder timing for every peer of a node that never characterizes them.
@@ -273,13 +277,17 @@ export class Peer {
     get sessionParameters() {
         const bi = this.basicInformation;
         const dd = this.#descriptor.discoveryData;
-        const reported = this.#descriptor.sessionParameters;
+        const reported = this.#descriptor.reportedSessionParameters;
 
-        // A value a session left out takes its spec default; BasicInformation only stands in before any session
+        // A value a session left out takes its spec default; BasicInformation stands in only before any session, except
+        // for the specification version below
         const beforeSession = reported === undefined ? bi : undefined;
 
         const parameters = SessionParameters({
             ...reported,
+            supportedTransports: this.#descriptor.tcpUnsupported
+                ? { tcpClient: false, tcpServer: false }
+                : reported?.supportedTransports,
             dataModelRevision: reported?.dataModelRevision ?? beforeSession?.dataModelRevision,
             maxPathsPerInvoke: reported?.maxPathsPerInvoke ?? beforeSession?.maxPathsPerInvoke,
             idleInterval: reported?.idleInterval ?? dd?.SII,
@@ -323,15 +331,11 @@ export class Peer {
     }
 
     /**
-     * Record that the peer does not support TCP despite advertising it, by clearing TCP from its persisted session
-     * parameters. Honored by {@link resolveTransports} and persisted across restart; a later session reporting real
-     * TCP support overwrites it.
+     * Record that the peer does not support TCP despite advertising it.  Honored by {@link resolveTransports} and
+     * persisted across restart until a later session reports TCP server support.
      */
     markTcpUnsupported() {
-        this.#descriptor.sessionParameters = {
-            ...this.#descriptor.sessionParameters,
-            supportedTransports: { tcpClient: false, tcpServer: false },
-        };
+        this.#descriptor.tcpUnsupported = true;
     }
 
     /**

@@ -191,7 +191,6 @@ export class PaseServer implements ProtocolHandler {
             salt: new Uint8Array(0),
             isInitiator: false,
             isResumption: false,
-            peerSessionParameters: initiatorSessionParams,
             reportedSessionParameters: initiatorSessionParams,
         });
         logger.info(

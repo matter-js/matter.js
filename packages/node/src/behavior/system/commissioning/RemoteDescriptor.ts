@@ -5,7 +5,13 @@
  */
 
 import { Immutable, ServerAddress } from "@matter/general";
-import { CommissionableDevice, OperationalDevice, PeerAddress, SupportedTransportsSchema } from "@matter/protocol";
+import {
+    CommissionableDevice,
+    OperationalDevice,
+    PeerAddress,
+    SessionIntervals,
+    SupportedTransportsSchema,
+} from "@matter/protocol";
 import { DeviceTypeId, VendorId } from "@matter/types";
 import type { CommissioningClient } from "./CommissioningClient.js";
 
@@ -213,10 +219,14 @@ export namespace RemoteDescriptor {
             long.productId = Number.isFinite(product) && product !== 0 ? product : undefined;
         }
 
+        // Legacy discovery data may carry session-derived intervals beyond what DNS-SD can advertise
+        const idleInterval = SII !== undefined && SII <= SessionIntervals.maxAdvertisedInterval ? SII : undefined;
+        const activeInterval = SAI !== undefined && SAI <= SessionIntervals.maxAdvertisedInterval ? SAI : undefined;
+        const activeThreshold = SAT !== undefined && SAT <= SessionIntervals.maxActiveThreshold ? SAT : undefined;
         long.advertisedIntervals =
-            SII === undefined && SAI === undefined && SAT === undefined
+            idleInterval === undefined && activeInterval === undefined && activeThreshold === undefined
                 ? undefined
-                : { idleInterval: SII, activeInterval: SAI, activeThreshold: SAT };
+                : { idleInterval, activeInterval, activeThreshold };
         long.deviceType = DT === undefined ? undefined : DeviceTypeId(DT, false);
         long.deviceName = DN;
         long.rotatingIdentifier = RI;

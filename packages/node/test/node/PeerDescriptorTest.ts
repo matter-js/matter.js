@@ -44,7 +44,7 @@ describe("Peer descriptor", () => {
 
         expect(peer.basicInformation?.maxPathsPerInvoke).equals(10);
 
-        peer.descriptor.sessionParameters = { ...peer.sessionParameters, maxPathsPerInvoke: 1 };
+        peer.descriptor.reportedSessionParameters = { ...peer.sessionParameters, maxPathsPerInvoke: 1 };
 
         expect(peer.sessionParameters.maxPathsPerInvoke).equals(1);
     });
@@ -54,16 +54,16 @@ describe("Peer descriptor", () => {
         const { controller, peer } = await commissionedPeer(site);
         const node = controller.peers.get("peer1")!;
 
-        peer.descriptor.sessionParameters = {
+        peer.descriptor.reportedSessionParameters = {
             ...peer.sessionParameters,
             idleInterval: Millis(3_602_000),
             activeInterval: Millis(3_603_000),
         };
         await MockTime.macrotask;
 
-        const { sessionParameters } = node.stateOf(CommissioningClient);
-        expect(sessionParameters?.idleInterval).equals(3_602_000);
-        expect(sessionParameters?.activeInterval).equals(3_603_000);
+        const { reportedSessionParameters } = node.stateOf(CommissioningClient);
+        expect(reportedSessionParameters?.idleInterval).equals(3_602_000);
+        expect(reportedSessionParameters?.activeInterval).equals(3_603_000);
     });
 
     it("stores the intervals of a later session and restores them after a restart", async () => {
@@ -71,7 +71,7 @@ describe("Peer descriptor", () => {
         const { controller, peer } = await commissionedPeer(site);
         peer.descriptor.discoveryData = { ...peer.descriptor.discoveryData, SII: Millis(500), SAI: Millis(300) };
 
-        peer.descriptor.sessionParameters = {
+        peer.descriptor.reportedSessionParameters = {
             ...peer.sessionParameters,
             idleInterval: Millis(2000),
             activeInterval: Millis(400),
@@ -80,13 +80,17 @@ describe("Peer descriptor", () => {
         await MockTime.macrotask;
 
         const expected = { idleInterval: 2000, activeInterval: 400, activeThreshold: 5000 };
-        expect(controller.peers.get("peer1")!.stateOf(CommissioningClient).sessionParameters).deep.include(expected);
+        expect(controller.peers.get("peer1")!.stateOf(CommissioningClient).reportedSessionParameters).deep.include(
+            expected,
+        );
 
         const controllerId = controller.id;
         await site.close();
         const controllerB = await site.addNode(undefined, { id: controllerId, index: 1 });
 
-        expect(controllerB.peers.get("peer1")!.stateOf(CommissioningClient).sessionParameters).deep.include(expected);
+        expect(controllerB.peers.get("peer1")!.stateOf(CommissioningClient).reportedSessionParameters).deep.include(
+            expected,
+        );
 
         const [restored] = controllerB.env.get(PeerSet);
         expect(restored.sessionParameters).deep.include(expected);
@@ -106,7 +110,7 @@ describe("Peer descriptor", () => {
     it("restores the stored session parameters into the peer before its first session after a restart", async () => {
         await using site = new MockSite();
         const { controller } = await commissionedPeer(site);
-        const stored = controller.peers.get("peer1")!.stateOf(CommissioningClient).sessionParameters;
+        const stored = controller.peers.get("peer1")!.stateOf(CommissioningClient).reportedSessionParameters;
         expect(stored?.interactionModelRevision).not.equals(SessionParameters.fallbacks.interactionModelRevision);
 
         const controllerId = controller.id;
@@ -127,7 +131,7 @@ describe("Peer descriptor", () => {
         await using site = new MockSite();
         const { controller, peer } = await commissionedPeer(site);
 
-        peer.descriptor.sessionParameters = {
+        peer.descriptor.reportedSessionParameters = {
             ...peer.sessionParameters,
             supportedTransports: { tcpClient: true, tcpServer: true },
         };
@@ -142,34 +146,97 @@ describe("Peer descriptor", () => {
         expect(restored.resolveTransports(undefined, ChannelType.TCP)).deep.equals([ChannelType.TCP, ChannelType.UDP]);
     });
 
-    it("moves DNS-SD intervals stored by older versions to the advertised intervals", async () => {
-        await using site = new MockSite();
-        const { controller } = await commissionedPeer(site);
-        const node = controller.peers.get("peer1")!;
-        await node.setStateOf(CommissioningClient, { sessionParameters: undefined, advertisedIntervals: undefined });
-        await node.setStateOf(CommissioningClient, {
-            sessionParameters: {
-                idleInterval: Millis(1234),
-                activeInterval: Millis(321),
-                activeThreshold: Millis(4000),
-            },
+    describe("stored by older versions", () => {
+        async function restartWithLegacy(sessionParameters: Record<string, unknown>, advertisedIntervals?: unknown) {
+            const site = new MockSite();
+            const { controller } = await commissionedPeer(site);
+            const controllerId = controller.id;
+            await site.close();
+
+            const stored = site.storageFor(controllerId)["nodes.peer1.endpoints.0.commissioning"];
+            delete stored.reportedSessionParameters;
+            delete stored.advertisedIntervals;
+            if (advertisedIntervals !== undefined) {
+                stored.advertisedIntervals = advertisedIntervals;
+            }
+            stored.sessionParameters = sessionParameters;
+
+            const controllerB = await site.addNode(undefined, { id: controllerId, index: 1 });
+            const [restored] = controllerB.env.get(PeerSet);
+            return { site, state: controllerB.peers.get("peer1")!.stateOf(CommissioningClient), restored };
+        }
+
+        it("moves a set of DNS-SD intervals to the advertised intervals", async () => {
+            const { site, state, restored } = await restartWithLegacy({
+                idleInterval: 1234,
+                activeInterval: 321,
+                activeThreshold: 4000,
+            });
+            await using _site = site;
+
+            expect(state.reportedSessionParameters).undefined;
+            expect(state.advertisedIntervals).deep.equals({
+                idleInterval: 1234,
+                activeInterval: 321,
+                activeThreshold: 4000,
+            });
+            expect(restored.descriptor.discoveryData).deep.include({ SII: 1234, SAI: 321, SAT: 4000 });
+            expect(restored.descriptor.reportedSessionParameters).undefined;
         });
+
+        it("keeps a full set as the reported session parameters", async () => {
+            const { site, state, restored } = await restartWithLegacy({
+                idleInterval: 3_602_000,
+                activeInterval: 300,
+                activeThreshold: 4000,
+                interactionModelRevision: 12,
+                specificationVersion: 0x01040200,
+                maxPathsPerInvoke: 5,
+            });
+            await using _site = site;
+
+            expect(state.advertisedIntervals).undefined;
+            expect(state.reportedSessionParameters).deep.include({ idleInterval: 3_602_000, maxPathsPerInvoke: 5 });
+            expect(restored.sessionParameters).deep.include({ idleInterval: 3_602_000, maxPathsPerInvoke: 5 });
+        });
+
+        it("keeps advertised intervals already stored under the new key", async () => {
+            const { site, state } = await restartWithLegacy(
+                { idleInterval: 1234, activeInterval: 321 },
+                { idleInterval: 777 },
+            );
+            await using _site = site;
+
+            expect(state.advertisedIntervals?.idleInterval).equals(777);
+            expect(state.advertisedIntervals?.activeInterval).undefined;
+        });
+
+        it("drops DNS-SD intervals beyond what DNS-SD can advertise", async () => {
+            const { site, state } = await restartWithLegacy({ idleInterval: 3_602_000, activeInterval: 300 });
+            await using _site = site;
+
+            expect(state.advertisedIntervals).deep.equals({
+                idleInterval: undefined,
+                activeInterval: 300,
+                activeThreshold: undefined,
+            });
+        });
+    });
+
+    it("keeps a peer marked TCP-unsupported across a restart until a session reports TCP support", async () => {
+        await using site = new MockSite();
+        const { controller, peer } = await commissionedPeer(site);
+        peer.markTcpUnsupported();
+        await MockTime.macrotask;
+        expect(controller.peers.get("peer1")!.stateOf(CommissioningClient).tcpUnsupported).true;
 
         const controllerId = controller.id;
         await site.close();
         const controllerB = await site.addNode(undefined, { id: controllerId, index: 1 });
 
-        const state = controllerB.peers.get("peer1")!.stateOf(CommissioningClient);
-        expect(state.sessionParameters).undefined;
-        expect(state.advertisedIntervals).deep.equals({
-            idleInterval: 1234,
-            activeInterval: 321,
-            activeThreshold: 4000,
-        });
-
         const [restored] = controllerB.env.get(PeerSet);
-        expect(restored.descriptor.discoveryData).deep.include({ SII: 1234, SAI: 321, SAT: 4000 });
-        expect(restored.descriptor.sessionParameters).undefined;
+        expect(restored.descriptor.tcpUnsupported).true;
+        expect(restored.sessionParameters.supportedTransports).deep.equals({ tcpClient: false, tcpServer: false });
     });
 
     describe("reported session parameters", () => {
@@ -177,18 +244,18 @@ describe("Peer descriptor", () => {
             await using site = new MockSite();
             const { peer } = await commissionedPeer(site);
 
-            expect(peer.descriptor.sessionParameters).not.undefined;
-            expect(peer.descriptor.sessionParameters).not.have.property("maxTcpMessageSize");
+            expect(peer.descriptor.reportedSessionParameters).not.undefined;
+            expect(peer.descriptor.reportedSessionParameters).not.have.property("maxTcpMessageSize");
         });
 
         it("are stored as reported, without fallbacks", async () => {
             await using site = new MockSite();
             const { controller, peer } = await commissionedPeer(site);
 
-            peer.descriptor.sessionParameters = { idleInterval: Millis(2000) };
+            peer.descriptor.reportedSessionParameters = { idleInterval: Millis(2000) };
             await MockTime.macrotask;
 
-            const stored = controller.peers.get("peer1")!.stateOf(CommissioningClient).sessionParameters;
+            const stored = controller.peers.get("peer1")!.stateOf(CommissioningClient).reportedSessionParameters;
             expect(stored?.idleInterval).equals(2000);
             expect(stored?.maxPathsPerInvoke).undefined;
         });
@@ -198,7 +265,7 @@ describe("Peer descriptor", () => {
             const { peer } = await commissionedPeer(site);
             const { specificationVersion } = peer.basicInformation!;
 
-            peer.descriptor.sessionParameters = { idleInterval: Millis(2000), maxPathsPerInvoke: undefined };
+            peer.descriptor.reportedSessionParameters = { idleInterval: Millis(2000), maxPathsPerInvoke: undefined };
 
             expect(peer.sessionParameters).deep.include({
                 idleInterval: 2000,
@@ -210,48 +277,49 @@ describe("Peer descriptor", () => {
         it("fall back to BasicInformation before any session reported", async () => {
             await using site = new MockSite();
             const { controller } = await commissionedPeer(site);
-            await controller.peers.get("peer1")!.setStateOf(CommissioningClient, { sessionParameters: undefined });
+            await controller.peers
+                .get("peer1")!
+                .setStateOf(CommissioningClient, { reportedSessionParameters: undefined });
 
             const controllerId = controller.id;
             await site.close();
             const controllerB = await site.addNode(undefined, { id: controllerId, index: 1 });
 
             const [restored] = controllerB.env.get(PeerSet);
-            expect(restored.descriptor.sessionParameters).undefined;
+            expect(restored.descriptor.reportedSessionParameters).undefined;
             expect(restored.sessionParameters.maxPathsPerInvoke).equals(restored.basicInformation?.maxPathsPerInvoke);
             expect(restored.sessionParameters.maxPathsPerInvoke).not.equals(
                 SessionParameters.fallbacks.maxPathsPerInvoke,
             );
         });
 
-        it("are the only thing marking TCP unsupported changes", async () => {
+        it("stay as reported when TCP is marked unsupported", async () => {
             await using site = new MockSite();
             const { peer } = await commissionedPeer(site);
-            peer.descriptor.sessionParameters = { idleInterval: Millis(2000) };
+            peer.descriptor.reportedSessionParameters = { idleInterval: Millis(2000) };
 
             peer.markTcpUnsupported();
 
-            expect(peer.descriptor.sessionParameters).deep.equals({
-                idleInterval: 2000,
-                supportedTransports: { tcpClient: false, tcpServer: false },
-            });
+            expect(peer.descriptor.reportedSessionParameters).deep.equals({ idleInterval: 2000 });
+            expect(peer.descriptor.tcpUnsupported).true;
+            expect(peer.sessionParameters.supportedTransports).deep.equals({ tcpClient: false, tcpServer: false });
         });
 
         it("of a known peer are not replaced by a descriptor added later", async () => {
             await using site = new MockSite();
             const { controller, peer } = await commissionedPeer(site);
-            const live = peer.descriptor.sessionParameters;
+            const live = peer.descriptor.reportedSessionParameters;
             expect(live).not.undefined;
 
             peer.descriptor.discoveryData = { ...peer.descriptor.discoveryData, SII: Millis(777) };
 
             controller.env.get(PeerSet).addKnownPeer({
                 address: peer.address,
-                sessionParameters: { idleInterval: Millis(9999) },
+                reportedSessionParameters: { idleInterval: Millis(9999) },
                 discoveryData: { SII: Millis(8888), PI: "stored" },
             });
 
-            expect(peer.descriptor.sessionParameters).deep.equals(live);
+            expect(peer.descriptor.reportedSessionParameters).deep.equals(live);
             expect(peer.descriptor.discoveryData).deep.include({ SII: 777, PI: "stored" });
         });
     });

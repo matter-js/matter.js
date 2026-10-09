@@ -182,7 +182,6 @@ export class CaseServer implements ProtocolHandler {
             salt: secureSessionSalt,
             isInitiator: false,
             isResumption: true,
-            peerSessionParameters: cx.peerSessionParams,
             reportedSessionParameters: cx.peerSessionParams,
             caseAuthenticatedTags,
             delayManagerRegistration: true, // Session establishment could still fail, so add session ourselves to the manager
@@ -324,7 +323,6 @@ export class CaseServer implements ProtocolHandler {
             salt: secureSessionSalt,
             isInitiator: false,
             isResumption: false,
-            peerSessionParameters: cx.peerSessionParams,
             reportedSessionParameters: cx.peerSessionParams,
             caseAuthenticatedTags,
         });

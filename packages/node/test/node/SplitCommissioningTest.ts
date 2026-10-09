@@ -27,6 +27,7 @@ import {
     Fabric,
     FabricAuthority,
     FabricManager,
+    ObservablePeerDescriptor,
     Peer,
     SessionParameters,
 } from "@matter/protocol";
@@ -125,12 +126,30 @@ describe("split commissioning", () => {
             a.env.get(FabricAuthority).fabrics[0].config,
         );
 
-        const node = await MockTime.resolve(
-            b.peers.completeCommissioning(handoff!.nodeId, handoff!.discoveryData, {
-                sessionParameters: handoff!.sessionParameters,
-            }),
-            { macrotasks: true },
-        );
+        // The CASE session replaces the seeded values, so record what is assigned to the descriptor
+        const seeded = { ...handoff!.sessionParameters, activeThreshold: Millis(7777) };
+        const descriptorProto = ObservablePeerDescriptor.prototype;
+        const original = Object.getOwnPropertyDescriptor(descriptorProto, "reportedSessionParameters")!;
+        const assigned = new Array<Partial<SessionParameters> | undefined>();
+        Object.defineProperty(descriptorProto, "reportedSessionParameters", {
+            ...original,
+            set(this: ObservablePeerDescriptor, value: Partial<SessionParameters> | undefined) {
+                assigned.push(value);
+                original.set!.call(this, value);
+            },
+        });
+        let node;
+        try {
+            node = await MockTime.resolve(
+                b.peers.completeCommissioning(handoff!.nodeId, handoff!.discoveryData, seeded),
+                {
+                    macrotasks: true,
+                },
+            );
+        } finally {
+            Object.defineProperty(descriptorProto, "reportedSessionParameters", original);
+        }
+        expect(assigned.some(value => value?.activeThreshold === 7777)).true;
 
         expect(node.lifecycle.isCommissioned).equals(true);
         expect(node.env.get(Peer).sessionParameters).deep.include({ idleInterval: 1234, activeInterval: 321 });

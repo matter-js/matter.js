@@ -103,8 +103,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A peer reporting a session idle or active interval above one hour in its CASE/PASE session parameters no longer fails validation when these are stored
     - Fix: A peer advertising a vendor-specific device type no longer prevents storing its addresses and session parameters
     - Fix: A commissioned peer's stored session intervals follow its latest session instead of keeping the values from commissioning or DNS-SD
-    - Fix: A peer's reported session parameters and its DNS-SD intervals (`advertisedIntervals`) are stored separately and restored into the peer before its first session; stored data of older versions is migrated
-    - Enhancement: `Peers.completeCommissioning` accepts the PASE session parameters of a split commissioning as `sessionParameters`
+    - Fix: A peer's reported session parameters (`reportedSessionParameters`), DNS-SD intervals (`advertisedIntervals`) and TCP mark (`tcpUnsupported`) are stored separately and restored into the peer before its first session; the `sessionParameters` stored by older versions is migrated
+    - Enhancement: `Peers.completeCommissioning` accepts the PASE session parameters of a split commissioning as third argument
     - Fix: Shutting down a controller no longer reports peer endpoints as deleted
     - Fix: (@RaHehl) A node stopped and started again re-establishes its subscriptions, can be commissioned again and keeps no stale events
     - Fix: (@RaHehl) A freshly commissioned node re-establishes its subscriptions after its next restart, and client subscription reports after a restart are accepted
@@ -171,11 +171,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Clusters with IDs outside the allowed ranges are addressable
 
 - @matter/protocol
-    - Breaking: `PeerDescriptor.sessionParameters` holds only the session parameters the peer reported; `Peer.sessionParameters` provides the effective values
+    - Breaking: `PeerDescriptor.sessionParameters` is replaced by `reportedSessionParameters`, which holds only what the peer reported; `Peer.sessionParameters` provides the effective values
+    - Breaking: The discovery data handed to `finalizeCommissioning` no longer carries the PASE session intervals; they come as the new third argument `sessionParameters`
     - Enhancement: `NodeSession.reportedParameters` holds the session parameters the peer sent, without fallbacks
-    - Enhancement: The commissioner hands the PASE session parameters to `finalizeCommissioning` as a third argument
     - Fix: A peer's effective session parameters take the specification default for a value its session left out, and apply the LIT minimum idle interval only when the peer gave no SII
-    - Fix: Commissioning no longer copies the PASE session intervals into the peer's discovery data
+    - Fix: A peer marked as not supporting TCP keeps that mark across restarts until a session reports TCP server support
     - Breaking: Outgoing group messages use message privacy; matter.js based devices <0.18 will not receive them
     - Breaking: Received group messages are decrypted only with key sets mapped in the GroupKeyMap
     - Breaking: Sending a group message without a usable key fails with `NoUsableGroupKeyError` (`GroupKeySetMissingError` or `GroupKeyNotStartedError`)

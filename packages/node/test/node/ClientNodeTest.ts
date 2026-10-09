@@ -3816,7 +3816,8 @@ const PEER1_STATE = {
         pairingHint: 0x21,
         pairingInstructions: undefined,
         advertisedIntervals: undefined,
-        sessionParameters: {
+        tcpUnsupported: undefined,
+        reportedSessionParameters: {
             activeInterval: 300,
             activeThreshold: 4000,
             dataModelRevision: Specification.DATA_MODEL_REVISION,

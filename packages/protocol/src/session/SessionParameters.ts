@@ -40,16 +40,17 @@ export interface SessionParameters extends SessionIntervals {
 }
 
 export function SessionParameters(config?: SessionParameters.Config): SessionParameters {
-    // Decode supported transports if supplied as a number
-    let supportedTransports = config?.supportedTransports;
-    if (typeof supportedTransports === "number") {
-        supportedTransports = SupportedTransportsSchema.decode(supportedTransports);
-    }
-    supportedTransports ??= SessionParameters.fallbacks.supportedTransports;
+    const {
+        supportedTransports: reportedTransports,
+        maxPathsPerInvoke,
+        ...reported
+    } = SessionParameters.reported(config) ?? {};
 
     // TCP is only honored for Matter 1.5.0+ peers; clear it for older or unknown spec versions so supportedTransports
     // is the single source of truth for transport selection.
-    const specificationVersion = config?.specificationVersion ?? SessionParameters.fallbacks.specificationVersion;
+    let supportedTransports: SessionParameters.SupportedTransports =
+        reportedTransports ?? SessionParameters.fallbacks.supportedTransports;
+    const specificationVersion = reported.specificationVersion ?? SessionParameters.fallbacks.specificationVersion;
     if (specificationVersion < MIN_TCP_SPEC_VERSION) {
         supportedTransports = { tcpClient: false, tcpServer: false };
     }
@@ -58,32 +59,25 @@ export function SessionParameters(config?: SessionParameters.Config): SessionPar
     // supported
     let maxTcpMessageSize: number | undefined;
     if (supportedTransports.tcpClient || supportedTransports.tcpServer) {
-        maxTcpMessageSize = config?.maxTcpMessageSize;
-        maxTcpMessageSize ??= SessionParameters.fallbacks.maxTcpMessageSize;
-    }
-
-    // Ensure that undefined values in config are not overriding the fallbacks
-    const sanitizedConfig: Record<string, unknown> = { ...config };
-    for (const key of Object.keys(sanitizedConfig)) {
-        if ((sanitizedConfig as any)[key] === undefined) {
-            delete sanitizedConfig[key];
-        }
+        maxTcpMessageSize = reported.maxTcpMessageSize ?? SessionParameters.fallbacks.maxTcpMessageSize;
     }
 
     // The MaxPathsPerInvoke attribute defines zero as "assume one", and the MAX_PATHS_PER_INVOKE session parameter
     // carries that same attribute as a uint16. Persisted parameters reach us untyped, so anything the wire could not
     // have carried takes the fallback.
-    const maxPathsPerInvoke = sanitizedConfig.maxPathsPerInvoke;
-    if (
-        typeof maxPathsPerInvoke !== "number" ||
-        !Number.isInteger(maxPathsPerInvoke) ||
-        maxPathsPerInvoke < 1 ||
-        maxPathsPerInvoke > UINT16_MAX
-    ) {
-        delete sanitizedConfig.maxPathsPerInvoke;
-    }
+    const validMaxPathsPerInvoke =
+        typeof maxPathsPerInvoke === "number" &&
+        Number.isInteger(maxPathsPerInvoke) &&
+        maxPathsPerInvoke >= 1 &&
+        maxPathsPerInvoke <= UINT16_MAX;
 
-    return { ...SessionParameters.fallbacks, ...sanitizedConfig, supportedTransports, maxTcpMessageSize };
+    return {
+        ...SessionParameters.fallbacks,
+        ...reported,
+        ...(validMaxPathsPerInvoke ? { maxPathsPerInvoke } : {}),
+        supportedTransports,
+        maxTcpMessageSize,
+    };
 }
 
 export namespace SessionParameters {
@@ -91,7 +85,7 @@ export namespace SessionParameters {
 
     /**
      * Normalize the session parameters a peer sent without filling fallbacks: decode the supported transports and drop
-     * values the peer left out.
+     * values the peer left out.  Undefined when nothing remains.
      */
     export function reported(config?: Config): Partial<SessionParameters> | undefined {
         if (config === undefined) {
@@ -111,7 +105,7 @@ export namespace SessionParameters {
                     ? SupportedTransportsSchema.decode(supportedTransports)
                     : supportedTransports;
         }
-        return result;
+        return Object.keys(result).length ? result : undefined;
     }
 
     export interface Config extends Partial<Omit<SessionParameters, "supportedTransports">> {

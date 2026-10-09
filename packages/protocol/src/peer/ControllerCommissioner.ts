@@ -77,7 +77,7 @@ export interface CommissioningOptions extends Partial<ControllerCommissioningFlo
      *
      * This optional callback allows the caller to complete commissioning once PASE commissioning completes.  If it does
      * not throw, the commissioner considers commissioning complete.  `sessionParameters` are those the device reported
-     * over PASE; the operational CASE session is established with them.
+     * over PASE; whoever establishes the operational CASE session should use them.
      */
     finalizeCommissioning?: (
         peerAddress: PeerAddress,
@@ -693,7 +693,7 @@ export class ControllerCommissioner {
                 peer.descriptor.discoveryData = discoveryData;
                 // PASE already negotiated the device's session parameters; seed them so the initial operational CASE
                 // transport decision (e.g. the TCP spec-version gate) has the device's spec version available.
-                peer.descriptor.sessionParameters = ephemeralSession.reportedParameters;
+                peer.descriptor.reportedSessionParameters = ephemeralSession.reportedParameters;
                 await peer.connect({
                     connectionTimeout: caseConnectionTimeout,
                     timing: caseConnectionTiming,

@@ -229,7 +229,7 @@ off via a callback to complete the flow elsewhere. On the new API:
   — called immediately after PASE, before the main flow; return `false` to close the PASE session and stop.
 - **Legacy `PaseCommissioner` (PASE here, complete-CASE elsewhere)** is now: PASE-only commissioning via
   `finalizeCommissioning`, handing the result off to a controller that shares the same fabric (same CA root +
-  NOC signing key), which finishes with `serverNode.peers.completeCommissioning(nodeId, discoveryData?, { sessionParameters? })`.
+  NOC signing key), which finishes with `serverNode.peers.completeCommissioning(nodeId, discoveryData?, sessionParameters?)`.
 
   ```ts
   import { Crypto, Environment } from "@matter/general";
@@ -262,7 +262,7 @@ off via a callback to complete the flow elsewhere. On the new API:
       finalizeCommissioning: async (address, discoveryData, sessionParameters) => {
           // Across processes this hands the nodeId, discoveryData and PASE session parameters to the other controller
           // and awaits its result over your own channel; the operational connect + CommissioningComplete happen there.
-          await completingController.peers.completeCommissioning(address.nodeId, discoveryData, { sessionParameters });
+          await completingController.peers.completeCommissioning(address.nodeId, discoveryData, sessionParameters);
       },
   });
   ```
@@ -271,6 +271,9 @@ off via a callback to complete the flow elsewhere. On the new API:
   commissioning back). Do not just capture the hand-off and return — that closes the PASE session while the
   device is still mid-commission. The device's failsafe is armed until `completeCommissioning` succeeds, so
   finalize promptly, or the device reverts and the freshly issued NOC is discarded.
+
+  Forward `sessionParameters` with the hand-off: they carry the session intervals the device reported over PASE,
+  which `discoveryData` no longer does, so the completing controller establishes CASE with the device's timing.
 
   `commission()` still sets `peerAddress`/`commissionedAt` on `serverNode`'s local node even with
   `finalizeCommissioning` set, so after handing off, `serverNode` is left believing it commissioned a node it

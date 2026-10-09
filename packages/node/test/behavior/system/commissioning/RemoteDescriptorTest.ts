@@ -162,7 +162,7 @@ describe("RemoteDescriptor", () => {
         it("stores advertised intervals apart from the session parameters", () => {
             const long: RemoteDescriptor.Long = {
                 peerAddress: { fabricIndex: FabricIndex(1), nodeId: NodeId(1) },
-                sessionParameters: {
+                reportedSessionParameters: {
                     idleInterval: Hours(2),
                     activeInterval: Millis(400),
                     activeThreshold: Millis(5000),
@@ -176,7 +176,7 @@ describe("RemoteDescriptor", () => {
                 activeInterval: Millis(300),
                 activeThreshold: Millis(4000),
             });
-            expect(long.sessionParameters).deep.equals({
+            expect(long.reportedSessionParameters).deep.equals({
                 idleInterval: Hours(2),
                 activeInterval: Millis(400),
                 activeThreshold: Millis(5000),
@@ -185,7 +185,7 @@ describe("RemoteDescriptor", () => {
 
         it("reports only advertised intervals as SII/SAI/SAT", () => {
             const dd = RemoteDescriptor.fromLongForm({
-                sessionParameters: {
+                reportedSessionParameters: {
                     idleInterval: Hours(2),
                     activeInterval: Millis(400),
                     activeThreshold: Millis(5000),
@@ -196,6 +196,16 @@ describe("RemoteDescriptor", () => {
             expect(dd).deep.include({ SII: Millis(500) });
             expect(dd.SAI).undefined;
             expect(dd.SAT).undefined;
+        });
+
+        it("ignores intervals beyond what DNS-SD can advertise", () => {
+            const long = RemoteDescriptor.toLongForm({ SII: Millis(3_602_000), SAI: Millis(300), SAT: Millis(70_000) });
+
+            expect(long.advertisedIntervals).deep.equals({
+                idleInterval: undefined,
+                activeInterval: Millis(300),
+                activeThreshold: undefined,
+            });
         });
 
         it("clears advertised intervals a node no longer advertises", () => {

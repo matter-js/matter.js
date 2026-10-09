@@ -61,7 +61,12 @@ export interface PeerDescriptor {
      * Session parameters the peer reported in its most recent session.  Values the peer did not report are absent;
      * {@link Peer.sessionParameters} supplies them from other sources and fallbacks.
      */
-    sessionParameters?: Partial<SessionParameters>;
+    reportedSessionParameters?: Partial<SessionParameters>;
+
+    /**
+     * Set when connecting over TCP failed although the peer reported or advertised TCP support.
+     */
+    tcpUnsupported?: boolean;
 
     /**
      * Case Authenticated Tags (CATs) to use for operational CASE sessions with this node.
@@ -78,18 +83,27 @@ export class ObservablePeerDescriptor implements PeerDescriptor {
     #operationalAddress?: OperationalAddress;
     #discoveryData?: DiscoveryData;
     #caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
-    #sessionParameters?: Partial<SessionParameters>;
+    #reportedSessionParameters?: Partial<SessionParameters>;
+    #tcpUnsupported?: boolean;
     #onChange: () => void;
 
     constructor(
-        { address, operationalAddress, discoveryData, caseAuthenticatedTags, sessionParameters }: PeerDescriptor,
+        {
+            address,
+            operationalAddress,
+            discoveryData,
+            caseAuthenticatedTags,
+            reportedSessionParameters,
+            tcpUnsupported,
+        }: PeerDescriptor,
         onChange: () => void,
     ) {
         this.#address = PeerAddress(address);
         this.#operationalAddress = operationalAddress;
         this.#discoveryData = discoveryData;
         this.#caseAuthenticatedTags = caseAuthenticatedTags;
-        this.#sessionParameters = sessionParameters ? { ...sessionParameters } : undefined;
+        this.#reportedSessionParameters = reportedSessionParameters ? { ...reportedSessionParameters } : undefined;
+        this.#tcpUnsupported = tcpUnsupported;
         this.#onChange = onChange;
     }
 
@@ -123,16 +137,29 @@ export class ObservablePeerDescriptor implements PeerDescriptor {
         this.#onChange();
     }
 
-    get sessionParameters() {
-        return this.#sessionParameters;
+    get reportedSessionParameters() {
+        return this.#reportedSessionParameters;
     }
 
-    set sessionParameters(value: Partial<SessionParameters> | undefined) {
-        if (value === undefined || isDeepEqual(value, this.#sessionParameters)) {
+    set reportedSessionParameters(value: Partial<SessionParameters> | undefined) {
+        if (value === undefined || isDeepEqual(value, this.#reportedSessionParameters)) {
             return;
         }
 
-        this.#sessionParameters = { ...value };
+        this.#reportedSessionParameters = { ...value };
+        this.#onChange();
+    }
+
+    get tcpUnsupported() {
+        return this.#tcpUnsupported;
+    }
+
+    set tcpUnsupported(value: boolean | undefined) {
+        if (value === this.#tcpUnsupported) {
+            return;
+        }
+
+        this.#tcpUnsupported = value;
         this.#onChange();
     }
 

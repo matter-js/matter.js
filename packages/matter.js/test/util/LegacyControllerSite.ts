@@ -70,6 +70,20 @@ export class LegacyControllerSite {
     }
 
     /**
+     * Creates an {@link Environment} with mock crypto, in-memory storage and a host on the shared network.
+     */
+    addEnvironment() {
+        const index = this.#nextControllerIndex++;
+        const environment = new Environment(`legacy-environment${index}`);
+        this.#environments.add(environment);
+        const crypto = MockCrypto(index);
+        environment.set(Entropy, crypto);
+        environment.set(Crypto, crypto);
+        environment.set(Network, this.#simulator.addHost(index));
+        return environment;
+    }
+
+    /**
      * Commissions the device into the controller's fabric without creating a `PairedNode` for it.
      */
     async commission(controller: CommissioningController, device: ServerNode) {

@@ -697,7 +697,8 @@ export class CommissioningClient extends Behavior {
             operationalAddress: OperationalAddress.from(this.state.addresses?.find(a => ServerAddress.isIp(a))),
             discoveryData: RemoteDescriptor.fromLongForm(this.state),
             caseAuthenticatedTags: this.state.caseAuthenticatedTags,
-            sessionParameters: this.state.sessionParameters,
+            reportedSessionParameters: this.state.reportedSessionParameters,
+            tcpUnsupported: this.state.tcpUnsupported,
         });
 
         peer.interaction = node.interaction as ClientInteraction;
@@ -718,9 +719,10 @@ export class CommissioningClient extends Behavior {
         await transaction.addResources(this);
         await transaction.begin();
 
-        if (peer.descriptor.sessionParameters !== undefined) {
-            this.state.sessionParameters = peer.descriptor.sessionParameters;
+        if (peer.descriptor.reportedSessionParameters !== undefined) {
+            this.state.reportedSessionParameters = peer.descriptor.reportedSessionParameters;
         }
+        this.state.tcpUnsupported = peer.descriptor.tcpUnsupported;
 
         const {
             descriptor: { discoveryData, operationalAddress, caseAuthenticatedTags },
@@ -1056,13 +1058,19 @@ export namespace CommissioningClient {
          * The session parameters the remote node reported in its most recent session.
          */
         @field(SessionParameters, nonvolatile)
-        sessionParameters?: SessionParameters;
+        reportedSessionParameters?: SessionParameters;
 
         /**
          * The session intervals the remote node advertises via DNS-SD.
          */
         @field(AdvertisedIntervals, nonvolatile)
         advertisedIntervals?: AdvertisedIntervals;
+
+        /**
+         * Set when connecting to the remote node over TCP failed although it reported or advertised TCP support.
+         */
+        @field(bool, nonvolatile)
+        tcpUnsupported?: boolean;
 
         /**
          * TCP support bitmap.
@@ -1224,7 +1232,7 @@ export namespace CommissioningClient {
          * For a delegated/split flow, hand `address.nodeId`, `discoveryData` and `sessionParameters` (those the device
          * reported over PASE) to the controller that will finish (typically a separate, network-side controller sharing
          * this fabric) and **await** its `serverNode.peers.completeCommissioning(nodeId, discoveryData,
-         * { sessionParameters })` from within this hook. Do not return before that completes: the PASE session is held
+         * sessionParameters)` from within this hook. Do not return before that completes: the PASE session is held
          * open across the hook and the device's failsafe stays armed until "CommissioningComplete" arrives, so
          * returning early leaves the device mid-commission and it reverts, discarding the freshly issued NOC. See
          * docs/MIGRATION_CONTROLLER_018.md for the full recipe.

@@ -92,7 +92,7 @@ export class NodeSession extends SecureSession {
             decryptKey,
             encryptKey,
             attestationKey,
-            sessionParameters: peerSessionParameters,
+            sessionParameters: peerSessionParameters ?? config.reportedSessionParameters,
         });
     }
 
@@ -485,6 +485,10 @@ export namespace NodeSession {
         salt: Bytes;
         isInitiator: boolean;
         isResumption: boolean;
+        /**
+         * The effective parameters of the peer when they differ from what it reported, e.g. with values the initiator
+         * already knew.  Defaults to {@link reportedSessionParameters}.
+         */
         peerSessionParameters?: SessionParameters.Config;
     }
 }

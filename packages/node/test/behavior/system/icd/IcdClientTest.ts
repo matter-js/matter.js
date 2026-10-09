@@ -1157,13 +1157,13 @@ describe("IcdClient", () => {
             expect(protopeer.physicalProperties?.isLongIdleTimeOperating).true;
 
             // A LIT ICD advertises no SII, and a SII it reports in a session is honored as-is
-            const reported = protopeer.descriptor.sessionParameters;
+            const reported = protopeer.descriptor.reportedSessionParameters;
             expect(protopeer.descriptor.discoveryData?.SII).undefined;
             expect(reported?.idleInterval).lessThan(LIT_MIN_IDLE_INTERVAL);
             expect(protopeer.sessionParameters.idleInterval).equals(reported?.idleInterval);
 
             // Without any SII the controller floors to LIT_MIN_IDLE_INTERVAL instead of the 500ms default
-            protopeer.descriptor.sessionParameters = { ...reported, idleInterval: undefined };
+            protopeer.descriptor.reportedSessionParameters = { ...reported, idleInterval: undefined };
             expect(protopeer.sessionParameters.idleInterval).equals(LIT_MIN_IDLE_INTERVAL);
 
             // An advertised SII is honored as-is

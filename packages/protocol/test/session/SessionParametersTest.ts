@@ -98,8 +98,15 @@ describe("SessionParameters", () => {
             });
         });
 
+        it("keeps supported transports given as an object", () => {
+            expect(SessionParameters.reported({ supportedTransports: { tcpClient: true } })).deep.equals({
+                supportedTransports: { tcpClient: true },
+            });
+        });
+
         it("is undefined when the peer sent no parameters", () => {
             expect(SessionParameters.reported(undefined)).undefined;
+            expect(SessionParameters.reported({ idleInterval: undefined })).undefined;
         });
     });
 });

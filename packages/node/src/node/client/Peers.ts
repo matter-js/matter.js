@@ -218,24 +218,19 @@ export class Peers extends EndpointContainer<ClientNode> {
      * connects the node, sends {@link GeneralCommissioning} `CommissioningComplete` to disarm the failsafe and
      * finalize, reads the node's structure and (unless `autoSubscribe` is false) subscribes — exactly as
      * {@link commission} does, so the peer is seeded rather than a blind commissioned node — then registers it.
-     * `discoveryData` (from the hand-off) seeds operational discovery; `options` mirror the matching
-     * {@link commission} options.  Throws {@link CommissioningError} and removes the peer entry if discovery,
+     * `discoveryData` and `sessionParameters` (from the hand-off) seed operational discovery and the CASE session
+     * establishment; `options` mirror the matching {@link commission} options.  Throws {@link CommissioningError} and removes the peer entry if discovery,
      * connection, or `CommissioningComplete` fails; rejects as {@link runCommissioning} describes if the node is gone
      * or busy.
      */
     async completeCommissioning(
         nodeId: NodeId,
         discoveryData?: DiscoveryData,
+        sessionParameters?: Partial<SessionParameters>,
         options?: Pick<
             CommissioningClient.CommissioningOptions,
             "autoSubscribe" | "defaultSubscription" | "autoStateInitialize"
-        > & {
-            /**
-             * The session parameters the device reported over PASE, as handed off with the discovery data.  The
-             * operational CASE session is established with them.
-             */
-            sessionParameters?: Partial<SessionParameters>;
-        },
+        >,
     ): Promise<ClientNode> {
         // Split commissioning can only finalize over THE fabric the initiating commissioner established (the one the
         // device's NOC belongs to).  Require it to already exist rather than auto-creating an empty fabric, which would
@@ -277,7 +272,9 @@ export class Peers extends EndpointContainer<ClientNode> {
                     // re-reads.
                     node.env.get(Peer).descriptor.discoveryData = discoveryData;
                 }
-                node.env.get(Peer).descriptor.sessionParameters = options?.sessionParameters;
+                if (sessionParameters !== undefined) {
+                    node.env.get(Peer).descriptor.reportedSessionParameters = sessionParameters;
+                }
 
                 // Mirror commission()'s post-commission setup so start() reads the node's structure (latching
                 // `seeded`) and, unless opted out, establishes the sustained subscription — otherwise the finalized
