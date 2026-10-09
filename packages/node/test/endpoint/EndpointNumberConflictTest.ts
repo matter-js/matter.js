@@ -97,6 +97,21 @@ describe("EndpointNumberConflict", () => {
         });
     });
 
+    it("refuses an added subtree whose leaves share a number", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const aggregator = new Endpoint(AggregatorEndpoint, {
+            id: "aggregator",
+            parts: [
+                { type: OnOffLightDevice, id: "a", number: EndpointNumber(8) },
+                { type: OnOffLightDevice, id: "b", number: EndpointNumber(8) },
+            ],
+        });
+
+        expect(() => node.parts.add(aggregator)).throws(IdentityConflictError, /conflicting/);
+
+        expect(node.parts.has(aggregator)).false;
+    });
+
     it("refuses a duplicate preset number in a tree built before start", async () => {
         await using node = new MockServerNode();
         const first = new Endpoint(OnOffLightDevice, { id: "first", number: EndpointNumber(4) });

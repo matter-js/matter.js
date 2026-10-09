@@ -191,35 +191,23 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
         return promise;
     }
 
-    #validateInsertion(forefather: Endpoint, endpoint: Endpoint, usedNumbers?: Set<number>) {
+    // The incoming endpoints are not indexed yet, so duplicates within the inserted tree are tracked separately
+    #validateInsertion(forefather: Endpoint, endpoint: Endpoint, usedNumbers = new Set<number>()) {
         if (endpoint.lifecycle.hasNumber) {
             IndexBehavior.assertNumberAvailable(endpoint, endpoint.number, this.owner);
-            if (usedNumbers?.has(endpoint.number)) {
+            if (usedNumbers.has(endpoint.number)) {
                 throw new IdentityConflictError(
                     `Cannot add endpoint ${forefather} because descendants have conflicting definitions for endpoint number ${endpoint.number}`,
                 );
             }
+            usedNumbers.add(endpoint.number);
         }
 
         if (!endpoint.hasParts) {
             return;
         }
 
-        const children = endpoint.parts;
-        if (!children.size) {
-            return;
-        }
-
-        // We cannot rely on index to track identity of incoming endopint hierarchy because the entries are not yet
-        // present in the index
-        if (!usedNumbers) {
-            usedNumbers = new Set();
-        }
-        if (endpoint.lifecycle.hasNumber) {
-            usedNumbers.add(endpoint.number);
-        }
-
-        for (const child of children) {
+        for (const child of endpoint.parts) {
             this.#validateInsertion(forefather, child, usedNumbers);
         }
     }
