@@ -56,6 +56,7 @@ export class NodeSession extends SecureSession {
     readonly #encryptKey: Bytes;
     readonly #attestationKey: Bytes;
     #caseAuthenticatedTags: readonly CaseAuthenticatedTag[];
+    readonly #reportedParameters?: Partial<SessionParameters>;
     readonly supportsMRP = true;
     readonly type = SessionType.Unicast;
     readonly #suppressPeerLoss: boolean;
@@ -110,6 +111,7 @@ export class NodeSession extends SecureSession {
             isInitiator,
             delayManagerRegistration,
             suppressPeerLoss = false,
+            reportedSessionParameters,
         } = config;
 
         super({
@@ -130,6 +132,7 @@ export class NodeSession extends SecureSession {
         this.#encryptKey = encryptKey;
         this.#attestationKey = attestationKey;
         this.#caseAuthenticatedTags = caseAuthenticatedTags ?? [];
+        this.#reportedParameters = SessionParameters.reported(reportedSessionParameters);
         this.#isInitiator = isInitiator;
 
         logger.debug(
@@ -162,6 +165,14 @@ export class NodeSession extends SecureSession {
 
     get caseAuthenticatedTags() {
         return this.#caseAuthenticatedTags;
+    }
+
+    /**
+     * The session parameters the peer sent while establishing this session, without fallbacks.  Undefined when the peer
+     * sent none.  {@link parameters} holds the effective values.
+     */
+    get reportedParameters() {
+        return this.#reportedParameters;
     }
 
     get isPase(): boolean {
@@ -456,6 +467,9 @@ export namespace NodeSession {
 
         /** @see {@link NodeSession.suppressPeerLoss} */
         suppressPeerLoss?: boolean;
+
+        /** @see {@link NodeSession.reportedParameters} */
+        reportedSessionParameters?: SessionParameters.Config;
     }
 
     export interface Config extends CommonConfig {

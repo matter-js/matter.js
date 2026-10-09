@@ -321,8 +321,8 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         }
 
         // A known peer's discovery data and session parameters are live; the descriptor only fills what is unknown
-        if (peer.descriptor.discoveryData === undefined) {
-            peer.descriptor.discoveryData = descriptor.discoveryData;
+        if (descriptor.discoveryData !== undefined) {
+            peer.descriptor.discoveryData = { ...descriptor.discoveryData, ...peer.descriptor.discoveryData };
         }
 
         if (peer.descriptor.sessionParameters === undefined) {

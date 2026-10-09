@@ -1149,20 +1149,26 @@ describe("IcdClient", () => {
     });
 
     describe("MRP idle interval", () => {
-        it("floors the idle interval for a LIT peer only when no SII is advertised", async () => {
+        it("floors the idle interval for a LIT peer only when no source gives an SII", async () => {
             await using site = new MockSite();
             const { peer1 } = await litOperatingPair(site);
 
             const protopeer = peer1.env.get(Peer);
             expect(protopeer.physicalProperties?.isLongIdleTimeOperating).true;
 
-            // A LIT ICD advertises no SII; the controller then floors to LIT_MIN_IDLE_INTERVAL
+            // A LIT ICD advertises no SII, and a SII it reports in a session is honored as-is
+            const reported = protopeer.descriptor.sessionParameters;
             expect(protopeer.descriptor.discoveryData?.SII).undefined;
+            expect(reported?.idleInterval).lessThan(LIT_MIN_IDLE_INTERVAL);
+            expect(protopeer.sessionParameters.idleInterval).equals(reported?.idleInterval);
+
+            // Without any SII the controller floors to LIT_MIN_IDLE_INTERVAL instead of the 500ms default
+            protopeer.descriptor.sessionParameters = { ...reported, idleInterval: undefined };
             expect(protopeer.sessionParameters.idleInterval).equals(LIT_MIN_IDLE_INTERVAL);
 
             // An advertised SII is honored as-is
             protopeer.descriptor.discoveryData = { ...protopeer.descriptor.discoveryData, SII: Millis(300) };
-            expect(protopeer.sessionParameters.idleInterval).lessThan(LIT_MIN_IDLE_INTERVAL);
+            expect(protopeer.sessionParameters.idleInterval).equals(300);
         });
 
         it("does not floor the idle interval for a non-LIT peer", async () => {

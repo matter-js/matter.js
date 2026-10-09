@@ -207,6 +207,7 @@ export class PaseClient {
             isInitiator: true,
             isResumption: false,
             peerSessionParameters,
+            reportedSessionParameters: responderSessionParams,
             suppressPeerLoss,
         });
         logger.info("Paired successfully", Mark.OUTBOUND, messenger.channelName, exchange.diagnostics);

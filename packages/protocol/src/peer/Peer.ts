@@ -169,8 +169,8 @@ export class Peer {
                 }
             });
 
-            // Ensure session parameters reflect those most recently reported by peer
-            this.#descriptor.sessionParameters = session.parameters;
+            // A session the peer reported no parameters in leaves the previous report in place
+            this.#descriptor.sessionParameters = session.reportedParameters;
 
             // Only pad when we actually know the peer's medium; the "unknown" fallback is deliberately not applied
             // here because it would inflate responder timing for every peer of a node that never characterizes them.
@@ -272,26 +272,30 @@ export class Peer {
      */
     get sessionParameters() {
         const bi = this.basicInformation;
-        const dd = this.descriptor.discoveryData;
-        const reported = this.#descriptor.sessionParameters ?? {};
+        const dd = this.#descriptor.discoveryData;
+        const reported = this.#descriptor.sessionParameters;
+
+        // A value a session left out takes its spec default; BasicInformation only stands in before any session
+        const beforeSession = reported === undefined ? bi : undefined;
 
         const parameters = SessionParameters({
             ...reported,
-            dataModelRevision: reported.dataModelRevision ?? bi?.dataModelRevision,
-            maxPathsPerInvoke: reported.maxPathsPerInvoke ?? bi?.maxPathsPerInvoke,
-            idleInterval: reported.idleInterval ?? dd?.SII,
-            activeInterval: reported.activeInterval ?? dd?.SAI,
-            activeThreshold: reported.activeThreshold ?? dd?.SAT,
+            dataModelRevision: reported?.dataModelRevision ?? beforeSession?.dataModelRevision,
+            maxPathsPerInvoke: reported?.maxPathsPerInvoke ?? beforeSession?.maxPathsPerInvoke,
+            idleInterval: reported?.idleInterval ?? dd?.SII,
+            activeInterval: reported?.activeInterval ?? dd?.SAI,
+            activeThreshold: reported?.activeThreshold ?? dd?.SAT,
             // BasicInformation and the CASE-negotiated parameters report the same spec version, but one may update
             // before the other; take the newer so a stale descriptor value cannot mask a fresher BasicInformation read.
-            specificationVersion: Math.max(bi?.specificationVersion ?? 0, reported.specificationVersion ?? 0),
+            specificationVersion: Math.max(bi?.specificationVersion ?? 0, reported?.specificationVersion ?? 0),
         });
 
-        // Only when the peer advertised no SII: a LIT ICD omits it, so the merged value is the 500ms default (or a
-        // negotiated value) which is too aggressive for a sleeper. An advertised SII is honored as-is.
+        // Only when no source gave an SII: the 500ms default is too aggressive for a sleeping LIT ICD.  A SII the
+        // peer advertised or reported in a session is honored as-is.
         if (
             this.#physicalProperties?.isLongIdleTimeOperating &&
             dd?.SII === undefined &&
+            reported?.idleInterval === undefined &&
             parameters.idleInterval < LIT_MIN_IDLE_INTERVAL
         ) {
             parameters.idleInterval = LIT_MIN_IDLE_INTERVAL;

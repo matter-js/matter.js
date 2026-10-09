@@ -89,6 +89,31 @@ export function SessionParameters(config?: SessionParameters.Config): SessionPar
 export namespace SessionParameters {
     export interface SupportedTransports extends Partial<SupportedTransportsBitmap> {}
 
+    /**
+     * Normalize the session parameters a peer sent without filling fallbacks: decode the supported transports and drop
+     * values the peer left out.
+     */
+    export function reported(config?: Config): Partial<SessionParameters> | undefined {
+        if (config === undefined) {
+            return undefined;
+        }
+
+        const { supportedTransports, ...rest } = config;
+        const result: Partial<SessionParameters> = {};
+        for (const [key, value] of Object.entries(rest)) {
+            if (value !== undefined) {
+                Object.assign(result, { [key]: value });
+            }
+        }
+        if (supportedTransports !== undefined) {
+            result.supportedTransports =
+                typeof supportedTransports === "number"
+                    ? SupportedTransportsSchema.decode(supportedTransports)
+                    : supportedTransports;
+        }
+        return result;
+    }
+
     export interface Config extends Partial<Omit<SessionParameters, "supportedTransports">> {
         supportedTransports?: number | SupportedTransports;
     }

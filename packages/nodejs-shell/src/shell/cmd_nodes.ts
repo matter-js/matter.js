@@ -196,13 +196,11 @@ export default function commands(theNode: MatterNode) {
                             if (dd.SAI) console.log(`    Active Interval: ${dd.SAI}ms`);
                         }
 
-                        if (desc.sessionParameters) {
-                            const sp = desc.sessionParameters;
-                            console.log(`  Session Parameters:`);
-                            console.log(`    Supported Transports: ${Diagnostic.json(sp.supportedTransports)}`);
-                            if (sp.maxTcpMessageSize !== undefined) {
-                                console.log(`    Max TCP Message Size: ${sp.maxTcpMessageSize}`);
-                            }
+                        const sp = peer.sessionParameters;
+                        console.log(`  Session Parameters:`);
+                        console.log(`    Supported Transports: ${Diagnostic.json(sp.supportedTransports)}`);
+                        if (sp.maxTcpMessageSize !== undefined) {
+                            console.log(`    Max TCP Message Size: ${sp.maxTcpMessageSize}`);
                         }
 
                         const sessions = [...peer.sessions];
