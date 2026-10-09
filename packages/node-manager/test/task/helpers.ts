@@ -1,0 +1,637 @@
+/**
+ * @license
+ * Copyright 2022-2026 Matter.js Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { ManagedFabric } from "#ManagedFabric.js";
+import { BUILT_IN_KINDS } from "#reconcile/kinds.js";
+import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
+import { RunRecord, TaskDefinition, TaskPersistence } from "#task/Task.js";
+import { TaskCancellation, TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
+import { PlannedChange, RunId, TaskPhase, TaskStatus } from "#task/types.js";
+import { Immutable, InternalError, MaybePromise, Observable } from "@matter/general";
+import {
+    CapacityInfo,
+    ClientNode,
+    CommissioningClient,
+    DesiredStateBehavior,
+    ItemKind,
+    ItemMode,
+    ItemState,
+    ManagedItem,
+    itemMapKey,
+} from "@matter/node";
+import { PeerAddress } from "@matter/protocol";
+import { FabricIndex, GlobalFabricId, NodeId } from "@matter/types";
+import { Status } from "@matter/types";
+
+/** Mirrors the reconciler's default recoverability rule for a failure status code. */
+function recoverable(code?: number): boolean {
+    return code === Status.Timeout || code === Status.Busy;
+}
+
+/**
+ * A synthetic task definition whose phases are supplied inline, for unit-testing the manager/driver. A test
+ * populates the tables below for the tag it runs under, so one definition serves every case.
+ */
+export const SyntheticTask: TaskDefinition<{ tag: string }> & {
+    phasesByTag: Record<string, TaskPhase[]>;
+    plannedChangesByTag: Record<string, PlannedChange[]>;
+} = {
+    type: "synthetic",
+    phasesByTag: {},
+    plannedChangesByTag: {},
+    slotKeyFor(params) {
+        return `synthetic:${params.tag}`;
+    },
+    phases(params) {
+        return SyntheticTask.phasesByTag[params.tag] ?? new Array<TaskPhase>();
+    },
+    plannedChanges(params) {
+        return SyntheticTask.plannedChangesByTag[params.tag] ?? new Array<PlannedChange>();
+    },
+};
+
+/**
+ * The record backing the run this process is driving for `runId`. Valid in the synchronous continuation right
+ * after `run()` returns, before any phase has had a chance to advance the driver past this tick.
+ */
+/**
+ * Whether a state is one no driver will advance.
+ *
+ * Mirrors `TERMINAL_STATES` in `RunStore`. One place, because a waiter that misses a state polls for a run
+ * that has already finished — and every copy of this list except this one omitted `abandoned`.
+ */
+export async function pumpUntil(name: string, condition: () => MaybePromise<boolean>): Promise<void> {
+    for (let i = 0; i < 10_000; i++) {
+        if (await condition()) {
+            return;
+        }
+        await MockTime.advance(1);
+    }
+    throw new InternalError(`Condition "${name}" never held`);
+}
+
+export function isTerminalState(state: string): boolean {
+    return ["completed", "failed", "cancelled", "abandoned"].includes(state);
+}
+
+const testKinds = new Map<string, ItemKind>();
+
+/**
+ * A stand-in item kind, memoized by name.
+ *
+ * Tests name kinds that no reconciler registers, and the task surface takes kind references rather than
+ * names. Memoized because the reference is the identity: two calls for one name must give the same kind.
+ */
+export function kindOf(name: string, extra: Partial<ItemKind> = {}): ItemKind {
+    // A built-in answers for its own name, so a test driving a real task gets the very kind the reconciler
+    // registers — the task surface matches on identity, and a stand-in would be refused exactly as a
+    // lookalike is. A test that wants different behaviour names a kind of its own.
+    const builtIn = BUILT_IN_KINDS.find(k => k.kind === name);
+    if (builtIn !== undefined) {
+        if (Object.keys(extra).length > 0) {
+            throw new InternalError(`Built-in kind "${name}" cannot be redefined by a test; name a new kind`);
+        }
+        return builtIn;
+    }
+    let kind = testKinds.get(name);
+    if (kind === undefined) {
+        kind = { kind: name, priority: 0, apply: async () => {} };
+        testKinds.set(name, kind);
+    }
+    // Rebuilt in place rather than merged: the object identity is what the task surface matches on, so it has
+    // to survive — but a hook left on it by an earlier test would otherwise still be there for the next one,
+    // which is how a suite becomes order-dependent. Every optional member is named so it is cleared.
+    Object.assign(kind, {
+        kind: name,
+        priority: 0,
+        apply: async () => {},
+        read: undefined,
+        diff: undefined,
+        verify: undefined,
+        remove: undefined,
+        recoverable: undefined,
+        capacity: undefined,
+        excludeFromAdmission: undefined,
+        isReferenced: undefined,
+        ...extra,
+    });
+    return kind;
+}
+
+export function liveRecord(manager: TaskManagerBehavior, runId: RunId): RunRecord {
+    const execution = manager.internal.runs.executionOf(runId);
+    if (execution === undefined) {
+        throw new InternalError(`No live run #${runId}`);
+    }
+    return execution.record;
+}
+
+/**
+ * Runs `hook` with every persisted snapshot one record writes, by patching that instance alone — so a test
+ * observes the run it started and not every run of its type.
+ */
+export function onPersisted(record: RunRecord, hook: (persisted: TaskPersistence) => void): void {
+    const original = record.toPersistence.bind(record);
+    record.toPersistence = (next, drop) => {
+        const persisted = original(next, drop);
+        hook(persisted);
+        return persisted;
+    };
+}
+
+/** Fires `onCompleted` once, the first time `runId`'s record persists a "completed" snapshot — after the run
+ * is terminal but before its driver settles and hands back the slot. */
+export function onTerminalWrite(manager: TaskManagerBehavior, runId: RunId, onCompleted: () => void): void {
+    let fired = false;
+    onPersisted(liveRecord(manager, runId), persisted => {
+        if (!fired && persisted.state === "completed") {
+            fired = true;
+            onCompleted();
+        }
+    });
+}
+
+/**
+ * In-memory peer for unit-testing the convergence gates. Exposes only the surface the gate reads:
+ * `DesiredStateBehavior` items + `itemChanged`, `NetworkClient` subscription status, and the reachability
+ * source of truth (`behaviors.internalsOf(NetworkClient).activeSubscription`). The fake doubles as the
+ * reconciler: `reconcile(node, {verify})` flips the peer's items to `committed` for keys the device "has".
+ *
+ * One simplification of the real engine: a key the device neither has nor fails stays `pending` instead of
+ * committing, which is how a test holds a gate parked.
+ */
+/**
+ * A stable address for a fixture peer, derived from its name so a test that writes one can name the same peer.
+ *
+ * Fabric 1 throughout: these fixtures have one fabric, and a node id is unique within it.
+ */
+export function testAddress(name: string): PeerAddress {
+    let hash = 0n;
+    for (const ch of name) {
+        hash = (hash * 131n + BigInt(ch.codePointAt(0) ?? 0)) % 0xffff_ffffn;
+    }
+    return PeerAddress({ fabricIndex: FabricIndex(1), nodeId: NodeId(hash + 1n) });
+}
+
+export class FakePeer {
+    readonly items: Record<string, ManagedItem> = {};
+    readonly has = new Set<string>();
+    /** Keys the device rejects with an unrecoverable status: apply fails, and the following pass drops them. */
+    readonly rejects = new Set<string>();
+    /** Remaining recoverable apply failures per key: each pass consumes one, then the key behaves normally. */
+    readonly transientFailures = new Map<string, number>();
+    readonly itemChanged = new Observable<[item: ManagedItem]>();
+    readonly itemRemoved = new Observable<[kind: string, key: string]>();
+    readonly subscriptionStatusChanged = new Observable<[isActive: boolean]>();
+    #subscribed = true;
+    reconciles = 0;
+
+    readonly address: PeerAddress;
+
+    constructor(
+        readonly id: string,
+        address = testAddress(id),
+    ) {
+        this.address = address;
+    }
+
+    /** A real (non-Sustained) subscription instance reads as active; undefined reads as unreachable. */
+    get #activeSubscription() {
+        return this.#subscribed ? {} : undefined;
+    }
+
+    setReachable(reachable: boolean) {
+        this.#subscribed = reachable;
+        this.subscriptionStatusChanged.emit(reachable);
+    }
+
+    /** Add a desired item in a given state and announce the change, as DesiredStateBehavior would. */
+    addItem(kind: string, key: string, state: ItemState = "pending") {
+        const item: ManagedItem = {
+            kind,
+            key,
+            intent: {},
+            mode: "converge",
+            status: { state, updateTimestamp: 0 },
+            outstanding: state === "deletePending" ? "remove" : "apply",
+            generation: 1,
+        };
+        this.items[itemMapKey(kind, key)] = item;
+        this.itemChanged.emit(item);
+    }
+
+    /** Record the desired-state mutations the gate observes so cancel-rollback order can be asserted. */
+    readonly removeOrder = new Array<string>();
+
+    // Stores real intent+mode (not a placeholder) so the context's prior-capture reads true values.
+    setIntent(kind: string, key: string, intent: unknown = {}, mode: ItemMode = "converge") {
+        const existing = this.items[itemMapKey(kind, key)];
+        const item: ManagedItem = {
+            kind,
+            key,
+            intent,
+            mode,
+            status: existing?.status ?? { state: "pending", updateTimestamp: 0 },
+            outstanding: "apply",
+            generation: 1,
+        };
+        this.items[itemMapKey(kind, key)] = item;
+        this.itemChanged.emit(item);
+    }
+
+    /** DesiredStateBehavior.removeIntent stand-in: flag deletePending, then drop on the next reconcile. */
+    removeIntent(kind: string, key: string) {
+        const item = this.items[itemMapKey(kind, key)];
+        if (item === undefined) {
+            return;
+        }
+        this.removeOrder.push(itemMapKey(kind, key));
+        item.status = { ...item.status, state: "deletePending" };
+        item.outstanding = "remove";
+        this.itemChanged.emit(item);
+    }
+
+    /** Fake Endpoint.act: synchronously runs the callback with a fake agent exposing DesiredStateBehavior. */
+    act<T>(fn: (agent: { get(type: unknown): unknown }) => T): T {
+        const desired = {
+            setIntent: (kind: string, key: string, intent: unknown, mode?: ItemMode) =>
+                this.setIntent(kind, key, intent, mode),
+            removeIntent: (kind: string, key: string) => this.removeIntent(kind, key),
+        };
+        return fn({ get: (type: unknown) => (type === DesiredStateBehavior ? desired : undefined) });
+    }
+
+    /** Mark a key as present on the device, so the next verify-reconcile commits it. */
+    markHas(kind: string, key: string) {
+        this.has.add(itemMapKey(kind, key));
+    }
+
+    /** Mark a key the device refuses with an unrecoverable status. */
+    markRejects(kind: string, key: string) {
+        this.rejects.add(itemMapKey(kind, key));
+    }
+
+    /** Mark a key whose next `times` applies fail with a recoverable status, so the reconciler retries them. */
+    markFailsRecoverably(kind: string, key: string, times: number) {
+        this.transientFailures.set(itemMapKey(kind, key), times);
+    }
+
+    /** DesiredStateBehavior.dropItem stand-in: the item's work is done, so it goes. */
+    dropItem(kind: string, key: string) {
+        if (this.items[itemMapKey(kind, key)] === undefined) {
+            return;
+        }
+        delete this.items[itemMapKey(kind, key)];
+        this.itemRemoved.emit(kind, key);
+    }
+
+    setState(kind: string, key: string, state: ItemState, failureCode?: number) {
+        const item = this.items[itemMapKey(kind, key)];
+        item.status = { ...item.status, state, failureCode };
+        this.itemChanged.emit(item);
+    }
+
+    /**
+     * Fake ReconcilerBehavior.reconcile over one peer's items, one pass per call, mirroring what
+     * `planActions`/`executeActions` do with each item state: apply a pending item, retry or drop a failed one
+     * by the recoverability of its status code, and drop a removal once the device has taken it.
+     */
+    async reconcile(node: ClientNode, options?: { verify?: boolean }) {
+        this.reconciles++;
+        if (!options?.verify || !this.#subscribed) {
+            return;
+        }
+        const peer = node as unknown as FakePeer;
+        for (const item of Object.values(peer.items)) {
+            switch (item.status.state) {
+                case "pending":
+                    peer.#apply(item);
+                    break;
+                case "commitFailed":
+                    if (recoverable(item.status.failureCode)) {
+                        peer.#apply(item);
+                    } else {
+                        // Mirrors the executor: an item it gives up on keeps its place and its status.
+                        break;
+                    }
+                    break;
+                case "deletePending":
+                    peer.dropItem(item.kind, item.key);
+                    break;
+                case "committed":
+                    break;
+            }
+        }
+    }
+
+    /** One apply attempt against the device, with the status it writes back. */
+    #apply(item: ManagedItem) {
+        const id = itemMapKey(item.kind, item.key);
+        const transient = this.transientFailures.get(id) ?? 0;
+        if (transient > 0) {
+            this.transientFailures.set(id, transient - 1);
+            this.setState(item.kind, item.key, "commitFailed", Status.Busy);
+        } else if (this.rejects.has(id)) {
+            this.setState(item.kind, item.key, "commitFailed", Status.ConstraintError);
+        } else if (this.has.has(id)) {
+            this.setState(item.kind, item.key, "committed");
+        }
+    }
+
+    /**
+     * What this peer's reconciler stand-in registers, for a test that needs a name it does not own, or a kind
+     * whose `isReferenced` answers differently from the shared one.
+     */
+    kindResolver?: (kind: string) => ItemKind | undefined;
+
+    /** Reconciler stand-in: resolves any name, and no kind has dependents unless a test supplies one. */
+    itemKind(kind: string): ItemKind | undefined {
+        return this.kindResolver === undefined ? kindOf(kind) : this.kindResolver(kind);
+    }
+
+    eventsOf(type: unknown): unknown {
+        return type === DesiredStateBehavior
+            ? { itemChanged: this.itemChanged, itemRemoved: this.itemRemoved }
+            : { subscriptionStatusChanged: this.subscriptionStatusChanged };
+    }
+
+    /** The capacity snapshot a reconciler refresh would have left, which admission reads. */
+    readonly capacities: Record<string, CapacityInfo> = {};
+
+    stateOf(type: unknown): unknown {
+        return type === DesiredStateBehavior
+            ? { items: this.items, capacities: this.capacities }
+            : { isDisabled: this.networkDisabled };
+    }
+
+    #addressed = true;
+
+    /** Forget the peer's identity, as a node being torn down has. */
+    forgetAddress() {
+        this.#addressed = false;
+    }
+
+    /** What `ClientNode` exposes and the task layer reads: a peer's identity, not its local id. */
+    get peerAddress(): PeerAddress | undefined {
+        return this.#addressed ? this.address : undefined;
+    }
+
+    maybeStateOf(type: unknown): unknown {
+        if (type === DesiredStateBehavior) {
+            return { items: this.items, capacities: this.capacities };
+        }
+        return type === CommissioningClient ? { peerAddress: this.address } : undefined;
+    }
+
+    /** A peer with no networking at all, as a group or a node still being built has. */
+    networkless = false;
+
+    /** A peer whose networking is switched off, which reads as unreachable however its subscription looks. */
+    networkDisabled = false;
+
+    get behaviors() {
+        const activeSubscription = this.#activeSubscription;
+        const networkless = this.networkless;
+        return {
+            has: () => !networkless,
+            internalsOf: () => ({ activeSubscription }),
+        };
+    }
+
+    asNode(): ClientNode {
+        return this as unknown as ClientNode;
+    }
+}
+
+/** Behavior state reaches a test through the project's deep-immutable view, so helpers read that shape. */
+type RunRecords = Immutable<Record<string, TaskPersistence>>;
+type PersistedRecord = Immutable<TaskPersistence>;
+
+/**
+ * Persisted records for a slot, newest run first. Records are per-run now, so a slot can hold several; a test
+ * that means "the record for this slot" wants {@link recordFor}, and one that means a specific attempt should
+ * name its runId.
+ */
+export function recordsFor(runs: RunRecords, slotKey: string): readonly PersistedRecord[] {
+    return Object.values(runs)
+        .filter(r => r.slotKey === slotKey)
+        .sort((a, b) => b.runId - a.runId);
+}
+
+/** The newest persisted record for a slot, or undefined if no run of it was ever recorded. */
+export function recordFor(runs: RunRecords, slotKey: string): PersistedRecord | undefined {
+    return recordsFor(runs, slotKey)[0];
+}
+
+/** The newest record for a slot, failing with the slot name when there is none. */
+export function requireRecordFor(runs: RunRecords, slotKey: string): PersistedRecord {
+    const record = recordFor(runs, slotKey);
+    if (record === undefined) {
+        throw new Error(`No persisted run of slot ${slotKey}`);
+    }
+    return record;
+}
+
+/**
+ * The persisted rollback the newest run of `slotKey` *recorded*, resolved through that run's own
+ * `rollbackRunId`.
+ *
+ * Deliberately not `find(r => r.rollbackOf === original.runId)`: an assertion on the result's `rollbackOf` would
+ * then be checking the predicate that selected it, which is how a migration ends up with a test that cannot
+ * fail. Resolving through the forward link keeps the two sides independent.
+ */
+export function rollbackRecordOf(runs: RunRecords, slotKey: string): PersistedRecord | undefined {
+    const rollbackRunId = recordFor(runs, slotKey)?.rollbackRunId;
+    return rollbackRunId === undefined ? undefined : runs[String(rollbackRunId)];
+}
+
+/** Every persisted rollback of any run of `slotKey`, for asserting that none exists. */
+export function rollbackRecordsOf(runs: RunRecords, slotKey: string): readonly PersistedRecord[] {
+    const undone = new Set(recordsFor(runs, slotKey).map(r => r.runId));
+    return Object.values(runs).filter(r => r.rollbackOf !== undefined && undone.has(r.rollbackOf));
+}
+
+/**
+ * The newest run of a slot, live or retired. Lookup is by run identity now, so a test that names a slot has to
+ * resolve it — and resolving it here keeps each assertion about the thing it was always about.
+ */
+export function requireRunIdOfSlot(manager: TaskManagerBehavior, slotKey: string): RunId {
+    const runId = runIdOfSlot(manager, slotKey);
+    if (runId === undefined) {
+        throw new Error(`No run answers to slot ${slotKey}`);
+    }
+    return runId;
+}
+
+export function runIdOfSlot(manager: TaskManagerBehavior, slotKey: string): RunId | undefined {
+    const live = manager.tasks.find(t => t.status.slotKey === slotKey);
+    if (live !== undefined) {
+        return live.runId;
+    }
+    return manager.history().find(h => h.status.slotKey === slotKey)?.runId;
+}
+
+/** The handle for the newest run of a slot. */
+export function handleOfSlot(manager: TaskManagerBehavior, slotKey: string): TaskHandle | undefined {
+    const runId = runIdOfSlot(manager, slotKey);
+    return runId === undefined ? undefined : manager.get(runId);
+}
+
+/** The status of the newest run of a slot. */
+export function statusOfSlot(manager: TaskManagerBehavior, slotKey: string): TaskStatus | undefined {
+    return handleOfSlot(manager, slotKey)?.status;
+}
+
+/** The status of the newest run of a slot, failing with the slot name when nothing answers to it. */
+export function requireStatusOfSlot(manager: TaskManagerBehavior, slotKey: string): TaskStatus {
+    const status = statusOfSlot(manager, slotKey);
+    if (status === undefined) {
+        throw new Error(`No run answers to slot ${slotKey}`);
+    }
+    return status;
+}
+
+/** Cancel the newest run of a slot, or report that nothing answers to it. */
+export function cancelSlot(manager: TaskManagerBehavior, slotKey: string): Promise<TaskHandle | undefined> {
+    return cancelSlotOutcome(manager, slotKey).then(c => c.rollback);
+}
+
+/** As {@link cancelSlot}, for a test asserting what the cancel did rather than which rollback it produced. */
+export function cancelSlotOutcome(manager: TaskManagerBehavior, slotKey: string): Promise<TaskCancellation> {
+    const runId = runIdOfSlot(manager, slotKey);
+    if (runId === undefined) {
+        // Mirrors cancel() of a run nothing answers to, so a test asserting that outcome still exercises it.
+        return manager.cancel(RunId(Number.MAX_SAFE_INTEGER));
+    }
+    return manager.cancel(runId);
+}
+
+/** The slot key of the rollback of the newest run of `slotKey`, or undefined if none was recorded. */
+export function rollbackSlotOf(runs: RunRecords, slotKey: string): string | undefined {
+    return rollbackRecordOf(runs, slotKey)?.slotKey;
+}
+
+/**
+ * Wait for one specific run to reach one of `states`. A slot can hold several runs, so waiting on the slot
+ * would match a previous run that is already in the state the caller is waiting for.
+ */
+export async function awaitRun(
+    node: { act<T>(fn: (agent: { get(t: unknown): unknown }) => T): Promise<T> },
+    manager: { new (...args: never[]): unknown },
+    runId: RunId,
+    ...states: string[]
+): Promise<void> {
+    for (let i = 0; i < 2_000; i++) {
+        const settled = await node.act(a => {
+            const m = a.get(manager) as TaskManagerBehavior;
+            const state = m.get(runId)?.status.state;
+            if (state === undefined || !states.includes(state)) {
+                return false;
+            }
+            // A run turns terminal one step before it retires; a caller acting here would find the slot held.
+            return !isTerminalState(state) || !m.tasks.some(t => t.runId === runId);
+        });
+        if (settled) {
+            return;
+        }
+        // Integration gates settle on macrotasks, not on time alone, so both have to be pumped.
+        await MockTime.advance(100);
+        await MockTime.macrotask;
+    }
+    throw new Error(`Run #${runId} did not reach state ${states.join("|")}`);
+}
+
+/**
+ * The task manager as the unit tests drive it: peers and reconciler are fakes, and the fabric is the one
+ * `testAddress` puts every fixture peer on.
+ *
+ * One class, because nine copies of these three overrides is nine places to update when a seam changes — which
+ * is how the suite came to have eight copies of "which states are terminal".
+ */
+export class TestTaskManagerBase extends TaskManagerBehavior {
+    static override readonly schema = TaskManagerBehavior.schema;
+
+    /**
+     * Fixtures per concrete subclass, not per base: one shared map would let a test file answer for the peers
+     * another file registered, and one file's cleanup would erase another's.
+     */
+    static readonly #fixtures = new WeakMap<object, { peers: Map<string, FakePeer>; reconcilerPeer?: FakePeer }>();
+
+    protected static fixturesFor(cls: object) {
+        let fixtures = TestTaskManagerBase.#fixtures.get(cls);
+        if (fixtures === undefined) {
+            fixtures = { peers: new Map<string, FakePeer>() };
+            TestTaskManagerBase.#fixtures.set(cls, fixtures);
+        }
+        return fixtures;
+    }
+
+    /**
+     * The fixtures of the nearest class that has any.
+     *
+     * The behavior an endpoint instantiates is a class matter.js derived from the one a test declared, so the
+     * instance's own constructor holds nothing; what the test registered sits further up the chain.
+     */
+    static #inheritedFixtures(cls: object | null) {
+        for (let current = cls; current !== null; current = Object.getPrototypeOf(current)) {
+            const fixtures = TestTaskManagerBase.#fixtures.get(current);
+            if (fixtures !== undefined) {
+                return fixtures;
+            }
+        }
+        // No bucket of its own means the class was reached before its test registered anything. A shared
+        // fallback would answer with another file's peers, so this one is empty and belongs to nobody.
+        return { peers: new Map<string, FakePeer>() };
+    }
+
+    static get peers() {
+        return TestTaskManagerBase.fixturesFor(this).peers;
+    }
+
+    static get reconcilerPeer() {
+        return TestTaskManagerBase.fixturesFor(this).reconcilerPeer;
+    }
+
+    static set reconcilerPeer(peer: FakePeer | undefined) {
+        TestTaskManagerBase.fixturesFor(this).reconcilerPeer = peer;
+    }
+
+    /** This subclass's fixtures, so one test file never answers with another's peers. */
+    protected get fixtures() {
+        return TestTaskManagerBase.#inheritedFixtures(this.constructor);
+    }
+
+    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
+        return [...this.fixtures.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
+    }
+
+    protected override taskReconciler(): ReconcilerBehavior {
+        return this.fixtures.reconcilerPeer as unknown as ReconcilerBehavior;
+    }
+
+    protected override fabricOnController(fabric: string) {
+        return fabric === String(this.managedFabric()?.globalId);
+    }
+
+    protected override managedFabric(): ManagedFabric | undefined {
+        return testFabric(() => [...this.fixtures.peers.values()].map(peer => peer.asNode()));
+    }
+}
+
+/** The fabric a fixture peer is on: index 1, as {@link testAddress} assigns. */
+export function testFabric(peers: () => ClientNode[], index = FabricIndex(1)): ManagedFabric {
+    const owns = (address: PeerAddress | undefined) => address !== undefined && address.fabricIndex === index;
+    return {
+        index,
+        globalId: GlobalFabricId(index),
+        owns,
+        peers: () => peers().filter(peer => owns(peer.peerAddress)),
+        peer: address =>
+            owns(address)
+                ? peers().find(peer => peer.peerAddress !== undefined && PeerAddress.is(peer.peerAddress, address))
+                : undefined,
+    };
+}

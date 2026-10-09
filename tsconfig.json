@@ -20,6 +20,9 @@
             "path": "packages/node"
         },
         {
+            "path": "packages/node-manager"
+        },
+        {
             "path": "packages/matter.js"
         },
         {

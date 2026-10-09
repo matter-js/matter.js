@@ -722,6 +722,9 @@ export class Peers extends EndpointContainer<ClientNode> {
         node.eventsOf(type).leave?.on(({ fabricIndex }) => this.#onLeave(node, fabricIndex));
         node.eventsOf(type).shutDown?.on(() => this.#onShutdown(node));
         node.eventsOf(type).startUp?.on(() => this.#onStartUp(node));
+        node.eventsOf(type).softwareVersion$Changed?.on((version, oldVersion) =>
+            this.#onSoftwareVersionChanged(node, version, oldVersion),
+        );
         node.eventsOf(type).configurationVersion$Changed?.on(() => node.lifecycle.configurationVersionChanged.emit());
 
         this.#evaluateSeeded(node);
@@ -751,6 +754,14 @@ export class Peers extends EndpointContainer<ClientNode> {
             return;
         }
         node.lifecycle.markSeeded(LocalActorContext.ReadOnly);
+    }
+
+    async #onSoftwareVersionChanged(node: ClientNode, softwareVersion: number, oldVersion?: number) {
+        // Initial attribute receipt has no prior value; only genuine version transitions are updates.
+        if (oldVersion === undefined) {
+            return;
+        }
+        await node.act(agent => node.lifecycle.softwareVersionChanged.emit(softwareVersion, agent.context));
     }
 
     /**
