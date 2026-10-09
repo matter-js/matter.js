@@ -5,13 +5,7 @@
  */
 
 import { Immutable, ServerAddress } from "@matter/general";
-import {
-    CommissionableDevice,
-    OperationalDevice,
-    PeerAddress,
-    SessionIntervals,
-    SupportedTransportsSchema,
-} from "@matter/protocol";
+import { CommissionableDevice, OperationalDevice, PeerAddress, SupportedTransportsSchema } from "@matter/protocol";
 import { DeviceTypeId, VendorId } from "@matter/types";
 import type { CommissioningClient } from "./CommissioningClient.js";
 
@@ -219,16 +213,18 @@ export namespace RemoteDescriptor {
             long.productId = Number.isFinite(product) && product !== 0 ? product : undefined;
         }
 
-        // DNS-SD caps SII/SAI at 1 hour, so a value at the cap may be a clamped advertisement of a larger
-        // CASE-negotiated interval. Don't let it lower a higher session-derived value already on record.
-        if (SII !== undefined && !isCappedBelow(SII, long.sessionParameters?.idleInterval)) {
-            (long.sessionParameters ??= {}).idleInterval = SII;
-        }
-        if (SAI !== undefined && !isCappedBelow(SAI, long.sessionParameters?.activeInterval)) {
-            (long.sessionParameters ??= {}).activeInterval = SAI;
-        }
-        if (SAT !== undefined) {
-            (long.sessionParameters ??= {}).activeThreshold = SAT;
+        // With a peer address the Peer owns sessionParameters and its session values win; DNS-SD only seeds them before
+        // commissioning
+        if (long.peerAddress === undefined) {
+            if (SII !== undefined) {
+                (long.sessionParameters ??= {}).idleInterval = SII;
+            }
+            if (SAI !== undefined) {
+                (long.sessionParameters ??= {}).activeInterval = SAI;
+            }
+            if (SAT !== undefined) {
+                (long.sessionParameters ??= {}).activeThreshold = SAT;
+            }
         }
 
         long.deviceType = DT === undefined ? undefined : DeviceTypeId(DT, false);
@@ -249,9 +245,4 @@ export namespace RemoteDescriptor {
 
         return long;
     }
-}
-
-/** True when `advertised` is at the DNS-SD 1-hour cap and `current` already exceeds it. */
-function isCappedBelow(advertised: number, current: number | undefined) {
-    return current !== undefined && advertised === SessionIntervals.maxAdvertisedInterval && current > advertised;
 }

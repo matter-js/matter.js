@@ -102,6 +102,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Closing or factory resetting a node closes all its parts, peers and services even when one step fails, releases storage and mDNS, and erases leftover peers, CA key material and BDX blobs
     - Fix: A peer reporting a session idle or active interval above one hour in its CASE/PASE session parameters no longer fails validation when these are stored
     - Fix: A peer advertising a vendor-specific device type no longer prevents storing its addresses and session parameters
+    - Fix: A commissioned peer's stored session intervals follow its latest session instead of keeping the values from commissioning or DNS-SD
     - Fix: Shutting down a controller no longer reports peer endpoints as deleted
     - Fix: (@RaHehl) A node stopped and started again re-establishes its subscriptions, can be commissioned again and keeps no stale events
     - Fix: (@RaHehl) A freshly commissioned node re-establishes its subscriptions after its next restart, and client subscription reports after a restart are accepted
