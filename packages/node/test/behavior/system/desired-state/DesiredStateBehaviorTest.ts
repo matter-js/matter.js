@@ -6,7 +6,13 @@
 
 import { DesiredStateBehavior } from "#behavior/system/desired-state/DesiredStateBehavior.js";
 import { AclCapacityExceededError } from "#behavior/system/desired-state/errors.js";
-import { ItemEnforcement, ManagedItem, currentReapplies } from "#behavior/system/desired-state/types.js";
+import {
+    ItemEnforcement,
+    ManagedItem,
+    currentReapplies,
+    itemMapKey,
+    newStatus,
+} from "#behavior/system/desired-state/types.js";
 import { Minutes, Timestamp } from "@matter/general";
 import { MockEndpoint } from "../../../endpoint/mock-endpoint.js";
 
@@ -130,6 +136,47 @@ describe("DesiredStateBehavior", () => {
             expect(ds.enforcementOf("acl", "1")).equals(undefined);
             ds.dropItem("acl", "1", original.generation);
             expect(ds.getItem("acl", "1")).not.equals(undefined);
+        });
+    });
+
+    it("keeps generations unique across many distinct dropped keys", async () => {
+        await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+        await endpoint.act(agent => {
+            const ds = agent.get(DesiredStateBehavior);
+            const seen = new Set<number>();
+            for (let i = 0; i < 200; i++) {
+                const item = ds.setIntent("acl", `${i}`, { privilege: 5 }, "maintain");
+                expect(seen.has(item.generation)).equals(false);
+                seen.add(item.generation);
+                ds.dropItem("acl", `${i}`);
+            }
+            // The re-added first key continues above everything assigned so far, though nothing remembers it.
+            const readded = ds.setIntent("acl", "0", { privilege: 5 }, "maintain");
+            expect(seen.has(readded.generation)).equals(false);
+        });
+    });
+
+    it("continues above the generation of a stored item that was dropped before any write in this process", async () => {
+        await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+        await endpoint.act(agent => {
+            const ds = agent.get(DesiredStateBehavior);
+            ds.state.items = {
+                [itemMapKey("acl", "1")]: {
+                    kind: "acl",
+                    key: "1",
+                    intent: { privilege: 5 },
+                    mode: "maintain",
+                    status: newStatus("deletePending"),
+                    outstanding: "remove",
+                    generation: 5,
+                },
+            };
+
+            ds.dropItem("acl", "1");
+            const readded = ds.setIntent("acl", "2", { privilege: 5 }, "maintain");
+            expect(readded.generation).greaterThan(5);
+            ds.dropItem("acl", "2");
+            expect(ds.setIntent("acl", "1", { privilege: 5 }, "maintain").generation).greaterThan(5);
         });
     });
 

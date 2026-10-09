@@ -737,7 +737,7 @@ export class ReconcilerBehavior extends Behavior {
         verifyResult: VerifyResult,
         retrying: string | undefined,
     ): Promise<void> {
-        const { count, window } = this.endpoint.stateOf(ReconcilerBehavior).driftBudget;
+        const { window } = this.endpoint.stateOf(ReconcilerBehavior).driftBudget;
         await peer.act(agent => {
             const ds = agent.get(DesiredStateBehavior);
             for (const { item, action, drift } of planned) {
@@ -793,7 +793,7 @@ export class ReconcilerBehavior extends Behavior {
                     logger.debug(`Drift on ${peer.id} ${kind}:${key} not recorded: the item changed during the read`);
                 } else if (drift === "held" && previous?.held !== true) {
                     logger.warn(
-                        `Drift on ${peer.id} ${kind}:${key} (${mode}) held: re-applied ${count} times within ${Duration.format(window)} and changed again, so it is not written back any more. It needs an action: ReconcilerBehavior.retry(), removing the intent, or writing a new intent`,
+                        `Drift on ${peer.id} ${kind}:${key} (${mode}) held: ${currentReapplies(now)} re-applies still count against its budget and it changed again, so it is not written back any more. It needs an action: ReconcilerBehavior.retry(), removing the intent, or writing a new intent`,
                     );
                 } else if (drift === "recorded" && previous?.drift === undefined) {
                     logger.notice(driftNotice(peer, item));

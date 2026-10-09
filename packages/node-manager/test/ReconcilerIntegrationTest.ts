@@ -393,8 +393,7 @@ describe("drift dispositions", () => {
         const warnings = log.filter(line => line.level === LogLevel.WARN).map(line => line.text);
         expect(warnings.length).equals(1);
         expect(warnings[0]).contains(`${peer.id} acl:k1`);
-        expect(warnings[0]).contains("3 times");
-        expect(warnings[0]).contains(Duration.format(window));
+        expect(warnings[0]).contains("3 re-applies still count");
         expect(warnings[0]).contains("needs an action");
         expect(warnings[0]).contains("retry()");
     });

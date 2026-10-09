@@ -45,17 +45,19 @@ export class DesiredStateBehavior extends Behavior {
             mode,
             status: newStatus("pending"),
             outstanding: "apply",
-            generation:
-                Math.max(
-                    this.state.items[itemMapKey(kind, key)]?.generation ?? 0,
-                    this.internal.droppedGenerations.get(itemMapKey(kind, key)) ?? 0,
-                ) + 1,
+            generation: this.#nextGeneration(this.state.items[itemMapKey(kind, key)]),
         };
-        this.internal.droppedGenerations.delete(itemMapKey(kind, key));
         this.state.items = { ...this.state.items, [itemMapKey(kind, key)]: item };
         this.#writeEnforcement(kind, key, undefined);
         this.events.itemChanged.emit(item);
         return item;
+    }
+
+    /** Generations are only compared for equality, so they need to be unique per item, not dense. */
+    #nextGeneration(existing: ManagedItem | undefined): number {
+        const generation = Math.max(existing?.generation ?? 0, this.internal.lastGeneration) + 1;
+        this.internal.lastGeneration = generation;
+        return generation;
     }
 
     removeIntent(kind: string, key: string): void {
@@ -68,7 +70,7 @@ export class DesiredStateBehavior extends Behavior {
             ...existing,
             status: newStatus("deletePending"),
             outstanding: "remove",
-            generation: existing.generation + 1,
+            generation: this.#nextGeneration(existing),
         };
         this.state.items = { ...this.state.items, [id]: item };
         this.#writeEnforcement(kind, key, undefined);
@@ -113,7 +115,7 @@ export class DesiredStateBehavior extends Behavior {
         }
         const { [id]: _removed, ...rest } = this.state.items;
         this.state.items = rest;
-        this.internal.droppedGenerations.set(id, existing.generation);
+        this.internal.lastGeneration = Math.max(this.internal.lastGeneration, existing.generation);
         this.#writeEnforcement(kind, key, undefined);
         this.events.itemRemoved.emit(kind, key);
     }
@@ -266,10 +268,12 @@ export namespace DesiredStateBehavior {
 
     export class Internal {
         /**
-         * The last generation of each dropped item, so a re-added item continues from it. Volatile: after a restart
-         * no operation of the previous process is left that could carry an old generation.
+         * The highest generation this process assigned to or dropped from any item, so a re-added item never gets a
+         * number a dropped one carried, without remembering dropped items. Volatile: after a restart it starts at 0
+         * and no operation of the previous process is left that could carry an old generation; a stored item raises
+         * it when it is dropped.
          */
-        droppedGenerations = new Map<string, number>();
+        lastGeneration = 0;
     }
 
     export class Events extends BaseEvents {
