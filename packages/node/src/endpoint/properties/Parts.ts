@@ -44,6 +44,12 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
 
         assertNotAncestor(this.owner, endpoint);
 
+        if (endpoint.maybeNumber === 0) {
+            throw new IdentityConflictError(
+                `Cannot add ${endpoint} to ${this.owner} because endpoint number 0 belongs to the node root`,
+            );
+        }
+
         // Insertion validation is only possible in a fully configured node. Otherwise each endpoint's number is
         // checked when the endpoint is constructed
         if (this.owner.lifecycle.isReady) {

@@ -72,7 +72,7 @@ export class IndexBehavior extends Behavior {
             return;
         }
 
-        const holder = number === 0 ? root : root.behaviors.internalsOf(IndexBehavior).partsByNumber[number];
+        const holder = root.behaviors.internalsOf(IndexBehavior).partsByNumber[number];
         if (holder !== undefined && holder !== claimant) {
             throw new IdentityConflictError(
                 `Cannot assign endpoint number ${number} to ${claimant} because ${holder} already holds it`,

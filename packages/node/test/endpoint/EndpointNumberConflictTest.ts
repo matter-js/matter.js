@@ -77,13 +77,24 @@ describe("EndpointNumberConflict", () => {
         });
     });
 
-    it("refuses a child that claims endpoint number 0", async () => {
-        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+    describe("a part that claims endpoint number 0", () => {
+        it("is refused by a running node", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
 
-        await expect(node.add(RootEndpoint, { id: "nestedRoot", number: 0 })).rejectedWith(IdentityConflictError);
+            await expect(node.add(RootEndpoint, { id: "nestedRoot", number: 0 })).rejectedWith(IdentityConflictError);
 
-        expect(node.endpoints.for(0)).equals(node);
-        expect(holderOf(node, 0)).undefined;
+            expect(node.endpoints.for(0)).equals(node);
+            expect(holderOf(node, 0)).undefined;
+        });
+
+        it("is refused before the node starts", async () => {
+            await using node = new MockServerNode();
+            const nestedRoot = new Endpoint(RootEndpoint, { id: "nestedRoot", number: EndpointNumber(0) });
+
+            expect(() => node.parts.add(nestedRoot)).throws(IdentityConflictError, /node root/);
+
+            expect(node.parts.has(nestedRoot)).false;
+        });
     });
 
     it("refuses a duplicate preset number in a tree built before start", async () => {
