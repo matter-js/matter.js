@@ -54,8 +54,6 @@ describe("Peer descriptor", () => {
         const { controller, peer } = await commissionedPeer(site);
         const node = controller.peers.get("peer1")!;
 
-        // DNS-SD discovery drops SII/SAI above one hour, so only the session parameters carry them
-        peer.descriptor.discoveryData = { ...peer.descriptor.discoveryData, SII: undefined, SAI: undefined };
         peer.descriptor.sessionParameters = {
             ...peer.sessionParameters,
             idleInterval: Millis(3_602_000),
@@ -66,6 +64,32 @@ describe("Peer descriptor", () => {
         const { sessionParameters } = node.stateOf(CommissioningClient);
         expect(sessionParameters?.idleInterval).equals(3_602_000);
         expect(sessionParameters?.activeInterval).equals(3_603_000);
+    });
+
+    it("stores the intervals of a later session and restores them after a restart", async () => {
+        await using site = new MockSite();
+        const { controller, peer } = await commissionedPeer(site);
+        expect(peer.descriptor.discoveryData?.SII).not.undefined;
+
+        peer.descriptor.sessionParameters = {
+            ...peer.sessionParameters,
+            idleInterval: Millis(2000),
+            activeInterval: Millis(400),
+            activeThreshold: Millis(5000),
+        };
+        await MockTime.macrotask;
+
+        const expected = { idleInterval: 2000, activeInterval: 400, activeThreshold: 5000 };
+        expect(controller.peers.get("peer1")!.stateOf(CommissioningClient).sessionParameters).deep.include(expected);
+
+        const controllerId = controller.id;
+        await site.close();
+        const controllerB = await site.addNode(undefined, { id: controllerId, index: 1 });
+
+        expect(controllerB.peers.get("peer1")!.stateOf(CommissioningClient).sessionParameters).deep.include(expected);
+
+        const [restored] = controllerB.env.get(PeerSet);
+        expect(restored.sessionParameters).deep.include(expected);
     });
 
     it("persists a vendor-specific advertised device type", async () => {
