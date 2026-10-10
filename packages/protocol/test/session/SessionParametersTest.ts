@@ -5,7 +5,7 @@
  */
 
 import { MIN_TCP_SPEC_VERSION, SessionParameters } from "#session/SessionParameters.js";
-import { Hours } from "@matter/general";
+import { Hours, Millis } from "@matter/general";
 
 describe("SessionParameters", () => {
     it("accepts idle/active intervals above one hour", () => {
@@ -80,6 +80,33 @@ describe("SessionParameters", () => {
                 maxTcpMessageSize: 32000,
             });
             expect(params.maxTcpMessageSize).undefined;
+        });
+    });
+
+    describe("reported", () => {
+        it("keeps only the values the peer sent, without fallbacks", () => {
+            expect(
+                SessionParameters.reported({ idleInterval: Millis(1234), maxPathsPerInvoke: undefined }),
+            ).deep.equals({
+                idleInterval: Millis(1234),
+            });
+        });
+
+        it("decodes supported transports sent as a bitmap", () => {
+            expect(SessionParameters.reported({ supportedTransports: 0b110 })).deep.equals({
+                supportedTransports: { tcpClient: true, tcpServer: true },
+            });
+        });
+
+        it("keeps supported transports given as an object", () => {
+            expect(SessionParameters.reported({ supportedTransports: { tcpClient: true } })).deep.equals({
+                supportedTransports: { tcpClient: true },
+            });
+        });
+
+        it("is undefined when the peer sent no parameters", () => {
+            expect(SessionParameters.reported(undefined)).undefined;
+            expect(SessionParameters.reported({ idleInterval: undefined })).undefined;
         });
     });
 });

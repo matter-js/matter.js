@@ -269,7 +269,7 @@ describe("ClientNodeTcp", () => {
             const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
 
             const peer = protocolPeer(controller);
-            peer.descriptor.sessionParameters = {
+            peer.descriptor.reportedSessionParameters = {
                 ...peer.sessionParameters,
                 supportedTransports: { tcpClient: false, tcpServer: false },
             };
@@ -283,7 +283,7 @@ describe("ClientNodeTcp", () => {
 
             const peer = protocolPeer(controller);
             // Some 1.5+ peers omit SUPPORTED_TRANSPORTS (tag 8) yet serve TCP; mDNS T must then decide.
-            peer.descriptor.sessionParameters = { ...peer.sessionParameters, supportedTransports: {} };
+            peer.descriptor.reportedSessionParameters = { ...peer.sessionParameters, supportedTransports: {} };
             expect(peer.sessionParameters.supportedTransports?.tcpServer).undefined;
             expect(peer.descriptor.discoveryData?.T?.tcpServer).true;
 
@@ -295,7 +295,7 @@ describe("ClientNodeTcp", () => {
             const { controller } = await commissionPair(site, { tcp: true }, /* deviceNetwork: */ undefined);
 
             const peer = protocolPeer(controller);
-            peer.descriptor.sessionParameters = { ...peer.sessionParameters, supportedTransports: {} };
+            peer.descriptor.reportedSessionParameters = { ...peer.sessionParameters, supportedTransports: {} };
             expect(peer.sessionParameters.supportedTransports?.tcpServer).undefined;
             expect(peer.descriptor.discoveryData?.T?.tcpServer).not.true;
 
@@ -313,6 +313,22 @@ describe("ClientNodeTcp", () => {
 
             peer.markTcpUnsupported();
             expect(peer.resolveTransports(undefined, ChannelType.TCP)).undefined;
+        });
+
+        it("clears the flag when a later session reports TCP server support", async () => {
+            await using site = new MockSite();
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
+
+            const peer = protocolPeer(controller);
+            peer.markTcpUnsupported();
+
+            for (const session of [...peer.sessions]) {
+                await MockTime.resolve(session.initiateClose(), { macrotasks: true });
+            }
+            await MockTime.resolve(peer.connect(), { macrotasks: true });
+
+            expect(peer.descriptor.tcpUnsupported).undefined;
+            expect(peer.resolveTransports(undefined, ChannelType.TCP)).deep.equals([ChannelType.TCP, ChannelType.UDP]);
         });
     });
 

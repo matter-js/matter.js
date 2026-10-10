@@ -159,10 +159,10 @@ describe("RemoteDescriptor", () => {
     });
 
     describe("session intervals", () => {
-        it("keeps a commissioned node's session intervals over advertised ones", () => {
+        it("stores advertised intervals apart from the session parameters", () => {
             const long: RemoteDescriptor.Long = {
                 peerAddress: { fabricIndex: FabricIndex(1), nodeId: NodeId(1) },
-                sessionParameters: {
+                reportedSessionParameters: {
                     idleInterval: Hours(2),
                     activeInterval: Millis(400),
                     activeThreshold: Millis(5000),
@@ -171,25 +171,45 @@ describe("RemoteDescriptor", () => {
 
             RemoteDescriptor.toLongForm({ SII: Millis(500), SAI: Millis(300), SAT: Millis(4000) }, long);
 
-            expect(long.sessionParameters).deep.equals({
+            expect(long.advertisedIntervals).deep.equals({
+                idleInterval: Millis(500),
+                activeInterval: Millis(300),
+                activeThreshold: Millis(4000),
+            });
+            expect(long.reportedSessionParameters).deep.equals({
                 idleInterval: Hours(2),
                 activeInterval: Millis(400),
                 activeThreshold: Millis(5000),
             });
         });
 
-        it("takes advertised intervals for a node that is not commissioned", () => {
-            const long: RemoteDescriptor.Long = {
-                sessionParameters: { idleInterval: Hours(2), activeInterval: Hours(2), activeThreshold: Millis(5000) },
-            };
-
-            RemoteDescriptor.toLongForm({ SII: Millis(500), SAI: Millis(300), SAT: Millis(4000) }, long);
-
-            expect(long.sessionParameters).deep.equals({
-                idleInterval: Millis(500),
-                activeInterval: Millis(300),
-                activeThreshold: Millis(4000),
+        it("reports only advertised intervals as SII/SAI/SAT", () => {
+            const dd = RemoteDescriptor.fromLongForm({
+                reportedSessionParameters: {
+                    idleInterval: Hours(2),
+                    activeInterval: Millis(400),
+                    activeThreshold: Millis(5000),
+                },
+                advertisedIntervals: { idleInterval: Millis(500) },
             });
+
+            expect(dd).deep.include({ SII: Millis(500) });
+            expect(dd.SAI).undefined;
+            expect(dd.SAT).undefined;
+        });
+
+        it("ignores intervals beyond what DNS-SD can advertise", () => {
+            const long = RemoteDescriptor.toLongForm({ SII: Millis(3_602_000), SAI: Millis(300), SAT: Millis(70_000) });
+
+            expect(long.advertisedIntervals).deep.equals({ activeInterval: Millis(300) });
+        });
+
+        it("clears advertised intervals a node no longer advertises", () => {
+            const long = RemoteDescriptor.toLongForm({ SII: Millis(500), SAI: Millis(300), SAT: Millis(4000) });
+
+            RemoteDescriptor.toLongForm({}, long);
+
+            expect(long.advertisedIntervals).undefined;
         });
     });
 });

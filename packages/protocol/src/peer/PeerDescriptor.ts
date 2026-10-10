@@ -58,9 +58,17 @@ export interface PeerDescriptor {
     discoveryData?: DiscoveryData;
 
     /**
-     * Parameters from most recent session.
+     * Session parameters the peer reported in its most recent session that reported any.  A session's report replaces
+     * the previous one as a whole; values it does not contain are absent, and {@link Peer.sessionParameters} supplies
+     * them from other sources and fallbacks.
      */
-    sessionParameters?: SessionParameters;
+    reportedSessionParameters?: Partial<SessionParameters>;
+
+    /**
+     * Set when a TCP session to the peer reported no TCP server support while DNS-SD did not advertise it either.  A
+     * later session reporting TCP server support clears it.
+     */
+    tcpUnsupported?: boolean;
 
     /**
      * Case Authenticated Tags (CATs) to use for operational CASE sessions with this node.
@@ -77,17 +85,27 @@ export class ObservablePeerDescriptor implements PeerDescriptor {
     #operationalAddress?: OperationalAddress;
     #discoveryData?: DiscoveryData;
     #caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
-    #sessionParameters?: SessionParameters;
+    #reportedSessionParameters?: Partial<SessionParameters>;
+    #tcpUnsupported?: boolean;
     #onChange: () => void;
 
     constructor(
-        { address, operationalAddress, discoveryData, caseAuthenticatedTags }: PeerDescriptor,
+        {
+            address,
+            operationalAddress,
+            discoveryData,
+            caseAuthenticatedTags,
+            reportedSessionParameters,
+            tcpUnsupported,
+        }: PeerDescriptor,
         onChange: () => void,
     ) {
         this.#address = PeerAddress(address);
         this.#operationalAddress = operationalAddress;
         this.#discoveryData = discoveryData;
         this.#caseAuthenticatedTags = caseAuthenticatedTags;
+        this.#reportedSessionParameters = reportedSessionParameters ? { ...reportedSessionParameters } : undefined;
+        this.#tcpUnsupported = tcpUnsupported;
         this.#onChange = onChange;
     }
 
@@ -121,16 +139,29 @@ export class ObservablePeerDescriptor implements PeerDescriptor {
         this.#onChange();
     }
 
-    get sessionParameters() {
-        return this.#sessionParameters;
+    get reportedSessionParameters() {
+        return this.#reportedSessionParameters;
     }
 
-    set sessionParameters(value: SessionParameters | undefined) {
-        if (value === undefined || isDeepEqual(value, this.#sessionParameters)) {
+    set reportedSessionParameters(value: Partial<SessionParameters> | undefined) {
+        if (value === undefined || isDeepEqual(value, this.#reportedSessionParameters)) {
             return;
         }
 
-        this.#sessionParameters = { ...value };
+        this.#reportedSessionParameters = { ...value };
+        this.#onChange();
+    }
+
+    get tcpUnsupported() {
+        return this.#tcpUnsupported;
+    }
+
+    set tcpUnsupported(value: boolean | undefined) {
+        if (value === this.#tcpUnsupported) {
+            return;
+        }
+
+        this.#tcpUnsupported = value;
         this.#onChange();
     }
 

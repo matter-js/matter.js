@@ -124,6 +124,7 @@ export class MockHost {
         ips?: string[],
         txt = ["foo=bar", "flag"],
         txtTtl = ttl,
+        txtFlushCache = false,
     ) {
         const qname = qnameOf(nameOrIndex);
 
@@ -146,6 +147,7 @@ export class MockHost {
                 recordType: DnsRecordType.TXT,
                 ttl: txtTtl,
                 recordClass: DnsRecordClass.IN,
+                flushCache: txtFlushCache,
                 value: txt,
             },
         ];

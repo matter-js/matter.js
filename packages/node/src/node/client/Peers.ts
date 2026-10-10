@@ -59,6 +59,7 @@ import {
     PeerAddress,
     PeerLeftError,
     SessionManager,
+    SessionParameters,
 } from "@matter/protocol";
 import { FabricIndex, NodeId, Status } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
@@ -217,14 +218,15 @@ export class Peers extends EndpointContainer<ClientNode> {
      * connects the node, sends {@link GeneralCommissioning} `CommissioningComplete` to disarm the failsafe and
      * finalize, reads the node's structure and (unless `autoSubscribe` is false) subscribes — exactly as
      * {@link commission} does, so the peer is seeded rather than a blind commissioned node — then registers it.
-     * `discoveryData` (from the hand-off) seeds operational discovery; `options` mirror the matching
-     * {@link commission} options.  Throws {@link CommissioningError} and removes the peer entry if discovery,
-     * connection, or `CommissioningComplete` fails; rejects as {@link runCommissioning} describes if the node is gone
-     * or busy.
+     * `discoveryData` and `sessionParameters` (from the hand-off) seed operational discovery and the CASE session
+     * establishment; `options` mirror the matching {@link commission} options.  Throws {@link CommissioningError} and
+     * removes the peer entry if discovery, connection, or `CommissioningComplete` fails; rejects as
+     * {@link runCommissioning} describes if the node is gone or busy.
      */
     async completeCommissioning(
         nodeId: NodeId,
         discoveryData?: DiscoveryData,
+        sessionParameters?: Partial<SessionParameters>,
         options?: Pick<
             CommissioningClient.CommissioningOptions,
             "autoSubscribe" | "defaultSubscription" | "autoStateInitialize"
@@ -269,6 +271,9 @@ export class Peers extends EndpointContainer<ClientNode> {
                     // discovery sees it; writing CommissioningClient.descriptor only updates state that nothing
                     // re-reads.
                     node.env.get(Peer).descriptor.discoveryData = discoveryData;
+                }
+                if (sessionParameters !== undefined) {
+                    node.env.get(Peer).descriptor.reportedSessionParameters = sessionParameters;
                 }
 
                 // Mirror commission()'s post-commission setup so start() reads the node's structure (latching

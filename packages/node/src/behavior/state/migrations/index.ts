@@ -4,4 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Currently there are no migrations
+import "./CommissioningMigration.js";
+
+export * from "./Migration.js";

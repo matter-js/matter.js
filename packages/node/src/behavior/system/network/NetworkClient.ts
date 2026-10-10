@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
 import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
@@ -13,14 +12,12 @@ import type { ClientNode } from "#node/ClientNode.js";
 import { NodeConnectionState } from "#node/ClientNodeLifecycle.js";
 import { Node } from "#node/Node.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
-import { ChannelType, Logger, Observable, ServerAddress } from "@matter/general";
+import { ChannelType, Logger, Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import {
     ClientSubscription,
     FabricManager,
-    OperationalAddress,
     PeerSet,
-    SessionParameters,
     Subscribe,
     SustainedSubscription,
     type Peer,
@@ -64,25 +61,6 @@ export class NetworkClient extends NetworkBehavior {
         const peerAddress = this.#node.state.commissioning.peerAddress;
         if (peerAddress !== undefined) {
             const peerSet = this.env.get(PeerSet);
-            if (!peerSet.has(peerAddress)) {
-                const ipAddresses = this.#node.state.commissioning.addresses?.filter(a => ServerAddress.isIp(a)) ?? [];
-                if (ipAddresses.length) {
-                    const operationalAddress = OperationalAddress.from(ServerAddress(ipAddresses[0]));
-                    if (operationalAddress !== undefined) {
-                        // Persisted session parameters carry the device's spec version, needed by the connect path
-                        // (e.g. the TCP spec-version gate) before any operational session is established.
-                        const persistedParams = this.#node.state.commissioning.sessionParameters;
-                        // Make sure the PeerSet knows about this peer now too
-                        peerSet.addKnownPeer({
-                            address: peerAddress,
-                            operationalAddress,
-                            discoveryData: RemoteDescriptor.fromLongForm(this.#node.state.commissioning),
-                            sessionParameters: persistedParams ? SessionParameters(persistedParams) : undefined,
-                        });
-                    }
-                }
-            }
-
             const peer = peerSet.get(peerAddress);
             if (peer) {
                 peer.protocol = this.#node.protocol;

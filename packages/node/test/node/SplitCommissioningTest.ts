@@ -8,7 +8,16 @@ import { BasicInformationClient } from "#behaviors/basic-information";
 import { GeneralCommissioningServer } from "#behaviors/general-commissioning";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
-import { AbortedError, Crypto, Entropy, Environment, ImplementationError, MockCrypto, Seconds } from "@matter/general";
+import {
+    AbortedError,
+    Crypto,
+    Entropy,
+    Environment,
+    ImplementationError,
+    Millis,
+    MockCrypto,
+    Seconds,
+} from "@matter/general";
 import { MockServerNode, MockSite } from "@matter/node/testing";
 import {
     CertificateAuthority,
@@ -18,6 +27,9 @@ import {
     Fabric,
     FabricAuthority,
     FabricManager,
+    ObservablePeerDescriptor,
+    Peer,
+    SessionParameters,
 } from "@matter/protocol";
 import { NodeId } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
@@ -69,7 +81,10 @@ describe("split commissioning", () => {
         await using site = new MockSite();
 
         const a = await site.addController({ id: "controllerA", index: 1 });
-        const device = await site.addDevice({ index: 2 });
+        const device = await site.addDevice({
+            index: 2,
+            sessions: { intervals: { idleInterval: Millis(1234), activeInterval: Millis(321) } },
+        });
 
         (a.env.get(Crypto) as MockCrypto).entropic = true;
         (device.env.get(Crypto) as MockCrypto).entropic = true;
@@ -83,7 +98,9 @@ describe("split commissioning", () => {
         // completes in a second phase, purely to keep it simple: two controllers sharing one fabric identity cannot run
         // the nested flow concurrently in a single process.
         const { passcode, discriminator } = device.state.commissioning;
-        let handoff: { nodeId: NodeId; discoveryData?: DiscoveryData } | undefined;
+        let handoff:
+            | { nodeId: NodeId; discoveryData?: DiscoveryData; sessionParameters?: Partial<SessionParameters> }
+            | undefined;
         await MockTime.resolve(
             a.peers.commission({
                 passcode,
@@ -91,14 +108,15 @@ describe("split commissioning", () => {
                 timeout: Seconds(90),
                 autoSubscribe: false,
                 autoStateInitialize: false,
-                finalizeCommissioning: async (address, discoveryData) => {
-                    handoff = { nodeId: address.nodeId, discoveryData };
+                finalizeCommissioning: async (address, discoveryData, sessionParameters) => {
+                    handoff = { nodeId: address.nodeId, discoveryData, sessionParameters };
                 },
             }),
             { macrotasks: true },
         );
         expect(handoff).not.equals(undefined);
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(true);
+        expect(handoff!.sessionParameters).deep.include({ idleInterval: 1234, activeInterval: 321 });
 
         const b = await addControllerSharingFabric(
             site,
@@ -108,11 +126,33 @@ describe("split commissioning", () => {
             a.env.get(FabricAuthority).fabrics[0].config,
         );
 
-        const node = await MockTime.resolve(b.peers.completeCommissioning(handoff!.nodeId, handoff!.discoveryData), {
-            macrotasks: true,
+        // The CASE session replaces the seeded values, so record what is assigned to the descriptor
+        const seeded = { ...handoff!.sessionParameters, activeThreshold: Millis(7777) };
+        const descriptorProto = ObservablePeerDescriptor.prototype;
+        const original = Object.getOwnPropertyDescriptor(descriptorProto, "reportedSessionParameters")!;
+        const assigned = new Array<Partial<SessionParameters> | undefined>();
+        Object.defineProperty(descriptorProto, "reportedSessionParameters", {
+            ...original,
+            set(this: ObservablePeerDescriptor, value: Partial<SessionParameters> | undefined) {
+                assigned.push(value);
+                original.set!.call(this, value);
+            },
         });
+        let node;
+        try {
+            node = await MockTime.resolve(
+                b.peers.completeCommissioning(handoff!.nodeId, handoff!.discoveryData, seeded),
+                {
+                    macrotasks: true,
+                },
+            );
+        } finally {
+            Object.defineProperty(descriptorProto, "reportedSessionParameters", original);
+        }
+        expect(assigned.some(value => value?.activeThreshold === 7777)).true;
 
         expect(node.lifecycle.isCommissioned).equals(true);
+        expect(node.env.get(Peer).sessionParameters).deep.include({ idleInterval: 1234, activeInterval: 321 });
         expect(b.peers.commissioned.map(p => p.peerAddress?.nodeId)).contains(handoff!.nodeId);
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(false);
         expect(device.state.commissioning.commissioned).equals(true);

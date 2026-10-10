@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Abort, Hours, Minutes } from "#index.js";
+import { Abort, Hours, Minutes, Seconds } from "#index.js";
 import { expectAddresses, expectKvs, MockSite } from "./dns-sd-helpers.js";
 
 describe("IpService", () => {
@@ -64,6 +64,33 @@ describe("IpService", () => {
         });
         await MockTime.advance(Minutes(1));
         expect(changes).equals(1);
+    });
+
+    it("notifies when a superseding TXT record drops a key", async () => {
+        await using site = new MockSite();
+        const { client, server } = await site.addPair();
+
+        const service = client.addService();
+        service.status.isReachable = true;
+
+        const changed = new Promise<void>(resolve => service.changed.once(resolve));
+        await server.broadcast(1, Hours(24), undefined, ["foo=bar", "gone=1"], Hours(24), true);
+        await MockTime.resolve(changed);
+        await MockTime.advance(Seconds(2));
+
+        const dropped = new Promise<void>(resolve => {
+            const check = () => {
+                if (!service.parameters.has("gone")) {
+                    service.changed.off(check);
+                    resolve();
+                }
+            };
+            service.changed.on(check);
+        });
+        await server.broadcast(1, Hours(24), undefined, ["foo=bar"], Hours(24), true);
+        await MockTime.resolve(dropped);
+
+        expect([...service.parameters]).deep.equals([["foo", "bar"]]);
     });
 
     it("expires", async () => {

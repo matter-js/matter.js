@@ -90,4 +90,24 @@ export namespace SessionIntervals {
 
         return resolved;
     }
+
+    /**
+     * Keep the intervals a DNS-SD advertisement can carry and drop the others.  Undefined when none remains.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.3.4
+     */
+    export function advertisable(intervals: Partial<SessionIntervals>): Partial<SessionIntervals> | undefined {
+        const { idleInterval, activeInterval, activeThreshold } = intervals;
+        const result: Partial<SessionIntervals> = {};
+        if (idleInterval !== undefined && idleInterval <= maxAdvertisedInterval) {
+            result.idleInterval = idleInterval;
+        }
+        if (activeInterval !== undefined && activeInterval <= maxAdvertisedInterval) {
+            result.activeInterval = activeInterval;
+        }
+        if (activeThreshold !== undefined && activeThreshold <= maxActiveThreshold) {
+            result.activeThreshold = activeThreshold;
+        }
+        return Object.keys(result).length ? result : undefined;
+    }
 }

@@ -3777,7 +3777,7 @@ const PEER1_STATE = {
     parts: {},
     index: {},
     commissioning: {
-        longIdleTimeOperatingMode: false,
+        longIdleTimeOperatingMode: undefined,
         peerAddress: { fabricIndex: 1, nodeId: expect.BIGINT },
         addresses: [
             {
@@ -3815,7 +3815,9 @@ const PEER1_STATE = {
         rotatingIdentifier: undefined,
         pairingHint: 0x21,
         pairingInstructions: undefined,
-        sessionParameters: {
+        advertisedIntervals: undefined,
+        tcpUnsupported: undefined,
+        reportedSessionParameters: {
             activeInterval: 300,
             activeThreshold: 4000,
             dataModelRevision: Specification.DATA_MODEL_REVISION,
@@ -3829,7 +3831,7 @@ const PEER1_STATE = {
                 tcpServer: false,
             },
         },
-        tcpSupport: 0,
+        tcpSupport: undefined,
     },
     network: {
         autoSubscribe: true,

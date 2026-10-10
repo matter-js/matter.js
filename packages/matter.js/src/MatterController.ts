@@ -83,6 +83,7 @@ import {
     ScannerSet,
     SecureSession,
     SessionManager,
+    SessionParameters,
 } from "@matter/protocol";
 import {
     CaseAuthenticatedTag,
@@ -519,8 +520,15 @@ export class MatterController {
 
         // Wrap the optional PASE-only callback into the finalizeCommissioning hook understood by CommissioningClient
         const finalizeCommissioning = completeCommissioningCallback
-            ? async (peerAddress: PeerAddress, discoveryData?: DiscoveryData) => {
-                  const result = await completeCommissioningCallback(peerAddress.nodeId, discoveryData);
+            ? async (
+                  peerAddress: PeerAddress,
+                  discoveryData?: DiscoveryData,
+                  sessionParameters?: Partial<SessionParameters>,
+              ) => {
+                  const result = await completeCommissioningCallback(
+                      peerAddress.nodeId,
+                      withSessionIntervals(discoveryData, sessionParameters),
+                  );
                   if (!result) {
                       throw new RetransmissionLimitReachedError("Device could not be discovered");
                   }
@@ -698,7 +706,10 @@ export class MatterController {
             nodeId: peerAddress!.nodeId,
             operationalAddress: Array.isArray(addresses) ? ServerAddress.urlFor(addresses[0]) : undefined,
             advertisedName: deviceName,
-            discoveryData: RemoteDescriptor.fromLongForm(peer.state.commissioning),
+            discoveryData: withSessionIntervals(
+                RemoteDescriptor.fromLongForm(peer.state.commissioning),
+                peer.state.commissioning.reportedSessionParameters,
+            ),
             deviceData: {
                 basicInformation: peer.maybeStateOf(BasicInformationClient),
                 deviceMeta: NodePhysicalProperties(peer),
@@ -970,7 +981,10 @@ class CommissionedNodeStore {
                             const operationalServerAddress = commissioningState?.addresses?.[0];
                             const discoveryData =
                                 commissioningState !== undefined
-                                    ? RemoteDescriptor.fromLongForm(commissioningState)
+                                    ? withSessionIntervals(
+                                          RemoteDescriptor.fromLongForm(commissioningState),
+                                          commissioningState.reportedSessionParameters,
+                                      )
                                     : undefined;
                             const deviceData = {
                                 meta: ClientNodePhysicalProperties(peer),
@@ -1006,4 +1020,24 @@ class CommissionedNodeStore {
     async close() {
         await this.#saves;
     }
+}
+
+/**
+ * Legacy APIs carry a peer's session intervals as SII/SAI/SAT of its discovery data, preferring those its sessions
+ * reported over the advertised ones.
+ */
+function withSessionIntervals(
+    discoveryData: DiscoveryData | undefined,
+    sessionParameters: Partial<SessionParameters> | undefined,
+): DiscoveryData | undefined {
+    const { idleInterval, activeInterval, activeThreshold } = sessionParameters ?? {};
+    if (idleInterval === undefined && activeInterval === undefined && activeThreshold === undefined) {
+        return discoveryData;
+    }
+    return {
+        ...discoveryData,
+        ...(idleInterval !== undefined ? { SII: idleInterval } : {}),
+        ...(activeInterval !== undefined ? { SAI: activeInterval } : {}),
+        ...(activeThreshold !== undefined ? { SAT: activeThreshold } : {}),
+    };
 }
