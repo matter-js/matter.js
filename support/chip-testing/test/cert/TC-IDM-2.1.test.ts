@@ -6,7 +6,7 @@
 
 import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
-import type { AttributePathSpec, CertStepContext, CheckRecord } from "@matter/testing";
+import type { AttributePathSpec, CertStepContext, CheckRecord, ControllerCapability } from "@matter/testing";
 import { certTest, flavorFamily } from "@matter/testing";
 import type { RecordedCheck } from "./tc-support.js";
 import {
@@ -43,6 +43,12 @@ const TRUSTED_ROOT_CERTIFICATES = OPERATIONAL_CREDENTIALS.attributes.require("tr
 const BASIC_COMMISSIONING_INFO = GENERAL_COMMISSIONING.attributes.require("basicCommissioningInfo");
 const OCCUPANCY_SENSOR_TYPE = OCCUPANCY_SENSING.attributes.require("occupancySensorType");
 const SERVER_LIST = DESCRIPTOR.attributes.require("serverList");
+
+/**
+ * An attribute-wildcard read returns whatever the TH holds, which can be a cluster or an attribute outside the
+ * controller's model: CHIP's test clusters, a manufacturer-specific cluster, an attribute newer than the model.
+ */
+const READS_UNMODELED: readonly ControllerCapability[] = ["unmodeled-data"];
 
 const ENDPOINT_0 = 0;
 const ENDPOINT_1 = 1;
@@ -224,7 +230,10 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 },
             ]);
         }),
-        { expected: "Verify that the TH receives the right Read Request Message." },
+        {
+            controllerCapabilities: READS_UNMODELED,
+            expected: "Verify that the TH receives the right Read Request Message.",
+        },
     )
     .step(
         3,
@@ -254,7 +263,10 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 },
             ]);
         }),
-        { expected: "Verify that the TH receives the right Read Request Message." },
+        {
+            controllerCapabilities: READS_UNMODELED,
+            expected: "Verify that the TH receives the right Read Request Message.",
+        },
     )
     .step(
         4,
@@ -307,7 +319,10 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 },
             ]);
         }),
-        { expected: "Verify that the TH receives the right Read Request Message." },
+        {
+            controllerCapabilities: READS_UNMODELED,
+            expected: "Verify that the TH receives the right Read Request Message.",
+        },
     )
     .step(
         6,
@@ -364,7 +379,10 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 },
             ]);
         }),
-        { expected: "Verify that the TH receives the right Read Request Message." },
+        {
+            controllerCapabilities: READS_UNMODELED,
+            expected: "Verify that the TH receives the right Read Request Message.",
+        },
     )
     .step(
         8,
@@ -755,6 +773,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             await recordAll(cx, checks);
         }),
         {
+            controllerCapabilities: READS_UNMODELED,
             expected:
                 "Verify on the TH that the DUT sends a status message back to the TH on receipt of the report data action for every chunked message except the last one. Verify that the last chunked message DUT does not send a status response back.",
         },
@@ -811,6 +830,9 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 },
             ]);
         }),
-        { expected: "Verify that the TH receives the right Read Request Message." },
+        {
+            controllerCapabilities: READS_UNMODELED,
+            expected: "Verify that the TH receives the right Read Request Message.",
+        },
     )
     .finalize(cx => commissioned.decommissionAll(cx));

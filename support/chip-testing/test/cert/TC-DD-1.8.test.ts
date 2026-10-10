@@ -11,6 +11,7 @@ import { certTest } from "@matter/testing";
 import {
     commissionByQr,
     CommissioningRefusals,
+    COMMISSIONING_GIVE_UP,
     recordDiscriminatorHonored,
     recordParse,
     thQrPayload,
@@ -72,6 +73,9 @@ certTest("TC-DD-1.8", {
     plan: "devicediscovery.adoc",
     pics: ["MCORE.ROLE.COMMISSIONER", "MCORE.DD.QR_COMMISSIONING"],
     app: "all-clusters",
+
+    // The case's commissioning steps rest on step 0's discriminator probe, which needs a give-up
+    controllerCapabilities: COMMISSIONING_GIVE_UP,
 })
     .step(
         "0",

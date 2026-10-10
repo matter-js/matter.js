@@ -44,6 +44,7 @@ import {
     PhysicalDeviceProperties,
     ReadResult,
     ShutdownError,
+    SustainedClientSubscribe,
     Val,
     WriteResult,
 } from "@matter/protocol";
@@ -89,6 +90,21 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * request to skip version injection and always receive a full response from the server.
      */
     async *read(request: ClientRead, context?: ActionContext): ReadResult {
+        yield* this.#read(request, false, context);
+    }
+
+    /**
+     * Read on behalf of the node's default subscription ({@link NetworkClient}).  Unlike {@link read}, every event it
+     * delivers advances `NetworkClient.State.maxEventNumber`, whatever its event paths: the default subscription
+     * continues from that number, so an event delivered here must never be requested again.
+     *
+     * @internal
+     */
+    async *readDefault(request: ClientRead, context?: ActionContext): ReadResult {
+        yield* this.#read(request, true, context);
+    }
+
+    async *#read(request: ClientRead, isDefaultSubscription: boolean, context?: ActionContext): ReadResult {
         const { wakefulness, useIcdLit } = this.#awaitModeIcdRouting(request);
         if (useIcdLit) {
             request = { ...request, network: "icdLit" };
@@ -108,7 +124,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
         }
 
         const response = this.#interaction.read(request, context);
-        yield* this.#structure.mutate(request, response);
+        yield* this.#structure.mutate(request, response, isDefaultSubscription);
     }
 
     /**
@@ -121,11 +137,32 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * know when/if a subscription could be established.  This class handles reconnections automatically.
      * When not providing the "sustain" flag, a PeerSubscription is returned after a subscription have been successfully
      * established; or an error is returned if this was not possible.
+     *
+     * Known data versions are injected into the initial request unless `includeKnownVersions` is set in the request.
      */
     async subscribe(request: ClientSubscribe, context?: ActionContext): Promise<ClientSubscription> {
+        return this.#subscribe(request, false, context);
+    }
+
+    /**
+     * Subscribe as the node's sustained default subscription ({@link NetworkClient}).  Unlike {@link subscribe}, every
+     * event it delivers advances `NetworkClient.State.maxEventNumber`, whatever its event paths: its resubscribes
+     * continue from that number, so an event it delivered must never be requested again.
+     *
+     * @internal
+     */
+    async subscribeDefault(request: SustainedClientSubscribe, context?: ActionContext): Promise<ClientSubscription> {
+        return this.#subscribe(request, true, context);
+    }
+
+    async #subscribe(
+        request: ClientSubscribe,
+        isDefaultSubscription: boolean,
+        context?: ActionContext,
+    ): Promise<ClientSubscription> {
         // ICD network routing for the subscription is applied by SustainedSubscription, not here.
         const intermediateRequest: ClientSubscribe = {
-            ...this.#structure.injectVersionFilters(request),
+            ...(request.includeKnownVersions ? request : this.#structure.injectVersionFilters(request)),
             ...PhysicalDeviceProperties.subscriptionIntervalBoundsFor({
                 description: this.#node.toString(),
                 properties: ClientNodePhysicalProperties(this.#node),
@@ -137,7 +174,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             sustain: !!request.sustain,
 
             updated: async data => {
-                const result = this.#structure.mutate(request, data);
+                const result = this.#structure.mutate(request, data, isDefaultSubscription);
                 if (request.updated) {
                     await request.updated(result);
                 } else {

@@ -14,7 +14,7 @@ import type {
     CheckRecord,
     SelectableDeviceFlavor,
 } from "@matter/testing";
-import { flavorFamily, resolveControllerImplementation, UnsupportedByControllerError } from "@matter/testing";
+import { flavorFamily } from "@matter/testing";
 import {
     CertCheckFailedError,
     CommissionedRefs,
@@ -57,12 +57,10 @@ export const TCP_ROLES = {
  * Commissions the DUT and then uses the session, which is what the plan's "initiates a CASE session
  * establishment ... requesting a session supporting large payloads" amounts to here: matter.js
  * prefers TCP for every session once asked, so commissioning establishes the session this case is
- * about and the read exercises it. Only matter.js reaches this point — see
- * {@link requireTcpCapableController}.
+ * about and the read exercises it. A controller without `tcp-transport` never reaches this point: a
+ * case declaring `transport: "tcp"` is skipped before it starts.
  */
 export async function commissionOverTcp(cx: CertStepContext, commissioned: CommissionedRefs<"th">) {
-    requireTcpCapableController();
-
     const dut = cx.devices.dut;
     const from = dut.log.mark();
 
@@ -83,24 +81,6 @@ export async function commissionOverTcp(cx: CertStepContext, commissioned: Commi
         );
 
     return { ref, from };
-}
-
-/**
- * chip-tool decides a session's transport when it establishes one, and it keeps using the session
- * pairing already made — so `--allow-large-payload` on a later interaction reaches the DUT over that
- * existing UDP session and no TCP connection is ever set up. The refusal comes before the step acts,
- * so the case is recorded as skipped rather than failing on evidence the controller could not produce.
- */
-export function requireTcpCapableController() {
-    const implementation = resolveControllerImplementation();
-    if (implementation !== "matterjs") {
-        throw new UnsupportedByControllerError(
-            "a session established over TCP",
-            implementation,
-            "chip-tool reuses the session commissioning established, so a large-payload interaction " +
-                "does not cause it to establish a TCP-backed one",
-        );
-    }
 }
 
 /**
@@ -542,18 +522,6 @@ export class TcpSessionRef {
     clear() {
         this.#facts = undefined;
     }
-}
-
-/**
- * Applies {@link requireTcpCapableController} to a step, which every step of a TCP case owes: a step
- * that skipped it refuses on the commissioning an earlier step never did instead, and reports a
- * failure where the truth is that the controller cannot establish such a session at all.
- */
-export function tcpStep(run: (cx: CertStepContext) => Promise<void>) {
-    return async (cx: CertStepContext) => {
-        requireTcpCapableController();
-        await run(cx);
-    };
 }
 
 /** Every TCP case starts the same way, so its first step is shared rather than copied. */

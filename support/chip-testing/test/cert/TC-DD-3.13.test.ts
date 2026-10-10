@@ -6,13 +6,16 @@
 
 import { certTest } from "@matter/testing";
 import { defineFlowQrTest } from "./tc-dd-flow-support.js";
-import { CUSTOM_FLOW } from "./tc-dd-support.js";
+import { COMMISSIONING_GIVE_UP, CUSTOM_FLOW } from "./tc-dd-support.js";
 
 defineFlowQrTest(
     certTest("TC-DD-3.13", {
         plan: "devicediscovery.adoc",
         pics: ["MCORE.ROLE.COMMISSIONER", "MCORE.DD.QR_COMMISSIONING", "MCORE.DD.CUSTOM_COMM_FLOW"],
         app: "all-clusters",
+
+        // The case's commissioning steps rest on step 0's discriminator probe, which needs a give-up
+        controllerCapabilities: COMMISSIONING_GIVE_UP,
     }),
     CUSTOM_FLOW,
 );

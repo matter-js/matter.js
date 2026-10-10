@@ -13,7 +13,6 @@ import {
     TCP_ROLES,
     TcpSessionRef,
     tcpSessionStep,
-    tcpStep,
 } from "./tc-sc-8-support.js";
 import { CommissionedRefs } from "./tc-support.js";
 
@@ -46,7 +45,7 @@ certTest("TC-SC-8.3", {
             expected: "Verify that a session is established over TCP with DUT that allows large payloads.",
         },
     )
-    .step(2, "TH closes the TCP connection with DUT", tcpStep(severTheConnection), {
+    .step(2, "TH closes the TCP connection with DUT", severTheConnection, {
         expected: "Verify that the secure session with DUT is inactive.",
     })
     .finalize(async cx => {

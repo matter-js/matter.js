@@ -113,7 +113,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: When a server cluster's features change, only persisted values that fail validation are dropped
     - Fix: A failed or deleted `ClientNode` (decommission, load failure, concurrent discovery) no longer causes duplicate peers or unhandled errors; decommissioning closes the protocol peer and deletes its resumption record
     - Fix: Commissioning skips a device whose advertised vendor or product ID contradicts the onboarding payload
+    - Fix: Client reads and subscriptions no longer add cached data versions to the caller's `dataVersionFilters` array
     - Fix: Client reads return current values of changes-omitted attributes in all cases
+    - Fix: Only the node's default subscription and node-wide wildcard reads and subscriptions advance a peer's stored event number, so narrow reads no longer make the default subscription skip events
     - Fix: A peer's endpoint tree follows each endpoint's `PartsList`, so bridged composed devices are structured correctly
     - Fix: A peer's state drops attributes its `AttributeList` omits, records the peer's `ClusterRevision`, migrates values persisted under property names, and hides storage metadata
     - Fix: The remote API (WebSocket, MQTT) supports `add` on list attributes, validates peer writes as the peer does, and its change streams survive endpoint crashes and resets
@@ -182,6 +184,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `DclCertificateService` can run `offline` and accepts extra revocation information (`installRevocations()`, `revocations`)
     - Enhancement: A custom `BleScannerClient` may report `listeningTime` and `isPeripheralReachable()`, so stale or unreachable peripherals are not offered for commissioning
     - Enhancement: Network profiles can define BDX transfer delays separately via `bdxAdditionalMrpDelay`
+    - Enhancement: `includeKnownVersions` on subscriptions skips injecting cached data version filters
     - Adjustment: `DclVendorInfo` is a deprecated alias of `VendorDclSchema`
     - Fix: DNS-SD discovery ignores malformed or out-of-range `D`, `CM`, `VP`, `DT` and `PH` values
     - Fix: Commissioning tries addresses in ranked order and once each, moves on faster, and stops on a wrong passcode
@@ -213,7 +216,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `storage.clear` clears the storage on start
 
 - @matter/testing
-    - Feature: New certification test framework (`certTest()`) runs controller-side certification tests against chip and matter.js devices with matter.js and chip-tool controllers; see [Certification controller tests](support/chip-testing/README.md#certification-controller-tests-testcert)
+    - Feature: New certification test framework (`certTest()`) runs controller-side certification tests against chip and matter.js devices with matter.js, chip-tool and matterjs-server controllers; see [Certification controller tests](support/chip-testing/README.md#certification-controller-tests-testcert)
     - Feature: `MockTime.stepWallClock()` steps the wall clock without moving the monotonic clock
     - Fix: `MockTime.resolve` holds virtual time during `Blob` reads and stops after a test timeout
 

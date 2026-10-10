@@ -296,6 +296,15 @@ export interface ReadAttributeOptions {
      * for it: the peer answers in a single report where MRP would have made it chunk.
      */
     largeMessage?: boolean;
+
+    /**
+     * The caller needs each entry's data version ({@link AttributeReadEntry.version}).
+     *
+     * A controller that cannot report the versions a read returned refuses with
+     * {@link UnsupportedByControllerError} rather than answering without them, so a step resting on a version skips
+     * instead of failing over a capability the controller lacks.
+     */
+    dataVersions?: boolean;
 }
 
 /**
@@ -1092,9 +1101,10 @@ export interface CertNodeApi {
  * summary; a refusal arriving after either fails and aborts the run, because the step did act and no
  * later step can rest on a device state the bundle cannot describe.
  *
- * A controller that cannot do something at all should say so in its own PICS
- * (see {@link controllerPicsOverridesFor}), which gates the step before it runs and keeps the rest of
- * the run's coverage.
+ * That makes this a safety net, not a way to report a gap: a controller that cannot do something at all
+ * says so up front, in its own PICS (see {@link controllerPicsOverridesFor}) or as a
+ * {@link ControllerCapability} it lacks, which gates the step before it runs whatever order the step
+ * makes its calls in. A step must never take this error for an outcome of the device.
  */
 export class UnsupportedByControllerError extends Error {
     constructor(
@@ -1121,6 +1131,13 @@ export interface ControllerAdapter {
     id: string;
     start(): Promise<void>;
     close(): Promise<void>;
+
+    /**
+     * Names the build of an external controller this adapter drives (a version, the entry point it was started
+     * from), so the evidence of a run says which build produced it. Read after {@link start}; absent for a controller
+     * that runs in the test process, whose build is the matter.js commit the record already carries.
+     */
+    readonly build?: Record<string, string>;
     commission(target: CommissioningTarget): Promise<CertNodeRef>;
 
     /**
@@ -1138,7 +1155,7 @@ export interface ControllerAdapter {
      * How much a controller validates while reading is its own: matter.js's codec applies § 5.1's
      * rules and refuses a code it would not commission from, where chip-tool's `parse-setup-payload`
      * reports the fields of any code its parser can decode. Assert a refusal through
-     * {@link commission}, which both controllers judge, rather than through this.
+     * {@link commission}, which every controller judges, rather than through this.
      */
     parseManualPairingCode(code: string): Promise<ManualPairingCodeFields>;
 
@@ -1405,8 +1422,62 @@ export interface WebRtcRequestorApi {
  */
 export type ControllerAdapterFactory = (id: string, options?: ControllerAdapterOptions) => ControllerAdapter;
 
+/**
+ * Which controller roles an implementation can fill. A `dut-only` implementation drives only the DUT role; helper
+ * roles (e.g. a second commissioner) then run on the `matterjs` implementation.
+ */
+export type ControllerRoleScope = "all-roles" | "dut-only";
+
+/**
+ * Something a step can need of a controller that the {@link ControllerAdapter} interface cannot promise, because not
+ * every controller behind it can do it:
+ *
+ * - `single-handshake-attempt` — commissioning honours {@link CommissioningTarget.singleHandshakeAttempt}
+ * - `commissioning-give-up` — commissioning gives up within {@link CommissioningTarget.giveUpAfterMs}
+ * - `group-messaging` — {@link ControllerAdapter.group}: a group key set of its own, and group-addressed commands
+ * - `tcp-transport` — a TCP-backed session where {@link ControllerAdapterOptions.transport} asks for one
+ * - `data-versions` — reads report data versions ({@link ReadAttributeOptions.dataVersions})
+ * - `unmodeled-data` — reads, writes and invokes on clusters and attributes outside the Matter model the controller
+ *   was built with: a custom cert cluster, a CHIP test cluster, an attribute newer than the model
+ * - `attestation` — {@link ControllerAdapterOptions.attestation}
+ * - `webrtc-requestor` — {@link ControllerAdapterOptions.webRtcRequestor}
+ *
+ * An implementation states the ones it lacks when it registers (see {@link registerControllerAdapterFactory}), and a
+ * step or test case states the ones it needs, so the engine skips it before it acts rather than letting a refusal
+ * mid-step decide its verdict.
+ */
+export type ControllerCapability =
+    | "single-handshake-attempt"
+    | "commissioning-give-up"
+    | "group-messaging"
+    | "tcp-transport"
+    | "data-versions"
+    | "unmodeled-data"
+    | "attestation"
+    | "webrtc-requestor";
+
+/** The {@link ControllerCapability | capabilities} an implementation lacks, each with the reason it lacks it. */
+export type ControllerCapabilityGaps = Readonly<Partial<Record<ControllerCapability, string>>>;
+
+/** The capabilities a controller built with `options` has to have. */
+export function capabilitiesFor(options?: ControllerAdapterOptions): ControllerCapability[] {
+    const capabilities = new Array<ControllerCapability>();
+    if (options?.transport === "tcp") {
+        capabilities.push("tcp-transport");
+    }
+    if (options?.attestation) {
+        capabilities.push("attestation");
+    }
+    if (options?.webRtcRequestor) {
+        capabilities.push("webrtc-requestor");
+    }
+    return capabilities;
+}
+
 const factories = new Map<ControllerImplementation, ControllerAdapterFactory>();
 const controllerPics = new Map<ControllerImplementation, PicsValues>();
+const roleScopes = new Map<ControllerImplementation, ControllerRoleScope>();
+const capabilityGaps = new Map<ControllerImplementation, ControllerCapabilityGaps>();
 
 /**
  * Registers the {@link ControllerAdapterFactory} cert-test wiring uses to construct controllers for
@@ -1418,11 +1489,16 @@ const controllerPics = new Map<ControllerImplementation, PicsValues>();
  * the *same* implementation throws, since a silent overwrite would swap the controller stack under a
  * cert test already declared; registering a *different* implementation is normal — a process can
  * offer several, and {@link resolveControllerImplementation} picks between them per run.
+ *
+ * `scope` states which roles the implementation can fill; see {@link implementationForRole}. `gaps` states the
+ * {@link ControllerCapability | capabilities} it lacks; see {@link controllerCapabilityGap}.
  */
 export function registerControllerAdapterFactory(
     implementation: ControllerImplementation,
     factory: ControllerAdapterFactory,
     pics?: PicsValues,
+    scope: ControllerRoleScope = "all-roles",
+    gaps: ControllerCapabilityGaps = {},
 ): void {
     if (factories.has(implementation)) {
         throw new Error(
@@ -1431,9 +1507,61 @@ export function registerControllerAdapterFactory(
         );
     }
     factories.set(implementation, factory);
+    roleScopes.set(implementation, scope);
+    capabilityGaps.set(implementation, gaps);
     if (pics !== undefined) {
         controllerPics.set(implementation, pics);
     }
+}
+
+/** The {@link ControllerCapabilityGaps} `implementation` was registered with; none where it has no registration. */
+export function controllerCapabilityGapsFor(implementation: ControllerImplementation): ControllerCapabilityGaps {
+    return capabilityGaps.get(implementation) ?? {};
+}
+
+/**
+ * Why the controllers filling roles of the given kinds in this run cannot serve every one of `required`, or
+ * `undefined` where they can.
+ *
+ * Each kind is resolved through {@link implementationForRole}, so a helper role is judged by the implementation that
+ * actually fills it.
+ */
+export function controllerCapabilityGap(
+    required: Iterable<ControllerCapability>,
+    kinds: Iterable<"dut" | "helper"> = ["dut"],
+): string | undefined {
+    const needed = [...required];
+    for (const kind of new Set(kinds)) {
+        const implementation = implementationForRole(kind);
+        const gaps = controllerCapabilityGapsFor(implementation);
+        for (const capability of needed) {
+            const reason = gaps[capability];
+            if (reason !== undefined) {
+                return `controller "${implementation}" lacks ${capability}: ${reason}`;
+            }
+        }
+    }
+    return undefined;
+}
+
+/**
+ * The {@link ControllerRoleScope} `implementation` was registered with; `all-roles` where it has no registration.
+ */
+export function controllerRoleScopeFor(implementation: ControllerImplementation): ControllerRoleScope {
+    return roleScopes.get(implementation) ?? "all-roles";
+}
+
+/**
+ * The implementation that fills a controller role of `kind` in this run: the
+ * {@link resolveControllerImplementation | selected implementation}, except that a helper role falls back to
+ * `matterjs` when the selection is `dut-only`.
+ */
+export function implementationForRole(kind: "dut" | "helper"): ControllerImplementation {
+    const selected = resolveControllerImplementation();
+    if (kind === "helper" && controllerRoleScopeFor(selected) === "dut-only") {
+        return "matterjs";
+    }
+    return selected;
 }
 
 /**
@@ -1449,11 +1577,15 @@ export function controllerPicsOverridesFor(implementation: ControllerImplementat
 }
 
 /**
- * Constructs a {@link ControllerAdapter} for `role`, via the factory registered for the run's
- * {@link resolveControllerImplementation | selected implementation}.
+ * Constructs a {@link ControllerAdapter} for `role`, via the factory registered for the implementation
+ * {@link implementationForRole} picks for `kind`.
  */
-export function createControllerAdapter(role: string, options?: ControllerAdapterOptions): ControllerAdapter {
-    const implementation = resolveControllerImplementation();
+export function createControllerAdapter(
+    role: string,
+    options?: ControllerAdapterOptions,
+    kind: "dut" | "helper" = "dut",
+): ControllerAdapter {
+    const implementation = implementationForRole(kind);
     const factory = factories.get(implementation);
     if (!factory) {
         throw new Error(
@@ -1473,4 +1605,6 @@ export function createControllerAdapter(role: string, options?: ControllerAdapte
 export function resetControllerAdapterFactoryForTesting(implementation: ControllerImplementation): void {
     factories.delete(implementation);
     controllerPics.delete(implementation);
+    roleScopes.delete(implementation);
+    capabilityGaps.delete(implementation);
 }

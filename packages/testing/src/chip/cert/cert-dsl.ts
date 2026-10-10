@@ -34,8 +34,15 @@ import {
 } from "./cert-context.js";
 import { CertTest, registerCertTestFactory } from "./cert-test.js";
 import { chipImageBase, ChipDockerSubject, ChipLocalSubject, resolveChipLocalAppDir } from "./chip-app-subject.js";
-import type { ControllerTransport } from "./controller-adapter.js";
-import { ControllerAdapter, createControllerAdapter } from "./controller-adapter.js";
+import type { ControllerCapability, ControllerTransport } from "./controller-adapter.js";
+import {
+    capabilitiesFor,
+    ControllerAdapter,
+    controllerCapabilityGap,
+    controllerRoleScopeFor,
+    createControllerAdapter,
+    implementationForRole,
+} from "./controller-adapter.js";
 import { ControllerImplementation, resolveControllerImplementation, resolveDeviceFlavor } from "./device-config.js";
 import { EvidenceRecorder, type RunDeviceRecord } from "./evidence.js";
 import { matterJsCertSubjectFor } from "./matterjs-subject-registry.js";
@@ -83,7 +90,11 @@ export interface CertTestOptions {
      * passes against one and fails against the other, and the source is the only thing that says which.
      */
     chipBinsSources?: ChipBinsSource[];
-    /** Role name → "dut" (device under test) or "helper" (auxiliary controller). Default: `{ dut: "dut" }`. */
+    /**
+     * Role name → "dut" (device under test) or "helper" (auxiliary controller). Default: `{ dut: "dut" }`.
+     *
+     * When the selected controller serves only the DUT role (`matterjs-server`), every helper role runs on matterjs.
+     */
     controllers?: Record<string, "dut" | "helper">;
     /**
      * Role name → app name. Default: `{ th: options.app }`.
@@ -116,6 +127,14 @@ export interface CertTestOptions {
      * keeps the transport every other test's evidence and timing were written against.
      */
     transport?: ControllerTransport;
+
+    /**
+     * What the whole test needs of its controllers beyond the {@link ControllerAdapter} interface. Where a
+     * controller filling one of its roles lacks one, the test is skipped before any device starts. Declare it here
+     * rather than per step where later steps rest on what a step needing it sets up, so that none of them runs
+     * without it. `transport: "tcp"` implies `tcp-transport`.
+     */
+    controllerCapabilities?: readonly ControllerCapability[];
 }
 
 export interface CertStepOptions {
@@ -144,6 +163,14 @@ export interface CertStepOptions {
      * nothing here, so the step runs as usual.
      */
     longRunning?: string;
+
+    /**
+     * What this step needs of its controllers beyond the {@link ControllerAdapter} interface. Where a controller
+     * filling one of the test's roles lacks one, the step is skipped before it runs, and counted as a coverage gap of
+     * the controller. A step that asks a controller for one of these without declaring it here is failed by the
+     * refusal instead, once the step has acted.
+     */
+    controllerCapabilities?: readonly ControllerCapability[];
 }
 
 export interface CertTestBuilder {
@@ -285,6 +312,8 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         flavors: options.flavors,
         chipBinsSources: options.chipBinsSources,
         transport: options.transport,
+        controllers: controllerRoles,
+        controllerCapabilities: options.controllerCapabilities,
         appArgs: options.appArgs,
         steps: new Array<CertStepDefinition>(),
     };
@@ -341,6 +370,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
                 flavors: opts?.flavors,
                 notApplicable: opts?.notApplicable,
                 longRunning: opts?.longRunning,
+                controllerCapabilities: opts?.controllerCapabilities,
             });
             return builder;
         },
@@ -471,11 +501,14 @@ function defineCertTest(
 
         // Eager, like `flavor` above: validates MATTER_CERT_CONTROLLER at test-collection time, so
         // a bad value fails immediately rather than only once this specific test's body runs. The
-        // value a run actually records as evidence is re-resolved at run time in #buildContext,
-        // right beside createControllerAdapter()'s own resolution, rather than captured here — an
-        // env value another test in the same process mutates between collection and run time must
-        // not leave this run's evidence disagreeing with the controller it actually used.
-        resolveControllerImplementation();
+        // same gate is checked again before the run's device starts (see the beforeOne hook), against the
+        // value the run's evidence then records, so a skip decision and the evidence cannot disagree.
+        const controllerGap = controllerGapOf(definition);
+        if (controllerGap !== undefined) {
+            it.skip(`${descriptor.name} (${controllerGap})`, () => {});
+            return;
+        }
+
         const primaryRole = primaryDeviceRole(deviceRoles, definition.app);
         const factory = subjectFactoryFor(flavor, definition, definition.app);
 
@@ -511,7 +544,7 @@ function defineCertTest(
             // capability the controller declares reads as met there too.
             descriptor.picsValues = pics;
 
-            if (unmetTestPics(definition, pics) !== undefined) {
+            if (controllerGapOf(definition) !== undefined || unmetTestPics(definition, pics) !== undefined) {
                 this.skip();
             }
 
@@ -546,6 +579,34 @@ export function unmetTestPics(definition: CertTestDefinition, pics = certPicsFil
     const expression = definition.pics.join(" & ");
 
     return new PicsExpression(expression).evaluate(pics) ? undefined : expression;
+}
+
+/**
+ * Why a controller filling one of `definition`'s roles cannot serve the test as a whole, or `undefined` where every
+ * one can: the capabilities it declares, and those its adapter options imply.
+ */
+export function unmetControllerCapabilities(
+    definition: Pick<CertTestDefinition, "controllers" | "controllerCapabilities" | "transport">,
+): string | undefined {
+    return controllerCapabilityGap(
+        [...(definition.controllerCapabilities ?? []), ...capabilitiesFor({ transport: definition.transport })],
+        Object.values(definition.controllers ?? { dut: "dut" }),
+    );
+}
+
+/**
+ * Why the selected controller cannot serve `definition`, or `undefined` where it can: it serves only the DUT role
+ * while the DUT is a device, or one of its roles lacks a capability the test needs. Resolves the selected
+ * implementation each time it is called, which is the value a run records as evidence.
+ */
+function controllerGapOf(
+    definition: Pick<CertTestDefinition, "dutIsDevice" | "controllers" | "controllerCapabilities" | "transport">,
+): string | undefined {
+    const implementation = resolveControllerImplementation();
+    if (definition.dutIsDevice && controllerRoleScopeFor(implementation) === "dut-only") {
+        return `DUT is a device; controller "${implementation}" serves only the DUT role`;
+    }
+    return unmetControllerCapabilities(definition);
 }
 
 /**
@@ -812,16 +873,23 @@ class WiredCertTest extends CertTest {
                 devices[role] = device;
             }
 
-            // Resolved here, immediately beside the loop that resolves it again inside
-            // createControllerAdapter(), so the value this run records as evidence can't diverge
-            // from the one that actually picked the controller factory.
+            // Resolved beside the loop below, whose createControllerAdapter() calls resolve the same value, so
+            // the evidence can't diverge from the controller that actually ran.
             const controllerImplementation = resolveControllerImplementation();
+            const hasHelperRole = Object.values(this.#controllerRoles).includes("helper");
+            const helperImplementation = hasHelperRole ? implementationForRole("helper") : controllerImplementation;
+            let controllerBuild: Record<string, string> | undefined;
 
             for (const name of Object.keys(this.#controllerRoles)) {
-                const controller = createControllerAdapter(name, { transport: this.definition.transport });
+                const controller = createControllerAdapter(
+                    name,
+                    { transport: this.definition.transport },
+                    this.#controllerRoles[name],
+                );
                 controllers[name] = controller;
                 this.#openControllers = controllers;
                 await controller.start();
+                controllerBuild ??= controller.build;
             }
 
             const [matterJsRef, deviceRecords, chipToolRef] = await Promise.all([
@@ -836,6 +904,10 @@ class WiredCertTest extends CertTest {
                 timestamp: new Date().toISOString(),
                 controller: Object.keys(this.#controllerRoles).join(","),
                 controllerImplementation,
+                ...(helperImplementation !== controllerImplementation
+                    ? { helperControllerImplementation: helperImplementation }
+                    : {}),
+                ...(controllerBuild === undefined ? {} : { controllerBuild }),
                 devices: deviceRecords,
                 matterJsCommit: matterJsRef,
                 chipToolRef,

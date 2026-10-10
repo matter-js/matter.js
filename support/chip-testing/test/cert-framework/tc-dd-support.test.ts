@@ -23,7 +23,7 @@ import type {
     DeviceExitInfo,
     DeviceFlavor,
 } from "@matter/testing";
-import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
+import { LineQueue, LogFollower, PicsFile, UnsupportedByControllerError } from "@matter/testing";
 import { expect } from "chai";
 import { env } from "node:process";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
@@ -448,6 +448,17 @@ describe("recordParse", () => {
 
     // chip-all-clusters-app's own payload: standard flow, BLE alone
     const BLE_PAYLOAD = "MT:-24J042C00KA0648G00";
+
+    it("hands a controller refusal on without recording it as the DUT failing to parse", async () => {
+        const cx = contextWithParser();
+        const refusal = new UnsupportedByControllerError("parseQrPayload", "test");
+        cx.controllers.dut.parseQrPayload = async () => {
+            throw refusal;
+        };
+
+        await expect(recordParse(cx, BLE_PAYLOAD, { th: thOf(BLE_PAYLOAD) })).rejectedWith(refusal);
+        expect(checksOf(cx)).deep.equal([]);
+    });
 
     it("passes for a standard-flow payload offering the capability asked for", async () => {
         const cx = contextWithParser();
@@ -1669,6 +1680,18 @@ describe("recordManualParse", () => {
         await recordManualParse(fixture.cx, CODE);
 
         expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass"]);
+    });
+
+    it("hands a controller refusal on without recording it as the DUT failing to parse", async () => {
+        const refusal = new UnsupportedByControllerError("parseManualPairingCode", "test");
+        const fixture = new UnpairFixture("matterjs", {
+            parseManualPairingCode: async () => {
+                throw refusal;
+            },
+        });
+
+        await expect(recordManualParse(fixture.cx, CODE)).rejectedWith(refusal);
+        expect(fixture.checks).deep.equal([]);
     });
 
     it("fails when the DUT misreads the product id a 21-digit code carries", async () => {

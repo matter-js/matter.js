@@ -44,7 +44,12 @@ import type {
     SubscribeOptions,
     TimedInteractionOptions,
 } from "@matter/testing";
-import type { ControllerAdapterOptions, ControllerTransport, PicsValues } from "@matter/testing";
+import type {
+    ControllerAdapterOptions,
+    ControllerCapabilityGaps,
+    ControllerTransport,
+    PicsValues,
+} from "@matter/testing";
 import { LineQueue, LogFollower, UnsupportedByControllerError } from "@matter/testing";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -174,6 +179,23 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "MCORE.DEVLIST.UseDeviceState": 0,
     "MCORE.DEVLIST.UseBatInfo": 0,
 };
+
+/**
+ * What chip-tool lacks, declared with its registration so a step or case needing one of these is skipped before it acts
+ * (see `controllerCapabilityGap`).
+ *
+ * The transport is accepted as an option, and its `--allow-large-payload` reaches every command, but that does not make
+ * chip-tool establish a TCP-backed session.
+ */
+export const CHIP_TOOL_CAPABILITY_GAPS = {
+    "tcp-transport":
+        "chip-tool reuses the session commissioning established, so a large-payload interaction does not cause it to " +
+        "establish a TCP-backed one",
+    attestation:
+        "chip-tool reads revocation from a file its own process is started with, which a running adapter cannot change",
+    "webrtc-requestor":
+        "chip-tool is a commissioner process, not a node, so a provider has nowhere to invoke signaling",
+} as const satisfies ControllerCapabilityGaps;
 
 const WILDCARD_CLUSTER = 0xffffffff;
 const WILDCARD_ATTRIBUTE = 0xffffffff;
@@ -1515,8 +1537,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             throw new UnsupportedByControllerError(
                 "judging device attestation against installed revocation information",
                 id,
-                "chip-tool reads revocation from a file its own process is started with, which a running adapter " +
-                    "cannot change",
+                CHIP_TOOL_CAPABILITY_GAPS.attestation,
             );
         }
 
@@ -1524,7 +1545,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             throw new UnsupportedByControllerError(
                 "hosting a WebRTC transport requestor cluster",
                 id,
-                "chip-tool is a commissioner process, not a node, so a provider has nowhere to invoke signaling",
+                CHIP_TOOL_CAPABILITY_GAPS["webrtc-requestor"],
             );
         }
 

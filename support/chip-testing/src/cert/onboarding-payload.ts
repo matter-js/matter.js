@@ -11,8 +11,8 @@ import { QrPairingCodeCodec } from "@matter/main/types";
 /**
  * A controller refused an onboarding payload itself, before it looked for any commissionee.
  *
- * A step asserting "the DUT terminates commissioning" needs this and nothing broader. Both
- * controllers report a later failure — discovery, PASE, attestation, an invalid CSR response, a
+ * A step asserting "the DUT terminates commissioning" needs this and nothing broader. Every
+ * controller reports a later failure — discovery, PASE, attestation, an invalid CSR response, a
  * command timeout — through error types that a payload refusal would otherwise share, so a
  * commissioner that *accepted* a forbidden code and only then failed would be recorded as having
  * refused it.
@@ -23,8 +23,11 @@ export class OnboardingPayloadRefusedError extends MatterError {}
  * The one onboarding payload `code` carries.
  *
  * A concatenated code (Matter Core § 5.1.3.2) names several commissionees. `ControllerAdapter.commission()`
- * pairs one, and neither controller can be told which, so such a code is refused rather than paired with
+ * pairs one, and no controller can be told which, so such a code is refused rather than paired with
  * whichever device answers first.
+ *
+ * The matterjs-server adapter decodes with this codec as well, before it sends a code, because the WebSocket API
+ * reports a refusal only as a message. That assumes the server runs the same codec version.
  */
 export function singleQrPayload(code: string): QrCodeData {
     const payloads = refusalOf(() => QrPairingCodeCodec.decode(code), `onboarding payload ${code}`);

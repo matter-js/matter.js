@@ -36,7 +36,7 @@ export { deviceRecordsFor } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Selects the device a declared role runs. */
 export { subjectFactoryFor } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. The gate `certTest()` applies before a test's device starts. */
-export { certPicsFile, unmetTestPics } from "./cert/cert-dsl.js";
+export { certPicsFile, unmetControllerCapabilities, unmetTestPics } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Production cert tests go through the `certTest()` DSL, not this class directly. */
 export { CertTest } from "./cert/cert-test.js";
 export { CertStepNotApplicableError, PicsUnansweredError } from "./cert/cert-test.js";
@@ -51,10 +51,16 @@ export { certAppPicsOverridesFor, registerCertAppPics } from "./cert/cert-app-pi
 /** @internal Test seam — not API. Registration has no other way to be undone. */
 export { unregisterCertAppPics } from "./cert/cert-app-pics.js";
 export {
+    capabilitiesFor,
+    controllerCapabilityGap,
+    controllerCapabilityGapsFor,
     controllerPicsOverridesFor,
+    controllerRoleScopeFor,
+    implementationForRole,
     registerControllerAdapterFactory,
     UnsupportedByControllerError,
 } from "./cert/controller-adapter.js";
+export type { ControllerCapability, ControllerCapabilityGaps, ControllerRoleScope } from "./cert/controller-adapter.js";
 /** @internal Test seam — not API. Cert-test wiring calls this from `cert-dsl.ts`; direct use is for registry tests. */
 export { createControllerAdapter } from "./cert/controller-adapter.js";
 /** @internal Test seam — not API. */

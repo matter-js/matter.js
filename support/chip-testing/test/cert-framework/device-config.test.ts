@@ -69,6 +69,11 @@ describe("resolveControllerImplementation", () => {
         expect(resolveControllerImplementation()).equal("matterjs");
     });
 
+    it("accepts matterjs-server", () => {
+        env.MATTER_CERT_CONTROLLER = "matterjs-server";
+        expect(resolveControllerImplementation()).equal("matterjs-server");
+    });
+
     for (const implementation of ["chip-tool", "matterjs"] as const) {
         it(`honors an explicit "${implementation}" override`, () => {
             env.MATTER_CERT_CONTROLLER = implementation;
@@ -82,5 +87,8 @@ describe("resolveControllerImplementation", () => {
             CertConfigError,
             'Unknown MATTER_CERT_CONTROLLER "bogus"',
         );
+        for (const accepted of ["chip-tool", "matterjs", "matterjs-server"]) {
+            expect(() => resolveControllerImplementation()).throws(CertConfigError, `"${accepted}"`);
+        }
     });
 });

@@ -5,9 +5,18 @@
  */
 
 import { Duration, InternalError, Seconds } from "@matter/main";
-import type { CertStepWiring, CertStepDefinition, PromptHandler, StepVerdict, Subject } from "@matter/testing";
+import type {
+    CertStepWiring,
+    CertStepDefinition,
+    ControllerAdapterOptions,
+    PromptHandler,
+    StepVerdict,
+    Subject,
+} from "@matter/testing";
 import {
+    capabilitiesFor,
     chip,
+    controllerCapabilityGap,
     createControllerAdapter,
     EvidenceRecorder,
     PromptDrivenPythonTest,
@@ -23,6 +32,9 @@ const DESCRIPTOR = {
     path: "/src/python_testing/TC_DA_1_9.py",
     subpath: "test_TC_DA_1_9",
 };
+
+/** Only a controller that judges attestation itself, against revocation the case installs, can refuse one. */
+const DUT_OPTIONS: ControllerAdapterOptions = { attestation: true };
 
 /** Where the harness image carries the certificates this case is about. */
 const REVOKED_CERTIFICATES = "/credentials/test/revoked-attestation-certificates";
@@ -249,9 +261,7 @@ describe("TC-DA-1.9", () => {
             this.skip();
         }
 
-        // Only a controller that judges attestation itself can refuse one; chip-tool reads revocation
-        // from a file its process was started with, which a running adapter cannot change.
-        if (resolveControllerImplementation() !== "matterjs") {
+        if (controllerCapabilityGap(capabilitiesFor(DUT_OPTIONS)) !== undefined) {
             this.skip();
         }
 
@@ -263,7 +273,7 @@ describe("TC-DA-1.9", () => {
         let flushFailure: unknown;
         let closeFailure: unknown;
         let concludeFailure: unknown;
-        const dut = createControllerAdapter("dut", { attestation: true });
+        const dut = createControllerAdapter("dut", DUT_OPTIONS);
 
         const recorder = new EvidenceRecorder(evidenceOutDir(), {
             tc: "TC-DA-1.9",

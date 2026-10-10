@@ -525,6 +525,61 @@ describe("EvidenceRecorder", () => {
         expect(resultJson.run.chipToolRef).equal("df8bd0308caa0680e2a78cda724a959e5b385205");
     });
 
+    it("persists helperControllerImplementation only when supplied", async () => {
+        const meta = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut,th",
+            controllerImplementation: "matterjs-server",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" as const }],
+            matterJsCommit: "abc1234",
+        };
+
+        const withHelper = JSON.parse(
+            await fsp.readFile(
+                pathMod.join(
+                    await publish(
+                        new EvidenceRecorder(outDir, { ...meta, helperControllerImplementation: "matterjs" }),
+                    ),
+                    "result.json",
+                ),
+                "utf8",
+            ),
+        );
+        expect(withHelper.run.helperControllerImplementation).equal("matterjs");
+
+        const without = JSON.parse(
+            await fsp.readFile(pathMod.join(await publish(new EvidenceRecorder(outDir, meta)), "result.json"), "utf8"),
+        );
+        expect(without.run).not.to.have.property("helperControllerImplementation");
+    });
+
+    it("persists controllerBuild only when supplied, and names it in the run header", async () => {
+        const meta = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs-server",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" as const }],
+            matterJsCommit: "abc1234",
+        };
+        const controllerBuild = { entry: "dist/main.js", sdkVersion: "0.18.0", schemaVersion: "13" };
+
+        const recorder = new EvidenceRecorder(outDir, { ...meta, controllerBuild });
+        const withBuild = JSON.parse(await fsp.readFile(pathMod.join(await publish(recorder), "result.json"), "utf8"));
+        expect(withBuild.run.controllerBuild).deep.equal(controllerBuild);
+        expect(recorder.runHeaderLines()).to.include(
+            "build      : entry=dist/main.js, sdkVersion=0.18.0, schemaVersion=13",
+        );
+
+        const without = JSON.parse(
+            await fsp.readFile(pathMod.join(await publish(new EvidenceRecorder(outDir, meta)), "result.json"), "utf8"),
+        );
+        expect(without.run).not.to.have.property("controllerBuild");
+    });
+
     it("persists the controller-unsupported skip count, so a bare result.json says the run proved less", async () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-IDM-3.1",

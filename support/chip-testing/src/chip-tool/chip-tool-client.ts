@@ -160,10 +160,10 @@ export async function resolveChipToolBinary(): Promise<string> {
 }
 
 /**
- * A port free at the moment of probing. Nothing holds it until chip-tool binds, so a caller racing
- * another process for ports should pass an explicit one instead.
+ * A port free at the moment of probing. Nothing holds it until the process that uses it binds, so a caller
+ * racing another process for ports should pass an explicit one instead.
  */
-async function probeFreePort(): Promise<number> {
+export async function probeFreePort(): Promise<number> {
     const server = createServer();
     try {
         const port = await new Promise<number>((resolve, reject) => {

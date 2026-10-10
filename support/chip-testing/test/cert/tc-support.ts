@@ -40,8 +40,24 @@ import {
     CertLogTimeoutError,
     flavorFamily,
     forFlavor,
+    implementationForRole,
     UnsupportedByControllerError,
 } from "@matter/testing";
+
+/**
+ * The log family the DUT controller's own output is written in, for a check that reads that log. matterjs-server is a
+ * matter.js controller in a process of its own and logs through matter.js's logger.
+ */
+export function dutControllerLogFlavor(): "chip" | "matterjs" {
+    const implementation = implementationForRole("dut");
+    switch (implementation) {
+        case "chip-tool":
+            return "chip";
+        case "matterjs":
+        case "matterjs-server":
+            return "matterjs";
+    }
+}
 
 /**
  * Bounds a device-log check's wait for a line the step has already caused — one the device writes
@@ -2434,6 +2450,9 @@ export type SettleReport<T = unknown> = { elapsed: string } & (
  *
  * A step that stops waiting is still responsible for what the operation does afterwards — a
  * commissioning that succeeds late leaves a fabric on the device.
+ *
+ * An {@link UnsupportedByControllerError} rejects rather than reporting `"rejected"`: a controller that cannot do
+ * what was asked has not answered for the device, and a step asserting a refusal would pass on it.
  */
 export async function settleWithin<T>(label: string, op: Promise<T>, timeout: Duration): Promise<SettleReport<T>> {
     // nowUs is the monotonic clock despite the name; nowMs tracks UTC and a step of it would put a
@@ -2446,7 +2465,12 @@ export async function settleWithin<T>(label: string, op: Promise<T>, timeout: Du
         return await Promise.race([
             op.then(
                 (value): SettleReport<T> => ({ kind: "resolved", value, elapsed: elapsed() }),
-                (error: unknown): SettleReport<T> => ({ kind: "rejected", error, elapsed: elapsed() }),
+                (error: unknown): SettleReport<T> => {
+                    if (error instanceof UnsupportedByControllerError) {
+                        throw error;
+                    }
+                    return { kind: "rejected", error, elapsed: elapsed() };
+                },
             ),
             timer.then((): SettleReport<T> => ({ kind: "timeout", elapsed: elapsed() })),
         ]);

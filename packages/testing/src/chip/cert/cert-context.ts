@@ -7,7 +7,7 @@
 import type { Subject } from "../../device/subject.js";
 import type { ChipBinsSource } from "../chip-bins.js";
 import type { CertAppVariant } from "./cert-dsl.js";
-import type { ControllerTransport } from "./controller-adapter.js";
+import type { ControllerCapability, ControllerTransport } from "./controller-adapter.js";
 import type { ControllerAdapter } from "./controller-adapter.js";
 import { forFlavor, type LogFollower } from "./log-follower.js";
 
@@ -250,6 +250,8 @@ export interface CertStepDefinition {
     notApplicable?: string;
     /** Why this step costs minutes of real time (see `cert-dsl.ts`'s `CertStepOptions`). */
     longRunning?: string;
+    /** What this step needs of its controllers (see `cert-dsl.ts`'s `CertStepOptions`). */
+    controllerCapabilities?: readonly ControllerCapability[];
     run: (cx: CertStepContext) => Promise<void>;
 }
 
@@ -290,6 +292,10 @@ export interface CertTestDefinition {
      * here; every other test keeps the transport its evidence and timing were written against.
      */
     transport?: ControllerTransport;
+    /** Role name → controller kind (see `cert-dsl.ts`'s `CertTestOptions`). Absent, a single `dut` role. */
+    controllers?: Readonly<Record<string, "dut" | "helper">>;
+    /** What every step of this test needs of its controllers (see `cert-dsl.ts`'s `CertTestOptions`). */
+    controllerCapabilities?: readonly ControllerCapability[];
     /** Role name → arguments that role's app starts with (see `cert-dsl.ts`'s `CertTestOptions`). */
     appArgs?: Record<string, CertAppArgs>;
 }

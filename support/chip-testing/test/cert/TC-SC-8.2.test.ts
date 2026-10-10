@@ -13,7 +13,6 @@ import {
     TCP_ROLES,
     TcpSessionRef,
     tcpSessionStep,
-    tcpStep,
 } from "./tc-sc-8-support.js";
 import { CommissionedRefs } from "./tc-support.js";
 
@@ -48,7 +47,7 @@ certTest("TC-SC-8.2", {
     .step(
         1,
         "TH initiates a CASE session establishment with DUT, requesting a session supporting large payloads",
-        tcpStep(establishLargePayloadSession),
+        establishLargePayloadSession,
         {
             expected: "Verify that the session established with DUT allows large payloads.",
         },

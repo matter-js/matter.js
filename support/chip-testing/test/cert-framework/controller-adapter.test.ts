@@ -10,26 +10,47 @@ import { QrPairingCodeCodec, Status, StatusResponseError } from "@matter/main/ty
 import { Matter } from "@matter/model";
 import { PicsExpression, PicsFile, UnsupportedByControllerError } from "@matter/testing";
 import {
+    capabilitiesFor,
+    controllerCapabilityGap,
+    controllerCapabilityGapsFor,
     controllerPicsOverridesFor,
+    controllerRoleScopeFor,
     createControllerAdapter,
+    implementationForRole,
     LineQueue,
     LogFollower,
     registerControllerAdapterFactory,
     resetControllerAdapterFactoryForTesting,
 } from "@matter/testing";
-import type { AttributePathSpec, CertNodeApi, CertNodeRef, ControllerAdapter, EventReadEntry } from "@matter/testing";
+import type {
+    AttributePathSpec,
+    CertNodeApi,
+    CertNodeRef,
+    ControllerAdapter,
+    ControllerCapability,
+    EventReadEntry,
+} from "@matter/testing";
 import { StreamUsage } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { expect } from "chai";
 import { env } from "node:process";
 import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
-import { CHIP_TOOL_CONTROLLER_PICS, ChipToolControllerAdapter } from "../../src/cert/ChipToolControllerAdapter.js";
+import {
+    CHIP_TOOL_CAPABILITY_GAPS,
+    CHIP_TOOL_CONTROLLER_PICS,
+    ChipToolControllerAdapter,
+} from "../../src/cert/ChipToolControllerAdapter.js";
+import { registerCertControllerAdapter } from "../../src/cert/index.js";
 import {
     InProcessControllerAdapter,
     MATTERJS_CONTROLLER_PICS,
     NoCommissionedPeerError,
     SessionStateError,
 } from "../../src/cert/InProcessControllerAdapter.js";
+import {
+    MATTERJS_SERVER_CAPABILITY_GAPS,
+    MATTERJS_SERVER_CONTROLLER_PICS,
+} from "../../src/cert/MatterServerControllerAdapter.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import { IcdTestInstance } from "../../src/IcdTestInstance.js";
 import { manualPairingCode } from "../cert/tc-dd-support.js";
@@ -105,6 +126,15 @@ async function versionOf(node: CertNodeApi, path: AttributePathSpec) {
         }
     }
     throw new InternalError(`No data version reported for cluster ${path.cluster}`);
+}
+
+/** Every implementation `src/cert/index.ts` registers, each held to the same rules about what it declares. */
+const IMPLEMENTATIONS = ["matterjs", "chip-tool", "matterjs-server"] as const;
+
+/** Puts back the registration `src/cert/index.ts` makes, which a test replaced. */
+function restoreMatterServerFactory() {
+    resetControllerAdapterFactoryForTesting("matterjs-server");
+    registerCertControllerAdapter("matterjs-server");
 }
 
 describe("InProcessControllerAdapter", () => {
@@ -1103,21 +1133,19 @@ describe("ControllerAdapter registry", () => {
             // Restore what src/cert/index.ts registered at load time, for any later suite that
             // resolves "chip-tool" through the registry.
             resetControllerAdapterFactoryForTesting("chip-tool");
-            registerControllerAdapterFactory(
-                "chip-tool",
-                (id, options) => new ChipToolControllerAdapter(id, options),
-                CHIP_TOOL_CONTROLLER_PICS,
-            );
+            registerCertControllerAdapter("chip-tool");
         }
     });
 
     it("reports the PICS each controller declares about itself", () => {
         expect(controllerPicsOverridesFor("matterjs")).deep.equal(MATTERJS_CONTROLLER_PICS);
         expect(controllerPicsOverridesFor("chip-tool")).deep.equal(CHIP_TOOL_CONTROLLER_PICS);
+        expect(controllerPicsOverridesFor("matterjs-server")).deep.equal(MATTERJS_SERVER_CONTROLLER_PICS);
         expect(MATTERJS_CONTROLLER_PICS["MCORE.IDM.C.InvokeRequest.BatchCommands"]).equal(1);
         expect(CHIP_TOOL_CONTROLLER_PICS["MCORE.IDM.C.InvokeRequest.BatchCommands"]).equal(0);
+        expect(MATTERJS_SERVER_CONTROLLER_PICS["MCORE.IDM.C.InvokeRequest.BatchCommands"]).equal(0);
 
-        for (const pics of [MATTERJS_CONTROLLER_PICS, CHIP_TOOL_CONTROLLER_PICS]) {
+        for (const pics of [MATTERJS_CONTROLLER_PICS, CHIP_TOOL_CONTROLLER_PICS, MATTERJS_SERVER_CONTROLLER_PICS]) {
             expect(pics["MCORE.ROLE.COMMISSIONER"]).equal(1);
             expect(pics["MCORE.DD.QR_COMMISSIONING"]).equal(1);
             expect(pics["MCORE.DD.MANUAL_PC_COMMISSIONING"]).equal(1);
@@ -1132,7 +1160,7 @@ describe("ControllerAdapter registry", () => {
         const groupsCommands = ["00", "02", "03", "04", "05"].map(id => `G.C.C${id}.Tx`);
         const asDevice = new PicsFile(groupsCommands.map(key => `${key}=0`));
 
-        for (const implementation of ["matterjs", "chip-tool"] as const) {
+        for (const implementation of IMPLEMENTATIONS) {
             const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
 
             for (const key of groupsCommands) {
@@ -1147,7 +1175,7 @@ describe("ControllerAdapter registry", () => {
         const scenesKeys = ["00", "01", "02", "03", "04", "05", "06", "40"].map(id => `S.C.C${id}.Tx`);
         const asDevice = new PicsFile(["S.C=0", ...scenesKeys.map(key => `${key}=0`)]);
 
-        for (const implementation of ["matterjs", "chip-tool"] as const) {
+        for (const implementation of IMPLEMENTATIONS) {
             const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
 
             for (const key of ["S.C", ...scenesKeys]) {
@@ -1162,7 +1190,7 @@ describe("ControllerAdapter registry", () => {
         const keys = ["TBRM.C", ...["00", "01", "03", "04"].map(id => `TBRM.C.C${id}.Tx`)];
         const asDevice = new PicsFile(["TBRM.S=1"]);
 
-        for (const implementation of ["matterjs", "chip-tool"] as const) {
+        for (const implementation of IMPLEMENTATIONS) {
             const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
 
             for (const key of keys) {
@@ -1177,7 +1205,7 @@ describe("ControllerAdapter registry", () => {
         const keys = ["G.C.C01.Tx", "GRPKEY.C.C03.Tx", "GRPKEY.C.C04.Tx"];
         const asDevice = new PicsFile(["G.C.C01.Tx=0"]);
 
-        for (const implementation of ["matterjs", "chip-tool"] as const) {
+        for (const implementation of IMPLEMENTATIONS) {
             const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
 
             for (const key of keys) {
@@ -1197,7 +1225,7 @@ describe("ControllerAdapter registry", () => {
         // Actions command. The DUT of those steps is the controller, so its own declaration has to win.
         const asDevice = new PicsFile(actionCommands.map(key => `${key}=0`));
 
-        for (const implementation of ["matterjs", "chip-tool"] as const) {
+        for (const implementation of IMPLEMENTATIONS) {
             const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
 
             for (const key of actionCommands) {
@@ -1209,7 +1237,7 @@ describe("ControllerAdapter registry", () => {
     it("declares nothing about what the device advertises, which every run's report would inherit", () => {
         // certPicsFile() feeds every cert test's report, so a key describing the TH — what it
         // advertises, above all — has to come from the device's own file and never from an overlay.
-        for (const implementation of ["matterjs", "chip-tool"] as const) {
+        for (const implementation of IMPLEMENTATIONS) {
             const declared = controllerPicsOverridesFor(implementation);
 
             expect("MCORE.DD.DISCOVERY_BLE" in declared, implementation).equal(false);
@@ -1236,11 +1264,79 @@ describe("ControllerAdapter registry", () => {
             expect(seen).deep.equal(["tcp", undefined]);
         } finally {
             resetControllerAdapterFactoryForTesting("chip-tool");
+            registerCertControllerAdapter("chip-tool");
+        }
+    });
+
+    it("gives helper roles matterjs when the selection is dut-only", () => {
+        env.MATTER_CERT_CONTROLLER = "matterjs-server";
+        resetControllerAdapterFactoryForTesting("matterjs");
+        resetControllerAdapterFactoryForTesting("matterjs-server");
+
+        const built = new Array<string>();
+        try {
+            registerControllerAdapterFactory("matterjs", id => {
+                built.push(`matterjs:${id}`);
+                return fakeControllerAdapter(id);
+            });
             registerControllerAdapterFactory(
-                "chip-tool",
-                (id, options) => new ChipToolControllerAdapter(id, options),
-                CHIP_TOOL_CONTROLLER_PICS,
+                "matterjs-server",
+                id => {
+                    built.push(`matterjs-server:${id}`);
+                    return fakeControllerAdapter(id);
+                },
+                undefined,
+                "dut-only",
             );
+
+            expect(controllerRoleScopeFor("matterjs-server")).equal("dut-only");
+            expect(implementationForRole("helper")).equal("matterjs");
+            expect(implementationForRole("dut")).equal("matterjs-server");
+
+            createControllerAdapter("th_cr2", {}, "helper");
+            createControllerAdapter("dut", {}, "dut");
+            createControllerAdapter("dut-default");
+
+            expect(built).deep.equal(["matterjs:th_cr2", "matterjs-server:dut", "matterjs-server:dut-default"]);
+        } finally {
+            restoreMatterServerFactory();
+            resetControllerAdapterFactoryForTesting("matterjs");
+            registerCertControllerAdapter("matterjs");
+        }
+    });
+
+    it("keeps every role on chip-tool", () => {
+        expect(controllerRoleScopeFor("chip-tool")).equal("all-roles");
+
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+        resetControllerAdapterFactoryForTesting("chip-tool");
+
+        const built = new Array<string>();
+        try {
+            registerControllerAdapterFactory("chip-tool", id => {
+                built.push(id);
+                return fakeControllerAdapter(id);
+            });
+
+            expect(implementationForRole("helper")).equal("chip-tool");
+            createControllerAdapter("th_cr2", {}, "helper");
+            createControllerAdapter("dut", {}, "dut");
+
+            expect(built).deep.equal(["th_cr2", "dut"]);
+        } finally {
+            resetControllerAdapterFactoryForTesting("chip-tool");
+            registerCertControllerAdapter("chip-tool");
+        }
+    });
+
+    it("forgets a dut-only scope when the factory is reset", () => {
+        resetControllerAdapterFactoryForTesting("matterjs-server");
+        try {
+            registerControllerAdapterFactory("matterjs-server", fakeControllerAdapter, undefined, "dut-only");
+            resetControllerAdapterFactoryForTesting("matterjs-server");
+            expect(controllerRoleScopeFor("matterjs-server")).equal("all-roles");
+        } finally {
+            restoreMatterServerFactory();
         }
     });
 
@@ -1252,11 +1348,7 @@ describe("ControllerAdapter registry", () => {
             expect(controllerPicsOverridesFor("chip-tool")).deep.equal({});
         } finally {
             resetControllerAdapterFactoryForTesting("chip-tool");
-            registerControllerAdapterFactory(
-                "chip-tool",
-                (id, options) => new ChipToolControllerAdapter(id, options),
-                CHIP_TOOL_CONTROLLER_PICS,
-            );
+            registerCertControllerAdapter("chip-tool");
         }
     });
 });
@@ -1361,3 +1453,71 @@ describe("InProcessControllerAdapter ICD client", () => {
         await node.decommission();
     });
 });
+
+describe("controller capabilities", () => {
+    const originalController = env.MATTER_CERT_CONTROLLER;
+
+    afterEach(() => {
+        if (originalController === undefined) {
+            delete env.MATTER_CERT_CONTROLLER;
+        } else {
+            env.MATTER_CERT_CONTROLLER = originalController;
+        }
+    });
+
+    it("reports the capabilities each controller declares it lacks", () => {
+        expect(controllerCapabilityGapsFor("matterjs")).deep.equal({});
+        expect(controllerCapabilityGapsFor("chip-tool")).deep.equal(CHIP_TOOL_CAPABILITY_GAPS);
+        expect(controllerCapabilityGapsFor("matterjs-server")).deep.equal(MATTERJS_SERVER_CAPABILITY_GAPS);
+    });
+
+    it("names the controller, the capability and the reason where the DUT controller lacks one", () => {
+        env.MATTER_CERT_CONTROLLER = "matterjs-server";
+
+        expect(controllerCapabilityGap(["group-messaging", "data-versions"])).equal(
+            `controller "matterjs-server" lacks group-messaging: ${MATTERJS_SERVER_CAPABILITY_GAPS["group-messaging"]}`,
+        );
+        expect(controllerCapabilityGap([])).undefined;
+    });
+
+    it("finds no gap for a controller that declares none", () => {
+        env.MATTER_CERT_CONTROLLER = "matterjs";
+
+        expect(controllerCapabilityGap(Object.keys(MATTERJS_SERVER_CAPABILITY_GAPS).filter(isCapability))).undefined;
+    });
+
+    it("judges a helper role by the implementation that fills it", () => {
+        env.MATTER_CERT_CONTROLLER = "matterjs-server";
+        expect(controllerCapabilityGap(["tcp-transport"], ["helper"])).undefined;
+        expect(controllerCapabilityGap(["tcp-transport"], ["helper", "dut"])).contains(
+            'controller "matterjs-server" lacks tcp-transport',
+        );
+
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+        expect(controllerCapabilityGap(["tcp-transport"], ["helper"])).contains(
+            'controller "chip-tool" lacks tcp-transport',
+        );
+    });
+
+    it("derives what adapter options need of a controller", () => {
+        expect(capabilitiesFor()).deep.equal([]);
+        expect(capabilitiesFor({ transport: "tcp", attestation: true, webRtcRequestor: true })).deep.equal([
+            "tcp-transport",
+            "attestation",
+            "webrtc-requestor",
+        ]);
+    });
+
+    it("forgets the gaps when the factory is reset", () => {
+        resetControllerAdapterFactoryForTesting("matterjs-server");
+        try {
+            expect(controllerCapabilityGapsFor("matterjs-server")).deep.equal({});
+        } finally {
+            registerCertControllerAdapter("matterjs-server");
+        }
+    });
+});
+
+function isCapability(key: string): key is ControllerCapability {
+    return Object.hasOwn(MATTERJS_SERVER_CAPABILITY_GAPS, key);
+}

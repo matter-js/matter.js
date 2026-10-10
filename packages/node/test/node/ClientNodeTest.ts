@@ -2289,6 +2289,31 @@ describe("ClientNode", () => {
         expect(filteredClusters({ refreshChangesOmitted: true })).include(PowerSourceServer.cluster.id);
     });
 
+    it("keeps the caller's version filters beside the injected ones without changing the caller's list", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+        const { structure } = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+
+        const callerFilter = {
+            path: { endpointId: EndpointNumber(99), clusterId: ClusterId(0x1234) },
+            dataVersion: 5,
+        };
+        const callerFilters = [callerFilter];
+        const request = {
+            ...Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered }),
+            dataVersionFilters: callerFilters,
+        };
+
+        const injected = structure.injectVersionFilters(request).dataVersionFilters ?? [];
+
+        expect(injected).deep.include(callerFilter);
+        expect(injected.length).greaterThan(1);
+        expect(injected.some(({ path: { clusterId } }) => clusterId === GeneralDiagnosticsClient.cluster.id)).true;
+        expect(callerFilters).deep.equals([callerFilter]);
+        expect(request.dataVersionFilters).equals(callerFilters);
+    });
+
     it("omits version filters for a cluster with changes-omitted attributes when the peer reports no AttributeList", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();

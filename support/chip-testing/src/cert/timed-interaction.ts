@@ -10,10 +10,10 @@ import type { TimedInteractionOptions } from "@matter/testing";
 /**
  * The timeout a timed interaction asks for, or `undefined` for an untimed one.
  *
- * Validated here so both adapters refuse the same values: the field is a `uint16` on the wire (Matter
+ * Validated here so every adapter refuses the same values: the field is a `uint16` on the wire (Matter
  * Core § 10.6.11), which chip-tool's own argument bounds too, but matter.js's TLV layer checks bounds
  * without checking integrality — so a fractional timeout would reach one controller as a truncated
- * integer and the other as a usage error.
+ * integer and another as a usage error.
  */
 export function timedInteractionTimeoutOf(options?: TimedInteractionOptions): number | undefined {
     const timeout = options?.timedInteractionTimeoutMs;

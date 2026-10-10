@@ -11,6 +11,7 @@ import type {
     CertNodeRef,
     CertStepWiring,
     CertStepDefinition,
+    ControllerAdapterOptions,
     PromptHandler,
     StepVerdict,
     Subject,
@@ -19,8 +20,10 @@ import type {
     WebRtcSignalRecord,
 } from "@matter/testing";
 import {
+    capabilitiesFor,
     CertLogTimeoutError,
     chip,
+    controllerCapabilityGap,
     createControllerAdapter,
     EvidenceRecorder,
     PromptDrivenPythonTest,
@@ -30,6 +33,12 @@ import { join } from "node:path";
 import { env } from "node:process";
 import { CertCheckFailedError, CertCleanupError, settleWithin } from "./tc-support.js";
 import { WebRtcPeer } from "./webrtc-peer.js";
+
+/**
+ * The provider signals by invoking the requestor cluster on the controller, and every signaling command carries the
+ * specification's Large Message quality, which requires a TCP session.
+ */
+const DUT_OPTIONS: ControllerAdapterOptions = { webRtcRequestor: true, transport: "tcp" };
 
 /** Endpoint of TH_SERVER's camera clusters, which `chip-camera-app` fixes at 1. */
 const PROVIDER_ENDPOINT = 1;
@@ -243,9 +252,7 @@ export function certCameraCase<S>(definition: CameraCase<S> & { begin?: () => S 
                 this.skip();
             }
 
-            // Only a controller that is itself a node can host the requestor cluster the provider
-            // signals against; chip-tool's adapter refuses the option rather than pretending to.
-            if (resolveControllerImplementation() !== "matterjs") {
+            if (controllerCapabilityGap([...capabilitiesFor(DUT_OPTIONS), "commissioning-give-up"]) !== undefined) {
                 this.skip();
             }
 
@@ -259,9 +266,7 @@ export function certCameraCase<S>(definition: CameraCase<S> & { begin?: () => S 
             let closeFailure: unknown;
             let concludeFailure: unknown;
 
-            // Every signaling command carries the specification's Large Message quality, which requires
-            // a TCP session; a controller with no TCP client cannot send one at all.
-            const dut = createControllerAdapter("dut", { webRtcRequestor: true, transport: "tcp" });
+            const dut = createControllerAdapter("dut", DUT_OPTIONS);
 
             const recorder = new EvidenceRecorder(evidenceOutDir(), {
                 tc: definition.tc,

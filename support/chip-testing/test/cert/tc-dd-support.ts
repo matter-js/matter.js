@@ -22,11 +22,17 @@ import type {
     CertStepContext,
     CheckRecord,
     CommissioningTarget,
+    ControllerCapability,
     LogFollower,
     OnboardingPayloadFields,
 } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
-import { flavorFamily, forFlavor, resolveControllerImplementation } from "@matter/testing";
+import {
+    flavorFamily,
+    forFlavor,
+    resolveControllerImplementation,
+    UnsupportedByControllerError,
+} from "@matter/testing";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
@@ -76,8 +82,8 @@ export const COMMISSIONING_LOG_TIMEOUT = Seconds(30);
 export const MDNS_TIMEOUT = Seconds(30);
 
 /**
- * Bounds a "the DUT must refuse this" commissioning attempt. Both controllers read the payload
- * before they touch the network, so a refusal lands in milliseconds; the budget is what keeps a
+ * Bounds a "the DUT must refuse this" commissioning attempt. Every controller adapter reads the payload
+ * before it touches the network, so a refusal lands in milliseconds; the budget is what keeps a
  * controller that instead went looking for the commissionee from hanging the step.
  */
 export const REFUSAL_TIMEOUT = Seconds(15);
@@ -234,6 +240,9 @@ export async function recordParse(
     try {
         parsed = await cx.controllers.dut.parseQrPayload(payload);
     } catch (e) {
+        if (e instanceof UnsupportedByControllerError) {
+            throw e;
+        }
         cx.recorder.check({ type: "response", verdict: "fail", detail: `DUT could not parse the payload: ${e}` });
         throw e;
     }
@@ -641,6 +650,13 @@ export function recordGeneratedPayload(
 }
 
 /**
+ * What a step that hands the DUT a code naming no present device needs of it — {@link CommissioningRefusals.requireGiveUp},
+ * {@link recordDiscriminatorHonored}, {@link recordVendorOutcome}: a commissioner that gives up within the step's
+ * budget, so its give-up is what the step records.
+ */
+export const COMMISSIONING_GIVE_UP: readonly ControllerCapability[] = ["commissioning-give-up"];
+
+/**
  * The commissioning attempts a TC has told the DUT to refuse.
  *
  * A TC's `finalize` must {@link settle} this. An attempt outlives the check that judged it —
@@ -919,7 +935,7 @@ function describeTarget(target: CommissioningTarget): string {
 
 /**
  * Whether `error` is a controller refusing the onboarding payload rather than failing for some other
- * reason. Both adapters mark that refusal where it happens, because neither controller's own error
+ * reason. Every adapter marks that refusal where it happens, because no controller's own error
  * types distinguish it: chip-tool funnels discovery, PASE, attestation and command timeouts into one
  * command error, and matter.js raises `UnexpectedDataError` from the commissioning flow as well (an
  * invalid CSR response, for one). Either would let a commissioner that took a forbidden code and only
@@ -1013,6 +1029,9 @@ export async function recordManualParse(cx: CertStepContext, code: string, th = 
     try {
         parsed = await cx.controllers.dut.parseManualPairingCode(code);
     } catch (e) {
+        if (e instanceof UnsupportedByControllerError) {
+            throw e;
+        }
         cx.recorder.check({ type: "response", verdict: "fail", detail: `DUT could not parse ${code}: ${e}` });
         throw e;
     }
@@ -1098,13 +1117,14 @@ export async function chipToolDiscoveryGaveUp(log: LogFollower, from: number): P
  * Whether `error` is a commissioner giving up on a code it read successfully, which is what the
  * negative vendor and product plans mean by "the DUT terminates the commissioning process".
  *
- * The two controllers say it differently. In-process, a code no advertisement satisfies ends as a
+ * The controllers say it differently. In-process, a code no advertisement satisfies ends as a
  * {@link DiscoveryError}, or as a {@link DiscoveryAggregateError} where a candidate was tried and
  * failed — a manual code carries only the discriminator's 4 most significant bits, so one device in
  * sixteen on the network is a candidate the scanner hands on. chip-tool's output cannot separate one
  * command failure from another, so its give-up arrives as a {@link ChipToolCommandError}; on those legs
  * chip-tool's own log has to show the give-up ({@link chipToolDiscoveryGaveUp}), and the probe the
- * caller makes first excludes a TH that was not there.
+ * caller makes first excludes a TH that was not there. The matterjs-server adapter cannot bound a give-up
+ * (`commissioning-give-up`), so the steps that wait for one skip on it.
  *
  * An {@link OnboardingPayloadRefusedError} is the opposite outcome — the controller rejected the code
  * before it looked for anything, and these steps generate a well-formed one. It is not a subclass of
@@ -1126,7 +1146,7 @@ export function isCommissioningGiveUp(error: unknown): boolean {
  * and the plan accepts either outcome: terminating commissioning, or onboarding anyway with the user
  * aware of the risk.
  *
- * The two controllers genuinely differ. chip-tool matches a code's vendor and product id against the
+ * The controllers genuinely differ. chip-tool matches a code's vendor and product id against the
  * device it discovered (`SetUpCodePairer::NodeMatchesCurrentFilter`) and finds nothing; matter.js
  * filters its own discovery on the ids the code carries and finds nothing either. A fabric that
  * results is handed to `commissioned`, and the next attempt's restore takes it off the TH again.

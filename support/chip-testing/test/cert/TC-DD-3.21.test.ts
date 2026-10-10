@@ -13,6 +13,7 @@ import {
     COMMISSIONING_LOG_TIMEOUT,
     CommissioningRefusals,
     recordCommissionable,
+    COMMISSIONING_GIVE_UP,
     recordDiscriminatorHonored,
     recordParse,
     thQrPayload,
@@ -84,6 +85,9 @@ certTest("TC-DD-3.21", {
     plan: "devicediscovery.adoc",
     pics: ["MCORE.ROLE.COMMISSIONER", "MCORE.DD.QR_COMMISSIONING"],
     app: "all-clusters",
+
+    // The case's commissioning steps rest on step 0's discriminator probe, which needs a give-up
+    controllerCapabilities: COMMISSIONING_GIVE_UP,
 })
     .step(
         "0",

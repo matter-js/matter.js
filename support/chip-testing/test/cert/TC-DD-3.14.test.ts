@@ -14,6 +14,7 @@ import {
     qrPayloadWith,
     qrPayloadWithPrefix,
     recordDiscoveryCapabilityAbsent,
+    COMMISSIONING_GIVE_UP,
     recordDiscriminatorHonored,
     recordGeneratedPayload,
     recordParse,
@@ -34,6 +35,9 @@ certTest("TC-DD-3.14", {
     plan: "devicediscovery.adoc",
     pics: ["MCORE.ROLE.COMMISSIONER", "MCORE.DD.QR_COMMISSIONING"],
     app: "all-clusters",
+
+    // The case's commissioning steps rest on step 0's discriminator probe, which needs a give-up
+    controllerCapabilities: COMMISSIONING_GIVE_UP,
 })
     .step(
         "0",

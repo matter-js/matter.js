@@ -9,6 +9,12 @@ export interface PlainClientSubscribe extends Subscribe, ClientRequest {
      * If true the subscription is virtualized and the underlying subscription is reestablished when lost.
      */
     sustain?: false;
+
+    /**
+     * Set to true to skip the automatic data version injection to also include known data versions in the priming
+     * report.
+     */
+    includeKnownVersions?: boolean;
 }
 
 export interface SustainedClientSubscribe extends Subscribe, ClientRequest {
@@ -16,6 +22,13 @@ export interface SustainedClientSubscribe extends Subscribe, ClientRequest {
      * If true, the subscription is virtualized and the underlying subscription is reestablished when lost.
      */
     sustain: true;
+
+    /**
+     * Set to true to skip the automatic data version injection to also include known data versions in the priming
+     * report.  Applies to the initial request only; a sustained subscription injects known versions when it
+     * re-subscribes.
+     */
+    includeKnownVersions?: boolean;
 
     /**
      * If true, performs a read prior to establishing the subscription.

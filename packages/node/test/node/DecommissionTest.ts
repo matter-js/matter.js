@@ -642,7 +642,7 @@ describe("Decommission", () => {
         let delivering: Promise<void> | undefined;
         peer1.construction.change.on(status => {
             if (status === Lifecycle.Status.Inactive && delivering === undefined) {
-                delivering = emit(leave);
+                delivering = emit(leave, true);
             }
         });
 

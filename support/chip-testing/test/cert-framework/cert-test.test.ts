@@ -2343,6 +2343,20 @@ describe("CertTest", () => {
             expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
         });
 
+        it("does not count a read of the controller's build as an action", async () => {
+            const controller: ControllerAdapter = {
+                ...controllerWith(fakeCertNode({})),
+                build: { version: "1.2.3" },
+            };
+            const { endStepCalls, outcome } = await runStep(controller, async cx => {
+                expect(cx.controllers.dut.build).deep.equal({ version: "1.2.3" });
+                throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+            });
+
+            expect(outcome).undefined;
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
+        });
+
         it("still skips when the refused call is the step's only action, since a refusal sends nothing", async () => {
             const { endStepCalls, outcome } = await runStep(
                 fakeCertNode({
@@ -3703,6 +3717,94 @@ describe("CertTest", () => {
 
         const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
         expect(banners.some(line => line.includes("skipped as unsupported by the controller"))).equal(false);
+    });
+});
+
+describe("a step declaring controller capabilities", () => {
+    const originalController = env.MATTER_CERT_CONTROLLER;
+
+    afterEach(() => {
+        if (originalController === undefined) {
+            delete env.MATTER_CERT_CONTROLLER;
+        } else {
+            env.MATTER_CERT_CONTROLLER = originalController;
+        }
+    });
+
+    async function runGroupcastStep(controllers?: Record<string, "dut" | "helper">) {
+        let ran = false;
+        const ended = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
+        const skipCounts = new Array<number>();
+
+        const definition: CertTestDefinition = {
+            tc: "TC-SC-5.3",
+            plan: "group_communication.adoc",
+            pics: [],
+            app: "all-clusters",
+            controllers,
+            steps: [
+                {
+                    number: 1,
+                    text: "Step needing group messaging",
+                    controllerCapabilities: ["group-messaging"],
+                    run: async () => {
+                        ran = true;
+                    },
+                },
+                { number: 2, text: "Step needing nothing", run: async () => {} },
+            ],
+        };
+        const cx: CertStepWiring = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep(step, verdict, skipReason) {
+                    ended.push({ number: step.number, verdict, skipReason });
+                    return [];
+                },
+                recordControllerUnsupportedSkips(count) {
+                    skipCounts.push(count);
+                },
+            }),
+        };
+
+        await new TestCertTest(definition, stubDescriptor(), stubContainer(), cx).invoke(
+            stubSubject(new PicsFile([])),
+            () => {},
+            [],
+            false,
+        );
+        return { ran, ended, skipCounts };
+    }
+
+    it("is skipped before it runs where the DUT controller lacks one, and counted as the controller's gap", async () => {
+        env.MATTER_CERT_CONTROLLER = "matterjs-server";
+
+        const { ran, ended, skipCounts } = await runGroupcastStep();
+
+        expect(ran).equal(false);
+        expect(ended[0].verdict).equal("skipped");
+        expect(ended[0].skipReason).contains('controller "matterjs-server" lacks group-messaging');
+        expect(ended[1].verdict).equal("pass");
+        expect(skipCounts).deep.equal([1]);
+    });
+
+    it("runs where the controller has it", async () => {
+        env.MATTER_CERT_CONTROLLER = "matterjs";
+
+        const { ran, ended, skipCounts } = await runGroupcastStep();
+
+        expect(ran).equal(true);
+        expect(ended.map(({ verdict }) => verdict)).deep.equal(["pass", "pass"]);
+        expect(skipCounts).deep.equal([]);
+    });
+
+    it("is judged by the roles the test declares", async () => {
+        // A dut-only selection fills helper roles with matterjs, which lacks nothing
+        env.MATTER_CERT_CONTROLLER = "matterjs-server";
+
+        expect((await runGroupcastStep({ th: "helper" })).ran).equal(true);
+        expect((await runGroupcastStep({ dut: "dut", th: "helper" })).ran).equal(false);
     });
 });
 
