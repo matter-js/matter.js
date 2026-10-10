@@ -415,7 +415,7 @@ describe("Endpoint", () => {
             const holder = new Endpoint(OnOffLightDevice, { id: "holder", number: EndpointNumber(5) });
             node.parts.add(holder);
 
-            // The parent crashes before its part reaches initializeDescendant/assignNumber, so the part's preset
+            // The parent crashes before its part reserves a number, so the part's preset
             // number was never recorded as allocated to it.  A live tree refuses such a part on insertion, so the
             // tree is built before the node starts
             const parent = new Endpoint(OnOffLightDevice.with(FailingOnOffServer), {

@@ -654,7 +654,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             throw new ImplementationError('Endpoint ID may not include "."');
         }
 
-        if (this.lifecycle.isInstalled) {
+        if (this.#owner !== undefined) {
             this.#container.assertIdAvailable(id, this);
         }
 
@@ -731,7 +731,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      *
      *   - If the child is essential (@see {@link EndpointLifecycle#isEssential}), closes the child and rethrows
      *
-     *   - If the child is non-essential then logs the error but leaves the child installed.
+     *   - If the child is non-essential then logs the error but leaves the child in place.
      *
      * @param endpoint the {@link Endpoint} or {@link Endpoint.Configuration}
      */
@@ -1128,6 +1128,11 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             IndexBehavior.assertNumberAvailable(this, this.#number);
         }
 
+        // A node root (number 0) reserves in initialize(), once its own node environment provides the initializer
+        if (this.#number !== 0) {
+            this.env.get(EndpointInitializer).reserveDescendant(this);
+        }
+
         // We now consider the endpoint "installed"
         this.lifecycle.change(EndpointLifecycle.Change.Installed);
 
@@ -1388,7 +1393,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         const container = this.container;
 
         if (container === undefined) {
-            throw new ImplementationError(`No container for installed endpoint ${this}`);
+            throw new ImplementationError(`No container for endpoint ${this}, which has an owner`);
         }
 
         return container;

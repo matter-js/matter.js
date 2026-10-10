@@ -135,6 +135,10 @@ class NodeObserver {
     #observers = new ObserverGroup();
     #constructions = new Map<Endpoint, ObserverGroup>();
 
+    // Admission is captured when destruction starts, before the index drops the endpoint
+    #admitted = new WeakSet<Endpoint>();
+    #nodeDestroying = false;
+
     constructor(node: Node, emit: (change: ChangeNotificationService.Change) => void, onClosed: () => void) {
         this.#node = node;
         this.#emit = emit;
@@ -156,14 +160,39 @@ class NodeObserver {
         this.#constructions.clear();
     }
 
+    #captureAdmission(endpoint: Endpoint) {
+        if (this.#nodeDestroying) {
+            return;
+        }
+
+        if (endpoint === this.#node) {
+            this.#nodeDestroying = true;
+            for (const admitted of this.#node.endpoints) {
+                this.#admitted.add(admitted);
+            }
+            return;
+        }
+
+        if (this.#node.endpoints.has(endpoint)) {
+            this.#admitted.add(endpoint);
+        }
+    }
+
     #lifecycleChanged(type: EndpointLifecycle.Change, endpoint: Endpoint) {
         switch (type) {
             case EndpointLifecycle.Change.Installed:
                 this.#observeConstruction(endpoint);
                 break;
 
+            case EndpointLifecycle.Change.Destroying:
+                this.#captureAdmission(endpoint);
+                break;
+
             case EndpointLifecycle.Change.Destroyed:
-                if (endpoint.maybeNumber !== undefined) {
+                if (
+                    endpoint.maybeNumber !== undefined &&
+                    (endpoint === this.#node || this.#admitted.delete(endpoint))
+                ) {
                     this.#emit({ kind: "delete", endpoint });
                 }
                 if (endpoint === this.#node) {

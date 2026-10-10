@@ -239,8 +239,9 @@ export class DescriptorServer extends DescriptorBehavior {
                 numbers.splice(pos, 1);
             }
         } else if (endpoint.hasParts) {
-            // No IndexBehavior, just direct descendents
+            // Direct descendants only, limited to those the node's index admitted
             numbers = [...endpoint.parts]
+                .filter(part => IndexBehavior.isIndexed(part))
                 .map(endpoint => endpoint.maybeNumber)
                 .filter((n): n is EndpointNumber => n !== undefined);
         } else {

@@ -75,6 +75,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: `parts.delete()` and `parts.clear()`, also on `agent.parts`, throw `ImplementationError`; remove an endpoint with its `close()` or `delete()`
     - Breaking: Adding an endpoint with the number of an erased endpoint that is still a part of its parent is refused
     - Breaking: An essential endpoint whose initialization fails in `add()` is closed instead of reset, so the same instance cannot be added again
+    - Breaking: The `IdAssigned` and `NumberAssigned` lifecycle changes of a part of a server node now come before its `Installed`
     - Deprecation: `ClientNodeInteraction.localStateFor()` will be removed in 0.19
     - Feature: Finalized the `ClientNode` API for controllers: `ServerNode.peers.commissioned`, `ClientNode.disable()`/`enable()`, connection state, split commissioning, opening commissioning windows on peers and more; see [Controller migration guide](docs/MIGRATION_CONTROLLER_018.md)
     - Feature: Groupcast cluster (`GroupcastServer`) and AccessControl `Auxiliary` feature; group commands via `ClientGroup` endpoints and group bindings
@@ -155,6 +156,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `RemoteServer` declares `certificate` and `key` as PEM strings
     - Fix: Adding an endpoint below one of its own descendants fails with `ImplementationError` instead of creating a cycle
     - Fix: An endpoint created with `ClientNodeEndpoints.require()` on a running `ClientNode` is reused when the peer later reports that endpoint
+    - Fix: Newly allocated endpoint numbers skip the preset numbers of endpoints of the node that are not installed
+    - Fix: An endpoint refused for its number is not listed in `PartsList` and is not reported as deleted
+    - Fix: New endpoint numbers continue after the last assigned or preset number and wrap to 1 after 0xFFFE instead of assigning 0xFFFF
+    - Fix: Deleting or erasing an endpoint frees the stored numbers of its whole subtree
+    - Fix: A preset endpoint number held by a stored endpoint that is not installed is taken over with a warning
 
 - @matter/nodejs
     - Breaking: `FileStorageDriver`'s constructor no longer accepts a `clear` argument

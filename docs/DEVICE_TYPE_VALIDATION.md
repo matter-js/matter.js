@@ -172,6 +172,6 @@ matter.js does not recognize is reported as an `unknownCondition` violation wher
 - A construction is refused after the endpoint's `ready` and `partsReady` lifecycle events. Listeners of these
   events may already have run for an endpoint that is then refused, such as the node initialization of
   `CommissioningServer` or application logic started from `partsReady`.
-- A refused essential endpoint is rolled back, but its number stays listed in its ancestors' `PartsList`s and stays
-  allocated, so a retry with the same ID gets a different number. A refused non-essential endpoint is not rolled back;
-  it stays in its parent, crashed.
+- A refused essential endpoint is closed. It leaves its ancestors' `PartsList`s and keeps its number reserved, so a
+  retry with the same ID gets the same number. A refused non-essential endpoint is not rolled back; it stays in its
+  parent, crashed.

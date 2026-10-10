@@ -32,8 +32,15 @@ export class ServerEndpointStore extends EndpointStore {
         }
     }
 
-    constructor(storage: StorageContext) {
+    /**
+     * ID path of the endpoint below its node root; empty for the root.
+     */
+    readonly path: string;
+
+    constructor(storage: StorageContext, path = "") {
         super(storage);
+
+        this.path = path;
 
         this.#childStorage = storage.createContext("parts");
     }
@@ -63,16 +70,30 @@ export class ServerEndpointStore extends EndpointStore {
         return this.storeForPartId(endpoint.id);
     }
 
+    /**
+     * The store of the part with ID {@link partId} if it exists, without creating one.
+     */
+    existingChildStore(partId: string): ServerEndpointStore | undefined {
+        return this.#childStores[partId];
+    }
+
     protected storeForPartId(partId: string) {
         let store = this.#childStores[partId];
         if (store === undefined) {
-            store = this.#childStores[partId] = new ServerEndpointStore(this.#childStorage.createContext(partId));
+            store = this.#childStores[partId] = new ServerEndpointStore(
+                this.#childStorage.createContext(partId),
+                this.#childPath(partId),
+            );
         }
 
         return store;
     }
 
     async saveNumber() {
+        if (this.number === undefined) {
+            await this.storage.delete(NUMBER_KEY);
+            return;
+        }
         await this.storage.set(NUMBER_KEY, this.number);
     }
 
@@ -100,6 +121,10 @@ export class ServerEndpointStore extends EndpointStore {
         delete this.#childStores[partId];
     }
 
+    #childPath(partId: string) {
+        return this.path === "" ? partId : `${this.path}.${partId}`;
+    }
+
     async #loadSubparts() {
         const knownParts = await this.#childStorage.contexts();
         for (const partId of knownParts) {
@@ -108,7 +133,10 @@ export class ServerEndpointStore extends EndpointStore {
     }
 
     async #loadKnownChildStores(partId: string) {
-        const endpointStore = new ServerEndpointStore(this.#childStorage.createContext(partId));
+        const endpointStore = new ServerEndpointStore(
+            this.#childStorage.createContext(partId),
+            this.#childPath(partId),
+        );
         this.#childStores[partId] = endpointStore;
         await endpointStore.load();
     }

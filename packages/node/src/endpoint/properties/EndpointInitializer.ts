@@ -16,6 +16,15 @@ import type { Endpoint } from "../Endpoint.js";
  */
 export abstract class EndpointInitializer {
     /**
+     * Assign the ID and number of an {@link Endpoint} below a node root before the endpoint installs.  A node root
+     * reserves during its own initialization instead.  An implementation may run it again for an endpoint that already
+     * holds both, which must leave the endpoint unchanged.
+     *
+     * @internal
+     */
+    reserveDescendant(_endpoint: Endpoint) {}
+
+    /**
      * Initialize a {@link Endpoint}.
      */
     initializeDescendant(_endpoint: Endpoint) {}
@@ -26,7 +35,7 @@ export abstract class EndpointInitializer {
     abstract eraseDescendant(_endpoint: Endpoint): Promise<void>;
 
     /**
-     * Deactivate the storage for a {@link Endpoint}. This mainly manages internal state to deactivate the endpoint number assignment
+     * Invoked when a {@link Endpoint} closes; its storage and number reservation stay
      */
     abstract deactivateDescendant(_endpoint: Endpoint): Promise<void>;
 

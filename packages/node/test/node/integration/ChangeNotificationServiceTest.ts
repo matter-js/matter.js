@@ -101,6 +101,21 @@ describe("ChangeNotificationService", () => {
         expect(recorded.endpointsOf("delete")).contains(peer);
     });
 
+    // Characterization
+    it("reports the deletion of a restored peer's endpoints", async () => {
+        await using site = new MockSite();
+        const { peer, recorded } = await controllerWithRestoredPeer(site);
+        const parts = [...peer.parts];
+        expect(parts.length).greaterThan(0);
+
+        await MockTime.resolve(peer.delete());
+
+        const deleted = recorded.endpointsOf("delete");
+        for (const part of parts) {
+            expect(deleted).contains(part);
+        }
+    });
+
     it("reports no deletion while a controller with peers closes", async () => {
         await using site = new MockSite();
         const { rebooted, recorded } = await controllerWithRestoredPeer(site);

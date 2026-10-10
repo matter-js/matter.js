@@ -38,7 +38,7 @@ export class Endpoints implements ImmutableSet<Endpoint> {
             return endpoint in this.#idIndex;
         }
 
-        return endpoint.lifecycle.hasNumber && endpoint.number in this.#index;
+        return endpoint.lifecycle.hasNumber && this.#index[endpoint.number] === endpoint;
     }
 
     get size(): number {

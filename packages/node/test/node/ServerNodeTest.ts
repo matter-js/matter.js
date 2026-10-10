@@ -17,7 +17,7 @@ import { LightSensorDevice } from "#devices/light-sensor";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { PumpDevice } from "#devices/pump";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { EndpointBehaviorsError, EndpointPartsError } from "#endpoint/errors.js";
+import { EndpointBehaviorsError, EndpointPartsError, IdentityConflictError } from "#endpoint/errors.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { LocalActorContext } from "#index.js";
@@ -43,7 +43,10 @@ import {
     InternalError,
     Lifecycle,
     isObject,
+    LogDestination,
     LogFormat,
+    Logger,
+    LogLevel,
     MemoryBlobStorageDriver,
     MemoryStorageDriver,
     MdnsSocket,
@@ -169,9 +172,9 @@ describe("ServerNode", () => {
             expect(changes).deep.equals([
                 ["ready", "node0"],
                 ["ready"],
-                ["installed", "node0.?"],
                 ["idAssigned", "node0.part0"],
                 ["numberAssigned", "node0.part0"],
+                ["installed", "node0.part0"],
                 ["ready", "node0.part0"],
                 ["partsReady", "node0.part0"],
                 ["partsReady", "node0"],
@@ -199,9 +202,9 @@ describe("ServerNode", () => {
                 ["ready"],
                 ["partsReady", "node0"],
                 ["partsReady"],
-                ["installed", "node0.?"],
                 ["idAssigned", "node0.part0"],
                 ["numberAssigned", "node0.part0"],
+                ["installed", "node0.part0"],
                 ["ready", "node0.part0"],
                 ["partsReady", "node0.part0"],
                 ["online"],
@@ -228,9 +231,9 @@ describe("ServerNode", () => {
                 ["partsReady", "node0"],
                 ["partsReady"],
                 ["online"],
-                ["installed", "node0.?"],
                 ["idAssigned", "node0.part0"],
                 ["numberAssigned", "node0.part0"],
+                ["installed", "node0.part0"],
                 ["ready", "node0.part0"],
                 ["partsReady", "node0.part0"],
                 ["offline"],
@@ -853,7 +856,7 @@ describe("ServerNode", () => {
         await node.add(new Endpoint(OnOffLightDevice, { id: "second", number: EndpointNumber(2) }));
         await node.close();
 
-        // Only the first endpoint is present this session, so the second's number is held as pre-allocated
+        // Only the first endpoint is present this session, so the second's number stays held by its stored endpoint
         const rebooted = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
         await rebooted.add(new Endpoint(OnOffLightDevice, { id: "first" }));
 
@@ -863,6 +866,336 @@ describe("ServerNode", () => {
         await rebooted.add(added);
 
         expect(added.number).equals(2);
+    });
+
+    describe("a preset number a stored endpoint holds", () => {
+        async function storeHolder(site: MockSite, id: string) {
+            const node = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+            const holder = await node.add(new Endpoint(OnOffLightDevice, { id: "holder" }));
+            const storedNumber = holder.number;
+            await node.close();
+            return storedNumber;
+        }
+
+        // Characterization
+        it("goes to the preset endpoint when it constructs before the stored endpoint", async () => {
+            await using site = new MockSite();
+            const id = "storedNumbers";
+            const storedNumber = await storeHolder(site, id);
+
+            const claimant = new Endpoint(OnOffLightDevice, { id: "claimant", number: storedNumber });
+            const holder = new Endpoint(OnOffLightDevice, { id: "holder" });
+            await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+                parts: [claimant, holder],
+            });
+
+            expect(claimant.number).equals(storedNumber);
+            expect(holder.number).not.equals(storedNumber);
+        });
+
+        // Characterization
+        it("is refused when the stored endpoint is installed first", async () => {
+            await using site = new MockSite();
+            const id = "storedNumbers";
+            const storedNumber = await storeHolder(site, id);
+
+            const holder = new Endpoint(OnOffLightDevice, { id: "holder" });
+            const claimant = new Endpoint(OnOffLightDevice, {
+                id: "claimant",
+                number: storedNumber,
+                isEssential: false,
+            });
+            await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+                parts: [holder, claimant],
+            });
+
+            expect(holder.number).equals(storedNumber);
+            expect(claimant.construction.error).instanceOf(IdentityConflictError);
+        });
+
+        // Characterization
+        it("ignores a stored number outside the range of a part", async () => {
+            await using site = new MockSite();
+            const id = "storedNumbers";
+            await storeHolder(site, id);
+            const storage = site.storageFor(id);
+            const holderContext = Object.keys(storage).find(key => key.endsWith(".parts.holder"));
+            storage[holderContext!].__number__ = 0;
+
+            const restarted = await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+            });
+            const holder = await restarted.add(new Endpoint(OnOffLightDevice, { id: "holder" }));
+
+            expect(holder.number).equals(2);
+        });
+
+        it("starts over from 1 when the next number in storage is corrupt", async () => {
+            await using site = new MockSite();
+            const id = "storedNumbers";
+            await storeHolder(site, id);
+            const storage = site.storageFor(id);
+            const rootContext = Object.keys(storage).find(key => "__nextNumber__" in storage[key]);
+            storage[rootContext!].__nextNumber__ = "corrupt";
+
+            const restarted = await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+            });
+            const added = await restarted.add(new Endpoint(OnOffLightDevice, { id: "added" }));
+
+            expect(added.number).equals(2);
+        });
+
+        it("is taken over when the stored endpoint is not part of the node", async () => {
+            await using site = new MockSite();
+            const id = "storedNumbers";
+            const storedNumber = await storeHolder(site, id);
+
+            const warnings = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                format: LogFormat.formats.plain,
+                write(text, message) {
+                    if (message.level === LogLevel.WARN) {
+                        warnings.push(text);
+                    }
+                },
+            });
+            let claimant, holder;
+            try {
+                const rebooted = await site.addNode(undefined, {
+                    id,
+                    device: undefined,
+                    commissioning: { enabled: false },
+                });
+                claimant = await rebooted.add(new Endpoint(OnOffLightDevice, { id: "claimant", number: storedNumber }));
+                holder = await rebooted.add(new Endpoint(OnOffLightDevice, { id: "holder" }));
+            } finally {
+                delete Logger.destinations.capture;
+            }
+
+            expect(claimant.number).equals(storedNumber);
+            expect(holder.number).not.equals(storedNumber);
+            expect(warnings.join("\n")).contains(`takes endpoint number ${storedNumber} from stored endpoint holder`);
+        });
+
+        // Characterization
+        it("is taken over from an endpoint closed in the same run", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const closed = await node.add(OnOffLightDevice, { id: "closed" });
+            const number = closed.number;
+            await closed.close();
+
+            const claimant = await node.add(OnOffLightDevice, { id: "claimant", number });
+            const returned = await node.add(OnOffLightDevice, { id: "closed" });
+
+            expect(claimant.number).equals(number);
+            expect(returned.number).not.equals(number);
+        });
+
+        it("clears the stored number of the endpoint it took over", async () => {
+            await using site = new MockSite();
+            const id = "storedNumbers";
+            const storedNumber = await storeHolder(site, id);
+
+            const rebooted = await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+            });
+            await rebooted.add(new Endpoint(OnOffLightDevice, { id: "claimant", number: storedNumber }));
+            await rebooted.close();
+
+            const restarted = await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+            });
+            const holder = await restarted.add(new Endpoint(OnOffLightDevice, { id: "holder" }));
+            const claimant = await restarted.add(
+                new Endpoint(OnOffLightDevice, { id: "claimant", number: storedNumber }),
+            );
+
+            expect(holder.number).not.equals(storedNumber);
+            expect(claimant.number).equals(storedNumber);
+        });
+
+        // Characterization; guards that a store gives up its previous number
+        it("keeps both numbers across a restart when a returning endpoint changes its preset", async () => {
+            for (const order of ["claimant first", "holder first"]) {
+                await using site = new MockSite();
+                const id = "storedNumbers";
+                const storedNumber = await storeHolder(site, id);
+
+                const parts = () => {
+                    const claimant = new Endpoint(OnOffLightDevice, { id: "claimant", number: storedNumber });
+                    const holder = new Endpoint(OnOffLightDevice, { id: "holder", number: storedNumber + 10 });
+                    return {
+                        claimant,
+                        holder,
+                        list: order === "claimant first" ? [claimant, holder] : [holder, claimant],
+                    };
+                };
+
+                const warnings = new Array<string>();
+                Logger.destinations.capture = LogDestination({
+                    format: LogFormat.formats.plain,
+                    write(text, message) {
+                        if (message.level === LogLevel.WARN) {
+                            warnings.push(text);
+                        }
+                    },
+                });
+                try {
+                    const first = parts();
+                    const node = await site.addNode(undefined, {
+                        id,
+                        device: undefined,
+                        commissioning: { enabled: false },
+                        parts: first.list,
+                    });
+                    await node.close();
+                } finally {
+                    delete Logger.destinations.capture;
+                }
+                if (order === "holder first") {
+                    expect(warnings.join("\n"), order).not.contains("takes endpoint number");
+                }
+
+                const second = parts();
+                await site.addNode(undefined, {
+                    id,
+                    device: undefined,
+                    commissioning: { enabled: false },
+                    parts: second.list,
+                });
+
+                expect(second.claimant.number, order).equals(storedNumber);
+                expect(second.holder.number, order).equals(storedNumber + 10);
+            }
+        });
+
+        // Characterization
+        it("gives a number two stored endpoints record to the first that returns", async () => {
+            for (const first of ["holder", "twin"]) {
+                await using site = new MockSite();
+                const id = "storedNumbers";
+                const storedNumber = await storeHolder(site, id);
+                const storage = site.storageFor(id);
+                const holderContext = Object.keys(storage).find(key => key.endsWith(".parts.holder"));
+                expect(holderContext).not.undefined;
+                storage[holderContext!.replace(/holder$/, "twin")] = { ...storage[holderContext!] };
+
+                const restarted = await site.addNode(undefined, {
+                    id,
+                    device: undefined,
+                    commissioning: { enabled: false },
+                });
+                const second = first === "holder" ? "twin" : "holder";
+                const winner = await restarted.add(new Endpoint(OnOffLightDevice, { id: first }));
+                const loser = await restarted.add(new Endpoint(OnOffLightDevice, { id: second }));
+
+                expect(winner.number, first).equals(storedNumber);
+                expect(loser.number, first).not.equals(storedNumber);
+            }
+        });
+    });
+
+    // Characterization; guards the release of the subtree's numbers on erase
+    it("frees the numbers of a deleted subtree", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const aggregator = await node.add(AggregatorEndpoint, {
+            id: "aggregator",
+            parts: [{ type: OnOffLightDevice, id: "child" }],
+        });
+        const childNumber = aggregator.parts.require("child").number;
+
+        await aggregator.delete();
+
+        const warnings = new Array<string>();
+        Logger.destinations.capture = LogDestination({
+            format: LogFormat.formats.plain,
+            write(text, message) {
+                if (message.level === LogLevel.WARN) {
+                    warnings.push(text);
+                }
+            },
+        });
+        let reused;
+        try {
+            reused = await node.add(OnOffLightDevice, { id: "reused", number: childNumber });
+        } finally {
+            delete Logger.destinations.capture;
+        }
+
+        expect(reused.number).equals(childNumber);
+        expect(warnings.join("\n")).not.match(/takes (endpoint )?number/);
+    });
+
+    it("continues new endpoint numbers after the highest preset number", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+        await node.add(OnOffLightDevice, { id: "preset", number: 10 });
+
+        const automatic = await node.add(OnOffLightDevice, { id: "automatic" });
+
+        expect(automatic.number).equals(11);
+    });
+
+    it("wraps new endpoint numbers to the lowest free number", async () => {
+        await using site = new MockSite();
+        const id = "wrapping";
+        const node = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+        const first = await node.add(new Endpoint(OnOffLightDevice, { id: "first" }));
+        expect(first.number).equals(1);
+        await node.close();
+
+        const storage = site.storageFor(id);
+        const rootContext = Object.keys(storage).find(key => "__nextNumber__" in storage[key]);
+        expect(rootContext).not.undefined;
+        storage[rootContext!].__nextNumber__ = 0xfffe;
+
+        const restarted = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+        await restarted.add(new Endpoint(OnOffLightDevice, { id: "first" }));
+        const last = await restarted.add(new Endpoint(OnOffLightDevice, { id: "last" }));
+        const wrapped = await restarted.add(new Endpoint(OnOffLightDevice, { id: "wrapped" }));
+        await wrapped.delete();
+        const next = await restarted.add(new Endpoint(OnOffLightDevice, { id: "next" }));
+
+        expect(last.number).equals(0xfffe);
+        expect(wrapped.number).equals(2);
+        expect(next.number).equals(3);
+    });
+
+    it("keeps the holder's number when a refused endpoint is erased", async () => {
+        await using node = new MockServerNode();
+        const holder = new Endpoint(OnOffLightDevice, { id: "holder", number: EndpointNumber(4) });
+        const refused = new Endpoint(OnOffLightDevice, {
+            id: "refused",
+            number: EndpointNumber(4),
+            isEssential: false,
+        });
+        node.parts.add(holder);
+        node.parts.add(refused);
+        await node.start();
+        expect(refused.construction.error).instanceOf(IdentityConflictError);
+
+        await refused.erase();
+
+        const added = new Array<number>();
+        for (let i = 0; i < 4; i++) {
+            added.push((await node.add(OnOffLightDevice)).number);
+        }
+        expect(added).not.contains(4);
+        expect(node.endpoints.for(4)).equals(holder);
     });
 
     it("erases the persisted store of a part that crashes before number assignment", async () => {

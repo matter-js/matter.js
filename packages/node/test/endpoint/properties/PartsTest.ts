@@ -149,8 +149,8 @@ describe("Parts", () => {
         await grandchild.construction;
 
         expect(bubbled).deep.equals([
-            EndpointLifecycle.Change.Installed,
             EndpointLifecycle.Change.IdAssigned,
+            EndpointLifecycle.Change.Installed,
             EndpointLifecycle.Change.Ready,
             EndpointLifecycle.Change.PartsReady,
         ]);
