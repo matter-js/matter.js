@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "@matter/main";
 import {
     certTest,
     createRegisteredCertTest,
@@ -11,15 +12,26 @@ import {
     identityFor,
     LogFollower,
     PicsFile,
+    registerControllerAdapterFactory,
+    resetControllerAdapterFactoryForTesting,
     registerMatterJsCertSubject,
     subjectFactoryFor,
+    unmetControllerCapabilities,
 } from "@matter/testing";
-import type { CertDevice, CertDeviceFactory, DeviceExitInfo } from "@matter/testing";
+import type {
+    CertDevice,
+    CertDeviceFactory,
+    ControllerAdapter,
+    ControllerCapability,
+    ControllerCapabilityGaps,
+    DeviceExitInfo,
+} from "@matter/testing";
 import { expect } from "chai";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { env } from "node:process";
+import { registerCertControllerAdapter } from "../../src/cert/index.js";
 
 describe("certTest step declaration guard", () => {
     it("rejects an empty flavors list at declaration time", () => {
@@ -420,7 +432,7 @@ describe("multi-device wiring", () => {
 
         const descriptor = registered[0]?.descriptor;
         if (!descriptor) {
-            throw new Error(`certTest("${tc}") did not register a descriptor`);
+            throw new InternalError(`certTest("${tc}") did not register a descriptor`);
         }
 
         // The real harness reads this from the environment (`cert-dsl.ts`'s `evidenceOutDir`); a temp
@@ -440,7 +452,7 @@ describe("multi-device wiring", () => {
             const entries = await readdir(outDir);
             const runDir = entries.find(name => name.endsWith(`-${tc}`));
             if (!runDir) {
-                throw new Error(`No evidence directory found for ${tc} under ${outDir}`);
+                throw new InternalError(`No evidence directory found for ${tc} under ${outDir}`);
             }
             const result = JSON.parse(await readFile(join(outDir, runDir, "result.json"), "utf-8"));
 
@@ -459,3 +471,449 @@ describe("multi-device wiring", () => {
         }
     });
 });
+
+describe("certTest under a dut-only controller", () => {
+    /** Runs `body` with the mocha registration functions stubbed; returns the titles `it` / `it.skip` received. */
+    function collect(body: () => void) {
+        const originalDescribe = Reflect.get(globalThis, "describe");
+        const originalIt = Reflect.get(globalThis, "it");
+        const pending = new Array<string>();
+        const active = new Array<{ descriptor?: Parameters<typeof createRegisteredCertTest>[0] }>();
+        const fakeIt = (_name: string, _fn: () => void) => {
+            const fakeTest: { descriptor?: Parameters<typeof createRegisteredCertTest>[0] } = {};
+            active.push(fakeTest);
+            return fakeTest;
+        };
+        fakeIt.skip = (name: string) => {
+            pending.push(name);
+        };
+        Reflect.set(globalThis, "describe", (_name: string, run: () => void) => run());
+        Reflect.set(globalThis, "it", fakeIt);
+        try {
+            body();
+        } finally {
+            Reflect.set(globalThis, "describe", originalDescribe);
+            Reflect.set(globalThis, "it", originalIt);
+        }
+        return { pending, active };
+    }
+
+    function withController<T>(selection: string, fn: () => T) {
+        const original = env.MATTER_CERT_CONTROLLER;
+        env.MATTER_CERT_CONTROLLER = selection;
+        try {
+            return fn();
+        } finally {
+            if (original === undefined) {
+                delete env.MATTER_CERT_CONTROLLER;
+            } else {
+                env.MATTER_CERT_CONTROLLER = original;
+            }
+        }
+    }
+
+    function deviceDutCase(tc: string) {
+        certTest(tc, {
+            plan: "n/a",
+            pics: [],
+            app: "all-clusters",
+            controllers: { th: "helper" },
+            devices: { dut: "all-clusters" },
+        });
+    }
+
+    it("skips a device-DUT case under a dut-only controller", () => {
+        resetControllerAdapterFactoryForTesting("matterjs-server");
+        registerControllerAdapterFactory("matterjs-server", id => fakeAdapter(id), undefined, "dut-only");
+        try {
+            const { pending, active } = withController("matterjs-server", () =>
+                collect(() => deviceDutCase("TC-DUT-ONLY-SKIP-0.0")),
+            );
+
+            expect(pending).to.have.lengthOf(1);
+            expect(pending[0]).to.contain("DUT is a device");
+            expect(active).to.have.lengthOf(0);
+
+            const underMatterJs = withController("matterjs", () =>
+                collect(() => deviceDutCase("TC-DUT-ONLY-SKIP-0.1")),
+            );
+            expect(underMatterJs.pending).to.have.lengthOf(0);
+            expect(underMatterJs.active).to.have.lengthOf(1);
+        } finally {
+            resetControllerAdapterFactoryForTesting("matterjs-server");
+            registerCertControllerAdapter("matterjs-server");
+        }
+    });
+
+    it("skips a case before any device starts where its DUT controller lacks a capability it declares", () => {
+        const declare = (tc: string) =>
+            certTest(tc, {
+                plan: "n/a",
+                pics: [],
+                app: "all-clusters",
+                controllerCapabilities: ["group-messaging"],
+            });
+
+        const underServer = withController("matterjs-server", () => collect(() => declare("TC-CAPABILITY-SKIP-0.0")));
+        expect(underServer.pending).to.have.lengthOf(1);
+        expect(underServer.pending[0]).to.contain('controller "matterjs-server" lacks group-messaging');
+        expect(underServer.active).to.have.lengthOf(0);
+
+        const underMatterJs = withController("matterjs", () => collect(() => declare("TC-CAPABILITY-SKIP-0.1")));
+        expect(underMatterJs.pending).to.have.lengthOf(0);
+        expect(underMatterJs.active).to.have.lengthOf(1);
+    });
+
+    it("skips a TCP case where the controller filling its helper role cannot establish a TCP session", () => {
+        const declare = (tc: string) =>
+            certTest(tc, {
+                plan: "n/a",
+                pics: [],
+                app: "all-clusters",
+                controllers: { th: "helper" },
+                devices: { dut: "all-clusters" },
+                transport: "tcp",
+            });
+
+        const underChipTool = withController("chip-tool", () => collect(() => declare("TC-CAPABILITY-SKIP-1.0")));
+        expect(underChipTool.pending).to.have.lengthOf(1);
+        expect(underChipTool.pending[0]).to.contain('controller "chip-tool" lacks tcp-transport');
+
+        const underMatterJs = withController("matterjs", () => collect(() => declare("TC-CAPABILITY-SKIP-1.1")));
+        expect(underMatterJs.active).to.have.lengthOf(1);
+    });
+
+    it("finds what a test's controllers lack from its declaration and its transport", () => {
+        withController("matterjs-server", () => {
+            expect(unmetControllerCapabilities({ transport: "tcp" })).to.contain("lacks tcp-transport");
+            expect(unmetControllerCapabilities({ controllerCapabilities: ["data-versions"] })).to.contain(
+                "lacks data-versions",
+            );
+            expect(unmetControllerCapabilities({ transport: "tcp", controllers: { th: "helper" } })).equal(undefined);
+            expect(unmetControllerCapabilities({})).equal(undefined);
+        });
+    });
+
+    it("builds helper roles from matterjs and records that in the evidence", async () => {
+        const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+        const app = `dut-only-primary-${suffix}`;
+        const tc = `TC-DUT-ONLY-RUN-${suffix}`;
+        registerMatterJsCertSubject(app, fakeMatterJsCertDevice(app));
+
+        const built = new Array<string>();
+        resetControllerAdapterFactoryForTesting("matterjs");
+        resetControllerAdapterFactoryForTesting("matterjs-server");
+        registerControllerAdapterFactory("matterjs", id => {
+            built.push(`matterjs:${id}`);
+            return fakeAdapter(id);
+        });
+        registerControllerAdapterFactory(
+            "matterjs-server",
+            id => {
+                built.push(`matterjs-server:${id}`);
+                return { ...fakeAdapter(id), build: { entry: "fake-entry", sdkVersion: "1.2.3" } };
+            },
+            undefined,
+            "dut-only",
+        );
+
+        const outDir = await mkdtemp(join(tmpdir(), "cert-dsl-dut-only-"));
+        const originalEvidenceDir = env.MATTER_CERT_EVIDENCE_DIR;
+        const originalController = env.MATTER_CERT_CONTROLLER;
+        try {
+            env.MATTER_CERT_EVIDENCE_DIR = outDir;
+            const { active } = withController("matterjs-server", () =>
+                collect(() => {
+                    certTest(tc, {
+                        plan: "n/a",
+                        pics: [],
+                        app,
+                        controllers: { dut: "dut", th: "helper" },
+                    }).step(1, "Nothing to do", async () => {});
+                }),
+            );
+            const descriptor = active[0]?.descriptor;
+            if (!descriptor) {
+                throw new InternalError(`certTest("${tc}") did not register a descriptor`);
+            }
+
+            env.MATTER_CERT_CONTROLLER = "matterjs-server";
+            await createRegisteredCertTest(descriptor).invoke(fakeMatterJsCertDevice(app)("cert"), () => {}, [], false);
+
+            const runDir = (await readdir(outDir)).find(name => name.endsWith(`-${tc}`));
+            if (!runDir) {
+                throw new InternalError(`No evidence directory found for ${tc}`);
+            }
+            const result = JSON.parse(await readFile(join(outDir, runDir, "result.json"), "utf-8"));
+
+            expect(result.run.controllerImplementation).equal("matterjs-server");
+            expect(result.run.helperControllerImplementation).equal("matterjs");
+            expect(result.run.controllerBuild).deep.equal({ entry: "fake-entry", sdkVersion: "1.2.3" });
+            expect(built).deep.equal(["matterjs-server:dut", "matterjs:th"]);
+        } finally {
+            resetControllerAdapterFactoryForTesting("matterjs-server");
+            registerCertControllerAdapter("matterjs-server");
+            resetControllerAdapterFactoryForTesting("matterjs");
+            registerCertControllerAdapter("matterjs");
+            if (originalController === undefined) {
+                delete env.MATTER_CERT_CONTROLLER;
+            } else {
+                env.MATTER_CERT_CONTROLLER = originalController;
+            }
+            if (originalEvidenceDir === undefined) {
+                delete env.MATTER_CERT_EVIDENCE_DIR;
+            } else {
+                env.MATTER_CERT_EVIDENCE_DIR = originalEvidenceDir;
+            }
+            await rm(outDir, { recursive: true, force: true });
+        }
+    });
+
+    /**
+     * Registers `matterjs` and a dut-only `matterjs-server` with the given capability gaps for the duration of `body`,
+     * and restores the production registrations afterwards.
+     */
+    async function withFakeControllers<T>(
+        gaps: { matterjs?: ControllerCapabilityGaps; server?: ControllerCapabilityGaps },
+        body: () => Promise<T>,
+    ) {
+        resetControllerAdapterFactoryForTesting("matterjs");
+        resetControllerAdapterFactoryForTesting("matterjs-server");
+        registerControllerAdapterFactory("matterjs", id => fakeAdapter(id), undefined, "all-roles", gaps.matterjs);
+        registerControllerAdapterFactory("matterjs-server", id => fakeAdapter(id), undefined, "dut-only", gaps.server);
+        try {
+            return await body();
+        } finally {
+            resetControllerAdapterFactoryForTesting("matterjs-server");
+            registerCertControllerAdapter("matterjs-server");
+            resetControllerAdapterFactoryForTesting("matterjs");
+            registerCertControllerAdapter("matterjs");
+        }
+    }
+
+    /** Declares `tc` under `declaredWith`, runs it under `runWith` and returns the evidence record it wrote. */
+    async function runCase(
+        tc: string,
+        options: Omit<Parameters<typeof certTest>[1], "plan" | "pics" | "app">,
+        steps: { caps?: ControllerCapability[] }[],
+        selection: { declaredWith: string; runWith?: string },
+    ) {
+        const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+        const app = `roles-app-${suffix}`;
+        registerMatterJsCertSubject(app, fakeMatterJsCertDevice(app));
+
+        const outDir = await mkdtemp(join(tmpdir(), "cert-dsl-roles-"));
+        const originalEvidenceDir = env.MATTER_CERT_EVIDENCE_DIR;
+        const originalController = env.MATTER_CERT_CONTROLLER;
+        try {
+            env.MATTER_CERT_EVIDENCE_DIR = outDir;
+            const { active } = withController(selection.declaredWith, () =>
+                collect(() => {
+                    const builder = certTest(tc, { plan: "n/a", pics: [], app, ...options });
+                    steps.forEach(({ caps }, index) =>
+                        builder.step(index + 1, `Step ${index + 1}`, async () => {}, {
+                            controllerCapabilities: caps,
+                        }),
+                    );
+                }),
+            );
+            const descriptor = active[0]?.descriptor;
+            if (!descriptor) {
+                throw new InternalError(`certTest("${tc}") did not register a descriptor`);
+            }
+
+            env.MATTER_CERT_CONTROLLER = selection.runWith ?? selection.declaredWith;
+            await createRegisteredCertTest(descriptor).invoke(fakeMatterJsCertDevice(app)("cert"), () => {}, [], false);
+
+            const runDir = (await readdir(outDir)).find(name => name.endsWith(`-${tc}`));
+            if (!runDir) {
+                throw new InternalError(`No evidence directory found for ${tc}`);
+            }
+            return JSON.parse(await readFile(join(outDir, runDir, "result.json"), "utf-8"));
+        } finally {
+            if (originalController === undefined) {
+                delete env.MATTER_CERT_CONTROLLER;
+            } else {
+                env.MATTER_CERT_CONTROLLER = originalController;
+            }
+            if (originalEvidenceDir === undefined) {
+                delete env.MATTER_CERT_EVIDENCE_DIR;
+            } else {
+                env.MATTER_CERT_EVIDENCE_DIR = originalEvidenceDir;
+            }
+            await rm(outDir, { recursive: true, force: true });
+        }
+    }
+
+    const tcSuffix = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+    describe("helper controller implementation in the evidence", () => {
+        const cases = [
+            { name: "a dut-only controller with only a dut role", selection: "matterjs-server", roles: { dut: "dut" } },
+            {
+                name: "the same implementation for dut and helper roles",
+                selection: "matterjs",
+                roles: { dut: "dut", th: "helper" },
+            },
+            {
+                name: "a dut-only controller whose helper role falls back to matterjs",
+                selection: "matterjs-server",
+                roles: { dut: "dut", th: "helper" },
+                expected: "matterjs",
+            },
+        ] as const;
+
+        for (const { name, selection, roles, ...rest } of cases) {
+            const expected = "expected" in rest ? rest.expected : undefined;
+            it(`${expected === undefined ? "omits" : "records"} the helper implementation for ${name}`, async () => {
+                await withFakeControllers({}, async () => {
+                    const result = await runCase(`TC-HELPER-IMPL-${tcSuffix()}`, { controllers: roles }, [{}], {
+                        declaredWith: selection,
+                    });
+
+                    expect(result.run.controllerImplementation).equal(selection);
+                    if (expected === undefined) {
+                        expect(result.run).not.to.have.property("helperControllerImplementation");
+                    } else {
+                        expect(result.run.helperControllerImplementation).equal(expected);
+                    }
+                });
+            });
+        }
+    });
+
+    describe("controller capabilities of the roles", () => {
+        const roles = { dut: "dut", th: "helper" } as const;
+        const helperLacksGroups: ControllerCapabilityGaps = { "group-messaging": "helper gap" };
+
+        it("skips a step whose capability only the helper role's controller lacks", async () => {
+            await withFakeControllers({ matterjs: helperLacksGroups }, async () => {
+                const result = await runCase(
+                    `TC-ROLE-STEP-${tcSuffix()}`,
+                    { controllers: roles },
+                    [{ caps: ["group-messaging"] }, {}],
+                    { declaredWith: "matterjs-server" },
+                );
+
+                expect(result.steps.map((step: { verdict: string }) => step.verdict)).deep.equal(["skipped", "pass"]);
+                expect(result.steps[0].skipReason).contain('controller "matterjs" lacks group-messaging');
+            });
+        });
+
+        it("runs a step whose capability no role's controller lacks", async () => {
+            await withFakeControllers({}, async () => {
+                const result = await runCase(
+                    `TC-ROLE-STEP-${tcSuffix()}`,
+                    { controllers: roles },
+                    [{ caps: ["group-messaging"] }],
+                    { declaredWith: "matterjs-server" },
+                );
+
+                expect(result.steps.map((step: { verdict: string }) => step.verdict)).deep.equal(["pass"]);
+            });
+        });
+
+        it("skips a case at declaration where only the helper role's controller lacks a declared capability", async () => {
+            await withFakeControllers({ matterjs: helperLacksGroups }, async () => {
+                const declare = (tc: string, controllers: Record<string, "dut" | "helper">) =>
+                    withController("matterjs-server", () =>
+                        collect(() =>
+                            certTest(tc, {
+                                plan: "n/a",
+                                pics: [],
+                                app: "all-clusters",
+                                controllers,
+                                controllerCapabilities: ["group-messaging"],
+                            }),
+                        ),
+                    );
+
+                const withHelper = declare(`TC-ROLE-DECL-${tcSuffix()}`, roles);
+                expect(withHelper.pending).to.have.lengthOf(1);
+                expect(withHelper.pending[0]).to.contain('controller "matterjs" lacks group-messaging');
+
+                const dutOnly = declare(`TC-ROLE-DECL-${tcSuffix()}`, { dut: "dut" });
+                expect(dutOnly.pending).to.have.lengthOf(0);
+                expect(dutOnly.active).to.have.lengthOf(1);
+            });
+        });
+    });
+
+    describe("controller selection changing after collection", () => {
+        class HookSkipped extends InternalError {}
+
+        function beforeHookOf(test: object) {
+            for (const symbol of Object.getOwnPropertySymbols(test)) {
+                const hook = Reflect.get(test, symbol);
+                if (symbol.description === "before-hook" && typeof hook === "function") {
+                    return hook;
+                }
+            }
+            throw new InternalError("The declared test has no before hook");
+        }
+
+        it("skips the case when the selection at run time lacks a capability the collected one had", async () => {
+            const { active, pending } = withController("matterjs", () =>
+                collect(() =>
+                    certTest(`TC-SELECTION-CHANGE-${tcSuffix()}`, {
+                        plan: "n/a",
+                        pics: [],
+                        app: "all-clusters",
+                        transport: "tcp",
+                    }),
+                ),
+            );
+            expect(pending).to.have.lengthOf(0);
+            expect(active).to.have.lengthOf(1);
+
+            const hook = beforeHookOf(active[0]);
+            const context = {
+                skip() {
+                    throw new HookSkipped("skipped");
+                },
+            };
+
+            const original = env.MATTER_CERT_CONTROLLER;
+            try {
+                env.MATTER_CERT_CONTROLLER = "chip-tool";
+                let thrown: unknown;
+                try {
+                    await Reflect.apply(hook, context, []);
+                } catch (e) {
+                    thrown = e;
+                }
+                expect(thrown).instanceOf(HookSkipped);
+            } finally {
+                if (original === undefined) {
+                    delete env.MATTER_CERT_CONTROLLER;
+                } else {
+                    env.MATTER_CERT_CONTROLLER = original;
+                }
+            }
+        });
+    });
+});
+
+function fakeAdapter(id: string): ControllerAdapter {
+    return {
+        id,
+        log: new LogFollower(noLines(), id),
+        async start() {},
+        async close() {},
+        async commission() {
+            throw new InternalError("not used in this test");
+        },
+        async parseQrPayload() {
+            throw new InternalError("not used in this test");
+        },
+        async parseManualPairingCode(): Promise<never> {
+            throw new InternalError("not used in this test");
+        },
+        group(): never {
+            throw new InternalError("not used in this test");
+        },
+        node() {
+            throw new InternalError("not used in this test");
+        },
+    };
+}

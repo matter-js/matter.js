@@ -81,6 +81,14 @@ export interface RunRecord {
         timestamp: string;
         controller: string;
         controllerImplementation: string;
+        /** Implementation serving the helper roles; absent when it is the same as `controllerImplementation`. */
+        helperControllerImplementation?: string;
+        /**
+         * Which build of an external controller served the run (see `ControllerAdapter.build`), absent for a
+         * controller that runs in the test process. Without it a record names the implementation but not the
+         * build that ran, and a build chosen by the environment cannot be told apart afterwards.
+         */
+        controllerBuild?: Record<string, string>;
         /** Every device the run declared: the primary first, then the rest in declaration order. */
         devices: RunDeviceRecord[];
         matterJsCommit: string;
@@ -393,6 +401,8 @@ export class EvidenceRecorder implements StepRecorder {
                 timestamp: this.#meta.timestamp,
                 controller: this.#meta.controller,
                 controllerImplementation: this.#meta.controllerImplementation,
+                helperControllerImplementation: this.#meta.helperControllerImplementation,
+                controllerBuild: this.#meta.controllerBuild,
                 devices: this.#meta.devices,
                 matterJsCommit: this.#meta.matterJsCommit,
                 chipToolRef: this.#meta.chipToolRef,
@@ -426,7 +436,16 @@ export class EvidenceRecorder implements StepRecorder {
      * A log excerpt then carries its own provenance.
      */
     runHeaderLines(): string[] {
-        const { tc, plan, devices, controller, controllerImplementation, chipToolRef, matterJsCommit } = this.#meta;
+        const {
+            tc,
+            plan,
+            devices,
+            controller,
+            controllerImplementation,
+            chipToolRef,
+            matterJsCommit,
+            controllerBuild,
+        } = this.#meta;
         const controllerLine =
             chipToolRef === undefined
                 ? `${controllerImplementation} (${controller})`
@@ -437,6 +456,13 @@ export class EvidenceRecorder implements StepRecorder {
             `plan       : ${plan}`,
             ...devices.map(device => `device     : ${describeDevice(device)}`),
             `controller : ${controllerLine}`,
+            ...(controllerBuild === undefined
+                ? []
+                : [
+                      `build      : ${Object.entries(controllerBuild)
+                          .map(([key, value]) => `${key}=${value}`)
+                          .join(", ")}`,
+                  ]),
             `matter.js  : ${matterJsCommit}`,
             `evidence   : ${this.#dir}`,
         ];

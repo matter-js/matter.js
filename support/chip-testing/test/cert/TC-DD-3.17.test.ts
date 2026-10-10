@@ -8,6 +8,7 @@ import { Seconds } from "@matter/main";
 import type { CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
+    COMMISSIONING_GIVE_UP,
     ABSENT_DEVICE_GIVE_UP,
     ABSENT_DEVICE_WAIT,
     checkGeneratedManualCode,
@@ -147,6 +148,7 @@ certTest("TC-DD-3.17", {
             );
         },
         {
+            controllerCapabilities: COMMISSIONING_GIVE_UP,
             expected:
                 "DUT attempts to parse the Manual Pairing Code and DUT terminates the commissioning process in a " +
                 "DUT-specific manner according to the DUT manufacturer's instructions.",
@@ -264,6 +266,7 @@ certTest("TC-DD-3.17", {
             }
         },
         {
+            controllerCapabilities: COMMISSIONING_GIVE_UP,
             expected:
                 "If the TH's Vendor ID is an invalid Test Vendor ID, DUT attempts to parse the Manual Pairing Code " +
                 "and DUT terminates the commissioning process in a DUT-specific manner according to the DUT " +

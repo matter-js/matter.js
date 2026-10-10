@@ -25,7 +25,7 @@ import {
     StepRecorder,
     StepVerdict,
 } from "./cert-context.js";
-import { UnsupportedByControllerError } from "./controller-adapter.js";
+import { controllerCapabilityGap, UnsupportedByControllerError } from "./controller-adapter.js";
 import { StepActions } from "./step-actions.js";
 
 const inertRecorder: StepRecorder = {
@@ -215,6 +215,19 @@ export class CertTest extends BaseTest {
                     if (!stepPicsMet(stepDef, picsFile)) {
                         picsSkips++;
                         report(stepDef, "skipped", `PICS "${stepDef.pics}" not met`);
+                        continue;
+                    }
+
+                    const capabilityGap =
+                        stepDef.controllerCapabilities === undefined
+                            ? undefined
+                            : controllerCapabilityGap(
+                                  stepDef.controllerCapabilities,
+                                  Object.values(this.#definition.controllers ?? { dut: "dut" }),
+                              );
+                    if (capabilityGap !== undefined) {
+                        controllerUnsupportedSkips++;
+                        report(stepDef, "skipped", capabilityGap);
                         continue;
                     }
 

@@ -8,7 +8,7 @@ import { InternalError } from "@matter/main";
 import { CommissioningMode } from "@matter/main/protocol";
 import { VendorId } from "@matter/main/types";
 import type { CertStepContext } from "@matter/testing";
-import { certTest, resolveControllerImplementation } from "@matter/testing";
+import { certTest } from "@matter/testing";
 import { advertiseCommissionableAlias, cachedTxtValue, type CommissionableAlias } from "../../src/cert/mdns-alias.js";
 import { discoverCommissionable } from "../../src/cert/mdns-check.js";
 import {
@@ -18,10 +18,19 @@ import {
     MDNS_TIMEOUT,
     qrPayloadFields,
     qrPayloadWith,
+    COMMISSIONING_GIVE_UP,
     recordDiscriminatorHonored,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { attempt, CommissionedRefs, expectSequence, record, runCleanups, withChecks } from "./tc-support.js";
+import {
+    attempt,
+    CommissionedRefs,
+    dutControllerLogFlavor,
+    expectSequence,
+    record,
+    runCleanups,
+    withChecks,
+} from "./tc-support.js";
 
 /** The plan's own example of an unknown key/value pair. */
 const UNKNOWN_KEY = "AB";
@@ -56,6 +65,9 @@ certTest("TC-SC-4.2", {
     plan: "securechannel.adoc",
     pics: ["MCORE.ROLE.COMMISSIONER"],
     app: "all-clusters",
+
+    // The case's commissioning steps rest on step 0's discriminator probe, which needs a give-up
+    controllerCapabilities: COMMISSIONING_GIVE_UP,
 })
     .step(
         "0",
@@ -174,7 +186,7 @@ certTest("TC-SC-4.2", {
                 // Step 0 shows the DUT uses a code's discriminator; this shows it used the alias's
                 const discovered = await expectSequence(
                     dut.log,
-                    resolveControllerImplementation() === "chip-tool" ? "chip" : "matterjs",
+                    dutControllerLogFlavor(),
                     `the DUT discovering by discriminator ${discriminator}`,
                     {
                         chip: [new RegExp(`Discovered device with discriminator ${discriminator} matches`)],

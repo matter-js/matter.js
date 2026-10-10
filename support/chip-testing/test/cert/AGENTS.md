@@ -158,7 +158,8 @@ Two independent PICS mechanisms exist, and only one of them is live against toda
 - **A key naming the client side describes the controller, not the TH.** The container's file
   describes a device, so it answers 0 for `ACT.C.C00.Tx` and for `MCORE.ROLE.COMMISSIONER` — the
   capabilities the DUT of those steps needs are the *controller's*, and each adapter declares them
-  (`MATTERJS_CONTROLLER_PICS`/`CHIP_TOOL_CONTROLLER_PICS`, overlaid by `controllerPicsOverridesFor`).
+  (`MATTERJS_CONTROLLER_PICS`/`CHIP_TOOL_CONTROLLER_PICS`/`MATTERJS_SERVER_CONTROLLER_PICS`, overlaid by
+  `controllerPicsOverridesFor`).
   Gating a step on a `.C` key the adapter has not declared is how a step comes to skip on every leg
   without anyone noticing, so declare it there rather than expecting the device file to carry it.
   The *controller* overlay is for what the controller is, never for what the TH advertises:
@@ -384,7 +385,7 @@ error.
   never a stable proxy for "this device". `expectMdns` throws `ImplementationError` if
   `operationalRecords` is requested without `operationalInstanceName`, specifically so this mistake is
   loud rather than an intermittently-flaky check.
-- Both `ControllerAdapter` implementations report `operationalMdnsInstanceName()`, and they agree:
+- Every `ControllerAdapter` implementation reports `operationalMdnsInstanceName()`, and they agree:
   `ChipToolControllerAdapter` reads the accessing fabric's own `RootPublicKey` and `FabricId` from a
   fabric-filtered `OperationalCredentials.Fabrics` read on that node, computes the compressed fabric id
   from those, then feeds the same `getOperationalDeviceQname`. Do not reintroduce a derivation from
@@ -553,12 +554,13 @@ this reason, matching the `"all-clusters"` registration already there.
 ## What a step can and cannot ask of the chip-tool controller
 
 `MATTER_CERT_CONTROLLER=chip-tool` swaps `InProcessControllerAdapter` for
-`ChipToolControllerAdapter`, and the two are not interchangeable in every direction. A step asking for
+`ChipToolControllerAdapter`, and the two are not interchangeable in every direction (the matterjs-server
+controller is covered in "External controller adapters" below). A step asking for
 something chip-tool cannot express gets `UnsupportedByControllerError` — recorded `"skipped"`, later
 steps still run — rather than a wrong answer. That holds only while the step has neither recorded a check
 nor made a controller call that may change the device (`step-actions.ts` classifies every controller API member); a
-refusal after either fails the run, so a step that needs such an operation after acting declares it in the
-controller's PICS instead. Today the refusals are:
+refusal after either fails the run, so a step that needs such an operation after acting declares it as a
+controller capability or in the controller's PICS instead. Today the refusals are:
 
 - **A `writeAttributes` mixing versioned and unversioned entries** — chip-tool takes `--data-version`
   once per command, applying to all its paths or none, so a request where only some entries carry a
@@ -577,6 +579,70 @@ controller's PICS instead. Today the refusals are:
 Multi-cluster reads and multi-attribute writes *are* supported: chip-tool zips its cluster/attribute/
 endpoint id lists element-wise when their lengths match (`InteractionModelConfig::GetAttributePaths`),
 so equal-length lists express an arbitrary path set — it is not one cluster per command.
+
+## External controller adapters (chip-tool, matterjs-server)
+
+`MATTER_CERT_CONTROLLER` selects the controller under test: `matterjs` (in process), `chip-tool` or
+`matterjs-server`. Each implementation registers an adapter factory in `src/cert/index.ts` through
+`registerCertControllerAdapter(implementation)`. That function is an `@internal` test seam too: a test that
+replaces a registration puts it back with it, and the capability declarations come back with it.
+
+**matterjs-server.** `MATTER_CERT_SERVER_ENTRY` names how to start the server: one `.js`, `.mjs` or `.cjs` file run
+with the current Node, or a command line (anything with whitespace). A command line must exec the server
+directly, because a wrapper such as `npx` may not pass SIGTERM on. The adapter starts one server per controller
+role with a temporary storage path and a free port, `--disable-auto-subscription`, `--enable-test-net-dcl` and
+`--log-level debug`. `MATTER_MDNS_NETWORKINTERFACE` becomes `--primary-interface`. Early exit and a missing
+readiness are `CertConfigError`. The run record carries `controllerBuild` (entry, `sdkVersion`, `schemaVersion`),
+because the same variable can point at any build. The adapter reads it from `ControllerAdapter.build`.
+
+**Scope.** The server is registered `dut-only`. It serves the DUT role only, so a helper role runs on `matterjs`
+(`implementationForRole`), and the run record says so in `helperControllerImplementation`. A test whose DUT is a
+device skips on it, at collection and again before its device starts, so the skip and the evidence use the same
+value.
+
+**Capabilities are declared up front, never discovered by a step.** A step must not take a refusal as the device's
+answer: a controller that cannot send a command says nothing about the device, and a step that records it as
+"rejected" passes for the wrong reason. The mechanism:
+
+- `ControllerCapability` (`controller-adapter.ts`) names what a test may need: `single-handshake-attempt`,
+  `commissioning-give-up`, `group-messaging`, `tcp-transport`, `data-versions`, `unmodeled-data`, `attestation`
+  and `webrtc-requestor`.
+- Each adapter lists what it lacks, with the reason, in `CHIP_TOOL_CAPABILITY_GAPS` and
+  `MATTERJS_SERVER_CAPABILITY_GAPS`. The list is the fifth argument of `registerControllerAdapterFactory`.
+  `controllerCapabilityGap()` and `controllerCapabilityGapsFor()` read it. The adapter builds its call-time refusal
+  from the same text.
+- A test declares `controllerCapabilities` on `certTest()`, and a step declares it on `step()`. A test is skipped at
+  collection when any controller role lacks one, helper roles included (each role is judged by the implementation
+  that fills it). `transport: "tcp"` implies `tcp-transport`. A step is recorded `skipped` before it runs and
+  counted in `controllerUnsupportedSkips`.
+- `UnsupportedByControllerError` stays as a safety net. A step that reaches a refusal after it acted fails. It
+  does not skip, and it does not pass.
+- Declaring a capability on a step is not reachable from a unit test. Check that a new TC declares what it uses
+  by reading its calls against the gap list.
+
+**What skips on the matterjs-server leg.** TC-IDM-2.1 steps 2, 3, 5, 7, 20 and 21 (attribute wildcards) are declared
+as needing modeled wildcard reads (`READS_UNMODELED`), so they skip. The server sends values outside its model
+lossily. The skip follows the declaration, not what the device returns, so steps 2 and 5 skip even against the
+matterjs device. The DD and SC-4.2 cases whose step 0 is the discriminator probe (TC-DD-1.8, 3.11, 3.12, 3.13, 3.14,
+3.18, 3.20, 3.21 and TC-SC-4.2) skip as a whole, because their later commissioning steps rest on that probe; they
+declare `COMMISSIONING_GIVE_UP` (`tc-dd-support.ts`) at test level. TC-DD-3.16 and 3.17 declare it only on the steps
+that wait for a give-up, since no later step depends on them. TC-SC-3.5 (`single-handshake-attempt`), group cases
+(`group-messaging`) and the TCP block (`tcp-transport`) are capability-gated the same way.
+
+**PICS.** `MATTERJS_SERVER_CONTROLLER_PICS` declares what the server is, as `MATTERJS_CONTROLLER_PICS` does for
+matter.js: no batched invoke, no BDX or OTA role, no ICD client, no device list, commissioner roles. A step gated
+on one of these keys skips through the PICS gate and counts as `picsSkips`.
+
+**DUT-log checks.** A check that reads the controller's own log asks `dutControllerLogFlavor()` in `tc-support.ts`.
+chip-tool answers `chip`. The in-process controller and matterjs-server answer `matterjs`, because the server logs
+through the matter.js logger. For the server this is inferred, not verified against a live server log.
+
+**Behaviour the adapter adds on purpose.** It sends the invokes of one node one at a time, in call order, and a
+rejected invoke does not block the next. The server merges identical invokes that are in flight at once into one
+request to the device, which would send a device fewer commands than the step asked for. The adapter
+decodes onboarding payloads itself (`parseQrPayload`, `parseManualPairingCode`, the refusal in `commission()`)
+with the matter.js codec. `decommission()` relies on the server sending `RemoveFabric`, which it does when it runs
+without its own subscriptions.
 
 ## Invoke-only TCs and expected-failure responses (`TC-ACT-3.2`)
 
@@ -634,7 +700,7 @@ each is written as the thing to do when it bites:
   from an aborted run — the `.finalize()` cleanup clears every ref it visits, so this needs a run that never
   reached its own finalizer.
 - **`pics: "ACT.C.C0x.Tx"` on every step of this TC is a live gate on every flavor**, and it passes
-  only because both controller adapters declare those commands: the container's certification file
+  only because every controller adapter declares those commands: the container's certification file
   answers 0 for them, since it describes a device and a device is no Actions client. Adding a step here
   gated on a client-side key means adding that key to the adapters too (see "PICS handling").
 
@@ -1167,7 +1233,8 @@ belongs to, which is exactly what stopped `subscribe` from growing the same shap
 request's `EventFilters`; omitting it sends no filter at all, which is the optional case both plans
 describe.
 
-Both adapters implement them. `InProcessControllerAdapter` passes the paths straight to
+The in-process and chip-tool adapters implement them (the matterjs-server adapter refuses `readEvents`,
+`subscribeEvents` and `observeEvents`). `InProcessControllerAdapter` passes the paths straight to
 `Read`/`Subscribe`'s own `events`/`eventFilters` options (`packages/protocol/src/action/request/`);
 `ChipToolControllerAdapter` runs `any read-event-by-id <clusters> <events> <node> <endpoints>` and
 `any subscribe-event-by-id <clusters> <events> <min> <max> <node> <endpoints>`, whose JSON results
@@ -1176,7 +1243,7 @@ carry `eventId`/`eventNumber` where an attribute's carry `attributeId`/`dataVers
 by event path, in a list of its own beside the attribute subscriptions, and an event chip-tool reports
 without an event number is an error rather than a report numbered 0.
 
-A concrete path answered with a status **rejects** in both adapters, matching the attribute side; a
+A concrete path answered with a status **rejects** in both of those adapters, matching the attribute side; a
 wildcard path's statuses are results of the expansion and are dropped. A node holding no record for a
 requested path answers with neither data nor a status, so an **empty result is a successful read** —
 neither TC requires the TH to have recorded anything.
@@ -1221,7 +1288,7 @@ must deliver the interaction itself inside the window. matter.js's own `Invoke`/
 Do not give the option a default. An absent timeout must stay absent, or every invoke and write in
 every TC silently becomes a timed interaction.
 
-Both adapters route the value through `timedInteractionTimeoutOf` (`src/cert/timed-interaction.ts`),
+Every adapter routes the value through `timedInteractionTimeoutOf` (`src/cert/timed-interaction.ts`),
 which refuses anything but an integer in the `uint16` range the wire carries: matter.js's TLV layer
 checks bounds but not integrality, so without it a fractional timeout would reach one controller as a
 truncated integer and the other as a chip-tool usage error.
@@ -1281,7 +1348,7 @@ it only proves the cert run's own timeout is short enough to stay inside the ste
 A cert test's DUT is the **controller**, so a `MCORE.IDM.C.*` capability is the controller's to claim —
 but the PICS file a run loads is CHIP's `ci-pics-values`, which describes a *device*. Rather than keep a
 whole PICS file per controller, each adapter declares only what differs
-(`MATTERJS_CONTROLLER_PICS`, `CHIP_TOOL_CONTROLLER_PICS`), and the run evaluates
+(`MATTERJS_CONTROLLER_PICS`, `CHIP_TOOL_CONTROLLER_PICS`, `MATTERJS_SERVER_CONTROLLER_PICS`), and the run evaluates
 `chip.defaultPics.with(those)`. Everything the controller says nothing about still comes from the
 device's file.
 
@@ -1336,7 +1403,8 @@ The binary is already in the harness image and the workflow already extracts it 
 
 Cluster 0xfff1fc06 is CHIP's own test cluster and is in no Matter specification, so the shipped model
 must not carry it. `fault-injection.ts` declares it with the model annotations (`@cluster`, `@command`,
-`@field`) and `registerCertCustomCluster` makes both adapters resolve it — the standard model always
+`@field`) and `registerCertCustomCluster` makes the in-process and chip-tool adapters resolve it (the matterjs-server
+adapter refuses it as `unmodeled-data`) — the standard model always
 wins, and registering an id it already defines throws. Field ids are explicit: an annotated field
 without one is internal to matter.js and never reaches the wire.
 
@@ -1402,11 +1470,11 @@ per commissioning flow, as `SetupQRCode: [MT:…]`, standard flow first. A TC ne
 flavors therefore falls back to the device log.
 
 **PICS.** `MCORE.DD.SCAN_QR_CODE` asks whether the commissioner takes the *scanned* payload — the
-`MT:…` form — rather than only the digits of a manual pairing code. Both controllers do, so both
-declare it; it is not a question about owning a camera. `MCORE.ROLE.COMMISSIONER`,
+`MT:…` form — rather than only the digits of a manual pairing code. Every controller does, so every
+overlay declares it; it is not a question about owning a camera. `MCORE.ROLE.COMMISSIONER`,
 `MCORE.DD.QR_COMMISSIONING` and `MCORE.DD.MANUAL_PC_COMMISSIONING` come from the overlay too: CHIP's
 `ci-pics-values` describes a device and answers 0 to all three, so without it every DUT-as-commissioner
-test would be filtered out. `MCORE.DD.CTRL_CONCATENATED_QR_CODE_1` is declared 0 — neither controller
+test would be filtered out. `MCORE.DD.CTRL_CONCATENATED_QR_CODE_1` is declared 0 — no controller
 splits a concatenated payload, which is the one piece of § 5.1.6 missing here.
 `CTRL_CONCATENATED_QR_CODE_2` (does the commissioner *tell the user* to commission the devices
 individually) is deliberately left to the device's file: the adapters' own refusal says exactly that,
@@ -1531,10 +1599,10 @@ one). matter.js rejects the same three in `QrPairingCodeCodec`, inside a millise
 `accept` predicate, and `CommissioningRefusals` accepts only `OnboardingPayloadRefusedError`. Without
 a predicate the steps pass on a controller that crashed, timed out or was never asked —
 `ChipToolClient.execute` alone has a 3-minute budget whose expiry is a rejection like any other, and
-both adapters refuse these payloads before touching the network, so the steps would also pass with no
+every adapter refuses these payloads before touching the network, so the steps would also pass with no
 TH running at all.
 
-**Neither controller's own error types are enough, and this is the subtle part — it caught two
+**No controller's own error types are enough, and this is the subtle part — it caught two
 rounds of review.** chip-tool funnels discovery, PASE, attestation, CASE, timeout and argument-parse
 failures into one `ChipToolCommandError`; matter.js raises `UnexpectedDataError` from the
 commissioning flow as well (`ControllerCommissioningFlow.ts`'s "Invalid response from device", for
@@ -1543,13 +1611,16 @@ failed its handshake is recorded as having refused the code — the exact false 
 prevent, reintroduced through the check meant to prevent it.
 
 So the refusal is marked **where it happens**, never recognised by type afterwards.
-`OnboardingPayloadRefusedError` (`onboarding-payload.ts`) is the one marker, raised by both adapters:
+`OnboardingPayloadRefusedError` (`onboarding-payload.ts`) is the one marker, raised by every adapter:
 
 - matter.js — `refusalOf()` wraps the codec call in `singleQrPayload` and in the manual-code branch of
   `resolveCommissioningTarget`, so only the codec's own rejection carries it.
 - chip-tool — `commission()` matches `Run command failure: src/setup_payload/` in the command's logs.
   `SetupPayload::FromStringRepresentation` is where chip-tool applies § 5.1's payload rules and it
   names its own source location; that location is the only discriminator chip-tool offers.
+- matterjs-server — `commission()` decodes the code locally with the same matter.js codec before it sends
+  anything, because the WebSocket API reports a server refusal only as a message. This assumes the server
+  runs the same codec version.
 
 Real evidence from all four legs: `chip-tool refused the onboarding payload for node 4097: Run command
 failure: src/setup_payload/SetupPayload.cpp:361: CHIP Error 0x0000002F: Invalid argument`, and
@@ -2079,8 +2150,8 @@ not dropping the claim.
 **`.c` records the parse and the leg's payload offering, as `.b` does, and stops there; the plan's second sentence is why this is worth stating.**
 The plan asks to verify the DUT parsed the code *and* that the TH has not been commissioned. The
 second half looks like the valuable claim and is not testable here: the only thing `.c` asks of the
-DUT is `parseQrPayload`, which is a local decode on both controllers — `singleQrPayload` in-process,
-`payload parse-setup-payload` for chip-tool — and reaches no network. A `recordNotCommissioned` after
+DUT is `parseQrPayload`, which is a local decode on every controller — `singleQrPayload` in-process and in the matterjs-server
+adapter, `payload parse-setup-payload` for chip-tool — and reaches no network. A `recordNotCommissioned` after
 it searches a window nothing could have written to, and passes for a claim nobody tested.
 
 The general rule: before recording a negative check, ask what could have produced the thing it looks
@@ -2192,7 +2263,7 @@ Two limits worth stating rather than hiding:
 - `Stop` has no fields but its Options bits, so its evidence is the command path alone — on the
   matter.js flavor that is a single `InteractionServer Invoke` line.
 
-A bitmap attribute does not read back as a number. Both adapters decode one through the model into an
+A bitmap attribute does not read back as a number. Every adapter decodes one through the model into an
 object of named bits, so a `FeatureMap` read answers `{ onOff: true, lighting: true, frequency: false }`
 and a `& bit` test against it is always falsy — read the named bit instead.
 
@@ -2292,7 +2363,7 @@ group the fabric's key map must already carry. What it adds:
   `RecallScene` answers with a status inside its payload, so `answersWithStatus`/`responseStatusOf`
   (promoted to `tc-support.ts` when this became the second TC to need them) gate on it. A command
   whose schema mandates a status and answers without one fails rather than skipping the check.
-- **`EpochKey2`/`EpochStartTime2` go as null**, which the plan asks for and both adapters carry.
+- **`EpochKey2`/`EpochStartTime2` go as null**, which the plan asks for and the in-process and chip-tool adapters carry.
 - **A list or bitmap field needs its own lines, not a field entry.** `expectCommandInvoke` matches one
   line per field, and neither shape is one line on both flavors: chip nests a list across lines and
   numbers its members, while matter.js prints the whole nested value inline and names them
@@ -2371,9 +2442,9 @@ What each side does with the request:
   event read and both subscribes, since it decides a session's transport when it establishes one and a
   test may begin with any of them — and it is **not enough**: chip-tool
   keeps using the session commissioning established, so the flag reaches the DUT over that UDP session
-  and no TCP connection is set up. The support module refuses the case up front with
-  `UnsupportedByControllerError`, so a chip-tool leg is recorded skipped with that reason instead of
-  passing on a transport nobody used.
+  and no TCP connection is set up. chip-tool declares `tcp-transport` among the capabilities it lacks
+  (`CHIP_TOOL_CAPABILITY_GAPS`), and `transport: "tcp"` implies that capability for every controller
+  role, so a chip-tool run skips the case at collection instead of passing on a transport nobody used.
 
 **The evidence is the DUT's own session line.** matter.js renders a session's transport in its tag and
 names the channel the peer connected on, so `CaseServer …(tcp) … Pairing request « tcp://…` followed by
@@ -2516,11 +2587,10 @@ the plan does *not* make.
 for a command *response*, not a status — and changes nothing on the DUT, so a rerun does not depend on
 what the previous run left behind.
 
-**Every step of a TCP case owes the controller refusal, not just the first**, so `tcpStep()` wraps a
-step's body with it rather than each step's author remembering. Without the refusal, the chip-tool leg
-skipped step 1 and then *failed* step 2 on `th has no active commissioned node ref` — a failed run
-whose real cause is that the controller cannot establish a TCP session at all. A step that depends on
-a skipped step has to refuse for the same reason the skipped one did.
+**A TCP case is skipped whole on a controller that cannot establish a TCP session, not step by step.**
+When the refusal came per step, the chip-tool leg skipped step 1 and then *failed* step 2 on `th has no
+active commissioned node ref` — a failed run whose real cause is that the controller cannot establish
+a TCP session at all. The collection-time gate on `transport: "tcp"` removes that ordering hazard.
 
 Mutations that prove the step: pass a command id one higher (`TIME_SNAPSHOT_ID + 1`) and the log check
 times out with the response check still passing; substitute a bogus session tag and it times out on the

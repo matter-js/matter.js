@@ -92,7 +92,7 @@ async function writeAndCheck(
  * interaction.
  */
 async function clusterVersions(node: CertNodeApi, paths: AttributePathSpec[]): Promise<number[]> {
-    const entries = await node.readAttributes(paths);
+    const entries = await node.readAttributes(paths, { dataVersions: true });
     return paths.map(({ endpoint, cluster }) => {
         const version = entries.find(
             entry => entry.endpoint === endpoint && entry.cluster === cluster && entry.version !== undefined,
@@ -414,6 +414,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             });
         }),
         {
+            controllerCapabilities: ["data-versions"],
             expected:
                 "Verify that the TH sends a Write Response message with a success back to the DUT. Verify by " +
                 "sending a ReadRequest that the Write Action on TH was successful.",

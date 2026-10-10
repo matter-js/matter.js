@@ -19,10 +19,14 @@ const logger = Logger.get("ClientEventEmitter");
 /**
  * Event handler for Matter events transmitted by a peer.
  *
+ * `advancesMaxEventNumber` is true only for events from the sustained default subscription or a node-wide wildcard
+ * interaction (see {@link ClientStructure.isNodeWideEventWildcard}); only those may raise
+ * {@link NetworkClient.State.maxEventNumber}.
+ *
  * TODO - set priority on context when split for server vs. client
  */
 export interface ClientEventEmitter {
-    (event: ReadResult.EventValue): Promise<void>;
+    (event: ReadResult.EventValue, advancesMaxEventNumber: boolean): Promise<void>;
 }
 
 /**
@@ -43,7 +47,7 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
 
     return emitClientEvent;
 
-    async function emitClientEvent(occurrence: ReadResult.EventValue) {
+    async function emitClientEvent(occurrence: ReadResult.EventValue, advancesMaxEventNumber: boolean) {
         // A report can still arrive while the node is deleted, also when a leave event triggered the deletion
         if (node.lifecycle.isGone) {
             logger.debug(
@@ -68,7 +72,7 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
             target.event.emit(occurrence.value, agent.context);
 
             const network = agent.get(NetworkClient);
-            if (occurrence.number > network.state.maxEventNumber) {
+            if (advancesMaxEventNumber && occurrence.number > network.state.maxEventNumber) {
                 await agent.context.transaction.addResources(network);
                 await agent.context.transaction.begin();
                 network.state.maxEventNumber = occurrence.number;

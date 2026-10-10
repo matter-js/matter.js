@@ -155,11 +155,12 @@ export class NetworkClient extends NetworkBehavior {
         // A newly-commissioned peer is reachable on the live commissioning session, so read its structure now
         // (regardless of autoSubscribe) unless the caller opts out.  This guarantees state is available once
         // commissioning completes and lets any read error surface from the commissioning call.
+        const interaction = this.#node.interaction as ClientNodeInteraction;
         let didInitialRead = false;
         if (this.internal.isNewlyCommissioned) {
             this.internal.isNewlyCommissioned = false;
             if (this.state.autoStateInitialize !== false) {
-                for await (const _chunk of this.#node.interaction.read(subscribe()));
+                for await (const _chunk of interaction.readDefault(subscribe()));
                 didInitialRead = true;
             }
         }
@@ -169,7 +170,7 @@ export class NetworkClient extends NetworkBehavior {
         }
 
         if (subscriptionDesired) {
-            this.internal.activeSubscription = await (this.#node.interaction as ClientNodeInteraction).subscribe({
+            this.internal.activeSubscription = await interaction.subscribeDefault({
                 ...subscribe(),
                 sustain: true,
                 eventFilters: [{ eventMin: this.state.maxEventNumber + 1n }],
@@ -467,7 +468,9 @@ export namespace NetworkClient {
         autoStateInitialize?: boolean;
 
         /**
-         * The highest event number seen from this node for the default read/subscription.
+         * The highest event number received from this node through its sustained default subscription or a node-wide
+         * wildcard read or subscription (see `ClientStructure.isNodeWideEventWildcard`).  The sustained subscription
+         * requests events above it.
          */
         maxEventNumber = EventNumber(0);
 

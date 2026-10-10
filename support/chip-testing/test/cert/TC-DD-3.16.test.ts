@@ -7,6 +7,7 @@
 import type { CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
+    COMMISSIONING_GIVE_UP,
     ABSENT_DEVICE_GIVE_UP,
     ABSENT_DEVICE_WAIT,
     checkGeneratedManualCode,
@@ -167,7 +168,7 @@ certTest("TC-DD-3.16", {
                 ABSENT_DEVICE_WAIT,
             );
         },
-        { expected: TERMINATES },
+        { expected: TERMINATES, controllerCapabilities: COMMISSIONING_GIVE_UP },
     )
     .step(
         "5.a",

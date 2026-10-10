@@ -15,6 +15,7 @@ import type {
 } from "@matter/testing";
 import {
     chip,
+    controllerCapabilityGap,
     createControllerAdapter,
     EvidenceRecorder,
     PromptDrivenPythonTest,
@@ -261,6 +262,12 @@ describe("TC-SC-3.5", () => {
     it("[TC-SC-3.5] CASE Error Handling [DUT_Initiator]", async function () {
         const appPath = thServerAppPath();
         if (!appPath) {
+            this.skip();
+        }
+
+        // Every attempt but the first asserts a refusal, which a commissioner that retries past the faulted handshake
+        // cannot show
+        if (controllerCapabilityGap(["single-handshake-attempt"]) !== undefined) {
             this.skip();
         }
 

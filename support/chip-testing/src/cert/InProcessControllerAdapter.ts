@@ -56,6 +56,7 @@ import {
     BdxSession,
     DclCertificateService,
     ClientRead,
+    ClientSubscribe,
     Flow,
     CommissionableDeviceIdentifiers,
     Fabric,
@@ -1512,12 +1513,16 @@ class InProcessCertNodeApi implements CertNodeApi {
             const { endpointId, clusterId, attributeId } = toIds(path);
             const seed = new Array<ReadResult.AttributeValue>();
             let seeding = true;
-            const request = Subscribe({
-                attributes: [{ endpointId, clusterId, attributeId }],
-                keepSubscriptions: true,
-                minIntervalFloor: Seconds(opts.minIntervalFloorSeconds),
-                maxIntervalCeiling: Seconds(opts.maxIntervalCeilingSeconds),
-            });
+            // The seed must be the full priming report, not only clusters whose version changed.
+            const request: ClientSubscribe = {
+                ...Subscribe({
+                    attributes: [{ endpointId, clusterId, attributeId }],
+                    keepSubscriptions: true,
+                    minIntervalFloor: Seconds(opts.minIntervalFloorSeconds),
+                    maxIntervalCeiling: Seconds(opts.maxIntervalCeilingSeconds),
+                }),
+                includeKnownVersions: true,
+            };
             request.updated = async data => {
                 for await (const chunk of data) {
                     for await (const report of chunk) {

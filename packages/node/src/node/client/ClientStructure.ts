@@ -41,7 +41,7 @@ import {
 } from "@matter/model";
 import { ReadScope, Val, type Read, type ReadResult } from "@matter/protocol";
 import { AttributeId, EndpointNumber } from "@matter/types";
-import type { ClusterId, CommandId } from "@matter/types";
+import type { ClusterId, CommandId, DataVersionFilter } from "@matter/types";
 import { Status } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import type { ClientEventEmitter } from "./ClientEventEmitter.js";
@@ -58,6 +58,7 @@ const MAX_PENDING_JOBS = 100;
 
 interface MutateContext {
     enqueue(job: () => Promise<void>): void;
+    advancesMaxEventNumber: boolean;
     endpointsWithData: Set<EndpointNumber>;
     /**
      * Clusters the peer sent data for in this interaction, which a descriptor later in it must not delete. Scoped to
@@ -122,7 +123,7 @@ export class ClientStructure {
 
     // Keyed by cluster ID; a cluster's schema does not change for the life of the structure
     #attributeIds = new Map<ClusterId, Map<string, number>>();
-    #delayedClusterEvents = new Array<ReadResult.EventValue>();
+    #delayedClusterEvents = new Array<DelayedEvent>();
 
     /**
      * Which endpoints have named each part in a `PartsList`, and what each of those lists contained.
@@ -251,7 +252,7 @@ export class ClientStructure {
      */
     injectVersionFilters<T extends Read>(request: T, options?: { refreshChangesOmitted?: boolean }): T {
         const scope = ReadScope(request);
-        let result = request;
+        let filters: DataVersionFilter[] | undefined;
 
         for (const {
             endpoint: { number: endpointId },
@@ -274,25 +275,21 @@ export class ClientStructure {
                     continue;
                 }
 
-                if (result === request) {
-                    result = { ...request };
-                }
-
-                if (result.dataVersionFilters === undefined) {
-                    result.dataVersionFilters = [];
-                }
-
-                result.dataVersionFilters.push({ path: { endpointId, clusterId }, dataVersion: version });
+                filters ??= [...(request.dataVersionFilters ?? [])];
+                filters.push({ path: { endpointId, clusterId }, dataVersion: version });
             }
         }
 
-        return result;
+        return filters === undefined ? request : { ...request, dataVersionFilters: filters };
     }
 
     /**
      * Update the node structure by applying attribute changes from a Matter protocol interaction.
+     *
+     * Events raise `NetworkClient.State.maxEventNumber` when {@link isDefaultSubscription} is set or the request is a
+     * node-wide event wildcard (see {@link ClientStructure.isNodeWideEventWildcard}).
      */
-    async *mutate(request: Read, changes: ReadResult) {
+    async *mutate(request: Read, changes: ReadResult, isDefaultSubscription = false) {
         // We collect updates and only apply when we transition clusters
         let currentUpdates: AttributeUpdates | undefined;
 
@@ -302,6 +299,7 @@ export class ClientStructure {
         const jobErrors = new Array<unknown>();
         let pendingJobs = 0;
         const q: MutateContext = {
+            advancesMaxEventNumber: isDefaultSubscription || ClientStructure.isNodeWideEventWildcard(request),
             endpointsWithData: new Set<EndpointNumber>(),
             clustersWithData: new Set<ClusterStructure>(),
             enqueue: job => {
@@ -521,9 +519,9 @@ export class ClientStructure {
             q.endpointsWithData.has(endpointId) ||
             this.#pendingChanges?.has(endpoint)
         ) {
-            this.#delayedClusterEvents.push(occurrence);
+            this.#delayedClusterEvents.push({ occurrence, advancesMaxEventNumber: q.advancesMaxEventNumber });
         } else {
-            q.enqueue(() => Promise.resolve(emitter(occurrence)));
+            q.enqueue(() => Promise.resolve(emitter(occurrence, q.advancesMaxEventNumber)));
         }
     }
 
@@ -1552,13 +1550,31 @@ export class ClientStructure {
 
         const clusterEvents = this.#delayedClusterEvents;
         this.#delayedClusterEvents = [];
-        for (const occurrence of clusterEvents) {
-            await this.eventEmitter(occurrence);
+        for (const { occurrence, advancesMaxEventNumber } of clusterEvents) {
+            await this.eventEmitter(occurrence, advancesMaxEventNumber);
         }
     }
 }
 
 export namespace ClientStructure {
+    /**
+     * Whether {@link request} asks for every event of the node: at least one event path leaves endpoint, cluster
+     * and event unset.  The node ID and urgency of the path do not matter.
+     *
+     * Events such a read or subscription delivers may raise `NetworkClient.State.maxEventNumber`, because the
+     * sustained subscription builds its `eventMin` from that value.  An event from a narrower read or subscription
+     * would otherwise make it skip lower-numbered events on paths that interaction did not cover.  The sustained
+     * default subscription raises it for every event it delivers, whatever its paths.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 10.6.8
+     */
+    export function isNodeWideEventWildcard(request: Read): boolean {
+        return !!request.eventRequests?.some(
+            ({ endpointId, clusterId, eventId }) =>
+                endpointId === undefined && clusterId === undefined && eventId === undefined,
+        );
+    }
+
     /**
      * Whether the sustained subscription `defaultSubscription` describes is fabric filtered. The cache stores values
      * only from interactions with the same fabric filter, so a read meant to update it has to use this one.
@@ -1591,6 +1607,11 @@ export namespace ClientStructure {
          */
         commandFactory?: ClusterBehaviorType.CommandFactory;
     }
+}
+
+interface DelayedEvent {
+    occurrence: ReadResult.EventValue;
+    advancesMaxEventNumber: boolean;
 }
 
 interface AttributeUpdates {

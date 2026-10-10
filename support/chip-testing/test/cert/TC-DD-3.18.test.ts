@@ -14,6 +14,7 @@ import {
     CommissioningRefusals,
     MDNS_TIMEOUT,
     qrPayloadFields,
+    COMMISSIONING_GIVE_UP,
     recordDiscriminatorHonored,
     recordNotCommissioned,
     recordParse,
@@ -99,6 +100,9 @@ certTest("TC-DD-3.18", {
     pics: ["MCORE.ROLE.COMMISSIONER", "MCORE.DD.QR_COMMISSIONING"],
     app: "all-clusters",
     devices: { th1: "all-clusters", th2: "all-clusters" },
+
+    // The case's commissioning steps rest on step 0's discriminator probe, which needs a give-up
+    controllerCapabilities: COMMISSIONING_GIVE_UP,
 })
     .step(
         "0",

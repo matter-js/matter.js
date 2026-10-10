@@ -7,7 +7,7 @@
 import { Bytes } from "@matter/main";
 import { Status } from "@matter/main/types";
 import type { CertStepContext, CheckRecord } from "@matter/testing";
-import { certTest, resolveControllerImplementation } from "@matter/testing";
+import { certTest } from "@matter/testing";
 import {
     aclAdmitsGroupStep,
     addGroupStep,
@@ -26,6 +26,7 @@ import {
     CertCheckFailedError,
     CommissionedRefs,
     describeValue,
+    dutControllerLogFlavor,
     expectSequence,
     GROUP_MESSAGE_PORT,
     expectGroupCommandArrival,
@@ -159,7 +160,7 @@ const GROUP_INVOKE_LINE = matterjsGroupInvokeSent(GROUP.id, GROUPS_ID, ADD_GROUP
 async function groupcastSentCheck(cx: CertStepContext, from: number): Promise<CheckRecord> {
     const dut = cx.controllers.dut;
 
-    if (resolveControllerImplementation() !== "matterjs") {
+    if (dutControllerLogFlavor() === "chip") {
         // chip-tool names the group it sends to and nothing else — no destination address, no port —
         // so what it can show is the group, and the step's other check is what shows the message
         // arrived
@@ -239,6 +240,10 @@ certTest("TC-SC-5.3", {
     // neither, so it is left out
     appVariant: { matterjs: "nogroupcast" },
     flavors: ["chip-local", "matterjs"],
+
+    // The groupcast is the case's subject, and steps 3 and 5 rest on the key set step 2 gives both sides, so a
+    // controller without group messaging skips the case rather than running them without it
+    controllerCapabilities: ["group-messaging"],
 })
     .step(
         "1a",

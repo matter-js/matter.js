@@ -87,6 +87,7 @@ const CONTROLLER: Classified<ControllerAdapter> = {
     id: "none",
     start: "none",
     close: "none",
+    build: "none",
     commission: "action",
     parseQrPayload: "none",
     parseManualPairingCode: "none",

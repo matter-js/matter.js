@@ -174,6 +174,8 @@ directory of symlinks to each app's own build output).
 | `MATTER_CERT_DEVICE`          | Flavor: `matterjs`, `chip-local`, or `chip-docker`.                                        | `matterjs`                      |
 | `MATTER_CERT_APP_DIR`         | Directory containing the CHIP app binaries (`chip-<app>-app`, or CHIP's own name where it differs) (`chip-local` only, ignored when `MATTER_CHIP_BINS_SOURCE=cert-bins` — see "Choosing a CHIP binary source" above). | none (required for `chip-local`) |
 | `MATTER_CERT_CHIP_IMAGE_BASE` | Docker image base name for `chip-docker` (image pulled is `<base>-<app>:latest`).          | `ghcr.io/matter-js/chip`        |
+| `MATTER_CERT_CONTROLLER`      | Controller under test: `matterjs` (in process), `chip-tool`, or `matterjs-server` (a server run as a child process and driven through its WebSocket API; it serves only the DUT role, so helper roles run on `matterjs`). | `matterjs`                      |
+| `MATTER_CERT_SERVER_ENTRY`    | Entry point of the server for `MATTER_CERT_CONTROLLER=matterjs-server`: a `.js`/`.mjs`/`.cjs` file run with the current Node, or a command line that starts the server directly. The run record names it. | none (required for `matterjs-server`) |
 | `MATTER_CERT_EVIDENCE_DIR`    | Where `result.json`/`*.log` evidence bundles are written.                                  | `<package cwd>/cert-evidence`   |
 | `MATTER_CERT_TH_SERVER_APP_PATH` | Container-side path to a TH_SERVER binary for python-wrapped TCs (e.g. `TC-SC-3.5`); unset means the TC self-skips. | none |
 | `MATTER_CERT_CAMERA_APP_PATH` | Container-side path to `chip-camera-app`, the TH_SERVER of the WebRTC TCs (e.g. `TC-WEBRTCR-2.1`); unset means the TC self-skips. | none |
@@ -230,6 +232,9 @@ attached log stream (`device-<role>.log`, `controller-<name>.log`). Sketch of `r
     "run": {
         "timestamp": "2026-08-08T07:37:17.811Z",
         "controller": "dut",
+        "controllerImplementation": "matterjs-server",
+        "helperControllerImplementation": "matterjs",
+        "controllerBuild": { "entry": "dist/main.js", "sdkVersion": "0.18.0", "schemaVersion": "13" },
         "devices": [{ "role": "th", "app": "all-clusters", "flavor": "chip-local", "chipRef": "..." }],
         "matterJsCommit": "25dd21a01533bd9434b0e8a42e6f96d9ba1ad878"
     },
@@ -245,6 +250,11 @@ attached log stream (`device-<role>.log`, `controller-<name>.log`). Sketch of `r
     "verdict": "pass"
 }
 ```
+
+`helperControllerImplementation` is present only where the helper roles run on another implementation than
+`controllerImplementation`. `controllerBuild` is present only for a controller that runs outside the test process
+(`matterjs-server`): it names the entry point and the server's SDK and schema version, because the same
+`MATTER_CERT_SERVER_ENTRY` variable can point at any build.
 
 A run-level `verdict` is one of `"pass" | "fail" | "unverified" | "skipped" | "incomplete"`; a step's
 is `"pass" | "fail" | "unverified" | "skipped" | "aborted"` (`"aborted"` for a step never reached

@@ -57,6 +57,7 @@ import {
     requireId,
     runCleanups,
     sameMessageFrom,
+    settleWithin,
     statedInPrompt,
     WRITE_REQUEST_MESSAGE,
 } from "../cert/tc-support.js";
@@ -2359,6 +2360,29 @@ describe("expectRejection", () => {
         await expectRejection("op", Promise.reject(new Error("refused")), Seconds(60));
 
         expect(Time.timers.size).equal(before);
+    });
+
+    it("rejects with a controller refusal rather than passing on it, whatever it accepts", async () => {
+        const refusal = new UnsupportedByControllerError("commission", "matterjs-server");
+
+        await expect(expectRejection("op", Promise.reject(refusal), BUDGET)).rejectedWith(refusal);
+        await expect(expectRejection("op", Promise.reject(refusal), BUDGET, () => true)).rejectedWith(refusal);
+    });
+});
+
+describe("settleWithin", () => {
+    it("rejects with a controller refusal instead of reporting the operation rejected", async () => {
+        const refusal = new UnsupportedByControllerError("commission", "matterjs-server");
+        const before = Time.timers.size;
+
+        await expect(settleWithin("op", Promise.reject(refusal), Millis(200))).rejectedWith(refusal);
+        expect(Time.timers.size).equal(before);
+    });
+
+    it("reports any other rejection", async () => {
+        const outcome = await settleWithin("op", Promise.reject(new InternalError("refused")), Millis(200));
+
+        expect(outcome.kind).equal("rejected");
     });
 });
 

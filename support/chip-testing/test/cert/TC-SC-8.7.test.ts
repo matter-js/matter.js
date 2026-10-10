@@ -16,7 +16,6 @@ import {
     TcpSessionRef,
     tcpInvokeEvidence,
     tcpSessionStep,
-    tcpStep,
     timeSnapshotResponseCheck,
 } from "./tc-sc-8-support.js";
 import { CommissionedRefs, recordAll, requireId } from "./tc-support.js";
@@ -87,7 +86,7 @@ certTest("TC-SC-8.7", {
     .step(
         2,
         "TH initiates a regularly-sized InvokeCommandRequest with DUT, specifying that either a MRP or TCP-based session is usable.",
-        tcpStep(invokeOverExistingSession),
+        invokeOverExistingSession,
         {
             expected: "Verify Command response received successfully at TH over the existing TCP-based session.",
         },

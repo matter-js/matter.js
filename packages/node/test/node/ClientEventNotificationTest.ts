@@ -5,15 +5,18 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { SwitchClient, SwitchServer } from "#behaviors/switch";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { ClientEndpointInitializer } from "#node/client/ClientEndpointInitializer.js";
 import { PeerBehavior } from "#node/client/PeerBehavior.js";
+import type { ClientNode } from "#node/ClientNode.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerNode } from "#node/ServerNode.js";
+import { Seconds } from "@matter/general";
 import { FeatureBitmap } from "@matter/model";
-import { MockSite } from "@matter/node/testing";
-import { ReadResult } from "@matter/protocol";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
+import { ClientRead, ClientSubscribe, Read, ReadResult, Subscribe } from "@matter/protocol";
 import {
     AttributeId,
     ClusterId,
@@ -211,12 +214,225 @@ describe("Client Event Notification", () => {
                 };
             }
 
-            await MockTime.resolve(emit(reported(1, { epochTimestamp: 1000 })));
-            await MockTime.resolve(emit(reported(2, { systemTimestamp: 2000 })));
-            await MockTime.resolve(emit(reported(3, { deltaEpochTimestamp: 3000 })));
-            await MockTime.resolve(emit(reported(4, { deltaSystemTimestamp: 4000 })));
+            await MockTime.resolve(emit(reported(1, { epochTimestamp: 1000 }), true));
+            await MockTime.resolve(emit(reported(2, { systemTimestamp: 2000 }), true));
+            await MockTime.resolve(emit(reported(3, { deltaEpochTimestamp: 3000 }), true));
+            await MockTime.resolve(emit(reported(4, { deltaSystemTimestamp: 4000 }), true));
 
             expect(kinds).deep.equals(["epoch", "system", "epoch-delta", "system-delta"]);
+        });
+    });
+
+    describe("maxEventNumber", () => {
+        const switchEvents = { endpointId: EndpointNumber(0), clusterId: Switch.id };
+        const MomentarySwitchServer = SwitchServer.with(
+            Switch.Feature.MomentarySwitch,
+            Switch.Feature.MomentarySwitchRelease,
+        );
+
+        async function switchPair(site: MockSite) {
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: ServerNode.RootEndpoint.with(MomentarySwitchServer) },
+            });
+            const peer = await subscribedPeer(controller, "peer1");
+
+            const press = () =>
+                device.act(agent => {
+                    agent.get(MomentarySwitchServer).events.initialPress.emit({ newPosition: 1 }, agent.context);
+                });
+
+            return { peer, press };
+        }
+
+        async function unsubscribedSwitchPair(site: MockSite) {
+            const pair = await switchPair(site);
+            await MockTime.resolve(pair.peer.set({ network: { autoSubscribe: false } }));
+            return pair;
+        }
+
+        async function readEventNumbers(peer: ClientNode, request: ClientRead) {
+            const numbers = new Array<EventNumber>();
+            await MockTime.resolve(
+                (async () => {
+                    for await (const chunk of peer.interaction.read(request)) {
+                        for await (const report of chunk) {
+                            if (report.kind === "event-value") {
+                                numbers.push(report.number);
+                            }
+                        }
+                    }
+                })(),
+            );
+            return numbers;
+        }
+
+        function maxOf(numbers: EventNumber[]) {
+            return numbers.reduce((max, number) => (number > max ? number : max), EventNumber(0));
+        }
+
+        it("advances on events the node-wide wildcard subscription delivers", async () => {
+            await using site = new MockSite();
+            const { peer, press } = await switchPair(site);
+
+            const delivered = new Promise<bigint>(resolve =>
+                peer.env.get(ChangeNotificationService).change.on(change => {
+                    if (change.kind === "event" && change.event.id === Switch.events.initialPress.id) {
+                        resolve(BigInt(change.number));
+                    }
+                }),
+            );
+            await press();
+            const number = await MockTime.resolve(delivered);
+
+            expect(peer.stateOf(NetworkClient).maxEventNumber).equals(number);
+        });
+
+        it("advances on events a narrow default subscription delivers", async () => {
+            await using site = new MockSite();
+            const { peer, press } = await unsubscribedSwitchPair(site);
+
+            await MockTime.resolve(
+                peer.set({
+                    network: {
+                        defaultSubscription: { attributes: [{}], events: [switchEvents] },
+                    },
+                }),
+            );
+            await MockTime.resolve(peer.set({ network: { autoSubscribe: true } }));
+
+            const delivered = new Promise<bigint>(resolve =>
+                peer.env.get(ChangeNotificationService).change.on(change => {
+                    if (change.kind === "event" && change.event.id === Switch.events.initialPress.id) {
+                        resolve(BigInt(change.number));
+                    }
+                }),
+            );
+            await press();
+            const number = await MockTime.resolve(delivered);
+
+            expect(peer.stateOf(NetworkClient).maxEventNumber).equals(number);
+        });
+
+        it("delivers an event buffered before the first read once with a narrow default subscription", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addUncommissionedPair({
+                device: { type: ServerNode.RootEndpoint.with(MomentarySwitchServer) },
+            });
+            await controller.start();
+
+            const { passcode, discriminator } = device.state.commissioning;
+            await MockTime.resolve(
+                controller.peers.commission({
+                    passcode,
+                    discriminator,
+                    timeout: Seconds(90),
+                    autoSubscribe: false,
+                    autoStateInitialize: false,
+                }),
+                { macrotasks: true },
+            );
+            const peer = controller.peers.get("peer1")!;
+
+            await device.act(agent => {
+                agent.get(MomentarySwitchServer).events.initialPress.emit({ newPosition: 1 }, agent.context);
+            });
+
+            let deliveries = 0;
+            controller.env.get(ChangeNotificationService).change.on(change => {
+                if (change.kind === "event" && change.event.id === Switch.events.initialPress.id) {
+                    deliveries++;
+                }
+            });
+
+            await MockTime.resolve(
+                peer.set({
+                    network: {
+                        defaultSubscription: { attributes: [{}], events: [switchEvents] },
+                    },
+                }),
+            );
+            peer.behaviors.internalsOf(NetworkClient).isNewlyCommissioned = true;
+            await MockTime.resolve(peer.set({ network: { autoSubscribe: true, autoStateInitialize: true } }));
+            await subscribedPeer(controller, "peer1");
+
+            expect(deliveries).equals(1);
+            expect(peer.stateOf(NetworkClient).maxEventNumber > 0n).true;
+        });
+
+        it("advances on a node-wide wildcard read", async () => {
+            await using site = new MockSite();
+            const { peer, press } = await unsubscribedSwitchPair(site);
+            const before = peer.stateOf(NetworkClient).maxEventNumber;
+
+            await press();
+            const numbers = await readEventNumbers(peer, Read({ events: [{}] }));
+
+            expect(maxOf(numbers) > before).true;
+            expect(peer.stateOf(NetworkClient).maxEventNumber).equals(maxOf(numbers));
+        });
+
+        it("does not advance on a narrow read, so the resubscription still delivers its events", async () => {
+            await using site = new MockSite();
+            const { peer, press } = await unsubscribedSwitchPair(site);
+            const before = peer.stateOf(NetworkClient).maxEventNumber;
+
+            await press();
+            const numbers = await readEventNumbers(peer, Read({ events: [switchEvents] }));
+            expect(maxOf(numbers) > before).true;
+            expect(peer.stateOf(NetworkClient).maxEventNumber).equals(before);
+
+            const redelivered = new Promise<{ newPosition: number }>(resolve =>
+                peer.eventsOf(SwitchClient).initialPress!.on(resolve),
+            );
+            await MockTime.resolve(peer.set({ network: { autoSubscribe: true } }));
+
+            expect(await MockTime.resolve(redelivered)).deep.equals({ newPosition: 1 });
+            expect(peer.stateOf(NetworkClient).maxEventNumber).equals(maxOf(numbers));
+        });
+
+        it("does not advance on a narrow read that also returns attribute data for the endpoint", async () => {
+            await using site = new MockSite();
+            const { peer, press } = await unsubscribedSwitchPair(site);
+            const before = peer.stateOf(NetworkClient).maxEventNumber;
+
+            await press();
+            const numbers = await readEventNumbers(peer, {
+                ...Read({ attributes: [switchEvents], events: [switchEvents] }),
+                includeKnownVersions: true,
+            });
+
+            expect(maxOf(numbers) > before).true;
+            expect(peer.stateOf(NetworkClient).maxEventNumber).equals(before);
+        });
+
+        it("does not advance on a narrow subscription", async () => {
+            await using site = new MockSite();
+            const { peer, press } = await unsubscribedSwitchPair(site);
+            const before = peer.stateOf(NetworkClient).maxEventNumber;
+
+            let reported: (number: EventNumber) => void;
+            const received = new Promise<EventNumber>(resolve => (reported = resolve));
+            const request: ClientSubscribe = {
+                ...Subscribe({ events: [switchEvents], keepSubscriptions: true }),
+                sustain: false,
+                updated: async (data: ReadResult) => {
+                    for await (const chunk of data) {
+                        for await (const report of chunk) {
+                            if (report.kind === "event-value") {
+                                reported(report.number);
+                            }
+                        }
+                    }
+                },
+            };
+            const subscription = await MockTime.resolve(peer.interaction.subscribe(request));
+
+            await press();
+            const number = await MockTime.resolve(received);
+            subscription.close();
+
+            expect(number > before).true;
+            expect(peer.stateOf(NetworkClient).maxEventNumber).equals(before);
         });
     });
 
