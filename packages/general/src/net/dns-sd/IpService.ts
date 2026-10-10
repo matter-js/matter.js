@@ -98,6 +98,18 @@ export class IpService {
     }
 
     /**
+     * Whether a TXT record of the service is known, even one without keys.
+     */
+    get hasTxtRecord() {
+        for (const record of this.#name.records) {
+            if (record.recordType === DnsRecordType.TXT) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Values from TXT records.
      */
     get parameters(): DnssdParameters {
@@ -190,6 +202,7 @@ export class IpService {
     #onServiceChanged = async ({ updated, deleted }: DnssdName.Changes) => {
         // The address-change path never observes TXT records, so detect parameter changes here.
         let txtUpdated = false;
+        let txtSuperseded = false;
 
         if (updated) {
             for (const record of updated) {
@@ -202,17 +215,20 @@ export class IpService {
             }
         }
 
-        // Deleted/expired TXT is intentionally ignored: keep the last known parameters as the best assumption.
         if (deleted) {
             for (const record of deleted) {
                 const service = serviceOf(record);
                 if (service) {
                     this.#deleteService(service);
+                } else if (record.recordType === DnsRecordType.TXT && this.#isSuperseded(record)) {
+                    txtSuperseded = true;
                 }
             }
         }
 
-        if (txtUpdated) {
+        // A deleted TXT record that a newer one superseded may change the parameters; when the newest TXT record expires,
+        // keep the last known parameters as the best assumption
+        if (txtUpdated || txtSuperseded) {
             const signature = parameterSignatureOf(this.parameters);
             if (signature !== this.#parameterSignature) {
                 this.#parameterSignature = signature;
@@ -220,6 +236,15 @@ export class IpService {
             }
         }
     };
+
+    #isSuperseded(deleted: DnssdName.Record) {
+        for (const record of this.#name.records) {
+            if (record.recordType === DnsRecordType.TXT && record.installedAt > deleted.installedAt) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     #updateService(ttl: Duration, { target, port, priority, weight }: SrvRecordValue) {
         const key = hostKeyOf(target, port);

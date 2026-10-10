@@ -3777,7 +3777,7 @@ const PEER1_STATE = {
     parts: {},
     index: {},
     commissioning: {
-        longIdleTimeOperatingMode: false,
+        longIdleTimeOperatingMode: undefined,
         peerAddress: { fabricIndex: 1, nodeId: expect.BIGINT },
         addresses: [
             {
@@ -3831,7 +3831,7 @@ const PEER1_STATE = {
                 tcpServer: false,
             },
         },
-        tcpSupport: 0,
+        tcpSupport: undefined,
     },
     network: {
         autoSubscribe: true,

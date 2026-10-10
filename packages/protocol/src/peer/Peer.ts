@@ -124,10 +124,14 @@ export class Peer {
         this.#context = context;
 
         this.#observers.on(this.#service.changed, () => {
-            // Update persisted discovery data
+            // An operational TXT record states these keys as a group; one it omits no longer applies
+            const service = this.#service;
             this.#descriptor.discoveryData = {
                 ...this.#descriptor.discoveryData,
-                ...DiscoveryData(this.#service.parameters),
+                ...(service.hasTxtRecord
+                    ? { SII: undefined, SAI: undefined, SAT: undefined, T: undefined, ICD: undefined }
+                    : {}),
+                ...DiscoveryData(service.parameters),
             };
 
             // Schedule address validity check if we have an active session

@@ -32,6 +32,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver throws `NoProviderError`
     - Fix: Corrects log formatting of HTML escaping, `FormattedText` list nesting, list diff markers and `Lifetime.details`
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
+    - Fix: `IpService` reports a change when a newer TXT record of a service drops a key
 
 - @matter/model
     - Breaking: Provisional elements are always treated as optional
@@ -176,6 +177,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `NodeSession.reportedParameters` holds the session parameters the peer sent, without fallbacks
     - Fix: A peer's effective session parameters take the specification default for a value its session left out, and apply the LIT minimum idle interval only when the peer gave no SII
     - Fix: A peer marked as not supporting TCP keeps that mark across restarts until a session reports TCP server support
+    - Fix: A peer's discovery data drops the session intervals, TCP support and ICD mode its operational advertisement no longer carries
     - Breaking: Outgoing group messages use message privacy; matter.js based devices <0.18 will not receive them
     - Breaking: Received group messages are decrypted only with key sets mapped in the GroupKeyMap
     - Breaking: Sending a group message without a usable key fails with `NoUsableGroupKeyError` (`GroupKeySetMissingError` or `GroupKeyNotStartedError`)

@@ -5,7 +5,16 @@
  */
 
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
-import { ChannelType, Crypto, Millis, MockCrypto, Seconds } from "@matter/general";
+import {
+    Bytes,
+    ChannelType,
+    Crypto,
+    DnsRecordClass,
+    DnsRecordType,
+    Millis,
+    MockCrypto,
+    Seconds,
+} from "@matter/general";
 import { MockSite } from "@matter/node/testing";
 import { Peer, PeerSet, SessionParameters } from "@matter/protocol";
 
@@ -234,6 +243,69 @@ describe("Peer descriptor", () => {
         const [restored] = controllerB.env.get(PeerSet);
         expect(restored.descriptor.tcpUnsupported).true;
         expect(restored.sessionParameters.supportedTransports).deep.equals({ tcpClient: false, tcpServer: false });
+    });
+
+    it("keeps advertised session intervals while the service holds no TXT record", async () => {
+        await using site = new MockSite();
+        const { peer } = await commissionedPeer(site);
+        for (const record of [...peer.service.name.records]) {
+            if (record.recordType === DnsRecordType.TXT) {
+                peer.service.name.deleteRecord(record);
+            }
+        }
+        expect(peer.service.hasTxtRecord).false;
+        peer.descriptor.discoveryData = { ...peer.descriptor.discoveryData, SII: Millis(1234) };
+
+        await MockTime.resolve(peer.service.changed.emit(), { macrotasks: true });
+
+        expect(peer.descriptor.discoveryData?.SII).equals(1234);
+    });
+
+    it("drops an advertised session interval the device no longer advertises", async () => {
+        await using site = new MockSite();
+        const { controller, peer } = await commissionedPeer(site);
+
+        const advertise = (...txt: string[]) =>
+            peer.service.name.installRecord({
+                name: peer.service.name.qname,
+                recordType: DnsRecordType.TXT,
+                recordClass: DnsRecordClass.IN,
+                flushCache: true,
+                ttl: Seconds(120),
+                value: txt.map(entry => Bytes.fromString(entry)),
+            });
+
+        const dropped = (key: "SII" | "SAI" | "T") =>
+            new Promise<void>(resolve => {
+                const check = () => {
+                    if (peer.descriptor.discoveryData?.[key] === undefined) {
+                        peer.service.changed.off(check);
+                        resolve();
+                    }
+                };
+                peer.service.changed.on(check);
+            });
+
+        advertise("SII=1234", "SAI=321", "T=4");
+        await MockTime.advance(Seconds(2));
+        await MockTime.macrotask;
+        expect(peer.descriptor.discoveryData).deep.include({ SII: 1234, SAI: 321 });
+        expect(peer.descriptor.discoveryData?.T?.tcpServer).true;
+
+        const siiDropped = dropped("SII");
+        advertise("SAI=321");
+        await MockTime.resolve(siiDropped, { macrotasks: true });
+        await MockTime.macrotask;
+
+        expect(peer.descriptor.discoveryData?.SAI).equals(321);
+        expect(peer.descriptor.discoveryData?.T).undefined;
+        expect(controller.peers.get("peer1")!.stateOf(CommissioningClient).advertisedIntervals?.idleInterval).undefined;
+
+        // A TXT record without any keys still states that nothing is advertised
+        await MockTime.advance(Seconds(2));
+        const saiDropped = dropped("SAI");
+        advertise();
+        await MockTime.resolve(saiDropped, { macrotasks: true });
     });
 
     describe("reported session parameters", () => {
