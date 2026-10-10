@@ -159,6 +159,11 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             throw new ImplementationError("minSetpointDeadBand is out of valid range 0..127");
         }
 
+        // We store these values internally because we need to restore them after any write try; the setpoint
+        // validation in #setupValidations reads the deadband from here
+        this.internal.minSetpointDeadBand = this.state.minSetpointDeadBand;
+        this.internal.controlSequenceOfOperation = this.state.controlSequenceOfOperation;
+
         const node = Node.forEndpoint(this.endpoint);
         this.reactTo(node.lifecycle.online, this.#nodeOnline);
 
@@ -167,10 +172,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         this.#setupModeHandling();
         this.#setupThermostatLogic();
         this.#setupPresets();
-
-        // We store these values internally because we need to restore them after any write try
-        this.internal.minSetpointDeadBand = this.state.minSetpointDeadBand;
-        this.internal.controlSequenceOfOperation = this.state.controlSequenceOfOperation;
     }
 
     #nodeOnline() {
@@ -579,13 +580,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
     /** Setup all validations for the Thermostat behavior */
     #setupValidations() {
-        // Validate existing values to match the constraints at initialization
-        this.#assertUserSetpointLimits("HeatSetpointLimit");
-        this.#assertUserSetpointLimits("CoolSetpointLimit");
-        this.#clampSetpointToLimits("Heat", this.state.occupiedHeatingSetpoint);
-        this.#clampSetpointToLimits("Heat", this.state.unoccupiedHeatingSetpoint);
-        this.#clampSetpointToLimits("Cool", this.state.occupiedCoolingSetpoint);
-        this.#clampSetpointToLimits("Cool", this.state.unoccupiedCoolingSetpoint);
+        this.#reconcileInitialSetpoints();
 
         // Setup reactions for validations on changes
         this.maybeReactTo(this.events.absMinHeatSetpointLimit$Changing, this.#assertAbsMinHeatSetpointLimitChanging);
@@ -711,7 +706,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     #assertAbsMaxCoolSetpointLimitChanging(absMax: number) {
-        this.#assertUserSetpointLimits("CoolSetpointLimit", { absMax });
+        this.#assertUserSetpointLimits("Cool", { absMax });
     }
 
     #assertMaxCoolSetpointLimitChanging(max: number) {
@@ -725,11 +720,11 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     #assertAbsMinCoolSetpointLimitChanging(absMin: number) {
-        this.#assertUserSetpointLimits("CoolSetpointLimit", { absMin });
+        this.#assertUserSetpointLimits("Cool", { absMin });
     }
 
     #assertAbsMaxHeatSetpointLimitChanging(absMax: number) {
-        this.#assertUserSetpointLimits("HeatSetpointLimit", { absMax });
+        this.#assertUserSetpointLimits("Heat", { absMax });
     }
 
     #assertMaxHeatSetpointLimitChanging(max: number) {
@@ -743,7 +738,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     #assertAbsMinHeatSetpointLimitChanging(absMin: number) {
-        this.#assertUserSetpointLimits("HeatSetpointLimit", { absMin });
+        this.#assertUserSetpointLimits("Heat", { absMin });
     }
 
     #assertOccupiedCoolingSetpointChanging(setpoint: number, _old: number, context: ActionContext) {
@@ -827,64 +822,50 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     /**
-     * Used to validate generically that user configurable limits must be within device limits follow:
+     * Used to validate generically that user configurable limits must be within device limits as follows:
      * * AbsMinHeatSetpointLimit <= MinHeatSetpointLimit <= MaxHeatSetpointLimit <= AbsMaxHeatSetpointLimit
      * * AbsMinCoolSetpointLimit <= MinCoolSetpointLimit <= MaxCoolSetpointLimit <= AbsMaxCoolSetpointLimit
-     * Values not provided are taken from the state
+     * Absolute limits not provided are taken from the state; an unset user limit defaults to its absolute limit.
      */
-    #assertUserSetpointLimits(
-        scope: "HeatSetpointLimit" | "CoolSetpointLimit",
-        details: { absMin?: number; min?: number; max?: number; absMax?: number } = {},
-    ) {
-        const defaults = scope === "HeatSetpointLimit" ? this.#heatDefaults : this.#coolDefaults;
-        const {
-            absMin = this.state[`absMin${scope}`] ?? defaults.absMin,
-            min = this.state[`min${scope}`] ?? defaults.absMin,
-            max = this.state[`max${scope}`] ?? defaults.absMax,
-            absMax = this.state[`absMax${scope}`] ?? defaults.absMax,
-        } = details;
+    #assertUserSetpointLimits(scope: "Heat" | "Cool", details: { absMin?: number; absMax?: number }) {
+        const abs = this.#absLimits(scope);
+        const { absMin = abs.min, absMax = abs.max } = details;
+        const min = this.state[`min${scope}SetpointLimit`] ?? absMin;
+        const max = this.state[`max${scope}SetpointLimit`] ?? absMax;
         logger.debug(
             `Validating user setpoint limits for ${scope}: absMin=${absMin}, min=${min}, max=${max}, absMax=${absMax}`,
         );
         if (absMin > min) {
             throw new StatusResponse.ConstraintErrorError(
-                `absMin${scope} (${absMin}) must be less than or equal to min${scope} (${min})`,
+                `absMin${scope}SetpointLimit (${absMin}) must be less than or equal to min${scope}SetpointLimit (${min})`,
             );
         }
         if (min > max) {
             throw new StatusResponse.ConstraintErrorError(
-                `min${scope} (${min}) must be less than or equal to max${scope} (${max})`,
+                `min${scope}SetpointLimit (${min}) must be less than or equal to max${scope}SetpointLimit (${max})`,
             );
         }
         if (max > absMax) {
             throw new StatusResponse.ConstraintErrorError(
-                `max${scope} (${max}) must be less than or equal to absMax${scope} (${absMax})`,
+                `max${scope}SetpointLimit (${max}) must be less than or equal to absMax${scope}SetpointLimit (${absMax})`,
             );
         }
     }
 
     get heatSetpointMinimum() {
-        const absMin = this.state.absMinHeatSetpointLimit ?? this.#heatDefaults.absMin;
-        const min = this.state.minHeatSetpointLimit ?? this.#heatDefaults.absMin;
-        return Math.max(min, absMin);
+        return Math.max(this.#userLimit("Heat", "min"), this.#absLimits("Heat").min);
     }
 
     get heatSetpointMaximum() {
-        const absMax = this.state.absMaxHeatSetpointLimit ?? this.#heatDefaults.absMax;
-        const max = this.state.maxHeatSetpointLimit ?? this.#heatDefaults.absMax;
-        return Math.min(max, absMax);
+        return Math.min(this.#userLimit("Heat", "max"), this.#absLimits("Heat").max);
     }
 
     get coolSetpointMinimum() {
-        const absMin = this.state.absMinCoolSetpointLimit ?? this.#coolDefaults.absMin;
-        const min = this.state.minCoolSetpointLimit ?? this.#coolDefaults.absMin;
-        return Math.max(min, absMin);
+        return Math.max(this.#userLimit("Cool", "min"), this.#absLimits("Cool").min);
     }
 
     get coolSetpointMaximum() {
-        const absMax = this.state.absMaxCoolSetpointLimit ?? this.#coolDefaults.absMax;
-        const max = this.state.maxCoolSetpointLimit ?? this.#coolDefaults.absMax;
-        return Math.min(max, absMax);
+        return Math.min(this.#userLimit("Cool", "max"), this.#absLimits("Cool").max);
     }
 
     get setpointDeadBand() {
@@ -926,12 +907,10 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
      * `ChangeLimits`); everything else is accepted and reconciled.
      */
     #assertLimitWithinAbs(scope: "Heat" | "Cool", value: number) {
-        const defaults = scope === "Heat" ? this.#heatDefaults : this.#coolDefaults;
-        const absMin = this.state[`absMin${scope}SetpointLimit`] ?? defaults.absMin;
-        const absMax = this.state[`absMax${scope}SetpointLimit`] ?? defaults.absMax;
-        if (value < absMin || value > absMax) {
+        const abs = this.#absLimits(scope);
+        if (value < abs.min || value > abs.max) {
             throw new StatusResponse.ConstraintErrorError(
-                `${scope}SetpointLimit (${value}) must be within absolute limits [${absMin}, ${absMax}]`,
+                `${scope}SetpointLimit (${value}) must be within absolute limits [${abs.min}, ${abs.max}]`,
             );
         }
     }
@@ -952,11 +931,14 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     /**
-     * Mirror of CHIP `Setpoints::Valid()`: the invariant that {@link #reconcileSetpoints} restores. Checks, per
-     * supported mode, that absolute and user limits are ordered and nested and that setpoints sit within the user
-     * limits; and, with AutoMode, that heat/cool limits and setpoints maintain the deadband.
+     * Mirror of CHIP `Setpoints::Valid()`: the invariant that {@link #reconcileSetpoints} and
+     * {@link #reconcileInitialSetpoints} restore. Checks, per supported mode, that absolute and user limits are ordered
+     * and nested and that setpoints sit within the user limits; and, with AutoMode, that heat/cool limits and setpoints
+     * maintain the deadband.
+     *
+     * @returns a description of the first violated condition, or `undefined` if all hold
      */
-    #setpointsValid(): boolean {
+    #setpointViolation(): string | undefined {
         const dead = this.setpointDeadBand;
         for (const scope of ["Heat", "Cool"] as const) {
             if (scope === "Heat" ? !this.features.heating : !this.features.cooling) {
@@ -964,29 +946,31 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             }
             const abs = this.#absLimits(scope);
             if (abs.min > abs.max) {
-                return false;
+                return `absMin${scope}SetpointLimit (${abs.min}) is above absMax${scope}SetpointLimit (${abs.max})`;
             }
             const min = this.#userLimit(scope, "min");
             const max = this.#userLimit(scope, "max");
             if (min > max || min < abs.min || max > abs.max) {
-                return false;
+                return `${scope} setpoint limits [${min}, ${max}] are not ordered within absolute limits [${abs.min}, ${abs.max}]`;
             }
             for (const type of ["occupied", "unoccupied"] as const) {
                 if (type === "unoccupied" && !this.features.occupancy) {
                     continue;
                 }
-                const value = this.state[`${type}${scope}ingSetpoint`];
+                const key = `${type}${scope}ingSetpoint` as const;
+                const value = this.state[key];
                 if (value !== undefined && (value < min || value > max)) {
-                    return false;
+                    return `${key} (${value}) is outside ${scope} setpoint limits [${min}, ${max}]`;
                 }
             }
         }
         if (this.features.autoMode) {
-            if (this.#userLimit("Cool", "max") - this.#userLimit("Heat", "max") < dead) {
-                return false;
-            }
-            if (this.#userLimit("Cool", "min") - this.#userLimit("Heat", "min") < dead) {
-                return false;
+            for (const bound of ["max", "min"] as const) {
+                const heat = this.#userLimit("Heat", bound);
+                const cool = this.#userLimit("Cool", bound);
+                if (cool - heat < dead) {
+                    return `${bound}CoolSetpointLimit (${cool}) - ${bound}HeatSetpointLimit (${heat}) is below the deadband (${dead})`;
+                }
             }
             for (const type of ["occupied", "unoccupied"] as const) {
                 if (type === "unoccupied" && !this.features.occupancy) {
@@ -995,11 +979,10 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 const heat = this.state[`${type}HeatingSetpoint`];
                 const cool = this.state[`${type}CoolingSetpoint`];
                 if (heat !== undefined && cool !== undefined && cool - heat < dead) {
-                    return false;
+                    return `${type}CoolingSetpoint (${cool}) - ${type}HeatingSetpoint (${heat}) is below the deadband (${dead})`;
                 }
             }
         }
-        return true;
     }
 
     /**
@@ -1010,9 +993,69 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
      * touched so the reconciliation preserves the client's intent and moves the other side.
      */
     #reconcileSetpoints(changed: Set<string>) {
-        if (this.#setpointsValid()) {
+        const violation = this.#setpointViolation();
+        if (violation === undefined) {
             return;
         }
+        this.#fixSetpoints(changed);
+        const remaining = this.#setpointViolation();
+        if (remaining !== undefined) {
+            throw new StatusResponse.ConstraintErrorError(
+                `Thermostat setpoints could not be reconciled within the configured limits: ${violation}; after adjusting, ${remaining}`,
+            );
+        }
+    }
+
+    /**
+     * Reconciles configured or persisted state that violates the setpoint invariants, preferring the heating side (the
+     * cooling side without Heating): the other side moves first, and the preferred side is pulled back only where the
+     * other would leave its absolute limits. Unordered user limits are ordered by raising the max limit. Without this,
+     * every later setpoint write fails because a setpoint write never moves a limit.
+     */
+    #reconcileInitialSetpoints() {
+        const violation = this.#setpointViolation();
+        if (violation === undefined) {
+            return;
+        }
+        const before = this.#effectiveSetpoints();
+        const kept = this.features.heating ? "Heat" : "Cool";
+        this.#fixSetpoints(
+            new Set([
+                `min${kept}SetpointLimit`,
+                `max${kept}SetpointLimit`,
+                `occupied${kept}ingSetpoint`,
+                `unoccupied${kept}ingSetpoint`,
+                "minCoolSetpointLimit",
+            ]),
+        );
+        const remaining = this.#setpointViolation();
+        if (remaining !== undefined) {
+            throw new ImplementationError(
+                `Thermostat setpoint configuration cannot be fixed: ${violation}; after adjusting, ${remaining}`,
+            );
+        }
+        const after = this.#effectiveSetpoints();
+        const adjusted = Object.entries(after).flatMap(([key, value]) =>
+            value === before[key] ? [] : [`${key} ${before[key]} -> ${value}`],
+        );
+        logger.warn(`Thermostat setpoint configuration is invalid (${violation}), adjusted ${adjusted.join(", ")}`);
+    }
+
+    /** User limits (unset ones at their absolute fallback) and setpoints, for reporting adjustments. */
+    #effectiveSetpoints(): Record<string, number | undefined> {
+        return {
+            minHeatSetpointLimit: this.#userLimit("Heat", "min"),
+            maxHeatSetpointLimit: this.#userLimit("Heat", "max"),
+            minCoolSetpointLimit: this.#userLimit("Cool", "min"),
+            maxCoolSetpointLimit: this.#userLimit("Cool", "max"),
+            occupiedHeatingSetpoint: this.state.occupiedHeatingSetpoint,
+            occupiedCoolingSetpoint: this.state.occupiedCoolingSetpoint,
+            unoccupiedHeatingSetpoint: this.state.unoccupiedHeatingSetpoint,
+            unoccupiedCoolingSetpoint: this.state.unoccupiedCoolingSetpoint,
+        };
+    }
+
+    #fixSetpoints(changed: Set<string>) {
         if (this.features.heating) {
             this.#fixUserLimits("Heat", changed);
         }
@@ -1026,11 +1069,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         this.#fixSetpointRange("occupied", changed);
         if (this.features.occupancy) {
             this.#fixSetpointRange("unoccupied", changed);
-        }
-        if (!this.#setpointsValid()) {
-            throw new StatusResponse.ConstraintErrorError(
-                "Thermostat setpoints could not be reconciled within the configured limits",
-            );
         }
     }
 

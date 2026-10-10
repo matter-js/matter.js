@@ -129,6 +129,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `ArmFailSafe` over CASE answers `BusyWithOtherAdmin` while any commissioning window is open
     - Fix: Device type validation counts extended clusters for the Base conditions and no longer reports multi-instance components as duplicates
     - Fix: A window covering without Lift no longer states a lift direction in `ConfigStatus`
+    - Fix: `ThermostatServer` fixes invalid configured setpoints and limits at startup instead of rejecting every later setpoint change
+    - Fix: `ThermostatServer` accepts absolute setpoint limits narrower than the Matter defaults when the user setpoint limits are not set
     - Fix: Enum values in a manufacturer range are accepted
     - Fix: Subscriptions send keep-alives on time, report concrete paths only for changed attributes, and report computed quieter attributes
     - Fix: Subscriptions, ICD active windows and diagnostics timers use the monotonic clock, so wall-clock steps no longer disturb them
