@@ -6,8 +6,9 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
+import { IdentityConflictError } from "#endpoint/errors.js";
 import { Node } from "#node/Node.js";
-import { IdentityConflictError, IdentityService } from "#node/server/IdentityService.js";
+import { IdentityService } from "#node/server/IdentityService.js";
 import {
     Crypto,
     DnsRecordType,

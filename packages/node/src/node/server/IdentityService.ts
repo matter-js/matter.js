@@ -4,19 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
-import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
-import { ImplementationError } from "@matter/general";
 import { PeerAddress, PeerSet } from "@matter/protocol";
 
 /**
- * Thrown when there is a endpoint ID or number conflict.
- */
-export class IdentityConflictError extends ImplementationError {}
-
-/**
- * Provides NodeServer and Endpoint identification.
+ * Provides the node description and the reservation of peer addresses.
  */
 export class IdentityService {
     #node: Endpoint;
@@ -31,27 +23,6 @@ export class IdentityService {
      */
     get nodeDescription() {
         return this.#node.toString();
-    }
-
-    /**
-     * Ensure that a number is available for assignment to a {@link Endpoint}.
-     */
-    assertEndpointNumberAvailable(number: number, endpoint: Endpoint) {
-        let other;
-        if (this.#node.lifecycle.hasNumber && this.#node.number === number) {
-            other = this.#node;
-        } else {
-            other = this.#node.agentFor(LocalActorContext.ReadOnly).get(IndexBehavior).partsById[number];
-        }
-        if (other && other !== endpoint) {
-            let owner;
-            if (other.lifecycle.hasId) {
-                owner = `endpoint ${other.id}`;
-            } else {
-                owner = `another endpoint`;
-            }
-            throw new IdentityConflictError(`Endpoint number ${number} is already assigned to ${owner}`);
-        }
     }
 
     /**

@@ -11,9 +11,10 @@ import { AdministratorCommissioningClient } from "#behaviors/administrator-commi
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
+import { IdentityConflictError } from "#endpoint/errors.js";
 import { ClientStructure } from "#node/client/ClientStructure.js";
 import type { ClientNode } from "#node/ClientNode.js";
-import { IdentityConflictError, IdentityService } from "#node/server/IdentityService.js";
+import { IdentityService } from "#node/server/IdentityService.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
     causedBy,

@@ -5,7 +5,7 @@
  */
 
 import type { Endpoint } from "#endpoint/Endpoint.js";
-import { IdentityConflictError } from "#node/server/IdentityService.js";
+import { IdentityConflictError } from "#endpoint/errors.js";
 import { type ServerNode } from "#node/ServerNode.js";
 import type { StorageContext } from "@matter/general";
 import { ImplementationError, InternalError, Logger } from "@matter/general";
