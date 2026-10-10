@@ -10,10 +10,11 @@ import { OnOffServer } from "#behaviors/on-off";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { IdentityConflictError } from "#endpoint/errors.js";
+import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { RootEndpoint } from "#endpoints/root";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
-import { ImplementationError, Lifecycle } from "@matter/general";
+import { ImplementationError, Lifecycle, LogDestination, Logger, LogFormat, LogLevel } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 import { EndpointNumber } from "@matter/types";
 
@@ -112,6 +113,21 @@ describe("EndpointNumberConflict", () => {
         expect(node.parts.has(aggregator)).false;
     });
 
+    // Characterization; pins the sibling ID check that now runs before install
+    it("refuses an automatic id that duplicates a sibling's id", async () => {
+        await using node = new MockServerNode();
+        const first = new Endpoint(OnOffLightDevice, { id: "part1" });
+        const unnamed = new Endpoint(OnOffLightDevice, { isEssential: false });
+        node.parts.add(first);
+        node.parts.add(unnamed);
+
+        await node.start();
+
+        // The second part's automatic id is part1 (its index), which the first part already uses
+        expect(unnamed.construction.error).instanceOf(IdentityConflictError);
+        expect(node.parts.get("part1")).equals(first);
+    });
+
     it("refuses a duplicate preset number in a tree built before start", async () => {
         await using node = new MockServerNode();
         const first = new Endpoint(OnOffLightDevice, { id: "first", number: EndpointNumber(4) });
@@ -167,6 +183,154 @@ describe("EndpointNumberConflict", () => {
             const retried = await node.add(OnOffLightDevice, { id: "retried", number: 5 });
 
             expect(holderOf(node, 5)).equals(retried);
+        });
+    });
+
+    it("keeps a preset number added after an automatic sibling", async () => {
+        await using node = new MockServerNode();
+        const automatic = new Endpoint(OnOffLightDevice, { id: "automatic" });
+        const preset = new Endpoint(OnOffLightDevice, { id: "preset", number: EndpointNumber(1) });
+        node.parts.add(automatic);
+        node.parts.add(preset);
+
+        await node.start();
+
+        expect(preset.number).equals(1);
+        expect(automatic.number).not.equals(1);
+        expect(holderOf(node, 1)).equals(preset);
+    });
+
+    it("keeps a preset number of a cousin under another aggregator", async () => {
+        await using node = new MockServerNode();
+        const first = new Endpoint(AggregatorEndpoint, {
+            id: "first",
+            parts: [{ type: OnOffLightDevice, id: "automatic" }],
+        });
+        const second = new Endpoint(AggregatorEndpoint, {
+            id: "second",
+            parts: [{ type: OnOffLightDevice, id: "preset", number: EndpointNumber(2) }],
+        });
+        node.parts.add(first);
+        node.parts.add(second);
+
+        await node.start();
+
+        const preset = second.parts.require("preset");
+        expect(preset.number).equals(2);
+        expect(holderOf(node, 2)).equals(preset);
+    });
+
+    // Guard: no production path reaches the collision; Installed is emitted by hand
+    it("logs an index collision and keeps the holder", async () => {
+        await using node = new MockServerNode();
+        const holder = new Endpoint(OnOffLightDevice, { id: "holder", number: EndpointNumber(5) });
+        const refused = new Endpoint(OnOffLightDevice, {
+            id: "refused",
+            number: EndpointNumber(5),
+            isEssential: false,
+        });
+        node.parts.add(holder);
+        node.parts.add(refused);
+        await node.start();
+        expect(refused.construction.error).instanceOf(IdentityConflictError);
+
+        const errors = new Array<string>();
+        Logger.destinations.capture = LogDestination({
+            format: LogFormat.formats.plain,
+            write(text, message) {
+                if (message.level >= LogLevel.ERROR) {
+                    errors.push(text);
+                }
+            },
+        });
+        try {
+            refused.lifecycle.change(EndpointLifecycle.Change.Installed);
+        } finally {
+            delete Logger.destinations.capture;
+        }
+
+        expect(errors.join("\n")).match(/already indexed/);
+        expect(holderOf(node, 5)).equals(holder);
+    });
+
+    // Characterization
+    it("indexes parts with the same ID under different parents", async () => {
+        await using node = new MockServerNode();
+        const first = new Endpoint(AggregatorEndpoint, {
+            id: "first",
+            parts: [{ type: OnOffLightDevice, id: "light" }],
+        });
+        const second = new Endpoint(AggregatorEndpoint, {
+            id: "second",
+            parts: [{ type: OnOffLightDevice, id: "light" }],
+        });
+        node.parts.add(first);
+        node.parts.add(second);
+
+        await node.start();
+
+        const firstLight = first.parts.require("light");
+        const secondLight = second.parts.require("light");
+        expect(holderOf(node, firstLight.number)).equals(firstLight);
+        expect(holderOf(node, secondLight.number)).equals(secondLight);
+    });
+
+    describe("retraction", () => {
+        async function startWithRefusedDuplicate(node: MockServerNode) {
+            const holder = new Endpoint(OnOffLightDevice, { id: "holder", number: EndpointNumber(4) });
+            const composed = new Endpoint(OnOffLightDevice, {
+                id: "composed",
+                number: EndpointNumber(6),
+                parts: [{ type: OnOffLightDevice, id: "refused", number: EndpointNumber(4), isEssential: false }],
+            });
+            node.parts.add(holder);
+            node.parts.add(composed);
+            await node.start();
+            await MockTime.yield3();
+            const refused = composed.parts.require("refused");
+            expect(refused.construction.error).instanceOf(IdentityConflictError);
+            return { holder, composed, refused };
+        }
+
+        it("reports no deletion when a refused endpoint closes", async () => {
+            await using node = new MockServerNode();
+            const { refused } = await startWithRefusedDuplicate(node);
+            const deleted = new Array<number | undefined>();
+            node.env.get(ChangeNotificationService).change.on(change => {
+                if (change.kind === "delete") {
+                    deleted.push(change.endpoint.maybeNumber);
+                }
+            });
+
+            await refused.close();
+
+            expect(deleted).deep.equals([]);
+        });
+
+        it("does not list a refused child of a parent without an index", async () => {
+            await using node = new MockServerNode();
+            const { composed } = await startWithRefusedDuplicate(node);
+
+            expect(composed.stateOf(DescriptorServer).partsList).not.contains(4);
+        });
+
+        // Characterization
+        it("reports one deletion for an endpoint that was erased and restarted", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const endpoint = await node.add(OnOffLightDevice, { id: "restarted", number: 5 });
+            await endpoint.erase();
+            endpoint.construction.start();
+            await endpoint.construction;
+            const deleted = new Array<number | undefined>();
+            node.env.get(ChangeNotificationService).change.on(change => {
+                if (change.kind === "delete") {
+                    deleted.push(change.endpoint.maybeNumber);
+                }
+            });
+
+            await endpoint.delete();
+
+            expect(deleted).deep.equals([5]);
         });
     });
 

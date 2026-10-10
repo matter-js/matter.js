@@ -8,10 +8,12 @@ import { Behavior } from "#behavior/Behavior.js";
 import { limitEndpointAttributeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
 import { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { ServerBehaviorBacking } from "#behavior/internal/ServerBehaviorBacking.js";
+import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import type { Agent } from "#endpoint/Agent.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointVariableService } from "#endpoint/EndpointVariableService.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
+import { RootEndpoint } from "#endpoints/root";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { Environment, InternalError, Logger, MaybePromise } from "@matter/general";
 import { FabricManager } from "@matter/protocol";
@@ -29,12 +31,22 @@ export class ServerEndpointInitializer extends EndpointInitializer {
         this.variableService = new EndpointVariableService(environment);
     }
 
-    override initializeDescendant(endpoint: Endpoint) {
+    override reserveDescendant(endpoint: Endpoint) {
         if (!endpoint.lifecycle.hasId) {
             endpoint.id = this.#identifyPart(endpoint);
         }
 
-        this.#store.endpointStores.assignNumber(endpoint);
+        this.#store.endpointStores.assignNumber(endpoint, {
+            presetNumbers: () => presetNumbersNotInstalled(endpoint),
+            isInstalled: number => IndexBehavior.holderOf(endpoint, number) !== undefined,
+        });
+    }
+
+    override initializeDescendant(endpoint: Endpoint) {
+        // Parts reserve before they install; a node root reserves here, once its environment provides this initializer
+        if (endpoint.maybeNumber === 0) {
+            this.reserveDescendant(endpoint);
+        }
 
         // Generated device types include DescriptorServer only where they specialize it
         if (!(DescriptorServer.id in endpoint.behaviors.supported)) {
@@ -52,17 +64,8 @@ export class ServerEndpointInitializer extends EndpointInitializer {
         await this.#store.endpointStores.eraseStoreForEndpoint(endpoint);
     }
 
-    async deactivateDescendant(endpoint: Endpoint) {
-        if (!endpoint.lifecycle.hasId) {
-            return;
-        }
-
-        const number = endpoint.maybeNumber;
-        if (number === undefined || number === 0) {
-            return;
-        }
-
-        this.#store.endpointStores.deactivateStoreForEndpoint(endpoint);
+    async deactivateDescendant(_endpoint: Endpoint) {
+        // A closed endpoint keeps its reservation; whether a number is installed is known by the node's index
     }
 
     /**
@@ -132,4 +135,17 @@ export class ServerEndpointInitializer extends EndpointInitializer {
             }
         }
     }
+}
+
+/**
+ * Preset numbers of the endpoints of {@link endpoint}'s node that have not installed yet, other than {@link endpoint}.
+ */
+function presetNumbersNotInstalled(endpoint: Endpoint) {
+    const numbers = new Set<number>();
+    endpoint.ownerOfType(RootEndpoint)?.visit(other => {
+        if (other !== endpoint && !other.lifecycle.isInstalled && other.lifecycle.hasNumber) {
+            numbers.add(other.number);
+        }
+    });
+    return numbers;
 }
