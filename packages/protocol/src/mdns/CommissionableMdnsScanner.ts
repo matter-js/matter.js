@@ -25,9 +25,16 @@ import {
     Time,
     Timer,
     Timestamp,
+    UINT8_MAX,
 } from "@matter/general";
 import { VendorId } from "@matter/types";
-import { CommissionableDevice, CommissionableDeviceIdentifiers, DiscoveryData, Scanner } from "../common/Scanner.js";
+import {
+    CommissionableDevice,
+    CommissionableDeviceIdentifiers,
+    DiscoveryData,
+    parseTxtDecimal,
+    Scanner,
+} from "../common/Scanner.js";
 import {
     MATTER_COMMISSION_SERVICE_QNAME,
     getCommissionableDeviceQname,
@@ -64,6 +71,8 @@ const SPECULATIVE_CLEANUP_INTERVAL = Minutes(30);
 const SPECULATIVE_TARGET_MAX = 50;
 // Cap discover() retry backoff so queries stay dense enough to succeed inside a commissioning window
 const COMMISSIONING_RETRY_INTERVAL = Seconds(30);
+
+const MAX_DISCRIMINATOR = 0xfff;
 
 export class CommissionableMdnsScanner implements Scanner {
     readonly type = ChannelType.UDP;
@@ -460,10 +469,10 @@ export class CommissionableMdnsScanner implements Scanner {
 
 function buildCommissionableDevice(name: DnssdName): CommissionableDevice | undefined {
     const params = name.parameters;
-    const D = Number(params.get("D"));
-    const CM = Number(params.get("CM"));
+    const D = parseTxtDecimal(params.get("D"), MAX_DISCRIMINATOR);
+    const CM = parseTxtDecimal(params.get("CM"), UINT8_MAX);
 
-    if (!isFinite(D) || !isFinite(CM)) {
+    if (D === undefined || CM === undefined) {
         return undefined;
     }
 

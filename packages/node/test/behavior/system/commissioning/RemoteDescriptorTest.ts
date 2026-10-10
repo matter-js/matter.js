@@ -7,6 +7,7 @@
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
 import { Hours, Millis, ServerAddressUdp } from "@matter/general";
 import { CommissionableDevice } from "@matter/protocol";
+import { FabricIndex, NodeId } from "@matter/types";
 
 function udp(ip: string, port = 5540): ServerAddressUdp {
     return { type: "udp", ip, port };
@@ -157,36 +158,38 @@ describe("RemoteDescriptor", () => {
         });
     });
 
-    describe("session interval cap handling", () => {
-        function longWith(idleInterval?: number, activeInterval?: number): RemoteDescriptor.Long {
-            return { sessionParameters: { idleInterval, activeInterval } } as RemoteDescriptor.Long;
-        }
+    describe("session intervals", () => {
+        it("keeps a commissioned node's session intervals over advertised ones", () => {
+            const long: RemoteDescriptor.Long = {
+                peerAddress: { fabricIndex: FabricIndex(1), nodeId: NodeId(1) },
+                sessionParameters: {
+                    idleInterval: Hours(2),
+                    activeInterval: Millis(400),
+                    activeThreshold: Millis(5000),
+                },
+            };
 
-        it("keeps a higher session-derived interval when the advertisement is at the 1-hour cap", () => {
-            const long = longWith(Hours(2), Hours(2));
+            RemoteDescriptor.toLongForm({ SII: Millis(500), SAI: Millis(300), SAT: Millis(4000) }, long);
 
-            RemoteDescriptor.toLongForm({ SII: Hours.one, SAI: Hours.one }, long);
-
-            expect(long.sessionParameters?.idleInterval).equals(Hours(2));
-            expect(long.sessionParameters?.activeInterval).equals(Hours(2));
+            expect(long.sessionParameters).deep.equals({
+                idleInterval: Hours(2),
+                activeInterval: Millis(400),
+                activeThreshold: Millis(5000),
+            });
         });
 
-        it("applies an advertised interval below the cap even over a higher value", () => {
-            const long = longWith(Hours(2), Hours(2));
+        it("takes advertised intervals for a node that is not commissioned", () => {
+            const long: RemoteDescriptor.Long = {
+                sessionParameters: { idleInterval: Hours(2), activeInterval: Hours(2), activeThreshold: Millis(5000) },
+            };
 
-            RemoteDescriptor.toLongForm({ SII: Millis(1800000), SAI: Millis(1800000) }, long);
+            RemoteDescriptor.toLongForm({ SII: Millis(500), SAI: Millis(300), SAT: Millis(4000) }, long);
 
-            expect(long.sessionParameters?.idleInterval).equals(Millis(1800000));
-            expect(long.sessionParameters?.activeInterval).equals(Millis(1800000));
-        });
-
-        it("applies a capped advertisement when no higher value is on record", () => {
-            const long = longWith();
-
-            RemoteDescriptor.toLongForm({ SII: Hours.one, SAI: Hours.one }, long);
-
-            expect(long.sessionParameters?.idleInterval).equals(Hours.one);
-            expect(long.sessionParameters?.activeInterval).equals(Hours.one);
+            expect(long.sessionParameters).deep.equals({
+                idleInterval: Millis(500),
+                activeInterval: Millis(300),
+                activeThreshold: Millis(4000),
+            });
         });
     });
 });
