@@ -161,9 +161,10 @@ await server.start();
    To remove a device during runtime you can do so by doing the following:
         console.log("Removing Light 3 now!!");
 
-        await endpoint.close();
+        await endpoint.delete();
 
-   This will automatically remove the endpoint from the bridge.
+   This removes the endpoint from the bridge and erases its stored data.  Use endpoint.close() instead to remove it
+   but keep its data and endpoint number for a new endpoint with the same ID that is added later.
  */
 
 /*********************************************************************************************************

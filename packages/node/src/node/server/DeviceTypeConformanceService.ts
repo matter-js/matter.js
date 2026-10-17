@@ -345,8 +345,8 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
     }
 
     /**
-     * Stop following {@link endpoint}, which a rollback, a factory reset or its deletion returns to its unconstructed
-     * state. A factory reset constructs it again, which follows it again.
+     * Stop following {@link endpoint}, which a rollback, an erase (a factory reset included) or its deletion returns to
+     * its unconstructed state. An erase constructs it again, which follows it again.
      *
      * An endpoint being destroyed keeps its recorded entry until it is destroyed, because its removal must answer for
      * what the recorded judgements read of it.

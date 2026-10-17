@@ -28,6 +28,29 @@ describe("Peers auto-start on owner online", () => {
         expect(peer1.lifecycle.isOnline).true;
     });
 
+    it("lets a stop of the owner follow its start that auto-starts peers", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(controller.stop());
+
+        // Request the stop while the owner holds its mutex to start its peers
+        let stopping: Promise<void> | undefined;
+        const start = peer1.start.bind(peer1);
+        peer1.start = () => {
+            stopping ??= controller.stop();
+            return start();
+        };
+
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+        await MockTime.resolve(controller.start(), { macrotasks: true });
+        await MockTime.resolve(stopping, { macrotasks: true });
+
+        expect(stopping).not.undefined;
+        expect(controller.lifecycle.isOnline).false;
+        expect(peer1.lifecycle.isOnline).false;
+    });
+
     it("does not auto-start commissioned peers when autoStartCommissionedPeers is false", async () => {
         await using site = new MockSite();
         const controller = await site.addController({ network: { autoStartCommissionedPeers: false } });

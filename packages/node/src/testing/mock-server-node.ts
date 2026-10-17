@@ -70,17 +70,7 @@ afterEach(async function () {
     }
 
     try {
-        await MockTime.resolve(
-            MatterAggregateError.allSettled(
-                open.map(async node => {
-                    // close() returns at once while another close is still running, so wait for the destruction itself
-                    const closed = node.construction.closed;
-                    await node.close();
-                    await closed;
-                }),
-            ),
-            { macrotasks: true },
-        );
+        await MockTime.resolve(MatterAggregateError.allSettled(open.map(node => node.close())), { macrotasks: true });
     } catch (error) {
         leaks.push(`${title}: closing left-over nodes failed: ${error}`);
     }

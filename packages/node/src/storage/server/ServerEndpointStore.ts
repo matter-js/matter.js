@@ -6,7 +6,8 @@
 
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointStore } from "#storage/EndpointStore.js";
-import { ImplementationError, StorageContext } from "@matter/general";
+import { ImplementationError, StorageContext, SupportedStorageTypes } from "@matter/general";
+import type { Val } from "@matter/protocol";
 import { DatasourceStore } from "./DatasourceStore.js";
 
 const NUMBER_KEY = "__number__";
@@ -87,6 +88,30 @@ export class ServerEndpointStore extends EndpointStore {
         }
 
         return store;
+    }
+
+    /**
+     * Persist values for behaviors that have not started on a store that was just created.  The behaviors start with
+     * these values.  {@link load} cannot be used for this because it would replace the child stores.
+     *
+     * @internal
+     */
+    async preset(values: Record<string, Val.Struct>) {
+        await this.set(values);
+        for (const behaviorId in values) {
+            this.initialValues.set(behaviorId, { ...this.initialValues.get(behaviorId), ...values[behaviorId] });
+        }
+    }
+
+    /**
+     * The persisted value of a behavior property, if one is stored.
+     */
+    async storedValue(behaviorId: string, key: string): Promise<SupportedStorageTypes | undefined> {
+        const context = this.storage.createContext(behaviorId);
+        if (!(await context.has(key))) {
+            return undefined;
+        }
+        return context.get(key);
     }
 
     async saveNumber() {

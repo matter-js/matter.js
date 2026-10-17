@@ -134,6 +134,23 @@ export class ClientNodeStore extends NodeStore {
         );
     }
 
+    /**
+     * Erase the values cached from the peer and reload what remains.  The state of behaviors that do not track a
+     * remote cluster stays; see {@link ClientEndpointStore.eraseCaches}.
+     */
+    async eraseCaches() {
+        const stores = [...this.#stores.values()];
+        try {
+            await MatterAggregateError.settleSeries(
+                stores.map(store => () => store.eraseCaches()),
+                `Error while erasing the cache of ${this}`,
+            );
+        } finally {
+            this.#stores = new Map();
+            await this.load();
+        }
+    }
+
     override storeForEndpoint(endpoint: Endpoint) {
         const { number } = endpoint;
 

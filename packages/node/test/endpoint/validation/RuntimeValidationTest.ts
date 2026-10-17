@@ -362,22 +362,33 @@ describe("device type validation after construction", () => {
             await node.close();
         });
 
-        for (const order of ["child first", "owner first"]) {
-            it(`judges only above the owner when an endpoint and its owner close together, ${order}`, async () => {
-                const node = await createNode();
-                const { fridge, cabinets } = await addRefrigerator(node, { cabinets: 1 });
-                const closing = order === "child first" ? [cabinets[0], fridge] : [fridge, cabinets[0]];
+        it("judges only above the owner when an endpoint and its owner close together, owner first", async () => {
+            const node = await createNode();
+            const { fridge, cabinets } = await addRefrigerator(node, { cabinets: 1 });
 
-                using recording = recordingChecks();
-                const logged = await captureLogOf(() => Promise.all(closing.map(endpoint => endpoint.close())));
+            using recording = recordingChecks();
+            const logged = await captureLogOf(() => Promise.all([fridge.close(), cabinets[0].close()]));
 
-                expect(recording.judged).deep.equals([node]);
-                expect(logged).deep.equals([]);
-                expect(serviceOf(node).violationsOf(fridge)).deep.equals([]);
+            expect(recording.judged).deep.equals([node]);
+            expect(logged).deep.equals([]);
+            expect(serviceOf(node).violationsOf(fridge)).deep.equals([]);
 
-                await node.close();
-            });
-        }
+            await node.close();
+        });
+
+        it("judges only above the owner when an endpoint and its owner close together, endpoint first", async () => {
+            const node = await createNode();
+            const { fridge, cabinets } = await addRefrigerator(node, { cabinets: 1 });
+
+            using recording = recordingChecks();
+            const logged = await captureLogOf(() => Promise.all([cabinets[0].close(), fridge.close()]));
+
+            expect(recording.judged).deep.equals([node]);
+            expect(logged).deep.equals([]);
+            expect(serviceOf(node).violationsOf(fridge)).deep.equals([]);
+
+            await node.close();
+        });
 
         it("judges nothing when the owner crashed", async () => {
             const node = await createNode();

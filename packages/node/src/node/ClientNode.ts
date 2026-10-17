@@ -6,13 +6,14 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
-import { ClientNetworkRuntime } from "#behavior/system/network/ClientNetworkRuntime.js";
+import { ClientNetworkRuntime, OfflineError } from "#behavior/system/network/ClientNetworkRuntime.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
 import { Agent } from "#endpoint/Agent.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { ClientNodeEndpoints } from "#endpoint/properties/ClientNodeEndpoints.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
+import { awaitLifecycleOperation } from "#endpoint/properties/LifecycleMutex.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
@@ -22,6 +23,7 @@ import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     DependencyLifecycleError,
     Diagnostic,
+    DestroyedDependencyError,
     Duration,
     Identity,
     ImplementationError,
@@ -213,11 +215,15 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * If the node is still available, you should use {@link decommission} to remove it properly from the fabric and only use
      * this method as fallback.  You should inform the user that manual factory-reset may be necessary.
      */
-    override async delete() {
+    override delete() {
+        return super.delete();
+    }
+
+    protected override async deleteWithMutex() {
         const address = this.peerAddress;
 
         try {
-            await super.delete();
+            await super.deleteWithMutex();
         } finally {
             // Ensure there is no remaining @matter/protocol Peer installed.  This may occur if deleted while still
             // commissioned, and must hold even when teardown fails or the peer outlives its fabric
@@ -227,16 +233,54 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         }
     }
 
-    override async erase() {
-        await this.lifecycle.mutex.produce(this.eraseWithMutex.bind(this));
+    /**
+     * Erase the data cached from the peer and initialize the node again if it was started.  Commissioning and connection
+     * settings stay.  If its network was running it reconnects and reads the peer again.
+     *
+     * Rejects with a {@link MatterAggregateError} if a step fails.  A failed reset still erases the cache and
+     * initializes the node again.  The node crashes if it cannot disconnect first, in which case nothing is erased, if
+     * the cache erase fails, or if it cannot reconnect for another reason than its server node being offline.  If its
+     * server node is offline by then, the node stays offline instead.
+     */
+    override erase() {
+        return super.erase();
+    }
+
+    /**
+     * Bring the node online, and its server node first if that is offline.  The server node stays online if the start
+     * of this node fails.  Throws `DestroyedDependencyError` if the node or its server node is closing or closed, also
+     * when a verb of its server node removes the node while this waits for the server node.
+     */
+    override start() {
+        return super.start();
+    }
+
+    /**
+     * Start the server node if it is offline.  The server node mutex comes before the peer node mutex: the server node
+     * waits for its peers while it holds its mutex, and it may hold its mutex while it starts this node, so this only
+     * queues on it while the server node is offline.
+     */
+    protected override async prepareStart() {
+        if (!this.owner.lifecycle.isOnline) {
+            await this.owner.start();
+        }
+    }
+
+    protected override assertNotTerminal(operation: string) {
+        super.assertNotTerminal(operation);
+        if (this.owner.lifecycle.isTerminal) {
+            throw new DestroyedDependencyError(`${this.owner}`, `is closing or closed, so ${this} cannot ${operation}`);
+        }
     }
 
     /**
      * Disable the node.
      *
-     * This shuts down any active connections and prevents future connections until re-enabled.
+     * This shuts down any active connections and prevents future connections until re-enabled.  Throws
+     * `DestroyedDependencyError` if the node or its server node is closing or closed.
      */
     async disable() {
+        this.assertNotTerminal("disable");
         if (this.state.network.isDisabled) {
             return;
         }
@@ -244,7 +288,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         // A disabled node should be offline; setting this before teardown also lets the connection-state engine settle
         // straight to Disconnected instead of flashing Reconnecting as the subscription drops.
         this.lifecycle.targetState = "offline";
-        await this.lifecycle.mutex.produce(async () => {
+        await this.lifecycle.mutex.hold(`disabling ${this}`, async () => {
             // Drop the subscription before flipping isDisabled so the connection-state engine cannot momentarily read
             // Connected while disabling (subscriptionActive is checked ahead of isDisabled).
             await this.cancelWithMutex();
@@ -266,11 +310,18 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         await this.start();
     }
 
-    protected async eraseWithMutex() {
-        await this.cancelWithMutex();
-        await super.resetWithMutex();
-        this.#cachedPeerAddress = undefined;
-        await this.env.get(EndpointInitializer).eraseDescendant(this);
+    /**
+     * Delete erases the store of the node itself, also when the node crashed before it installed its initializer.
+     */
+    protected override async prepareDelete(): Promise<EndpointInitializer.Erasure> {
+        return { wipe: () => this.store.erase() };
+    }
+
+    /**
+     * Erase drops what the node cached from the peer and keeps its commissioning and connection settings.
+     */
+    protected override async prepareErase(): Promise<EndpointInitializer.Erasure> {
+        return { wipe: () => this.env.get(ClientNodeStore).eraseCaches() };
     }
 
     protected override async resetWithMutex() {
@@ -304,6 +355,10 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         }
     }
 
+    protected override staysOfflineAfter(error: unknown) {
+        return error instanceof OfflineError;
+    }
+
     // A peer belongs to its host's Peers, which closes it within the host's teardown
     protected override get isRuntimeWorker() {
         return false;
@@ -326,17 +381,34 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         actor?: (agent: Agent.Instance<ClientNode.RootEndpoint>) => MaybePromise<R>,
         options?: Endpoint.ActOptions,
     ): MaybePromise<R> {
+        const act = (): MaybePromise<R> => (super.act as any)(actorOrPurpose, actor, options);
+        const ready = this.#readyToAct();
+        return ready === undefined ? act() : ready.then(act);
+    }
+
+    /**
+     * Start an inactive node so it can act.  Returns a promise if the node is not ready yet.  A node that is closing or
+     * being deleted must not come back.  While a lifecycle verb is in progress the node waits for it, whatever its
+     * outcome, and checks again, as an erase restarts a started node itself.
+     */
+    #readyToAct(): Promise<void> | undefined {
         if (this.construction.status === Lifecycle.Status.Inactive) {
-            // Between the reset and the close of a deletion; restarting would revive a node that is going away
             this.lifecycle.assertNotGone();
+
+            const operation = this.lifecycleOperation;
+            if (operation !== undefined) {
+                return awaitLifecycleOperation(`acting on ${this}`, `a lifecycle operation of ${this}`, operation).then(
+                    () => this.#readyToAct(),
+                    () => this.#readyToAct(),
+                );
+            }
+
             this.construction.start();
         }
 
         if (this.construction.status === Lifecycle.Status.Initializing) {
-            return this.construction.then(() => (super.act as any)(actorOrPurpose, actor, options));
+            return this.construction.then(() => {});
         }
-
-        return (super.act as any)(actorOrPurpose, actor, options);
     }
 
     get interaction(): Interactable<ActionContext> {

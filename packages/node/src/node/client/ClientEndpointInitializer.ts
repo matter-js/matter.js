@@ -14,6 +14,7 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { PeerBehavior } from "#node/client/PeerBehavior.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
+import { MatterAggregateError } from "@matter/general";
 import { ClientEventEmitter } from "./ClientEventEmitter.js";
 import { ClientStructure } from "./ClientStructure.js";
 
@@ -28,18 +29,41 @@ export class ClientEndpointInitializer extends EndpointInitializer {
         this.#store = node.env.get(ClientNodeStore);
     }
 
-    async eraseDescendant(endpoint: Endpoint) {
-        if (endpoint === this.#node) {
-            await this.#store.erase();
-            return;
-        }
+    async prepareEraseDescendant(endpoint: Endpoint): Promise<EndpointInitializer.Erasure> {
+        const subtree = this.#subtreeOf(endpoint);
+        return {
+            wipe: async () => {
+                await this.#eraseStores(subtree);
+                for (const endpoint of subtree) {
+                    this.#structure?.renewStores(endpoint);
+                }
+            },
+        };
+    }
 
-        if (!endpoint.lifecycle.hasId) {
-            return;
-        }
+    async prepareDeleteDescendant(endpoint: Endpoint): Promise<EndpointInitializer.Erasure> {
+        const subtree = this.#subtreeOf(endpoint);
+        return {
+            wipe: () => this.#eraseStores(subtree),
+        };
+    }
 
-        const store = this.#store.storeForEndpoint(endpoint);
-        await store.erase();
+    // Stores are per endpoint number, so a wipe of an endpoint covers each of its parts; taken before the reset
+    #subtreeOf(endpoint: Endpoint) {
+        const subtree = new Array<Endpoint>();
+        endpoint.visit(endpoint => {
+            subtree.push(endpoint);
+        });
+        return subtree;
+    }
+
+    async #eraseStores(subtree: Endpoint[]) {
+        await MatterAggregateError.settleSeries(
+            subtree
+                .filter(endpoint => endpoint.lifecycle.hasId)
+                .map(endpoint => () => this.#store.storeForEndpoint(endpoint).erase()),
+            `Error erasing the stores of ${subtree[0]}`,
+        );
     }
 
     async deactivateDescendant(_endpoint: Endpoint) {

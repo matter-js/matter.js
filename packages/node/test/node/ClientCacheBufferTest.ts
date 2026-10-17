@@ -5,8 +5,12 @@
  */
 
 import { OnOffClient } from "#behaviors/on-off";
+import type { ClientNode } from "#node/ClientNode.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
+import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import {
+    createPromise,
     Crypto,
     deepCopy,
     Duration,
@@ -15,8 +19,12 @@ import {
     Minutes,
     MockCrypto,
     Seconds,
+    StorageManager,
+    Time,
 } from "@matter/general";
 import { MockSite, subscribedPeer } from "@matter/node/testing";
+import { EndpointNumber } from "@matter/types";
+import { OnOff } from "@matter/types/clusters/on-off";
 
 /** Memory storage does not benefit from buffering, so tests that exercise the buffer need a driver that asks for it */
 class BufferingStorageDriver extends MemoryStorageDriver {
@@ -135,6 +143,54 @@ describe("ClientCacheBuffer", () => {
         const peer2 = controller.peers.get("peer1")!;
         const ep1b = peer2.endpoints.require(1);
         expect(ep1b.stateOf(OnOffClient).onOff).true;
+    });
+
+    async function peerWithBufferedToggle(site: MockSite) {
+        const { controller } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const ep1 = peer.endpoints.require(1);
+        const update = new Promise<boolean>(resolve => ep1.eventsOf(OnOffClient).onOff$Changed.on(resolve));
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
+        await MockTime.resolve(update);
+        const onOff = controller.env
+            .get(StorageManager)
+            .createContext("nodes")
+            .createContext(peer.id)
+            .createContext("endpoints")
+            .createContext("1")
+            .createContext(OnOff.Cluster.id.toString());
+        return { controller, peer, ep1, onOff };
+    }
+
+    // Holds the flush when it writes the values of endpoint 1, which it took from the cache before
+    async function eraseWhileFlushWrites(controller: ServerNode, peer: ClientNode, erase: () => Promise<void>) {
+        const writer = peer.env.get(ClientNodeStore).localWriter;
+        const persist = writer.persistInTransaction.bind(writer);
+        const writing = createPromise<void>();
+        const write = createPromise<void>();
+        writer.persistInTransaction = async (...args: Parameters<typeof persist>) => {
+            if (args[1] === EndpointNumber(1)) {
+                writing.resolver();
+                await write.promise;
+            }
+            await persist(...args);
+        };
+
+        const flushing = controller.env.get(ClientCacheBuffer).flush();
+        await MockTime.resolve(writing.promise);
+        const erasing = erase();
+        await MockTime.resolve(Time.sleep("erase runs", Seconds(1)), { macrotasks: true });
+        write.resolver();
+        await MockTime.resolve(Promise.all([flushing, erasing]), { macrotasks: true });
+    }
+
+    it("does not restore the values of an erased endpoint from a flush that writes during the erase", async () => {
+        await using site = bufferingSite();
+        const { controller, peer, ep1, onOff } = await peerWithBufferedToggle(site);
+
+        await eraseWhileFlushWrites(controller, peer, () => ep1.erase());
+
+        expect(await onOff.keys()).deep.equals([]);
     });
 
     it("does not buffer when the storage driver writes immediately", async () => {

@@ -16,6 +16,8 @@ import { ProtocolService } from "#node/integration/ProtocolService.js";
 import type { Node } from "#node/Node.js";
 import {
     Construction,
+    createPromise,
+    DestroyedDependencyError,
     Diagnostic,
     Environment,
     Immutable,
@@ -25,6 +27,7 @@ import {
     Logger,
     MatterAggregateError,
     MaybePromise,
+    nextEmitOf,
     Observable,
     toHex,
     UninitializedDependencyError,
@@ -47,11 +50,14 @@ import { Commands } from "./properties/Commands.js";
 import { EndpointContainer } from "./properties/EndpointContainer.js";
 import { EndpointInitializer } from "./properties/EndpointInitializer.js";
 import { EndpointLifecycle } from "./properties/EndpointLifecycle.js";
+import { awaitLifecycleOperation } from "./properties/LifecycleMutex.js";
 import { Parts } from "./properties/Parts.js";
 import { SupportedBehaviors } from "./properties/SupportedBehaviors.js";
 import { EndpointType } from "./type/EndpointType.js";
 
 const logger = Logger.get("Endpoint");
+
+type LifecyclePhase = "idle" | "erasing" | "deleting" | "closing";
 
 /**
  * Endpoints consist of a hierarchy of parts.  This class manages the current state of a single endpoint.
@@ -61,12 +67,21 @@ const logger = Logger.get("Endpoint");
  *
  * Most often direct access to {@link Agent} is transparent as Matter.js acquires an agent as necessary for
  * {@link Behavior} interactions.
+ *
+ * The lifecycle verbs {@link erase}, {@link delete} and {@link close} of all endpoints of a node run one after another.
+ * A repeated call of the verb in progress joins it.  Once a delete or close is requested, the endpoint is gone for
+ * readers, and the endpoint and its parts refuse further erases and deletes; a close of the endpoint joins, and a close
+ * of a part waits for its turn.  Code that runs during a verb, such as a
+ * {@link EndpointLifecycle.reset} handler or the initialization or close of a behavior, must therefore not await a verb
+ * of the same node: both would wait for each other forever.  A warning names both once such a wait takes 10 seconds.
  */
 export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     #type: EndpointType;
     #id?: string;
     #number?: EndpointNumber;
     #owner?: Endpoint;
+    #phase: LifecyclePhase = "idle";
+    #operation?: Promise<void>;
     #agentType?: Agent.Type<T>;
     #behaviors: Behaviors;
     #lifecycle: EndpointLifecycle;
@@ -124,7 +139,8 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     /**
      * The owner of the endpoint.
      *
-     * Every endpoint but the root endpoint (the "server node") is owned by another endpoint.
+     * Every endpoint but the root endpoint (the "server node") is owned by another endpoint.  The owner can be set only
+     * once; remove an endpoint from its owner with {@link close} or {@link delete}.
      */
     get owner(): Endpoint | undefined {
         return this.#owner;
@@ -583,7 +599,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         return result;
     }
 
-    get construction() {
+    get construction(): Construction<Endpoint<T>> {
         return this.#construction;
     }
 
@@ -708,7 +724,9 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             return;
         }
         if (this.#owner) {
-            this.#container.remove(this);
+            throw new ImplementationError(
+                `Cannot change the owner of ${this}; an endpoint cannot move, so close or delete it and add a new endpoint`,
+            );
         }
 
         this.#owner = owner;
@@ -798,7 +816,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     /**
      * Access child parts.
      */
-    get parts() {
+    get parts(): Parts {
         if (!this.#parts) {
             this.#parts = new Parts(this);
         }
@@ -822,7 +840,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     /**
      * Endpoint information that varies as the endpoint initializes.
      */
-    get lifecycle() {
+    get lifecycle(): EndpointLifecycle {
         return this.#lifecycle;
     }
 
@@ -939,56 +957,323 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     }
 
     /**
-     * Perform "soft" reset of the endpoint, reverting all in-memory structures to uninitialized.
+     * Perform a "soft" reset of the endpoint and its parts, reverting all in-memory structures to uninitialized.  Every
+     * step runs and the endpoint becomes inactive even when a step fails, so it can restart.  An inactive endpoint has
+     * nothing to reset.  The caller holds the tree mutex of this endpoint.
      */
-    async reset() {
+    protected async resetWithMutex() {
+        if (this.construction.status === Lifecycle.Status.Inactive) {
+            return;
+        }
+
         using _resetting = this.construction.join("resetting");
 
+        // Revert lifecycle to uninitialized
+        this.lifecycle.resetting();
+
         try {
-            // Revert lifecycle to uninitialized
-            this.lifecycle.resetting();
-
-            // Reset child parts
-            {
-                using _parts = _resetting.join("parts");
-                await this.parts.reset();
-            }
-
-            // Reset behaviors
-            {
-                using _behaviors = _resetting.join("behaviors");
-                await this.behaviors.close();
-            }
-
-            // Notify
-            {
-                using _lifecycle = _resetting.join("lifecycle");
-                await this.lifecycle.reset.emit();
-            }
-
-            // Set construction to inactive so we can restart
+            await MatterAggregateError.settleSeries(
+                [
+                    async () => {
+                        using _parts = _resetting.join("parts");
+                        await MatterAggregateError.settleSeries(
+                            [...this.parts].map(part => () => part.resetWithMutex()),
+                            `Error resetting parts of ${this}`,
+                        );
+                    },
+                    async () => {
+                        using _behaviors = _resetting.join("behaviors");
+                        await this.behaviors.close();
+                    },
+                    async () => {
+                        using _lifecycle = _resetting.join("lifecycle");
+                        await this.lifecycle.reset.emit();
+                    },
+                ],
+                `Error resetting ${this}`,
+            );
+        } finally {
             this.construction.setStatus(Lifecycle.Status.Inactive);
-        } catch (e) {
-            logger.error(`Unhandled error during reset of ${this}`, e);
         }
     }
 
     /**
-     * Perform "hard" reset of the endpoint, reverting all in-memory and persistent state to uninitialized.
+     * Erase all persisted data of the endpoint and its parts and restart them with their default values and the
+     * options they were created with.
+     *
+     * The endpoint keeps its ID and number and stays in the PartsList of its parent.  An endpoint that was not started
+     * stays down.  On a server node the ConfigurationVersion increases when an endpoint below the node is erased; erasing
+     * a `ServerNode` is a factory reset.  A {@link close} or {@link delete} called meanwhile runs once the erase is done
+     * and the erase skips the restart; if the delete was requested before the erase began, the erase does nothing and
+     * the delete wipes the data.
+     *
+     * Throws {@link DestroyedDependencyError} once a delete or close of the endpoint or of an ancestor of the same node
+     * was requested.  Rejects with a {@link MatterAggregateError} if a step fails.  A failed reset does not stop the
+     * erase; a failed wipe leaves the endpoint crashed.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 7.7.2
      */
     async erase() {
-        await this.reset();
-        await this.env.get(EndpointInitializer).eraseDescendant(this);
+        const joined = this.#admit("erasing");
+        if (joined !== undefined) {
+            return await this.#join("erasing", joined);
+        }
+        this.#assertInNode("erased");
+        await this.#begin("erasing", () =>
+            this.withLifecycleMutex(`erasing ${this}`, async () => {
+                // A delete requested before the erase began wipes the data itself
+                if (this.#phase !== "deleting") {
+                    await this.eraseWithMutex();
+                }
+            }),
+        );
     }
 
     /**
-     * Erase all persisted data and destroy the endpoint.
+     * Perform {@link erase} while holding the tree mutex.
+     */
+    protected async eraseWithMutex() {
+        await this.#settle();
+        const wasStarted = this.construction.status !== Lifecycle.Status.Inactive;
+
+        const errors = new Array<unknown>();
+        let erasure;
+        try {
+            erasure = await this.prepareErase();
+        } catch (e) {
+            throw new MatterAggregateError([e], `Error erasing ${this}`);
+        }
+
+        try {
+            await this.resetWithMutex();
+        } catch (e) {
+            errors.push(e);
+        }
+
+        let wiped = true;
+        try {
+            await erasure.wipe();
+        } catch (e) {
+            errors.push(e);
+            wiped = false;
+            this.construction.crash();
+        }
+
+        if (wasStarted && wiped && !this.lifecycle.isTerminal && this.#terminalAncestor() === undefined) {
+            try {
+                this.construction.start();
+                await this.construction;
+            } catch (e) {
+                errors.push(e);
+            }
+        }
+
+        if (this.#phase !== "deleting") {
+            try {
+                await erasure.finish?.();
+            } catch (e) {
+                errors.push(e);
+            }
+        }
+
+        if (errors.length) {
+            throw new MatterAggregateError(errors, `Error erasing ${this}`);
+        }
+    }
+
+    /**
+     * Prepare the storage side of {@link erase}.  Defaults to the node's {@link EndpointInitializer}.
+     */
+    protected prepareErase(): Promise<EndpointInitializer.Erasure> {
+        return this.env.get(EndpointInitializer).prepareEraseDescendant(this);
+    }
+
+    /**
+     * Prepare the storage side of {@link delete}.  Defaults to the node's {@link EndpointInitializer}.
+     */
+    protected prepareDelete(): Promise<EndpointInitializer.Erasure> {
+        return this.env.get(EndpointInitializer).prepareDeleteDescendant(this);
+    }
+
+    /**
+     * Wait until the endpoint is no longer initializing, so a verb starts from a settled state.
+     */
+    async #settle() {
+        while (this.construction.status === Lifecycle.Status.Initializing) {
+            await nextEmitOf(this.construction.change);
+        }
+    }
+
+    #assertInNode(action: string) {
+        let root: Endpoint = this;
+        while (root.#owner !== undefined) {
+            root = root.#owner;
+        }
+        if (!root.lifecycle.isNode) {
+            throw new ImplementationError(`${this} was never added to a node, so it cannot be ${action}`);
+        }
+    }
+
+    /**
+     * Run the step of a lifecycle verb while holding the tree mutex, which {@link eraseWithMutex},
+     * {@link deleteWithMutex}, {@link closeWithMutex} and {@link resetWithMutex} expect.
+     *
+     * @param operation names the verb and the endpoint in the warning of a long wait
+     */
+    protected async withLifecycleMutex(operation: string, step: () => Promise<void>) {
+        await this.lifecycle.treeMutex.hold(operation, step);
+    }
+
+    /**
+     * The lifecycle verb in progress, if any: an erase, delete or close.
+     */
+    protected get lifecycleOperation(): Promise<void> | undefined {
+        return this.#operation;
+    }
+
+    /**
+     * Enter {@link phase} and run {@link operation} as the verb in progress.  A delete or close begins the destruction
+     * of the endpoint at once, so the endpoint is gone for readers while the verb waits for its turn.
+     */
+    #begin(phase: LifecyclePhase, operation: () => Promise<void>) {
+        this.#phase = phase;
+
+        // Listeners of the Destroying change may call a verb, which joins this one only once it is installed
+        const { promise: done, resolver, rejecter } = createPromise<void>();
+        const promise = done.finally(() => {
+            if (this.#operation !== promise) {
+                return;
+            }
+            this.#operation = undefined;
+            if (this.#phase === "erasing") {
+                this.#phase = "idle";
+            }
+        });
+        this.#operation = promise;
+
+        try {
+            if (phase === "deleting" || phase === "closing") {
+                this.lifecycle.change(EndpointLifecycle.Change.Destroying);
+            }
+            operation().then(resolver, rejecter);
+        } catch (e) {
+            rejecter(e);
+        }
+        return promise;
+    }
+
+    /**
+     * Decide how a call of a lifecycle verb proceeds.  Returns the operation the call joins, or undefined if the call
+     * starts the verb.
+     *
+     * Throws {@link DestroyedDependencyError} for an erase or delete once a delete or close of this endpoint or of an
+     * ancestor sharing its tree mutex was requested.  A close then joins the destruction of this endpoint, or queues
+     * behind the destruction of the ancestor.
+     */
+    #admit(verb: LifecyclePhase): Promise<void> | undefined {
+        const phase = this.#phase;
+        const operation = this.#operation;
+        if (this.lifecycle.isTerminal) {
+            if (verb === "closing") {
+                return this.#settled(operation);
+            }
+            if (verb === phase && operation !== undefined) {
+                return operation;
+            }
+            throw this.#notAdmitted(verb, this);
+        }
+        if (verb === "erasing" && phase === "erasing") {
+            return operation;
+        }
+        if (verb !== "closing") {
+            const ancestor = this.#terminalAncestor();
+            if (ancestor !== undefined) {
+                throw this.#notAdmitted(verb, ancestor);
+            }
+        }
+    }
+
+    #notAdmitted(verb: LifecyclePhase, cause: Endpoint) {
+        const destroyed = cause.construction.status === Lifecycle.Status.Destroyed;
+        let state;
+        if (cause.#phase === "deleting") {
+            state = destroyed ? "is deleted" : "is being deleted";
+        } else {
+            state = destroyed ? "is closed" : "is closing";
+        }
+        const action = verb === "erasing" ? "erased" : "deleted";
+        const subject = cause === this ? "it" : `${this}`;
+        return new DestroyedDependencyError(cause.toString(), `${state}, so ${subject} cannot be ${action}`);
+    }
+
+    /**
+     * The ancestor sharing the tree mutex of this endpoint whose delete or close was requested.  It destroys this
+     * endpoint once its turn on the mutex comes.
+     */
+    #terminalAncestor() {
+        if (this.lifecycle.ownsTreeMutex) {
+            return;
+        }
+        for (let owner = this.#owner; owner !== undefined; owner = owner.#owner) {
+            if (owner.lifecycle.isTerminal) {
+                return owner;
+            }
+            if (owner.lifecycle.ownsTreeMutex) {
+                return;
+            }
+        }
+    }
+
+    #join(verb: LifecyclePhase, operation: Promise<void>) {
+        return awaitLifecycleOperation(`${verb} ${this}`, `${this.#phase} ${this}`, operation);
+    }
+
+    async #settled(operation: Promise<void> | undefined) {
+        try {
+            await operation;
+        } catch (e) {
+            logger.debug(`Close of ${this} joined a delete or close that failed:`, e);
+        }
+    }
+
+    /**
+     * Erase all persisted data of the endpoint and its parts, release their endpoint numbers and destroy the endpoint.
+     * Also removes an endpoint that crashed.  For an endpoint of a server node the ConfigurationVersion increases once
+     * the endpoint is removed.  A node is erased and destroyed without restarting.
+     *
+     * Every step runs even when an earlier one fails; failures reject with a {@link MatterAggregateError}.  Throws
+     * {@link DestroyedDependencyError} once a close of the endpoint or a delete or close of an ancestor of the same node
+     * was requested, and {@link ImplementationError} for an endpoint that was never added to a node.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 9.2.11
      */
     async delete() {
-        this.construction.assert(this.toString());
-        this.lifecycle.change(EndpointLifecycle.Change.Destroying);
-        await this.erase();
-        await this.close();
+        const joined = this.#admit("deleting");
+        if (joined !== undefined) {
+            return await this.#join("deleting", joined);
+        }
+        this.#assertInNode("deleted");
+        await this.#begin("deleting", () => this.withLifecycleMutex(`deleting ${this}`, () => this.deleteWithMutex()));
+    }
+
+    /**
+     * Perform {@link delete} while holding the tree mutex.
+     */
+    protected async deleteWithMutex() {
+        await this.#settle();
+        let deletion: EndpointInitializer.Erasure | undefined;
+        await MatterAggregateError.settleSeries(
+            [
+                async () => {
+                    deletion = await this.prepareDelete();
+                },
+                () => this.resetWithMutex(),
+                () => deletion?.wipe(),
+                () => this.#destroy(),
+                () => deletion?.finish?.(),
+            ],
+            `Error deleting ${this}`,
+        );
     }
 
     /**
@@ -1016,26 +1301,53 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     }
 
     /**
-     * Destroy the endpoint and its parts.
+     * Destroy the endpoint and its parts.  Their persisted data and endpoint numbers stay, so an endpoint with the same
+     * ID that is added later gets the same number and data, unless another endpoint requested that number meanwhile.
+     * Use {@link delete} to remove the endpoint for good.
+     *
+     * A call during a delete or close of the endpoint waits for it and does not report its failures.  A call while an
+     * ancestor of the same node is being deleted or closed runs in turn; the ancestor may already have destroyed this
+     * endpoint by then.
      *
      * Every teardown step runs even when an earlier one fails.  A failed deactivation rejects with a
      * {@link MatterAggregateError}; failures while destroying the endpoint, its parts and its behaviors are logged.
      */
     async close() {
-        this.lifecycle.change(EndpointLifecycle.Change.Destroying);
+        const joined = this.#admit("closing");
+        if (joined !== undefined) {
+            return await this.#join("closing", joined);
+        }
+        await this.#begin("closing", () =>
+            this.withLifecycleMutex(`closing ${this}`, async () => {
+                // An ancestor may have destroyed the endpoint while the close waited
+                if (this.construction.status !== Lifecycle.Status.Destroyed) {
+                    await this.closeWithMutex();
+                }
+            }),
+        );
+    }
+
+    /**
+     * Perform {@link close} while holding the tree mutex.
+     */
+    protected async closeWithMutex() {
+        await this.#destroy();
+    }
+
+    async #destroy() {
         await MatterAggregateError.settleSeries(
             [
                 () => this.env.maybeGet(EndpointInitializer)?.deactivateDescendant(this),
                 () => this.#construction.close(),
             ],
-            `Error closing endpoint ${this}`,
+            `Error closing ${this}`,
         );
     }
 
     async [Construction.destruct]() {
         await MatterAggregateError.settleSeries(
             [
-                () => this.#parts?.close(),
+                () => this.#closeParts(),
                 () => this.#behaviors?.close(),
                 () => {
                     for (const id in this.#events) {
@@ -1049,6 +1361,20 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             ],
             `Error destroying endpoint ${this}`,
         );
+    }
+
+    async #closeParts() {
+        if (this.#parts === undefined) {
+            return;
+        }
+        await MatterAggregateError.settleSeries(this.#closePartTasks(this.#parts), `Error closing parts of ${this}`);
+    }
+
+    // The owner holds the tree mutex of its parts
+    *#closePartTasks(parts: Iterable<Endpoint>): Generator<() => Promise<void>> {
+        for (const part of parts) {
+            yield () => part.#begin("closing", () => part.#destroy());
+        }
     }
 
     async [Symbol.asyncDispose]() {

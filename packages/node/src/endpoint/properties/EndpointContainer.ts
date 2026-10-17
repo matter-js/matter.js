@@ -9,6 +9,7 @@ import {
     decamelize,
     Diagnostic,
     ImmutableSet,
+    ImplementationError,
     MatterAggregateError,
     MutableSet,
     ObservableSet,
@@ -52,6 +53,12 @@ export class EndpointContainer<T extends Endpoint = Endpoint>
             return;
         }
 
+        if (endpoint.owner !== undefined && endpoint.owner !== this.#owner) {
+            throw new ImplementationError(
+                `Cannot add ${endpoint} to ${this.#owner} because it belongs to ${endpoint.owner}; an endpoint cannot move, so close or delete it and add a new endpoint`,
+            );
+        }
+
         if (endpoint.lifecycle.hasId) {
             this.assertIdAvailable(endpoint.id, endpoint);
         }
@@ -73,7 +80,7 @@ export class EndpointContainer<T extends Endpoint = Endpoint>
     }
 
     /**
-     * Remove an endpoint from the container when it is destroyed or moves to another owner.
+     * Remove an endpoint from the container when it is destroyed or its add fails.
      *
      * @internal
      */
@@ -122,15 +129,6 @@ export class EndpointContainer<T extends Endpoint = Endpoint>
     }
 
     /**
-     * Soft-reset all parts.  Invoked automatically by the owner on reset.
-     */
-    async reset() {
-        for (const endpoint of this) {
-            await endpoint.reset();
-        }
-    }
-
-    /**
      * Destroy all parts.  Invoked automatically by the owner on destroy.
      */
     async close() {
@@ -154,7 +152,7 @@ export class EndpointContainer<T extends Endpoint = Endpoint>
         }
     }
 
-    protected get owner() {
+    protected get owner(): Endpoint {
         return this.#owner;
     }
 

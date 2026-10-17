@@ -87,6 +87,16 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: `parts.delete()` and `parts.clear()`, also on `agent.parts`, throw `ImplementationError`; remove an endpoint with its `close()` or `delete()`
     - Breaking: Adding an endpoint with the number of an erased endpoint that is still a part of its parent is refused
     - Breaking: An essential endpoint whose initialization fails in `add()` is closed instead of reset, so the same instance cannot be added again
+    - Breaking: `erase()` on an endpoint restarts it with its default values and options and keeps its endpoint number; on a server node the ConfigurationVersion increases
+    - Breaking: `erase()` of an endpoint or node rejects with a `MatterAggregateError` when a step fails; a failed storage erase leaves the endpoint or node crashed, and so does a node that cannot go offline before or online after the erase; a peer whose server node is offline stays offline instead
+    - Breaking: `ServerNode.delete()` erases the node's storage and closes the node; it no longer restarts the node first
+    - Breaking: `ClientNode.erase()` keeps the commissioning state and reconnects when it was started, unless its server node is offline
+    - Breaking: `Endpoint.reset()`, `Node.reset()` and `EndpointContainer.reset()` are removed; `erase()` resets and also wipes the persisted data
+    - Breaking: Changing the `owner` of an endpoint that already has one, also by adding it to another endpoint, throws; an endpoint cannot move, so close or delete it and add a new one
+    - Breaking: `EndpointInitializer.eraseDescendant()` is replaced by `prepareEraseDescendant()` and `prepareDeleteDescendant()`
+    - Breaking: `erase()` and `delete()` throw `DestroyedDependencyError` once a close of the endpoint, or a close or delete of an ancestor of the same node, was requested; `erase()` also once a delete was requested
+    - Breaking: `start()` of a node whose close or delete was requested throws `DestroyedDependencyError` instead of `MutexClosedError`, and `stop()` does nothing
+    - Breaking: `NodeLifecycle.mutex` is internal and no longer a `Mutex`
     - Breaking: `CommissioningClient` state `sessionParameters` is replaced by `reportedSessionParameters`, `advertisedIntervals` and `tcpUnsupported`; stored values migrate
     - Breaking: `WebRtcTransportRequestorServer.removeSession()` takes a session key (id, fabric, peer node) instead of the id
     - Breaking: The remote API `code` of a status error is its id, as the HTTP `Error-Code` header already was: `status-response` becomes the status id (such as `not-found`), and `path` becomes the expanded id (such as `constraint-error+door-lock`) for a write rejection
@@ -113,6 +123,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Device type requirements honor relaxed mandatory elements and revision-gated features
     - Enhancement: Adding endpoints under an aggregator is faster
     - Enhancement: In `strict` validation mode a cluster server refuses construction when a mandatory command throws `Behavior.unimplemented`
+    - Enhancement: `delete()` also removes an endpoint or node that crashed
+    - Enhancement: A lifecycle operation of a node or endpoint that waits 10 seconds for another one logs a warning naming both
     - Enhancement: `DclBehavior.offline` (`MATTER_DCL_OFFLINE`) keeps the DCL services it creates off the network
     - Enhancement: In split commissioning, a `CommissioningError` for a failed `CommissioningComplete` carries the status as `cause`
     - Enhancement: `EndpointReadFailure` carries `received` for a status the device sent
@@ -120,6 +132,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `includeKnownVersions` on `ClientNode` subscriptions skips injecting cached data versions, also when a sustained subscription resubscribes
     - Enhancement: `Endpoint.act()` accepts an `abort` signal that ends the client commands its actor invokes, and `Endpoint.getStateOf()` accepts one for its read
     - Adjustment: For a part of a server node, the `IdAssigned` and `NumberAssigned` lifecycle changes are emitted before `Installed`
+    - Adjustment: The `Destroying` lifecycle change is emitted when `close()` or `delete()` is called, so a node emits it before it goes offline
     - Adjustment: `ChangeNotificationService.Change` has a new kind `"readable"`, emitted when an endpoint's state becomes readable; consumers that switch on kind must handle or ignore it
     - Adjustment: Device types with a mandatory client application cluster include `BindingServer`; `behaviors.require(BindingServer, options)` no longer sets its state (use `add()` or `setStateOf()`), and an own `BindingServer` implementation subclass must be declared with `.with()` on the endpoint on creation
     - Adjustment: A binding entry resolves only once something observes `binding.established`, and is ignored for the OTA Provider and WebRTC Transport clients
@@ -208,6 +221,16 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `RemoteServer` declares `certificate` and `key` as PEM strings
     - Fix: Adding an endpoint below one of its own descendants fails with `ImplementationError` instead of creating a cycle
     - Fix: An endpoint created with `ClientNodeEndpoints.require()` on a running `ClientNode` is reused when the peer later reports that endpoint
+    - Fix: `delete()` emits the `Destroying` lifecycle change once
+    - Fix: Deleting an endpoint of a server node increases the ConfigurationVersion of the nearest bridged endpoint above it and of the node, or only of the node when there is none
+    - Fix: `erase()`, `delete()` and `close()` of the endpoints of one node run one after another; `close()` waits for an erase or delete in progress, and a repeated call joins the one in progress
+    - Fix: A factory reset completes and restarts the node when its in-memory reset fails
+    - Fix: A factory reset or `delete()` of a server node waits for a peer that is closing before it erases the storage
+    - Fix: A factory reset of a server node no longer hangs when one of its peers starts meanwhile
+    - Fix: `start()` and `stop()` of a node take effect in call order; `start()` no longer returns at once while another start is in progress
+    - Fix: `erase()` and `delete()` of an endpoint of a peer also erase the cached data of its parts
+    - Fix: Erasing an endpoint of a peer waits for a running cache flush, so the flush no longer writes the erased values back
+    - Fix: A peer whose network start fails no longer logs an unhandled error when it closes its network runtime
     - Fix: An endpoint without a `number` no longer gets a number that another endpoint of the node sets in its options but is not yet added, so adding that endpoint later no longer fails
     - Fix: An endpoint refused for its number is not listed in `PartsList` and is not reported as deleted
     - Fix: Automatically assigned endpoint numbers count up from the highest number used so far or explicitly requested in options; after 0xFFFE they continue with the lowest free number instead of the invalid 0xFFFF

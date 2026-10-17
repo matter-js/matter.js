@@ -52,11 +52,33 @@ export class ClientEndpointStore extends EndpointStore {
     }
 
     override async erase() {
+        await this.#discardCaches();
+        await super.erase();
+    }
+
+    /**
+     * Erase the values cached from the peer and keep the state of behaviors that do not track a remote cluster.
+     *
+     * A behavior counts as cached if its persisted values carry a data version, which every cache flush writes.
+     * Anything else stays, so local state such as commissioning survives even if its behavior did not start.
+     */
+    async eraseCaches() {
+        await this.#discardCaches();
+        for (const behaviorId of await this.storage.contexts()) {
+            if (await this.storage.createContext(behaviorId).has(DatasourceCache.VERSION_KEY)) {
+                await this.eraseStoreForBehavior(behaviorId);
+            }
+        }
+    }
+
+    async #discardCaches() {
         for (const cache of this.#caches) {
             cache.discard();
         }
         this.#caches.clear();
-        await super.erase();
+
+        // A running flush may still write the values of a discarded cache, so it must finish before the storage clears
+        await this.#owner.buffer?.settled();
     }
 
     /**

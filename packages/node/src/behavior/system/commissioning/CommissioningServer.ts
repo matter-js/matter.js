@@ -21,7 +21,6 @@ import {
     Logger,
     MatterFlowError,
     Mutex,
-    MutexClosedError,
     Observable,
 } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
@@ -198,7 +197,37 @@ export class CommissioningServer extends Behavior {
         }
 
         this.#endPendingReset();
-        this.env.runtime.add((this.endpoint as ServerNode).erase().catch(e => MutexClosedError.accept(e)));
+        const node = this.endpoint as ServerNode;
+
+        // Adding a worker to a runtime that shuts down revives the runtime
+        if (node.lifecycle.isTerminal) {
+            return;
+        }
+        this.env.runtime.add(this.#factoryReset(node));
+    }
+
+    async #factoryReset(node: ServerNode) {
+        let crashed = false;
+        const watchCrash = (status: Lifecycle.Status) => {
+            if (status === Lifecycle.Status.Crashed) {
+                crashed = true;
+            }
+        };
+        node.construction.change.on(watchCrash);
+        try {
+            await node.erase();
+        } catch (e) {
+            if (crashed) {
+                // The crashed node stops the runtime without logging why
+                logger.error(`Factory reset of ${node} after its last fabric left failed:`, e);
+            } else if (node.lifecycle.isTerminal) {
+                logger.debug(`Factory reset of ${node} after its last fabric left ended as the node closes:`, e);
+            } else {
+                logger.warn(`Factory reset of ${node} after its last fabric left completed with errors:`, e);
+            }
+        } finally {
+            node.construction.change.off(watchCrash);
+        }
     }
 
     #endPendingReset() {

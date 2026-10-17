@@ -144,10 +144,12 @@ export class EndpointStore {
     }
 
     /**
-     * Remove all persisted information for the {@link Endpoint}.
+     * Remove all persisted information for the {@link Endpoint} and forget the values loaded from it.
      */
-    erase() {
-        return this.storage.clearAll();
+    async erase() {
+        await this.storage.clearAll();
+        this.initialValues.clear();
+        this.#knownBehaviors = new Set();
     }
 
     /**

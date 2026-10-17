@@ -5,7 +5,6 @@
  */
 
 import { OnOffLightDevice } from "#devices/on-off-light";
-import type { Endpoint } from "#endpoint/Endpoint.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { Lifecycle } from "@matter/general";
@@ -58,12 +57,6 @@ async function controllerWithRestoredPeer(site: MockSite) {
     return { rebooted, peer, recorded };
 }
 
-async function restart(endpoint: Endpoint) {
-    await MockTime.resolve(endpoint.reset());
-    endpoint.construction.start();
-    await MockTime.resolve(endpoint.construction);
-}
-
 describe("ChangeNotificationService", () => {
     before(() => {
         MockTime.init();
@@ -76,7 +69,7 @@ describe("ChangeNotificationService", () => {
         const light = await node.add(OnOffLightDevice, { id: "light" });
         expect(recorded.endpointsOf("readable")).deep.equals([light]);
 
-        await restart(light);
+        await MockTime.resolve(light.erase());
         expect(recorded.endpointsOf("readable")).deep.equals([light, light]);
     });
 
@@ -219,7 +212,7 @@ describe("ChangeNotificationService", () => {
             expect.fail("The restored peer has no endpoint besides its root");
         }
 
-        await restart(part);
+        await MockTime.resolve(part.erase());
 
         expect(recorded.endpointsOf("readable")).deep.equals([part]);
     });

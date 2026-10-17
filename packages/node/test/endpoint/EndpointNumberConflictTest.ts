@@ -319,8 +319,6 @@ describe("EndpointNumberConflict", () => {
             await using node = await MockServerNode.createOnline(undefined, { device: undefined });
             const endpoint = await node.add(OnOffLightDevice, { id: "restarted", number: 5 });
             await endpoint.erase();
-            endpoint.construction.start();
-            await endpoint.construction;
             const deleted = new Array<number | undefined>();
             node.env.get(ChangeNotificationService).change.on(change => {
                 if (change.kind === "delete") {

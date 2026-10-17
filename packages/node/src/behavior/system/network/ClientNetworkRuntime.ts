@@ -47,10 +47,10 @@ export class ClientNetworkRuntime extends NetworkRuntime {
             throw new InternalError(`Commissioned node ${this.owner} has no peer address`);
         }
 
-        // Client interaction requires the server to be online.  If not, bring online now
+        // Only ClientNode.start() brings the server node online
         const server = this.owner.owner;
         if (!server.lifecycle.isOnline) {
-            await server.start();
+            throw new OfflineError(`Cannot interact with ${this.owner} because ${server} is offline`);
         }
 
         // Install the exchange provider for the node
@@ -73,9 +73,6 @@ export class ClientNetworkRuntime extends NetworkRuntime {
 
     protected async stop() {
         this.isReady = false;
-
-        await this.construction;
-
         this.#observers.close();
     }
 

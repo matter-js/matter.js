@@ -37,9 +37,13 @@ export class MockSite {
     #createStorageDriver: (store: Record<string, any>) => StorageDriver;
 
     /**
-     * Creates an empty site.  All nodes added share one network simulator unless a node brings its own.
+     * Creates an empty site and enables `MockTime`.  All nodes added share one network simulator unless a
+     * node brings its own.
      */
     constructor(options?: MockSite.Options) {
+        // The site drives its nodes with MockTime.resolve(), which advances only mocked timers
+        MockTime.init();
+
         this.#createStorageDriver = options?.createStorageDriver ?? (store => new MemoryStorageDriver(store));
     }
 

@@ -15,8 +15,10 @@ import { EndpointVariableService } from "#endpoint/EndpointVariableService.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { RootEndpoint } from "#endpoints/root";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
-import { Environment, InternalError, Logger, MaybePromise } from "@matter/general";
-import { FabricManager } from "@matter/protocol";
+import { Environment, InternalError, Lifecycle, Logger, MaybePromise } from "@matter/general";
+import { FabricManager, type Val } from "@matter/protocol";
+import { BasicInformationServer } from "../../behaviors/basic-information/BasicInformationServer.js";
+import { BridgedDeviceBasicInformationServer } from "../../behaviors/bridged-device-basic-information/BridgedDeviceBasicInformationServer.js";
 import { DescriptorServer } from "../../behaviors/descriptor/DescriptorServer.js";
 import { DeviceTypeConformanceService } from "./DeviceTypeConformanceService.js";
 
@@ -56,12 +58,64 @@ export class ServerEndpointInitializer extends EndpointInitializer {
         endpoint.env.get(DeviceTypeConformanceService).constructing(endpoint);
     }
 
-    async eraseDescendant(endpoint: Endpoint) {
-        if (!endpoint.lifecycle.hasId) {
-            return;
+    async prepareEraseDescendant(endpoint: Endpoint): Promise<EndpointInitializer.Erasure> {
+        // A wiped bridged endpoint restarts from storage, so its increased version is persisted with the wipe
+        const presets = new Map<Endpoint, Record<string, Val.Struct>>();
+        const parts = new Array<Endpoint>();
+        endpoint.visit(part => {
+            parts.push(part);
+        });
+        for (const part of parts) {
+            const version = await this.#erasedConfigurationVersionOf(part);
+            if (version !== undefined) {
+                presets.set(part, {
+                    [BridgedDeviceBasicInformationServer.id]: {
+                        configurationVersion: BasicInformationServer.nextConfigurationVersion(version),
+                    },
+                });
+            }
         }
 
-        await this.#store.endpointStores.eraseStoreForEndpoint(endpoint);
+        return {
+            wipe: async () => {
+                if (endpoint.lifecycle.hasId) {
+                    await this.#store.endpointStores.wipeStoreForEndpoint(endpoint, presets);
+                }
+            },
+            finish: () => increaseConfigurationVersion(endpoint.owner),
+        };
+    }
+
+    /**
+     * The bridged ConfigurationVersion of an endpoint about to be erased: the live value of a running endpoint, else the
+     * persisted value, so a crashed endpoint does not restart with a lower version.
+     */
+    async #erasedConfigurationVersionOf(part: Endpoint) {
+        if (!part.behaviors.has(BridgedDeviceBasicInformationServer)) {
+            return;
+        }
+        const live = bridgedConfigurationVersionOf(part);
+        if (live !== undefined || !part.lifecycle.hasId) {
+            return live;
+        }
+        const stored = await this.#store.endpointStores.storedValueOf(
+            part,
+            BridgedDeviceBasicInformationServer.id,
+            "configurationVersion",
+        );
+        return typeof stored === "number" ? stored : undefined;
+    }
+
+    async prepareDeleteDescendant(endpoint: Endpoint): Promise<EndpointInitializer.Erasure> {
+        const owner = endpoint.owner;
+        return {
+            wipe: async () => {
+                if (endpoint.lifecycle.hasId) {
+                    await this.#store.endpointStores.eraseStoreForEndpoint(endpoint);
+                }
+            },
+            finish: () => increaseConfigurationVersion(owner),
+        };
     }
 
     async deactivateDescendant(_endpoint: Endpoint) {
@@ -148,4 +202,48 @@ function presetNumbersNotInstalled(endpoint: Endpoint) {
         }
     });
     return numbers;
+}
+
+/**
+ * Increase the ConfigurationVersion of the nearest running bridged endpoint at or above {@link from} that enables it,
+ * which also increases the version of the node, or else the version of the node alone.  The node's version is skipped
+ * while the node root is not active, as its state is not accessible then.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 9.2.11
+ */
+async function increaseConfigurationVersion(from: Endpoint | undefined) {
+    for (let candidate = from; candidate !== undefined; candidate = candidate.owner) {
+        if (bridgedConfigurationVersionOf(candidate) !== undefined) {
+            await candidate.act("increaseConfigurationVersion", agent =>
+                agent.get(BridgedDeviceBasicInformationServer).increaseConfigurationVersion(),
+            );
+            return;
+        }
+    }
+
+    const root = from?.ownerOfType(RootEndpoint);
+    if (
+        root === undefined ||
+        root.construction.status !== Lifecycle.Status.Active ||
+        !root.behaviors.has(BasicInformationServer)
+    ) {
+        return;
+    }
+
+    await root.act("increaseConfigurationVersion", agent =>
+        agent.get(BasicInformationServer).increaseConfigurationVersion(),
+    );
+}
+
+/**
+ * The ConfigurationVersion of a running bridged endpoint, if the endpoint enables it.
+ */
+function bridgedConfigurationVersionOf(endpoint: Endpoint) {
+    if (
+        endpoint.construction.status !== Lifecycle.Status.Active ||
+        !endpoint.behaviors.has(BridgedDeviceBasicInformationServer)
+    ) {
+        return;
+    }
+    return endpoint.stateOf(BridgedDeviceBasicInformationServer).configurationVersion;
 }

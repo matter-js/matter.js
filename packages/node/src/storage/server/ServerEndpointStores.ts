@@ -8,6 +8,7 @@ import type { Endpoint } from "#endpoint/Endpoint.js";
 import { type ServerNode } from "#node/ServerNode.js";
 import type { StorageContext } from "@matter/general";
 import { ImplementationError, InternalError, Logger } from "@matter/general";
+import type { Val } from "@matter/protocol";
 import { ServerEndpointStore } from "./ServerEndpointStore.js";
 
 const NEXT_NUMBER_KEY = "__nextNumber__";
@@ -220,9 +221,35 @@ export class ServerEndpointStores {
     }
 
     /**
-     * Erase storage for a single {@link Endpoint} and release the numbers its stores hold.
+     * The persisted value of a behavior property of {@link endpoint}, if its store exists and holds one.
+     */
+    async storedValueOf(endpoint: Endpoint, behaviorId: string, key: string) {
+        return this.#existingStoreFor(endpoint)?.storedValue(behaviorId, key);
+    }
+
+    /**
+     * Erase storage for a single {@link Endpoint} and its parts and release the numbers their stores hold.
      */
     async eraseStoreForEndpoint(endpoint: Endpoint) {
+        await this.#eraseSubtree(endpoint, false);
+    }
+
+    /**
+     * Erase storage for a single {@link Endpoint} and its parts but keep their numbers, then persist {@link presets} as
+     * the starting values of their behaviors.
+     *
+     * A number stays with an endpoint of the subtree if that endpoint's store held it, even if the endpoint has not
+     * received it yet.  Numbers of stored parts without an endpoint in the subtree are released.
+     */
+    async wipeStoreForEndpoint(endpoint: Endpoint, presets?: ReadonlyMap<Endpoint, Record<string, Val.Struct>>) {
+        await this.#eraseSubtree(endpoint, true);
+
+        for (const [part, values] of presets ?? []) {
+            await this.storeForEndpoint(part).preset(values);
+        }
+    }
+
+    async #eraseSubtree(endpoint: Endpoint, keepNumbers: boolean) {
         if (!endpoint.owner) {
             throw new InternalError(
                 "Endpoint storage inaccessible because endpoint is not a node and is not owned by another endpoint",
@@ -235,20 +262,38 @@ export class ServerEndpointStores {
             return;
         }
 
-        const released = new Array<[number, ServerEndpointStore]>();
+        const held = new Map<number, ServerEndpointStore>();
         store.visit(erased => {
             const number = erased.number;
             if (number !== undefined && this.#holders.get(number) === erased) {
-                released.push([number, erased]);
+                held.set(number, erased);
             }
         });
 
+        const kept = new Array<{ endpoint: Endpoint; number: number; erased: ServerEndpointStore }>();
+        if (keepNumbers) {
+            endpoint.visit(part => {
+                const number = this.#existingStoreFor(part)?.number;
+                const erased = number === undefined ? undefined : held.get(number);
+                if (number !== undefined && erased !== undefined) {
+                    kept.push({ endpoint: part, number, erased });
+                    held.delete(number);
+                }
+            });
+        }
+
+        // Kept numbers stay with the erased stores until the new stores claim them, so none is free in between
         await ownerStore.eraseChildStoreFor(endpoint);
 
         // Another endpoint may have taken a number over while the storage was erased
-        for (const [number, erased] of released) {
+        for (const [number, erased] of held) {
             if (this.#holders.get(number) === erased) {
                 this.#holders.delete(number);
+            }
+        }
+        for (const { endpoint, number, erased } of kept) {
+            if (this.#holders.get(number) === erased) {
+                this.#claim(this.storeForEndpoint(endpoint), number);
             }
         }
     }

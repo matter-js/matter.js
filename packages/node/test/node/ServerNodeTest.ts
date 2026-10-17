@@ -7,6 +7,7 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { EventsBehavior } from "#behavior/system/events/EventsBehavior.js";
 import { AccessControlServer } from "#behaviors/access-control";
+import { BridgedDeviceBasicInformationServer } from "#behaviors/bridged-device-basic-information";
 import { DescriptorBehavior } from "#behaviors/descriptor";
 import { OnOffServer } from "#behaviors/on-off";
 import { PumpConfigurationAndControlServer } from "#behaviors/pump-configuration-and-control";
@@ -34,6 +35,7 @@ import {
     DatafileRoot,
     Diagnostic,
     DiagnosticPresentation,
+    DestroyedDependencyError,
     DiagnosticSource,
     DnsCodec,
     DnsMessage,
@@ -49,6 +51,7 @@ import {
     LogLevel,
     MemoryBlobStorageDriver,
     MemoryStorageDriver,
+    MatterAggregateError,
     MdnsSocket,
     MockCrypto,
     MockFilesystem,
@@ -61,6 +64,7 @@ import {
     STANDARD_MATTER_PORT,
     StorageManager,
     StorageService,
+    Time,
     UdpSocketOptions,
 } from "@matter/general";
 import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "@matter/model";
@@ -180,8 +184,8 @@ describe("ServerNode", () => {
                 ["partsReady", "node0"],
                 ["partsReady"],
                 ["online"],
-                ["offline"],
                 ["destroying", "node0"],
+                ["offline"],
                 ["destroying", "node0.part0"],
                 ["destroyed", "node0.part0"],
                 ["destroyed", "node0"],
@@ -208,8 +212,8 @@ describe("ServerNode", () => {
                 ["ready", "node0.part0"],
                 ["partsReady", "node0.part0"],
                 ["online"],
-                ["offline"],
                 ["destroying", "node0"],
+                ["offline"],
                 ["destroying", "node0.part0"],
                 ["destroyed", "node0.part0"],
                 ["destroyed", "node0"],
@@ -236,8 +240,8 @@ describe("ServerNode", () => {
                 ["installed", "node0.part0"],
                 ["ready", "node0.part0"],
                 ["partsReady", "node0.part0"],
-                ["offline"],
                 ["destroying", "node0"],
+                ["offline"],
                 ["destroying", "node0.part0"],
                 ["destroyed", "node0.part0"],
                 ["destroyed", "node0"],
@@ -321,6 +325,399 @@ describe("ServerNode", () => {
         const text = LogFormat.formats.plain(Diagnostic.valueOf(controller));
 
         expect(text).contains(`${peer} ${peer.lifecycle.isOnline ? "online" : "offline"}`);
+    });
+
+    describe("delete", () => {
+        function destroyingOf(node: ServerNode) {
+            const destroying = new Array<string>();
+            node.lifecycle.changed.on((type, endpoint) => {
+                if (type === "destroying") {
+                    destroying.push(endpoint.toString());
+                }
+            });
+            return destroying;
+        }
+
+        it("emits Destroying once for an endpoint and its parts", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const aggregator = await node.add(AggregatorEndpoint, {
+                id: "aggregator",
+                parts: [{ type: OnOffLightDevice, id: "child" }],
+            });
+            const destroying = destroyingOf(node);
+
+            await aggregator.delete();
+            await aggregator.close();
+
+            expect(destroying).deep.equals(["node0.aggregator", "node0.aggregator.child"]);
+        });
+
+        it("increases the ConfigurationVersion of the bridged endpoint above and only after removal", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+            const bridged = await aggregator.add(OnOffLightDevice.with(BridgedDeviceBasicInformationServer), {
+                id: "bridged",
+                bridgedDeviceBasicInformation: { configurationVersion: 5 },
+                parts: [{ type: OnOffLightDevice, id: "child" }],
+            });
+            const child = bridged.parts.require("child");
+            const childNumber = child.number;
+            const rootBefore = node.state.basicInformation.configurationVersion;
+            let listedWhenIncreased: boolean | undefined;
+            node.events.basicInformation.configurationVersion$Changed.on(() => {
+                listedWhenIncreased = bridged.state.descriptor.partsList.includes(childNumber);
+            });
+
+            await child.delete();
+
+            expect(bridged.stateOf(BridgedDeviceBasicInformationServer).configurationVersion).equals(6);
+            expect(node.state.basicInformation.configurationVersion).equals(rootBefore + 1);
+            expect(listedWhenIncreased).equals(false);
+        });
+
+        it("joins a concurrent delete of an endpoint", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const light = await node.add(OnOffLightDevice, { id: "light" });
+            const before = node.state.basicInformation.configurationVersion;
+
+            await Promise.all([light.delete(), light.delete()]);
+
+            expect(node.state.basicInformation.configurationVersion).equals(before + 1);
+        });
+
+        it("refuses deleting an endpoint while it closes", async () => {
+            await using site = new MockSite();
+            const id = "deleteWhileClosing";
+            const node = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+            const light = await node.add(new Endpoint(OnOffLightDevice, { id: "light" }));
+            const number = light.number;
+            await light.set({ onOff: { onOff: true } });
+
+            const closing = light.close();
+            await expect(light.delete()).rejectedWith(DestroyedDependencyError, /is closing, so .* cannot be deleted/);
+            await closing;
+            await node.close();
+
+            const reopened = await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+            });
+            const reAdded = await reopened.add(new Endpoint(OnOffLightDevice, { id: "light" }));
+            expect(reAdded.number).equals(number);
+            expect(reAdded.state.onOff.onOff).equals(true);
+        });
+
+        it("rejects when the reset of the endpoint fails and still removes it", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const light = await node.add(OnOffLightDevice, { id: "light" });
+            light.lifecycle.reset.on(() => {
+                throw new ImplementationError("Reset refused for test");
+            });
+
+            await expect(light.delete()).rejected;
+
+            expect(light.construction.status).equals(Lifecycle.Status.Destroyed);
+            expect(node.endpoints.has(light)).equals(false);
+        });
+
+        it("rejects when the reset of a part fails and still removes the endpoint", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const aggregator = await node.add(AggregatorEndpoint, {
+                id: "aggregator",
+                parts: [{ type: OnOffLightDevice, id: "child" }],
+            });
+            aggregator.parts.require("child").lifecycle.reset.on(() => {
+                throw new ImplementationError("Reset refused for test");
+            });
+
+            await expect(aggregator.delete()).rejected;
+
+            expect(aggregator.construction.status).equals(Lifecycle.Status.Destroyed);
+            expect(node.endpoints.has(aggregator)).equals(false);
+        });
+
+        it("waits for a delete in progress when closing", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const light = await node.add(OnOffLightDevice, { id: "light" });
+
+            const deleting = light.delete();
+            const closing = light.close();
+            await deleting;
+            await closing;
+
+            expect(light.construction.status).equals(Lifecycle.Status.Destroyed);
+            expect(node.endpoints.has(light)).equals(false);
+        });
+
+        it("rejects delete when the reset of a ServerNode fails and still erases its storage", async () => {
+            await using site = new MockSite();
+            const id = "resetFailsOnDelete";
+            const node = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+            await node.add(new Endpoint(OnOffLightDevice, { id: "light", number: EndpointNumber(7) }));
+            node.lifecycle.reset.on(() => {
+                throw new ImplementationError("Reset refused for test");
+            });
+
+            await expect(node.delete()).rejected;
+
+            const reopened = await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+            });
+            const light = await reopened.add(new Endpoint(OnOffLightDevice, { id: "light" }));
+            expect(light.number).equals(1);
+        });
+
+        it("restores defaults and rejects on factory reset when the reset of the ServerNode fails", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const light = await node.add(OnOffLightDevice, { id: "light" });
+            await light.set({ onOff: { onOff: true } });
+            node.lifecycle.reset.on(() => {
+                throw new ImplementationError("Reset refused for test");
+            });
+
+            await expect(node.erase()).rejectedWith(MatterAggregateError, /Error erasing node0/);
+
+            expect(node.construction.status).equals(Lifecycle.Status.Active);
+            expect(light.state.onOff.onOff).equals(false);
+        });
+
+        it("erases the storage of a deleted ServerNode", async () => {
+            await using site = new MockSite();
+            const id = "deletedNode";
+            const node = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+            await node.add(new Endpoint(OnOffLightDevice, { id: "light", number: EndpointNumber(7) }));
+
+            await node.delete();
+
+            const reopened = await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+            });
+            const light = await reopened.add(new Endpoint(OnOffLightDevice, { id: "light" }));
+            expect(light.number).equals(1);
+        });
+
+        it("refuses deleting a ServerNode while it closes", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: undefined });
+
+            const closing = node.close();
+            await expect(node.delete()).rejectedWith(DestroyedDependencyError, /is closing, so it cannot be deleted/);
+            await closing;
+        });
+
+        it("joins a second delete of a ServerNode", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: undefined });
+
+            const first = node.delete();
+            const second = node.delete();
+            await first;
+            await second;
+
+            expect(node.construction.status).equals(Lifecycle.Status.Destroyed);
+        });
+
+        it("increases the root ConfigurationVersion once", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const light = await node.add(OnOffLightDevice, { id: "light" });
+            const before = node.state.basicInformation.configurationVersion;
+
+            await light.delete();
+
+            expect(node.state.basicInformation.configurationVersion).equals(before + 1);
+        });
+
+        it("of a ServerNode emits Destroying once and does not restart the node", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: undefined });
+            await node.add(OnOffLightDevice, { id: "light" });
+
+            const changes = new Array<string>();
+            node.lifecycle.changed.on((type, endpoint) => {
+                changes.push(`${type} ${endpoint}`);
+            });
+            for (const event of ["online", "offline", "ready"] as const) {
+                node.lifecycle[event].on(() => {
+                    changes.push(event);
+                });
+            }
+
+            await node.delete();
+
+            expect(changes.filter(change => change === "destroying node0")).deep.equals(["destroying node0"]);
+            const afterDestroying = changes.slice(changes.indexOf("destroying node0"));
+            expect(afterDestroying).not.contains("online");
+            expect(afterDestroying).not.contains("ready");
+            expect(afterDestroying.filter(change => change.startsWith("ready "))).deep.equals([]);
+        });
+    });
+
+    describe("lifecycle verbs", () => {
+        type Verb = "erase" | "delete" | "close";
+
+        for (const verb of ["close", "delete"] as const) {
+            it(`refuses to start a node after ${verb}`, async () => {
+                const node = await MockServerNode.createOnline();
+
+                await node[verb]();
+
+                await expect(node.start()).rejectedWith(
+                    DestroyedDependencyError,
+                    /is closing or closed, so it cannot start/,
+                );
+            });
+        }
+
+        const cases: Array<{
+            first: Verb;
+            second: Verb;
+            rejects: boolean;
+            phases: [afterFirst: string, afterSecond: string, settled: string];
+            destroyed: boolean;
+        }> = [
+            {
+                first: "erase",
+                second: "erase",
+                rejects: false,
+                phases: ["erasing", "erasing", "idle"],
+                destroyed: false,
+            },
+            {
+                first: "erase",
+                second: "delete",
+                rejects: false,
+                phases: ["erasing", "deleting", "deleting"],
+                destroyed: true,
+            },
+            {
+                first: "erase",
+                second: "close",
+                rejects: false,
+                phases: ["erasing", "closing", "closing"],
+                destroyed: true,
+            },
+            {
+                first: "delete",
+                second: "erase",
+                rejects: true,
+                phases: ["deleting", "deleting", "deleting"],
+                destroyed: true,
+            },
+            {
+                first: "delete",
+                second: "delete",
+                rejects: false,
+                phases: ["deleting", "deleting", "deleting"],
+                destroyed: true,
+            },
+            {
+                first: "delete",
+                second: "close",
+                rejects: false,
+                phases: ["deleting", "deleting", "deleting"],
+                destroyed: true,
+            },
+            {
+                first: "close",
+                second: "erase",
+                rejects: true,
+                phases: ["closing", "closing", "closing"],
+                destroyed: true,
+            },
+            {
+                first: "close",
+                second: "delete",
+                rejects: true,
+                phases: ["closing", "closing", "closing"],
+                destroyed: true,
+            },
+            {
+                first: "close",
+                second: "close",
+                rejects: false,
+                phases: ["closing", "closing", "closing"],
+                destroyed: true,
+            },
+        ];
+
+        for (const { first, second, rejects, phases, destroyed } of cases) {
+            it(`${second} while ${first} runs ${rejects ? "throws" : "completes"}`, async () => {
+                await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+
+                const firstDone = node[first]();
+                expect(node.lifecycle.isTerminal).equals(phases[0] === "deleting" || phases[0] === "closing");
+                const secondDone = node[second]();
+                expect(node.lifecycle.isTerminal).equals(phases[1] === "deleting" || phases[1] === "closing");
+
+                if (rejects) {
+                    await expect(secondDone).rejectedWith(DestroyedDependencyError, /so it cannot be (erased|deleted)/);
+                } else {
+                    await secondDone;
+                    if (destroyed && second !== "erase") {
+                        expect(node.construction.status).equals(Lifecycle.Status.Destroyed);
+                    }
+                }
+                await firstDone;
+
+                expect(node.lifecycle.isTerminal).equals(phases[2] === "deleting" || phases[2] === "closing");
+                expect(node.construction.status).equals(
+                    destroyed ? Lifecycle.Status.Destroyed : Lifecycle.Status.Active,
+                );
+            });
+        }
+
+        it("waits for a delete in progress when closing the node", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            let deleted = false;
+
+            const deleting = node.delete().then(() => {
+                deleted = true;
+            });
+            // Bypass the MockTime pump of MockServerNode.close, which would let the delete finish meanwhile
+            await ServerNode.prototype.close.call(node);
+
+            expect(deleted).equals(true);
+            await deleting;
+        });
+
+        it("does not restart a node that is deleted while it is erased", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            let restarted = false;
+            let deleting: Promise<void> | undefined;
+            node.lifecycle.offline.on(() => {
+                deleting ??= node.delete();
+            });
+            node.construction.change.on(status => {
+                if (status === Lifecycle.Status.Active) {
+                    restarted = true;
+                }
+            });
+
+            await node.erase();
+            await deleting;
+
+            expect(deleting).not.undefined;
+            expect(restarted).equals(false);
+            expect(node.construction.status).equals(Lifecycle.Status.Destroyed);
+        });
+
+        it("does not bring a node online again that is closed while it is erased", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            let online = false;
+
+            const erasing = node.erase();
+            const closing = node.close();
+            node.lifecycle.online.on(() => {
+                online = true;
+            });
+            await erasing;
+            await closing;
+
+            expect(online).equals(false);
+            expect(node.construction.status).equals(Lifecycle.Status.Destroyed);
+        });
     });
 
     describe("operational port", () => {
@@ -496,6 +893,24 @@ describe("ServerNode", () => {
     });
 
     describe("removes a fabric while another session holds the fail-safe", () => {
+        function captureCommissioningLogs() {
+            const logged = new Array<{ level: LogLevel; text: string }>();
+            Logger.destinations.capture = LogDestination({
+                format: LogFormat.formats.plain,
+                write(text, message) {
+                    if (message.level >= LogLevel.WARN && message.facility === "Commissioning") {
+                        logged.push({ level: message.level, text });
+                    }
+                },
+            });
+            return {
+                logged,
+                [Symbol.dispose]() {
+                    delete Logger.destinations.capture;
+                },
+            };
+        }
+
         /** Records the factory resets of `node`; each entry settles when its reset is done. */
         function watchErase(node: MockServerNode) {
             const erase = node.erase.bind(node);
@@ -633,6 +1048,100 @@ describe("ServerNode", () => {
             await MockTime.resolve(resets[0], { macrotasks: true });
 
             await node.close();
+        });
+
+        it("does not reset a node that closes while it waits for its last session", async () => {
+            const { node, contextOptions } = await commissioning.commission();
+            const resets = watchErase(node);
+            let reset = false;
+            node.lifecycle.reset.on(() => {
+                reset = true;
+            });
+            await openOperationalSession(node);
+            await removeFabric(node, contextOptions);
+            using capture = captureCommissioningLogs();
+
+            await node.close();
+            await Promise.allSettled(resets);
+
+            expect(resets.length).equals(0);
+            expect(reset).equals(false);
+            expect(capture.logged).deep.equals([]);
+        });
+
+        it("keeps the runtime running when the reset after the last fabric fails but the node restarts", async () => {
+            const { node, contextOptions } = await commissioning.commission();
+            const resets = watchErase(node);
+            const commissionerExchange = await armFailsafe(node);
+            let crashes = 0;
+            node.env.runtime.crashed.on(() => {
+                crashes++;
+            });
+            node.lifecycle.reset.on(() => {
+                throw new ImplementationError("Reset refused for test");
+            });
+            using capture = captureCommissioningLogs();
+
+            await removeFabric(node, contextOptions);
+            await node.online({ exchange: commissionerExchange, command: true }, async agent => {
+                await agent.generalCommissioning.armFailSafe({ expiryLengthSeconds: 0, breadcrumb: 0 });
+            });
+            expect(resets.length).equals(1);
+            await expect(MockTime.resolve(resets[0], { macrotasks: true })).rejectedWith(MatterAggregateError);
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+            expect(crashes).equals(0);
+            expect(node.construction.status).equals(Lifecycle.Status.Active);
+            expect(capture.logged.map(({ level }) => level)).deep.equals([LogLevel.WARN]);
+
+            await node.close();
+        });
+
+        it("logs no warning when the node closes during a failing reset after the last fabric", async () => {
+            const { node, contextOptions } = await commissioning.commission();
+            const resets = watchErase(node);
+            const commissionerExchange = await armFailsafe(node);
+            let closing: Promise<void> | undefined;
+            node.lifecycle.reset.on(() => {
+                closing ??= node.close();
+                throw new ImplementationError("Reset refused for test");
+            });
+            using capture = captureCommissioningLogs();
+
+            await removeFabric(node, contextOptions);
+            await node.online({ exchange: commissionerExchange, command: true }, async agent => {
+                await agent.generalCommissioning.armFailSafe({ expiryLengthSeconds: 0, breadcrumb: 0 });
+            });
+            expect(resets.length).equals(1);
+            await expect(MockTime.resolve(resets[0], { macrotasks: true })).rejectedWith(MatterAggregateError);
+            await MockTime.resolve(closing!, { macrotasks: true });
+
+            expect(capture.logged).deep.equals([]);
+        });
+
+        it("crashes the runtime when the reset after the last fabric leaves the node crashed", async () => {
+            const { node, contextOptions } = await commissioning.commission();
+            const resets = watchErase(node);
+            const commissionerExchange = await armFailsafe(node);
+            let crashes = 0;
+            node.env.runtime.crashed.on(() => {
+                crashes++;
+            });
+            node.env.get(FabricManager).clear = async () => {
+                throw new ImplementationError("Storage erase refused for test");
+            };
+            using capture = captureCommissioningLogs();
+
+            await removeFabric(node, contextOptions);
+            await node.online({ exchange: commissionerExchange, command: true }, async agent => {
+                await agent.generalCommissioning.armFailSafe({ expiryLengthSeconds: 0, breadcrumb: 0 });
+            });
+            expect(resets.length).equals(1);
+            await expect(MockTime.resolve(resets[0], { macrotasks: true })).rejectedWith(MatterAggregateError);
+            await MockTime.resolve(Promise.resolve(), { macrotasks: true });
+
+            expect(crashes).equals(1);
+            expect(capture.logged.map(({ level }) => level)).deep.equals([LogLevel.ERROR]);
         });
 
         it("stays commissioned when another fabric remains", async () => {
@@ -1188,7 +1697,7 @@ describe("ServerNode", () => {
         await node.start();
         expect(refused.construction.error).instanceOf(IdentityConflictError);
 
-        await refused.erase();
+        await expect(refused.erase()).rejectedWith(MatterAggregateError, /Error erasing/);
 
         const added = new Array<number>();
         for (let i = 0; i < 4; i++) {
@@ -1337,6 +1846,97 @@ describe("ServerNode", () => {
         await expect(ca.generateNoc(publicKey, FabricId(1), NodeId(1))).rejected;
     });
 
+    it("crashes and erases nothing when it cannot go offline for a factory reset", async () => {
+        await using node = await MockServerNode.createOnline();
+        let resets = 0;
+        node.lifecycle.reset.on(() => {
+            resets++;
+        });
+        node.lifecycle.goingOffline.on(() => {
+            throw new ImplementationError("Going offline refused for test");
+        });
+
+        await expect(MockTime.resolve(node.erase(), { macrotasks: true })).rejectedWith(MatterAggregateError);
+
+        expect(resets).equals(0);
+        expect(node.construction.status).not.equals(Lifecycle.Status.Active);
+    });
+
+    it("crashes when it cannot go online again after a factory reset", async () => {
+        await using node = await MockServerNode.createOnline();
+        let erased = false;
+        node.lifecycle.reset.on(() => {
+            erased = true;
+        });
+        node.lifecycle.online.on(() => {
+            if (erased) {
+                throw new ImplementationError("Going online refused for test");
+            }
+        });
+
+        await expect(MockTime.resolve(node.erase(), { macrotasks: true })).rejectedWith(MatterAggregateError);
+
+        expect(node.construction.status).not.equals(Lifecycle.Status.Active);
+    });
+
+    it("reports a failed reset of a factory reset in one error", async () => {
+        await using node = await MockServerNode.createOnline();
+        node.lifecycle.reset.on(() => {
+            throw new ImplementationError("Reset refused for test");
+        });
+
+        const error = await MockTime.resolve(node.erase(), { macrotasks: true }).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        if (!(error instanceof MatterAggregateError)) {
+            expect.fail(`Expected a MatterAggregateError, got ${error}`);
+        }
+        expect(error.message).equals("Error erasing node0");
+        expect(error.errors.map(e => (e instanceof Error ? e.message : String(e)))).not.contains("Error erasing node0");
+    });
+
+    it("factory resets a node that is still initializing", async () => {
+        const node = new MockServerNode();
+        expect(node.construction.status).equals(Lifecycle.Status.Initializing);
+
+        await MockTime.resolve(node.erase(), { macrotasks: true });
+
+        expect(node.construction.status).equals(Lifecycle.Status.Active);
+        await node.close();
+    });
+
+    it("does nothing when stopping a closed node", async () => {
+        const node = await MockServerNode.createOnline();
+        await node.close();
+
+        await node.stop();
+
+        expect(node.construction.status).equals(Lifecycle.Status.Destroyed);
+    });
+
+    it("stays down when a factory reset cannot erase the storage", async () => {
+        await using node = await MockServerNode.createOnline();
+        node.env.get(FabricManager).clear = async () => {
+            throw new ImplementationError("Storage erase refused for test");
+        };
+
+        const error = await MockTime.resolve(node.erase(), { macrotasks: true }).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        const messages = (e: unknown): string[] =>
+            e instanceof MatterAggregateError
+                ? e.errors.flatMap(messages)
+                : [e instanceof Error ? e.message : String(e)];
+        expect(error).instanceOf(MatterAggregateError);
+        expect(messages(error)).deep.equals(["Storage erase refused for test"]);
+        expect(node.construction.status).not.equals(Lifecycle.Status.Active);
+        expect(node.lifecycle.isOnline).equals(false);
+    });
+
     it("factory reset closes the fabric authority the node owns", async () => {
         const node = await MockServerNode.createOnline();
 
@@ -1388,6 +1988,175 @@ describe("ServerNode", () => {
 
         expect([...controller.peers].length).equals(0);
         expect(controller.lifecycle.isOnline).equals(true);
+    });
+
+    it("deletes its peers when it is deleted", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer = [...controller.peers][0];
+        const peerSet = controller.env.get(PeerSet);
+        const address = peer.peerAddress!;
+        const deletePeer = peer.delete.bind(peer);
+        let peerDeleted = false;
+        peer.delete = async () => {
+            await deletePeer();
+            peerDeleted = true;
+        };
+
+        await MockTime.resolve(controller.delete(), { macrotasks: true });
+
+        expect(peerDeleted).equals(true);
+        expect(peer.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(peerSet.get(address)).equals(undefined);
+    });
+
+    it("rejects a start queued behind an erase when a close follows", async () => {
+        const node = new MockServerNode({});
+        await node.construction;
+
+        const erasing = node.erase();
+        const starting = expect(node.start()).rejectedWith(DestroyedDependencyError);
+        const closing = node.close();
+
+        await MockTime.resolve(Promise.all([erasing, starting, closing]));
+
+        expect(node.construction.status).equals(Lifecycle.Status.Destroyed);
+    });
+
+    it("ends online after a start, a stop and a start in a row", async () => {
+        const node = new MockServerNode({});
+        await node.construction;
+
+        await MockTime.resolve(Promise.all([node.start(), node.stop(), node.start()]));
+
+        expect(node.lifecycle.isOnline).equals(true);
+        await MockTime.resolve(node.close());
+    });
+
+    it("ends online after a stop and a start of an online node in a row", async () => {
+        const node = new MockServerNode({});
+        await MockTime.resolve(node.start());
+
+        await MockTime.resolve(Promise.all([node.stop(), node.start()]));
+
+        expect(node.lifecycle.isOnline).equals(true);
+        await MockTime.resolve(node.close());
+    });
+
+    it("stays meant to be online when a start fails while another start waits", async () => {
+        class NodeFailingFirstStart extends MockServerNode {
+            failures = 1;
+
+            protected override async startWithMutex() {
+                if (this.failures-- > 0) {
+                    throw new NetworkError("Start failed");
+                }
+                await super.startWithMutex();
+            }
+        }
+        const node = new NodeFailingFirstStart({});
+        await node.construction;
+
+        const failing = expect(node.start()).rejectedWith(NetworkError);
+        await MockTime.resolve(Promise.all([failing, node.start()]));
+
+        expect(node.lifecycle.isOnline).equals(true);
+        expect(node.lifecycle.shouldBeOnline).equals(true);
+        await MockTime.resolve(node.close());
+    });
+
+    describe("waits for a peer that is closing before it erases its storage", () => {
+        class SlowCloseBehavior extends Behavior {
+            static override readonly id = "slowClose";
+
+            override async [Symbol.asyncDispose]() {
+                await Time.sleep("slow peer close", Seconds(1));
+            }
+        }
+
+        async function offlineControllerWithClosingPeer(site: MockSite) {
+            const { controller } = await site.addCommissionedPair();
+            const peer = [...controller.peers][0];
+            peer.behaviors.require(SlowCloseBehavior);
+            await MockTime.resolve(
+                peer.act(agent => agent.get(SlowCloseBehavior)),
+                { macrotasks: true },
+            );
+            await MockTime.resolve(controller.stop(), { macrotasks: true });
+
+            const order = new Array<string>();
+            peer.lifecycle.destroyed.once(() => {
+                order.push("peer destroyed");
+            });
+            const store = controller.env.get(ServerNodeStore);
+            const eraseStore = store.erase.bind(store);
+            store.erase = async () => {
+                order.push("storage erased");
+                await eraseStore();
+            };
+            const address = peer.peerAddress!;
+            const closing = peer.close();
+
+            return { controller, order, closing, address };
+        }
+
+        it("on erase", async () => {
+            await using site = new MockSite();
+            const { controller, order, closing } = await offlineControllerWithClosingPeer(site);
+
+            await MockTime.resolve(controller.erase(), { macrotasks: true });
+            await MockTime.resolve(closing, { macrotasks: true });
+
+            expect(order).deep.equals(["peer destroyed", "storage erased"]);
+        });
+
+        it("and forgets the peer on erase", async () => {
+            await using site = new MockSite();
+            const { controller, closing, address } = await offlineControllerWithClosingPeer(site);
+
+            await MockTime.resolve(controller.erase(), { macrotasks: true });
+            await MockTime.resolve(closing, { macrotasks: true });
+
+            expect(controller.env.get(PeerSet).has(address)).equals(false);
+        });
+
+        it("on delete", async () => {
+            await using site = new MockSite();
+            const { controller, order, closing } = await offlineControllerWithClosingPeer(site);
+
+            await MockTime.resolve(controller.delete(), { macrotasks: true });
+            await MockTime.resolve(closing, { macrotasks: true });
+
+            expect(order).deep.equals(["peer destroyed", "storage erased"]);
+        });
+    });
+
+    describe("erases while a peer starts", () => {
+        async function offlineControllerWithStartingPeer(site: MockSite) {
+            const { controller } = await site.addCommissionedPair();
+            const peer = [...controller.peers][0];
+            await MockTime.resolve(controller.stop(), { macrotasks: true });
+
+            const erasing = controller.erase();
+            const starting = expect(peer.start()).rejectedWith(DestroyedDependencyError);
+
+            return { peer, erasing, starting };
+        }
+
+        it("and rejects the start of the peer", async () => {
+            await using site = new MockSite();
+            const { erasing, starting } = await offlineControllerWithStartingPeer(site);
+
+            await MockTime.resolve(Promise.all([erasing, starting]), { macrotasks: true });
+        });
+
+        it("and rejects the start of the peer while the peer closes", async () => {
+            await using site = new MockSite();
+            const { peer, erasing, starting } = await offlineControllerWithStartingPeer(site);
+            const closing = peer.close();
+
+            await MockTime.resolve(Promise.all([erasing, closing, starting]), { macrotasks: true });
+        });
     });
 
     it("erases CA key material the node never loaded", async () => {
@@ -1446,7 +2215,7 @@ describe("ServerNode", () => {
             throw new ImplementationError("Cannot clear events");
         };
 
-        await MockTime.resolve(expect(controller.erase()).rejectedWith("Error during factory reset"), {
+        await MockTime.resolve(expect(controller.erase()).rejectedWith("Error erasing controller1"), {
             macrotasks: true,
         });
 

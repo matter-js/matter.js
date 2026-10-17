@@ -32,6 +32,7 @@ import {
     Bytes,
     CancelablePromise,
     createPromise,
+    DestroyedDependencyError,
     Diagnostic,
     Duration,
     ImplementationError,
@@ -60,6 +61,7 @@ import {
     Peer,
     PeerAddress,
     PeerLeftError,
+    PeerSet,
     ResultStatus,
     SessionManager,
     SessionParameters,
@@ -171,7 +173,11 @@ export class Peers extends EndpointContainer<ClientNode> {
                     await peer.start();
                 } catch (e) {
                     MatterError.accept(e);
-                    logger.warn(`Error starting peer ${peer}:`, e);
+                    if (e instanceof DestroyedDependencyError) {
+                        logger.debug(`Peer ${peer} does not start as it or ${this.owner} closes:`, e);
+                    } else {
+                        logger.warn(`Error starting peer ${peer}:`, e);
+                    }
                 }
             }
         }
@@ -499,29 +505,33 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     /**
-     * Delete every known node.
+     * Delete every known node.  A node whose close or delete is in progress is not deleted by this call; this waits for
+     * that close or delete to end and removes the protocol peer of the node.
      *
-     * A node we cannot tear down cleanly is closed and dropped instead, so it cannot block the factory reset this
-     * serves; its persisted data outlives this call and is the caller's to discard.  Failures are logged rather than
-     * raised for the same reason.
+     * Failures are logged rather than raised, so a node that cannot be torn down cleanly does not block the factory
+     * reset this serves.  Its teardown destroys it anyway; what a failed step left in storage outlives this call and is
+     * the caller's to discard.
      */
     async erase() {
         await this.#mutex.produce(async () => {
             for (const node of [...this]) {
                 try {
-                    await node.delete();
-                    continue;
+                    if (node.lifecycle.isTerminal) {
+                        const address = node.peerAddress;
+                        try {
+                            await node.close();
+                        } finally {
+                            // A close keeps the protocol peer, which only a delete removes
+                            if (address !== undefined) {
+                                await this.owner.env.maybeGet(PeerSet)?.get(address)?.delete();
+                            }
+                        }
+                    } else {
+                        await node.delete();
+                    }
                 } catch (error) {
-                    logger.warn(`Error deleting ${node}:`, error);
+                    logger.warn(`Error removing ${node}:`, error);
                 }
-
-                try {
-                    await node.close();
-                } catch (error) {
-                    logger.warn(`Error closing ${node}:`, error);
-                }
-
-                this.delete(node);
             }
         });
     }

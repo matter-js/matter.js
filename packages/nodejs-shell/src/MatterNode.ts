@@ -159,10 +159,13 @@ export class MatterNode {
         // Factory reset and legacy migration are the only paths that need the node constructed before start(),
         // hence the eager #ensureNode() here rather than the usual lazy creation.
         if (resetStorage) {
-            await (await this.#ensureNode()).erase();
-            // erase() clears only the current-format fabric/peers. The legacy source must go too, or the next
-            // boot's migration would re-materialize the identity and key material the reset just destroyed.
-            await eraseLegacyStorage(nodeEnvironment, id);
+            try {
+                await (await this.#ensureNode()).erase();
+            } finally {
+                // erase() clears only the current-format fabric/peers. The legacy source must go too, or the next
+                // boot's migration would re-materialize the identity and key material the reset just destroyed.
+                await eraseLegacyStorage(nodeEnvironment, id);
+            }
             return;
         }
 

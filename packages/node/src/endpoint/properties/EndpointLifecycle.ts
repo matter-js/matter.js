@@ -16,6 +16,7 @@ import {
     Observable,
 } from "@matter/general";
 import type { Endpoint } from "../Endpoint.js";
+import { LifecycleMutex } from "./LifecycleMutex.js";
 
 const logger = Logger.get("PartLifecycle");
 
@@ -42,6 +43,7 @@ export class EndpointLifecycle {
     #reset = AsyncObservable<[]>();
     #configurationVersionChanged = Observable<[]>(error => this.emitError("configurationVersionChanged", error));
     #queuedUpdates?: Array<EndpointLifecycle.Change>;
+    #treeMutex?: LifecycleMutex;
 
     /**
      * Emitted when an endpoint is installed into an initialized owner.
@@ -93,7 +95,7 @@ export class EndpointLifecycle {
     }
 
     /**
-     * Emitted on factory reset.
+     * Emitted when the endpoint resets its in-memory state, for example on {@link Endpoint.erase} or a factory reset.
      */
     get reset() {
         return this.#reset;
@@ -141,7 +143,7 @@ export class EndpointLifecycle {
     /**
      * Has the {@link Endpoint} begun closing or deleting, or has its construction crashed?  A closing or deleted endpoint
      * does not become readable again; a crashed one may be restarted.  Unlike "not {@link isReadable}", this is false
-     * while the endpoint initializes or while a reset runs outside of a deletion.
+     * while the endpoint initializes or while a reset runs outside of a delete or close.
      */
     get isGone() {
         if (this.#destructionBegun) {
@@ -220,6 +222,47 @@ export class EndpointLifecycle {
     }
 
     /**
+     * Mutex that {@link Endpoint.erase}, {@link Endpoint.delete} and {@link Endpoint.close} hold, so a verb never
+     * overlaps with a verb on an ancestor or a part of the same node.  All endpoints of a node share the tree mutex of
+     * the node, and the endpoints of a tree not added to a node share the mutex of its topmost endpoint.  It is not held
+     * while a node starts or stops.
+     *
+     * @internal
+     */
+    get treeMutex(): LifecycleMutex {
+        const owner = this.ownsTreeMutex ? undefined : this.#endpoint.owner;
+        return owner?.lifecycle.treeMutex ?? (this.#treeMutex ??= new LifecycleMutex(this.#endpoint));
+    }
+
+    /**
+     * Whether {@link treeMutex} belongs to this endpoint rather than to its node.
+     *
+     * @internal
+     */
+    get ownsTreeMutex() {
+        return this.isNode || this.#endpoint.owner === undefined;
+    }
+
+    /**
+     * Whether the {@link Endpoint} is the root of a node.
+     *
+     * @internal
+     */
+    get isNode() {
+        return false;
+    }
+
+    /**
+     * Whether a {@link Endpoint.delete} or {@link Endpoint.close} was requested.  The endpoint does not restart and
+     * refuses a later {@link Endpoint.erase}, and a later {@link Endpoint.delete} unless it joins the delete in progress.
+     *
+     * @internal
+     */
+    get isTerminal() {
+        return this.#destructionBegun;
+    }
+
+    /**
      * Bubble a lifecycle change event from a child.
      */
     bubble(type: EndpointLifecycle.Change, endpoint: Endpoint) {
@@ -237,6 +280,9 @@ export class EndpointLifecycle {
                 break;
 
             case EndpointLifecycle.Change.Destroying:
+                if (this.#destructionBegun) {
+                    return;
+                }
                 this.#isReady = false;
                 this.#destructionBegun = true;
                 break;

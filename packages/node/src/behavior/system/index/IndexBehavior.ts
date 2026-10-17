@@ -57,7 +57,8 @@ export class IndexBehavior extends Behavior {
 
     /**
      * Ensure that no endpoint of the node that {@link parent} belongs to, other than {@link claimant}, holds
-     * {@link number}.  Does nothing if {@link parent} is not part of a node.
+     * {@link number}.  Does nothing if {@link parent} is not part of a node.  Throws if that node is neither
+     * constructing nor active.
      *
      * @throws {@link IdentityConflictError} if another endpoint holds the number
      * @internal
@@ -73,7 +74,7 @@ export class IndexBehavior extends Behavior {
 
     /**
      * The endpoint the index of {@link tree}'s node holds under {@link number}.  Undefined if {@link tree} is not part
-     * of a node.
+     * of a node.  Throws if that node is neither constructing nor active.
      *
      * @internal
      */
