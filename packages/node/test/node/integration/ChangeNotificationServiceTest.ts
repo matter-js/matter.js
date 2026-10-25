@@ -179,6 +179,19 @@ describe("ChangeNotificationService", () => {
         );
     });
 
+    it("reports the epoch timestamp of a local event as its resolved timestamp", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const recorded = record(node);
+
+        await MockTime.resolve(node.close());
+
+        const shutDown = recorded.changes.find(change => change.kind === "event" && change.event.name === "ShutDown");
+        expect(shutDown?.kind).equals("event");
+        if (shutDown?.kind !== "event") return;
+        expect(shutDown.timestampKind).equals("epoch");
+        expect(shutDown.resolvedTimestamp).equals(shutDown.timestamp);
+    });
+
     // Characterization: guards against suppressing deletions outside the node's own destruction
     it("reports the deletion of an endpoint while its node keeps running", async () => {
         await using node = await MockServerNode.createOnline(undefined, { device: undefined });

@@ -222,6 +222,7 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
             number,
             timestamp,
             timestampKind: "epoch",
+            resolvedTimestamp: timestamp,
             priority,
             payload: payload as Val.Struct | undefined,
         });

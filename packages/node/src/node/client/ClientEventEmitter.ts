@@ -61,12 +61,13 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
 
         const behavior = target.endpoint.behaviors.supported[names.cluster];
         if (behavior) {
-            const { number, timestamp, priority, value } = occurrence;
+            const { number, timestamp, resolvedTimestamp, priority, value } = occurrence;
             const timestampKind = timestampKindOf(occurrence);
             changes.broadcastEvent(target.endpoint, behavior, target.event.schema as EventModel, {
                 number,
                 timestamp: timestamp as Timestamp,
                 timestampKind,
+                resolvedTimestamp,
                 priority,
                 payload: value as Val.Struct | undefined,
             });
@@ -107,11 +108,14 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
 }
 
 /**
- * Identify which of the four timestamp variants Matter Core §10.7 defines the peer sent.  Absent all of them the
+ * Identify which of the four timestamp variants Matter Core §10.6.9 defines the peer sent.  Absent all of them the
  * occurrence carries {@link ReadResult.EventValue.timestamp} 0, which is a Posix epoch of no useful precision.
  */
 function timestampKindOf(occurrence: ReadResult.EventValue): ChangeNotificationService.TimestampKind {
-    const { systemTimestamp, deltaEpochTimestamp, deltaSystemTimestamp } = occurrence;
+    const { epochTimestamp, systemTimestamp, deltaEpochTimestamp, deltaSystemTimestamp } = occurrence;
+    if (epochTimestamp !== undefined) {
+        return "epoch";
+    }
     if (systemTimestamp !== undefined) {
         return "system";
     }
