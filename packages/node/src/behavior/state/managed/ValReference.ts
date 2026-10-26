@@ -44,8 +44,10 @@ export interface ValReference<T extends Val = Val> {
 
     /**
      * Mutates data.  Clones the container and updates metadata when called on an unmodified transactional reference.
+     * A reference counts as unmodified while its value is the same object as {@link original}.
      *
-     * Then runs the specified mutator to make the actual changes.
+     * Then runs the specified mutator to make the actual changes.  A nested reference then stores the changed
+     * container in its parent, so the mutator changes state only through this reference or references below it.
      *
      * @param mutator the mutation logic, may freely modify {@link value}
      * @param member the key of the member of {@link value} the mutation assigns.  The root reference records it as

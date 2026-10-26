@@ -141,19 +141,22 @@ export class ManagedReference implements ValReference {
         return memberValueOf(this.parent.original as Container, this.#key, this.#readFallbackKey);
     }
 
+    /**
+     * Clones the container while its value is still {@link original}, runs {@link mutator}, then stores the container
+     * in the parent.  A dynamic provider's setter therefore receives the container after every change, with the change
+     * applied.
+     */
     change(mutator: () => void) {
         ValReference.writableContainerOf(this);
 
         this.parent.change(() => {
-            // In transactions, clone the value if we haven't done so yet
             if (this.#value === this.original) {
-                const newValue = this.#clone(this.#value);
-                this.#writeTo(this.#dynamicContainer ?? (this.parent.value as Container), newValue);
-                this.#replaceValue(newValue);
+                this.#replaceValue(this.#clone(this.#value));
             }
 
-            // Apply changes
             mutator();
+
+            this.#writeTo(this.#dynamicContainer ?? (this.parent.value as Container), this.#value);
         }, this.#key);
     }
 

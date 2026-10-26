@@ -686,6 +686,53 @@ describe("Datasource", () => {
         });
     });
 
+    it("passes a dynamic list to its setter after each nested change", async () => {
+        let stored = [1];
+        const written = new Array<number[]>();
+        const dynamic = {
+            get list() {
+                return stored;
+            },
+            set list(value: number[]) {
+                written.push([...value]);
+                stored = value;
+            },
+        };
+        class State {
+            list = new Array<number>();
+
+            [Val.properties](_endpoint: any, _session: ValueSupervisor.Session) {
+                return dynamic;
+            }
+        }
+
+        const supervisor = BehaviorSupervisor({
+            id: "test",
+            State,
+            schema: new DatatypeModel({
+                name: "MyState",
+                type: "struct",
+                children: [
+                    FieldElement({
+                        name: "list",
+                        type: "list",
+                        children: [FieldElement({ name: "entry", type: "uint8" })],
+                    }),
+                ],
+            }),
+        });
+
+        await withDatasourceAndReference({ type: State, supervisor }, ({ state }) => {
+            state.list.push(2);
+            state.list[0] = 3;
+        });
+
+        expect(written).deep.equals([
+            [1, 2],
+            [3, 2],
+        ]);
+    });
+
     it("persists the features key with the values it belongs to", async () => {
         const store = createStore();
         await withDatasourceAndReference({ store, supervisor: featuredSupervisor }, ({ state }) => (state.foo = "rab"));

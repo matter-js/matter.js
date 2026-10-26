@@ -8,7 +8,7 @@ import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { MaybePromise } from "@matter/general";
 import { MockExchange } from "@matter/node/testing";
-import { ConformanceError, Val } from "@matter/protocol";
+import { ConformanceError, Val, WriteError } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { TestCluster, TestStruct, aclEndpoint, fieldOf, listOf, rawValuesOf, structOf } from "./value-utils.js";
 
@@ -474,9 +474,6 @@ describe("ListManager", () => {
                 ],
             });
 
-            /* TODO these two cases are buggy!! In fact when values are swapped around it seems that the value is set
-                but the "managed reference" is the same so as soon as the first value is set on the entry of the second
-                (even after reading that before) it breaks
             list1.reverse();
             await cx1.transaction.commit();
             list2.reverse();
@@ -486,8 +483,12 @@ describe("ListManager", () => {
                 list: [
                     { fabricIndex: 1, value: 1 },
                     { fabricIndex: 2, value: 8 },
-                    { fabricIndex: 1, value: 7 }, // Test fails: value 1
-                    { fabricIndex: 2, value: 6 }, // test fails: value 8
+                    { fabricIndex: 1, value: 7 },
+                    { fabricIndex: 2, value: 6 },
+                ],
+                subList: [
+                    { fabricIndex: 1, value: [11, 12] },
+                    { fabricIndex: 2, value: [13, 14] },
                 ],
             });
 
@@ -500,10 +501,14 @@ describe("ListManager", () => {
                 list: [
                     { fabricIndex: 1, value: 1 },
                     { fabricIndex: 2, value: 6 },
-                    { fabricIndex: 1, value: 7 }, // test fails value 1
+                    { fabricIndex: 1, value: 7 },
                     { fabricIndex: 2, value: 8 },
                 ],
-            });*/
+                subList: [
+                    { fabricIndex: 1, value: [11, 12] },
+                    { fabricIndex: 2, value: [13, 14] },
+                ],
+            });
 
             list1.length = 0;
             await cx1.transaction.commit();
@@ -684,6 +689,554 @@ describe("ListManager", () => {
             await testMandatoryFabricIndex(list => {
                 list[0] = { value: 3 };
                 expect(list[0]).deep.equals({ fabricIndex: 1, value: 3 });
+            });
+        });
+    });
+
+    describe("fabric-filtered entry removal", () => {
+        it("leaves the committed list unchanged on rollback", async () => {
+            await testFabricScoped(async (struct, { cx1, list1 }) => {
+                Reflect.deleteProperty(list1, 1);
+                await cx1.transaction.rollback();
+
+                expect(struct.fields.list).deep.equals([
+                    { fabricIndex: 1, value: 1 },
+                    { fabricIndex: 2, value: 2 },
+                    { fabricIndex: 1, value: 3 },
+                    { fabricIndex: 2, value: 4 },
+                ]);
+            });
+        });
+
+        it("reports the change when an entry of a fabric-filtered list is deleted", async () => {
+            await testFabricScoped(async (struct, { cx1, list1 }) => {
+                struct.notifies.length = 0;
+
+                Reflect.deleteProperty(list1, 0);
+                await cx1.transaction.commit();
+
+                expect(struct.notifies.map(({ index }) => index)).deep.equals(["list"]);
+                expect(struct.fields.list).deep.equals([
+                    { fabricIndex: 1, value: 3 },
+                    { fabricIndex: 2, value: 2 },
+                    { fabricIndex: 2, value: 4 },
+                ]);
+            });
+        });
+
+        it("rolls back a nested write to an entry that moved up after a delete", async () => {
+            await testFabricScoped(async (struct, { cx1, list1 }) => {
+                Reflect.deleteProperty(list1, 0);
+                list1[0].value = 99;
+                await cx1.transaction.rollback();
+
+                expect(struct.fields.list).deep.equals([
+                    { fabricIndex: 1, value: 1 },
+                    { fabricIndex: 2, value: 2 },
+                    { fabricIndex: 1, value: 3 },
+                    { fabricIndex: 2, value: 4 },
+                ]);
+            });
+        });
+
+        it("leaves the caller's entry unchanged when it is pushed", async () => {
+            await testFabricScoped(async (_struct, { list1 }) => {
+                const entry = { value: 5 };
+                list1.push(entry);
+                expect(entry).deep.equals({ value: 5 });
+            });
+        });
+
+        it("leaves the caller's entry unchanged when it is assigned to an index", async () => {
+            await testFabricScoped(async (_struct, { list1 }) => {
+                const entry = { value: 5 };
+                const index = list1.length;
+                list1[index] = entry;
+                expect(entry).deep.equals({ value: 5 });
+                expect(list1[index]).deep.equals({ fabricIndex: 1, value: 5 });
+            });
+        });
+
+        it("iterates a fabric-filtered list that changes during the iteration", async () => {
+            await testFabricScoped(async (_struct, { list1 }) => {
+                const seen = new Array<number>();
+                for (const entry of list1) {
+                    seen.push(entry.value);
+                    list1.shift();
+                }
+                expect(seen).deep.equals([1]);
+            });
+        });
+
+        it("reports the change when pop() removes an entry from a fabric-filtered list", async () => {
+            await testFabricScoped(async (struct, { cx1, list1 }) => {
+                struct.notifies.length = 0;
+
+                list1.pop();
+                await cx1.transaction.commit();
+
+                expect(struct.notifies.map(({ index }) => index)).deep.equals(["list"]);
+                struct.expect({
+                    list: [
+                        { fabricIndex: 1, value: 1 },
+                        { fabricIndex: 2, value: 2 },
+                        { fabricIndex: 2, value: 4 },
+                    ],
+                    subList: [
+                        { fabricIndex: 1, value: [11, 12] },
+                        { fabricIndex: 2, value: [13, 14] },
+                    ],
+                });
+            });
+        });
+    });
+
+    describe("write bounds", () => {
+        async function writePlainList(defaults: Val.List, actor: (list: number[]) => void) {
+            const struct = TestStruct({ list: listOf("uint8") }, { list: defaults });
+            await LocalActorContext.act("test", cx => actor(struct.reference(cx).list as number[]));
+            return struct;
+        }
+
+        it("refuses a write that would leave a gap", async () => {
+            const struct = await writePlainList([1], list => {
+                expect(() => (list[2] = 3)).throws(WriteError);
+            });
+
+            struct.expect({ list: [1] });
+        });
+
+        it("refuses a write beyond the maximum index with a write error", async () => {
+            await writePlainList(new Array<number>(65536).fill(0), list => {
+                expect(() => (list[65536] = 1)).throws(WriteError);
+            });
+        });
+
+        it("refuses a length that is not a non-negative integer", async () => {
+            const struct = await writePlainList([1, 2], list => {
+                for (const length of [-1, 1.5, Number.NaN]) {
+                    expect(() => (list.length = length)).throws(WriteError);
+                }
+            });
+
+            struct.expect({ list: [1, 2] });
+        });
+
+        it("refuses to grow the list through its length", async () => {
+            const struct = await writePlainList([1], list => {
+                expect(() => (list.length = 3)).throws(WriteError);
+            });
+
+            struct.expect({ list: [1] });
+        });
+
+        it("refuses an entry without a value", async () => {
+            const struct = await writePlainList([1, 2], list => {
+                expect(() => Reflect.set(list, 0, undefined)).throws(WriteError);
+            });
+
+            struct.expect({ list: [1, 2] });
+        });
+
+        it("ignores a delete beyond the end and refuses one other than the last", async () => {
+            const struct = await writePlainList([1, 2, 3], list => {
+                expect(() => Reflect.deleteProperty(list, 1)).throws(WriteError);
+                expect(Reflect.deleteProperty(list, 5)).true;
+                expect(list.pop()).equals(3);
+            });
+
+            struct.expect({ list: [1, 2] });
+        });
+
+        it("refuses an insert beyond the maximum length and leaves the list unchanged", async () => {
+            const struct = await writePlainList(new Array<number>(65536).fill(0), list => {
+                expect(() => list.unshift(1)).throws(WriteError);
+                expect(list[0]).equals(0);
+            });
+
+            expect(struct.fields.list).length(65536);
+        });
+
+        it("ignores a delete beyond the end of a fabric-filtered list", async () => {
+            await testFabricScoped(async (struct, { cx1, list1 }) => {
+                struct.notifies.length = 0;
+
+                expect(Reflect.deleteProperty(list1, 5)).true;
+                await cx1.transaction.commit();
+
+                expect(struct.notifies).length(0);
+                expect(struct.fields.list).length(4);
+            });
+        });
+
+        it("refuses to delete from a fabric-filtered list without write access", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ fabricIndex: "fabric-idx", value: "uint8" }), { access: "R F" }) },
+                { list: [{ fabricIndex: 1, value: 1 }] },
+            );
+
+            await struct.online(
+                {
+                    fabricFiltered: true,
+                    exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                    node: aclEndpoint(),
+                },
+                ref => {
+                    expect(() => Reflect.deleteProperty(ref.list as ValueList, 0)).throws("Permission denied");
+                    expect(Reflect.deleteProperty(ref.list as ValueList, 5)).true;
+                },
+            );
+
+            struct.expect({ list: [{ fabricIndex: 1, value: 1 }] });
+        });
+
+        it("refuses an entry of a fabric-filtered list that is not an object", async () => {
+            await testFabricScoped(async (_struct, { list1 }) => {
+                expect(() => Reflect.set(list1, 0, 5)).throws(WriteError);
+                expect(() => Reflect.apply(Array.prototype.push, list1, [5])).throws(WriteError);
+                expect(() => Reflect.apply(list1.splice, list1, [0, 0, 5])).throws(WriteError);
+            });
+        });
+
+        it("refuses to grow a fabric-filtered list through its length", async () => {
+            await testFabricScoped(async (struct, { cx1, list1 }) => {
+                expect(() => (list1.length = 5)).throws(WriteError);
+                await cx1.transaction.commit();
+
+                expect(struct.fields.list).length(4);
+            });
+        });
+    });
+
+    describe("insert", () => {
+        async function insertPlain(actor: (list: number[]) => void) {
+            const struct = TestStruct({ list: listOf("uint8") }, { list: [1, 2, 3] });
+            await LocalActorContext.act("test", cx => actor(struct.reference(cx).list as number[]));
+            return struct;
+        }
+
+        it("inserts several entries at the front", async () => {
+            const struct = await insertPlain(list => {
+                expect(list.unshift(8, 9)).equals(5);
+            });
+
+            struct.expect({ list: [8, 9, 1, 2, 3] });
+        });
+
+        it("inserts several entries in the middle", async () => {
+            const struct = await insertPlain(list => {
+                expect(list.splice(1, 0, 7, 8, 9)).deep.equals([]);
+            });
+
+            struct.expect({ list: [1, 7, 8, 9, 2, 3] });
+        });
+
+        it("replaces one entry with two", async () => {
+            const struct = await insertPlain(list => {
+                expect(list.splice(1, 1, 7, 8)).deep.equals([2]);
+            });
+
+            struct.expect({ list: [1, 7, 8, 3] });
+        });
+
+        it("removes every entry from the start index when no count is given", async () => {
+            const struct = await insertPlain(list => {
+                expect(list.splice(1)).deep.equals([2, 3]);
+            });
+
+            struct.expect({ list: [1] });
+        });
+
+        it("inserts several structs at the front", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ value: "uint8" })) },
+                { list: [{ value: 1 }, { value: 2 }] },
+            );
+
+            await LocalActorContext.act("test", cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                list.unshift({ value: 8 }, { value: 9 });
+                expect(list.map(({ value }) => value)).deep.equals([8, 9, 1, 2]);
+            });
+
+            struct.expect({ list: [{ value: 8 }, { value: 9 }, { value: 1 }, { value: 2 }] });
+        });
+
+        it("leaves the entries before the insert point untouched", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ value: "uint8" })) },
+                { list: [{ value: 1 }, { value: 2 }] },
+            );
+
+            await LocalActorContext.act("test", cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                list[0].value = 5;
+                const first = rawValuesOf(list)[0];
+
+                list.splice(1, 0, { value: 8 }, { value: 9 });
+
+                expect(rawValuesOf(list)[0]).equals(first);
+            });
+
+            struct.expect({ list: [{ value: 5 }, { value: 8 }, { value: 9 }, { value: 2 }] });
+        });
+
+        it("leaves the list unchanged when a pushed entry is rejected", async () => {
+            const struct = await insertPlain(list => {
+                expect(() => list.push(4, 300)).throws();
+                expect([...list]).deep.equals([1, 2, 3]);
+            });
+
+            struct.expect({ list: [1, 2, 3] });
+        });
+
+        it("leaves the list unchanged when an inserted entry is rejected", async () => {
+            const struct = await insertPlain(list => {
+                expect(() => list.unshift(0, 300)).throws();
+                expect([...list]).deep.equals([1, 2, 3]);
+            });
+
+            struct.expect({ list: [1, 2, 3] });
+        });
+
+        it("sorts a list of structs", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ value: "uint8" })) },
+                { list: [{ value: 3 }, { value: 1 }, { value: 2 }] },
+            );
+
+            await LocalActorContext.act("test", cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                expect(list.sort((a, b) => a.value - b.value)).equals(list);
+            });
+
+            struct.expect({ list: [{ value: 1 }, { value: 2 }, { value: 3 }] });
+        });
+
+        it("reverses a list of structs", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ value: "uint8" })) },
+                { list: [{ value: 1 }, { value: 2 }] },
+            );
+
+            await LocalActorContext.act("test", cx => {
+                (struct.reference(cx).list as { value: number }[]).reverse();
+            });
+
+            struct.expect({ list: [{ value: 2 }, { value: 1 }] });
+        });
+
+        it("inserts into a fabric-filtered list that holds an entry without a fabric", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ fabricIndex: "fabric-idx", value: "uint8" }), { access: "F" }) },
+                { list: [{ value: 1 }, { fabricIndex: 1, value: 2 }] },
+            );
+
+            await struct.online(
+                {
+                    fabricFiltered: true,
+                    exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                    node: aclEndpoint(),
+                },
+                ref => {
+                    (ref.list as ValueList).unshift({ value: 5 });
+                },
+            );
+
+            expect(struct.fields.list).deep.equals([
+                { fabricIndex: 1, value: 5 },
+                { fabricIndex: undefined, value: 1 },
+                { fabricIndex: 1, value: 2 },
+            ]);
+        });
+
+        it("returns copies of removed entries", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ value: "uint8" })) },
+                { list: [{ value: 1 }, { value: 2 }] },
+            );
+
+            await LocalActorContext.act("test", async cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                const [removed] = list.splice(0, 1);
+                removed.value = 7;
+                list.pop()!.value = 8;
+                await cx.transaction.rollback();
+            });
+
+            struct.expect({ list: [{ value: 1 }, { value: 2 }] });
+        });
+
+        it("returns the removed entry from pop() and shift()", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ value: "uint8" })) },
+                { list: [{ value: 1 }, { value: 2 }, { value: 3 }] },
+            );
+
+            await LocalActorContext.act("test", cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                expect(list.shift()).deep.equals({ value: 1 });
+                expect(list.pop()).deep.equals({ value: 3 });
+            });
+
+            struct.expect({ list: [{ value: 2 }] });
+        });
+
+        it("ignores a change a sort comparator makes to an entry", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ value: "uint8" })) },
+                { list: [{ value: 2 }, { value: 1 }] },
+            );
+
+            await LocalActorContext.act("test", cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                list.sort(a => {
+                    a.value = 9;
+                    return 0;
+                });
+            });
+
+            struct.expect({ list: [{ value: 2 }, { value: 1 }] });
+        });
+
+        it("sorts a list in default order without a comparator", async () => {
+            const struct = TestStruct({ list: listOf("uint8") }, { list: [10, 9, 1] });
+
+            await LocalActorContext.act("test", cx => {
+                (struct.reference(cx).list as number[]).sort();
+            });
+
+            struct.expect({ list: [1, 10, 9] });
+        });
+
+        it("passes a sort comparator one copy per entry", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ value: "uint8" })) },
+                { list: [{ value: 3 }, { value: 1 }, { value: 2 }] },
+            );
+
+            const seen = new Set<unknown>();
+            await LocalActorContext.act("test", cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                list.sort((a, b) => {
+                    seen.add(a);
+                    seen.add(b);
+                    return a.value - b.value;
+                });
+            });
+
+            expect(seen.size).equals(3);
+            struct.expect({ list: [{ value: 1 }, { value: 2 }, { value: 3 }] });
+        });
+
+        it("stores a separate copy for an entry that copyWithin() duplicates", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ value: "uint8" })) },
+                { list: [{ value: 1 }, { value: 2 }] },
+            );
+
+            await LocalActorContext.act("test", cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                list.copyWithin(1, 0);
+                list[1].value = 5;
+            });
+
+            struct.expect({ list: [{ value: 1 }, { value: 5 }] });
+        });
+
+        it("leaves the list unchanged when a splice inserts an entry without a value", async () => {
+            const struct = TestStruct({ list: listOf("uint8") }, { list: [1, 2, 3] });
+
+            await LocalActorContext.act("test", cx => {
+                const list = struct.reference(cx).list as (number | undefined)[];
+                expect(() => list.splice(0, 1, 5, undefined)).throws(WriteError);
+                expect([...list]).deep.equals([1, 2, 3]);
+            });
+
+            struct.expect({ list: [1, 2, 3] });
+        });
+
+        it("refuses list edits without write access", async () => {
+            const struct = TestStruct({ list: listOf("uint8", { access: "R V" }) }, { list: [1, 2] });
+
+            await struct.online(
+                {
+                    exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                    node: aclEndpoint(),
+                },
+                ref => {
+                    const list = ref.list as number[];
+                    expect(() => list.splice(0)).throws("Permission denied");
+                    expect(() => (list.length = 0)).throws("Permission denied");
+                    expect(() => (list[0] = 300)).throws("Permission denied");
+                },
+            );
+
+            struct.expect({ list: [1, 2] });
+        });
+
+        it("rolls back a nested write to an entry that a list method moved", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ value: "uint8" })) },
+                { list: [{ value: 1 }, { value: 2 }, { value: 3 }] },
+            );
+
+            await LocalActorContext.act("test", async cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                list.reverse();
+                list[0].value = 99;
+                list.shift();
+                list[0].value = 98;
+                await cx.transaction.rollback();
+            });
+
+            struct.expect({ list: [{ value: 1 }, { value: 2 }, { value: 3 }] });
+        });
+
+        it("rolls back a nested write to an entry moved within a fabric-filtered list", async () => {
+            await testFabricScoped(async (struct, { cx1, list1 }) => {
+                list1.reverse();
+                list1[0].value = 99;
+                await cx1.transaction.rollback();
+
+                expect(struct.fields.list).deep.equals([
+                    { fabricIndex: 1, value: 1 },
+                    { fabricIndex: 2, value: 2 },
+                    { fabricIndex: 1, value: 3 },
+                    { fabricIndex: 2, value: 4 },
+                ]);
+            });
+        });
+
+        it("iterates managed entries of a fabric-filtered list", async () => {
+            await testFabricScoped(async (struct, { cx1, list1 }) => {
+                for (const entry of list1) {
+                    entry.value = 9;
+                }
+                await cx1.transaction.rollback();
+
+                expect(struct.fields.list).deep.equals([
+                    { fabricIndex: 1, value: 1 },
+                    { fabricIndex: 2, value: 2 },
+                    { fabricIndex: 1, value: 3 },
+                    { fabricIndex: 2, value: 4 },
+                ]);
+            });
+        });
+
+        it("inserts several entries into a fabric-filtered list", async () => {
+            await testFabricScoped(async (struct, { cx1, list1 }) => {
+                list1.unshift({ value: 5 }, { value: 6 });
+                await cx1.transaction.commit();
+
+                expect(struct.fields.list).deep.equals([
+                    { fabricIndex: 1, value: 5 },
+                    { fabricIndex: 2, value: 2 },
+                    { fabricIndex: 1, value: 6 },
+                    { fabricIndex: 2, value: 4 },
+                    { fabricIndex: 1, value: 1 },
+                    { fabricIndex: 1, value: 3 },
+                ]);
             });
         });
     });

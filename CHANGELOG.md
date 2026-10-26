@@ -23,6 +23,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
+    - Fix: A list or struct assigned to state is stored as a copy, so a later nested write no longer changes the value it came from
+    - Fix: Removing an entry from a fabric-filtered list emits the change and is undone by a rollback
+    - Fix: `sort()`, `reverse()`, `unshift()` and `splice()` on a state list no longer duplicate entries or throw when they move them, and `shift()` and `pop()` return the removed entry
+    - Fix: Array methods that change a state list apply all of their change or none of it and return copies of the entries they remove, and a later nested write to an entry they moved is rolled back with the transaction
+    - Fix: Iterating a fabric-filtered state list yields managed entries, so a change to an entry is tracked and rolled back
+    - Fix: A state list write that would leave a gap, an `undefined` entry, an invalid length or an index above 65535 throws `WriteError`
+    - Fix: Deleting from a fabric-filtered state list, or setting the length of any state list, requires write access
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp

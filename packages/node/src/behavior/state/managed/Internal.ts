@@ -8,7 +8,8 @@ import type { Val } from "@matter/protocol";
 import type { ValReference } from "./ValReference.js";
 
 /**
- * API for bypassing managed collections and accessing the internal object containing raw data.
+ * API for bypassing managed collections: access to the internal object containing raw data, and raw copies of
+ * incoming values.
  */
 export namespace Internal {
     export const reference = Symbol("reference");
@@ -19,53 +20,43 @@ export namespace Internal {
     }
 
     /**
-     * Recursively unwrap managed proxies in a value tree, returning raw data.
+     * Copy an incoming value tree into raw data for a manager to store.
      *
-     * Primitives, Uint8Array, Date, and other non-plain objects pass through unchanged.  Plain
-     * arrays and plain objects are walked; a new container is only allocated if a child was replaced.
+     * A managed proxy is replaced by a copy of its raw value, including the entries of other fabrics.  Every array and
+     * every plain object is copied, so the stored value shares no array or plain object with the committed state, with
+     * another reference or with the caller.  A nested write clones a container only if it is the committed original,
+     * so a shared container would be changed in place.  A copied object keeps its symbol-keyed properties, such as
+     * `BitmapEncodedValue`, with the same values.
+     *
+     * Primitives, Uint8Array, Date and other class instances pass through unchanged.
      */
-    export function unmanage(value: Val): Val {
+    export function copy(value: Val): Val {
         if (value === null || value === undefined || typeof value !== "object") {
             return value;
         }
 
-        // Unwrap managed proxy to its raw value, then continue walking
         const ref = (value as Collection)[reference];
         if (ref) {
-            return unmanage(ref.value);
+            return copy(ref.value);
         }
 
         if (Array.isArray(value)) {
-            let changed = false;
-            const result = new Array(value.length);
-
-            for (let i = 0; i < value.length; i++) {
-                const child = unmanage(value[i]);
-                if (child !== value[i]) {
-                    changed = true;
-                }
-                result[i] = child;
-            }
-
-            return changed ? result : value;
+            return value.map(copy);
         }
 
         const proto = Object.getPrototypeOf(value);
-        if (proto === Object.prototype || proto === null) {
-            let changed = false;
-            const result = {} as Record<string, Val>;
-
-            for (const key in value as Record<string, Val>) {
-                const child = unmanage((value as Record<string, Val>)[key]);
-                if (child !== (value as Record<string, Val>)[key]) {
-                    changed = true;
-                }
-                result[key] = child;
-            }
-
-            return changed ? result : value;
+        if (proto !== Object.prototype && proto !== null) {
+            return value;
         }
 
-        return value;
+        const source = value as Val.Struct;
+        const result: Val.Struct = {};
+        for (const key in source) {
+            result[key] = copy(source[key]);
+        }
+        for (const symbol of Object.getOwnPropertySymbols(source)) {
+            Object.defineProperty(result, symbol, Object.getOwnPropertyDescriptor(source, symbol)!);
+        }
+        return result;
     }
 }

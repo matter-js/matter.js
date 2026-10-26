@@ -7,15 +7,7 @@
 import { isObject, serialize } from "@matter/general";
 import type { Schema } from "@matter/model";
 import { Access, AttributeModel, DataModelPath, ValueModel } from "@matter/model";
-import {
-    AccessControl,
-    hasLocalActor,
-    hasRemoteActor,
-    ReadError,
-    SchemaImplementationError,
-    Val,
-    WriteError,
-} from "@matter/protocol";
+import { AccessControl, hasRemoteActor, ReadError, SchemaImplementationError, Val, WriteError } from "@matter/protocol";
 import { Status } from "@matter/types";
 import type { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
@@ -110,6 +102,44 @@ function inspectList(this: Val.List) {
     return [...this];
 }
 
+/**
+ * Maximum number of entries in a list: list indices are 16 bits wide.
+ */
+const MAX_LIST_LENGTH = 65536;
+
+/**
+ * Array methods that add, remove, overwrite, move or insert entries.  The proxy runs them on a plain array of the
+ * visible entries; see {@link ListProxyHandler.editEntries}.
+ */
+const entryEdits = new Map<PropertyKey, (...args: never[]) => unknown>([
+    ["copyWithin", Array.prototype.copyWithin],
+    ["fill", Array.prototype.fill],
+    ["pop", Array.prototype.pop],
+    ["push", Array.prototype.push],
+    ["reverse", Array.prototype.reverse],
+    ["shift", Array.prototype.shift],
+    ["sort", Array.prototype.sort],
+    ["splice", Array.prototype.splice],
+    ["unshift", Array.prototype.unshift],
+]);
+
+/**
+ * Wrap a `sort` comparator so it receives copies of the entries it compares.
+ */
+function compareCopies(compare: unknown) {
+    if (typeof compare !== "function") {
+        return compare;
+    }
+    const copies = new Map<Val, Val>();
+    const copyOf = (entry: Val) => {
+        if (!copies.has(entry)) {
+            copies.set(entry, Internal.copy(entry));
+        }
+        return copies.get(entry);
+    };
+    return (a: Val, b: Val): unknown => Reflect.apply(compare, undefined, [copyOf(a), copyOf(b)]);
+}
+
 class ListProxyHandler implements ProxyHandler<Val.List> {
     protected reference: ValReference<Val.List>;
     protected session: ValueSupervisor.Session;
@@ -140,9 +170,20 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     }
 
     protected setListLength(length: number) {
-        if (length > 65535) {
-            throw new WriteError(this.reference.location, `Index ${length} is greater than allowed maximum of 65535`);
+        this.config.authorizeWrite(this.session, this.reference.location);
+        if (!Number.isInteger(length) || length < 0) {
+            throw new WriteError(this.reference.location, `Length ${length} is not a valid list length`);
         }
+        if (length > this.getListLength()) {
+            throw new WriteError(this.reference.location, `Length ${length} would leave a gap after the last entry`);
+        }
+        this.truncate(length);
+    }
+
+    /**
+     * Remove the visible entries from `length` on.
+     */
+    protected truncate(length: number) {
         this.reference.change(() => (this.writeVal().length = length), "length");
     }
 
@@ -158,8 +199,11 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
                 throw new ReadError(this.reference.location, `Index ${index} is out of bounds`);
             }
 
-            if (index > 65535) {
-                throw new ReadError(this.reference.location, `Index ${index} is greater than allowed maximum of 65535`);
+            if (index >= MAX_LIST_LENGTH) {
+                throw new ReadError(
+                    this.reference.location,
+                    `Index ${index} is greater than allowed maximum of ${MAX_LIST_LENGTH - 1}`,
+                );
             }
 
             const value = this.readVal()[index];
@@ -190,25 +234,113 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
      *
      * Invoked before the entry is validated, because validation judges the entry as a whole.
      */
-    protected prepareEntry(value: Val): Val {
+    protected prepareEntry(value: Val, _location: AccessControl.Location): Val {
         return value;
     }
 
+    /**
+     * Store a prepared, validated entry after the caller authorized the write.  The caller passes a value the list may
+     * own; see {@link Internal.copy}.
+     */
     protected writeEntry(index: number, value: Val, location: AccessControl.Location) {
-        this.config.authorizeWrite(this.session, location);
-
-        if (index < 0 || index > this.writeVal().length + 1) {
+        if (index < 0 || index > this.readVal().length) {
             throw new WriteError(location, `Index ${index} is out of bounds`);
         }
 
-        if (index > 65535) {
-            throw new ReadError(location, `Index ${index} is greater than allowed maximum of 65535`);
+        if (index >= MAX_LIST_LENGTH) {
+            throw new WriteError(location, `Index ${index} is greater than allowed maximum of ${MAX_LIST_LENGTH - 1}`);
         }
 
-        // Unwrap incoming managed values (including nested)
-        value = Internal.unmanage(value);
-
         this.reference.change(() => (this.writeVal()[index] = value), index);
+    }
+
+    /**
+     * Remove an entry.  Only the last entry may go, so the list never has a gap.  An index beyond the end is ignored.
+     */
+    protected deleteEntry(index: number, location: AccessControl.Location) {
+        const length = this.getListLength();
+        if (index >= length) {
+            return;
+        }
+        if (index !== length - 1) {
+            throw new WriteError(location, `Deleting entry ${index} would leave a gap; use splice to remove it`);
+        }
+        this.setListLength(index);
+    }
+
+    /**
+     * The stored entries this session sees, in the order of the indices {@link readEntry} and {@link writeEntry} use.
+     */
+    protected visibleEntries(): Val[] {
+        return [...this.readVal()];
+    }
+
+    /**
+     * Replace the entries {@link visibleEntries} returns with `entries` in a single change.  Throws {@link WriteError}
+     * when the list would exceed {@link MAX_LIST_LENGTH}.
+     *
+     * A stored entry that ends up at another index is stored as a copy, because a nested write clones an entry only
+     * while it sits at the index of its committed original (see {@link ValReference.change}).
+     */
+    protected storeEntries(entries: Val[]) {
+        if (entries.length > MAX_LIST_LENGTH) {
+            throw new WriteError(
+                this.reference.location,
+                `Length ${entries.length} exceeds the maximum of ${MAX_LIST_LENGTH}`,
+            );
+        }
+
+        const stored = this.readVal();
+        const isStored = new Set(stored);
+        const placed = entries.map((entry, index) =>
+            entry !== stored[index] && isStored.has(entry) ? Internal.copy(entry) : entry,
+        );
+
+        this.reference.change(() => {
+            const list = this.writeVal();
+            placed.forEach((entry, index) => (list[index] = entry));
+            list.length = placed.length;
+        }, "length");
+    }
+
+    /**
+     * Apply an array method that changes entries, and return its result.
+     *
+     * The method runs on a plain array of the visible entries, because entry proxies follow their index.  A stored
+     * entry keeps its value; {@link storeEntries} copies it if it moves.  Every other value is new: it is copied,
+     * prepared and validated before anything is stored.  The result is stored in a single change, so a rejected entry
+     * leaves the list unchanged.
+     *
+     * The method's result is returned as a copy, or as the list itself when the method returns its array.  A `sort`
+     * comparator receives copies of the entries.
+     */
+    protected editEntries(method: (...args: never[]) => unknown, args: unknown[], receiver: Val.List): unknown {
+        this.config.authorizeWrite(this.session, this.reference.location);
+
+        const stored = this.visibleEntries();
+        const edited = [...stored];
+        const result = Reflect.apply(method, edited, method === Array.prototype.sort ? [compareCopies(args[0])] : args);
+
+        const isStored = new Set(stored);
+        const entries = edited.map((entry, index) => (isStored.has(entry) ? entry : this.#acceptEntry(entry, index)));
+
+        this.storeEntries(entries);
+
+        return result === edited ? receiver : Internal.copy(result);
+    }
+
+    /**
+     * Turn a caller's value into an entry the list may store: a copy of the value, prepared and validated.  The
+     * caller's value stays unchanged.
+     */
+    #acceptEntry(value: Val, index: number) {
+        this.#sublocation.path.id = index;
+        if (value === undefined) {
+            throw new WriteError(this.#sublocation, `Entry ${index} has no value`);
+        }
+        const entry = this.prepareEntry(Internal.copy(value), this.#sublocation);
+        this.config.validateEntry?.(entry, this.session, this.#sublocation);
+        return entry;
     }
 
     protected getIteratorFn(): Val.List[typeof Symbol.iterator] {
@@ -241,15 +373,19 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
                 return undefined;
         }
 
+        const method = entryEdits.get(property);
+        if (method) {
+            return (...args: unknown[]) => this.editEntries(method, args, receiver);
+        }
+
         return Reflect.get(this.readVal(), property, receiver);
     }
 
     set(_target: Val.List, property: PropertyKey, newValue: Val, receiver: Val.List) {
         if (typeof property === "string" && property.match(/^\d+/)) {
-            this.#sublocation.path.id = property;
-            newValue = this.prepareEntry(newValue);
-            this.config.validateEntry?.(newValue, this.session, this.#sublocation);
-            this.writeEntry(Number.parseInt(property), newValue, this.#sublocation);
+            this.config.authorizeWrite(this.session, this.reference.location);
+            const index = Number.parseInt(property);
+            this.writeEntry(index, this.#acceptEntry(newValue, index), this.#sublocation);
             return true;
         } else if (property === "length") {
             this.setListLength(newValue as number);
@@ -270,7 +406,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     deleteProperty(_target: Val.List, property: PropertyKey) {
         if (typeof property === "string" && property.match(/^\d+/)) {
             this.#sublocation.path.id = property;
-            this.writeEntry(Number.parseInt(property), undefined, this.#sublocation);
+            this.deleteEntry(Number.parseInt(property), this.#sublocation);
             return true;
         }
 
@@ -291,6 +427,14 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
  * list with fabric filtering enabled, logical indices are mapped to physical indices that match the actor's fabric.
  */
 class FabricFilteredListProxyHandler extends ListProxyHandler {
+    #isVisible(entry: Val) {
+        if (!isObject(entry)) {
+            return false;
+        }
+        const { fabricIndex } = entry as { fabricIndex?: number };
+        return !fabricIndex || fabricIndex === this.session.fabric;
+    }
+
     #mapScopedToActual(index: number, reading: boolean) {
         if (index < 0) {
             throw new (reading ? ReadError : WriteError)(
@@ -302,12 +446,7 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
         const list = reading ? this.readVal() : this.writeVal();
         let nextPos = 0;
         for (let i = 0; i < list.length; i++) {
-            const entry = list[i] as undefined | { fabricIndex?: number };
-            if (!isObject(entry)) {
-                continue;
-            }
-
-            if (hasLocalActor(this.session) || !entry.fabricIndex || entry.fabricIndex === this.session.fabric) {
+            if (this.#isVisible(list[i])) {
                 if (nextPos === index) {
                     return i;
                 }
@@ -341,84 +480,62 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
         return super.readEntry(this.#mapScopedToActual(index, true), location);
     }
 
-    protected override prepareEntry(value: Val) {
-        if (isObject(value)) {
-            (value as { fabricIndex?: number }).fabricIndex ??= this.session.fabric;
+    protected override prepareEntry(value: Val, location: AccessControl.Location) {
+        if (!isObject(value)) {
+            throw new WriteError(location, `Fabric scoped list value is not an object`, Status.Failure);
         }
+        (value as { fabricIndex?: number }).fabricIndex ??= this.session.fabric;
         return value;
     }
 
     protected override writeEntry(index: number, value: Val, location: AccessControl.Location) {
-        if (value === undefined) {
-            const valueIndex = this.#mapScopedToActual(index, false);
-            this.writeVal().splice(valueIndex, 1);
-        } else {
-            if (!isObject(value)) {
-                throw new WriteError(location, `Fabric scoped list value is not an object`, Status.Failure);
-            }
-            super.writeEntry(this.#mapScopedToActual(index, false), value, location);
+        super.writeEntry(this.#mapScopedToActual(index, false), value, location);
+    }
+
+    /**
+     * Remove an entry.  Any entry may go, because the later entries of this fabric move up to fill the gap.  An index
+     * beyond the end is ignored.
+     */
+    protected override deleteEntry(index: number, location: AccessControl.Location) {
+        if (index >= this.getListLength()) {
+            return;
         }
+        this.config.authorizeWrite(this.session, location);
+        const entries = this.visibleEntries();
+        entries.splice(index, 1);
+        this.storeEntries(entries);
+    }
+
+    protected override visibleEntries() {
+        return this.readVal().filter(entry => this.#isVisible(entry));
+    }
+
+    /**
+     * Put `entries` into the positions of this fabric's entries, in order, and keep other fabrics' entries in their
+     * order.  Entries beyond those positions go to the end; positions beyond the entries are removed.
+     */
+    protected override storeEntries(entries: Val[]) {
+        const stored = this.readVal();
+        const result = new Array<Val>();
+        let next = 0;
+        for (const entry of stored) {
+            if (!this.#isVisible(entry)) {
+                result.push(entry);
+            } else if (next < entries.length) {
+                result.push(entries[next++]);
+            }
+        }
+        result.push(...entries.slice(next));
+
+        super.storeEntries(result);
     }
 
     protected override getListLength() {
-        let length = 0;
-        for (let i = 0; i < this.readVal().length; i++) {
-            const entry = this.readVal()[i] as undefined | { fabricIndex?: number };
-            if (isObject(entry) && (!entry.fabricIndex || entry.fabricIndex === this.session.fabric)) {
-                length++;
-            }
-        }
-        return length;
+        return this.visibleEntries().length;
     }
 
-    protected override setListLength(length: number) {
-        this.reference.change(() => {
-            const formerLength = this.getListLength();
-            for (let i = formerLength - 1; i >= length; i--) {
-                const entry = this.writeVal()[this.#mapScopedToActual(i, true)] as undefined | { fabricIndex?: number };
-                if (isObject(entry) && (!entry.fabricIndex || entry.fabricIndex === this.session.fabric)) {
-                    this.writeVal().splice(this.#mapScopedToActual(i, false), 1);
-                } else if (entry !== undefined) {
-                    throw new WriteError(
-                        this.reference.location,
-                        `Fabric scoped list value is not an object`,
-                        Status.Failure,
-                    );
-                }
-            }
-        }, "length");
-    }
-
-    protected override getIteratorFn(): Val.List[typeof Symbol.iterator] {
-        const fabric = this.session.fabric;
-        const readVal = () => this.readVal();
-
-        return (() => {
-            const iterator = readVal()[Symbol.iterator]();
-
-            return {
-                ...iterator,
-                next() {
-                    while (true) {
-                        const next = iterator.next();
-
-                        if (
-                            !next.done &&
-                            isObject(next.value) &&
-                            (next.value as { fabricIndex?: number }).fabricIndex !== fabric
-                        ) {
-                            continue;
-                        }
-
-                        return next;
-                    }
-                },
-
-                [Symbol.iterator]() {
-                    return this;
-                },
-            };
-        }) as Val.List[typeof Symbol.iterator];
+    protected override truncate(length: number) {
+        this.storeEntries(this.visibleEntries().slice(0, length));
     }
 
     override ownKeys() {
