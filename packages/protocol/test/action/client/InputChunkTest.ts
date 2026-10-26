@@ -609,6 +609,135 @@ describe("InputChunk", () => {
             if (chunks[0].kind !== "event-value") return;
             expect(chunks[0].number).equal(EventNumber(2));
         });
+
+        describe("resolved timestamps", () => {
+            const clusterId = ClusterId(BasicInformation.id);
+            const eventId = EventId(BasicInformation.events.startUp.id);
+
+            type TimestampVariant = Pick<
+                TypeFromSchema<typeof TlvEventData>,
+                "epochTimestamp" | "systemTimestamp" | "deltaEpochTimestamp" | "deltaSystemTimestamp"
+            >;
+
+            function event(number: number, timestamp: TimestampVariant, path: { clusterId?: ClusterId } = {}) {
+                return {
+                    eventData: {
+                        path: { endpointId: EndpointNumber(0), clusterId, eventId, ...path },
+                        eventNumber: EventNumber(number),
+                        priority: 1,
+                        ...timestamp,
+                        data: TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
+                    },
+                };
+            }
+
+            async function resolvedOf(eventReports: DataReport["eventReports"]) {
+                const resolved = new Array<number | undefined>();
+                for (const chunk of await collect(buildReport({ eventReports }))) {
+                    if (chunk.kind === "event-value") {
+                        resolved.push(chunk.resolvedTimestamp);
+                    }
+                }
+                return resolved;
+            }
+
+            it("adds each system delta to the event before it, as the CHIP SDK encodes a report", async () => {
+                const base = 0x4364c617;
+                const deltas = [1, 4, 1, 3, 1, 4, 1];
+                const report = await collect(
+                    buildReport({
+                        eventReports: [
+                            event(1, { systemTimestamp: base }),
+                            ...deltas.map((delta, i) => event(i + 2, { deltaSystemTimestamp: delta })),
+                        ],
+                    }),
+                );
+
+                const expected = [base];
+                for (const delta of deltas) expected.push(expected[expected.length - 1] + delta);
+                expect(report.map(chunk => chunk.kind === "event-value" && chunk.resolvedTimestamp)).deep.equal(
+                    expected,
+                );
+                const last = report[report.length - 1];
+                expect(last.kind).equal("event-value");
+                if (last.kind !== "event-value") return;
+                expect(last.deltaSystemTimestamp).equal(1);
+                expect(last.timestamp).equal(1);
+            });
+
+            it("resolves epoch deltas against the prior epoch timestamp", async () => {
+                expect(
+                    await resolvedOf([
+                        event(1, { epochTimestamp: 1_700_000_000_000 }),
+                        event(2, { deltaEpochTimestamp: 250 }),
+                    ]),
+                ).deep.equal([1_700_000_000_000, 1_700_000_000_250]);
+            });
+
+            it("leaves a delta unresolved when no absolute timestamp precedes it in the message", async () => {
+                expect(
+                    await resolvedOf([event(1, { deltaSystemTimestamp: 5 }), event(2, { deltaSystemTimestamp: 7 })]),
+                ).deep.equal([undefined, undefined]);
+            });
+
+            it("leaves a delta unresolved when the prior event used the other clock", async () => {
+                expect(
+                    await resolvedOf([
+                        event(1, { systemTimestamp: 1000 }),
+                        event(2, { epochTimestamp: 1_700_000_000_000 }),
+                        event(3, { deltaSystemTimestamp: 5 }),
+                        event(4, { deltaSystemTimestamp: 7 }),
+                    ]),
+                ).deep.equal([1000, 1_700_000_000_000, undefined, undefined]);
+            });
+
+            it("does not skip back over an unresolved delta to an older absolute timestamp", async () => {
+                expect(
+                    await resolvedOf([
+                        event(1, { systemTimestamp: 1000 }),
+                        event(2, { deltaEpochTimestamp: 5 }),
+                        event(3, { deltaSystemTimestamp: 7 }),
+                    ]),
+                ).deep.equal([1000, undefined, undefined]);
+            });
+
+            it("does not skip back over an event without a timestamp", async () => {
+                expect(
+                    await resolvedOf([
+                        event(1, { systemTimestamp: 1000 }),
+                        event(2, {}),
+                        event(3, { deltaSystemTimestamp: 7 }),
+                    ]),
+                ).deep.equal([1000, undefined, undefined]);
+            });
+
+            it("keeps the chain across an entry with an invalid path", async () => {
+                expect(
+                    await resolvedOf([
+                        event(1, { systemTimestamp: 1000 }),
+                        event(2, { deltaSystemTimestamp: 5 }, { clusterId: undefined }),
+                        event(3, { deltaSystemTimestamp: 7 }),
+                    ]),
+                ).deep.equal([1000, 1012]);
+            });
+
+            it("keeps the chain across an entry whose payload fails to decode", async () => {
+                const malformed = event(2, { deltaSystemTimestamp: 5 });
+                malformed.eventData.data = TlvBoolean.encodeTlv(true);
+                expect(
+                    await resolvedOf([
+                        event(1, { systemTimestamp: 1000 }),
+                        malformed,
+                        event(3, { deltaSystemTimestamp: 7 }),
+                    ]),
+                ).deep.equal([1000, 1012]);
+            });
+
+            it("starts each report message without a prior timestamp", async () => {
+                expect(await resolvedOf([event(1, { systemTimestamp: 1000 })])).deep.equal([1000]);
+                expect(await resolvedOf([event(2, { deltaSystemTimestamp: 5 })])).deep.equal([undefined]);
+            });
+        });
     });
 
     describe("ordering across attributes and events", () => {

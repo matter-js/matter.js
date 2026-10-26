@@ -334,6 +334,29 @@ describe("BdxTest", () => {
                 });
             });
 
+            it("Proposes at most a 16-bit maxBlockSize on a channel with a larger payload size", async () => {
+                const data = crypto.randomBytes(2048);
+
+                await bdxTransfer({
+                    maxPayloadSize: 100_000,
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
+                        const fd = new PersistedFileDesignator("data", clientStorage);
+                        writeBlob(clientStorage, "data", data);
+
+                        return {
+                            bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd }),
+                            expectedInitialMessageType: BdxMessageType.SendInit,
+                        };
+                    },
+                    validate: async (_clientStorage, serverStorage, { clientExchangeData, clientError }) => {
+                        expect(clientError).undefined;
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.SendInit);
+                        expect(clientExchangeData[0].data.maxBlockSize).equals(0xffff);
+                        expect(readBlob(serverStorage, "data")).deep.equals(data);
+                    },
+                });
+            });
+
             it("Caps a peer-proposed maxBlockSize larger than the transport payload size", async () => {
                 const data = crypto.randomBytes(2048);
 

@@ -47,6 +47,7 @@ interface MatterMetadata {
 export class ClassSemantics extends Semantics {
     #new?: ClassSemantics.Constructor;
     #definedFields?: Map<string, FieldSemantics>;
+    #afterFinalizeFailure?: { error: unknown };
 
     /**
      * The model that represents the semantics for this class.
@@ -293,6 +294,9 @@ export class ClassSemantics extends Semantics {
 
     override finalize() {
         if (this.isFinal) {
+            if (this.#afterFinalizeFailure) {
+                throw this.#afterFinalizeFailure.error;
+            }
             return;
         }
 
@@ -308,6 +312,13 @@ export class ClassSemantics extends Semantics {
 
         // Apply base finalization
         super.finalize();
+
+        try {
+            this.#new?.[ClassSemantics.afterFinalize]?.(this);
+        } catch (error) {
+            this.#afterFinalizeFailure = { error };
+            throw error;
+        }
     }
 
     #applyBaseSemantics() {
@@ -375,9 +386,16 @@ export namespace ClassSemantics {
      */
     export interface Constructor extends NewableFunction {
         /**
-         * If present, invoked for custom decoration after installing constructor.
+         * If present, invoked for custom decoration at the start of finalization, before fields and model are final.
          */
         [extend]?: (semantics: ClassSemantics) => void;
+
+        /**
+         * If present, invoked once the class's model is final, for logic that needs the complete model.  Runs once.  An
+         * error it throws reaches the caller that triggered finalization and every later {@link ClassSemantics.finalize},
+         * so the class stays unusable rather than appearing valid without what the hook adds.
+         */
+        [afterFinalize]?: (semantics: ClassSemantics) => void;
     }
 
     /**
@@ -386,4 +404,5 @@ export namespace ClassSemantics {
     export type Source = Constructor | DecoratorContext | ClassSemantics;
 
     export const extend = Symbol("extend");
+    export const afterFinalize = Symbol("afterFinalize");
 }

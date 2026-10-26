@@ -5,7 +5,7 @@
  */
 
 import { certTest } from "@matter/testing";
-import { defineFlowQrTest } from "./tc-dd-flow-support.js";
+import { defineFlowQrTest, USER_INTENT_TH_ARGS } from "./tc-dd-flow-support.js";
 import { USER_INTENT_FLOW } from "./tc-dd-support.js";
 
 defineFlowQrTest(
@@ -13,6 +13,7 @@ defineFlowQrTest(
         plan: "devicediscovery.adoc",
         pics: ["MCORE.ROLE.COMMISSIONER", "MCORE.DD.QR_COMMISSIONING", "MCORE.DD.USER_INTENT_COMM_FLOW"],
         app: "all-clusters",
+        appArgs: { th: USER_INTENT_TH_ARGS },
     }),
     USER_INTENT_FLOW,
 );

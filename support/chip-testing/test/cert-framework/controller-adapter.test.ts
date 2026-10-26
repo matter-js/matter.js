@@ -161,21 +161,6 @@ describe("InProcessControllerAdapter", () => {
         await device?.close();
     });
 
-    // Guards the regression the per-step flag exists to prevent: the bound is short enough to rule out a retry, so a
-    // commissioning that expects to succeed has to fit inside it, discovery included. It does not prove the option
-    // reaches commissioning — a healthy device commissions either way — only that requesting it breaks nothing.
-    it("still commissions a healthy device when asked for a single handshake attempt", async function () {
-        this.timeout(30_000);
-
-        const ref = await adapter.commission({
-            passcode: 20202021,
-            discriminator: 3840,
-            singleHandshakeAttempt: true,
-        });
-
-        await adapter.node(ref).decommission();
-    });
-
     it("commissions without the sustained subscription when asked, leaving raw reads and decommissioning working", async function () {
         this.timeout(30_000);
 
@@ -1329,6 +1314,59 @@ describe("ControllerAdapter registry", () => {
         }
     });
 
+    it("declares the client keys of the single-command cluster-client cases, the clusters included", () => {
+        // The base file answers every key 0, so each one has to come from the overlay, which states the controller's
+        // whole client surface for these cases. The real device files answer only OO.C and WNCV.C 0.
+        const keys = [
+            "OO.C",
+            ...["00", "01", "02", "40", "41", "42"].map(id => `OO.C.C${id}.Tx`),
+            "I.C",
+            "I.C.C00.Tx",
+            "I.C.C40.Tx",
+            "MOD.C",
+            "MOD.C.A0002",
+            "MOD.C.C00.Tx",
+            "LOWPOWER.C",
+            "LOWPOWER.C.C00.Tx",
+            "WNCV.C",
+            ...["00", "01", "02", "05", "08"].map(id => `WNCV.C.C${id}.Tx`),
+        ];
+        const asDevice = new PicsFile(keys.map(key => `${key}=0`));
+
+        for (const implementation of IMPLEMENTATIONS) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of keys) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
+        }
+    });
+
+    it("declares the diagnostics client keys of TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and TC-DGWIFI-3.2", () => {
+        // The base file answers every key 0, so each one has to come from the overlay. The real device file answers
+        // only DGTHREAD.C and DGWIFI.C.C00.Tx 0.
+        const keys = [
+            "DGETH.C",
+            "DGETH.C.C00.Tx",
+            "DGSW.C",
+            "DGSW.C.C00.Tx",
+            "DGTHREAD.C",
+            "DGTHREAD.C.C00.Tx",
+            "DGTHREAD.C.A0006",
+            "DGWIFI.C",
+            "DGWIFI.C.C00.Tx",
+        ];
+        const asDevice = new PicsFile(keys.map(key => `${key}=0`));
+
+        for (const implementation of IMPLEMENTATIONS) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of keys) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
+        }
+    });
+
     it("declares the group-administration client commands TC-SC-6.1 sends", () => {
         // ViewGroup is 0 in the device file; the two GroupKeyManagement keys are absent from it
         // entirely, and an absent key evaluates false, so either omission skips a step silently.
@@ -1641,6 +1679,47 @@ describe("controller capabilities", () => {
 
         env.MATTER_CERT_CONTROLLER = "matterjs";
         expect(controllerCapabilityOutOfScope(["multi-path-write"])).undefined;
+    });
+
+    it("skips a step needing a mixed-version or typed list write on matterjs-server as out of scope on its own", () => {
+        env.MATTER_CERT_CONTROLLER = "matterjs-server";
+
+        for (const capability of ["mixed-version-write", "typed-list-write-with-others"] as const) {
+            expect(controllerCapabilityGap([capability])).undefined;
+            expect(controllerCapabilityOutOfScope([capability])).equal(
+                `controller "matterjs-server" does not offer ${capability}: ${MATTERJS_SERVER_OUT_OF_SCOPE[capability]}`,
+            );
+        }
+    });
+
+    it("lacks batch invoke and long path lists on chip-tool alone", () => {
+        const shapes = ["batch-invoke", "many-paths-per-request"] as const;
+
+        for (const controller of ["matterjs", "matterjs-server"]) {
+            env.MATTER_CERT_CONTROLLER = controller;
+            expect(controllerCapabilityGap(shapes), controller).undefined;
+            expect(controllerCapabilityOutOfScope(shapes), controller).undefined;
+        }
+
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+        for (const capability of shapes) {
+            expect(controllerCapabilityGap([capability])).equal(
+                `controller "chip-tool" lacks ${capability}: ${CHIP_TOOL_CAPABILITY_GAPS[capability]}`,
+            );
+        }
+    });
+
+    it("skips the scripted OTA provider cases on matterjs-server as out of scope, and as a gap on chip-tool", () => {
+        const required = ["ota-provider", "ota-provider-script"] as const;
+
+        env.MATTER_CERT_CONTROLLER = "matterjs-server";
+        expect(controllerCapabilityGap(required)).undefined;
+        expect(controllerCapabilityOutOfScope(required)).equal(
+            `controller "matterjs-server" does not offer ota-provider-script: ${MATTERJS_SERVER_OUT_OF_SCOPE["ota-provider-script"]}`,
+        );
+
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+        expect(controllerCapabilityGap(required)).contains('controller "chip-tool" lacks ota-provider');
     });
 
     it("applies only the DUT controller's out-of-scope declarations", () => {

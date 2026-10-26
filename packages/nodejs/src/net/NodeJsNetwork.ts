@@ -25,7 +25,8 @@ import {
     UdpSocketOptions,
 } from "@matter/general";
 import { createConnection } from "node:net";
-import { NetworkInterfaceInfo, networkInterfaces } from "node:os";
+// Called through the module object so tests can replace networkInterfaces in every runtime, Bun included
+import os, { NetworkInterfaceInfo } from "node:os";
 import { NodeJsTcpConnection } from "./NodeJsTcpConnection.js";
 import { NodeJsTcpListener } from "./NodeJsTcpListener.js";
 import { NodeJsUdpSocket } from "./NodeJsUdpSocket.js";
@@ -34,7 +35,7 @@ const logger = Logger.get("NetworkNode");
 
 export class NodeJsNetwork extends Network {
     static getMulticastInterfaceIpv4(netInterface: string): string | undefined {
-        const netInterfaceInfo = networkInterfaces()[netInterface];
+        const netInterfaceInfo = os.networkInterfaces()[netInterface];
         if (netInterfaceInfo === undefined) throw new NetworkError(`Unknown interface: ${netInterface}`);
         for (const info of netInterfaceInfo) {
             if (familyIs(4, info)) {
@@ -54,7 +55,7 @@ export class NodeJsNetwork extends Network {
             }
             // IPv4 group memberships select the interface by one of its addresses; joining without one lets the
             // kernel use the default-route interface, which on a multi-homed host is not the configured one
-            const multicastInterfaces = Object.entries(networkInterfaces()).flatMap(([netIf, netIfInfo]) => {
+            const multicastInterfaces = Object.entries(os.networkInterfaces()).flatMap(([netIf, netIfInfo]) => {
                 if (netIfInfo === undefined) {
                     return [];
                 }
@@ -69,7 +70,7 @@ export class NodeJsNetwork extends Network {
             }
             return multicastInterfaces;
         } else {
-            const multicastInterfaces = Object.entries(networkInterfaces()).flatMap(([netIf, netIfInfo]) => {
+            const multicastInterfaces = Object.entries(os.networkInterfaces()).flatMap(([netIf, netIfInfo]) => {
                 if (netIfInfo === undefined) {
                     return [];
                 }
@@ -96,7 +97,7 @@ export class NodeJsNetwork extends Network {
     }
 
     static getNetInterfaceZoneIpv6(netInterface: string): string | undefined {
-        const netInterfaceInfo = networkInterfaces()[netInterface];
+        const netInterfaceInfo = os.networkInterfaces()[netInterface];
         if (netInterfaceInfo === undefined) throw new NetworkError(`Unknown interface: ${netInterface}`);
         return this.getNetInterfaceZoneIpv6Internal(netInterface, netInterfaceInfo);
     }
@@ -107,7 +108,7 @@ export class NodeJsNetwork extends Network {
      * from inbound traffic (e.g. when all sessions run over TCP).
      */
     static getDefaultNetInterface(): string | undefined {
-        const interfaces = networkInterfaces();
+        const interfaces = os.networkInterfaces();
         for (const name in interfaces) {
             const infos = interfaces[name] as NetworkInterfaceInfo[];
             if (infos.some(info => familyIs(6, info) && !info.internal)) {
@@ -140,7 +141,7 @@ export class NodeJsNetwork extends Network {
             // IPv6 address with scope
             return ip.split("%")[1];
         } else {
-            const interfaces = networkInterfaces();
+            const interfaces = os.networkInterfaces();
             for (const name in interfaces) {
                 const netInterfaces = interfaces[name] as NetworkInterfaceInfo[];
                 for (const { address, netmask } of netInterfaces) {
@@ -181,7 +182,7 @@ export class NodeJsNetwork extends Network {
      */
     getNetInterfaces(configuration: NetworkInterface[] = []): NetworkInterface[] {
         const result = new Array<NetworkInterface>();
-        const interfaces = networkInterfaces();
+        const interfaces = os.networkInterfaces();
         for (const name in interfaces) {
             const netInterfaces = interfaces[name] as NetworkInterfaceInfo[];
             if (netInterfaces.length === 0) continue;
@@ -199,7 +200,7 @@ export class NodeJsNetwork extends Network {
     }
 
     getIpMac(netInterface: string): NetworkInterfaceDetails | undefined {
-        const netInterfaceInfo = networkInterfaces()[netInterface];
+        const netInterfaceInfo = os.networkInterfaces()[netInterface];
         if (netInterfaceInfo === undefined) return undefined;
         const ipV4 = netInterfaceInfo.filter(info => familyIs(4, info)).map(({ address }) => address);
         const ipV6 = netInterfaceInfo.filter(info => familyIs(6, info)).map(({ address }) => address);

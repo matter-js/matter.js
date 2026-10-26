@@ -60,6 +60,8 @@ export class CaseClient {
             maxInitialRetransmissions: maxRetransmissions,
             maxInitialRetransmissionTime: maxRetransmissionTime,
             initialRetransmissionTime,
+            initialRetransmissionTimeLimit: retransmissionTimeLimit,
+            initialBackoffOffset: backoffOffset,
         } = options ?? {};
         const messenger = new CaseClientMessenger(exchange, expectedProcessingTime);
 
@@ -77,6 +79,8 @@ export class CaseClient {
                     maxRetransmissions,
                     maxRetransmissionTime,
                     initialRetransmissionTime,
+                    retransmissionTimeLimit,
+                    backoffOffset,
                 },
                 validateSessionParameters,
             );
@@ -397,6 +401,13 @@ export namespace CaseClient {
         maxInitialRetransmissions?: number;
         maxInitialRetransmissionTime?: Duration;
         initialRetransmissionTime?: Duration;
+
+        /** {@link ExchangeSendOptions.retransmissionTimeLimit} for Sigma1. */
+        initialRetransmissionTimeLimit?: Duration;
+
+        /** {@link ExchangeSendOptions.backoffOffset} for Sigma1. */
+        initialBackoffOffset?: number;
+
         validateSessionParameters?: ValidateSessionParameters;
     }
 }

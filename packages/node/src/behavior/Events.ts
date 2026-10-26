@@ -173,10 +173,12 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
             this.schema.tag === ElementTag.Event &&
             this.schema.id !== undefined &&
             this.owner.endpoint !== undefined &&
-            clusterId !== undefined &&
-            eventSchema.priority !== undefined
+            clusterId !== undefined
         ) {
-            this.#connectWithOccurenceManager(this.schema.id, clusterId, eventSchema.priority);
+            // Each event record SHALL have a priority (Matter Core § 7.14), but the model decorators cannot state one;
+            // INFO is the level for events that drive customer facing features
+            const priority = eventSchema.priority ?? EventElement.Priority.Info;
+            this.#connectWithOccurenceManager(this.schema.id, clusterId, priority);
         }
     }
 
@@ -220,6 +222,7 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
             number,
             timestamp,
             timestampKind: "epoch",
+            resolvedTimestamp: timestamp,
             priority,
             payload: payload as Val.Struct | undefined,
         });

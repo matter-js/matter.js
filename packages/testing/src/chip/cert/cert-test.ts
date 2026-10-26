@@ -28,7 +28,6 @@ import {
 } from "./cert-context.js";
 import {
     capabilitiesFor,
-    type ControllerCapability,
     controllerCapabilityGap,
     controllerCapabilityOutOfScope,
     type ControllerSelection,
@@ -101,8 +100,8 @@ export class CertTest extends BaseTest {
         const { devices } = cx;
 
         // A step's own checks are how the suite defines "something was observed", and a step that ran
-        // without recording one ends unverified. Counting them is what lets a controller refusal
-        // discovered *after* the step acted be told apart from one discovered before it acted.
+        // without recording one ends unverified. Together with the actions below, the count also decides
+        // whether a step may still skip itself (CertStepNotApplicableError, the notApplicableAtRun probe).
         let observedThisStep = 0;
         // Checks alone miss a step that changed the device before it recorded anything
         const actions = new StepActions();
@@ -358,7 +357,7 @@ export class CertTest extends BaseTest {
                     await raceAgainstDeviceExit(stepDef.run(cx), deviceExitWatch.exit, tc, stepDef.number);
                 } catch (e) {
                     if (e instanceof CertStepNotApplicableError) {
-                        // Same rule as a controller refusal: a step that already recorded evidence or acted did act
+                        // "skipped" claims nothing was evaluated, which a step that recorded evidence or acted cannot
                         if (observedThisStep === 0 && actions.count === 0) {
                             planConditionSkips++;
                             report(stepDef, "skipped", e.message);
@@ -377,37 +376,12 @@ export class CertTest extends BaseTest {
                         continue;
                     }
 
-                    if (e instanceof UnsupportedByControllerError && e.capability !== undefined) {
+                    if (e instanceof UnsupportedByControllerError) {
                         aborted = true;
                         failed = true;
                         frameworkError = true;
-                        failure = undeclaredRefusal(tc, stepDef, this.#definition, e, e.capability);
+                        failure = undeclaredRefusal(tc, stepDef, this.#definition, e);
                         report(stepDef, "error");
-                        continue;
-                    }
-
-                    if (e instanceof UnsupportedByControllerError) {
-                        // "skipped" claims nothing was evaluated. A step that already recorded
-                        // evidence or acted did act, so every later step would rest on a device state
-                        // nobody declared — that is the run's outcome, not a skip.
-                        if (observedThisStep === 0 && actions.count === 0) {
-                            controllerUnsupportedSkips++;
-                            report(stepDef, "skipped", e.message);
-                            continue;
-                        }
-
-                        aborted = true;
-                        failed = true;
-                        failure = new Error(
-                            `Cert test ${tc} step ${stepDef.number}: the controller refused "${e.operation}" after ` +
-                                `the step had already recorded ${observedThisStep} check(s) and made ${actions.count} ` +
-                                `controller call(s) that may change the device, so the device ` +
-                                `is in a state this run cannot describe. Declare the limitation as a capability gap ` +
-                                `of the controller, or in its own PICS, so the step is skipped before it acts. ` +
-                                `Refusal: ${e.message}`,
-                        );
-
-                        report(stepDef, "fail");
                         continue;
                     }
 
@@ -791,8 +765,8 @@ function undeclaredRefusal(
     stepDef: CertStepDefinition,
     definition: CertTestDefinition,
     refusal: UnsupportedByControllerError,
-    capability: ControllerCapability,
 ): CertFrameworkError {
+    const { capability } = refusal;
     const declared =
         stepDef.controllerCapabilities?.includes(capability) ||
         definition.controllerCapabilities?.includes(capability) ||

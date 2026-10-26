@@ -5,6 +5,7 @@
  */
 
 import type { AccessControl, Val } from "@matter/protocol";
+import { ExpiredReferenceError, PhantomReferenceError } from "@matter/protocol";
 import type { Supervision } from "../../supervision/Supervision.js";
 
 /**
@@ -14,9 +15,11 @@ import type { Supervision } from "../../supervision/Supervision.js";
  */
 export interface ValReference<T extends Val = Val> {
     /**
-     * The current value of the referenced property.  Cleared when the reference is no longer functional.
+     * The current value of the referenced property.  `undefined` or `null` while the property, or a container above
+     * it, is absent.  After the owning context exits, a nested reference keeps the last value it saw and the root
+     * reference throws {@link ExpiredReferenceError}.
      */
-    value: T;
+    readonly value: T | undefined | null;
 
     /**
      * The current canonical value of the referenced property.
@@ -24,7 +27,8 @@ export interface ValReference<T extends Val = Val> {
     readonly original: T;
 
     /**
-     * When true, the reference is no longer usable because the owning context has exited.
+     * When true, the reference is no longer usable because the owning context has exited.  Final, and true for every
+     * reference below an expired one.
      */
     readonly expired: boolean;
 
@@ -91,4 +95,36 @@ export namespace ValReference {
      * configured default or computed schema default) may enter it or be synthesized on read.
      */
     export type PrimaryKey = "id" | "name";
+
+    /**
+     * The container {@link reference} points to, for a manager that reads its members.  A nested reference whose
+     * owning context exited still serves the last container it saw.
+     *
+     * @throws PhantomReferenceError when the property, or a container above it, is absent
+     * @throws ExpiredReferenceError when the container is absent and the owning context has exited, or when
+     * {@link reference} is a root reference whose owning context has exited
+     */
+    export function containerOf<T extends Val>(reference: ValReference<T>): NonNullable<T> {
+        const container = reference.value;
+        if (container === undefined || container === null) {
+            if (reference.expired) {
+                throw new ExpiredReferenceError(reference.location);
+            }
+            throw new PhantomReferenceError(reference.location);
+        }
+        return container;
+    }
+
+    /**
+     * The container {@link reference} points to, for a manager that writes its members.
+     *
+     * @throws ExpiredReferenceError when the owning context has exited, whether or not the container is present
+     * @throws PhantomReferenceError when the property, or a container above it, is absent
+     */
+    export function writableContainerOf<T extends Val>(reference: ValReference<T>): NonNullable<T> {
+        if (reference.expired) {
+            throw new ExpiredReferenceError(reference.location);
+        }
+        return containerOf(reference);
+    }
 }

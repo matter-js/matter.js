@@ -89,6 +89,7 @@ function generateEventHandler(
                     ({
                         number,
                         priority,
+                        resolvedTimestamp,
                         epochTimestamp,
                         systemTimestamp,
                         deltaEpochTimestamp,
@@ -97,6 +98,7 @@ function generateEventHandler(
                     }) => ({
                         eventNumber: number,
                         priority,
+                        resolvedTimestamp,
                         epochTimestamp,
                         systemTimestamp,
                         deltaEpochTimestamp,

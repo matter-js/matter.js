@@ -22,6 +22,7 @@ import { ClassSemantics, Schema, Semantics } from "@matter/model";
 import type { Val } from "@matter/protocol";
 import type { BehaviorBacking } from "./internal/BehaviorBacking.js";
 import { declaredSchemaOf, setDeclaredSchema } from "./internal/DeclaredSchema.js";
+import { setModeledClasses } from "./internal/ModeledState.js";
 import { Reactor } from "./Reactor.js";
 import { DerivedState, EmptyState } from "./state/StateType.js";
 import { RootSupervisor } from "./supervision/RootSupervisor.js";
@@ -458,6 +459,7 @@ Object.defineProperties(Behavior, {
             }
 
             const { State, Events, defaults } = type;
+            setModeledClasses(type, State, Events);
             if (!State || !defaults) {
                 return;
             }

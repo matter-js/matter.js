@@ -5,7 +5,13 @@
  */
 
 import { SupportedTransportsBitmap, SupportedTransportsSchema } from "#common/SupportedTransportsBitmap.js";
-import { UINT16_MAX } from "@matter/general";
+import {
+    DEFAULT_MAX_TCP_MESSAGE_SIZE,
+    ImplementationError,
+    MAX_UDP_MESSAGE_SIZE,
+    UINT16_MAX,
+    UINT32_MAX,
+} from "@matter/general";
 import { Specification } from "@matter/model";
 import { SessionIntervals } from "./SessionIntervals.js";
 
@@ -43,6 +49,7 @@ export function SessionParameters(config?: SessionParameters.Config): SessionPar
     const {
         supportedTransports: reportedTransports,
         maxPathsPerInvoke,
+        maxTcpMessageSize: reportedMaxTcpMessageSize,
         ...reported
     } = SessionParameters.reported(config) ?? {};
 
@@ -59,7 +66,10 @@ export function SessionParameters(config?: SessionParameters.Config): SessionPar
     // supported
     let maxTcpMessageSize: number | undefined;
     if (supportedTransports.tcpClient || supportedTransports.tcpServer) {
-        maxTcpMessageSize = reported.maxTcpMessageSize ?? SessionParameters.fallbacks.maxTcpMessageSize;
+        maxTcpMessageSize =
+            reportedMaxTcpMessageSize === undefined || reportedMaxTcpMessageSize === 0
+                ? SessionParameters.fallbacks.maxTcpMessageSize
+                : reportedMaxTcpMessageSize;
     }
 
     // The MaxPathsPerInvoke attribute defines zero as "assume one", and the MAX_PATHS_PER_INVOKE session parameter
@@ -108,6 +118,25 @@ export namespace SessionParameters {
         return Object.keys(result).length ? result : undefined;
     }
 
+    /**
+     * Validate a MAX_TCP_MESSAGE_SIZE we configure for ourselves: a whole number from {@link MAX_UDP_MESSAGE_SIZE} to
+     * the uint32 maximum of the session parameter field.
+     *
+     * @param name names the setting in the error message
+     * @throws ImplementationError for any other value
+     */
+    export function assertMaxTcpMessageSize(maxTcpMessageSize: number, name = "Max TCP Message Size") {
+        if (
+            !Number.isInteger(maxTcpMessageSize) ||
+            maxTcpMessageSize < MAX_UDP_MESSAGE_SIZE ||
+            maxTcpMessageSize > UINT32_MAX
+        ) {
+            throw new ImplementationError(
+                `${name} of ${maxTcpMessageSize} is not a whole number from ${MAX_UDP_MESSAGE_SIZE} to ${UINT32_MAX}`,
+            );
+        }
+    }
+
     export interface Config extends Partial<Omit<SessionParameters, "supportedTransports">> {
         supportedTransports?: number | SupportedTransports;
     }
@@ -149,7 +178,13 @@ export namespace SessionParameters {
          */
         supportedTransports: {},
 
-        maxTcpMessageSize: 64000,
+        /**
+         * Fallback value for MAX_TCP_MESSAGE_SIZE when a TCP-capable peer does not provide it, or reports zero.
+         * Zero cannot be a real limit; a stack sends it when it announces TCP support without setting a size.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 4.13.1
+         */
+        maxTcpMessageSize: DEFAULT_MAX_TCP_MESSAGE_SIZE,
     };
 
     /**

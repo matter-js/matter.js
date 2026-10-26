@@ -11,7 +11,17 @@ import { ClientNode } from "#node/ClientNode.js";
 import { NodeConnectionState } from "#node/ClientNodeLifecycle.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
-import { createPromise, Crypto, ImplementationError, MatterAggregateError, MockCrypto } from "@matter/general";
+import {
+    createPromise,
+    Crypto,
+    ImplementationError,
+    MatterAggregateError,
+    MockCrypto,
+    MockNetwork,
+    Network,
+    Seconds,
+    Time,
+} from "@matter/general";
 import { MockSite, settled, subscribedPeer } from "@matter/node/testing";
 import { Peer, SustainedSubscription } from "@matter/protocol";
 
@@ -37,6 +47,33 @@ async function blockMutexOf(node: ServerNode | ClientNode) {
     });
     await entered;
     return { blocking, release };
+}
+
+const MDNS_PORT = 5353;
+
+/** Drop the device's mDNS traffic until the returned handle is released. */
+function blockMdnsFrom(device: ServerNode) {
+    const network = device.env.get(Network);
+    if (!(network instanceof MockNetwork)) {
+        expect.fail("Device network is not simulated");
+    }
+    let blocked = true;
+    network.simulator.router.intercept((packet, route) => {
+        if (
+            blocked &&
+            packet.kind === "udp" &&
+            packet.destPort === MDNS_PORT &&
+            network.shouldReceive(packet.sourceAddress)
+        ) {
+            return;
+        }
+        route(packet);
+    });
+    return {
+        release() {
+            blocked = false;
+        },
+    };
 }
 
 describe("ConnectionState", () => {
@@ -337,6 +374,53 @@ describe("ConnectionState", () => {
 
         expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Reconnecting);
         expect(peer1.lifecycle.isConnected).false;
+    });
+
+    it("reports WaitingForDeviceDiscovery while a peer has no address to try", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        const peerAddress = peer1.peerAddress!;
+
+        const mdns = blockMdnsFrom(device);
+        await MockTime.resolve(peer1.delete());
+        await MockTime.resolve(Time.sleep("cached mDNS records expire", Seconds(300)));
+        const peer = await MockTime.resolve(controller.peers.forAddress(peerAddress));
+        await MockTime.resolve(peer.set({ network: { autoSubscribe: true } }));
+        await MockTime.resolve(peer.start());
+        await settled(peer);
+
+        const protopeer = peer.env.get(Peer);
+        expect(protopeer.descriptor.operationalAddress).undefined;
+        expect(protopeer.service.addresses.size).equals(0);
+        expect(peer.lifecycle.connectionState).equals(NodeConnectionState.WaitingForDeviceDiscovery);
+
+        mdns.release();
+        const subscription = peer.behaviors.internalsOf(NetworkClient).activeSubscription!;
+        SustainedSubscription.assert(subscription);
+        await MockTime.resolve(subscription.active);
+        expect(protopeer.service.addresses.size).greaterThan(0);
+        expect(peer.lifecycle.connectionState).equals(NodeConnectionState.Connected);
+    });
+
+    it("returns to Reconnecting when discovery finds an address for a peer without a subscription", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        const peerAddress = peer1.peerAddress!;
+
+        const mdns = blockMdnsFrom(device);
+        await MockTime.resolve(peer1.delete());
+        await MockTime.resolve(Time.sleep("cached mDNS records expire", Seconds(300)));
+        const peer = await MockTime.resolve(controller.peers.forAddress(peerAddress));
+        await MockTime.resolve(peer.start());
+        await settled(peer);
+        expect(peer.lifecycle.connectionState).equals(NodeConnectionState.WaitingForDeviceDiscovery);
+
+        mdns.release();
+        await MockTime.resolve(peer.lifecycle.connectionStateChanged);
+        expect(peer.env.get(Peer).service.addresses.size).greaterThan(0);
+        expect(peer.lifecycle.connectionState).equals(NodeConnectionState.Reconnecting);
     });
 
     it("transitions to WaitingForDeviceDiscovery when a registered ICD misses its check-in", async () => {

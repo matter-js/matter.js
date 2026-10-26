@@ -34,7 +34,7 @@ another TC:
 - **`TC-CADMIN-1.17`** (all-clusters) — multiple controllers against one device, pairing-code
   (rather than passcode/discriminator) commissioning, non-fabric-filtered reads, and a bounded
   "this must fail" check. See "Multi-controller wiring" and "Bounded negative checks" below.
-- **`TC-SC-3.5`** (python-wrapped, currently live-blocked) — a script that drives its own scenario
+- **`TC-SC-3.5`** (python-wrapped) — a script that drives its own scenario
   and only needs a human-in-the-loop (here, an automated `PromptHandler`) to react to prompts; not
   built on `certTest()` at all. See "Python-wrapped mode" below. Read this one last — it is the
   exception to almost everything above it.
@@ -524,9 +524,8 @@ This is a framework-level fix (`log-follower.ts`), not something an individual T
   checks still carry the behavioral claim on either flavor — the device-log check is the TH-side
   corroboration of it.
 - **Never leave the DUT commissioned.** With ~21 steps sharing one commissioned node, the step engine aborts
-  (skips, doesn't run) every step after the one that threw — see `cert-test.ts`'s `invoke()` — except a
-  step that throws `UnsupportedByControllerError` before it recorded a check or made a controller call that
-  may change the device, which is recorded `"skipped"` and lets later steps run.
+  (skips, doesn't run) every step after the one that threw — see `cert-test.ts`'s `invoke()`. A step skipped
+  before it runs (PICS, flavor, a declared controller capability the controller lacks) lets later steps run.
   Either way a decommission written into any single step is unreliable. `.finalize()` owns it instead (see
   "Commission/decommission lifecycle" above).
 
@@ -559,25 +558,88 @@ this reason, matching the `"all-clusters"` registration already there.
 `MATTER_CERT_CONTROLLER=chip-tool` swaps `InProcessControllerAdapter` for
 `ChipToolControllerAdapter`, and the two are not interchangeable in every direction (the matterjs-server
 controller is covered in "External controller adapters" below). A step asking for
-something chip-tool cannot express gets `UnsupportedByControllerError` — recorded `"skipped"`, later
-steps still run — rather than a wrong answer. That holds only while the step has neither recorded a check
-nor made a controller call that may change the device (`step-actions.ts` classifies every controller API member); a
-refusal after either fails the run, so a step that needs such an operation after acting declares it as a
-controller capability or in the controller's PICS instead. Today the refusals are:
+something chip-tool cannot express gets `UnsupportedByControllerError` naming the capability it lacks, rather than a
+wrong answer. The step declares that capability, so it is skipped before it runs on chip-tool (see "Capabilities are
+declared up front" below). These refusals depend on the request's shape, so a step whose arguments have that shape
+declares the capability:
 
-- **A `writeAttributes` mixing versioned and unversioned entries** — chip-tool takes `--data-version`
-  once per command, applying to all its paths or none, so a request where only some entries carry a
+- **`mixed-version-write`: a `writeAttributes` mixing versioned and unversioned entries** — chip-tool takes
+  `--data-version` once per command, applying to all its paths or none, so a request where only some entries carry a
   `dataVersion` cannot be expressed as one write.
-- **A wildcard-endpoint `writeAttributes`** (`TC-IDM-3.1` step 2) — chip-tool's `WriteAttribute`
-  callback records a JSON result only for a path the device *rejected*, so successfully written
-  endpoints are invisible and the per-endpoint statuses the method contracts to return cannot be
-  reconstructed. Concrete-endpoint writes are fine: absence of a status *is* the success signal, since
-  Matter Core § 8.9.2.8 requires one per concrete path.
-- **A value whose encoded form contains `;`** — chip-tool splits its `attribute-values` argument on it.
-- **More than 64 paths in one read or write** — chip-tool's own `kMaxAllowedPaths`.
-- **What the controller itself holds** — `clientEndpoints()` and `clientAttribute()` (`TC-BR-4`).
-  chip-tool answers each command straight from the device and keeps nothing between them, so it has
-  no device list and no attribute state of its own to report.
+- **`typed-list-write-with-others`: `DefaultOTAProviders` written together with other entries** — chip-tool writes that
+  list through its typed cluster command, which encodes it as an empty REPLACE and one ADD per entry but writes one
+  attribute per request. Every other list goes through `write-by-id` as one REPLACE, with or without other entries,
+  and is not refused.
+- **`many-paths-per-request`: more than 64 paths in one read, subscription or write** — chip-tool's own
+  `kMaxAllowedPaths`.
+
+These refusals are whole features chip-tool, or this adapter, does not have, so a step or test that uses the feature
+at all declares the capability:
+
+- **`tcp-transport`: a TCP-backed session, which a read with `largeMessage` requires** — chip-tool reuses the session
+  commissioning established. A case asks for TCP with `transport: "tcp"`, which implies the capability.
+- **`batch-invoke`: `invokeBatch`** (`TC-IDM-1.3`) — `command-by-id` sends one command per request.
+- **What the controller itself holds** — `clientEndpoints()` and `clientAttribute()` (`TC-BR-4`,
+  `sustained-subscription`). chip-tool answers each command straight from the device and keeps nothing between them,
+  so it has no device list and no attribute state of its own to report.
+
+A value whose encoded form contains `;` is not a refusal: chip-tool splits its `attribute-values` argument on it, and
+the adapter throws `ImplementationError` before it sends anything, like its other input guards. The step fails, and
+inside `attempt()` the write is recorded as a failed response. No case writes such a value today, but a value read
+back from the device and written again can contain one.
+
+**A wildcard-endpoint `writeAttributes` reads its statuses from chip-tool's log** (`TC-IDM-3.1` step 2). chip-tool's
+JSON results name only the paths the device *rejected* (`WriteAttributeCommand::OnResponse`), so they cannot say which
+endpoints the wildcard reached. chip's `WriteClient` also decodes every `WriteResponseMessage` it receives into its log,
+one line per field, and the reply's `logs` carry those lines for the command that caused them, so no correlation by
+time or exchange is needed. `loggedWriteResponseStatuses` (`src/chip-tool/write-response-log.ts`) reads every
+`AttributeStatusIB` from them:
+
+```
+WriteResponseMessage =
+{
+	AttributeStatusIBs =
+	[
+		AttributeStatusIB =
+		{
+			AttributePathIB =
+			{
+				Endpoint = 0x1,
+				Cluster = 0xfff1fc05,
+				Attribute = 0x0000_0032,
+			}
+
+			StatusIB =
+			{
+				status = 0x01 (FAILURE),
+				cluster-status = 0x11,
+			},
+
+		},
+	...
+```
+
+- The decode needs `CHIP_CONFIG_IM_PRETTY_PRINT` and detail logging, which every debug build on Linux or macOS has
+  with the default logging arguments (`chip_logging`, `chip_detail_logging`). The cert-bins chip-tool is one: its default
+  build profile keeps GN's `is_debug = true`.
+- `--trace_decode 1` is not needed and adds nothing here: chip-tool turns off its decoding of inbound
+  interaction-model messages because `WriteClient` already prints them.
+- A reply without the block rejects with `UnexpectedDataError` rather than report no endpoint written.
+- Each failure the JSON results report for a requested path must appear in the decoded block with the same code and
+  cluster status, and each concrete requested path must appear in it at all; a miss means the log lost lines, and
+  rejects.
+- Concrete-endpoint writes keep using the JSON results: absence of a status *is* the success signal, since Matter Core
+  § 8.7.3.2 and § 8.7.3.3 require one per concrete path.
+- The fixtures in `test/cert-framework/chip-tool-write-response-captures.ts` are real replies (chip app and matter.js
+  app). Regenerate them from a real chip-tool rather than editing them by hand.
+
+Step 2 still runs on a matter.js TH only: chip's `WriteHandler` answers any non-concrete write path `InvalidAction`.
+
+**`announceOtaProvider` naming another node** (`TC-SU-1.1`) goes through `otasoftwareupdaterequestor
+announce-otaprovider`. The provider's endpoint is the lowest one whose ServerList carries the provider cluster, and
+the VendorID is the AdminVendorId of chip-tool's entry in the requestor's Fabrics list, which chip-tool sets from its
+commissioner vendor id. Announcing the controller itself stays refused as `ota-provider-script`: chip-tool hosts no
+provider.
 
 Multi-cluster reads and multi-attribute writes *are* supported: chip-tool zips its cluster/attribute/
 endpoint id lists element-wise when their lengths match (`InteractionModelConfig::GetAttributePaths`),
@@ -640,16 +702,15 @@ answer: a controller that cannot send a command says nothing about the device, a
   lists them.
 - An adapter that lacks something lists it, with the reason, in `CHIP_TOOL_CAPABILITY_GAPS` or
   `MATTERJS_SERVER_CAPABILITY_GAPS`, registered as `gaps`. The in-process controller lacks none and registers no
-  `gaps`. Every matterjs-server refusal names one of them
-  (`UnsupportedByControllerError.capability`), built from the same text, and so does every chip-tool refusal of an
-  operation it always lacks, except `invokeBatch`: no capability covers it, and `MCORE.IDM.C.InvokeRequest.BatchCommands`
-  gates it. chip-tool declares `tcp-transport`, `attestation`, `webrtc-requestor`, `chunked-write`,
-  `batch-arrival-order`, `session-introspection`, `sustained-subscription`, `ota-provider`, `ota-provider-script`
-  and `icd-client`.
+  `gaps`. Every refusal names a capability (`UnsupportedByControllerError.capability`, which the constructor
+  requires) that its implementation declares as a gap or out of scope, with the registered text as its detail. chip-tool declares `tcp-transport`, `attestation`, `webrtc-requestor`,
+  `chunked-write`, `batch-invoke`, `batch-arrival-order`, `many-paths-per-request`, `mixed-version-write`,
+  `typed-list-write-with-others`, `session-introspection`, `sustained-subscription`, `ota-provider`,
+  `ota-provider-script` and `icd-client`.
 - A test declares `controllerCapabilities` on `certTest()`, and a step declares it on `step()`. A test is skipped
   when any controller role lacks one, helper roles included (each role is judged by the implementation that fills
   it). `transport: "tcp"` implies `tcp-transport`. A skipped step is counted in `controllerUnsupportedSkips`.
-- A python-wrapped case (`TC-SC-3.5`, `TC-DA-1.9`, the `certCameraCase` WebRTC cases) does not go through
+- A python-wrapped case that needs a capability (`TC-DA-1.9`, the `certCameraCase` WebRTC cases) does not go through
   `certTest()`, so it calls `skipOnControllerGap()` itself, before it builds a controller or starts a process. That
   writes the same no-device `controller-gap` bundle and skips.
 - A `certTest()` case reads `MATTER_CERT_CONTROLLER` and `MATTER_CERT_DEVICE` once, at collection
@@ -661,13 +722,10 @@ answer: a controller that cannot send a command says nothing about the device, a
   `unitTestingNotApplicable` or `longRunningReason(...)`. `skipOnControllerGap()` reads the controller when the test
   runs and returns the selection it judged by; the case builds its controller and writes its evidence from that
   value.
-- A refusal that names a capability and still reaches the step runner is a framework error (step verdict `error`,
-  run verdict `error`, `CertFrameworkError`), whatever the step already did: either the step lacks the declaration or
-  the implementation refuses something it declares neither as a gap nor out of scope.
-- A refusal without a capability stays a safety net: it skips a step that has not acted yet and fails one that has.
-  chip-tool refuses this way where the call decides it (a read of more paths than it accepts, an
-  `announceOtaProvider` naming another node's provider, which its PICS gate) and for `invokeBatch`. The in-process
-  adapter refuses only this way.
+- A refusal that still reaches the step runner is a framework error (step verdict `error`, run verdict `error`,
+  `CertFrameworkError`), whatever the step already did: either the step lacks the declaration or the implementation
+  refuses something it declares neither as a gap nor out of scope. A refusal is never a step outcome, so a step that
+  catches one rethrows it without recording a check. The in-process adapter refuses nothing.
 - A capability a controller deliberately does not offer is no gap: the adapter lists it in its `outOfScope`
   registration (`MATTERJS_SERVER_OUT_OF_SCOPE`), with the reason. A step needing it is skipped with that reason and
   counted in `outOfScopeSkips`, which never changes the verdict. A test needing it is skipped as a whole and writes a
@@ -688,7 +746,7 @@ with `outOfScope` naming the reason, no devices and verdict `skipped`.
 
 **What skips on the matterjs-server leg.**
 
-- The DD and SC-4.2 cases whose step 0 is the discriminator probe (TC-DD-1.8, 3.11-3.14, 3.16-3.18, 3.20, 3.21 and
+- The DD and SC-4.2 cases that run the discriminator probe (TC-DD-1.8, 3.11-3.14, 3.16-3.18, 3.20, 3.21 and
   TC-SC-4.2) run on this leg: the adapter sends the step's `giveUpAfterMs` as `discovery_timeout_s`, so a code naming no
   present device ends within the step's budget. Their steps that read a code through the DUT run too (next bullet).
 - Steps that read a code through the DUT (`PARSES_PAYLOAD`, `onboarding-payload-parse`) run: `parseQrPayload` and
@@ -718,9 +776,13 @@ with `outOfScope` naming the reason, no devices and verdict `skipped`.
   data version (TC-IDM-3.1 step 15) are out of scope (`multi-path-write`): the server writes one attribute per request
   and handles conditional writes itself. They skip as "not reachable for controller use cases" and the TC passes on
   its other steps. A timed write (TC-IDM-5.1 step 2) sends `timed_request_timeout_ms`.
-- TC-SC-3.5 (`single-handshake-attempt`) and the TCP block (`tcp-transport`) are capability-gated the same way. So
-  are, at test level, the OTA provider cases that script the server's provider or announce it with nothing staged
-  (TC-SU-3.2–3.4: `ota-provider-script`) and TC-BR-4 (`sustained-subscription`).
+- The TCP block (`tcp-transport`) is capability-gated the same way, and so is TC-BR-4 (`sustained-subscription`), at
+  test level. TC-SC-3.5 runs: it does not wait for any commissioning result (see "A commissioner that retries turns a
+  one-shot fault into a pass" below).
+- The OTA provider cases that script the server's provider or announce it with nothing staged (TC-SU-3.2–3.4) are out
+  of scope (`ota-provider-script` in `MATTERJS_SERVER_OUT_OF_SCOPE`), not a gap: the server's provider answers only
+  with a staged image, and scripted answers stay excluded until the test plans' need for them is clarified. They skip
+  with verdict `skipped` and that reason.
 - The ICD client cases (TC-ICDM-6.1, TC-ICDB-1.3) and TC-SU-3.1 run on the server's own subscription to the node.
   `update_node` refuses a node the server does not hold as available, which it does only after its own subscription's
   first report (matterjs-server `ControllerCommandHandler.updateNode`, `Nodes.isAvailable`). That the server's ICD
@@ -777,8 +839,10 @@ with `outOfScope` naming the reason, no devices and verdict `skipped`.
   `env` execs the server, so SIGTERM still reaches it. Over UDP step 20 runs and proves the chunked read.
 
 **PICS.** `MATTERJS_SERVER_CONTROLLER_PICS` declares what the server is, as `MATTERJS_CONTROLLER_PICS` does for
-matter.js: commissioner roles, batched invoke, no concatenated QR code, no basic commissioning window, and the BDX,
-OTA provider, ICD client and bridge client roles the server has. A key is never set to 0 only
+matter.js: commissioner roles, batched invoke, no concatenated QR code, no basic commissioning window, no Terms and
+Conditions client feature (`CGEN.C.F00`), and the OTA provider, ICD client and bridge client roles the server has. Of
+the BDX keys only `Sender`, `Responder` and `SynchronousSender` are 1; every other `MCORE.BDX.*` key is set to 0
+explicitly, because CHIP's file answers 1 for `Initiator`, `Driver` and `BlockQueryWithSkip`. A key is never set to 0 only
 because this adapter cannot drive what the server does: that is a capability gap, so the step counts as a coverage
 gap of the controller (`controllerUnsupportedSkips`) instead of `picsSkips`.
 
@@ -1058,9 +1122,9 @@ stdin open and, for each output line, runs the first `PromptHandler` whose `patt
 handler after it fires). A matched handler's returned string is written straight to the script's stdin.
 This TC is registered as a **bare `describe`/`it`**, not a `certTest()`, because there's no `CertDevice`
 in the picture at all — TH_SERVER lives entirely inside the container, spawned by the script itself, and
-the thing under test is `InProcessControllerAdapter`'s own commissioning stack acting as DUT_Commissioner
-against it. Building a `CertStepWiring` by hand (`{controllers: {dut: new InProcessControllerAdapter("dut")}, devices: {}, recorder}`)
-and calling `PromptDrivenPythonTest.invoke()` directly was simpler and more honest than forcing this
+the thing under test is the selected DUT controller's commissioning stack acting as DUT_Commissioner
+against it. Building a `CertStepWiring` by hand (`{controllers: {}, devices: {}, recorder}`; the handler owns the
+controllers, see below) and calling `PromptDrivenPythonTest.invoke()` directly was simpler and more honest than forcing this
 shape through `certTest()`'s device-flavor machinery just to obtain a `Subject` it doesn't need.
 
 **Finding what a prompt looks like.** `MatterBaseTest.wait_for_user_input()`
@@ -1086,25 +1150,13 @@ value is ever exposed outside the container. A handler that hardcodes 20202021 f
 precondition step will discover by nothing (auth failure) that it's DUT_Commissioner talking to a
 completely different, unrelated PAKE verifier.
 
-**Expected-failure counting, not hardcoded positions.** Steps 2c/3c/4c/5c all expect DUT commissioning
-to *fail* (a Sigma2 fault was injected right before each), but step 4c (responderICAC corruption) is
-skipped entirely — no prompt appears at all — if step 1c determined DUT_Commissioner has no ICAC in its
-NOC chain (a runtime fact, not something knowable ahead of a live run). `TC-SC-3.5.test.ts`'s handler
-tracks *occurrence count* in closure state (`state.attempts`), not step name: attempt 0 (step 1b) expects
-success, every attempt after that expects failure, whether there end up being 3 or 4 of them. Don't
-build a lookup keyed by the literal chip-tool node id in the prompt (`pairing onnetwork <n> ...`) — that
-`n` is just an incrementing suggestion for a human operator to avoid reusing a stale chip-tool node id,
-not a stable identifier for which script step is prompting.
-
-**Bounding a commissioning attempt that's supposed to fail.** A DUT that hangs instead of promptly
-rejecting a corrupted Sigma2 must not stall the whole run for the outer mocha timeout — same
-"`expectRejection`-style" concern as `TC-CADMIN-1.17`'s bounded negative checks (see above), applied here
-to `commission()` itself rather than a post-commissioning read/write. `TC-SC-3.5.test.ts` races
-`dut.commission(...)` against a fixed timeout (`COMMISSION_TIMEOUT_MS`, 60s) and records a `"fail"`
-check either way (unexpected success, or neither settling) — a real rejection is what actually proves the
-behavior; the timeout is only a backstop. Not live-verified against a real DUT/TH_SERVER handshake (see
-the prerequisite gap below), so this bound is a design choice informed by other TCs' precedent, not a
-number tuned against an observed real commissioning latency.
+**Attempts are counted, not keyed by step.** Step 4c (responderICAC corruption) is skipped entirely — no
+prompt appears at all — if step 1c determined DUT_Commissioner has no ICAC in its NOC chain (a runtime fact,
+not something knowable ahead of a live run). `CommissioningAttempts` (`tc-sc-3.5-support.ts`) counts the
+attempts it started, and the case checks that count against `MINIMUM_PROMPTS`. Don't build a lookup keyed by
+the literal chip-tool node id in the prompt (`pairing onnetwork <n> ...`) — that `n` is just an incrementing
+suggestion for a human operator to avoid reusing a stale chip-tool node id, not a stable identifier for which
+script step is prompting.
 
 **Framework fix reused by every python-wrapped/python test, not just this one:** `parseStep`
 (`chip-test-common.ts`) matched `Test Step \d+` — plain numbers only. `TC_SC_3_5.py`'s own steps are
@@ -1189,38 +1241,35 @@ notices a prompt-driven TC that stopped driving anything.
 ## A commissioner that retries turns a one-shot fault into a pass (`TC-SC-3.5`)
 
 `TC_SC_3_5.py` starts TH_SERVER once, in `setup_class`, and never restarts it. Each negative step only
-revokes and reopens the commissioning window and arms `FailAtFault` with `numCallsToFail=1`, so the
+opens a new commissioning window (revoking the previous one from step 3a on) and arms `FailAtFault` with `numCallsToFail=1`, so the
 *first* Sigma2 of that window is corrupt and every later one is clean. A commissioner that retries the
-handshake therefore commissions successfully on its second attempt, and the step the script means as
-"the DUT must reject this" passes.
+handshake (matter.js does, on purpose, and so does matterjs-server) therefore commissions successfully on
+its second attempt, so the DUT's own commissioning result says nothing about the step.
 
-matter.js retries deliberately — real devices sometimes need more than one chance — so the harness has
-to bound the attempt instead. A step sets `CommissioningTarget.singleHandshakeAttempt`, which
-`InProcessControllerAdapter` turns into a `caseConnectionTimeout` (10s) below every retry interval
-commissioning's operational connection uses, so commissioning ends on the first handshake outcome. The
-production default (4m15s) keeps the retries.
+The script does not need that result. It judges each attempt on TH_SERVER's side: step 1b by TH_SERVER
+logging `Commissioning completed successfully`, every negative step by TH_SERVER logging
+`Invalid CASE parameter` (the INVALID_PARAMETER status the DUT sent for the corrupted Sigma2) and then by
+reading `WindowStatus` as still open. The negative steps rely on a retry of the DUT coming later
+than that `WindowStatus` read, which follows the log line within a second; matter.js waits at least 15s before it
+retries the operational connection. The script prompts for the next attempt only after that, and the step 1d
+`RemoveFabric` and every later `RevokeCommissioning` (which expires the previous attempt's fail-safe, Core
+§ 11.19.8.3.1) remove the fabric an earlier attempt would retry CASE on. TH_SERVER then answers its Sigma1 with
+`NoSharedTrustRoots` and builds no Sigma2, so a stale retry cannot use up the fault armed for the next attempt.
 
-**Set it only on a step that expects a refusal.** The same short budget removes the recovery a healthy
-commissioning legitimately needs — a second candidate address (`delayBeforeNextAddress`, 15s), a device
-answering the first handshake with `NoSharedTrustRoots` (15s), a transient network error (15s) — so a
-step that expects to succeed must leave it alone. TC-SC-3.5 sets it for every attempt but its first.
+So the handler does not wait for any commissioning result, on every controller. `CommissioningAttempts`
+(`tc-sc-3.5-support.ts`) runs each attempt on a DUT controller of its own: on each prompt it closes the previous
+attempt's controller, starts a new one, starts commissioning and answers the prompt at once. Closing first means no
+earlier attempt still discovers TH_SERVER or retries its handshake while the next one runs, and each attempt's
+controller log is attached to the bundle as `controller-dut-attempt-<n>`. The commissioning's own outcome is logged
+at debug, or at warn where the controller refused the request itself; a rejection never reaches the case. Each
+attempt passes `giveUpAfterMs` 30s, which bounds discovery (and on matter.js PASE with it) far above what a present
+TH_SERVER needs and far below the 3-minute window, so an attempt that cannot reach TH_SERVER ends, with the reason
+in its controller log, before the script's own 90s wait. chip-tool cannot be bounded and says so.
 
-**It reports a budget, not the device's answer.** `Peer.connect`'s `connectionTimeout` bounds the caller's
-wait rather than the handshake — the two are orthogonal to cancellation by its own documentation — but
-commissioning's failure path then deletes the peer, and `Peer.close()` aborts the connection process, so
-nothing keeps handshaking behind our back. What the rejection cannot tell you is *why* the handshake did
-not finish: a device that merely answered slowly produces the same error as one that refused. TC-SC-3.5's
-step evidence says only "did not complete" for that reason, and the device's own answer is read from the
-attached controller log and from the script's. What no timeout cancels is the device-side commissioning
-state — the failsafe there still has to expire on its own — which is why an abort reaching past PASE is
-still worth having.
-
-Two things obscured this while it was being diagnosed. The script's prompt says "Input anything once
-commissioning has *started*", and a human answering there lets the script check `WindowStatus` and
-revoke the window long before matter.js's next attempt — so a manual run passes even without the
-timeout. And a CI runner with both `eth0` and `docker0` link-local addresses reaches the retry after
-~15s (the next-address delay) rather than the 2 min a single-address host waits, which is what brought
-the retry inside the handler's own budget.
+The evidence per attempt is one step with an accepted `"unverified"` check: the case starts the attempt, and the
+script's checks above, in `device-python.log`, decide. The case asserts no DUT-side refusal. A
+cancellable commissioning API would let the case end an attempt once the script has seen enough, instead of
+closing the controller.
 
 ## The write-path idiom (`writeAndCheck`, `TC-IDM-3.1`)
 
@@ -1619,8 +1668,10 @@ Two gates use it, both before the device starts:
 - **Step level** — unchanged in mechanism, but the file it evaluates against now carries the overlay
   too, so a step and its test agree about what the controller can do.
 
-`UnsupportedByControllerError` stays for what PICS cannot express: a capability a controller has in
-general but not for the shape a particular step needs.
+A controller capability (`ControllerCapability`) stays for what PICS cannot express: a whole feature the adapter
+interface cannot promise (sessions, an OTA provider of its own, a sustained subscription), or a request shape a
+controller cannot send although it has the operation in general (a wildcard-endpoint write, more paths than one
+command takes).
 
 `certTest()` also takes test-level `flavors`, decided at declaration time (the flavor comes from the
 environment, not the container). A test whose device cannot exist on a flavor — an app variant only
@@ -1638,9 +1689,9 @@ command the device never answers still yields a result, carrying `NoCommandRespo
 `ClientInteraction` synthesises it for every unanswered `CommandRef` once the response ends.
 
 chip-tool has no batch invoke at all (its `command-by-id` takes one command path and sends no
-`CommandRef`). It declares that in its own PICS, so a chiptool leg skips this TC outright rather than
-running its commissioning steps and reporting the rest unsupported. The adapter still refuses the call
-itself, which is what a controller whose declaration outran its implementation would run into.
+`CommandRef`). It declares that in its own PICS and as its `batch-invoke` gap, and the TC declares
+`batch-invoke`, so a chiptool leg skips this TC outright rather than running its commissioning steps. The
+adapter still refuses the call naming `batch-invoke`, which ends a step that reaches it as a framework error.
 
 The interaction layer splits a batch the peer cannot take in one message into separate single-command
 exchanges. That is right for an ordinary caller and wrong here — the test would prove nothing about
@@ -2359,7 +2410,8 @@ rather than about any plan step, and a step of its own is also the only placemen
 skip: attaching it to TC-DD-3.14's `3.b`, which is gated on `MCORE.DD.DISCOVERY_BLE`, let a DUT
 without BLE skip the control and commission unbacked two steps later. No plan table numbers a step
 `0`, so the step's `expected` text says it is a precondition — a reviewer diffing bundle against plan
-has to be able to see why it is there.
+has to be able to see why it is there. TC-DD-3.12 and TC-DD-3.13 are the exception: their TH does
+not advertise until the IP leg's ungated `3.d` opens the window, so the probe runs there.
 
 The test case owns a `CommissioningRefusals` for the attempt and settles it in `finalize` alongside
 `decommissionAll`, through `runCleanups` so a failing settle cannot skip the decommission.
@@ -2370,16 +2422,16 @@ substituted discriminator is only known absent from `cx.devices` — a foreign c
 the LAN answering it would make matter.js record a failure for an unrelated reason. The value is
 deterministic, so if that ever happens it happens every run.
 
-## A flow the TH cannot publish has to be fabricated (`TC-DD-3.12`, `TC-DD-3.13`)
+## A TH that waits for the user, and a flow written into its payload (`TC-DD-3.12`, `TC-DD-3.13`)
 
 These two are one test case with one field changed — user-intent flow (1) and custom flow (2) — so
 they are declared from one place, `tc-dd-flow-support.ts`, and differ only in the constant they pass.
 Three transport legs of four steps each: generate, scan, parse, commission.
 
-**The flow is fabricated, unlike TC-DD-3.11's capability bitmask.** Every subject this harness runs
-publishes `flowType` 0, because a device that needs a user action or a manufacturer's steps is not
-something the harness can produce. `qrPayloadWith` gained a `flowType` field for exactly this, and the
-scan step reads it back through the DUT's own parser — which is what makes the step evidence about the
+**The flow in the payload is written by the test, unlike TC-DD-3.11's capability bitmask.** The TH
+runs a user-intent flow (see below), but no TH flavor offers a custom flow with its own vendor steps.
+So `qrPayloadWith` writes the flow the test case is named for into the TH's own payload, and the scan
+step reads it back through the DUT's own parser — which is what makes the step evidence about the
 flow rather than about the TH.
 
 **`recordParse`'s `offering` takes the expected flow from the caller.** A helper whose verdict names a
@@ -2387,18 +2439,44 @@ property must take that property from the caller; one holding the value itself r
 text names a flow nobody checked, and the second test case to use it silently asserts the first one's
 value.
 
-**The transition the flow is named for is not exercised, and each leg's `.a` says so.** A user-intent
-or custom flow means the device is not commissionable until someone acts, which is why `.a`'s text
-carries "Commissionee is NOT in commissioning mode" — but an uncommissioned node opens its basic
-commissioning window at boot and neither TH flavor can suppress that. `.a` records an `unverified`
-check carrying `accepted` for it: the step still passes, the bundle's unverified count carries the
-gap, and nothing in it implies a precondition that never held. A step whose setup the harness cannot
-establish states that in the bundle rather than recording only the parts it could do.
+**The TH starts without a commissioning window and opens it only on the user action.** Both cases
+pass `USER_INTENT_TH_ARGS` (`--custom-flow 1`) to the TH. chip's apps then skip the boot window
+(`advertiseCommissionableIfNoFabrics = false` in `AppMain.cpp`) and open it on the pipe command
+`UserIntentCommissioningStart`. The matter.js all-clusters app takes the same argument: it sets
+`commissioning.enabled = false` and opens the window on the backchannel command
+`userIntentCommissioningStart`. chip skips the boot window for flow 1 only, not for flow 2, so
+TC-DD-3.13 starts its TH with flow 1 as well. The flow the DUT reads is still written into the
+payload, so the TH's own flow does not matter there.
 
-The detail names what the leg does instead, and that differs per leg: the IP leg commissions a TH
-that was commissionable throughout, while the BLE and Wi-Fi PAF legs commission nothing at all
-because their `.d` is `notApplicable`. One text for all three put two contradictory statements about
-the same step in one bundle.
+**The TH's own log is the witness that it is not advertising, not mDNS.** Each leg's `.a` checks
+that the TH's log has no `COMMISSIONING_MODE_ADVERTISEMENT` line. An mDNS absence check is not
+reliable here: the scanner's cache is shared by the whole run, every primary TH uses discriminator
+3840, and a record from an earlier TH can still be cached. The IP leg's `.d` is the user action: it
+sends the trigger, matches the same pattern in the TH's log, which shows the pattern matches this TH's
+log at all, then waits for the published line `ADVERTISING_COMMISSIONABLE`, because chip logs its
+decision before the advertisement goes out. Only then does it run the discriminator check and
+commission.
+
+**The log is read only after the TH has logged its start-up decision.** A chip app's `start()`
+returns when the process is up, so a scan right after it can run before the app has decided anything
+and pass. `.a` first waits for `ADVERTISING_DECIDED`:
+
+| TH | Decision line | Commissioning mode line |
+|---|---|---|
+| chip | `Updating services using commissioning mode <n>` (`DnssdServer::StartServer`) | same line, `n` 1 or 2 |
+| matter.js | `does not advertise as commissionable: commissioning is disabled` (`CommissioningServer`, debug) or the publish line | `MdnsAdvertisement Publishing kind: commissionable` |
+
+chip prints its line on every platform at progress level, also when the decision waits for the
+platform's mDNS to come up (avahi). Mode 0 is no window, which includes extended discovery. The `mDNS
+service published` line other cases use is not usable for an absence: on Darwin it comes from an
+asynchronous Bonjour callback, and a TH that advertised from boot did not print it. The scan skips
+synthetic lines, which carry the step banners and reports the harness writes into every device's log.
+
+**The discriminator precondition runs inside `3.d`, not as step 0.** `recordDiscriminatorHonored`
+first checks that the TH advertises, so that a give-up proves the DUT used the discriminator and not
+that nothing was there. Before the trigger nothing advertises, so the check can run only after it.
+`3.d` is also the only step that commissions, so the precondition sits right before the commissioning
+it protects.
 
 **Both `.b` and `.c` parse the code, so both carry the `MCORE.DD.SCAN_QR_CODE` gate.** `.c` re-parses
 rather than citing `.b`'s parse, so on a controller declaring it cannot take a scanned payload an
@@ -2749,9 +2827,10 @@ controller established a new one — the controller's own id decides both, which
 keeps `{ tag, channel, controllerSessionId }` rather than the tag alone.
 
 **A session operation naming a session the controller does not hold is a state error, not a refusal.**
-`UnsupportedByControllerError` means "this controller cannot do this kind of thing" and the step runner
-records it as *skipped* when the step has not acted yet; using it for a runtime state would turn the precise defect step 1 exists to
-rule out into a clean-looking run. The in-process adapter throws `SessionStateError` for an unknown id,
+`UnsupportedByControllerError` means "this controller cannot do this kind of thing": a step that declares the
+capability is skipped before it runs, and a refusal that reaches the step runner ends the step as a framework error
+(`error`). Using it for a runtime state would report the precise defect step 1 exists to rule out as a defect of
+the framework instead of a failure. The in-process adapter throws `SessionStateError` for an unknown id,
 a detached channel, or a transport with no connection to sever, so such a step fails.
 
 ## The claim only the controller can make (`TC-SC-8.2`)
@@ -3585,8 +3664,9 @@ because chip-tool's `MCORE.OTA.Provider` `0` skips every provider case first.
 
 **A case whose DUT is the requestor gates on the TH's provider keys too.** `MCORE.OTA.Provider` and
 `OTAR.C.M.AnnounceOTAProvider` are answered by the controller there, since the requestor app declares
-neither. chip-tool answers both `0`, so its leg skips before commissioning instead of passing on the
-precondition alone.
+neither. chip-tool answers `MCORE.OTA.Provider` `0`, so its leg skips before commissioning instead of passing on the
+precondition alone. Its `OTAR.C.M.AnnounceOTAProvider` is `1`: it announces another node as the provider, which is all
+`TC-SU-1.1` needs.
 
 **Step 2 is a `Busy` answer and a two-minute watch, as chip's own `Test_TC_SU_2_1.yaml` runs it.**
 That script starts its provider with `-q busy`: `Busy` invites a retry, and § 11.20.3.2.4 requires the
@@ -3896,3 +3976,55 @@ and TH2's lines receiving it (`expectGroupCommandArrival`: the inbound invoke na
 that same exchange to endpoint 1). matter.js names the group on the send and receipt lines for this reason. The arrival is also what orders step 14b's read after
 the command. The same helpers carry TC-SC-5.3's groupcast evidence, so the two cases cannot drift; chip's lines use
 its own uppercase hex (`0x%04X` for the group, `0x%04X_%04X` for cluster and command).
+
+## The single-command cluster-client cases (`TC-OO-3.2`, `TC-I-3.2`, `TC-MOD-2.2`, `TC-LOWPOWER-2.2`, `TC-WNCV-6.1`, `TC-WNCV-7.1`)
+
+Each case commissions the TH in a precondition step (`commissionThStep` in `tc-dd-support.ts`); the WindowCovering
+cases read the TH's FeatureMap there too. Each later step has the DUT send one command to endpoint 1 of the
+all-clusters app, except `TC-MOD-2.2` step 1, which reads SupportedModes. What they add:
+
+- **A bare field line can match a subscription report.** chip prints the fields of a report's struct with the same
+  `0x0 = 1 (unsigned),` shape as a request's `CommandFields`, and the automatic node-level subscription keeps reports
+  arriving, so a bare pattern for a field can pass on a report's line. `expectCommandPayload` (`tc-support.ts`)
+  demands the request's whole `InvokeRequests` list as consecutive lines, from the command's own `CommandPathIB`
+  through its fields to the list's closing `],`, so a missing, different or extra field fails, and so does a second
+  command. `sendCommand` records it with `invokeCommand`'s response checks. `expectCommandInvoke`'s per-field
+  search still has the weakness, and so does the bare `CopyScene` Mode pattern in `TC-S-3.1`.
+- **What the payload check can see on a matter.js TH.** chip prints the raw TLV, so it shows every field the DUT
+  sent. matter.js prints the arguments only after decoding them through the command's schema, which drops a field
+  whose tag the schema does not know. On a matter.js TH the check therefore compares the decoded fields: the payload
+  text must end the `ProtocolService Invoke «` line that dispatches the command on the endpoint. An extra field with
+  an unknown tag is caught on the chip TH only. The "only this command" rule holds on both: `InteractionServer`
+  writes one summary line per request that lists every command path (`invokes: 1.onOff.off, …`) and names the same
+  exchange (`@<session>⇵<exchange>`) as the dispatch line, and the check requires that line to list this command
+  alone.
+- **"The command has no parameters" is a claim.** chip prints an empty `CommandFields = { },` block for it, and
+  matter.js ends its `ProtocolService Invoke «` line with `(no payload)` (`MATTERJS_NO_PAYLOAD`).
+- **A bitmap field is written per flavor**, as in `TC-S-3.1`: OnWithTimedOff's OnOffControl is `0x0 = 1
+  (unsigned),` on chip and `onOffControl: { acceptOnlyWhenOn: true }` on matter.js. Send a set bit; a cleared one
+  cannot tell a lost bitmap from a correct one.
+- **`TC-LOWPOWER-2.2` runs on the chip flavors only.** matter.js's all-clusters test device has no LowPower cluster;
+  `TvTestInstance` has one but is not a cert subject.
+- **The WindowCovering preconditions read the TH's FeatureMap** (`tc-wncv-support.ts`). `TC-WNCV-7.1` requires both
+  position-aware features, which is stricter than the plan's "and/or": for a TH with only one position-aware axis,
+  the plan defines no outcome for the other axis's command. Both THs have all four features.
+- **PICS:** each case's client keys are declared in all three controller overlays. Only two of them change a run:
+  `matter-js-pics.properties` answers `OO.C` 0 and CHIP's file answers `WNCV.C` 0, and both gate their whole case.
+  CHIP's file answers the other keys 1 already; the overlays declare them so that they state the controller's full
+  client surface for these cases rather than rely on what a device file says.
+
+## The diagnostics client cases (`TC-DGETH-3.2`, `TC-DGSW-3.2`, `TC-DGTHREAD-3.4`, `TC-DGWIFI-3.2`)
+
+Same shape as the single-command cluster-client cases above: step 1 commissions the TH, step 2 sends one command
+without fields, and `TC-DGTHREAD-3.4` step 3 reads OverrunCount. Two points:
+
+- **All four target endpoint 0 and run on the chip flavors only.** chip's all-clusters app has all four diagnostics
+  clusters on its root, and on the macOS build each accepts its reset command: SoftwareDiagnostics has the Watermarks
+  feature, the three network clusters have ErrorCounts, and ThreadNetworkDiagnostics answers OverrunCount with 0
+  although the host has no Thread interface. Only the macOS build was checked; chip-docker runs the Linux build, whose
+  answers for Thread and Wi-Fi without such an interface are unverified. matter.js's all-clusters test device has
+  none of the four, and adding them would make it claim Thread, Wi-Fi and Ethernet interfaces it does not have, with
+  made-up counters. The DUT here is the controller, which the chip TH already tests, so the cases declare test-level
+  `flavors` instead.
+- **PICS:** CHIP's file answers `DGTHREAD.C` and `DGWIFI.C.C00.Tx` 0. Without the controller overlay the first leaves
+  `TC-DGTHREAD-3.4` pending and the second skips `TC-DGWIFI-3.2`'s only command step.

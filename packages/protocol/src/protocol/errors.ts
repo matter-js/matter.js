@@ -6,7 +6,7 @@
 
 import { Message } from "#codec/MessageCodec.js";
 import type { Session } from "#session/Session.js";
-import { MatterError, NoResponseTimeoutError } from "@matter/general";
+import { ImplementationError, MatterError, NoResponseTimeoutError } from "@matter/general";
 import { Status, StatusResponseError } from "@matter/types";
 
 /**
@@ -28,6 +28,14 @@ export class UnexpectedMessageError extends MatterError {
         super(`(${Message.diagnosticsOf(session, receivedMessage)}) ${message}`);
     }
 }
+
+/**
+ * Thrown when a message is larger than the channel may carry to the peer.  The sender must split it by the
+ * exchange's `maxPayloadSize`; on TCP the peer would otherwise close the connection.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 4.15.2.3
+ */
+export class MessageTooLargeError extends ImplementationError {}
 
 /**
  * Thrown for communication attempts on closed sessions.

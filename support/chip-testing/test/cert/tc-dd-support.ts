@@ -155,6 +155,26 @@ export async function commissionChecked(
 }
 
 /**
+ * A precondition step for a case that needs nothing on the TH but the DUT's fabric: the DUT commissions the TH through
+ * {@link commissionChecked}, and `commissioned` holds the node for the DUT role, so the case's finalizer removes the
+ * fabric again.
+ */
+export function commissionThStep(commissioned: CommissionedRefs): (cx: CertStepContext) => Promise<void> {
+    return cx =>
+        withChecks(cx, async checks => {
+            const th = theTh(cx);
+            const ref = await commissionChecked(
+                cx.controllers.dut,
+                { passcode: th.commissioning.passcode, discriminator: th.commissioning.discriminator },
+                th,
+                "DUT commissions TH",
+                checks,
+            );
+            commissioned.set("dut", ref);
+        });
+}
+
+/**
  * Records that `th` did **not** complete a commissioning since `from`, which is how a plan's "only
  * the other device was commissioned" is stated: the device that must not have joined is the only
  * thing that can say so.
@@ -211,9 +231,29 @@ const ADVERTISING_COMMISSIONABLE = {
 };
 
 /**
+ * The device deciding at start what to advertise, whichever way it decides. chip prints its line in
+ * `DnssdServer::StartServer` on every platform, also when the decision waits for the platform's mDNS to come up;
+ * matter.js prints one line for a disabled commissioning window and another when it publishes.
+ */
+const ADVERTISING_DECIDED = {
+    chip: /Updating services using commissioning mode \d/,
+    matterjs:
+        /does not advertise as commissionable: commissioning is disabled|MdnsAdvertisement Publishing kind: commissionable/,
+};
+
+/**
+ * The device advertising in commissioning mode. chip's mode 0 is no window, which includes extended discovery.
+ * Unlike {@link ADVERTISING_COMMISSIONABLE}, chip's line here is not printed from the platform's publish callback,
+ * which the Darwin build does not reliably print at boot.
+ */
+const COMMISSIONING_MODE_ADVERTISEMENT = {
+    chip: /Updating services using commissioning mode [12]\b/,
+    matterjs: /MdnsAdvertisement Publishing kind: commissionable/,
+};
+
+/**
  * The onboarding payload the TH publishes for its own setup code. A subject that renders one reports
- * it directly; a chip app only prints it, and the first of the two it prints is the standard
- * commissioning flow's.
+ * it directly; a chip app only prints it, twice, and both carry the flow it was started with.
  *
  * `from` is the log cursor to read it at, and a step after a device restart must supply one: the
  * default reads the whole log and so returns the payload the *previous* generation printed.
@@ -926,7 +966,8 @@ function absentDiscriminator(cx: CertStepContext, payload: string): number {
  *   {@link CommissioningRefusals.requireGiveUp}'s, which the manual-code plans use directly.
  *
  * The claim is about the commissioner rather than about any one step, so a test case establishes it
- * once, in a precondition step of its own that no PICS gate can skip.
+ * once, before its first commissioning and where no PICS gate can skip it. It needs the TH to advertise,
+ * so a case whose TH starts without a commissioning window runs it after opening one.
  */
 export async function recordDiscriminatorHonored(
     cx: CertStepContext,
@@ -1111,6 +1152,73 @@ export async function recordCommissionable(
     th = theTh(cx),
 ): Promise<void> {
     record(cx, await expectMdns(th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT }), what);
+}
+
+/**
+ * Records that `th` has not advertised in commissioning mode since it started, as a TH started with a
+ * user-intent flow does until {@link recordUserIntentCommissioningStart}.
+ *
+ * The device's own log is the witness, not mDNS: the scanner's cache is shared by the whole run, and every
+ * primary TH uses the same discriminator, so a record an earlier TH published can still be cached. The log is
+ * read once the device has logged its decision at start. That the pattern matches this device's log at all is
+ * shown where the case later opens the window.
+ */
+export async function recordNotCommissionable(cx: CertStepContext, th = theTh(cx)): Promise<void> {
+    record(
+        cx,
+        (await expectDeviceLog(th.log, th.flavor, ADVERTISING_DECIDED, 0, COMMISSIONING_LOG_TIMEOUT)).check,
+        `${th.id} decided at start what to advertise`,
+    );
+    await th.log.settled();
+    record(cx, noCommissioningModeAdvertisement(th), `${th.id} has not advertised in commissioning mode`);
+}
+
+/** Skips synthetic lines: the step banners and reports the harness writes into every device's log. */
+function noCommissioningModeAdvertisement(th: Pick<CertDevice, "flavor" | "log">): CheckRecord {
+    const family = flavorFamily(th.flavor);
+    if (family === undefined) {
+        return { type: "device-log", verdict: "unverified", detail: `no advertisement pattern for ${th.flavor}` };
+    }
+
+    const pattern = COMMISSIONING_MODE_ADVERTISEMENT[family];
+    const lines = th.log.lines.filter(line => !line.synthetic);
+    const line = lines.find(line => pattern.test(line.text));
+    if (line !== undefined) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            pattern: pattern.source,
+            matched: line.text,
+            logLine: line.index,
+        };
+    }
+    return {
+        type: "device-log",
+        verdict: "pass",
+        pattern: pattern.source,
+        detail: `none of ${lines.length} device lines matches`,
+    };
+}
+
+/**
+ * The user action a user-intent flow waits for: sends `userIntentCommissioningStart` to `th`, then records the
+ * device deciding to advertise in commissioning mode, which is the line {@link recordNotCommissionable} looks for,
+ * and the advertisement going out.
+ */
+export async function recordUserIntentCommissioningStart(cx: CertStepContext, th = theTh(cx)): Promise<void> {
+    const since = await markTransition(cx, th);
+    await th.backchannel({ name: "userIntentCommissioningStart" });
+    record(
+        cx,
+        (await expectDeviceLog(th.log, th.flavor, COMMISSIONING_MODE_ADVERTISEMENT, since, COMMISSIONING_LOG_TIMEOUT))
+            .check,
+        `${th.id} decided to advertise in commissioning mode after the user action`,
+    );
+    record(
+        cx,
+        (await expectDeviceLog(th.log, th.flavor, ADVERTISING_COMMISSIONABLE, since, COMMISSIONING_LOG_TIMEOUT)).check,
+        `${th.id} published its commissionable advertisement`,
+    );
 }
 
 const CHIP_TOOL_DISCOVERY_TIMED_OUT = /\[CTL\] Discovery timed out/;

@@ -1112,7 +1112,7 @@ export function literally(value: string): string {
  * The trailing type name is load-bearing: without it `0x0 = 2,` also matches the first two digits of
  * `0x0 = 20,`.
  */
-function chipCommandField({ id, value }: { id: number; value: number | bigint | string }): RegExp {
+export function chipCommandField({ id, value }: { id: number; value: number | bigint | string }): RegExp {
     const rendered =
         typeof value === "string"
             ? `"${literally(value)}" \\(${new TextEncoder().encode(value).length} chars\\)`
@@ -1571,21 +1571,44 @@ export async function invokeCommand(
     ref: CertNodeRef,
     invocation: CommandInvocation,
 ): Promise<InvokedCommand> {
+    const { cluster, endpoint, command, fields } = invocation;
+    const name = `${cluster.name}.${command}`;
+    const clusterId = requireId(cluster.id, `${cluster.name} cluster`);
+    const commandId = requireId(cluster.commands.require(command).id, name);
+    const th = theTh(cx);
+
+    const invoked = await invokeWithResponseChecks(cx, ref, invocation);
+    const logged = await expectCommandInvoke(
+        th.log,
+        th.flavor,
+        endpoint,
+        clusterId,
+        commandId,
+        fields,
+        invoked.from,
+        LOG_TIMEOUT,
+    );
+    invoked.checks.push({ what: `CommandDataIB log for ${name}`, check: () => logged });
+    return invoked;
+}
+
+/** The invoke and response checks of {@link invokeCommand}, without its log check. */
+async function invokeWithResponseChecks(
+    cx: CertStepContext,
+    ref: CertNodeRef,
+    invocation: Omit<CommandInvocation, "fields">,
+): Promise<InvokedCommand> {
     const {
         cluster,
         endpoint,
         command,
         args,
-        fields,
         describe = describeInvokeResponse,
         options,
         anyStatus = false,
     } = invocation;
     const name = `${cluster.name}.${command}`;
-    const clusterId = requireId(cluster.id, `${cluster.name} cluster`);
-    const commandId = requireId(cluster.commands.require(command).id, name);
-    const th = theTh(cx);
-    const from = th.log.mark();
+    const from = theTh(cx).log.mark();
 
     const response = await attempt(
         () => cx.controllers.dut.node(ref).invoke(cluster.name, command, args, endpoint, options),
@@ -1621,20 +1644,160 @@ export async function invokeCommand(
         checks.push({ what: `${name} response status`, check: () => statusCheck });
     }
 
-    const logged = await expectCommandInvoke(
-        th.log,
-        th.flavor,
-        endpoint,
-        clusterId,
-        commandId,
-        fields,
-        from,
-        LOG_TIMEOUT,
-    );
-    checks.push({ what: `CommandDataIB log for ${name}`, check: () => logged });
-
     return { response: response.ok ? { ok: true, value: response.value } : { ok: false }, accepted, checks, from };
 }
+
+/** The whole request payload a command carried, as each TH flavor prints it; see {@link expectCommandPayload}. */
+export interface CommandPayload {
+    /** Names the claim in the evidence. */
+    label: string;
+
+    /**
+     * Every line inside chip's `CommandFields` block, in order ({@link chipCommandField} for a number or a string);
+     * none for a command without fields.
+     */
+    chip: RegExp[];
+
+    /** The text that ends matter.js's line for the dispatched command: its fields, or {@link MATTERJS_NO_PAYLOAD}. */
+    matterjs: string;
+}
+
+/**
+ * Checks that the TH's log shows `command`'s request at or after `from` carrying exactly `payload` and no other
+ * command, within `timeout`.
+ *
+ * {@link expectCommandInvoke} finds each field line anywhere after the command path, which also matches a TH
+ * subscription report printing a field of the same id and value. This check reads the request itself:
+ *
+ * - chip prints the request's raw TLV. The check demands its whole `InvokeRequests` list as consecutive lines: the
+ *   command's own `CommandPathIB`, then `payload`'s field lines, then the closing lines of the fields, the
+ *   `CommandDataIB` and the list. A field that is missing, has another value or is extra fails it, an extra field
+ *   with a tag the schema does not know included, and so does a second command in the request.
+ * - matter.js prints the arguments after decoding them through the command's schema, which drops a field whose tag
+ *   the schema does not know. The check demands `payload` at the end of the line that dispatches the command on
+ *   `endpoint`, so a missing or different known field, or an extra one, fails it; an extra unknown field cannot. It
+ *   then demands that the request summary line of the same exchange lists this command and no other.
+ */
+export async function expectCommandPayload(
+    log: LogFollower,
+    flavor: LogFlavor,
+    invocation: { cluster: ClusterModel; endpoint: number; command: string },
+    payload: CommandPayload,
+    from: number,
+    timeout: Duration,
+): Promise<CheckRecord> {
+    const { label } = payload;
+    const { cluster, endpoint, command } = invocation;
+    const model = cluster.commands.require(command);
+    const clusterId = requireId(cluster.id, `${cluster.name} cluster`);
+    const commandId = requireId(model.id, `${cluster.name}.${command}`);
+
+    if (flavorFamily(flavor) === "matterjs") {
+        return matterjsCommandPayload(log, flavor, endpoint, cluster, command, payload, from, timeout);
+    }
+    return expectSequence(
+        log,
+        flavor,
+        label,
+        {
+            chip: [
+                /InvokeRequests =\s*$/,
+                /\[\s*$/,
+                ...commandPathIBSequence(endpoint, clusterId, commandId),
+                /\},\s*$/,
+                /\[DMG\]\s*$/,
+                /CommandFields =\s*$/,
+                /\{\s*$/,
+                ...payload.chip,
+                /\},\s*$/,
+                /\},\s*$/,
+                /\[DMG\]\s*$/,
+                /\],\s*$/,
+            ],
+        },
+        from,
+        timeout,
+    );
+}
+
+/**
+ * As {@link expectCommandPayload} against a matter.js TH: the line dispatching the command, then the summary line
+ * `InteractionServer` writes for the request on the same exchange (`@<session>⇵<exchange>`), which names every
+ * command path the request carried.
+ */
+async function matterjsCommandPayload(
+    log: LogFollower,
+    flavor: LogFlavor,
+    endpoint: number,
+    cluster: ClusterModel,
+    command: string,
+    payload: CommandPayload,
+    from: number,
+    timeout: Duration,
+): Promise<CheckRecord> {
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
+    const model = cluster.commands.require(command);
+
+    // The dispatch line names the exchange, then the message (`✉…`) the command arrived in
+    const dispatchLine = new RegExp(
+        `ProtocolService Invoke « \\S+\\.ep${endpoint}\\.${camelize(cluster.name)}\\.${camelize(model.name)} ` +
+            `(@[^\\s✉]+)\\S* ${literally(payload.matterjs)}$`,
+    );
+    const dispatch = await expectDeviceLog(log, flavor, { matterjs: dispatchLine }, from, remaining());
+    const exchange = dispatch.check.matched?.match(dispatchLine)?.[1];
+    if (dispatch.check.verdict !== "pass" || exchange === undefined) {
+        return { ...dispatch.check, pattern: payload.label };
+    }
+
+    const commandPath = matterjsCommandPath(
+        endpoint,
+        requireId(cluster.id, `${cluster.name} cluster`),
+        requireId(model.id, `${cluster.name}.${command}`),
+    );
+    const request = await expectDeviceLog(
+        log,
+        flavor,
+        {
+            matterjs: new RegExp(`InteractionServer Invoke « ${literally(exchange)} (?:.* )?invokes: ${commandPath}$`),
+        },
+        from,
+        remaining(),
+    );
+    if (request.check.verdict !== "pass") {
+        return {
+            ...request.check,
+            pattern: payload.label,
+            detail:
+                `no summary line on ${exchange} lists ${command} as the request's only command: ` +
+                `${request.check.detail}`,
+        };
+    }
+    return { ...dispatch.check, pattern: payload.label };
+}
+
+/**
+ * Has the DUT invoke a command on the TH and records {@link invokeCommand}'s response checks together with
+ * {@link expectCommandPayload}'s check, for a step whose plan names every field the command carries. The payload
+ * check covers the command path as well, so this waits for the TH's log once.
+ */
+export function sendCommand(
+    cx: CertStepContext,
+    ref: CertNodeRef,
+    invocation: Omit<CommandInvocation, "fields">,
+    payload: CommandPayload,
+): Promise<void> {
+    return withChecks(cx, async checks => {
+        const invoked = await invokeWithResponseChecks(cx, ref, invocation);
+        checks.push(...invoked.checks);
+        const th = theTh(cx);
+        const logged = await expectCommandPayload(th.log, th.flavor, invocation, payload, invoked.from, LOG_TIMEOUT);
+        checks.push({ what: payload.label, check: () => logged });
+    });
+}
+
+/** What matter.js prints for a command without fields. */
+export const MATTERJS_NO_PAYLOAD = "(no payload)";
 
 function isStatusAnswer(error: unknown): error is StatusResponseError {
     return error instanceof StatusResponseError && !(error instanceof ValidationError);

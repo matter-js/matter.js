@@ -53,13 +53,19 @@ const LAUNCH_ABORT_TIMEOUT_MS = 10_000;
 const TRACE_ARGS = ["--trace_log", "1", "--trace_decode", "1"];
 
 /**
- * The simulation commands a chip app takes on the named pipe it opens for `--app-pipe`, by the app
+ * The commands a chip app takes on the named pipe it opens for `--app-pipe`, by the app
  * that answers them. A pipe accepts a write whatever the app makes of it, so a command an app does
  * not implement would become a silent no-op; only what the named app's own command delegate handles
  * is forwarded, and everything else stays unsupported.
  */
 const PIPE_COMMANDS: Record<string, ReadonlySet<BackchannelCommand["name"]>> = {
-    "all-clusters": new Set(["simulateLatchPosition", "simulateLongPress", "simulateMultiPress", "simulateSwitchIdle"]),
+    "all-clusters": new Set([
+        "simulateLatchPosition",
+        "simulateLongPress",
+        "simulateMultiPress",
+        "simulateSwitchIdle",
+        "userIntentCommissioningStart",
+    ]),
 };
 
 /** Where a chip app is told to open its command pipe inside a container. */

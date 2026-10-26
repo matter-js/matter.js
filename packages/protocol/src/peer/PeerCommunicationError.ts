@@ -35,26 +35,36 @@ export class PeerUnreachableError extends TransientPeerCommunicationError {
 }
 
 /**
- * Thrown when an operation aborts because the peer became unresponsive with an active session.
+ * Thrown when an operation aborts because the peer became unresponsive.
  */
 export class PeerUnresponsiveError extends TransientPeerCommunicationError {
-    constructor(timeWaited = Instant) {
-        super(
-            `Peer is no longer responding to active session${timeWaited > 0 ? ` (timed out after ${Duration.format(timeWaited)})` : ""}`,
-        );
+    constructor(timeWaited = Instant, message = "Peer is no longer responding to active session") {
+        super(`${message}${timeWaited > 0 ? ` (timed out after ${Duration.format(timeWaited)})` : ""}`);
     }
 }
 
 /**
  * Thrown when an expected message did not arrive on an active exchange before the timeout.
  *
- * Subtype of {@link PeerUnresponsiveError}, distinguished from the bare error which is raised when our own outbound
- * message was never acknowledged (the peer may never have received it).  This subtype means the exchange was live but
- * the awaited message — a command response or a subscription/server report — never came.  It does not by itself imply
- * our request was delivered; a caller that reads strictly after a successful (acked) send may additionally infer
- * delivery from that ordering.
+ * Subtype of {@link PeerUnresponsiveError}, distinguished from {@link PeerAckMissingError} which is raised when our own
+ * outbound message was never acknowledged (the peer may never have received it).  This subtype means the exchange was
+ * live but the awaited message — a command response or a subscription/server report — never came.  It does not by
+ * itself imply our request was delivered; a caller that reads strictly after a successful (acked) send may additionally
+ * infer delivery from that ordering.
  */
 export class PeerMessageMissingError extends PeerUnresponsiveError {}
+
+/**
+ * Thrown when our own outbound message was never acknowledged within its MRP transmission budget.  The peer may never
+ * have received it.
+ *
+ * Subtype of {@link PeerUnresponsiveError}.  Also raised during session establishment, where no session exists yet.
+ */
+export class PeerAckMissingError extends PeerUnresponsiveError {
+    constructor(timeWaited = Instant) {
+        super(timeWaited, "Peer did not acknowledge our message");
+    }
+}
 
 /**
  * Thrown when a session is closed due to peer shutdown.

@@ -227,6 +227,45 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "S.C.C06.Tx": 1,
     "S.C.C40.Tx": 1,
 
+    // The client commands, and the one attribute, that the single-command client cases send or read
+    // (TC-OO-3.2, TC-I-3.2, TC-MOD-2.2, TC-LOWPOWER-2.2, TC-WNCV-6.1, TC-WNCV-7.1). Only `OO.C` (0 in
+    // matter.js's own PICS file) and `WNCV.C` (0 in CHIP's) need the overlay, because both files
+    // describe a device; the other keys state the controller's full client surface for these cases.
+    "OO.C": 1,
+    "OO.C.C00.Tx": 1,
+    "OO.C.C01.Tx": 1,
+    "OO.C.C02.Tx": 1,
+    "OO.C.C40.Tx": 1,
+    "OO.C.C41.Tx": 1,
+    "OO.C.C42.Tx": 1,
+    "I.C": 1,
+    "I.C.C00.Tx": 1,
+    "I.C.C40.Tx": 1,
+    "MOD.C": 1,
+    "MOD.C.A0002": 1,
+    "MOD.C.C00.Tx": 1,
+    "LOWPOWER.C": 1,
+    "LOWPOWER.C.C00.Tx": 1,
+    "WNCV.C": 1,
+    "WNCV.C.C00.Tx": 1,
+    "WNCV.C.C01.Tx": 1,
+    "WNCV.C.C02.Tx": 1,
+    "WNCV.C.C05.Tx": 1,
+    "WNCV.C.C08.Tx": 1,
+
+    // The diagnostics client commands, and the one attribute, that TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and
+    // TC-DGWIFI-3.2 send or read. Only `DGTHREAD.C` and `DGWIFI.C.C00.Tx` need the overlay, because CHIP's file
+    // answers them 0; the other keys state the controller's full client surface for these cases.
+    "DGETH.C": 1,
+    "DGETH.C.C00.Tx": 1,
+    "DGSW.C": 1,
+    "DGSW.C.C00.Tx": 1,
+    "DGTHREAD.C": 1,
+    "DGTHREAD.C.C00.Tx": 1,
+    "DGTHREAD.C.A0006": 1,
+    "DGWIFI.C": 1,
+    "DGWIFI.C.C00.Tx": 1,
+
     // Every ThreadBorderRouterManagement client command TC-TBRM-3.1 sends. The CHIP PICS file answers
     // only the server side, because it describes a device; here the client is the controller.
     "TBRM.C": 1,
@@ -1096,7 +1135,8 @@ export class NoCommissionedPeerError extends MatterError {}
  * transport has nothing to sever.
  *
  * A state error rather than a refusal: a step that reached it has already established something
- * untrue about the session it captured, so it must fail rather than be recorded as skipped.
+ * untrue about the session it captured, so it fails as a finding about the session. A refusal would
+ * end it as a framework error instead.
  */
 export class SessionStateError extends MatterError {}
 
@@ -1270,21 +1310,6 @@ class InProcessIcdClient implements CertIcdClientApi {
             waiter();
         }
     }
-}
-
-/**
- * Whether `endpoint` sits under `owner`.
- *
- * The controller's peers are endpoints of the controller's own tree, so the root of an endpoint's owner
- * chain is that controller rather than the node the endpoint belongs to.
- */
-function ownedBy(endpoint: Endpoint, owner: Endpoint) {
-    for (let current: Endpoint | undefined = endpoint; current !== undefined; current = current.owner) {
-        if (current === owner) {
-            return true;
-        }
-    }
-    return false;
 }
 
 class InProcessCertNodeApi implements CertNodeApi {
@@ -2238,7 +2263,7 @@ class InProcessCertNodeApi implements CertNodeApi {
             // it buffering reports for a call that never returned
             const observers = new ObserverGroup();
             observers.on(peer.env.get(ChangeNotificationService).change, change => {
-                if (change.kind !== "event" || !ownedBy(change.endpoint, peer)) {
+                if (change.kind !== "event" || change.endpoint.ownerOfType(ClientNode.RootEndpoint) !== peer) {
                     return;
                 }
                 const cluster = change.event.parent?.id;
@@ -2334,18 +2359,6 @@ const CERT_PEER_CONNECTION_TIMEOUT = Seconds(15);
  * and the reason arrives seconds later, reading as an unrelated failure of the step already running.
  */
 const CERT_PEER_SETTLE_TIMEOUT = Seconds(45);
-
-/**
- * Budget that expresses {@link CommissioningTarget.singleHandshakeAttempt}. Below every retry interval commissioning's
- * operational connection uses — `delayBeforeNextAddress` (15s), the `NoSharedTrustRoots` fast retry (15s) and
- * `delayAfterNetworkError` (15s) — so commissioning ends on the first handshake attempt, whether or not that attempt
- * produced an answer: initial contact retransmits until the device responds, so a silent device is cut off mid-attempt.
- *
- * This bounds only how long commissioning waits, not the handshake itself, so the rejection it produces reports a
- * budget that expired rather than what the device answered. A step needing the device's own answer reads it from the
- * controller log or from the counterparty's evidence.
- */
-const SINGLE_HANDSHAKE_TIMEOUT = Seconds(10);
 
 /**
  * Waits for the peer's sustained subscription to become active (`isConnected` tracks `subscriptionActive`,
@@ -2766,7 +2779,6 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 productId,
                 autoStateInitialize: false,
                 autoSubscribe: !target.withoutSubscription,
-                caseConnectionTimeout: target.singleHandshakeAttempt ? SINGLE_HANDSHAKE_TIMEOUT : undefined,
                 timeout: target.giveUpAfterMs === undefined ? undefined : Millis(target.giveUpAfterMs),
                 regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.IndoorOutdoor,
                 regulatoryCountryCode: "XX",

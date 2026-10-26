@@ -23,6 +23,9 @@ export abstract class FilesystemNode {
     abstract exists(): Promise<boolean>;
     abstract stat(): MaybePromise<FilesystemNode.Stat>;
     abstract rename(name: string): Promise<void>;
+    /**
+     * Delete the node, a directory with its content.  Succeeds if the node does not exist.
+     */
     abstract delete(): Promise<void>;
 }
 

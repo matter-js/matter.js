@@ -136,6 +136,13 @@ export class NodeSession extends SecureSession {
         this.#reportedParameters = SessionParameters.reported(reportedSessionParameters);
         this.#isInitiator = isInitiator;
 
+        if (this.maxTcpMessageSize !== undefined && this.#reportedParameters?.maxTcpMessageSize === 0) {
+            logger.info(
+                this.via,
+                `Peer announced a MAX_TCP_MESSAGE_SIZE of 0, using the default of ${this.maxTcpMessageSize} bytes`,
+            );
+        }
+
         logger.debug(
             `Created secure ${this.isPase ? "PASE" : "CASE"} session for fabric index ${fabric?.fabricIndex}`,
             this.via,

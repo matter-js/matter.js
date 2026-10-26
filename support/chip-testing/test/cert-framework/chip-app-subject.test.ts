@@ -690,11 +690,12 @@ describe("ChipLocalSubject", () => {
         }
     });
 
-    it("hands a simulation command to the app through the pipe it opened", async function () {
+    it("hands each command to the app through the pipe it opened", async function () {
         this.timeout(15_000);
 
         // Stands in for a chip app's own named pipe handling: the app creates the fifo the harness
-        // named and reports what it reads there, which is what the backchannel has to reach.
+        // named, holds it open read-write as chip's `NamedPipeCommands` does, and reports what it reads
+        // there, which is what the backchannel has to reach.
         await writeFile(
             join(appDir, "chip-all-clusters-app"),
             [
@@ -706,7 +707,8 @@ describe("ChipLocalSubject", () => {
                 "done",
                 'mkfifo "$pipe"',
                 "echo ready",
-                'while read -r line < "$pipe"; do echo "pipe $line"; done',
+                'exec 3<> "$pipe"',
+                'while read -r line <&3; do echo "pipe $line"; done',
                 "",
             ].join("\n"),
             { mode: 0o755 },
@@ -729,6 +731,10 @@ describe("ChipLocalSubject", () => {
             expect(await collectLines(lines, 1, 5_000)).deep.equal([
                 'pipe {"Name":"SimulateSwitchIdle","EndpointId":3}',
             ]);
+
+            await device.backchannel({ name: "userIntentCommissioningStart" });
+
+            expect(await collectLines(lines, 1, 5_000)).deep.equal(['pipe {"Name":"UserIntentCommissioningStart"}']);
         } finally {
             await device.stop();
             await device.close();

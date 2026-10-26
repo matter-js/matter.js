@@ -111,8 +111,7 @@ async function script(cx: CertStepContext, applyUpdate: OtaScriptedApplyAnswer[]
     try {
         await cx.controllers.th.node(commissioned.require("th", "the DUT")).scriptOtaProvider({ applyUpdate });
     } catch (e) {
-        // Before the check, not after: the runner turns this into a skipped step only while the step has
-        // recorded no check and made no call that may change the device
+        // A refusal is a framework error the step runner reports, not an outcome of the device
         if (e instanceof UnsupportedByControllerError) {
             throw e;
         }
@@ -516,7 +515,7 @@ certTest("TC-SU-2.5", {
                     onUpdate: event => startUps.push(event),
                 });
             } catch (e) {
-                // The step already commissioned, so the runner fails the run on a refusal without this check
+                // A refusal is a framework error the step runner reports, not an outcome of the device
                 if (e instanceof UnsupportedByControllerError) {
                     throw e;
                 }

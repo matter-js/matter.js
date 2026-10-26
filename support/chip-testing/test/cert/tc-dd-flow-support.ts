@@ -13,10 +13,11 @@ import {
     ON_NETWORK_ONLY,
     PARSES_PAYLOAD,
     qrPayloadWith,
-    recordCommissionable,
     recordDiscriminatorHonored,
     recordGeneratedPayload,
+    recordNotCommissionable,
     recordParse,
+    recordUserIntentCommissioningStart,
     STANDARD_VERSION,
     thQrPayload,
 } from "./tc-dd-support.js";
@@ -37,27 +38,28 @@ function noRadio(transport: string) {
     );
 }
 
-const NOT_COMMISSIONABLE_UNAVAILABLE =
-    "no TH this harness runs can be uncommissioned and not commissionable at the same time — an " +
-    "uncommissioned node opens its basic commissioning window at boot, and neither flavor can " +
-    "suppress that";
+/**
+ * Starts the TH without a commissioning window, which it opens only on `userIntentCommissioningStart`. Both test
+ * cases pass flow 1, TC-DD-3.13 included: chip's apps leave the window closed for flow 1 alone, and the flow the
+ * DUT reads is written into the payload anyway.
+ */
+export const USER_INTENT_TH_ARGS = ["--custom-flow", "1"];
 
 /**
  * TC-DD-3.12 and TC-DD-3.13 are one test case with one field changed, so they are declared from one
  * place: three transport legs of four steps each — generate a payload carrying the flow, scan it,
  * parse it *without* commissioning, then commission.
  *
- * **The flow has to be fabricated, unlike TC-DD-3.11's capability bitmask.** Both chip builds and the
- * matter.js subject publish `flowType` 0, because a device that needs a user action or a
- * manufacturer's steps is not something this harness can produce. So `qrPayloadWith` writes the flow
- * the test case is named for into the TH's own payload, and the scan step reads it back through the
- * DUT's parser — which is what makes the step evidence about the flow rather than about the TH.
+ * **The test writes the flow into the payload, unlike TC-DD-3.11's capability bitmask.** No TH flavor
+ * offers a custom flow with its own vendor steps. So `qrPayloadWith` writes the flow the test case is
+ * named for into the TH's own payload, and the scan step reads it back through the DUT's parser —
+ * which is what makes the step evidence about the flow rather than about the TH.
  *
- * **What no leg exercises is the transition the flow is named for.** A user-intent or custom flow says
- * the device is not commissionable until someone acts, and `.a`'s precondition says so — but a TH this
- * harness runs advertises as commissionable from boot, so no leg ever sees that transition. Each leg's
- * `.a` records the gap, and says what its own leg does instead, rather than leaving the bundle to imply
- * otherwise.
+ * **The TH is not commissionable until the user acts, as the flow says.** A case starts it with
+ * {@link USER_INTENT_TH_ARGS}, so each leg's `.a` checks that it has not advertised in commissioning mode.
+ * The IP leg's `.d` is the user action: it opens the TH's window, checks the TH advertises, and only
+ * then commissions. The check that the DUT honours the discriminator runs there too, because it needs a
+ * TH that advertises.
  *
  * **`.c` records the parse and the leg's payload offering, as `.b` does, not the plan's second
  * sentence.** The plan also asks to verify the TH
@@ -72,8 +74,6 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
     const commissioned = new CommissionedRefs();
     const refusals = new CommissioningRefusals();
 
-    const NOTHING_COMMISSIONS = "no step of this leg commissions the TH, so nothing acts on the flow either";
-
     const legs = [
         {
             n: "1",
@@ -81,7 +81,6 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
             bitmask: BLE_ONLY,
             transport: "BLE",
             pics: "MCORE.DD.DISCOVERY_BLE",
-            commissions: NOTHING_COMMISSIONS,
         },
         {
             n: "2",
@@ -89,7 +88,6 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
             bitmask: WIFI_PAF_ONLY,
             transport: "Wi-Fi PAF",
             pics: "MCORE.DD.DISCOVERY_PAF",
-            commissions: NOTHING_COMMISSIONS,
         },
         {
             n: "3",
@@ -97,20 +95,8 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
             bitmask: ON_NETWORK_ONLY,
             transport: "IP Network",
             pics: undefined,
-            commissions: "step .d commissions a TH that was commissionable throughout",
         },
     ];
-
-    builder.step(
-        "0",
-        "Precondition: the DUT is a commissioner that uses the discriminator its onboarding code names.",
-        cx => recordDiscriminatorHonored(cx, refusals),
-        {
-            expected:
-                "DUT does not commission the TH from a code naming a discriminator no device advertises. " +
-                "Every later step's commissioning rests on this.",
-        },
-    );
 
     for (const leg of legs) {
         // Both `.b` and `.c` parse the code themselves, so both need the scan gate
@@ -140,14 +126,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
                         `${leg.transport} ${title.toLowerCase()}-flow payload`,
                     );
 
-                    cx.recorder.check({
-                        type: "network",
-                        verdict: "unverified",
-                        detail:
-                            "TH advertises as commissionable from boot, so the plan's \"Commissionee is NOT in " +
-                            `commissioning mode" precondition does not hold: ${leg.commissions}`,
-                        accepted: NOT_COMMISSIONABLE_UNAVAILABLE,
-                    });
+                    await recordNotCommissionable(cx);
                 },
                 { pics: leg.pics, expected: "User has a QR code to pass into DUT." },
             )
@@ -185,13 +164,18 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
                     `commissioning mode and to complete the commissioning process using ${leg.transport}.`,
                 leg.capability === "onIpNetwork"
                     ? async cx => {
-                          await recordCommissionable(cx);
+                          await recordUserIntentCommissioningStart(cx);
+                          await recordDiscriminatorHonored(cx, refusals);
                           const payload = await payloadFor(cx);
                           await withChecks(cx, checks => commissionByQr(cx, payload, commissioned, checks));
                       }
                     : async () => {},
                 leg.capability === "onIpNetwork"
-                    ? { expected: "DUT commissions TH to the Matter network." }
+                    ? {
+                          expected:
+                              "DUT commissions TH to the Matter network. Before that, the DUT does not commission " +
+                              "the TH from a code naming a discriminator no device advertises.",
+                      }
                     : { notApplicable: noRadio(leg.transport), expected: "DUT commissions TH to the Matter network." },
             );
     }

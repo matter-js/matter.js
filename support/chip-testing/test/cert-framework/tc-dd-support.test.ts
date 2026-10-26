@@ -14,6 +14,7 @@ import {
     UnexpectedDataError,
 } from "@matter/main";
 import type {
+    BackchannelCommand,
     CertDevice,
     CertNodeApi,
     CertNodeRef,
@@ -65,6 +66,8 @@ import {
     recordParse,
     recordGeneratedPayload,
     recordNotCommissioned,
+    recordNotCommissionable,
+    recordUserIntentCommissioningStart,
     recordUnpair,
     thCodeParts,
     recordVendorOutcome,
@@ -475,7 +478,12 @@ describe("recordParse", () => {
 
     it("hands a controller refusal on without recording it as the DUT failing to parse", async () => {
         const cx = contextWithParser();
-        const refusal = new UnsupportedByControllerError("parseQrPayload", "test");
+        const refusal = new UnsupportedByControllerError(
+            "parseQrPayload",
+            "test",
+            "not offered",
+            "onboarding-payload-parse",
+        );
         cx.controllers.dut.parseQrPayload = async () => {
             throw refusal;
         };
@@ -514,9 +522,9 @@ describe("recordParse", () => {
         expect(checksOf(cx)[1]?.detail).contains("offering discovery over ble");
     });
 
-    // The flow a test case is named for is the caller's, not a constant: TC-DD-3.12 and 3.13 fabricate
-    // flows no subject publishes, and a helper hardcoding the standard one would have printed a
-    // verdict naming a flow nobody checked
+    // The flow a test case is named for is the caller's, not a constant: TC-DD-3.13 writes a flow no
+    // subject publishes, and a helper hardcoding the standard one would have printed a verdict naming
+    // a flow nobody checked
     it("judges the payload against the flow the caller asked for", async () => {
         const cx = contextWithParser();
 
@@ -1636,9 +1644,8 @@ describe("commissionChecked", () => {
         expect(fixture.checks[0].detail).match(/^DUT commissions TH failed: /);
     });
 
-    // The engine skips a step on this refusal only while the step has recorded nothing
     it("lets a controller refusal through before adding any check", async () => {
-        const refusal = new UnsupportedByControllerError("commission", "test");
+        const refusal = new UnsupportedByControllerError("commission", "test", "not offered", "attestation");
         const fixture = new UnpairFixture("matterjs", {
             commission: async () => {
                 throw refusal;
@@ -1858,7 +1865,12 @@ describe("recordManualParse", () => {
     });
 
     it("hands a controller refusal on without recording it as the DUT failing to parse", async () => {
-        const refusal = new UnsupportedByControllerError("parseManualPairingCode", "test");
+        const refusal = new UnsupportedByControllerError(
+            "parseManualPairingCode",
+            "test",
+            "not offered",
+            "onboarding-payload-parse",
+        );
         const fixture = new UnpairFixture("matterjs", {
             parseManualPairingCode: async () => {
                 throw refusal;
@@ -2281,5 +2293,136 @@ describe("recordBackInCommissioningMode", () => {
         ).rejectedWith(CertCheckFailedError);
 
         expect(probed).deep.equal([]);
+    });
+});
+
+describe("recordNotCommissionable and recordUserIntentCommissioningStart", () => {
+    const CHIP_NO_WINDOW = "[1.0] [1:1:main] [DIS] Updating services using commissioning mode 0";
+    const CHIP_BASIC_WINDOW = "[1.0] [1:1:main] [DIS] Updating services using commissioning mode 1";
+    const CHIP_ENHANCED_WINDOW = "[1.0] [1:1:main] [DIS] Updating services using commissioning mode 2";
+    const CHIP_PUBLISHED = "[1.0] [1:1:chip] [DIS] mDNS service published: _matterc._udp; instance name: X";
+    const MATTERJS_DISABLED =
+        "DEBUG Commissioning binford-6100 does not advertise as commissionable: commissioning is disabled";
+    const MATTERJS_ADVERTISEMENT =
+        "INFO MdnsAdvertisement Publishing kind: commissionable service: mdns:X._matterc._udp";
+
+    /** A TH whose log holds `lines`, then whatever `queue` gets later; `trigger` runs on its user action. */
+    function thLogging(
+        flavor: DeviceFlavor,
+        lines: string[],
+        queue = new LineQueue(),
+        trigger: (command: BackchannelCommand) => void = () => {},
+    ): CertDevice {
+        for (const line of lines) {
+            queue.push(line);
+        }
+        return {
+            id: "th",
+            app: "all-clusters",
+            commissioning: { kind: "on-network", passcode: 20202021, discriminator: 3840, qrPairingCode: "" },
+            pics: new PicsFile([]),
+            async initialize() {},
+            async start() {},
+            async stop() {},
+            async close() {},
+            async snapshot() {
+                return {};
+            },
+            async restore() {},
+            backchannel: async command => trigger(command),
+            flavor,
+            log: new LogFollower(queue.follow(), "th"),
+            exit: new Promise<DeviceExitInfo>(() => {}),
+        };
+    }
+
+    const unusedContext = () => contextWith(() => Promise.reject(new InternalError("not used by these tests")));
+    const verdicts = (cx: CertStepContext) => checksOf(cx).map(({ verdict }) => verdict);
+
+    it("passes for a matter.js TH that started with commissioning disabled", async () => {
+        const cx = unusedContext();
+
+        await recordNotCommissionable(cx, thLogging("matterjs", [MATTERJS_DISABLED]));
+
+        expect(verdicts(cx)).deep.equal(["pass", "pass"]);
+    });
+
+    it("fails for a matter.js TH that advertised as commissionable", async () => {
+        const cx = unusedContext();
+
+        await expect(recordNotCommissionable(cx, thLogging("matterjs", [MATTERJS_ADVERTISEMENT]))).rejectedWith(
+            CertCheckFailedError,
+        );
+        expect(checksOf(cx)[1]).include({ verdict: "fail", matched: MATTERJS_ADVERTISEMENT });
+    });
+
+    it("ignores a synthetic line quoting the pattern, as the harness's step reports in a device log are", async () => {
+        const cx = unusedContext();
+        const th = thLogging("matterjs", [MATTERJS_DISABLED]);
+        th.log.annotate(`0: fail: matched=${MATTERJS_ADVERTISEMENT}`);
+
+        await recordNotCommissionable(cx, th);
+
+        expect(verdicts(cx)).deep.equal(["pass", "pass"]);
+    });
+
+    it("passes for a chip TH that started without a window", async () => {
+        const cx = unusedContext();
+
+        await recordNotCommissionable(cx, thLogging("chip-local", [CHIP_NO_WINDOW]));
+
+        expect(verdicts(cx)).deep.equal(["pass", "pass"]);
+    });
+
+    for (const [mode, line] of [
+        ["basic", CHIP_BASIC_WINDOW],
+        ["enhanced", CHIP_ENHANCED_WINDOW],
+    ]) {
+        it(`fails for a chip TH that started with a ${mode} window`, async () => {
+            const cx = unusedContext();
+
+            await expect(recordNotCommissionable(cx, thLogging("chip-local", [line]))).rejectedWith(
+                CertCheckFailedError,
+            );
+            expect(verdicts(cx)).deep.equal(["pass", "fail"]);
+        });
+    }
+
+    it("reads a chip TH's log only once the TH has logged its decision", async () => {
+        const cx = unusedContext();
+        const queue = new LineQueue();
+        const checked = recordNotCommissionable(cx, thLogging("chip-local", [], queue));
+
+        await new Promise(resolve => setTimeout(resolve, 50));
+        queue.push(CHIP_BASIC_WINDOW);
+
+        await expect(checked).rejectedWith(CertCheckFailedError);
+    });
+
+    it("records a TH flavor without patterns as unverified", async () => {
+        const cx = unusedContext();
+
+        await recordNotCommissionable(cx, thLogging("python-wrapped", []));
+
+        expect(verdicts(cx)).deep.equal(["unverified", "unverified"]);
+    });
+
+    it("counts only the window the user action opens, not one the TH logged before it", async () => {
+        const cx = unusedContext();
+        const queue = new LineQueue();
+        const sent = new Array<string>();
+        const th = thLogging("chip-local", [CHIP_BASIC_WINDOW, CHIP_PUBLISHED], queue, command => {
+            sent.push(command.name);
+            queue.push(CHIP_BASIC_WINDOW);
+            queue.push(CHIP_PUBLISHED);
+        });
+
+        await recordUserIntentCommissioningStart(cx, th);
+
+        expect(sent).deep.equal(["userIntentCommissioningStart"]);
+        expect(checksOf(cx).map(({ verdict, logLine }) => ({ verdict, logLine }))).deep.equal([
+            { verdict: "pass", logLine: 2 },
+            { verdict: "pass", logLine: 3 },
+        ]);
     });
 });

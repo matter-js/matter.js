@@ -9,7 +9,6 @@ import type { Schema } from "@matter/model";
 import { Access, AttributeModel, DataModelPath, ValueModel } from "@matter/model";
 import {
     AccessControl,
-    ExpiredReferenceError,
     hasLocalActor,
     hasRemoteActor,
     ReadError,
@@ -23,7 +22,7 @@ import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 import type { ValidationLocation } from "../../validation/location.js";
 import { Internal } from "../Internal.js";
 import { ManagedReference } from "../ManagedReference.js";
-import type { ValReference } from "../ValReference.js";
+import { ValReference } from "../ValReference.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
 
 /**
@@ -100,7 +99,6 @@ interface ListConfig {
     authorizeWrite: AccessControl["authorizeWrite"];
 }
 
-const assertWriteOkAlways = () => true;
 const cloneEntry = (val: Val) => (Array.isArray(val) ? [...(val as Val.List)] : isObject(val) ? { ...val } : val);
 const inspectCustom = Symbol.for("nodejs.util.inspect.custom");
 
@@ -130,14 +128,11 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     }
 
     protected readVal() {
-        return this.reference.value ?? [];
+        return ValReference.containerOf(this.reference);
     }
 
     protected writeVal() {
-        if (this.reference.expired) {
-            throw new ExpiredReferenceError(this.reference.location);
-        }
-        return this.reference.value;
+        return ValReference.writableContainerOf(this.reference);
     }
 
     protected getListLength() {
@@ -175,14 +170,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
             let subref = this.reference.subrefs?.[index];
 
             if (subref === undefined) {
-                subref = new ManagedReference(
-                    this.reference,
-                    index,
-                    undefined,
-                    assertWriteOkAlways,
-                    cloneEntry,
-                    this.session,
-                );
+                subref = new ManagedReference(this.reference, index, undefined, cloneEntry, this.session);
 
                 this.config.manageEntry(subref, this.session);
             }
@@ -209,7 +197,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     protected writeEntry(index: number, value: Val, location: AccessControl.Location) {
         this.config.authorizeWrite(this.session, location);
 
-        if (index < 0 || index > this.readVal().length + 1) {
+        if (index < 0 || index > this.writeVal().length + 1) {
             throw new WriteError(location, `Index ${index} is out of bounds`);
         }
 
@@ -311,9 +299,10 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
             );
         }
 
+        const list = reading ? this.readVal() : this.writeVal();
         let nextPos = 0;
-        for (let i = 0; i < this.readVal().length; i++) {
-            const entry = this.readVal()[i] as undefined | { fabricIndex?: number };
+        for (let i = 0; i < list.length; i++) {
+            const entry = list[i] as undefined | { fabricIndex?: number };
             if (!isObject(entry)) {
                 continue;
             }
@@ -331,7 +320,7 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
         }
 
         if (nextPos === index) {
-            return this.readVal().length;
+            return list.length;
         }
 
         throw new WriteError(this.reference.location, `Index ${index} would leave gaps in fabric-filtered list`);
@@ -341,7 +330,10 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
         try {
             return super.readEntry(this.#mapScopedToActual(index, true), this.reference.location) !== undefined;
         } catch (e) {
-            return false;
+            if (e instanceof ReadError) {
+                return false;
+            }
+            throw e;
         }
     }
 
@@ -380,9 +372,8 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
     }
 
     protected override setListLength(length: number) {
-        const formerLength = this.getListLength();
-
         this.reference.change(() => {
+            const formerLength = this.getListLength();
             for (let i = formerLength - 1; i >= length; i--) {
                 const entry = this.writeVal()[this.#mapScopedToActual(i, true)] as undefined | { fabricIndex?: number };
                 if (isObject(entry) && (!entry.fabricIndex || entry.fabricIndex === this.session.fabric)) {

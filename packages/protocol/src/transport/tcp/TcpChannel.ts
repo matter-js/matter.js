@@ -5,6 +5,7 @@
  */
 
 import { Mark } from "#common/Mark.js";
+import { MessageTooLargeError } from "#protocol/errors.js";
 import {
     BasicMultiplex,
     Bytes,
@@ -13,7 +14,6 @@ import {
     DEFAULT_MAX_TCP_MESSAGE_SIZE,
     IpNetworkChannel,
     Logger,
-    NetworkError,
     Observable,
     ServerAddressIp,
     ServerAddressTcp,
@@ -28,17 +28,17 @@ const logger = Logger.get("TcpChannel");
 /** Size of the length-prefix header in bytes. */
 const FRAMING_HEADER_SIZE = 4;
 
-/** Maximum receive buffer size before closing the connection (DoS protection). */
-const MAX_RECEIVE_BUFFER_FACTOR = 2;
-
 /**
  * TCP channel implementing Matter message framing.
  *
  * Each message is prefixed with a 4-byte little-endian uint32 length header indicating the number of message bytes
  * that follow. Incoming data is buffered and reassembled into complete messages before being emitted.
  *
- * The {@link maxPayloadSize} represents the maximum total frame size (header + message). The maximum message content
- * size is therefore `maxPayloadSize - 4`.
+ * The {@link maxPayloadSize} is the maximum message size excluding the 4-byte length header, as MAX_TCP_MESSAGE_SIZE
+ * defines it.  It is our receive limit and also the ceiling for what we send, so a lower receive limit also lowers the
+ * messages we send even to a peer that accepts more.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 4.13.1
  */
 export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
     readonly isReliable = true as const;
@@ -51,9 +51,6 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
     readonly #messageListeners = new Set<(data: Bytes) => void>();
     readonly #closeListeners = new Set<() => void>();
     readonly #workers = new BasicMultiplex();
-
-    /** Maximum allowed receive buffer size before connection is closed for protection. */
-    readonly #maxReceiveBufferSize: number;
 
     /** Receive buffer — accumulated chunks not yet consumed. */
     #receiveChunks = new Array<Uint8Array>();
@@ -73,7 +70,6 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
         this.#socket = socket;
         this.#isIncoming = isIncoming;
         this.maxPayloadSize = maxPayloadSize;
-        this.#maxReceiveBufferSize = maxPayloadSize * MAX_RECEIVE_BUFFER_FACTOR;
 
         socket.onClose(() => this.#handleClose());
         socket.onError(error => this.#handleError(error));
@@ -111,19 +107,16 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
         return { type: "tcp", ip: this.#socket.remoteAddress, port: this.#socket.remotePort };
     }
 
-    /** Maximum message content size (total frame size minus the 4-byte length header). */
-    get maxMessageSize(): number {
-        return this.maxPayloadSize - FRAMING_HEADER_SIZE;
-    }
-
     async send(data: Bytes): Promise<void> {
         if (this.#closed) {
             throw new TransportClosedError(`Cannot send to ${this.name}: the connection is closed`);
         }
 
         const message = Bytes.of(data);
-        if (message.length > this.maxMessageSize) {
-            throw new NetworkError(`Message size ${message.length} exceeds TCP limit of ${this.maxMessageSize}`);
+        if (message.length > this.maxPayloadSize) {
+            throw new MessageTooLargeError(
+                `Message size ${message.length} exceeds TCP limit of ${this.maxPayloadSize}`,
+            );
         }
         const frame = new Uint8Array(FRAMING_HEADER_SIZE + message.length);
         const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
@@ -208,15 +201,7 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
         this.#receiveChunks.push(chunk);
         this.#receiveLength += chunk.length;
 
-        // Receive buffer cap — prevent memory exhaustion from slow/malicious peers
-        if (this.#receiveLength > this.#maxReceiveBufferSize) {
-            logger.warn(
-                `Receive buffer exceeded ${this.#maxReceiveBufferSize} bytes without completing a message, closing`,
-            );
-            this.#workers.add(this.close());
-            return;
-        }
-
+        // Memory stays bounded without a buffer cap: a header announcing more than maxPayloadSize closes the connection
         this.#extractMessages();
     }
 
@@ -263,8 +248,8 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
                 return;
             }
 
-            if (messageLength > this.maxMessageSize) {
-                logger.warn(`Received TCP message of ${messageLength} bytes exceeds limit of ${this.maxMessageSize}`);
+            if (messageLength > this.maxPayloadSize) {
+                logger.warn(`Received TCP message of ${messageLength} bytes exceeds limit of ${this.maxPayloadSize}`);
                 // TODO: Send MESSAGE_TOO_LARGE status report before closing (spec §4.15.2.3)
                 this.#workers.add(this.close());
                 return;

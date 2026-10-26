@@ -88,8 +88,7 @@ async function announceWith(
         await node.scriptOtaProvider({ queryImage });
         return await node.announceOtaProvider(options);
     } catch (e) {
-        // Before the check, not after: the runner turns this into a skipped step only while the step has
-        // recorded no check and made no call that may change the device
+        // A refusal is a framework error the step runner reports, not an outcome of the device
         if (e instanceof UnsupportedByControllerError) {
             throw e;
         }

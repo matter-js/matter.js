@@ -6,7 +6,6 @@
 
 import { NodeJsNetwork } from "#net/NodeJsNetwork.js";
 import { InterfaceType } from "@matter/general";
-import { syncBuiltinESMExports } from "node:module";
 import os, { NetworkInterfaceInfo, networkInterfaces } from "node:os";
 
 describe("NodeJsNetwork", () => {
@@ -370,12 +369,10 @@ describe("NodeJsNetwork", () => {
 function withInterfaces(interfaces: NodeJS.Dict<NetworkInterfaceInfo[]>, actor: () => void) {
     const original = os.networkInterfaces;
     os.networkInterfaces = () => interfaces;
-    syncBuiltinESMExports();
     try {
         actor();
     } finally {
         os.networkInterfaces = original;
-        syncBuiltinESMExports();
     }
 }
 

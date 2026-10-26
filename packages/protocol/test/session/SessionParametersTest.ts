@@ -83,6 +83,18 @@ describe("SessionParameters", () => {
         });
     });
 
+    describe("maxTcpMessageSize", () => {
+        const tcpPeer = { specificationVersion: MIN_TCP_SPEC_VERSION, supportedTransports: { tcpServer: true } };
+
+        it("honors a peer-reported limit below the default", () => {
+            expect(SessionParameters({ ...tcpPeer, maxTcpMessageSize: 1526 }).maxTcpMessageSize).equal(1526);
+        });
+
+        it("uses the spec default when the peer reports zero", () => {
+            expect(SessionParameters({ ...tcpPeer, maxTcpMessageSize: 0 }).maxTcpMessageSize).equal(64000);
+        });
+    });
+
     describe("reported", () => {
         it("keeps only the values the peer sent, without fallbacks", () => {
             expect(

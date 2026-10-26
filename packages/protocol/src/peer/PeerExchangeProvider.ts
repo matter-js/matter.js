@@ -124,15 +124,11 @@ export class PeerExchangeProvider extends ExchangeProvider {
                     continue;
                 }
 
-                const exchange = PeerConnection.createExchange(
-                    this.#peer,
-                    this.#context.exchanges,
-                    session,
-                    network,
+                const exchange = PeerConnection.createExchange(this.#peer, this.#context.exchanges, session, network, {
                     peerAdditionalMrpDelay,
                     protocol,
-                    options?.addressOverride,
-                );
+                    addressOverride: options?.addressOverride,
+                });
 
                 // An exchange that is destroyed rather than closed emits only "closed", so both paths must release
                 const releaseSlot = () => {

@@ -195,9 +195,10 @@ export class Peer {
     }
 
     /**
-     * Emits when a CASE establishment attempt has retransmitted past the MRP budget without a response, indicating
-     * the peer is likely unresponsive.  The latch re-arms per attempt (and per handshake message), so a later stall
-     * can emit again.  Retransmission itself is unchanged; this is only a signal.
+     * Emits when Sigma1 to one address has been retransmitted past the MRP budget without a response, counted across
+     * the fresh Sigma1 messages that replace an unacknowledged one, indicating the peer is likely unresponsive.  Emits
+     * again only after the connection schedule of the address restarts, e.g. after another error or a kick.  This is
+     * only a signal; it does not change retransmission.
      */
     get establishmentUnresponsive(): Observable<[]> {
         return this.#establishmentUnresponsive;

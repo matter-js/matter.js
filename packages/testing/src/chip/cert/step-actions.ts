@@ -10,7 +10,6 @@ import {
     CertIcdClientApi,
     CertNodeApi,
     ControllerAdapter,
-    UnsupportedByControllerError,
     WebRtcRequestorApi,
 } from "./controller-adapter.js";
 
@@ -102,12 +101,10 @@ const CONTROLLER: Classified<ControllerAdapter> = {
 /**
  * Counts the controller calls of the current step that may change a device.
  *
- * A call counts when it starts, so one still running when the step ends is counted, and a call that is refused
- * with {@link UnsupportedByControllerError} is taken back: a controller refuses before it sends anything. A call
- * that fails otherwise stays counted, since its request may have reached the device.
+ * A call counts when it starts, so one still running when the step ends is counted, and one that fails stays
+ * counted, since its request may have reached the device.
  */
 export class StepActions {
-    #step = 0;
     #count = 0;
 
     get count() {
@@ -115,7 +112,6 @@ export class StepActions {
     }
 
     nextStep() {
-        this.#step++;
         this.#count = 0;
     }
 
@@ -135,7 +131,7 @@ export class StepActions {
                 if (typeof member === "function") {
                     return (...args: unknown[]) => {
                         if (classification === "action") {
-                            return this.#act(() => Reflect.apply(member, target, args));
+                            this.#count++;
                         }
                         const result: unknown = Reflect.apply(member, target, args);
                         return typeof classification === "object" && isApi(result)
@@ -148,31 +144,6 @@ export class StepActions {
                     : member;
             },
         });
-    }
-
-    #act(call: () => unknown): unknown {
-        const step = this.#step;
-        this.#count++;
-        const refused = (error: unknown) => {
-            if (error instanceof UnsupportedByControllerError && step === this.#step) {
-                this.#count--;
-            }
-        };
-
-        let result: unknown;
-        try {
-            result = call();
-        } catch (error) {
-            refused(error);
-            throw error;
-        }
-        if (result instanceof Promise) {
-            return result.catch((error: unknown) => {
-                refused(error);
-                throw error;
-            });
-        }
-        return result;
     }
 }
 

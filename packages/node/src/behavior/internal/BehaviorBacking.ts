@@ -31,6 +31,7 @@ import { Reactor } from "../Reactor.js";
 import { Datasource } from "../state/managed/Datasource.js";
 import { BackingEvents } from "./BackingEvents.js";
 import { BehaviorTimer } from "./BehaviorTimer.js";
+import { assertModeledClasses } from "./ModeledState.js";
 import { Reactors } from "./Reactors.js";
 
 const logger = Logger.get("BehaviorBacking");
@@ -254,6 +255,8 @@ export abstract class BehaviorBacking {
     }
 
     protected get datasourceOptions(): Datasource.Options {
+        assertModeledClasses(this.#type);
+
         return {
             entropy: this.#endpoint.env.get(Entropy),
             location: {

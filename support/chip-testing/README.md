@@ -287,8 +287,8 @@ and, where they apply, `deviceExit`, `finalizationError` (cleanup threw), `teard
 controller or device would not close) and `evidenceError` (evidence the checks cite could not be
 assembled). `unverifiedChecks` counts checks whose claim could not be evaluated at all, those that
 stated a reason in `accepted` included, so it says how much the run left unobserved whatever the
-verdicts say; `controllerUnsupportedSkips` counts steps the controller could not express, which keep the
-run from passing, `outOfScopeSkips` counts steps that need a capability the DUT controller deliberately does not
+verdicts say; `controllerUnsupportedSkips` counts steps skipped for a capability the controller lacks, which keep
+the run from passing, `outOfScopeSkips` counts steps that need a capability the DUT controller deliberately does not
 offer (its `outOfScope` registration), which do not keep the run from `"pass"`, and `picsSkips` counts steps their own
 PICS excluded, a gap in what a passing run proved
 rather than a failure. A `picsSkips` figure that changes without the plan changing is worth reading as a PICS value

@@ -182,15 +182,6 @@ describe("MatterServerControllerAdapter", () => {
             );
         });
 
-        it("refuses singleHandshakeAttempt before any command is sent, for the reason it declares", async () => {
-            const error = await rejectionOf(
-                adapter.commission({ manualPairingCode: "34970112332", singleHandshakeAttempt: true }),
-            );
-
-            expectDeclaredRefusal(error, "single-handshake-attempt");
-            expect(server.requests).deep.equals([]);
-        });
-
         it("sends giveUpAfterMs as discovery_timeout_s in seconds on every commissioning command", async () => {
             replies.commission_with_code = commissioned;
             replies.commission_on_network = commissioned;
@@ -2484,10 +2475,29 @@ describe("MatterServerControllerAdapter construction", () => {
             "MCORE.DEVLIST.UseDevices": 1,
         });
         expect(MATTERJS_SERVER_CONTROLLER_PICS).not.have.property("ICDM.C");
-        expect(Object.keys(MATTERJS_SERVER_CAPABILITY_GAPS)).include.members([
-            "ota-provider-script",
-            "sustained-subscription",
-        ]);
+        expect(Object.keys(MATTERJS_SERVER_CAPABILITY_GAPS)).include("sustained-subscription");
+    });
+
+    it("declares the BDX sender roles only, and no Terms and Conditions client feature", () => {
+        const bdx = Object.entries(MATTERJS_SERVER_CONTROLLER_PICS).filter(([key]) => key.startsWith("MCORE.BDX."));
+        expect(Object.fromEntries(bdx)).deep.equal({
+            "MCORE.BDX.Sender": 1,
+            "MCORE.BDX.Responder": 1,
+            "MCORE.BDX.SynchronousSender": 1,
+            "MCORE.BDX.AsynchronousSender": 0,
+            "MCORE.BDX.BlockQueryWithSkip": 0,
+            "MCORE.BDX.Receiver": 0,
+            "MCORE.BDX.Initiator": 0,
+            "MCORE.BDX.Driver": 0,
+            "MCORE.BDX.SynchronousReceiver": 0,
+            "MCORE.BDX.AsynchronousReceiver": 0,
+        });
+        expect(MATTERJS_SERVER_CONTROLLER_PICS).deep.include({ "CGEN.C.F00": 0 });
+    });
+
+    it("declares scripted OTA provider answers out of scope, not a gap", () => {
+        expect(MATTERJS_SERVER_OUT_OF_SCOPE).have.property("ota-provider-script");
+        expect(MATTERJS_SERVER_CAPABILITY_GAPS).not.have.property("ota-provider-script");
     });
 });
 

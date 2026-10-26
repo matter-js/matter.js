@@ -29,7 +29,15 @@ import {
     Seconds,
 } from "@matter/general";
 import { clientStructureOf, MockSite, settled, subscribedPeer } from "@matter/node/testing";
-import { PeerMessageMissingError, PeerSet, PeerUnresponsiveError, Read, ReadResult, Subscribe } from "@matter/protocol";
+import {
+    PeerAckMissingError,
+    PeerMessageMissingError,
+    PeerSet,
+    PeerUnresponsiveError,
+    Read,
+    ReadResult,
+    Subscribe,
+} from "@matter/protocol";
 import { EndpointNumber, EventId, EventNumber, FabricIndex, Priority, TlvAny } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
@@ -523,8 +531,9 @@ describe("Decommission", () => {
     for (const { removed, failure } of [
         { removed: true, failure: () => new PeerMessageMissingError(Seconds(11)) },
         { removed: false, failure: () => new PeerUnresponsiveError(Seconds(11)) },
+        { removed: false, failure: () => new PeerAckMissingError(Seconds(11)) },
     ]) {
-        it(`waits for a running decommission before handing out a node (${removed ? "removed" : "kept"})`, async () => {
+        it(`waits for a running decommission before handing out a node (${removed ? "removed" : "kept"} on ${failure().constructor.name})`, async () => {
             await using site = new MockSite();
             const { controller } = await site.addCommissionedPair();
 

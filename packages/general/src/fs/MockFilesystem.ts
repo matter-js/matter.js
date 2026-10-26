@@ -18,6 +18,11 @@ interface MockNode {
     mtime: Date;
     content?: Uint8Array;
     children?: Map<string, MockNode>;
+
+    /**
+     * Set on the root node only.
+     */
+    interceptors?: Set<MockFilesystem.Interceptor>;
 }
 
 function createDirNode(): MockNode {
@@ -26,6 +31,12 @@ function createDirNode(): MockNode {
 
 function createFileNode(content: Uint8Array): MockNode {
     return { type: "file", mtime: new Date(), content };
+}
+
+async function runInterceptors(root: MockNode, operation: MockFilesystem.Operation, segments: string[]) {
+    for (const interceptor of root.interceptors ?? []) {
+        await interceptor(operation, segments.join("/"));
+    }
 }
 
 /**
@@ -46,6 +57,17 @@ export class MockFilesystem extends Filesystem {
 
     override get path() {
         return "";
+    }
+
+    /**
+     * Call {@link interceptor} before each `File.open()`, `Handle.fsync()` and `Handle.close()` until the returned
+     * object is disposed.  An interceptor that throws makes the operation fail with that error, for tests of I/O
+     * failures; a failed close leaves the handle open.  Reads and writes through `File` directly are not intercepted.
+     */
+    intercept(interceptor: MockFilesystem.Interceptor): Disposable {
+        const set = (this.#root.interceptors ??= new Set());
+        set.add(interceptor);
+        return { [Symbol.dispose]: () => set.delete(interceptor) };
     }
 
     exists(): Promise<boolean> {
@@ -190,6 +212,7 @@ class MockFile extends File {
     }
 
     async open(purpose: string, mode?: File.OpenMode): Promise<File.Handle> {
+        await runInterceptors(this.#root, "open", this.#segments);
         const m = mode ?? "r";
         if (m === "w" || m === "a") {
             // Ensure parent directories exist
@@ -632,10 +655,11 @@ class MockFileHandle extends File.Handle {
         if (this.#closed) {
             throw new FileTypeError("File handle is closed");
         }
-        // No-op for mock
+        await runInterceptors(this.#root, "fsync", this.#segments);
     }
 
     async close(): Promise<void> {
+        await runInterceptors(this.#root, "close", this.#segments);
         this.#closed = true;
     }
 
@@ -683,4 +707,13 @@ class MockCursor extends File.Cursor {
         // Mock is in-memory so copy vs shared is just slice vs subarray
         return copy ? content.slice(start, end) : content.subarray(start, end);
     }
+}
+
+export namespace MockFilesystem {
+    export type Operation = "open" | "fsync" | "close";
+
+    /**
+     * Called with the operation and the file path (segments joined by "/") before the operation runs.
+     */
+    export type Interceptor = (operation: Operation, path: string) => void | Promise<void>;
 }

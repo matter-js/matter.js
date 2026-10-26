@@ -13,7 +13,14 @@ import {
     SupportedStorageTypes,
     Time,
 } from "@matter/general";
-import { ClientNode, NetworkClient, RemoteDescriptor, ServerNode, ServerNodeStore } from "@matter/node";
+import {
+    ClientNode,
+    CommissioningClient,
+    NetworkClient,
+    RemoteDescriptor,
+    ServerNode,
+    ServerNodeStore,
+} from "@matter/node";
 import { DiscoveryData, OperationalAddress, PeerAddress } from "@matter/protocol";
 import { EventNumber, FabricIndex, NodeId } from "@matter/types";
 
@@ -37,6 +44,13 @@ type LegacyCommissionedEntry = Record<string, SupportedStorageTypes> & {
 
 /** One `commissionedNodes` list entry: the peer's raw stored node id paired with its metadata. */
 type LegacyCommissionedNode = [bigint, LegacyCommissionedEntry];
+
+/**
+ * Key in a legacy `node-<id>` context that marks the peer's migration as started but not finished. Registering the
+ * peer and writing its state are two storage writes; a crash between them leaves a registered peer without its
+ * addresses and event number, which the next run completes. {@link wipeLegacyContexts} removes it with the context.
+ */
+const MIGRATION_PENDING_KEY = "__migrationPending__";
 
 /** True for a pre-0.16 cached attribute record (current storage keeps the bare value instead). */
 function isLegacyAttributeRecord(value: SupportedStorageTypes): value is Record<string, SupportedStorageTypes> {
@@ -116,8 +130,9 @@ export async function migrateLegacyControllerCredentials(env: Environment, id: s
  * Step 2: migrate cached per-node data (`node-<id>` attribute trees + the `commissionedNodes` list) into the
  * current per-peer store layout, and register each peer. Must run after the controller ServerNode is constructed
  * (so its fabric is loaded) but before it goes online. Non-destructive — old data is left in place for
- * {@link cleanupLegacyStorage}. Idempotent (skips peers that already exist); a peer that fails to migrate is
- * skipped without aborting the rest and its partially-written store is cleared. Returns migrated counts.
+ * {@link cleanupLegacyStorage}. Idempotent (skips peers that already exist, and completes a peer whose migration a
+ * crash interrupted); a peer that fails to migrate is skipped without aborting the rest and its partially-written
+ * store is cleared. Returns migrated counts.
  */
 export async function migrateLegacyCommissionedNodes(
     node: ServerNode,
@@ -151,9 +166,48 @@ export async function migrateLegacyCommissionedNodes(
     for (const [rawNodeId, { operationalServerAddress, discoveryData }] of commissioned) {
         const nodeId = NodeId(rawNodeId);
         const peerAddress = PeerAddress({ fabricIndex, nodeId });
+        const oldNode = baseStorage.createContext(`node-${nodeId}`);
+
+        const legacyState = async () => ({
+            commissioning: RemoteDescriptor.toLongForm({
+                // Fallback only — a peer with its own discoveredAt keeps it.
+                discoveredAt: Time.nowMs,
+                ...discoveryData,
+                addresses: operationalServerAddress ? [operationalServerAddress] : [],
+            }),
+            network: {
+                maxEventNumber: await oldNode.get<EventNumber>("__maxEventNumber__", EventNumber(0)),
+                autoSubscribe: false,
+            },
+        });
 
         const existingPeer = node.peers.get(peerAddress);
         if (existingPeer !== undefined) {
+            if (await oldNode.has(MIGRATION_PENDING_KEY)) {
+                try {
+                    // The interrupted write may have persisted either part; keep whatever is newer than the legacy data
+                    const { commissioning, network } = await legacyState();
+                    const { maxEventNumber } = existingPeer.stateOf(NetworkClient);
+                    await existingPeer.set({
+                        ...(existingPeer.stateOf(CommissioningClient).addresses?.length ? {} : { commissioning }),
+                        network: {
+                            ...network,
+                            maxEventNumber:
+                                maxEventNumber > network.maxEventNumber ? maxEventNumber : network.maxEventNumber,
+                        },
+                    });
+                    await oldNode.delete(MIGRATION_PENDING_KEY);
+                    migratedNodes++;
+                    logger.info(`Completed interrupted migration of commissioned node ${nodeId} as ${existingPeer.id}`);
+                } catch (error) {
+                    failedNodes++;
+                    logger.warn(
+                        `Failed to complete migration of commissioned node ${nodeId}, retrying next start:`,
+                        error,
+                    );
+                }
+                continue;
+            }
             logger.debug(`Node ${nodeId} already migrated, skipping`);
             if (existingPeer.stateOf(NetworkClient).autoSubscribe) {
                 await existingPeer.setStateOf(NetworkClient, { autoSubscribe: false });
@@ -164,10 +218,6 @@ export async function migrateLegacyCommissionedNodes(
         const id = serverStore.clientStores.allocateId();
         let peerNode: ClientNode | undefined;
         try {
-            const oldNode = baseStorage.createContext(`node-${nodeId}`);
-
-            const maxEventNumber = await oldNode.get<EventNumber>("__maxEventNumber__", EventNumber(0));
-
             // Written before forAddress() below allocates the peer's store for the same id, which loads rather
             // than overwrites whatever is already on disk under that context.
             const peerStorage = nodesCtx.createContext(id).createContext("endpoints");
@@ -190,15 +240,11 @@ export async function migrateLegacyCommissionedNodes(
                 endpointsForNode++;
             }
 
-            const commissioning = RemoteDescriptor.toLongForm({
-                // Fallback only — a peer with its own discoveredAt keeps it.
-                discoveredAt: Time.nowMs,
-                ...discoveryData,
-                addresses: operationalServerAddress ? [operationalServerAddress] : [],
-            });
-
+            const state = await legacyState();
+            await oldNode.set(MIGRATION_PENDING_KEY, true);
             peerNode = await node.peers.forAddress(peerAddress, { id });
-            await peerNode.set({ commissioning, network: { maxEventNumber, autoSubscribe: false } });
+            await peerNode.set(state);
+            await oldNode.delete(MIGRATION_PENDING_KEY);
             migratedNodes++;
             migratedEndpoints += endpointsForNode;
             logger.info(`Migrated commissioned node ${nodeId} as ${id}`);

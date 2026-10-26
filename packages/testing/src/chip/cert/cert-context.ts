@@ -156,8 +156,8 @@ export interface StepRecorder {
      */
     runHeaderLines?(): string[];
     /**
-     * Records how many steps were skipped because the controller under test cannot express the
-     * operation they need. A run with such a step proved less than its plan, so it settles as
+     * Records how many steps were skipped because the controller under test lacks a capability they
+     * declare. A run with such a step proved less than its plan, so it settles as
      * `"controller-gap"` rather than `"pass"` (see `EvidenceRecorder`), and the count says how much less.
      */
     recordControllerUnsupportedSkips?(count: number): void;

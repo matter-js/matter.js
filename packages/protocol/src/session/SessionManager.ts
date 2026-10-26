@@ -259,6 +259,9 @@ export class SessionManager {
         if (context.parameters?.maxPathsPerInvoke !== undefined) {
             assertMaxPathsPerInvoke(context.parameters.maxPathsPerInvoke);
         }
+        if (context.parameters?.maxTcpMessageSize !== undefined) {
+            SessionParameters.assertMaxTcpMessageSize(context.parameters.maxTcpMessageSize);
+        }
         this.#sessionParameters = SessionParameters({ ...SessionParameters.defaults, ...context.parameters });
         assertActiveThreshold(this.#sessionParameters.activeThreshold);
         this.#nextSessionId = (crypto.randomUint16 % ID_SPACE_UPPER_BOUND) + 1;
@@ -371,6 +374,9 @@ export class SessionManager {
         }
         if (parameters.maxPathsPerInvoke !== undefined) {
             assertMaxPathsPerInvoke(parameters.maxPathsPerInvoke);
+        }
+        if (parameters.maxTcpMessageSize !== undefined) {
+            SessionParameters.assertMaxTcpMessageSize(parameters.maxTcpMessageSize);
         }
         for (const [key, value] of Object.entries(parameters)) {
             if (value !== undefined) {

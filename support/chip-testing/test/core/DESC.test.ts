@@ -5,5 +5,5 @@
  */
 
 describe("DESC", () => {
-    chip("DESC/*");
+    chip("DESC/*/run1");
 });

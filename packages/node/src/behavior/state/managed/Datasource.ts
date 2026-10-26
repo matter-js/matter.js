@@ -1024,7 +1024,6 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             try {
                 this.#internals.sessions?.delete(this.#session);
                 this.#expired = true;
-                this.#refreshSubrefs();
             } catch (e) {
                 logger.warn(
                     `Error detaching reference to ${this.#internals.location.path} from closed transaction ${transaction.via}:`,
@@ -1051,10 +1050,6 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             throw new ExpiredReferenceError(this.location);
         }
         return this.#values;
-    }
-
-    set value(_value) {
-        throw new InternalError(`Cannot set root reference for ${this.#internals.supervisor.schema.name}`);
     }
 
     get expired() {
@@ -1119,14 +1114,16 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             this.#refreshSubrefs();
         }
 
-        if (this.#internals.mirrorsRemote) {
-            this.#mutateRecording(mutator, member);
-        } else {
-            mutator();
+        // A mutator that throws may already have changed or restored values
+        try {
+            if (this.#internals.mirrorsRemote) {
+                this.#mutateRecording(mutator, member);
+            } else {
+                mutator();
+            }
+        } finally {
+            this.#refreshSubrefs();
         }
-
-        // Refresh subrefs referencing any mutated values
-        this.#refreshSubrefs();
     }
 
     /**

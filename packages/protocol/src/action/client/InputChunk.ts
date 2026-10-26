@@ -338,10 +338,12 @@ function* emitEvents(input: DataReport): Generator<ReadResult.EventValue | ReadR
     const events = input.eventReports;
     if (events === undefined || events.length === 0) return;
 
+    const timestamps = new EventTimestampChain();
     for (const entry of events) {
         try {
             if (entry.eventData !== undefined) {
-                const value = decodeEventValue(entry.eventData);
+                const resolvedTimestamp = timestamps.resolve(entry.eventData);
+                const value = decodeEventValue(entry.eventData, resolvedTimestamp);
                 if (value !== undefined) yield value;
             } else if (entry.eventStatus !== undefined) {
                 const status = buildEventStatus(entry.eventStatus);
@@ -354,7 +356,59 @@ function* emitEvents(input: DataReport): Generator<ReadResult.EventValue | ReadR
     }
 }
 
-function decodeEventValue(eventData: TypeFromSchema<typeof TlvEventData>): ReadResult.EventValue | undefined {
+/**
+ * Reconstructs absolute event timestamps within one ReportData message.
+ *
+ * Per Matter Core §10.7.3.1 a delta timestamp is relative to the prior event. The CHIP SDK encodes each delta against
+ * the event directly before it in the same message and starts each message with an absolute timestamp, so a chain
+ * never spans messages. It sends deltas only on the system clock, and a system event after an epoch event gets a
+ * meaningless delta, so a delta resolves only when the event before it used the same clock. See
+ * {@link ReadResult.EventValue.resolvedTimestamp} for the result.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 10.7.3.1
+ */
+class EventTimestampChain {
+    #prior?: { clock: "epoch" | "system"; value: number };
+
+    resolve({
+        epochTimestamp,
+        systemTimestamp,
+        deltaEpochTimestamp,
+        deltaSystemTimestamp,
+    }: TypeFromSchema<typeof TlvEventData>): number | undefined {
+        if (epochTimestamp !== undefined) {
+            return this.#advance("epoch", Number(epochTimestamp));
+        }
+        if (systemTimestamp !== undefined) {
+            return this.#advance("system", Number(systemTimestamp));
+        }
+        if (deltaEpochTimestamp !== undefined) {
+            return this.#advanceBy("epoch", Number(deltaEpochTimestamp));
+        }
+        if (deltaSystemTimestamp !== undefined) {
+            return this.#advanceBy("system", Number(deltaSystemTimestamp));
+        }
+        this.#prior = undefined;
+    }
+
+    #advance(clock: "epoch" | "system", value: number) {
+        this.#prior = { clock, value };
+        return value;
+    }
+
+    #advanceBy(clock: "epoch" | "system", delta: number) {
+        if (this.#prior?.clock !== clock) {
+            this.#prior = undefined;
+            return;
+        }
+        return this.#advance(clock, this.#prior.value + delta);
+    }
+}
+
+function decodeEventValue(
+    eventData: TypeFromSchema<typeof TlvEventData>,
+    resolvedTimestamp: number | undefined,
+): ReadResult.EventValue | undefined {
     const {
         path: { nodeId, endpointId, clusterId, eventId },
         eventNumber,
@@ -396,6 +450,7 @@ function decodeEventValue(eventData: TypeFromSchema<typeof TlvEventData>): ReadR
             number: eventNumber,
             priority,
             timestamp,
+            resolvedTimestamp,
             epochTimestamp,
             systemTimestamp,
             deltaEpochTimestamp,

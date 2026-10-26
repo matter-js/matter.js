@@ -37,7 +37,7 @@ export interface TcpTransportOptions {
     listeningPort?: number;
     /** Address to bind to. */
     listeningAddress?: string;
-    /** Max TCP frame size (header + message). Default DEFAULT_MAX_TCP_MESSAGE_SIZE. */
+    /** Max TCP message size, excluding the 4-byte length header. Default DEFAULT_MAX_TCP_MESSAGE_SIZE. */
     maxMessageSize?: number;
 }
 

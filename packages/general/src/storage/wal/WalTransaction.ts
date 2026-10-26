@@ -19,7 +19,8 @@ export type WalCommitNotify = (id: WalCommitId, ts: number, ops: WalOp[]) => voi
 /**
  * A transaction that buffers WAL operations and writes them atomically on commit.
  *
- * Owns the write path: serializes ops to the WAL writer and notifies the storage to update its cache.
+ * Owns the write path: serializes ops to the WAL writer and notifies the storage, which applies them to its in-memory
+ * data.
  */
 export class WalTransaction extends StorageTransaction {
     readonly #ops: WalOp[] = [];
@@ -194,7 +195,7 @@ export class WalTransaction extends StorageTransaction {
 }
 
 /**
- * Apply a WAL commit to an in-memory store.  Used by WalStorage when loading the cache from snapshot + WAL replay.
+ * Apply a WAL commit to an in-memory store.  Used for the WAL replay when the storage opens and for each new commit.
  */
 export function applyCommit(store: StoreData, commit: WalCommit): void {
     for (const op of commit.ops) {

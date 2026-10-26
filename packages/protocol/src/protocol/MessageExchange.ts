@@ -8,8 +8,8 @@ import { Message, PacketHeader, SessionType } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
 import { NetworkProfile } from "#peer/NetworkProfile.js";
 import {
+    PeerAckMissingError,
     PeerMessageMissingError,
-    PeerUnresponsiveError,
     TransientPeerCommunicationError,
 } from "#peer/PeerCommunicationError.js";
 import { GroupSession } from "#session/GroupSession.js";
@@ -129,7 +129,7 @@ export interface ExchangeSendOptions {
      */
     ackWaitAbort?: AbortSignal;
 
-    /** Number of MRP retries to attempt (default: MRP.MAX_TRANSMISSIONS) */
+    /** Number of MRP transmissions, the first one included (default: MRP.MAX_TRANSMISSIONS) */
     maxRetransmissions?: number;
 
     /** Maximum MRP retransmission time (default: unlimited) */
@@ -137,6 +137,21 @@ export interface ExchangeSendOptions {
 
     /** Initial MRP retransmission time (default: calculated as by Matter specification) */
     initialRetransmissionTime?: Duration;
+
+    /**
+     * Time after the first transmission from which no further retransmission is sent (default: unlimited).  It applies
+     * only once {@link MRP.MAX_TRANSMISSIONS} transmissions went out, so the peer always gets the standard MRP budget.
+     * Reaching it ends the send the same way as reaching {@link maxRetransmissions}, including the final wait for a
+     * response that may still be on its way.
+     */
+    retransmissionTimeLimit?: Duration;
+
+    /**
+     * Transmission number at which the MRP backoff schedule of this send starts (default: 0).  Lets a new exchange
+     * continue the schedule of one it replaces instead of falling back to the base interval.  Does not count against
+     * {@link maxRetransmissions}.
+     */
+    backoffOffset?: number;
 
     /** Suppress peer-loss reporting for this send.  OR'd with {@link MessageExchange.Options.suppressPeerLoss}. */
     suppressPeerLoss?: boolean;
@@ -279,6 +294,7 @@ export class MessageExchange {
 
     /** A pending message whose ack wait ended: it still awaits its ack for close(), but is never transmitted again. */
     #retransmissionEndedFor?: Message;
+    #firstTransmissionAt?: Timestamp;
     #lastTransmissionAt?: Timestamp;
     #lastActive = Time.nowMs;
 
@@ -579,7 +595,7 @@ export class MessageExchange {
 
         // Taking the last slot early would leave the scheduled attempt with none, and MRP would report the peer as
         // unresponsive without ever having retried inside the window we are trying to hit
-        if (this.#retransmissionCounter + 1 >= (this.#sendOptions.maxRetransmissions ?? MRP.MAX_TRANSMISSIONS)) {
+        if (this.#isTransmissionBudgetSpent(this.#retransmissionCounter + 1)) {
             return false;
         }
 
@@ -778,10 +794,13 @@ export class MessageExchange {
             this.#sentMessageAckSuccess = resolver;
             const startedWaitingAt = Time.nowMs;
             this.#sentMessageAckFailure = () => {
-                abort.abort(new PeerUnresponsiveError(Timestamp.delta(startedWaitingAt)));
+                abort.abort(new PeerAckMissingError(Timestamp.delta(startedWaitingAt)));
             };
         }
 
+        if (ackPromise !== undefined) {
+            this.#firstTransmissionAt = Time.nowUs;
+        }
         this.#onSend?.(message, 0);
         using sending = this.join("sending", Diagnostic.strong(Message.via(this, message)));
         if (isStandaloneAck) {
@@ -891,6 +910,23 @@ export class MessageExchange {
     }
 
     /**
+     * Whether the transmission with this number may not be sent any more, by either {@link
+     * ExchangeSendOptions.maxRetransmissions} or {@link ExchangeSendOptions.retransmissionTimeLimit}.
+     */
+    #isTransmissionBudgetSpent(transmissionNumber: number) {
+        const { maxRetransmissions = MRP.MAX_TRANSMISSIONS, retransmissionTimeLimit } = this.#sendOptions;
+        if (transmissionNumber >= maxRetransmissions) {
+            return true;
+        }
+        return (
+            retransmissionTimeLimit !== undefined &&
+            transmissionNumber >= MRP.MAX_TRANSMISSIONS &&
+            this.#firstTransmissionAt !== undefined &&
+            Timestamp.delta(this.#firstTransmissionAt, Time.nowUs) >= retransmissionTimeLimit
+        );
+    }
+
+    /**
      * Transmits the pending message again.  Returns whether a transmission was actually started: the budget may be
      * spent, in which case this only schedules the final wait, and a caller that treats "attempted" as "sent" would
      * drop whatever the transmission was meant to convey.
@@ -904,10 +940,7 @@ export class MessageExchange {
 
         this.#retransmissionCounter++;
         this.#totalRetransmissionCounter++;
-        if (
-            this.considerClosed ||
-            this.#retransmissionCounter >= (this.#sendOptions.maxRetransmissions ?? MRP.MAX_TRANSMISSIONS)
-        ) {
+        if (this.considerClosed || this.#isTransmissionBudgetSpent(this.#retransmissionCounter)) {
             // Ok all resubmissions are done, but we need to wait a bit longer because of processing time and the
             // resubmissions from the other side
             if (expectedProcessingTime && !this.considerClosed) {
@@ -1208,6 +1241,13 @@ export class MessageExchange {
         return `${this.#messageReceivedCounter}${Mark.TRANSFERRED}${this.#messageSendCounter}${this.#totalRetransmissionCounter > 0 ? `+${this.#totalRetransmissionCounter}` : ""}`;
     }
 
+    /**
+     * Backoff of a first transmission on the base MRP schedule, without the schedule options of the current send.
+     */
+    get #baseBackOff() {
+        return this.#backOffFor(0, {});
+    }
+
     get #mrpResubmissionBackOffTime() {
         return this.#backOffFor(this.#retransmissionCounter);
     }
@@ -1231,16 +1271,22 @@ export class MessageExchange {
      * apply mid-transfer: per {@link MatterSpecification.v161.Core} § 4.12.2.1 a peer awaiting an acknowledgement is in
      * active mode, because it holds an open exchange.
      */
-    #backOffFor(retransmissionCount: number) {
+    #backOffFor(
+        retransmissionCount: number,
+        {
+            backoffOffset = 0,
+            initialRetransmissionTime,
+        }: Pick<ExchangeSendOptions, "backoffOffset" | "initialRetransmissionTime"> = this.#sendOptions,
+    ) {
         let backOff = this.channel.getMrpResubmissionBackOffTime(
-            retransmissionCount,
+            retransmissionCount + backoffOffset,
             undefined,
             false,
             this.#sendAdditionalDelay,
             this.#context.localFixedMrpBackoff,
         );
-        if (this.#sendOptions.initialRetransmissionTime !== undefined) {
-            backOff = Millis(backOff + this.#sendOptions.initialRetransmissionTime);
+        if (initialRetransmissionTime !== undefined) {
+            backOff = Millis(backOff + initialRetransmissionTime);
         }
         const idleInterval = this.session.parameters.idleInterval;
         let cap = Duration.max(this.#sendOptions.maxRetransmissionTime ?? Forever, idleInterval);
@@ -1251,9 +1297,10 @@ export class MessageExchange {
     }
 
     /**
-     * How much restarting the exchange (resetting the retransmission counter to 0) would shorten the wait until
-     * the next (re)transmission.  Roughly zero near the base interval — e.g. an idle peer, whose fresh interval is
-     * just as slow.
+     * How much restarting on a new exchange with the base MRP schedule would shorten the wait until the next
+     * (re)transmission.  The base schedule has no {@link ExchangeSendOptions.backoffOffset} and no
+     * {@link ExchangeSendOptions.initialRetransmissionTime}.  Roughly zero near the base interval — e.g. an idle
+     * peer, whose fresh interval is just as slow.
      */
     get retransmissionRestartSaving(): Duration {
         // No pending retransmit → nothing for a restart to shorten → report no saving so the kick is suppressed.
@@ -1262,7 +1309,7 @@ export class MessageExchange {
             return Instant;
         }
         // Read the live timer's real interval (margins/jitter/cap baked in), not a freshly recomputed random one.
-        return Duration.max(Instant, Millis(currentWait - this.#backOffFor(0)));
+        return Duration.max(Instant, Millis(currentWait - this.#baseBackOff));
     }
 }
 

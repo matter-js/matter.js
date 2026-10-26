@@ -389,7 +389,7 @@ export class ControllerCommissioningFlow {
                     !this.#armFailsafeInterval?.isRunning
                 ) {
                     logger.debug(`Re-Arming failsafe timer before executing step`);
-                    await this.#armFailsafe();
+                    await this.#reArmFailsafeBetweenSteps();
                 }
                 failSafeTimerReArmedAfterPreviousStep = false;
                 const result = await step.stepLogic();
@@ -419,8 +419,7 @@ export class ControllerCommissioningFlow {
                                 step.name
                             } succeeded, ${Duration.format(timeLeft)} left for failsafe timer, re-arming failsafe`,
                         );
-                        await this.#armFailsafe();
-                        failSafeTimerReArmedAfterPreviousStep = true;
+                        failSafeTimerReArmedAfterPreviousStep = await this.#reArmFailsafeBetweenSteps();
                     }
                 }
 
@@ -834,6 +833,21 @@ export class ControllerCommissioningFlow {
     }
 
     /**
+     * Re-arm the failsafe between commissioning steps.  Skipped once the commissioning session is closed, for example
+     * after the device left BLE for its operational network; the Reconnect step then continues over CASE.
+     *
+     * @returns true when the failsafe was re-armed
+     */
+    async #reArmFailsafeBetweenSteps() {
+        if (this.interaction.session?.isClosed) {
+            logger.debug("Skipping armFailSafe between steps: session is closed");
+            return false;
+        }
+        await this.#armFailsafe();
+        return true;
+    }
+
+    /**
      * Step 7
      * Commissioner SHALL re-arm the Fail-safe timer on the Commissionee to the desired commissioning
      * timeout within 60 seconds of the completion of a PASE session establishment, using the
@@ -985,7 +999,7 @@ export class ControllerCommissioningFlow {
      *
      * Bare `AbortedError` is deliberately excluded: a user-initiated cancel or shutdown abort must
      * propagate cleanly, not be swallowed as a "non-concurrent signal".  Transport aborts surface
-     * with a more specific cause ({@link PeerUnresponsiveError} from MRP timeouts,
+     * with a more specific cause ({@link PeerUnresponsiveError}, e.g. `PeerAckMissingError` from MRP timeouts,
      * {@link BleDisconnectedError} from BLE loss) that `causedBy` already matches.
      */
     #isCommissioningChannelDrop(error: unknown) {

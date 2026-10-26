@@ -2043,62 +2043,6 @@ describe("CertTest", () => {
         );
     });
 
-    it("records a step that throws UnsupportedByControllerError as skipped with a reason naming the operation and controller, and still runs later steps", async () => {
-        let step2Ran = false;
-
-        const definition: CertTestDefinition = {
-            tc: "TC-CADMIN-1.17",
-            plan: "multiplefabrics.adoc",
-            pics: [],
-            app: "all-clusters",
-            controllers: { dut: "dut" },
-            steps: [
-                {
-                    number: 1,
-                    text: "Step whose controller cannot express the operation",
-                    run: async () => {
-                        throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
-                    },
-                },
-                {
-                    number: 2,
-                    text: "Step after the unsupported-operation skip",
-                    run: async cx => {
-                        await passes(cx);
-                        step2Ran = true;
-                    },
-                },
-            ],
-        };
-
-        const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
-        const cx: CertStepWiring = {
-            controllers: {},
-            devices: {},
-            recorder: stubRecorder({
-                endStep(step, verdict, skipReason) {
-                    endStepCalls.push({ number: step.number, verdict, skipReason });
-                    return [];
-                },
-            }),
-        };
-
-        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
-        const subject = stubSubject(new PicsFile([]));
-
-        await expectControllerGap(test.invoke(subject, () => {}, [], false));
-
-        expect(step2Ran).equal(true);
-        expect(endStepCalls).deep.equal([
-            {
-                number: 1,
-                verdict: "skipped",
-                skipReason: 'not implementable on controller "chip-tool": writeAttributes',
-            },
-            { number: 2, verdict: "pass", skipReason: undefined },
-        ]);
-    });
-
     it("records a step that finds itself not applicable as skipped with its reason, and still runs later steps", async () => {
         let step2Ran = false;
 
@@ -2211,7 +2155,7 @@ describe("CertTest", () => {
         expect(planConditionSkips).deep.equal([]);
     });
 
-    it("still fails the step and aborts the run for a generic error, unlike UnsupportedByControllerError", async () => {
+    it("still fails the step and aborts the run for a generic error", async () => {
         let step2Ran = false;
 
         const definition: CertTestDefinition = {
@@ -2263,101 +2207,7 @@ describe("CertTest", () => {
         ]);
     });
 
-    it("appends UnsupportedByControllerError's detail to the skip reason when supplied", async () => {
-        const definition: CertTestDefinition = {
-            tc: "TC-CADMIN-1.17",
-            plan: "multiplefabrics.adoc",
-            pics: [],
-            app: "all-clusters",
-            controllers: { dut: "dut" },
-            steps: [
-                {
-                    number: 1,
-                    text: "Step whose controller cannot express the operation, with detail",
-                    run: async () => {
-                        throw new UnsupportedByControllerError(
-                            "readAttributes",
-                            "chip-tool",
-                            "spans more than one cluster",
-                        );
-                    },
-                },
-            ],
-        };
-
-        const endStepCalls = new Array<{ verdict: StepVerdict; skipReason?: string }>();
-        const cx: CertStepWiring = {
-            controllers: {},
-            devices: {},
-            recorder: stubRecorder({
-                endStep(_step, verdict, skipReason) {
-                    endStepCalls.push({ verdict, skipReason });
-                    return [];
-                },
-            }),
-        };
-
-        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
-        const subject = stubSubject(new PicsFile([]));
-
-        await expectControllerGap(test.invoke(subject, () => {}, [], false));
-
-        expect(endStepCalls).deep.equal([
-            {
-                verdict: "skipped",
-                skipReason: 'not implementable on controller "chip-tool": readAttributes — spans more than one cluster',
-            },
-        ]);
-    });
-
-    it("fails the run when a controller refusal arrives after the step already recorded evidence", async () => {
-        const definition: CertTestDefinition = {
-            tc: "TC-CADMIN-1.17",
-            plan: "multiplefabrics.adoc",
-            pics: [],
-            app: "all-clusters",
-            controllers: { dut: "dut" },
-            steps: [
-                {
-                    number: 1,
-                    text: "Step that records a check before hitting an unsupported operation",
-                    run: async cx => {
-                        cx.recorder.check({ type: "response", verdict: "pass", detail: "read the data version" });
-                        throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
-                    },
-                },
-            ],
-        };
-
-        const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepWiring = {
-            controllers: {},
-            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
-            recorder: recordingRecorder(),
-        };
-
-        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
-        const subject = stubSubject(new PicsFile([]));
-
-        // The step did act, so "not evaluated" would misstate this run's coverage and leave every
-        // later step resting on a device state the bundle cannot describe
-        await expect(test.invoke(subject, () => {}, [], false)).rejectedWith(
-            /refused "writeAttributes" after the step had already recorded 1 check\(s\)/,
-        );
-
-        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
-        expect(banners).deep.equal([
-            "-".repeat(70),
-            "TC-CADMIN-1.17 — Test Step 1: Step that records a check before hitting an unsupported operation",
-            "-".repeat(70),
-            "-".repeat(70),
-            "TC-CADMIN-1.17 — Test Step 1: FAIL",
-            "pass: read the data version",
-            "-".repeat(70),
-        ]);
-    });
-
-    describe("a controller refusal after a step changed the device without recording a check", () => {
+    describe("the controller calls a step makes", () => {
         const noLines = async function* (): AsyncGenerator<string> {};
 
         function controllerWith(node: CertNodeApi): ControllerAdapter {
@@ -2401,24 +2251,6 @@ describe("CertTest", () => {
             return { endStepCalls, outcome };
         }
 
-        it("fails the run when the step wrote before the refusal", async () => {
-            const { endStepCalls, outcome } = await runStep(
-                fakeCertNode({ writeAttribute: async () => {} }),
-                async cx => {
-                    await cx.controllers.dut
-                        .node("ref")
-                        .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x");
-                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
-                },
-            );
-
-            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
-            expect(outcome).instanceOf(Error);
-            expect(String(outcome)).match(
-                /refused "writeAttributes" after the step had already recorded 0 check\(s\) and made 1 controller call\(s\)/,
-            );
-        });
-
         it("fails the run when a step that wrote declares itself not applicable", async () => {
             const { endStepCalls, outcome } = await runStep(
                 fakeCertNode({ writeAttribute: async () => {} }),
@@ -2436,16 +2268,16 @@ describe("CertTest", () => {
             );
         });
 
-        it("still skips when the step only read before the refusal", async () => {
+        it("still skips when the step only read", async () => {
             const { endStepCalls, outcome } = await runStep(
                 fakeCertNode({ readAttribute: async () => 1 }),
                 async cx => {
                     await cx.controllers.dut.node("ref").readAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 });
-                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                    throw new CertStepNotApplicableError("the plan's condition does not hold");
                 },
             );
 
-            expect(outcome).instanceOf(CertControllerGapError);
+            expect(outcome).undefined;
             expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
         });
 
@@ -2456,31 +2288,14 @@ describe("CertTest", () => {
             };
             const { endStepCalls, outcome } = await runStep(controller, async cx => {
                 expect(cx.controllers.dut.build).deep.equal({ version: "1.2.3" });
-                throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                throw new CertStepNotApplicableError("the plan's condition does not hold");
             });
 
-            expect(outcome).instanceOf(CertControllerGapError);
+            expect(outcome).undefined;
             expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
         });
 
-        it("still skips when the refused call is the step's only action, since a refusal sends nothing", async () => {
-            const { endStepCalls, outcome } = await runStep(
-                fakeCertNode({
-                    writeAttribute: () =>
-                        Promise.reject(new UnsupportedByControllerError("writeAttribute", "chip-tool")),
-                }),
-                async cx => {
-                    await cx.controllers.dut
-                        .node("ref")
-                        .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x");
-                },
-            );
-
-            expect(outcome).instanceOf(CertControllerGapError);
-            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
-        });
-
-        it("judges each step on its own calls, so an earlier step's write cannot fail a later clean skip", async () => {
+        it("judges each step on its own calls, so an earlier step's write cannot fail a later skip", async () => {
             const { endStepCalls, outcome } = await runStep(
                 fakeCertNode({ writeAttribute: async () => {} }),
                 async cx => {
@@ -2490,11 +2305,11 @@ describe("CertTest", () => {
                     cx.recorder.check({ type: "response", verdict: "pass", detail: "written" });
                 },
                 async () => {
-                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                    throw new CertStepNotApplicableError("the plan's condition does not hold");
                 },
             );
 
-            expect(outcome).instanceOf(CertControllerGapError);
+            expect(outcome).undefined;
             expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["pass", "skipped"]);
         });
 
@@ -2520,7 +2335,7 @@ describe("CertTest", () => {
                     await node.sessions();
                     expect(String(dut)).equal("[object Object]");
                     expect(dut.valueOf()).property("id", "dut");
-                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                    throw new CertStepNotApplicableError("the plan's condition does not hold");
                 },
             );
 
@@ -2550,15 +2365,15 @@ describe("CertTest", () => {
 
             const onlyKeySet = await runStep(controller, async cx => {
                 await cx.controllers.dut.group(1).defineKeySet(keySet);
-                throw new UnsupportedByControllerError("invoke", "chip-tool");
+                throw new CertStepNotApplicableError("the plan's condition does not hold");
             });
             const groupInvoke = await runStep(controller, async cx => {
                 await cx.controllers.dut.group(1).invoke(6, "on");
-                throw new UnsupportedByControllerError("invoke", "chip-tool");
+                throw new CertStepNotApplicableError("the plan's condition does not hold");
             });
             const icdRegister = await runStep(controller, async cx => {
                 await expect(cx.controllers.dut.node("ref").icdClient().register()).rejectedWith("no answer");
-                throw new UnsupportedByControllerError("stayActive", "chip-tool");
+                throw new CertStepNotApplicableError("the plan's condition does not hold");
             });
 
             expect(onlyKeySet.endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
@@ -2566,60 +2381,15 @@ describe("CertTest", () => {
             expect(icdRegister.endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
         });
 
-        it("takes back a call refused synchronously", async () => {
-            const { endStepCalls } = await runStep(
-                fakeCertNode({
-                    writeAttribute: () => {
-                        throw new UnsupportedByControllerError("writeAttribute", "chip-tool");
-                    },
-                }),
-                async cx => {
-                    await cx.controllers.dut
-                        .node("ref")
-                        .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x");
-                },
-            );
-
-            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
-        });
-
-        it("counts a call still running when the step is refused", async () => {
+        it("counts a call still running when the step declares itself not applicable", async () => {
             const inFlight = new Array<Promise<unknown>>();
             const { endStepCalls } = await runStep(fakeCertNode({ invoke: () => new Promise(() => {}) }), async cx => {
                 inFlight.push(cx.controllers.dut.node("ref").invoke(6, "on"));
-                throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                throw new CertStepNotApplicableError("the plan's condition does not hold");
             });
 
             expect(inFlight).length(1);
             expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
-        });
-
-        it("takes a late refusal back only from the step that made the call", async () => {
-            let refuseEarlierWrite = () => {};
-            const earlierWrite = new Promise<void>((_resolve, reject) => {
-                refuseEarlierWrite = () => reject(new UnsupportedByControllerError("writeAttribute", "chip-tool"));
-            });
-            const inFlight = new Array<PromiseLike<unknown>>();
-            const path = { endpoint: 0, cluster: 0x28, attribute: 5 };
-            const { endStepCalls } = await runStep(
-                fakeCertNode({ writeAttribute: async () => {}, invoke: () => earlierWrite }),
-                async cx => {
-                    inFlight.push(
-                        expect(cx.controllers.dut.node("ref").invoke(6, "on")).rejectedWith(
-                            UnsupportedByControllerError,
-                        ),
-                    );
-                    cx.recorder.check({ type: "response", verdict: "pass", detail: "started" });
-                },
-                async cx => {
-                    await cx.controllers.dut.node("ref").writeAttribute(path, "x");
-                    refuseEarlierWrite();
-                    await Promise.all(inFlight);
-                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
-                },
-            );
-
-            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["pass", "fail"]);
         });
 
         it("runs every member on the adapter itself, so its private state stays reachable", async () => {
@@ -2638,7 +2408,7 @@ describe("CertTest", () => {
 
                 async parseQrPayload(): Promise<never> {
                     this.#calls.push("parse");
-                    throw new UnsupportedByControllerError("parseQrPayload", "test");
+                    throw new InternalError("no payload to parse");
                 }
 
                 async parseManualPairingCode(): Promise<never> {
@@ -2670,12 +2440,65 @@ describe("CertTest", () => {
             expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
         });
 
+        it("counts a call the controller refused, since a step never takes a refusal for an outcome", async () => {
+            const { endStepCalls, outcome } = await runStep(
+                fakeCertNode({
+                    writeAttribute: () =>
+                        Promise.reject(
+                            new UnsupportedByControllerError(
+                                "writeAttribute",
+                                "chip-tool",
+                                "not offered",
+                                "chunked-write",
+                            ),
+                        ),
+                }),
+                async cx => {
+                    await expect(
+                        cx.controllers.dut
+                            .node("ref")
+                            .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x"),
+                    ).rejectedWith(UnsupportedByControllerError);
+                    throw new CertStepNotApplicableError("the plan's condition does not hold");
+                },
+            );
+
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+            expect(String(outcome)).match(
+                /not applicable after recording 0 check\(s\) and making 1 controller call\(s\)/,
+            );
+        });
+
+        it("ends a step whose controller call was refused as a framework error, though the call was counted", async () => {
+            const { endStepCalls, outcome } = await runStep(
+                fakeCertNode({
+                    writeAttribute: () =>
+                        Promise.reject(
+                            new UnsupportedByControllerError(
+                                "writeAttribute",
+                                "chip-tool",
+                                "not offered",
+                                "chunked-write",
+                            ),
+                        ),
+                }),
+                async cx => {
+                    await cx.controllers.dut
+                        .node("ref")
+                        .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x");
+                },
+            );
+
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["error"]);
+            expect(outcome).instanceOf(CertFrameworkError);
+        });
+
         it("counts a call that failed otherwise, since its request may have reached the device", async () => {
             const { endStepCalls } = await runStep(
                 fakeCertNode({ invoke: () => Promise.reject(new InternalError("timed out")) }),
                 async cx => {
                     await expect(cx.controllers.dut.node("ref").invoke(6, "on")).rejectedWith("timed out");
-                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                    throw new CertStepNotApplicableError("the plan's condition does not hold");
                 },
             );
 
@@ -2683,7 +2506,7 @@ describe("CertTest", () => {
         });
     });
 
-    it("judges each step on its own evidence, so an earlier step's checks cannot fail a later clean skip", async () => {
+    it("judges each step on its own evidence, so an earlier step's checks cannot fail a later skip", async () => {
         const definition: CertTestDefinition = {
             tc: "TC-CADMIN-1.17",
             plan: "multiplefabrics.adoc",
@@ -2700,9 +2523,9 @@ describe("CertTest", () => {
                 },
                 {
                     number: 2,
-                    text: "Step whose first interaction is unsupported",
+                    text: "Step whose plan does not apply",
                     run: async () => {
-                        throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                        throw new CertStepNotApplicableError("the plan's condition does not hold");
                     },
                 },
             ],
@@ -2717,54 +2540,10 @@ describe("CertTest", () => {
 
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
 
-        await expectControllerGap(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false));
+        await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
 
         const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
         expect(banners).contain("TC-CADMIN-1.17 — Test Step 2: SKIPPED");
-    });
-
-    it("still skips, and keeps the run going, when the refusal arrives before the step recorded anything", async () => {
-        const definition: CertTestDefinition = {
-            tc: "TC-CADMIN-1.17",
-            plan: "multiplefabrics.adoc",
-            pics: [],
-            app: "all-clusters",
-            controllers: { dut: "dut" },
-            steps: [
-                {
-                    number: 1,
-                    text: "Step whose first interaction is unsupported",
-                    run: async () => {
-                        throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
-                    },
-                },
-                {
-                    number: 2,
-                    text: "Step that still runs",
-                    run: async cx => {
-                        cx.recorder.check({ type: "response", verdict: "pass", detail: "ran anyway" });
-                    },
-                },
-            ],
-        };
-
-        const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepWiring = {
-            controllers: {},
-            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
-            recorder: recordingRecorder(),
-        };
-
-        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
-
-        await expectControllerGap(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false));
-
-        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
-        expect(banners).contain("TC-CADMIN-1.17 — Test Step 1: SKIPPED");
-        expect(banners, "the coverage gap is still summarised").contain(
-            "TC-CADMIN-1.17 — 1 step skipped as unsupported by the controller",
-        );
-        expect(banners, "and the run continued").contain("TC-CADMIN-1.17 — Test Step 2: PASS");
     });
 
     it("injects only an end banner (SKIPPED) for a step the flavor gate skips before it starts", async () => {
@@ -2866,46 +2645,6 @@ describe("CertTest", () => {
             "TC-CADMIN-1.17 — Test Step 1: PASS",
             "-".repeat(70),
         ]);
-    });
-
-    it("reports a run-level summary line counting steps skipped as unsupported by the controller", async () => {
-        const definition: CertTestDefinition = {
-            tc: "TC-CADMIN-1.17",
-            plan: "multiplefabrics.adoc",
-            pics: [],
-            app: "all-clusters",
-            controllers: { dut: "dut" },
-            steps: [
-                {
-                    number: 1,
-                    text: "Step whose controller cannot express the operation",
-                    run: async () => {
-                        throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
-                    },
-                },
-                {
-                    number: 2,
-                    text: "Another step whose controller cannot express the operation",
-                    run: async () => {
-                        throw new UnsupportedByControllerError("readAttributes", "chip-tool");
-                    },
-                },
-                { number: 3, text: "Passing step", run: passes },
-            ],
-        };
-
-        const deviceLog = new LogFollower(noLines(), "device");
-        const cx: CertStepWiring = {
-            controllers: {},
-            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
-            recorder: stubRecorder(),
-        };
-
-        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
-        await expectControllerGap(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false));
-
-        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
-        expect(banners).to.include("TC-CADMIN-1.17 — 2 steps skipped as unsupported by the controller");
     });
 
     it("counts the steps their own PICS excluded, and reports them at run level", async () => {
@@ -4285,6 +4024,50 @@ describe("a step declaring controller capabilities", () => {
         expect(ended[0].skipReason).contains('controller "matterjs-server" lacks session-introspection');
         expect(ended[1].verdict).equal("pass");
         expect(skipCounts).deep.equal([1]);
+    });
+
+    it("reports a run-level summary line counting the steps skipped for the controller's gaps", async () => {
+        env.MATTER_CERT_CONTROLLER = "matterjs-server";
+        const definition: CertTestDefinition = {
+            tc: "TC-SC-5.3",
+            plan: "group_communication.adoc",
+            pics: [],
+            app: "all-clusters",
+            controllers: { dut: "dut" },
+            steps: [
+                {
+                    number: 1,
+                    text: "Step needing session state",
+                    controllerCapabilities: ["session-introspection"],
+                    run: passes,
+                },
+                {
+                    number: 2,
+                    text: "Another such step",
+                    controllerCapabilities: ["session-introspection"],
+                    run: passes,
+                },
+                { number: 3, text: "Passing step", run: passes },
+            ],
+        };
+        const deviceLog = new LogFollower(noLines(), "device");
+        const cx: CertStepWiring = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: stubRecorder(),
+        };
+
+        await expectControllerGap(
+            new TestCertTest(definition, stubDescriptor(), stubContainer(), cx).invoke(
+                stubSubject(new PicsFile([])),
+                () => {},
+                [],
+                false,
+            ),
+        );
+
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        expect(banners).to.include("TC-SC-5.3 — 2 steps skipped as unsupported by the controller");
     });
 
     it("runs where the controller has it", async () => {

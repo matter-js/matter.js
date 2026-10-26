@@ -159,14 +159,26 @@ export const MATTERJS_SERVER_CONTROLLER_PICS: PicsValues = {
     // `open_commissioning_window` ignores its `option` and always opens an enhanced window.
     "CADMIN.C.C01.Tx": 0,
 
+    // matter.js commissioning sends no SetTCAcknowledgements.
+    "CGEN.C.F00": 0,
+
     // The server hosts matter.js's OTA provider, so it takes the BDX and OTA roles the in-process controller declares.
-    // The CHIP PICS file answers these for a device. What this adapter cannot drive of its own provider is the
-    // `ota-provider-script` capability gap.
+    // The CHIP PICS file answers these for a device. Scripted provider answers are out of scope
+    // (`ota-provider-script`).
     "MCORE.BDX.Sender": 1,
     "MCORE.BDX.Responder": 1,
     "MCORE.BDX.SynchronousSender": 1,
     "MCORE.BDX.AsynchronousSender": 0,
     "MCORE.BDX.BlockQueryWithSkip": 0,
+
+    // The server only sends images, on a requestor's ReceiveInit: it never receives a transfer or opens one, and as
+    // the sender it sends no BlockQuery, which the test plans check for the driver role. The CHIP PICS file answers 1
+    // for the initiator and the driver.
+    "MCORE.BDX.Receiver": 0,
+    "MCORE.BDX.Initiator": 0,
+    "MCORE.BDX.Driver": 0,
+    "MCORE.BDX.SynchronousReceiver": 0,
+    "MCORE.BDX.AsynchronousReceiver": 0,
     "MCORE.OTA.Provider": 1,
     "MCORE.OTA.HTTPS": 0,
     "OTAR.C.M.AnnounceOTAProvider": 1,
@@ -225,6 +237,44 @@ export const MATTERJS_SERVER_CONTROLLER_PICS: PicsValues = {
     "S.C.C06.Tx": 1,
     "S.C.C40.Tx": 1,
 
+    // The client commands and the attribute the single-command client cases send or read (TC-OO-3.2, TC-I-3.2,
+    // TC-MOD-2.2, TC-LOWPOWER-2.2, TC-WNCV-6.1, TC-WNCV-7.1). Only `OO.C` (0 in matter.js's own PICS file) and `WNCV.C`
+    // (0 in CHIP's) need the overlay; the other keys state the server's full client surface for these cases.
+    "OO.C": 1,
+    "OO.C.C00.Tx": 1,
+    "OO.C.C01.Tx": 1,
+    "OO.C.C02.Tx": 1,
+    "OO.C.C40.Tx": 1,
+    "OO.C.C41.Tx": 1,
+    "OO.C.C42.Tx": 1,
+    "I.C": 1,
+    "I.C.C00.Tx": 1,
+    "I.C.C40.Tx": 1,
+    "MOD.C": 1,
+    "MOD.C.A0002": 1,
+    "MOD.C.C00.Tx": 1,
+    "LOWPOWER.C": 1,
+    "LOWPOWER.C.C00.Tx": 1,
+    "WNCV.C": 1,
+    "WNCV.C.C00.Tx": 1,
+    "WNCV.C.C01.Tx": 1,
+    "WNCV.C.C02.Tx": 1,
+    "WNCV.C.C05.Tx": 1,
+    "WNCV.C.C08.Tx": 1,
+
+    // The diagnostics client commands, and the one attribute, that TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and
+    // TC-DGWIFI-3.2 send or read. Only `DGTHREAD.C` and `DGWIFI.C.C00.Tx` need the overlay, because CHIP's file
+    // answers them 0; the other keys state the server's full client surface for these cases.
+    "DGETH.C": 1,
+    "DGETH.C.C00.Tx": 1,
+    "DGSW.C": 1,
+    "DGSW.C.C00.Tx": 1,
+    "DGTHREAD.C": 1,
+    "DGTHREAD.C.C00.Tx": 1,
+    "DGTHREAD.C.A0006": 1,
+    "DGWIFI.C": 1,
+    "DGWIFI.C.C00.Tx": 1,
+
     // The same Switch client declaration as the other controllers: the switch it observes is an action switch
     "SWTCH.C": 1,
     "SWTCH.C.F02": 0,
@@ -241,9 +291,6 @@ export const MATTERJS_SERVER_CONTROLLER_PICS: PicsValues = {
  * (see `controllerCapabilityGap`). Every operation that needs one of them refuses naming it before it sends anything.
  */
 export const MATTERJS_SERVER_CAPABILITY_GAPS = {
-    "single-handshake-attempt":
-        "the WebSocket API has no option for it, and the server's own retries would answer the refusal the step " +
-        "means to prove",
     "basic-commissioning-window": "open_commissioning_window ignores its option and always opens an enhanced window",
     "max-value-path-ids": "the server reads endpoint 0xFFFF and cluster, attribute or event id 0xFFFFFFFF as wildcards",
     "session-introspection": "the WebSocket API exposes no session state",
@@ -254,12 +301,14 @@ export const MATTERJS_SERVER_CAPABILITY_GAPS = {
     "batch-arrival-order":
         "batched_device_commands answers in request order, so the order the device's answers arrived in is not visible",
     "webrtc-requestor": "the WebSocket API does not expose the server's requestor cluster to a case",
-    "ota-provider-script":
-        "the WebSocket API cannot script the answers of the server's OTA provider or announce it with nothing staged",
     "sustained-subscription":
         "this adapter keeps the server's own subscription to a node off except while an OTA update or an ICD " +
         "registration needs it, so it has none to observe events through or to keep its device list current",
 } as const satisfies ControllerCapabilityGaps;
+
+const MULTI_PATH_WRITE_OUT_OF_SCOPE =
+    "not reachable for controller use cases: the server writes one attribute per request, on one endpoint or on " +
+    "all, and handles conditional writes itself";
 
 /**
  * What this controller deliberately does not offer, declared with its registration so a step needing one of these does
@@ -267,9 +316,12 @@ export const MATTERJS_SERVER_CAPABILITY_GAPS = {
  * refuse naming the capability, like those of a gap.
  */
 export const MATTERJS_SERVER_OUT_OF_SCOPE = {
-    "multi-path-write":
-        "not reachable for controller use cases: the server writes one attribute per request, on one endpoint or on " +
-        "all, and handles conditional writes itself",
+    "multi-path-write": MULTI_PATH_WRITE_OUT_OF_SCOPE,
+    "mixed-version-write": MULTI_PATH_WRITE_OUT_OF_SCOPE,
+    "typed-list-write-with-others": MULTI_PATH_WRITE_OUT_OF_SCOPE,
+    "ota-provider-script":
+        "the server's OTA provider answers only with a staged image; scripted answers stay excluded until the test " +
+        "plans' need for them is clarified",
 } as const satisfies ControllerCapabilitiesOutOfScope;
 
 type MatterServerGap = keyof typeof MATTERJS_SERVER_CAPABILITY_GAPS;
@@ -514,13 +566,6 @@ export class MatterServerControllerAdapter implements ControllerAdapter {
     }
 
     async commission(target: CommissioningTarget): Promise<CertNodeRef> {
-        if (target.singleHandshakeAttempt) {
-            throw refusal(
-                "single-handshake-attempt",
-                "commissioning bounded to a single operational handshake attempt",
-            );
-        }
-
         // The server bounds discovery and PASE together with it, as matter.js does with its one `timeout`
         const discoveryTimeout = target.giveUpAfterMs === undefined ? undefined : Millis(target.giveUpAfterMs);
         const discovery =

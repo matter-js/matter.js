@@ -12,8 +12,20 @@ import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { GroupSession, GroupSessionNoKeyError } from "#session/GroupSession.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { GroupMessageEventInfo, SessionManager } from "#session/SessionManager.js";
-import { SessionParameters } from "#session/SessionParameters.js";
-import { b$, Bytes, Key, MemoryStorageDriver, PrivateKey, StandardCrypto, StorageContext } from "@matter/general";
+import { MIN_TCP_SPEC_VERSION, SessionParameters } from "#session/SessionParameters.js";
+import {
+    b$,
+    Bytes,
+    Diagnostic,
+    Key,
+    LogFormat,
+    Logger,
+    LogLevel,
+    MemoryStorageDriver,
+    PrivateKey,
+    StandardCrypto,
+    StorageContext,
+} from "@matter/general";
 import { FabricId, FabricIndex, GlobalFabricId, GroupId, NodeId, VendorId } from "@matter/types";
 import { Groupcast } from "@matter/types/clusters/groupcast";
 
@@ -85,6 +97,47 @@ describe("SecureSession", () => {
             });
 
             expect(session.parameters.maxPathsPerInvoke).equals(1);
+        });
+
+        describe("MAX_TCP_MESSAGE_SIZE", () => {
+            function tcpSession(maxTcpMessageSize?: number) {
+                const sessionParameters = {
+                    specificationVersion: MIN_TCP_SPEC_VERSION,
+                    supportedTransports: { tcpServer: true },
+                    maxTcpMessageSize,
+                };
+                return captureLogs(
+                    () =>
+                        new NodeSession({
+                            crypto,
+                            id: 1,
+                            fabric: undefined,
+                            peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
+                            peerSessionId: 0x8d4b,
+                            decryptKey: DECRYPT_KEY,
+                            encryptKey: ENCRYPT_KEY,
+                            attestationKey: new Uint8Array(),
+                            isInitiator: true,
+                            sessionParameters,
+                            reportedSessionParameters: sessionParameters,
+                        }),
+                );
+            }
+
+            it("logs and uses the default when the peer announces zero", () => {
+                const { result: session, logs } = tcpSession(0);
+
+                expect(session.parameters.maxTcpMessageSize).equals(64000);
+                const notices = logs.filter(({ message }) => message.includes("MAX_TCP_MESSAGE_SIZE of 0"));
+                expect(notices.map(({ level }) => level)).deep.equals([LogLevel.INFO]);
+            });
+
+            it("uses the default silently when the peer announces no size", () => {
+                const { result: session, logs } = tcpSession(undefined);
+
+                expect(session.parameters.maxTcpMessageSize).equals(64000);
+                expect(logs.filter(({ message }) => message.includes("MAX_TCP_MESSAGE_SIZE"))).length(0);
+            });
         });
     });
 
@@ -493,3 +546,19 @@ describe("SecureSession", () => {
         });
     });
 });
+
+function captureLogs<T>(fn: () => T) {
+    const dest = Logger.destinations.default;
+    const { format, write } = dest;
+    const logs = new Array<{ level: LogLevel; message: string }>();
+    try {
+        dest.format = LogFormat.formats.plain;
+        dest.write = (message: string, { level }: Diagnostic.Message) => {
+            logs.push({ level, message });
+        };
+        return { result: fn(), logs };
+    } finally {
+        dest.format = format;
+        dest.write = write;
+    }
+}

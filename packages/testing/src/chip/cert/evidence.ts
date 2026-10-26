@@ -127,8 +127,8 @@ export interface RunRecord {
      */
     runError?: string;
     /**
-     * How many steps the controller under test could not express, absent if none. Any such step makes the
-     * verdict `"controller-gap"`, and the count says how much of the plan the run left out.
+     * How many steps were skipped because the controller under test lacks a capability they declare, absent if none.
+     * Any such step makes the verdict `"controller-gap"`, and the count says how much of the plan the run left out.
      */
     controllerUnsupportedSkips?: number;
     /**
@@ -287,7 +287,7 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     /**
-     * Records how many steps the controller under test could not express (see
+     * Records how many steps were skipped because the controller under test lacks a capability they declare (see
      * {@link RunRecord.controllerUnsupportedSkips}). Such a step is a gap in coverage, not a defect in the device,
      * so it settles a run that failed nothing as `"controller-gap"`.
      */

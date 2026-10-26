@@ -57,18 +57,6 @@ export interface CommissioningTarget {
     giveUpAfterMs?: number;
 
     /**
-     * Ask for commissioning to give up after a single operational handshake attempt, so a step that means to prove the
-     * device refused a commissioner is not answered by a retry that succeeded instead.
-     *
-     * Only a step asserting a refusal should set this: shortening the budget also removes the recovery a healthy
-     * commissioning legitimately needs (a second candidate address, a device that answers the first handshake with
-     * `NoSharedTrustRoots`), so a step that expects to succeed must leave it alone.
-     *
-     * Advisory. An adapter whose commissioner already stops after one attempt has nothing to do.
-     */
-    singleHandshakeAttempt?: boolean;
-
-    /**
      * Leave the commissioned peer without the sustained wildcard subscription it otherwise holds, and do not wait
      * for one.
      *
@@ -312,7 +300,7 @@ export interface ReadAttributeOptions {
      * session over TCP (Matter Core § 4.15.1).
      *
      * A hard requirement, not a preference: a controller that cannot establish such a session fails
-     * the read, or refuses it with {@link UnsupportedByControllerError}, rather than reading over MRP
+     * the read, or refuses it naming `tcp-transport`, rather than reading over MRP
      * — so a step asking for one cannot pass on a transport it did not use. A broad read is the case
      * for it: the peer answers in a single report where MRP would have made it chunk.
      */
@@ -679,7 +667,12 @@ export interface OtaAnnouncementRecord {
     /** `ProviderNodeID`, in the form {@link ControllerAdapter.commission} answers with. */
     providerNodeId: CertNodeRef;
 
-    /** `VendorID`, which is the announcing controller's own `BasicInformation` value. */
+    /**
+     * `VendorID`: the announcing controller's vendor id as it would appear in its Basic Information cluster. A
+     * controller without that cluster sends its commissioner (admin) vendor id.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.20.7.6.1.2
+     */
     vendorId: number;
 
     /** `AnnouncementReason`: 0 SimpleAnnouncement, 1 UpdateAvailable, 2 UrgentUpdateAvailable. */
@@ -795,8 +788,7 @@ export interface CertSessionInfo {
     /**
      * The session channel's payload ceiling, in bytes.
      *
-     * A frame's own header counts against it, so the largest message a channel accepts is this less
-     * that header — four bytes for TCP.
+     * For TCP the 4-byte length header does not count against it, as for MAX_TCP_MESSAGE_SIZE.
      */
     maxPayloadSize: number;
 }
@@ -881,8 +873,8 @@ export interface CertIcdClientApi {
  *
  * A method whose controller cannot express the requested operation throws
  * {@link UnsupportedByControllerError} rather than performing part of the interaction and returning
- * a partial result; a step that needs the capability declares the flavors/controllers it runs on
- * instead.
+ * a partial result; a step that needs the capability declares it (see {@link ControllerCapability}), so it is
+ * skipped before it runs where the controller lacks it.
  */
 export interface CertNodeApi {
     invoke(
@@ -907,8 +899,8 @@ export interface CertNodeApi {
      * {@link invoke}, a failure status is reported rather than thrown — the whole point of the batch is
      * that its commands fail independently.
      *
-     * A controller with no batch-invoke support throws {@link UnsupportedByControllerError} (see
-     * {@link CertNodeApi}'s own doc for the general contract).
+     * A controller with no batch-invoke support lacks `batch-invoke` and throws {@link UnsupportedByControllerError}
+     * (see {@link CertNodeApi}'s own doc for the general contract).
      *
      * @see {@link MatterSpecification.v161.Core} § 8.8.2
      */
@@ -941,8 +933,9 @@ export interface CertNodeApi {
      * result was therefore not written — it is not a protocol failure, and a step that needs to know an attribute
      * changed reads it back.
      *
-     * An adapter whose controller cannot express a multi-path, wildcard-endpoint or version-conditional write
-     * throws {@link UnsupportedByControllerError} (see {@link CertNodeApi}'s own doc for the general
+     * An adapter whose controller cannot express the write throws {@link UnsupportedByControllerError} naming the
+     * capability it lacks or does not offer, among them `multi-path-write`, `mixed-version-write`,
+     * `typed-list-write-with-others` and `many-paths-per-request` (see {@link CertNodeApi}'s own doc for the general
      * contract).
      *
      * @see {@link MatterSpecification.v161.Core} § 8.9.2.7, § 8.7.3.2
@@ -1135,26 +1128,22 @@ export interface CertNodeApi {
  * Raise this before the operation has any observable effect (a commission, a write, a recorded
  * check).
  *
- * A refusal that names the {@link ControllerCapability} it stands for is never a step outcome: the
- * implementation declares that capability as a gap, so a step or test case that declares it is skipped
- * before it runs, and a refusal that still reaches the step runner means a declaration is missing on one
- * side. The runner reports that as a framework error, whatever the step already did.
+ * Every refusal names the {@link ControllerCapability} it stands for, and is never a step outcome: the
+ * implementation declares that capability as a gap or out of scope, so a step or test case that declares it is
+ * skipped before it runs, and a refusal that still reaches the step runner means a declaration is missing on one
+ * side. The runner reports that as a framework error, whatever the step already did. A step must never take this
+ * error for an outcome of the device.
  *
- * A refusal without a capability is a safety net: the step runner records it as a `skipped` step when
- * the step had not yet recorded a check or made a controller call that may change the device, and fails
- * and aborts the run otherwise. A step must never take this error for an outcome of the device.
+ * `detail` says why the controller lacks the capability; an implementation passes the reason it registered.
  */
 export class UnsupportedByControllerError extends Error {
     constructor(
         readonly operation: string,
         readonly controller: string,
-        detail?: string,
-        readonly capability?: ControllerCapability,
+        detail: string,
+        readonly capability: ControllerCapability,
     ) {
-        super(
-            `not implementable on controller "${controller}": ${operation}` +
-                (detail === undefined ? "" : ` — ${detail}`),
-        );
+        super(`not implementable on controller "${controller}": ${operation} — ${detail}`);
     }
 }
 
@@ -1516,12 +1505,19 @@ export type ControllerRoleKind = "dut" | "helper";
  * Something a step can need of a controller that the {@link ControllerAdapter} interface cannot promise, because not
  * every controller behind it can do it:
  *
- * - `single-handshake-attempt` — commissioning honours {@link CommissioningTarget.singleHandshakeAttempt}
  * - `onboarding-payload-parse` — {@link ControllerAdapter.parseQrPayload} and
  *   {@link ControllerAdapter.parseManualPairingCode}
  * - `multi-path-write` — {@link CertNodeApi.writeAttributes} with several entries or a data version
+ * - `mixed-version-write` — {@link CertNodeApi.writeAttributes} in which some entries carry a data version and others
+ *   do not
+ * - `typed-list-write-with-others` — {@link CertNodeApi.writeAttributes} with several entries, one of them a list
+ *   attribute the controller writes only through a command of its own for that attribute, which carries no other
+ *   entry (the implementation's gap text names the attributes)
+ * - `many-paths-per-request` — a read, subscription or write that names more paths in one request than a controller
+ *   accepts in one command (the implementation's gap text names its limit)
  * - `chunked-write` — a write too large for one message sent as chunked WriteRequestMessages, each next one after the
  *   WriteResponse to the previous (Matter Core § 10.2.3)
+ * - `batch-invoke` — {@link CertNodeApi.invokeBatch}: several commands in one InvokeRequest
  * - `batch-arrival-order` — {@link CertNodeApi.invokeBatch} results in the order the device's answers arrived
  * - `basic-commissioning-window` — {@link CertNodeApi.openCommissioningWindow} without `enhanced`
  * - `max-value-path-ids` — a concrete path naming endpoint 0xFFFF or a cluster, attribute or event id 0xFFFFFFFF
@@ -1552,10 +1548,13 @@ export type ControllerRoleKind = "dut" | "helper";
  * @see {@link MatterSpecification.v161.Core} § 10.2.3 for `chunked-write`
  */
 export type ControllerCapability =
-    | "single-handshake-attempt"
     | "onboarding-payload-parse"
     | "multi-path-write"
+    | "mixed-version-write"
+    | "typed-list-write-with-others"
+    | "many-paths-per-request"
     | "chunked-write"
+    | "batch-invoke"
     | "batch-arrival-order"
     | "basic-commissioning-window"
     | "max-value-path-ids"

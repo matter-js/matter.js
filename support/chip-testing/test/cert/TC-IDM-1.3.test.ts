@@ -127,6 +127,7 @@ async function invokeBatchAndCheck(
 certTest("TC-IDM-1.3", {
     plan: "interactiondatamodel.adoc",
     pics: ["MCORE.IDM.C.InvokeRequest.BatchCommands"],
+    controllerCapabilities: ["batch-invoke"],
     app: "all-clusters",
     appVariant: "nlfaultinject",
     flavors: FLAVORS,
@@ -171,8 +172,8 @@ certTest("TC-IDM-1.3", {
             const { dut, th_client } = cx.controllers;
             const th = cx.devices.th;
 
-            // The controller's own PICS gates this whole TC, so a controller without batch invoke never
-            // gets here; this proves the capability against the device before anything is armed, so a
+            // The controller's own PICS and the batch-invoke declaration gate this whole TC, so a
+            // controller without batch invoke never gets here; this proves the capability against the device before anything is armed, so a
             // controller whose declaration outran its implementation leaves no fault primed. An unarmed
             // fault decrements no counter, so the invoke does not disturb the arming arithmetic below.
             await dut.node(commissioned.require("dut")).invokeBatch(BATCH);

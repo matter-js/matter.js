@@ -374,7 +374,7 @@ describe("ClusterBehavior", () => {
             const AwesomeBehavior = MyBehavior.with("Awesome");
 
             ({}) as InstanceType<typeof AwesomeBehavior.Events> satisfies EventEmitter;
-            (({}) as InstanceType<typeof AwesomeBehavior>).events satisfies EventEmitter;
+            ({} as InstanceType<typeof AwesomeBehavior>).events satisfies EventEmitter;
 
             AwesomeBehavior satisfies ClusterBehavior.Type;
         });
@@ -513,7 +513,7 @@ describe("ClusterBehavior", () => {
         it("enables events", () => {
             const MyBi = BasicInformationBehavior.enable({ events: { startUp: true } });
             ({}) as InstanceType<typeof MyBi> satisfies ClusterBehavior;
-            (({}) as InstanceType<typeof MyBi>).events satisfies EventEmitter;
+            ({} as InstanceType<typeof MyBi>).events satisfies EventEmitter;
 
             const Events2 = MyBi.Events;
             ({}) as InstanceType<typeof Events2> satisfies EventEmitter;
