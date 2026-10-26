@@ -45,6 +45,17 @@ class NonOkCommissioningCompleteServer extends GeneralCommissioningServer {
 
 const NonOkCommissioningCompleteRoot = MockServerNode.RootEndpoint.with(NonOkCommissioningCompleteServer);
 
+let onCommissioningComplete: (() => void) | undefined;
+
+class HookedNonOkCommissioningCompleteServer extends NonOkCommissioningCompleteServer {
+    override async commissioningComplete() {
+        onCommissioningComplete?.();
+        return super.commissioningComplete();
+    }
+}
+
+const HookedNonOkCommissioningCompleteRoot = MockServerNode.RootEndpoint.with(HookedNonOkCommissioningCompleteServer);
+
 class RejectingCommissioningCompleteServer extends GeneralCommissioningServer {
     override async commissioningComplete(): Promise<GeneralCommissioning.CommissioningCompleteResponse> {
         throw new StatusResponse.FailureError(undefined, 9);
@@ -267,6 +278,62 @@ describe("split commissioning", () => {
         expect(b.peers.size).equals(0);
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(true);
         expect(device.state.commissioning.commissioned).equals(false);
+    });
+
+    it("removes the stored peer when CommissioningComplete fails while the controller closes", async () => {
+        await using site = new MockSite();
+
+        const a = await site.addController({ id: "controllerA", index: 1 });
+        const device = await site.addNode(HookedNonOkCommissioningCompleteRoot, { device: OnOffLightDevice, index: 2 });
+
+        (a.env.get(Crypto) as MockCrypto).entropic = true;
+        (device.env.get(Crypto) as MockCrypto).entropic = true;
+
+        await a.start();
+
+        const { passcode, discriminator } = device.state.commissioning;
+        let handoff: { nodeId: NodeId; discoveryData?: DiscoveryData } | undefined;
+        await MockTime.resolve(
+            a.peers.commission({
+                passcode,
+                discriminator,
+                timeout: Seconds(90),
+                autoSubscribe: false,
+                autoStateInitialize: false,
+                finalizeCommissioning: async (address, discoveryData) => {
+                    handoff = { nodeId: address.nodeId, discoveryData };
+                },
+            }),
+            { macrotasks: true },
+        );
+        expect(handoff).not.equals(undefined);
+
+        const b = await addControllerSharingFabric(
+            site,
+            "controllerB",
+            3,
+            a.env.get(CertificateAuthority).config,
+            a.env.get(FabricAuthority).fabrics[0].config,
+        );
+        let closing: Promise<void> | undefined;
+        onCommissioningComplete = () => {
+            closing ??= b.close();
+        };
+
+        try {
+            await expect(
+                MockTime.resolve(b.peers.completeCommissioning(handoff!.nodeId, handoff!.discoveryData), {
+                    macrotasks: true,
+                }),
+            ).rejected;
+            await MockTime.resolve(closing, { macrotasks: true });
+        } finally {
+            onCommissioningComplete = undefined;
+        }
+
+        expect(closing).not.undefined;
+        const storage = site.storageFor(b);
+        expect(Object.keys(storage).filter(key => key.startsWith("nodes."))).deep.equals([]);
     });
 
     it("keeps the device's CommissioningComplete status as the cause of the CommissioningError", async () => {

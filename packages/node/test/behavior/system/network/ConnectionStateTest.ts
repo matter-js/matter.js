@@ -10,7 +10,8 @@ import { IcdManagementServer } from "#behaviors/icd-management";
 import { ClientNode } from "#node/ClientNode.js";
 import { NodeConnectionState } from "#node/ClientNodeLifecycle.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { Crypto, MockCrypto } from "@matter/general";
+import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
+import { createPromise, Crypto, ImplementationError, MatterAggregateError, MockCrypto } from "@matter/general";
 import { MockSite, settled, subscribedPeer } from "@matter/node/testing";
 import { Peer, SustainedSubscription } from "@matter/protocol";
 
@@ -24,6 +25,18 @@ async function loseSubscription(peer: ClientNode, device: ServerNode) {
     await MockTime.resolve(subscription.inactive);
     await settled(peer);
     return subscription;
+}
+
+/** Hold the node mutex of {@link node} until the returned release is called. */
+async function blockMutexOf(node: ServerNode | ClientNode) {
+    const { promise: entered, resolver: enter } = createPromise<void>();
+    const { promise: released, resolver: release } = createPromise<void>();
+    const blocking = node.lifecycle.mutex.hold("blocking", async () => {
+        enter();
+        await released;
+    });
+    await entered;
+    return { blocking, release };
 }
 
 describe("ConnectionState", () => {
@@ -129,6 +142,144 @@ describe("ConnectionState", () => {
         expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Disconnected);
         expect(peer1.lifecycle.isConnected).false;
         expect(states).deep.equals([NodeConnectionState.Disconnected]);
+    });
+
+    it("transitions to Disconnected when the node loses its commissioning while it should be online", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Connected);
+
+        await MockTime.resolve(
+            peer1.act(agent => {
+                agent.commissioning.state.peerAddress = undefined;
+            }),
+            { macrotasks: true },
+        );
+        await settled(peer1);
+
+        expect(peer1.lifecycle.shouldBeOnline).true;
+        expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Disconnected);
+    });
+
+    it("reports Disconnected for a peer that should be online while its controller closes", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await loseSubscription(peer1, device);
+        const { blocking, release } = await blockMutexOf(controller);
+        const closing = ServerNode.prototype.close.call(controller);
+
+        peer1.env.get(Peer).establishmentUnresponsive.emit();
+        await settled(peer1);
+        const state = peer1.lifecycle.connectionState;
+        release();
+        await MockTime.resolve(Promise.all([blocking, closing]), { macrotasks: true });
+
+        expect(state).equals(NodeConnectionState.Disconnected);
+    });
+
+    it("reports Disconnected for a peer that should be online while its server node is offline", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await loseSubscription(peer1, device);
+        let observed: { serverOnline: boolean; shouldBeOnline: boolean; state: NodeConnectionState } | undefined;
+        const applyIntent = peer1.applyIntent.bind(peer1);
+        peer1.applyIntent = async () => {
+            peer1.env.get(Peer).establishmentUnresponsive.emit();
+            await settled(peer1);
+            observed = {
+                serverOnline: controller.lifecycle.isOnline,
+                shouldBeOnline: peer1.lifecycle.shouldBeOnline,
+                state: peer1.lifecycle.connectionState,
+            };
+            await applyIntent();
+        };
+
+        try {
+            await MockTime.resolve(controller.stop(), { macrotasks: true });
+        } finally {
+            Reflect.deleteProperty(peer1, "applyIntent");
+        }
+
+        expect(observed).deep.equals({
+            serverOnline: false,
+            shouldBeOnline: true,
+            state: NodeConnectionState.Disconnected,
+        });
+    });
+
+    // Characterization: the intent stays online, so the next start() or server restart tries again
+    it("reports Disconnected for a peer whose start fails when its server node comes online", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        const startup = NetworkClient.prototype.startup;
+        NetworkClient.prototype.startup = async () => {
+            throw new ImplementationError("Network startup refused for test");
+        };
+
+        try {
+            await MockTime.resolve(controller.start(), { macrotasks: true });
+        } finally {
+            NetworkClient.prototype.startup = startup;
+        }
+
+        expect(peer1.lifecycle.intent.target).equals("online");
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+        expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Disconnected);
+    });
+
+    it("reports Disconnected for a reconnecting peer that fails to go online again after an erase", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await loseSubscription(peer1, device);
+        expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Reconnecting);
+        const startup = NetworkClient.prototype.startup;
+        NetworkClient.prototype.startup = async () => {
+            throw new ImplementationError("Network startup refused for test");
+        };
+
+        try {
+            await expect(MockTime.resolve(peer1.erase(), { macrotasks: true })).rejectedWith(MatterAggregateError);
+        } finally {
+            NetworkClient.prototype.startup = startup;
+        }
+
+        expect(peer1.lifecycle.intent.target).equals("online");
+        expect(controller.lifecycle.isOnline).equals(true);
+        expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Disconnected);
+    });
+
+    it("reports Disconnected once disable() is called, also when that disable() fails", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await loseSubscription(peer1, device);
+        expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Reconnecting);
+        const { blocking, release } = await blockMutexOf(peer1);
+        const store = peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
+        const recordDisabled = store.recordNodeDisabled.bind(store);
+        store.recordNodeDisabled = async () => {
+            throw new ImplementationError("Disabled flag write refused for test");
+        };
+
+        try {
+            const disabling = peer1.disable();
+            await settled(peer1);
+            expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Disconnected);
+            release();
+
+            await expect(MockTime.resolve(disabling, { macrotasks: true })).rejectedWith(/refused for test/);
+            await MockTime.resolve(blocking);
+        } finally {
+            store.recordNodeDisabled = recordDisabled;
+        }
+        expect(peer1.isDisabled).equals(false);
+        expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Disconnected);
     });
 
     it("transitions to Disconnected when the node is stopped", async () => {

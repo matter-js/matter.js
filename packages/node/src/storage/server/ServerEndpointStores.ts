@@ -7,11 +7,10 @@
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { type ServerNode } from "#node/ServerNode.js";
 import type { StorageContext } from "@matter/general";
-import { ImplementationError, InternalError, Logger } from "@matter/general";
+import { ImplementationError, InternalError, Logger, MatterAggregateError } from "@matter/general";
 import type { Val } from "@matter/protocol";
+import { StoreClosedError } from "../StoreLifecycle.js";
 import { ServerEndpointStore } from "./ServerEndpointStore.js";
-
-const NEXT_NUMBER_KEY = "__nextNumber__";
 
 const logger = Logger.get("EndpointStoreService");
 
@@ -35,7 +34,7 @@ export class ServerEndpointStores {
         this.#storage = storage;
 
         // Load next number with excessive validation for the off-chance it somehow gets corrupted
-        const nextNumber = await this.#storage.get(NEXT_NUMBER_KEY, 1);
+        const nextNumber = await ServerEndpointStore.loadNextNumber(this.#storage);
         this.#nextNumber = Number.isInteger(nextNumber) ? nextNumber % 0xffff : 1;
 
         if (this.#nextNumber < 1) {
@@ -61,9 +60,15 @@ export class ServerEndpointStores {
         });
     }
 
+    /**
+     * Erase the storage of every endpoint and load an empty tree.  The stores of the erased tree end first, so a write
+     * of one of them that runs meanwhile lands before the storage clears or is refused.  The new tree loads also if the
+     * erase fails, from what the erase left behind.
+     */
     async erase() {
         const storage = this.#storage;
-        if (!storage) {
+        const root = this.#root;
+        if (!storage || !root) {
             return;
         }
 
@@ -71,17 +76,26 @@ export class ServerEndpointStores {
 
         this.#storage = undefined;
 
-        await storage.clearAll();
-
-        this.#holders = new Map();
-        this.#nextNumber = 1;
-        this.#persistedNextNumber = undefined;
-
-        await this.load(storage);
+        await MatterAggregateError.settleSeries(
+            [
+                () => root.erase(),
+                () => {
+                    this.#holders = new Map();
+                    this.#nextNumber = 1;
+                    this.#persistedNextNumber = undefined;
+                    return this.load(storage);
+                },
+            ],
+            "Error while erasing the endpoint stores",
+        );
     }
 
+    /**
+     * End the stores of every endpoint and keep what they persisted.
+     */
     async close() {
         await this.#awaitPendingPersistence();
+        await this.#root?.close();
     }
 
     async #awaitPendingPersistence() {
@@ -282,18 +296,21 @@ export class ServerEndpointStores {
             });
         }
 
-        // Kept numbers stay with the erased stores until the new stores claim them, so none is free in between
-        await ownerStore.eraseChildStoreFor(endpoint);
-
-        // Another endpoint may have taken a number over while the storage was erased
-        for (const [number, erased] of held) {
-            if (this.#holders.get(number) === erased) {
-                this.#holders.delete(number);
+        // Kept numbers stay with the erased stores until the new stores claim them, so none is free in between.  The
+        // erased stores end also if the erase fails, so their numbers move on in either case
+        try {
+            await ownerStore.eraseChildStoreFor(endpoint);
+        } finally {
+            // Another endpoint may have taken a number over while the storage was erased
+            for (const [number, erased] of held) {
+                if (this.#holders.get(number) === erased) {
+                    this.#holders.delete(number);
+                }
             }
-        }
-        for (const { endpoint, number, erased } of kept) {
-            if (this.#holders.get(number) === erased) {
-                this.#claim(this.storeForEndpoint(endpoint), number);
+            for (const { endpoint, number, erased } of kept) {
+                if (this.#holders.get(number) === erased) {
+                    this.#claim(this.storeForEndpoint(endpoint), number);
+                }
             }
         }
     }
@@ -319,15 +336,17 @@ export class ServerEndpointStores {
 
             this.#numbersToPersist = undefined;
             for (const store of numbersToPersist) {
-                await store.saveNumber();
+                await savedUnlessEnded(store.saveNumber());
             }
 
             if (this.#nextNumber !== this.#persistedNextNumber) {
-                if (this.#storage === undefined) {
+                if (this.#root === undefined) {
                     this.#premature("Number persistence");
                 }
-                await this.#storage.set(NEXT_NUMBER_KEY, this.#nextNumber);
-                this.#persistedNextNumber = this.#nextNumber;
+                const nextNumber = this.#nextNumber;
+                if (await savedUnlessEnded(this.#root.saveNextNumber(nextNumber))) {
+                    this.#persistedNextNumber = nextNumber;
+                }
             }
         };
 
@@ -361,6 +380,21 @@ export interface AssignNumberContext {
 }
 
 const MAX_ENDPOINT_NUMBER = 0xfffe;
+
+/**
+ * Resolves whether {@link saving} stored its number.  A store that ended takes its numbers with it, so its refusal is
+ * not a failure.
+ */
+async function savedUnlessEnded(saving: Promise<void>) {
+    try {
+        await saving;
+        return true;
+    } catch (error) {
+        StoreClosedError.accept(error);
+        logger.debug("Endpoint number not persisted because its store ended:", error);
+        return false;
+    }
+}
 
 function isPartNumber(number: number) {
     return Number.isInteger(number) && number >= 1 && number <= MAX_ENDPOINT_NUMBER;

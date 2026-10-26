@@ -558,11 +558,7 @@ export class PairedNode {
             return;
         }
 
-        // disconnect() disables the underlying node; re-enable it so the node restarts and NetworkClient can
-        // (re)subscribe.  Without this a connect() after disconnect() is a no-op because isDisabled stays set.
-        if (this.#clientNode.stateOf(NetworkClient).isDisabled) {
-            await this.#clientNode.enable();
-        }
+        await this.#clientNode.enable();
 
         if (this.#options.autoSubscribe === false) {
             await this.#initializeWithRead();

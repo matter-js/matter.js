@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ActionContext } from "#behavior/context/ActionContext.js";
 import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
@@ -13,7 +14,15 @@ import type { ClientNode } from "#node/ClientNode.js";
 import { NodeConnectionState } from "#node/ClientNodeLifecycle.js";
 import { Node } from "#node/Node.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
-import { ChannelType, InternalError, Logger, MaybePromise, Mutex, Observable } from "@matter/general";
+import {
+    ChannelType,
+    DestroyedDependencyError,
+    InternalError,
+    Logger,
+    MaybePromise,
+    Mutex,
+    Observable,
+} from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import {
     ClientSubscription,
@@ -32,12 +41,19 @@ const logger = Logger.get("NetworkClient");
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
 
+let disabledWriteNoticed = false;
+
 export class NetworkClient extends NetworkBehavior {
     declare internal: NetworkClient.Internal;
     declare readonly state: NetworkClient.State;
     declare readonly events: NetworkClient.Events;
 
     override initialize() {
+        this.state.isDisabled = this.#node.lifecycle.isDisabled;
+        this.reactTo(this.#node.lifecycle.intentChanged, this.#mirrorDisabled, { offline: true, lock: true });
+        this.internal.mirrorDisabled = this.callback(this.#mirrorDisabled, { offline: true, lock: true });
+        this.reactTo(this.events.isDisabled$Changed, this.#forwardDisabledWrite);
+
         if (this.#node.nodeType === "group") {
             // Groups can never subscribe
             this.state.autoSubscribe = false;
@@ -52,7 +68,7 @@ export class NetworkClient extends NetworkBehavior {
             this.internal.storeMaxEventNumber = this.asyncCallback(this.#storeMaxEventNumber, { lock: true });
 
             this.reactTo(this.events.subscriptionStatusChanged, this.#recomputeConnectionState);
-            this.reactTo(this.events.isDisabled$Changed, this.#recomputeConnectionState);
+            this.reactTo(this.#node.lifecycle.intentChanged, this.#recomputeConnectionState);
             this.reactTo(this.#node.lifecycle.decommissioned, this.#recomputeConnectionState);
             this.reactTo(this.#node.lifecycle.goingOffline, this.#recomputeConnectionState);
 
@@ -110,6 +126,44 @@ export class NetworkClient extends NetworkBehavior {
         this.internal.runtime!.isReady = true;
     }
 
+    #mirrorDisabled() {
+        const { isDisabled } = this.#node.lifecycle;
+        if (this.state.isDisabled !== isDisabled) {
+            this.internal.mirrorWrites.add(this.context);
+            this.state.isDisabled = isDisabled;
+        }
+    }
+
+    /**
+     * Pass a write of the deprecated {@link State.isDisabled} to the node, which decides and then updates the field.
+     */
+    #forwardDisabledWrite(isDisabled: boolean, _oldValue: boolean, context?: ActionContext) {
+        const node = this.#node;
+        if (
+            (context !== undefined && this.internal.mirrorWrites.has(context)) ||
+            isDisabled === node.lifecycle.isDisabled
+        ) {
+            return;
+        }
+
+        if (!disabledWriteNoticed) {
+            disabledWriteNoticed = true;
+            logger.notice(
+                "Writing the network state isDisabled of a peer is deprecated; use ClientNode.disable() or enable() instead",
+            );
+        }
+
+        const { mirrorDisabled } = this.internal;
+        node.applyDisabledWrite(isDisabled).catch(error => {
+            if (error instanceof DestroyedDependencyError) {
+                logger.debug(`Ignoring the write of isDisabled to ${node} as it closes:`, error);
+            } else {
+                logger.warn(`Could not apply the write of isDisabled = ${isDisabled} to ${node}:`, error);
+            }
+            mirrorDisabled?.();
+        });
+    }
+
     async #handleAutoSubscribeChange() {
         await this.internal.subscriptionChanges.produce(() => this.#syncAutoSubscribe());
     }
@@ -121,7 +175,7 @@ export class NetworkClient extends NetworkBehavior {
 
             await this.#adoptFabricFilter();
 
-            if (this.state.autoSubscribe && !this.state.isDisabled) {
+            if (this.state.autoSubscribe) {
                 await this.#syncAutoSubscribe(true);
             }
         });
@@ -131,9 +185,6 @@ export class NetworkClient extends NetworkBehavior {
         if (!this.internal.runtime) {
             return;
         }
-
-        const { isDisabled } = this.state;
-        const subscriptionDesired = desiredState && !isDisabled;
 
         // Pin one snapshot of defaultSubscription across the intervening read await so both call sites agree.
         let builtSubscribe: Subscribe | undefined;
@@ -151,11 +202,11 @@ export class NetworkClient extends NetworkBehavior {
             }
         }
 
-        if (subscriptionDesired === (this.internal.subscriptionOwner !== undefined)) {
+        if (desiredState === (this.internal.subscriptionOwner !== undefined)) {
             return;
         }
 
-        if (!subscriptionDesired) {
+        if (!desiredState) {
             this.#endDefaultSubscription();
             return;
         }
@@ -381,9 +432,13 @@ export class NetworkClient extends NetworkBehavior {
         if (this.subscriptionActive && (peer === undefined || peer.sessions.size > 0)) {
             this.internal.likelyOffline = false;
             state = NodeConnectionState.Connected;
-        } else if (this.state.isDisabled || lifecycle.shouldBeOffline) {
-            // Disabled, stopped or not yet started.  Reset the offline latch so a later re-enable/restart does not
-            // resume in WaitingForDeviceDiscovery before any fresh session.
+        } else if (
+            lifecycle.shouldBeOffline ||
+            this.#node.onlineBlocker !== undefined ||
+            this.internal.runtime === undefined
+        ) {
+            // Reset the offline latch so a later re-enable/restart does not resume in WaitingForDeviceDiscovery before
+            // any fresh session.
             this.internal.likelyOffline = false;
             state = NodeConnectionState.Disconnected;
         } else if (this.internal.likelyOffline) {
@@ -506,13 +561,6 @@ export class NetworkClient extends NetworkBehavior {
             }),
 
             FieldElement({
-                name: "isDisabled",
-                type: "bool",
-                quality: "N",
-                default: false,
-            }),
-
-            FieldElement({
                 name: "autoSubscribe",
                 type: "bool",
                 quality: "N",
@@ -595,6 +643,17 @@ export namespace NetworkClient {
          * after the other.  Undefined for group nodes.
          */
         storeMaxEventNumber?: () => MaybePromise<void>;
+
+        /**
+         * Sets {@link State.isDisabled} to the intent of the node.
+         */
+        mirrorDisabled?: () => MaybePromise<void>;
+
+        /**
+         * The contexts that wrote the intent of the node to {@link State.isDisabled}, so their change is not passed back
+         * to the node as a write.
+         */
+        mirrorWrites = new WeakSet<ActionContext>();
     }
 
     export class State extends NetworkBehavior.State {
@@ -619,10 +678,11 @@ export namespace NetworkClient {
         defaultSubscription?: Subscribe | Subscribe.Options;
 
         /**
-         * Represents the current operational network state of the node. When true the node is enabled and operational.
-         * When false the node is disabled and not operational.
+         * Whether the node is disabled, as `ClientNode.isDisabled` reports it.  The node updates this field; it is not
+         * persisted.  Writing true disables the node like `ClientNode.disable()`.  Writing false clears the flag and
+         * keeps the node offline until it starts, or until its server node goes online and starts its peers.
          *
-         * This state can be changed at any time to enable or disable the node.
+         * @deprecated use `ClientNode.isDisabled`, `ClientNode.disable()` and `ClientNode.enable()`
          */
         isDisabled = false;
 
@@ -658,7 +718,7 @@ export namespace NetworkClient {
     export class Events extends NetworkBehavior.Events {
         autoSubscribe$Changed = new Observable<[value: boolean, oldValue: boolean]>();
         defaultSubscription$Changed = new Observable<[value: Subscribe | undefined, oldValue: Subscribe | undefined]>();
-        isDisabled$Changed = new Observable<[value: boolean, oldValue: boolean]>();
+        isDisabled$Changed = new Observable<[value: boolean, oldValue: boolean, context?: ActionContext]>();
         subscriptionStatusChanged = new Observable<[isActive: boolean]>();
         subscriptionAlive = new Observable<[]>();
     }

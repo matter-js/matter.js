@@ -210,7 +210,8 @@ export interface Construction<T> extends Promise<T>, Lifetime.Owner {
      * Move subject to "crashed" state, optionally setting the cause.
      *
      * This happens automatically if there is an error during construction.  It is also useful for post-construction
-     * errors to convey crashed state to components such as the environmental runtime service.
+     * errors to convey crashed state to components such as the environmental runtime service.  A subject that is being
+     * or has been destroyed keeps its status and records the cause unless it has one.
      */
     crash(cause?: any): void;
 
@@ -511,6 +512,10 @@ const createConstruction = (() => {
         }
 
         crash(newError?: Error) {
+            if (this.#status === Lifecycle.Status.Destroying || this.#status === Lifecycle.Status.Destroyed) {
+                this.#error ??= newError;
+                return;
+            }
             this.#error = newError;
             this.#applyStatus(Lifecycle.Status.Crashed);
         }

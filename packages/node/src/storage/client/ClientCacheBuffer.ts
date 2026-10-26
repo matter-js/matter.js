@@ -4,119 +4,189 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
-import type { ClientNode } from "#node/ClientNode.js";
-import { Abort, Duration, Logger, Mutex, StorageDriver, StorageManager } from "@matter/general";
-import type { ClientNodeStore } from "./ClientNodeStore.js";
+import { Abort, Duration, Logger, Mutex, StorageDriver } from "@matter/general";
+import { StoreClosedError } from "../StoreLifecycle.js";
 import type { DatasourceCache } from "./DatasourceCache.js";
+import { FailureKinds } from "./FailureKinds.js";
 
 const logger = Logger.get("ClientCacheBuffer");
 
 /**
- * Buffers client cache writes and flushes them periodically in a single storage transaction.
+ * The only path on which client caches persist the values the peer reports, and the only fence between those writes
+ * and a clear of the storage they write to.
  *
- * Instead of persisting every attribute change immediately, dirty caches are tracked and flushed together.  This
- * allows WAL-based storage drivers to coalesce all dirty data into a single log entry.
+ * The buffer serves one storage driver.  Every write and every clear of cached storage runs as a job on its queue, one
+ * job after another, and a job opens at most one transaction.  The modes differ only in when a flush is queued:
+ *
+ * | interval  | a settlement                                  | {@link initiateFlush}, timer, {@link close} |
+ * |-----------|-----------------------------------------------|---------------------------------------------|
+ * | `Instant` | queues a flush of its cache and awaits it     | queue a flush of all dirty caches           |
+ * | longer    | marks its cache dirty                         | queue a flush of all dirty caches           |
+ *
+ * {@link persistNow} queues a flush of one cache in both modes.  {@link clear} queues a clear, which runs after every
+ * job queued before it.  A cache that is discarded before its clear is queued writes nothing in a later job.
+ *
+ * A job reports its failure to the callers that await it and logs it otherwise.  A cache that fails stays dirty and is
+ * flushed again by the next job that covers it.  A discarded cache never enters the dirty set.  Once the buffer closed
+ * it queues no flush: a persist asked for afterwards comes from a teardown race and is dropped.
+ *
+ * All peers of a server node share the one queue, so their persists and the clears of an erased peer run one after
+ * another.  We accept that slow storage delays the reports of every peer, because a clear must not run between the
+ * writes of a flush that started before it.
  */
 export class ClientCacheBuffer {
     #dirty = new Set<DatasourceCache>();
     #abort = new Abort();
-    #mutex = new Mutex(this);
+    #queue = new Mutex(this);
+    #closed = false;
     #storageDriver: StorageDriver;
     #flushInterval: Duration;
     #timerDone?: Promise<void>;
+    #warnedFailureKinds = new FailureKinds();
 
+    /**
+     * A {@link flushInterval} of `Instant` flushes each settlement at once; a longer one starts a timer that flushes
+     * the dirty caches.
+     */
     constructor(storageDriver: StorageDriver, flushInterval: Duration) {
         this.#storageDriver = storageDriver;
         this.#flushInterval = flushInterval;
+        if (flushInterval) {
+            this.#timerDone = this.#timerLoop();
+        }
     }
 
     /**
-     * If buffering is configured on the parent ServerNode, set up the buffer on the store.  The first call creates
-     * the buffer and starts the timer; subsequent calls reuse it.
+     * Persist the dirty values of {@link cache}: at once with an `Instant` interval, else with the next flush.
      *
-     * The flush interval defaults to the storage driver's {@link StorageDriver#writeCoalescingInterval}.  An interval
-     * of `Instant` disables buffering.
+     * Resolves with the failure to persist them at once, if any.
      */
-    static configure(node: ClientNode, store: ClientNodeStore) {
-        const parentEnv = node.owner.env;
-        const driver = parentEnv.get(StorageManager).driver;
-        const flushInterval =
-            node.owner.stateOf(NetworkServer).clientCacheFlushInterval ?? driver.writeCoalescingInterval;
-        if (!flushInterval) {
+    async persist(cache: DatasourceCache): Promise<unknown> {
+        if (!this.#flushInterval) {
+            return this.persistNow(cache);
+        }
+        if (this.#isClosed()) {
             return;
         }
+        this.#markDirty(cache);
+    }
 
-        if (parentEnv.has(ClientCacheBuffer)) {
-            store.buffer = parentEnv.get(ClientCacheBuffer);
+    /**
+     * Persist the dirty values of {@link cache} in a job of its own, after the jobs queued before.  Resolves with the
+     * failure to persist them, if any.  Other dirty caches wait for their own job.
+     */
+    async persistNow(cache: DatasourceCache): Promise<unknown> {
+        if (this.#isClosed()) {
             return;
         }
-
-        const buffer = new ClientCacheBuffer(driver, flushInterval);
-        parentEnv.set(ClientCacheBuffer, buffer);
-        buffer.#start();
-        store.buffer = buffer;
+        this.#markDirty(cache);
+        return (await this.#queue.produce(() => this.#flush([cache]))).get(cache);
     }
 
     /**
-     * Mark a cache as having dirty data that needs flushing.
-     */
-    markDirty(cache: DatasourceCache): void {
-        this.#dirty.add(cache);
-    }
-
-    /**
-     * Remove a cache from the dirty set (e.g. on erase or reclaim).
-     */
-    removeDirty(cache: DatasourceCache): void {
-        this.#dirty.delete(cache);
-    }
-
-    /**
-     * Schedule a flush.  The flush runs serialized through the mutex; the promise is tracked internally.  Safe to
-     * call from sync contexts.
+     * Queue a flush of all dirty caches.  Logs its failures like {@link flush}.  Safe to call from sync contexts.
      */
     initiateFlush(): void {
-        this.#mutex.run(() => this.#doFlush());
+        if (this.#isClosed()) {
+            return;
+        }
+        this.#queue.run(async () => this.#logFailures(await this.#flush()));
     }
 
     /**
-     * Flush all dirty caches to storage in a single transaction.  Awaits completion.
+     * Flush all dirty caches.  Resolves once the flush ended; a cache that fails is logged and stays dirty.
+     *
+     * A lasting storage failure fails every flush, and each resubscribe of a peer queues one.  So only the first failure
+     * of each kind is a warning; repeats log at debug level until a flush ends without failure.
      */
     async flush(): Promise<void> {
-        this.initiateFlush();
-        await this.#mutex;
+        this.#logFailures(await this.#enqueueFlush());
     }
 
     /**
-     * Resolves once the flushes running or scheduled so far have completed, without scheduling another one.
+     * Run {@link clear}, which clears cached storage, after the jobs queued before.  Rejects with its failure.  Discard
+     * the caches of that storage before, so a flush queued later writes nothing to it.
      */
-    async settled(): Promise<void> {
-        await this.#mutex;
+    async clear(clear: () => Promise<void>): Promise<void> {
+        return this.#queue.produce(clear);
     }
 
     /**
-     * Stop the timer and flush any remaining dirty data.
+     * Stop the timer and flush the remaining dirty caches.  Queues no flush afterwards; a {@link clear} still runs
+     * after the final flush.
      */
     async close(): Promise<void> {
         this.#abort();
         await this.#timerDone;
 
-        // Final flush then drain
-        this.initiateFlush();
-        await this.#mutex.close();
+        const finalFlush = this.#enqueueFlush();
+        this.#closed = true;
+
+        for (const failure of new Set((await finalFlush)?.values())) {
+            logger.warn("Final cache flush failed:", failure);
+        }
     }
 
-    async #doFlush(): Promise<void> {
-        const snapshot = [...this.#dirty];
-        this.#dirty.clear();
+    /**
+     * Queue a flush of the dirty caches among {@link caches}, or of all dirty caches.  Resolves with the failure of
+     * each cache that did not persist, or undefined once the buffer closed.
+     */
+    #enqueueFlush(caches?: DatasourceCache[]): Promise<Map<DatasourceCache, unknown> | undefined> {
+        if (this.#isClosed()) {
+            return Promise.resolve(undefined);
+        }
+        return this.#queue.produce(() => this.#flush(caches));
+    }
 
-        if (!snapshot.length) {
-            return;
+    #isClosed() {
+        if (this.#closed) {
+            logger.debug("Cache values not persisted because the cache buffer closed");
+        }
+        return this.#closed;
+    }
+
+    /**
+     * Flush the dirty caches among {@link caches}, or all dirty caches, in one transaction.  A cache stays dirty if it
+     * still has dirty values afterwards, unless its store ended.
+     */
+    async #flush(caches?: DatasourceCache[]): Promise<Map<DatasourceCache, unknown>> {
+        const failures = new Map<DatasourceCache, unknown>();
+        const snapshot = caches === undefined ? [...this.#dirty] : caches.filter(cache => this.#dirty.has(cache));
+        for (const cache of snapshot) {
+            this.#dirty.delete(cache);
         }
 
-        await using tx = await this.#storageDriver.begin();
+        if (!snapshot.length) {
+            return failures;
+        }
 
+        let tx: StorageDriver.Transaction;
+        try {
+            tx = await this.#storageDriver.begin();
+        } catch (e) {
+            for (const cache of snapshot) {
+                this.#fail(cache, e, failures);
+            }
+            return failures;
+        }
+
+        try {
+            await this.#flushInto(tx, snapshot, failures);
+        } finally {
+            try {
+                await tx[Symbol.asyncDispose]();
+            } catch (e) {
+                logger.warn("Cannot roll back a failed cache flush:", e);
+            }
+        }
+        return failures;
+    }
+
+    async #flushInto(
+        tx: StorageDriver.Transaction,
+        snapshot: DatasourceCache[],
+        failures: Map<DatasourceCache, unknown>,
+    ) {
         // Flush each cache individually so one broken cache doesn't crash the batch
         const flushedKeys = new Array<{ cache: DatasourceCache; keys: Set<string> }>();
 
@@ -125,14 +195,14 @@ export class ClientCacheBuffer {
                 const keys = await cache.flush(tx);
                 if (keys) {
                     flushedKeys.push({ cache, keys });
+                } else {
+                    this.#markDirty(cache);
                 }
             } catch (e) {
-                if (cache.erased) {
-                    logger.debug("Dropping erased cache from flush buffer");
+                if (e instanceof StoreClosedError) {
+                    logger.debug("Dropping a cache whose store ended from the flush buffer:", e);
                 } else {
-                    // Transient error; re-add for retry on next cycle
-                    this.#dirty.add(cache);
-                    logger.warn("Cache flush failed, will retry:", e);
+                    this.#fail(cache, e, failures);
                 }
             }
         }
@@ -144,23 +214,42 @@ export class ClientCacheBuffer {
         try {
             await tx.commit();
         } catch (e) {
-            // Transaction commit failed; restore dirty keys so data is not silently lost.
-            // Skip erased caches — erase semantics win over retry.
             for (const { cache, keys } of flushedKeys) {
-                if (!cache.erased) {
-                    cache.restoreDirtyKeys(keys);
-                    this.#dirty.add(cache);
-                }
+                cache.restoreDirtyKeys(keys);
+                this.#fail(cache, e, failures);
             }
-
-            throw e;
+            return;
         }
 
         logger.debug("Flushed", flushedKeys.length, "dirty caches");
     }
 
-    #start() {
-        this.#timerDone = this.#timerLoop();
+    #markDirty(cache: DatasourceCache) {
+        if (cache.isDirty) {
+            this.#dirty.add(cache);
+        }
+    }
+
+    #fail(cache: DatasourceCache, failure: unknown, failures: Map<DatasourceCache, unknown>) {
+        this.#markDirty(cache);
+        failures.set(cache, failure);
+    }
+
+    #logFailures(failures?: Map<DatasourceCache, unknown>) {
+        if (failures === undefined) {
+            return;
+        }
+        if (!failures.size) {
+            this.#warnedFailureKinds.reset();
+            return;
+        }
+        for (const failure of new Set(failures.values())) {
+            if (this.#warnedFailureKinds.add(failure)) {
+                logger.warn("Cache flush failed, will retry; repeats log at debug level:", failure);
+            } else {
+                logger.debug("Cache flush failed again, will retry:", failure);
+            }
+        }
     }
 
     async #timerLoop() {
@@ -169,13 +258,7 @@ export class ClientCacheBuffer {
             if (this.#abort.aborted) {
                 break;
             }
-
-            try {
-                // Run the actual flush through the mutex so it serializes with explicit flush calls
-                await this.#mutex.produce(() => this.#doFlush());
-            } catch (e) {
-                logger.warn("Periodic cache flush failed:", e);
-            }
+            await this.flush();
         }
     }
 }

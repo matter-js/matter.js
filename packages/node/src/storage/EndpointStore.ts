@@ -7,14 +7,19 @@
 import type { Datasource } from "#behavior/state/managed/Datasource.js";
 import { MaybePromise, StorageContext, StorageDriver, SupportedStorageTypes } from "@matter/general";
 import { Val } from "@matter/protocol";
+import { StoreLifecycle } from "./StoreLifecycle.js";
 
 /**
  * Persistence for state values associated with a specific endpoint.
+ *
+ * The store is active until {@link erase} or {@link close}; after that it never touches storage again, as
+ * {@link StoreLifecycle} describes.  A write to an ended store rejects with `StoreClosedError`.
  */
 export class EndpointStore {
     protected initialValues = new Map<string, Val.Struct>();
 
     #storage: StorageContext;
+    #lifecycle = new StoreLifecycle(this);
 
     #knownBehaviors = new Set<string>();
 
@@ -47,9 +52,16 @@ export class EndpointStore {
      * See {@link Datasource.Store.set} for the patch semantics the individual structs use.
      *
      * When {@link sharedTx} is provided, writes go through it and the caller owns the transaction lifecycle (no
-     * commit/dispose here).
+     * commit/dispose here).  The values then reach storage when the caller commits, after this resolves, so an erase
+     * cannot wait for that commit; {@link clearStorage} is where a derivative orders its clear after such a commit.
+     *
+     * Rejects with `StoreClosedError` once the store is erased or closed, or is ending.
      */
-    async set(values: Record<string, undefined | Val.Struct>, sharedTx?: StorageDriver.Transaction) {
+    set(values: Record<string, undefined | Val.Struct>, sharedTx?: StorageDriver.Transaction) {
+        return this.#lifecycle.write(() => this.#set(values, sharedTx));
+    }
+
+    async #set(values: Record<string, undefined | Val.Struct>, sharedTx?: StorageDriver.Transaction) {
         const ownTx = sharedTx === undefined;
         let tx: StorageDriver.Transaction;
 
@@ -144,19 +156,72 @@ export class EndpointStore {
     }
 
     /**
-     * Remove all persisted information for the {@link Endpoint} and forget the values loaded from it.
+     * Remove all persisted information for the {@link Endpoint} and forget the values loaded from it.  Waits for the
+     * writes that are running.  The store is erased afterwards, also if clearing the storage fails; a later erase or
+     * close behaves as {@link StoreLifecycle} describes.
      */
     async erase() {
-        await this.storage.clearAll();
-        this.initialValues.clear();
-        this.#knownBehaviors = new Set();
+        await this.#lifecycle.erase(async () => {
+            await this.clearStorage(async () => {
+                await this.storage.clearAll();
+            });
+            this.initialValues.clear();
+            this.#knownBehaviors = new Set();
+        });
     }
 
     /**
-     * Remove all persisted information for a single behavior on the {@link Endpoint}.
+     * End the store and keep what it persisted.  Waits for the writes that are running.
+     */
+    async close() {
+        await this.#lifecycle.close();
+    }
+
+    /**
+     * End the store like {@link close}, then run {@link finish}, which may still change the storage of the store.
+     */
+    protected async closeWith(finish: () => Promise<void>) {
+        await this.#lifecycle.close(finish);
+    }
+
+    /**
+     * Run {@link clear}, which clears storage of the store.  An erase calls this once the store refuses new writes and
+     * its running writes ended.  A derivative whose values others stage into transactions they commit themselves runs
+     * {@link clear} after those commits.
+     */
+    protected clearStorage(clear: () => Promise<void>): Promise<void> {
+        return clear();
+    }
+
+    /**
+     * Whether the store neither is erased nor closed, nor is ending.
+     */
+    get isActive() {
+        return this.#lifecycle.isActive;
+    }
+
+    /**
+     * Remove all persisted information for a single behavior on the {@link Endpoint}.  Rejects with
+     * `StoreClosedError` once the store is erased or closed.
      */
     eraseStoreForBehavior(behaviorId: string) {
-        return this.storage.createContext(behaviorId).clearAll();
+        return this.#lifecycle.write(async () => this.storage.createContext(behaviorId).clearAll());
+    }
+
+    /**
+     * Run {@link write} as a write of the store: an erase or close waits for it, and it rejects with
+     * `StoreClosedError` once the store ended.  Derivatives write their own keys through this.
+     */
+    protected write<T>(write: () => Promise<T>) {
+        return this.#lifecycle.write(write);
+    }
+
+    /**
+     * Throws `StoreClosedError` unless the store is active.  Derivatives invoke this before they hand out a store for
+     * a behavior.
+     */
+    protected assertActive(action: string) {
+        this.#lifecycle.assertActive(action);
     }
 
     protected get storage() {

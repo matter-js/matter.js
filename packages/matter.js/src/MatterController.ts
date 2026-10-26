@@ -651,7 +651,7 @@ export class MatterController {
         const peerAddress = this.fabric.addressOf(nodeId);
         const node = this.node.peers.get(peerAddress);
         const peer = this.node.env.get(PeerSet).get(peerAddress);
-        await node?.delete();
+        await node?.deleteDespiteServerTeardown();
         await peer?.delete();
     }
 
@@ -751,7 +751,10 @@ export class MatterController {
         ) {
             await node.setStateOf(CommissioningClient, { caseAuthenticatedTags: options.caseAuthenticatedTags });
         }
-        await node.enable();
+        // The interaction client connects the peer when it needs to, so only a disabled peer needs a change here
+        if (node.isDisabled) {
+            await node.enable();
+        }
         return this.#clients!.connect(this.fabric.addressOf(peerNodeId), options);
     }
 

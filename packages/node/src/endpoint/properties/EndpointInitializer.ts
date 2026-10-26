@@ -83,8 +83,9 @@ export namespace EndpointInitializer {
         wipe(): Promise<void>;
 
         /**
-         * Complete the erase or delete.  Runs last, also when an earlier step failed or the restart was skipped, but not
-         * for an erase that a delete took over.
+         * Complete the erase or delete.  Runs last, once the verb released the lifecycle mutexes, so it may wait for
+         * work that needs them.  Runs also when an earlier step failed or the restart was skipped, but not for an
+         * erase that a delete took over.  A failure rejects the verb with the failures of the earlier steps.
          */
         finish?(): Promise<void>;
     }

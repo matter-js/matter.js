@@ -13,8 +13,9 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { PeerBehavior } from "#node/client/PeerBehavior.js";
 import type { ClientNode } from "#node/ClientNode.js";
-import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
+import type { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { MatterAggregateError } from "@matter/general";
+import { type ClientRead, Read } from "@matter/protocol";
 import { ClientEventEmitter } from "./ClientEventEmitter.js";
 import { ClientStructure } from "./ClientStructure.js";
 
@@ -23,22 +24,60 @@ export class ClientEndpointInitializer extends EndpointInitializer {
     #store: ClientNodeStore;
     #structure?: ClientStructure;
 
-    constructor(node: ClientNode) {
+    /**
+     * @param store the store this initialization of {@link node} loaded; it serves the behaviors of that
+     * initialization only
+     */
+    constructor(node: ClientNode, store: ClientNodeStore) {
         super();
         this.#node = node;
-        this.#store = node.env.get(ClientNodeStore);
+        this.#store = store;
     }
 
+    /**
+     * The erase of a part restarts the part and its parts with empty caches, and its finish reads their clusters from
+     * the peer again.  A failed read rejects the erase.
+     */
     async prepareEraseDescendant(endpoint: Endpoint): Promise<EndpointInitializer.Erasure> {
         const subtree = this.#subtreeOf(endpoint);
         return {
-            wipe: async () => {
-                await this.#eraseStores(subtree);
-                for (const endpoint of subtree) {
-                    this.#structure?.renewStores(endpoint);
-                }
-            },
+            wipe: () =>
+                MatterAggregateError.settleSeries(
+                    [
+                        () => this.#eraseStores(subtree),
+                        () => {
+                            for (const endpoint of subtree) {
+                                this.#structure?.renewStores(endpoint);
+                            }
+                        },
+                    ],
+                    `Error erasing ${subtree[0]}`,
+                ),
+            finish: () => this.#readAgain(subtree),
         };
+    }
+
+    /**
+     * Read every cluster of {@link subtree} from the peer without data version filters, so the erased endpoints show
+     * the values of the peer without waiting for the peer to change them.  An offline node reads them when it
+     * reconnects, as its stores no longer hold a data version.
+     */
+    async #readAgain(subtree: Endpoint[]) {
+        if (!this.#node.lifecycle.isOnline) {
+            return;
+        }
+        const request: ClientRead = {
+            ...Read({
+                fabricFilter: this.structure.cacheFabricFiltered,
+                attributes: subtree
+                    .filter(endpoint => endpoint.lifecycle.hasNumber)
+                    .map(endpoint => ({ endpointId: endpoint.number })),
+            }),
+            includeKnownVersions: true,
+        };
+        for await (const chunk of this.#node.interaction.read(request)) {
+            for await (const _report of chunk);
+        }
     }
 
     async prepareDeleteDescendant(endpoint: Endpoint): Promise<EndpointInitializer.Erasure> {
@@ -61,7 +100,7 @@ export class ClientEndpointInitializer extends EndpointInitializer {
         await MatterAggregateError.settleSeries(
             subtree
                 .filter(endpoint => endpoint.lifecycle.hasId)
-                .map(endpoint => () => this.#store.storeForEndpoint(endpoint).erase()),
+                .map(endpoint => () => this.#store.eraseEndpointStore(endpoint.number)),
             `Error erasing the stores of ${subtree[0]}`,
         );
     }

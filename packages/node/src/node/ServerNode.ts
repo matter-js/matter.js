@@ -214,19 +214,21 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      * @see {@link MatterSpecification.v161.Core} § 13.4
      */
     protected async resetStorage() {
-        await MatterAggregateError.settleSeries(
-            [
-                // Peers first so their teardown still sees the fabrics and sessions it depends on
-                () => this.#peers?.erase(),
+        const eraseStorage = () =>
+            MatterAggregateError.settleSeries(
+                [
+                    () => this.env.get(SessionManager).clear(),
+                    () => this.env.get(FabricManager).clear(),
+                    () => this.env.get(OccurrenceManager).clear(),
+                    () => ServerEnvironment.eraseCredentials(this),
+                    () => this.env.get(ServerNodeStore).erase(),
+                ],
+                `Error erasing storage of ${this}`,
+            );
 
-                () => this.env.get(SessionManager).clear(),
-                () => this.env.get(FabricManager).clear(),
-                () => this.env.get(OccurrenceManager).clear(),
-                () => ServerEnvironment.eraseCredentials(this),
-                () => this.env.get(ServerNodeStore).erase(),
-            ],
-            `Error erasing storage of ${this}`,
-        );
+        // Peers go first so their teardown still sees the fabrics and sessions it depends on
+        const peers = this.#peers;
+        await (peers === undefined ? eraseStorage() : peers.erase(eraseStorage));
     }
 
     /**

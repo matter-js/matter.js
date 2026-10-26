@@ -90,9 +90,8 @@ export class BasicInformationServer extends Base {
             this.state.uniqueId = BasicInformationServer.createUniqueId();
         }
 
-        const lifecycle = this.endpoint.lifecycle as NodeLifecycle;
-        this.reactTo(lifecycle.online, this.#online);
-        this.reactTo(lifecycle.goingOffline, this.#goingOffline);
+        this.reactTo(this.#nodeLifecycle.online, this.#online);
+        this.reactTo(this.#nodeLifecycle.goingOffline, this.#goingOffline);
 
         if (this.state.reachable !== undefined && this.events.reachable$Changed !== undefined) {
             const reachableChangedSchema = BasicInformationBehavior.schema.get(
@@ -168,6 +167,10 @@ export class BasicInformationServer extends Base {
         return id;
     }
 
+    get #nodeLifecycle() {
+        return this.endpoint.lifecycle as NodeLifecycle;
+    }
+
     #online() {
         this.events.startUp.emit({ softwareVersion: this.state.softwareVersion }, this.context);
 
@@ -176,6 +179,10 @@ export class BasicInformationServer extends Base {
     }
 
     #goingOffline() {
+        // A failed start is no boot, so there is no StartUp event that a ShutDown event would close
+        if (!this.#nodeLifecycle.isOnline) {
+            return;
+        }
         this.events.shutDown?.emit(undefined, this.context);
     }
 

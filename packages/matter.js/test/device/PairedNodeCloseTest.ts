@@ -7,7 +7,7 @@
 import { CommissioningController } from "#CommissioningController.js";
 import { NodeStateInformation, NodeStates, PairedNode } from "#device/PairedNode.js";
 import { ImplementationError, Lifecycle, MatterAggregateError, MatterError, Seconds, Time } from "@matter/general";
-import { ChangeNotificationService, ClusterBehavior, NetworkClient, Node } from "@matter/node";
+import { ChangeNotificationService, ClusterBehavior, NetworkClient, Node, ServerNodeStore } from "@matter/node";
 import { settled } from "@matter/node/testing";
 import { LegacyControllerSite } from "../util/LegacyControllerSite.js";
 
@@ -72,13 +72,13 @@ describe("PairedNode close", () => {
             const { controller, nodeId } = await site.addCommissionedPair();
             const node = await MockTime.resolve(controller.getNode(nodeId), { macrotasks: true });
             await MockTime.resolve(node.disconnect(), { macrotasks: true });
-            expect(networkOf(node).isDisabled).true;
+            expect(node.node.isDisabled).true;
 
             node.connect({ subscribeMaxIntervalCeilingSeconds: 60 });
             node.close();
             await idle(controller, node);
 
-            expect(networkOf(node).isDisabled).true;
+            expect(node.node.isDisabled).true;
             expect(networkOf(node).autoSubscribe).false;
         });
 
@@ -90,16 +90,23 @@ describe("PairedNode close", () => {
             await idle(controller, node);
 
             let closedWhileEnabling = false;
-            node.node.eventsOf(NetworkClient).isDisabled$Changed.on(isDisabled => {
+            const store = node.node.env.get(ServerNodeStore).clientStores.storeForNode(node.node);
+            const recordDisabled = store.recordNodeDisabled.bind(store);
+            store.recordNodeDisabled = async isDisabled => {
+                await recordDisabled(isDisabled);
                 if (!isDisabled) {
                     closedWhileEnabling = true;
                     node.close();
                 }
-            });
+            };
             const counter = countReadDataOf(controller, node);
 
-            node.connect({ autoSubscribe: false });
-            await idle(controller, node);
+            try {
+                node.connect({ autoSubscribe: false });
+                await idle(controller, node);
+            } finally {
+                store.recordNodeDisabled = recordDisabled;
+            }
 
             expect(closedWhileEnabling).true;
             expect(counter.changes).equals(0);

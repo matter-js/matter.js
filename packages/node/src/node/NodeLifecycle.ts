@@ -13,7 +13,7 @@ import { AsyncObservable, Observable } from "@matter/general";
 /**
  * Extended lifecycle information that only applies to root endpoints.
  */
-export class NodeLifecycle extends EndpointLifecycle {
+export class NodeLifecycle<I extends NodeLifecycle.Intent = NodeLifecycle.Intent> extends EndpointLifecycle {
     #online = AsyncObservable<[context: ActionContext]>();
     #goingOffline = AsyncObservable<[context: ActionContext]>();
     #offline = AsyncObservable<[context: ActionContext]>();
@@ -22,12 +22,16 @@ export class NodeLifecycle extends EndpointLifecycle {
     #initialized = Observable<[isCommissioned: boolean]>();
     #onlineAt?: Date;
     #isCommissioned = false;
-    #targetState: "online" | "offline" = "offline";
+    #intent: I;
+    #lastRequest = 0;
+    #isAsked = false;
+    #intentChanged = Observable<[]>();
     #mutex: LifecycleMutex;
 
-    constructor(endpoint: Endpoint) {
+    constructor(endpoint: Endpoint, intent: I) {
         super(endpoint);
 
+        this.#intent = intent;
         this.#mutex = new LifecycleMutex(endpoint);
 
         this.#online.on(() => {
@@ -76,7 +80,8 @@ export class NodeLifecycle extends EndpointLifecycle {
     }
 
     /**
-     * Emits when the node is going offline.
+     * Emits when the network runtime of the node is about to stop, whether or not the node went online.  {@link offline}
+     * follows only if it did.
      */
     get goingOffline() {
         return this.#goingOffline;
@@ -129,18 +134,98 @@ export class NodeLifecycle extends EndpointLifecycle {
         return true;
     }
 
-    set targetState(state: "online" | "offline") {
-        this.#targetState = state;
+    /**
+     * What the last call of `start()`, `stop()` or a call that changes the target like them asked for, or what the node
+     * is if that call failed.  A call records its whole intent before it waits for its turn.  Before the first call it
+     * is what {@link seedIntent} adopted.  After a last call that failed it is what the node is, until
+     * {@link seedIntent} adopts values again.
+     *
+     * @internal
+     */
+    get intent(): Readonly<I> {
+        return this.#intent;
+    }
+
+    /**
+     * Emits when {@link intent} changes.
+     *
+     * @internal
+     */
+    get intentChanged() {
+        return this.#intentChanged;
+    }
+
+    /**
+     * Record the intent of a call.  The returned request names the call in {@link restoreIntent}.  A call that keeps
+     * the target asks for none, so {@link seedIntent} still adopts a target unless an earlier call asked for one.
+     *
+     * @internal
+     */
+    recordIntent(change: Partial<I>, options?: { keepsTarget?: boolean }): NodeLifecycle.IntentRequest {
+        this.#setIntent({ ...this.#intent, ...change });
+        if (!options?.keepsTarget) {
+            this.#isAsked = true;
+        }
+        return ++this.#lastRequest;
+    }
+
+    /**
+     * Set the intent to what the node is, {@link applied}, after the call of {@link request} failed, unless a later
+     * call recorded an intent meanwhile.  A restored intent was not asked for, so {@link seedIntent} applies again.
+     *
+     * @internal
+     */
+    restoreIntent(request: NodeLifecycle.IntentRequest, applied: I) {
+        if (request === this.#lastRequest) {
+            this.#setIntent(applied);
+            this.#isAsked = false;
+        }
+    }
+
+    /**
+     * Adopt intent values that hold until a call records an intent: the persisted part when the node loads, or the
+     * online intent the auto-start of its server node gives.  Does nothing while the intent is what a call asked for.
+     *
+     * @internal
+     */
+    seedIntent(seed: Partial<I>) {
+        if (!this.#isAsked) {
+            this.#setIntent({ ...this.#intent, ...seed });
+        }
+    }
+
+    #setIntent(intent: I) {
+        this.#intent = intent;
+        this.#intentChanged.emit();
     }
 
     /**
      * Whether the node should be online: it was started, not stopped, and no close or delete was requested.
      */
     get shouldBeOnline() {
-        return this.#targetState === "online" && !this.isTerminal;
+        return this.#intent.target === "online" && !this.isTerminal;
     }
 
     get shouldBeOffline() {
         return !this.shouldBeOnline;
     }
+}
+
+export namespace NodeLifecycle {
+    /**
+     * The state a node should be in.
+     */
+    export type TargetState = "online" | "offline";
+
+    /**
+     * What a node should be.
+     */
+    export interface Intent {
+        readonly target: TargetState;
+    }
+
+    /**
+     * Names the call of {@link NodeLifecycle.recordIntent} that recorded an intent.
+     */
+    export type IntentRequest = number;
 }

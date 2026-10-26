@@ -9,18 +9,22 @@ import type { ClusterBehaviorType } from "#behavior/cluster/ClusterBehaviorType.
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { memberValueOf } from "#behavior/state/managed/MemberKeys.js";
 import { memberKeyFor } from "#behavior/state/managed/MemberKeys.js";
-import type { ValReference } from "#behavior/state/managed/ValReference.js";
+import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { RootEndpoint } from "#endpoints/root";
 import type { StateStream } from "#node/integration/StateStream.js";
 import type { Node } from "#node/Node.js";
+import { ClientEndpointStore } from "#storage/client/ClientEndpointStore.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
+import { FailureKinds } from "#storage/client/FailureKinds.js";
+import { StoreClosedError } from "#storage/StoreLifecycle.js";
 import {
     capitalize,
     DestroyedDependencyError,
     Diagnostic,
     hex,
+    ImplementationError,
     InternalError,
     isDeepEqual,
     Logger,
@@ -127,6 +131,7 @@ export class ClientStructure {
     #cacheRecord: ClientStructure.CacheRecord;
     #epoch = new ClientStructure.Epoch(true);
     #adoptions = new Mutex(this);
+    #applies = new Mutex(this);
     #pendingChanges = new Map<EndpointStructure, PendingChange>();
     #pendingStructureEvents = Array<PendingEvent>();
 
@@ -155,7 +160,7 @@ export class ClientStructure {
     #events: ClientStructureEvents;
     #changed = Observable<[void]>();
     #applying = 0;
-    #localFailureKinds = new Set<unknown>();
+    #localFailureKinds = new FailureKinds();
     #commandFactory?: ClusterBehaviorType.CommandFactory;
 
     /**
@@ -180,8 +185,8 @@ export class ClientStructure {
     }
 
     /**
-     * True while structural changes are being applied and announced, when the endpoint tree and its behaviors may be
-     * only partly installed.
+     * True while structural changes are being applied or wait for another interaction's apply, when the endpoint tree
+     * and its behaviors may be only partly installed.
      */
     get isApplying() {
         return this.#applying > 0;
@@ -221,8 +226,8 @@ export class ClientStructure {
             const endpoint = this.#endpointFor(number as EndpointNumber);
 
             const knownBehaviors = [...store.knownBehaviors]
-                .map(idStr => Number.parseInt(idStr) as ClusterId)
-                .filter(id => Number.isFinite(id));
+                .filter(ClientEndpointStore.isCacheKey)
+                .map(idStr => Number(idStr) as ClusterId);
 
             // Ensure we process Descriptor cluster first because we trust our storage and extraneous cluster data were
             // there before too, so we simply load them also if they might not be contained in indices
@@ -271,7 +276,7 @@ export class ClientStructure {
             return;
         }
         for (const [key, cluster] of structure.clusters) {
-            cluster.store = this.#storeFactory(endpoint, key.toString(), cluster.primaryKey);
+            cluster.store = this.#storeFactory(endpoint, key.toString());
         }
     }
 
@@ -514,16 +519,19 @@ export class ClientStructure {
 
     /**
      * A peer can trigger the same local failure with every report, so only the first of each kind is a warning; a
-     * different kind, such as storage refusing writes after an observer failed, warns again.
+     * different kind, such as storage refusing writes after an observer failed, warns again.  A store that ended, as
+     * during an erase of the endpoint, is teardown and logs at debug level.
      */
     #localFailed(error: unknown) {
-        const kind = error instanceof Error ? error.constructor : typeof error;
-        if (this.#localFailureKinds.has(kind)) {
-            logger.debug(`Processing data reported by ${this.#node} failed locally:`, error);
+        if (error instanceof StoreClosedError) {
+            logger.debug(`Data reported by ${this.#node} dropped because its store ended:`, error);
             return;
         }
-        this.#localFailureKinds.add(kind);
-        logger.warn(`Processing data reported by ${this.#node} failed locally; repeats log at debug level:`, error);
+        if (this.#localFailureKinds.add(error)) {
+            logger.warn(`Processing data reported by ${this.#node} failed locally; repeats log at debug level:`, error);
+        } else {
+            logger.debug(`Processing data reported by ${this.#node} failed locally:`, error);
+        }
     }
 
     /**
@@ -722,14 +730,13 @@ export class ClientStructure {
      * Convert values a wire change addresses by property name to the keys the cluster's container uses.
      *
      * A name the cluster's schema does not define is left as it is; it addresses no member and so has no other key.
-     * A cluster whose store keys by name converts nothing -- it has no schema to resolve names against.
      */
     #canonicalize(cluster: ClusterStructure, changes: Record<string, unknown>) {
-        const ids = cluster.primaryKey === "id" ? this.#attributeIdsFor(cluster.id) : undefined;
+        const ids = this.#attributeIdsFor(cluster.id);
         const values = new Map() as Val.StructMap;
 
         for (const [name, value] of Object.entries(changes)) {
-            values.set(memberKeyFor(cluster.primaryKey, name, ids?.get(name)), value);
+            values.set(memberKeyFor("id", name, ids.get(name)), value);
         }
 
         return values;
@@ -821,10 +828,6 @@ export class ClientStructure {
      */
     #unlistedKeys(cluster: ClusterStructure, attributeList: readonly number[], keys: Iterable<string>) {
         const unlisted = new Set<string>();
-        if (cluster.primaryKey !== "id") {
-            return unlisted;
-        }
-
         const listed = new Set(attributeList);
         const ids = this.#attributeIdsFor(cluster.id);
 
@@ -1164,12 +1167,9 @@ export class ClientStructure {
             return endpoint;
         }
 
-        // An endpoint created with ClientNodeEndpoints.require() already holds this number
-        const existing = this.#node.endpoints.has(number) ? this.#node.endpoints.for(number) : undefined;
-
         endpoint = {
             endpoint:
-                existing ??
+                IndexBehavior.holderOf(this.#node, number) ??
                 new Endpoint({
                     id: `ep${number}`,
                     number,
@@ -1195,8 +1195,7 @@ export class ClientStructure {
         cluster = {
             kind: "discovered",
             id,
-            primaryKey: "id",
-            store: this.#storeFactory(endpoint.endpoint, id.toString(), "id"),
+            store: this.#storeFactory(endpoint.endpoint, id.toString()),
             behavior: undefined,
             pendingBehavior: undefined,
             pendingDelete: undefined,
@@ -1209,8 +1208,8 @@ export class ClientStructure {
     /**
      * Look up or create a cluster structure for a behavior identified by name (for {@link StateStream.WireChange}s).
      *
-     * If the behavior name matches a known cluster by camelized name, we map to the cluster ID. Otherwise this creates
-     * a name-keyed cluster entry.
+     * Throws {@link ImplementationError} if the name resolves to no cluster ID, as a cache keyed otherwise neither
+     * loads nor erases with the others.
      */
     #clusterForBehavior(endpoint: EndpointStructure, behaviorId: string): ClusterStructure {
         // Check if this behavior is already installed on the endpoint — use its cluster ID if so
@@ -1238,24 +1237,9 @@ export class ClientStructure {
             return this.#clusterFor(endpoint, clusterModel.id as ClusterId);
         }
 
-        // This is a new behavior delivered via wire changes; key by name directly
-        const existing = endpoint.clusters.get(behaviorId);
-        if (existing) {
-            return existing;
-        }
-
-        const cluster: ClusterStructure = {
-            kind: "discovered",
-            id: 0 as ClusterId,
-            primaryKey: "name",
-            store: this.#storeFactory(endpoint.endpoint, behaviorId, "name"),
-            behavior: undefined,
-            pendingBehavior: undefined,
-            pendingDelete: undefined,
-        };
-        endpoint.clusters.set(behaviorId, cluster);
-
-        return cluster;
+        throw new ImplementationError(
+            `Cannot apply a wire change for ${behaviorId}, which names no cluster of ${endpoint.endpoint}`,
+        );
     }
 
     #ownerOf(endpoint: EndpointStructure) {
@@ -1333,12 +1317,17 @@ export class ClientStructure {
                     continue;
                 }
 
-                await endpoint.behaviors.drop(behavior.id);
+                // Erase before the drop, so a re-add of the cluster during the drop persists after the clear
                 try {
                     await MaybePromise.then(cluster.store.erase?.());
                 } catch (e) {
-                    logger.warn("Error clearing cluster storage:", e);
+                    if (e instanceof StoreClosedError) {
+                        logger.debug(`Storage of dropped cluster ${key} not cleared because its store ended:`, e);
+                    } else {
+                        logger.warn("Error clearing cluster storage:", e);
+                    }
                 }
+                await endpoint.behaviors.drop(behavior.id);
 
                 this.#pendingStructureEvents.push({
                     kind: "cluster",
@@ -1754,11 +1743,16 @@ export class ClientStructure {
 
     /**
      * Apply pending structural changes, then emit their events, so no listener sees a partly applied structure.
+     *
+     * Interactions are not serialized, but their applies run one at a time, so an apply never installs a behavior that
+     * a concurrent apply then drops.  An apply therefore must not await anything that waits for a report to be
+     * processed.
      */
     async #applyAndAnnounce() {
-        // A count because interactions are not serialized and one may apply while another awaits
+        // A count because an interaction may wait for the apply of another one
         this.#applying++;
         try {
+            using _applying = await this.#applies.lock();
             await this.#applyPendingChanges();
             this.#emitPendingStructureEvents();
         } finally {
@@ -1811,11 +1805,7 @@ export namespace ClientStructure {
     /**
      * Creates a {@link Datasource.ExternallyMutableStore} for a behavior on an endpoint.
      */
-    export type StoreFactory = (
-        endpoint: Endpoint,
-        behaviorId: string,
-        primaryKey: ValReference.PrimaryKey,
-    ) => Datasource.ExternallyMutableStore;
+    export type StoreFactory = (endpoint: Endpoint, behaviorId: string) => Datasource.ExternallyMutableStore;
 
     export interface Options {
         /**
@@ -1839,7 +1829,7 @@ interface AttributeUpdates {
 interface EndpointStructure {
     pendingOwner?: EndpointStructure;
     endpoint: Endpoint;
-    clusters: Map<ClusterId | string, ClusterStructure>;
+    clusters: Map<ClusterId, ClusterStructure>;
 
     /**
      * The Descriptor lists the peer has reported for this endpoint.  A mandatory list it has not reported still reads
@@ -1852,11 +1842,6 @@ interface ClusterStructure extends Partial<PeerBehavior.DiscoveredClusterShape> 
     kind: "discovered";
     id: ClusterId;
 
-    /**
-     * The keying convention {@link store} uses.  A cluster the peer names but we cannot resolve to a schema has no
-     * attribute IDs to key by, so its store keys members by property name.
-     */
-    primaryKey: "id" | "name";
     behavior?: ClusterBehavior.Type;
     pendingBehavior?: ClusterBehavior.Type;
     pendingDelete?: boolean;

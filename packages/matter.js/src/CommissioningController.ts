@@ -441,14 +441,20 @@ export class CommissioningController {
             if (!peer.lifecycle.isCommissioned) {
                 continue;
             }
-            const networkState = peer.stateOf(NetworkClient);
-            const desiredDisabled = this.#options.autoConnect === false;
-            if (desiredDisabled !== networkState.isDisabled) {
-                await peer.set({ network: { isDisabled: desiredDisabled } });
-            }
-            const desiredAutoSubscribe = !!this.#options.autoSubscribe;
-            if (desiredAutoSubscribe !== networkState.autoSubscribe) {
-                await peer.set({ network: { autoSubscribe: desiredAutoSubscribe } });
+            const autoSubscribe = !!this.#options.autoSubscribe;
+            try {
+                await MatterAggregateError.settleSeries(
+                    [
+                        () => (this.#options.autoConnect === false ? peer.disable() : undefined),
+                        () =>
+                            autoSubscribe === peer.stateOf(NetworkClient).autoSubscribe
+                                ? undefined
+                                : peer.set({ network: { autoSubscribe } }),
+                    ],
+                    `Error applying the connection options to ${peer}`,
+                );
+            } catch (error) {
+                logger.warn(error);
             }
         }
 
@@ -673,11 +679,7 @@ export class CommissioningController {
             }
         }
 
-        if (peerNode.stateOf(NetworkClient).isDisabled) {
-            await peerNode.enable();
-        } else {
-            await peerNode.start();
-        }
+        await peerNode.enable();
 
         // Configure NetworkClient subscription parameters from connectOptions so that when
         // PairedNode later activates autoSubscribe, NetworkClient uses the right intervals

@@ -71,9 +71,9 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
             );
         }
 
-        // Insertion validation is only possible in a fully configured node. Otherwise each endpoint's number is
-        // checked when the endpoint is constructed
-        if (this.#endpoint.lifecycle.isReady) {
+        // A resetting endpoint stays active and its tree keeps its numbers.  In a tree that has not started yet, each
+        // endpoint's number is checked when the endpoint is constructed
+        if (this.#endpoint.lifecycle.isReady || this.#endpoint.construction.status === Lifecycle.Status.Active) {
             this.#validateInsertion(endpoint, endpoint);
         }
 

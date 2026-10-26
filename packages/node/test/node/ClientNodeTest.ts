@@ -33,14 +33,23 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import type { ClientEndpointInitializer } from "#node/client/ClientEndpointInitializer.js";
 import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
+import { ClientStructure } from "#node/client/ClientStructure.js";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { FabricOperationInProgressError } from "#node/client/Peers.js";
-import type { ClientNode } from "#node/ClientNode.js";
+import {
+    NodeDisabledError,
+    NodeUncommissionedError,
+    ServerNodeOfflineError,
+    type ClientNode,
+} from "#node/ClientNode.js";
+import { NodeConnectionState } from "#node/ClientNodeLifecycle.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
+import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
+import { ClientEndpointStore } from "#storage/client/ClientEndpointStore.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
+import { StoreClosedError } from "#storage/StoreLifecycle.js";
 import {
     b$,
     Bytes,
@@ -49,12 +58,15 @@ import {
     Crypto,
     deepCopy,
     DestroyedDependencyError,
+    Duration,
     Entropy,
     ImplementationError,
     InternalError,
     Lifecycle,
     MatterAggregateError,
+    NetworkError,
     MaybePromise,
+    MemoryStorageDriver,
     Millis,
     Minutes,
     MockCrypto,
@@ -121,6 +133,13 @@ import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { captureErrorsOf, captureWarningsOf } from "../endpoint/validation/validation-helpers.js";
 import { commission } from "./icd-helpers.js";
 
+/** Asks the cache buffer to flush on a timer, so a persist does not wait for the jobs on its queue */
+class BufferingStorageDriver extends MemoryStorageDriver {
+    override get writeCoalescingInterval(): Duration {
+        return Minutes(20);
+    }
+}
+
 /** Records what a commissioning tells the scanners to forget. */
 class ForgetRecordingScanner implements Scanner {
     readonly type = ChannelType.UDP;
@@ -156,6 +175,25 @@ class FailingCommissioningFlow extends ControllerCommissioningFlow {
     override async executeCommissioning(): Promise<void> {
         throw new CommissioningError("Commissioning step failed");
     }
+}
+
+/**
+ * Fail each cache persist into an endpoint store of {@link peer} until disposed, also for endpoint stores created later.
+ */
+function failCachePersists(peer: ClientNode) {
+    const nodeStore = peer.env.get(ServerNodeStore).clientStores.storeForNode(peer);
+    const persistCache = ClientEndpointStore.prototype.persistCache;
+    ClientEndpointStore.prototype.persistCache = function (this: ClientEndpointStore, ...args) {
+        if ([...nodeStore.endpointStores].includes(this)) {
+            return Promise.reject(new Error("persist failure"));
+        }
+        return persistCache.apply(this, args);
+    };
+    return {
+        [Symbol.dispose]() {
+            ClientEndpointStore.prototype.persistCache = persistCache;
+        },
+    };
 }
 
 describe("ClientNode", () => {
@@ -1060,13 +1098,39 @@ describe("ClientNode", () => {
         await site.close();
 
         // Recreate the controller
-        const controllerB = await site.addNode(undefined, { index: 1 });
+        const controllerB = await site.addNode(undefined, {
+            id: controller.id,
+            device: undefined,
+            commissioning: { enabled: false },
+            online: false,
+        });
 
         // Verify that the decommissioned device was not recreated from cache after restart
         expect(controllerB.peers.size).equals(0);
+        expect(controllerB.peers.get("peer1")).undefined;
+    });
 
-        const peer1b = controllerB.peers.get("peer1")!;
-        expect(peer1b).undefined;
+    it("removes a decommissioned peer whose server node starts closing during the decommission", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+        let closing: Promise<void> | undefined;
+        peer1.lifecycle.decommissioned.once(() => {
+            closing = controller.close();
+        });
+
+        await MockTime.resolve(peer1.decommission(), { macrotasks: true });
+        await MockTime.resolve(closing, { macrotasks: true });
+
+        expect(closing).not.undefined;
+        expect(device.lifecycle.isCommissioned).is.false;
+        const controllerB = await site.addNode(undefined, {
+            id: controller.id,
+            device: undefined,
+            commissioning: { enabled: false },
+            online: false,
+        });
+        expect(controllerB.peers.size).equals(0);
     });
 
     it("closes the protocol peer on decommission", async () => {
@@ -1084,6 +1148,41 @@ describe("ClientNode", () => {
 
         expect(protocolPeer.lifetime.isClosed).true;
         expect(sessions.findResumptionRecordByAddress(address)).undefined;
+    });
+
+    it("creates no store when it describes a deleted peer without an address", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+        await MockTime.resolve(
+            peer1.act(agent => {
+                agent.commissioning.state.peerAddress = undefined;
+            }),
+        );
+
+        await MockTime.resolve(peer1.delete());
+        peer1.toString();
+
+        expect(controller.env.get(ServerNodeStore).clientStores.knownIds).not.contains(peer1.id);
+    });
+
+    it("removes the protocol peer of a peer it deletes after the peer crashed", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+        const address = peer1.peerAddress!;
+        const stores = controller.env.get(ServerNodeStore).clientStores;
+        const storeForNode = stores.storeForNode.bind(stores);
+        stores.storeForNode = () => {
+            throw new ImplementationError("Store refused for test");
+        };
+        await expect(MockTime.resolve(peer1.erase())).rejected;
+        stores.storeForNode = storeForNode;
+        expect(peer1.construction.status).equals(Lifecycle.Status.Crashed);
+
+        await MockTime.resolve(peer1.delete());
+
+        expect(controller.env.get(PeerSet).get(address)).undefined;
     });
 
     it("reads a peer's basic information through one shared state reference", async () => {
@@ -1155,6 +1254,78 @@ describe("ClientNode", () => {
         expect(peer1.parts.get("ep1")!.stateOf("onOff").onOff).equals(true);
     });
 
+    it("reconnects after erase without IdentityConflictError when the driver keeps listing emptied contexts", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const driver = controller.env.get(StorageManager).driver;
+        const contexts = driver.contexts.bind(driver);
+        const listed = new Map<string, Set<string>>();
+        driver.contexts = async path => {
+            const key = path.join(".");
+            const names = listed.get(key) ?? new Set<string>();
+            listed.set(key, names);
+            for (const name of await contexts(path)) {
+                names.add(name);
+            }
+            return [...names];
+        };
+        await driver.contexts(["nodes", peer1.id, "endpoints"]);
+        const ep1 = peer1.parts.get("ep1");
+
+        const errors = await captureErrorsOf(async () => {
+            await MockTime.resolve(peer1.erase());
+            await subscribedPeer(controller, "peer1");
+        });
+
+        expect(errors).deep.equals([]);
+        expect(peer1.parts.size).equals(1);
+        expect(peer1.parts.get("ep1")).equals(ep1);
+        expect(peer1.env.get(ClientStructure).endpointFor(EndpointNumber(1))).equals(ep1);
+        expect(ep1!.stateOf(OnOffClient).onOff).equals(true);
+    });
+
+    it("requires an endpoint the node holds while an erase resets the node", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const ep1 = peer1.parts.get("ep1");
+        let required: Endpoint | undefined;
+        peer1.lifecycle.reset.once(() => {
+            required = peer1.endpoints.require(1);
+        });
+
+        const errors = await captureErrorsOf(async () => {
+            await MockTime.resolve(peer1.erase());
+            await subscribedPeer(controller, "peer1");
+        });
+
+        expect(errors).deep.equals([]);
+        expect(required).equals(ep1);
+        expect(peer1.parts.size).equals(1);
+    });
+
+    it("refuses an endpoint added with a held number while an erase resets the node", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const ep1 = peer1.parts.require("ep1");
+        let refusal: unknown;
+        peer1.lifecycle.reset.once(() => {
+            try {
+                peer1.parts.add(new Endpoint({ id: "duplicate1", number: 1, type: ep1.type }));
+            } catch (error) {
+                refusal = error;
+            }
+        });
+
+        const errors = await captureErrorsOf(async () => {
+            await MockTime.resolve(peer1.erase());
+            await subscribedPeer(controller, "peer1");
+        });
+
+        expect(refusal).instanceOf(IdentityConflictError);
+        expect(errors).deep.equals([]);
+        expect([...peer1.parts]).deep.equals([ep1]);
+    });
+
     it("receives reports for a part after the part is erased", async () => {
         const { site, device, peer1 } = await peerWithLightOn();
         await using _site = site;
@@ -1172,6 +1343,43 @@ describe("ClientNode", () => {
         }
 
         expect(reported).deep.equals([false, true]);
+    });
+
+    it("a part erased on a client node exposes its attributes again after the re-read", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const ep1 = peer1.parts.get("ep1")!;
+
+        await MockTime.resolve(ep1.erase());
+
+        expect(ep1.stateOf(OnOffClient).onOff).equals(true);
+        expect(await MockTime.resolve(ep1.getStateOf(OnOffClient, ["onOff"]))).deep.equals({ onOff: true });
+    });
+
+    it("elements refresh when attributeList is reported after a part erase whose re-read failed", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const ep1 = peer1.parts.get("ep1")!;
+        const interaction = peer1.interaction;
+        const read = interaction.read.bind(interaction);
+        let refusals = 1;
+        interaction.read = async function* (request, context): ReadResult {
+            if (refusals-- > 0) {
+                throw new NetworkError("Read refused for test");
+            }
+            yield* read(request, context);
+        };
+
+        await expect(MockTime.resolve(ep1.erase())).rejectedWith(MatterAggregateError);
+        expect(ep1.behaviors.elementsOf(OnOffClient).attributes.has("onOff")).equals(false);
+
+        const reread = interaction.read(Read({ fabricFilter: true }, Read.Attribute({ endpoint: ep1.number })));
+        for await (const chunk of reread) {
+            for await (const _report of chunk);
+        }
+
+        expect(ep1.behaviors.elementsOf(OnOffClient).attributes.has("onOff")).equals(true);
+        expect(await MockTime.resolve(ep1.getStateOf(OnOffClient, ["onOff"]))).deep.equals({ onOff: true });
     });
 
     async function peerWithChildLightOn() {
@@ -1196,11 +1404,17 @@ describe("ClientNode", () => {
     }
 
     it("erases the cache of the child of an erased part and receives its reports", async () => {
-        const { site, light, part, child } = await peerWithChildLightOn();
+        const { site, controller, light, peer1, part, child } = await peerWithChildLightOn();
         await using _site = site;
+        const store = controller.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
+        const eraseEndpointStore = store.eraseEndpointStore.bind(store);
+        const erased = new Array<number>();
+        store.eraseEndpointStore = async number => {
+            erased.push(number);
+            await eraseEndpointStore(number);
+        };
 
         await MockTime.resolve(part.erase());
-        const erased = child.stateOf(OnOffClient).onOff;
 
         await MockTime.resolve(light.setStateOf("onOff", { onOff: false }));
         await MockTime.resolve(light.setStateOf("onOff", { onOff: true }));
@@ -1208,8 +1422,60 @@ describe("ClientNode", () => {
             await MockTime.resolve(MockTime.sleep("report pending", Millis(100)));
         }
 
-        expect(erased).not.equals(true);
+        expect(erased).contains(child.number);
         expect(child.stateOf(OnOffClient).onOff).equals(true);
+    });
+
+    it("erases a part whose re-read makes the structure delete another endpoint", async () => {
+        const { site, peer1, part, child } = await peerWithChildLightOn();
+        await using _site = site;
+        const structure = peer1.env.get(ClientStructure);
+        const interaction = peer1.interaction;
+        const read = interaction.read.bind(interaction);
+        let reReads = 1;
+        interaction.read = async function* (request, context): ReadResult {
+            yield* read(request, context);
+            if (reReads-- > 0) {
+                const rootPartsList: ReadResult.Report = {
+                    kind: "attr-value",
+                    path: {
+                        endpointId: EndpointNumber(0),
+                        clusterId: Descriptor.id,
+                        attributeId: Descriptor.attributes.partsList.id,
+                    },
+                    value: [part.number],
+                    version: 0xffff_fff0,
+                    tlv: TlvAny,
+                };
+                async function* droppingChild(): ReadResult {
+                    yield [rootPartsList];
+                }
+                yield* structure.mutate(request, droppingChild());
+            }
+        };
+
+        await MockTime.resolve(part.erase());
+
+        expect(child.construction.status).equals(Lifecycle.Status.Destroyed);
+    });
+
+    it("gives the child of a part new cluster stores when the store of the part failed to erase", async () => {
+        const { site, controller, peer1, part, child } = await peerWithChildLightOn();
+        await using _site = site;
+        const store = controller.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
+        const eraseEndpointStore = store.eraseEndpointStore.bind(store);
+        store.eraseEndpointStore = async number => {
+            if (number === part.number) {
+                throw new ImplementationError("Endpoint erase refused for test");
+            }
+            await eraseEndpointStore(number);
+        };
+        const structure = peer1.env.get(ClientStructure);
+        const erased = structure.storeForRemote(child, OnOffClient);
+
+        await expect(MockTime.resolve(part.erase())).rejected;
+
+        expect(structure.storeForRemote(child, OnOffClient)).not.equals(erased);
     });
 
     it("deletes the storage of the child of a deleted part", async () => {
@@ -1256,8 +1522,91 @@ describe("ClientNode", () => {
 
         expect(peer1.lifecycle.isOnline).equals(false);
         expect(peer1.state.commissioning.peerAddress).deep.equals(address);
-        const ep1Store = [...peer1.env.get(ClientNodeStore).endpointStores].find(store => store.number === 1);
+        const ep1Store = [...peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1).endpointStores].find(
+            store => store.number === 1,
+        );
         expect(ep1Store?.knownBehaviors.has("onOff") ?? false).equals(false);
+    });
+
+    it("hands out a new store once it erases the cache of a peer", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const before = peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
+
+        await MockTime.resolve(peer1.erase());
+
+        expect(peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1)).not.equals(before);
+        expect(() => before.storeForEndpoint(peer1)).throws(StoreClosedError);
+    });
+
+    it("erases the storage of a peer deleted after its restart following an erase failed", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const stores = controller.env.get(ServerNodeStore).clientStores;
+        const storeForNode = stores.storeForNode.bind(stores);
+        stores.storeForNode = () => {
+            throw new ImplementationError("Store refused for test");
+        };
+
+        await expect(MockTime.resolve(peer1.erase())).rejected;
+        stores.storeForNode = storeForNode;
+        await MockTime.resolve(peer1.delete());
+
+        const storage = site.storageFor(controller.id);
+        expect(Object.keys(storage).filter(key => key.startsWith(`nodes.${peer1.id}.`))).deep.equals([]);
+    });
+
+    /**
+     * Make the cache erase of {@link peer} fail inside the store, after the store ended, as a driver error does.
+     */
+    function failCacheWipe(peer: ClientNode) {
+        const store = peer.env.get(ServerNodeStore).clientStores.storeForNode(peer);
+        for (const endpointStore of store.endpointStores) {
+            endpointStore.eraseCaches = async () => {
+                throw new ImplementationError("Cache wipe refused for test");
+            };
+        }
+    }
+
+    const storedKeysOf = (site: MockSite, controller: ServerNode, peer: ClientNode) =>
+        Object.keys(site.storageFor(controller.id)).filter(key => key.startsWith(`nodes.${peer.id}.`));
+
+    it("erases the storage of a peer deleted after its cache wipe failed", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        failCacheWipe(peer1);
+
+        await expect(MockTime.resolve(peer1.erase())).rejectedWith(MatterAggregateError);
+        expect(peer1.construction.status).equals(Lifecycle.Status.Crashed);
+        await MockTime.resolve(peer1.delete());
+
+        expect(storedKeysOf(site, controller, peer1)).deep.equals([]);
+    });
+
+    it("persists disable() of a peer whose cache wipe failed", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        failCacheWipe(peer1);
+        await expect(MockTime.resolve(peer1.erase())).rejectedWith(MatterAggregateError);
+
+        await MockTime.resolve(peer1.disable());
+
+        expect(site.storageFor(controller.id)[`nodes.${peer1.id}.settings`]).deep.equals({ isDisabled: true });
+    });
+
+    it("erases nothing of a new peer with the same ID when a removed peer is removed again", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await MockTime.resolve(peer1.delete());
+        const stores = controller.env.get(ServerNodeStore).clientStores;
+        const later = stores.storeForNode(peer1.id);
+        await later.construction.ready;
+        await later.recordNodeDisabled(true);
+
+        await MockTime.resolve(peer1.deleteDespiteServerTeardown());
+
+        expect(stores.storeForNode(peer1.id)).equals(later);
+        expect(site.storageFor(controller.id)[`nodes.${peer1.id}.settings`]).deep.equals({ isDisabled: true });
     });
 
     it("drops the cache of an offline peer and rejects on erase when its reset fails", async () => {
@@ -1273,7 +1622,9 @@ describe("ClientNode", () => {
 
         expect(peer1.state.commissioning.peerAddress).deep.equals(address);
 
-        const ep1Store = [...peer1.env.get(ClientNodeStore).endpointStores].find(store => store.number === 1);
+        const ep1Store = [...peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1).endpointStores].find(
+            store => store.number === 1,
+        );
         expect(ep1Store?.knownBehaviors.has("onOff") ?? false).equals(false);
         expect(peer1.construction.status).equals(Lifecycle.Status.Active);
     });
@@ -1282,9 +1633,10 @@ describe("ClientNode", () => {
         const { site, peer1 } = await peerWithLightOn();
         await using _site = site;
         await MockTime.resolve(peer1.disable());
-        const store = peer1.env.get(ClientNodeStore);
+        const store = peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
         const eraseCaches = store.eraseCaches.bind(store);
         let acting: Promise<Lifecycle.Status> | undefined;
+        using _eraseCaches = removedOnDispose(store, "eraseCaches");
         store.eraseCaches = async () => {
             acting = Promise.resolve(peer1.act(() => peer1.construction.status));
             await eraseCaches();
@@ -1303,9 +1655,10 @@ describe("ClientNode", () => {
         peer1.lifecycle.reset.on(() => {
             throw new ImplementationError("Reset refused for test");
         });
-        const store = peer1.env.get(ClientNodeStore);
+        const store = peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
         const eraseCaches = store.eraseCaches.bind(store);
         let acting: Promise<Lifecycle.Status> | undefined;
+        using _eraseCaches = removedOnDispose(store, "eraseCaches");
         store.eraseCaches = async () => {
             acting = Promise.resolve(peer1.act(() => peer1.construction.status));
             await eraseCaches();
@@ -1319,7 +1672,7 @@ describe("ClientNode", () => {
     it("stays down and offline when the erase cannot drop the cache of an online peer", async () => {
         const { site, peer1 } = await peerWithLightOn();
         await using _site = site;
-        peer1.env.get(ClientNodeStore).eraseCaches = async () => {
+        peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1).eraseCaches = async () => {
             throw new ImplementationError("Cache erase refused for test");
         };
 
@@ -1345,6 +1698,899 @@ describe("ClientNode", () => {
         await expect(peer1.disable()).rejectedWith(DestroyedDependencyError, /cannot disable/);
     });
 
+    const persistedDisabledOf = (peer: ClientNode) =>
+        peer.env.get(ServerNodeStore).clientStores.storeForNode(peer).isNodeDisabled;
+
+    const outcomeOf = (promise: Promise<void>) =>
+        promise.then(
+            () => "ok",
+            (e: unknown) => e,
+        );
+
+    /**
+     * Run {@link write} instead of each write of the disabled flag of {@link peer} until the returned interception is
+     * restored or disposed.
+     */
+    function interceptDisabledWrites(
+        peer: ClientNode,
+        write: (isDisabled: boolean, recordNodeDisabled: (isDisabled: boolean) => Promise<void>) => Promise<void>,
+    ) {
+        const store = peer.env.get(ServerNodeStore).clientStores.storeForNode(peer);
+        const recordNodeDisabled = store.recordNodeDisabled.bind(store);
+        store.recordNodeDisabled = isDisabled => write(isDisabled, recordNodeDisabled);
+        const restore = () => {
+            store.recordNodeDisabled = recordNodeDisabled;
+        };
+        return { restore, [Symbol.dispose]: restore };
+    }
+
+    function failDisabledWrites(peer: ClientNode, count = Infinity) {
+        const interception = interceptDisabledWrites(peer, async () => {
+            if (--count <= 0) {
+                interception.restore();
+            }
+            throw new ImplementationError("Disabled flag write refused for test");
+        });
+        return interception;
+    }
+
+    /**
+     * Remove the replacement of the method {@link key} that a test installs on {@link target} once disposed, so the
+     * prototype method applies again.
+     */
+    function removedOnDispose<T extends object>(target: T, key: keyof T & string) {
+        return {
+            [Symbol.dispose]: () => {
+                Reflect.deleteProperty(target, key);
+            },
+        };
+    }
+
+    async function blockMutexOf(node: ClientNode | ServerNode) {
+        const { promise: entered, resolver: enter } = createPromise<void>();
+        const { promise: released, resolver: release } = createPromise<void>();
+        const blocking = node.lifecycle.mutex.hold("blocking", async () => {
+            enter();
+            await released;
+        });
+        await entered;
+        return { blocking, release };
+    }
+
+    it("rejects the start of a disabled peer with NodeDisabledError", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await MockTime.resolve(peer1.disable());
+
+        await expect(MockTime.resolve(peer1.start())).rejectedWith(NodeDisabledError);
+
+        expect(peer1.lifecycle.shouldBeOnline).equals(false);
+    });
+
+    async function uncommissionedPeerOfStoppedController() {
+        const site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        await MockTime.resolve(controller.stop());
+        const peer = controller.peers.get("peer1")!;
+        await peer.act(agent => {
+            agent.commissioning.state.peerAddress = undefined;
+        });
+        expect(peer.lifecycle.isCommissioned).equals(false);
+        return { site, controller, peer };
+    }
+
+    it("rejects the start of an uncommissioned peer without starting its server node", async () => {
+        const { site, controller, peer } = await uncommissionedPeerOfStoppedController();
+        await using _site = site;
+
+        await expect(MockTime.resolve(peer.start())).rejectedWith(NodeUncommissionedError);
+
+        expect(peer.lifecycle.shouldBeOnline).equals(false);
+        expect(controller.lifecycle.isOnline).equals(false);
+    });
+
+    it("clears the disabled flag on enable() of an uncommissioned peer and rejects without starting its server node", async () => {
+        const { site, controller, peer } = await uncommissionedPeerOfStoppedController();
+        await using _site = site;
+        await MockTime.resolve(peer.disable());
+
+        await expect(MockTime.resolve(peer.enable())).rejectedWith(NodeUncommissionedError);
+
+        expect(peer.isDisabled).equals(false);
+        expect(persistedDisabledOf(peer)).equals(false);
+        expect(controller.lifecycle.isOnline).equals(false);
+    });
+
+    it("rejects the start of a disabled peer without starting its server node", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(peer1.disable());
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+
+        await expect(MockTime.resolve(peer1.start())).rejectedWith(NodeDisabledError);
+
+        expect(controller.lifecycle.isOnline).equals(false);
+    });
+
+    // A peer restored from storage loads synchronously, so it knows it is disabled at once
+    it("stays disabled when it loads again and refuses a start right after it loads", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const id = controller.id;
+        await MockTime.resolve(controller.peers.get("peer1")!.disable());
+        await MockTime.resolve(controller.close(), { macrotasks: true });
+
+        const rebooted = await site.addNode(undefined, {
+            id,
+            device: undefined,
+            commissioning: { enabled: false },
+            online: false,
+        });
+        const peer = rebooted.peers.get("peer1")!;
+
+        expect(peer.isDisabled).equals(true);
+        await expect(MockTime.resolve(peer.start())).rejectedWith(NodeDisabledError);
+        expect(persistedDisabledOf(peer)).equals(true);
+    });
+
+    it("brings a stopped peer that is not disabled online on enable()", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+        await MockTime.resolve(peer1.stop());
+
+        await MockTime.resolve(peer1.enable(), { macrotasks: true });
+
+        expect(peer1.lifecycle.shouldBeOnline).equals(true);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+    });
+
+    it("reports whether it is disabled", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+        expect(peer1.isDisabled).equals(false);
+
+        await MockTime.resolve(peer1.disable());
+        expect(peer1.isDisabled).equals(true);
+
+        await MockTime.resolve(peer1.enable(), { macrotasks: true });
+        expect(peer1.isDisabled).equals(false);
+    });
+
+    it("rejects the start of a disabled peer that closes as destroyed", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await MockTime.resolve(peer1.disable());
+        const closing = peer1.close();
+
+        await expect(peer1.start()).rejectedWith(DestroyedDependencyError, /cannot start/);
+
+        await MockTime.resolve(closing, { macrotasks: true });
+    });
+
+    it("rejects the start of a disabled peer whose server node closes as destroyed", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await MockTime.resolve(peer1.disable());
+        const closing = controller.close();
+
+        await expect(peer1.start()).rejectedWith(DestroyedDependencyError, /cannot start/);
+
+        await MockTime.resolve(closing, { macrotasks: true });
+    });
+
+    it("stays disabled after an enable() that fails before it applies, which a later enable() lifts", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(peer1.disable());
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        const start = controller.start.bind(controller);
+        controller.start = async () => {
+            throw new ImplementationError("Server start refused for test");
+        };
+
+        await expect(MockTime.resolve(peer1.enable())).rejectedWith(ImplementationError);
+        expect(peer1.isDisabled).equals(true);
+        expect(persistedDisabledOf(peer1)).equals(true);
+
+        controller.start = start;
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+        await MockTime.resolve(peer1.enable(), { macrotasks: true });
+
+        expect(persistedDisabledOf(peer1)).equals(false);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+    });
+
+    it("ends enabled when an enable() fails before it applies while a later enable() waits", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(peer1.disable());
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+        const start = controller.start.bind(controller);
+        controller.start = async () => {
+            controller.start = start;
+            throw new ImplementationError("Server start refused for test");
+        };
+
+        const failing = peer1.enable();
+        const enabling = peer1.enable();
+
+        await expect(MockTime.resolve(failing)).rejectedWith(ImplementationError);
+        await MockTime.resolve(enabling, { macrotasks: true });
+        expect(peer1.isDisabled).equals(false);
+        expect(persistedDisabledOf(peer1)).equals(false);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+    });
+
+    it("stays enabled after an enable() that fails once it cleared the persisted flag", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(peer1.disable());
+        await peer1.act(agent => {
+            agent.commissioning.state.peerAddress = undefined;
+        });
+
+        await expect(MockTime.resolve(peer1.enable())).rejectedWith(NodeUncommissionedError);
+
+        expect(peer1.isDisabled).equals(false);
+        expect(persistedDisabledOf(peer1)).equals(false);
+    });
+
+    it("rejects the start of a peer whose server node stays offline with ServerNodeOfflineError", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        const peer1 = controller.peers.get("peer1")!;
+        using _start = removedOnDispose(controller, "start");
+        controller.start = async () => {};
+
+        await expect(MockTime.resolve(peer1.start())).rejectedWith(ServerNodeOfflineError);
+
+        expect(peer1.lifecycle.shouldBeOnline).equals(false);
+        expect(peer1.onlineBlocker?.error()).instanceOf(ServerNodeOfflineError);
+    });
+
+    it("refuses the start of a peer that is disabled and uncommissioned as disabled and keeps it disabled", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(peer1.disable());
+        await peer1.act(agent => {
+            agent.commissioning.state.peerAddress = undefined;
+        });
+
+        await expect(MockTime.resolve(peer1.start())).rejectedWith(NodeDisabledError);
+
+        expect(persistedDisabledOf(peer1)).equals(true);
+        expect(peer1.onlineBlocker?.error()).instanceOf(NodeDisabledError);
+    });
+
+    it("rejects enable() of a disabled peer that closes", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await MockTime.resolve(peer1.disable());
+        const closing = peer1.close();
+
+        await expect(peer1.enable()).rejectedWith(DestroyedDependencyError, /cannot enable/);
+
+        await MockTime.resolve(closing, { macrotasks: true });
+    });
+
+    // Characterization: disable() of a disabled peer changes nothing
+    it("leaves a disabled peer unchanged when it is disabled again", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await MockTime.resolve(peer1.disable());
+        const writes = new Array<boolean>();
+        using _writes = interceptDisabledWrites(peer1, async (isDisabled, recordDisabled) => {
+            writes.push(isDisabled);
+            await recordDisabled(isDisabled);
+        });
+
+        await MockTime.resolve(peer1.disable());
+
+        expect(writes).deep.equals([true]);
+        expect(persistedDisabledOf(peer1)).equals(true);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
+    it("ends enabled and online when enable() follows a disable() that is writing its state", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+        let enabling: Promise<unknown> | undefined;
+        using writes = interceptDisabledWrites(peer1, async (isDisabled, recordDisabled) => {
+            writes.restore();
+            await recordDisabled(isDisabled);
+            enabling = outcomeOf(peer1.enable());
+        });
+
+        await MockTime.resolve(peer1.disable(), { macrotasks: true });
+
+        expect(await MockTime.resolve(enabling, { macrotasks: true })).equals("ok");
+        expect(persistedDisabledOf(peer1)).equals(false);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+    });
+
+    it("refuses a disable() that waits for the node mutex while the peer closes", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const { blocking, release } = await blockMutexOf(peer1);
+
+        const disabling = peer1.disable();
+        const closing = peer1.close();
+        release();
+
+        await expect(MockTime.resolve(disabling, { macrotasks: true })).rejectedWith(
+            DestroyedDependencyError,
+            /cannot disable/,
+        );
+        expect(peer1.isDisabled).equals(false);
+        await MockTime.resolve(Promise.all([blocking, closing]), { macrotasks: true });
+    });
+
+    it("persists the enable() intent when a later start() applies it after the enable() failed", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(peer1.disable());
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+        const start = controller.start.bind(controller);
+        controller.start = async () => {
+            controller.start = start;
+            throw new ImplementationError("Server start refused for test");
+        };
+
+        const failing = peer1.enable();
+        const starting = peer1.start();
+
+        await expect(MockTime.resolve(failing)).rejectedWith(ImplementationError);
+        await MockTime.resolve(starting, { macrotasks: true });
+        expect(peer1.isDisabled).equals(false);
+        expect(persistedDisabledOf(peer1)).equals(false);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+    });
+
+    it("persists disable() when a stop() follows it while both wait for the node mutex", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const { blocking, release } = await blockMutexOf(peer1);
+
+        const disabling = peer1.disable();
+        const stopping = peer1.stop();
+        release();
+
+        await MockTime.resolve(Promise.all([blocking, disabling, stopping]), { macrotasks: true });
+        expect(peer1.isDisabled).equals(true);
+        expect(persistedDisabledOf(peer1)).equals(true);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
+    it("drops the disable() intent when the disable() fails and no other call waits", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        using _writes = failDisabledWrites(peer1, 1);
+
+        await expect(MockTime.resolve(peer1.disable(), { macrotasks: true })).rejectedWith(
+            ImplementationError,
+            /refused for test/,
+        );
+
+        expect(peer1.isDisabled).equals(false);
+        expect(persistedDisabledOf(peer1)).equals(false);
+    });
+
+    it("takes the peer offline when disable() fails to persist", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        using _writes = failDisabledWrites(peer1);
+
+        await expect(MockTime.resolve(peer1.disable(), { macrotasks: true })).rejectedWith(
+            ImplementationError,
+            /refused for test/,
+        );
+
+        expect(peer1.isDisabled).equals(false);
+        expect(persistedDisabledOf(peer1)).equals(false);
+        expect(peer1.lifecycle.shouldBeOnline).equals(false);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
+    it("ends enabled and online when a start() that follows an enable() fails to start its server node", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(peer1.disable());
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        await controller.set({ network: { autoStartCommissionedPeers: false } });
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+        const { promise: enabled, resolver: enableDone } = createPromise<void>();
+        const start = controller.start.bind(controller);
+        controller.start = async () => {
+            controller.start = async () => {
+                await enabled;
+                throw new ImplementationError("Server start refused for test");
+            };
+            await start();
+        };
+
+        try {
+            const enabling = outcomeOf(peer1.enable().finally(enableDone));
+            const starting = outcomeOf(peer1.start());
+
+            expect(await MockTime.resolve(enabling, { macrotasks: true })).equals("ok");
+            expect(await MockTime.resolve(starting, { macrotasks: true })).instanceOf(ImplementationError);
+        } finally {
+            Reflect.deleteProperty(controller, "start");
+        }
+        expect(peer1.isDisabled).equals(false);
+        expect(persistedDisabledOf(peer1)).equals(false);
+        expect(peer1.lifecycle.shouldBeOnline).equals(true);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+    });
+
+    it("keeps the peer offline and disabled when enable() fails to persist", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await MockTime.resolve(peer1.disable());
+        using _writes = failDisabledWrites(peer1, 1);
+
+        await expect(MockTime.resolve(peer1.enable(), { macrotasks: true })).rejectedWith(
+            ImplementationError,
+            /refused for test/,
+        );
+
+        expect(peer1.isDisabled).equals(true);
+        expect(persistedDisabledOf(peer1)).equals(true);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
+    it("keeps a disabled peer offline when its server node starts for an enable() that fails to persist", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(peer1.disable());
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+        using _writes = failDisabledWrites(peer1);
+
+        await expect(MockTime.resolve(peer1.enable(), { macrotasks: true })).rejectedWith(
+            ImplementationError,
+            /refused for test/,
+        );
+
+        expect(controller.lifecycle.isOnline).equals(true);
+        expect(peer1.isDisabled).equals(true);
+        expect(persistedDisabledOf(peer1)).equals(true);
+        expect(peer1.lifecycle.shouldBeOnline).equals(false);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
+    it("persists enable() of an online peer whose persisted flag says disabled", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1).recordNodeDisabled(true);
+
+        await MockTime.resolve(peer1.enable(), { macrotasks: true });
+
+        expect(persistedDisabledOf(peer1)).equals(false);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+    });
+
+    it("persists disable() also when the peer fails to go offline", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        peer1.lifecycle.goingOffline.once(() => {
+            throw new ImplementationError("Going offline refused for test");
+        });
+
+        await expect(MockTime.resolve(peer1.disable(), { macrotasks: true })).rejectedWith(MatterAggregateError);
+
+        expect(peer1.isDisabled).equals(true);
+        expect(persistedDisabledOf(peer1)).equals(true);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
+    it("rejects a disable() and the stop() that follows it when both fail to persist, and takes the peer offline", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const { blocking, release } = await blockMutexOf(peer1);
+        using _writes = failDisabledWrites(peer1);
+
+        const disabling = outcomeOf(peer1.disable());
+        const stopping = outcomeOf(peer1.stop());
+        release();
+
+        expect(await MockTime.resolve(disabling, { macrotasks: true })).instanceOf(ImplementationError);
+        expect(await MockTime.resolve(stopping, { macrotasks: true })).instanceOf(ImplementationError);
+        await MockTime.resolve(blocking);
+
+        expect(peer1.isDisabled).equals(false);
+        expect(persistedDisabledOf(peer1)).equals(false);
+        expect(peer1.lifecycle.shouldBeOnline).equals(false);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
+    it("resolves a disable() that a later enable() reversed when the stop() after them fails to persist", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const { blocking, release } = await blockMutexOf(peer1);
+        using _writes = failDisabledWrites(peer1);
+
+        const disabling = outcomeOf(peer1.disable());
+        const enabling = outcomeOf(peer1.enable());
+        const stopping = outcomeOf(peer1.stop());
+        release();
+
+        expect(await MockTime.resolve(disabling, { macrotasks: true })).equals("ok");
+        expect(await MockTime.resolve(enabling, { macrotasks: true })).equals("ok");
+        expect(await MockTime.resolve(stopping, { macrotasks: true })).instanceOf(ImplementationError);
+        await MockTime.resolve(blocking);
+        expect(peer1.isDisabled).equals(false);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
+    it("ends enabled and online after enable(), disable() and enable() in a row", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(peer1.disable());
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+
+        const enabling = outcomeOf(peer1.enable());
+        const disabling = outcomeOf(peer1.disable());
+        const enablingAgain = outcomeOf(peer1.enable());
+
+        expect(
+            await MockTime.resolve(Promise.all([enabling, disabling, enablingAgain]), { macrotasks: true }),
+        ).deep.equals(["ok", "ok", "ok"]);
+
+        expect(peer1.isDisabled).equals(false);
+        expect(persistedDisabledOf(peer1)).equals(false);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+    });
+
+    describe("of a crashed peer", () => {
+        async function crashedPeer() {
+            const { site, peer1 } = await peerWithLightOn();
+            peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1).eraseCaches = async () => {
+                throw new ImplementationError("Cache erase refused for test");
+            };
+            await expect(MockTime.resolve(peer1.erase())).rejectedWith(MatterAggregateError);
+            expect(peer1.construction.status).equals(Lifecycle.Status.Crashed);
+            return { site, peer1 };
+        }
+
+        it("disables it", async () => {
+            const { site, peer1 } = await crashedPeer();
+            await using _site = site;
+
+            await MockTime.resolve(peer1.disable(), { macrotasks: true });
+
+            expect(peer1.isDisabled).equals(true);
+            expect(persistedDisabledOf(peer1)).equals(true);
+        });
+
+        it("stops it", async () => {
+            const { site, peer1 } = await crashedPeer();
+            await using _site = site;
+
+            await MockTime.resolve(peer1.stop(), { macrotasks: true });
+
+            expect(peer1.lifecycle.shouldBeOnline).equals(false);
+        });
+
+        it("enables it and rejects as it cannot go online", async () => {
+            const { site, peer1 } = await crashedPeer();
+            await using _site = site;
+            await MockTime.resolve(peer1.disable(), { macrotasks: true });
+
+            const error = await MockTime.resolve(peer1.enable(), { macrotasks: true }).then(
+                () => undefined,
+                (e: unknown) => e,
+            );
+
+            expect(error).instanceOf(Error);
+            expect(peer1.isDisabled).equals(false);
+            expect(persistedDisabledOf(peer1)).equals(false);
+            expect(peer1.lifecycle.shouldBeOnline).equals(false);
+        });
+    });
+
+    it("adopts the disabled flag an earlier version stored in its network state once", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const id = controller.id;
+        const legacyFlagOf = (node: ServerNode) =>
+            node.env
+                .get(ServerNodeStore)
+                .storage.createContext("nodes")
+                .createContext("peer1")
+                .createContext("endpoints")
+                .createContext("0")
+                .createContext("network");
+        await MockTime.resolve(controller.peers.get("peer1")!.stop());
+        await legacyFlagOf(controller).set("isDisabled", true);
+        await MockTime.resolve(controller.close(), { macrotasks: true });
+
+        const rebooted = await site.addNode(undefined, {
+            id,
+            device: undefined,
+            commissioning: { enabled: false },
+            online: false,
+        });
+        const peer = rebooted.peers.get("peer1")!;
+
+        expect(peer.isDisabled).equals(true);
+        expect(await legacyFlagOf(rebooted).has("isDisabled")).equals(false);
+        await expect(MockTime.resolve(peer.start())).rejectedWith(NodeDisabledError);
+    });
+
+    it("ends disabled when disable() is called while the peer initializes again after its erase", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        let disabling: Promise<void> | undefined;
+        const disableWhenInactive = (status: Lifecycle.Status) => {
+            if (status === Lifecycle.Status.Inactive) {
+                peer1.construction.change.off(disableWhenInactive);
+                disabling = peer1.disable();
+            }
+        };
+        peer1.construction.change.on(disableWhenInactive);
+
+        await MockTime.resolve(peer1.erase(), { macrotasks: true });
+        await MockTime.resolve(disabling, { macrotasks: true });
+
+        expect(disabling).not.undefined;
+        expect(peer1.isDisabled).equals(true);
+        expect(persistedDisabledOf(peer1)).equals(true);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
+    it("applies its own disable() when an enable() follows while the disable() writes its state", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+        let enabling: Promise<unknown> | undefined;
+        const writes = new Array<boolean>();
+        using _writes = interceptDisabledWrites(peer1, async (isDisabled, recordDisabled) => {
+            writes.push(isDisabled);
+            enabling ??= outcomeOf(peer1.enable());
+            await recordDisabled(isDisabled);
+        });
+
+        await MockTime.resolve(peer1.disable(), { macrotasks: true });
+
+        expect(await MockTime.resolve(enabling, { macrotasks: true })).equals("ok");
+        expect(writes).deep.equals([true, false]);
+        expect(peer1.isDisabled).equals(false);
+        expect(persistedDisabledOf(peer1)).equals(false);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+    });
+
+    it("erases without error a peer whose server node closes while the peer initializes after its erase", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        let closing: Promise<void> | undefined;
+        peer1.lifecycle.ready.once(() => {
+            closing = controller.close();
+        });
+
+        const errors = await captureErrorsOf(() => MockTime.resolve(peer1.erase(), { macrotasks: true }));
+        await MockTime.resolve(closing, { macrotasks: true });
+
+        expect(errors).deep.equals([]);
+        expect(peer1.construction.status).equals(Lifecycle.Status.Destroyed);
+    });
+
+    it("ends enabled and online when enable() follows a disable() that waits for the node mutex", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+        const { blocking, release } = await blockMutexOf(peer1);
+
+        const disabling = peer1.disable();
+        const enabling = peer1.enable();
+        release();
+        await MockTime.resolve(Promise.all([blocking, disabling, enabling]), { macrotasks: true });
+
+        expect(persistedDisabledOf(peer1)).equals(false);
+        expect(peer1.lifecycle.shouldBeOnline).equals(true);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+    });
+
+    it("ends disabled and offline when disable() follows an enable() that waits for the node mutex", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await MockTime.resolve(peer1.disable());
+        const { blocking, release } = await blockMutexOf(peer1);
+
+        const enabling = peer1.enable();
+        const disabling = peer1.disable();
+        release();
+        await MockTime.resolve(Promise.all([blocking, enabling, disabling]), { macrotasks: true });
+
+        expect(persistedDisabledOf(peer1)).equals(true);
+        expect(peer1.lifecycle.shouldBeOnline).equals(false);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
+    it("stays stopped when stop() follows an enable() that waits for the node mutex", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await MockTime.resolve(peer1.disable());
+        const { blocking, release } = await blockMutexOf(peer1);
+
+        const enabling = peer1.enable();
+        const stopping = peer1.stop();
+        release();
+        await MockTime.resolve(Promise.all([blocking, enabling, stopping]), { macrotasks: true });
+
+        expect(persistedDisabledOf(peer1)).equals(false);
+        expect(peer1.lifecycle.shouldBeOnline).equals(false);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
+    it("keeps the connection when start() follows a stop() that waits for the node mutex", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const runtime = peer1.behaviors.internalsOf(NetworkClient).runtime;
+        expect(runtime).not.undefined;
+        const { blocking, release } = await blockMutexOf(peer1);
+
+        const stopping = peer1.stop();
+        const starting = peer1.start();
+        release();
+        await MockTime.resolve(Promise.all([blocking, stopping, starting]), { macrotasks: true });
+
+        expect(peer1.lifecycle.shouldBeOnline).equals(true);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).equals(runtime);
+    });
+
+    it("resolves a stop() that waits for the node mutex while the peer closes without applying it", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const { blocking, release } = await blockMutexOf(peer1);
+        const writes = new Array<boolean>();
+        using _writes = interceptDisabledWrites(peer1, async (isDisabled, recordNodeDisabled) => {
+            writes.push(isDisabled);
+            await recordNodeDisabled(isDisabled);
+        });
+
+        const stopping = outcomeOf(peer1.stop());
+        const closing = peer1.close();
+        release();
+
+        expect(await MockTime.resolve(stopping, { macrotasks: true })).equals("ok");
+        await MockTime.resolve(Promise.all([blocking, closing]), { macrotasks: true });
+        expect(writes).deep.equals([]);
+    });
+
+    it("reports both errors when disable() fails to take the peer offline and to persist", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        peer1.lifecycle.goingOffline.once(() => {
+            throw new ImplementationError("Going offline refused for test");
+        });
+        using _writes = failDisabledWrites(peer1);
+
+        await expect(MockTime.resolve(peer1.disable(), { macrotasks: true })).rejectedWith(
+            MatterAggregateError,
+            /Error taking .* offline/,
+        );
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
+    it("joins an erase in progress when its server node closes meanwhile", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+
+        const erasing = outcomeOf(peer1.erase());
+        const closing = controller.close();
+        const erasingAgain = outcomeOf(peer1.erase());
+
+        expect(await MockTime.resolve(erasingAgain, { macrotasks: true })).equals("ok");
+        expect(await MockTime.resolve(erasing, { macrotasks: true })).equals("ok");
+        await MockTime.resolve(closing, { macrotasks: true });
+    });
+
+    // Characterization: like start(), enable() of a node that is and should be online returns at once
+    it("does nothing on enable() of an online peer that is not disabled", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const runtime = peer1.behaviors.internalsOf(NetworkClient).runtime;
+        expect(runtime).not.undefined;
+        const writes = new Array<boolean>();
+        using _writes = interceptDisabledWrites(peer1, async (isDisabled, recordNodeDisabled) => {
+            writes.push(isDisabled);
+            await recordNodeDisabled(isDisabled);
+        });
+
+        await MockTime.resolve(peer1.enable(), { macrotasks: true });
+
+        expect(writes).deep.equals([]);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).equals(runtime);
+    });
+
+    it("ends offline when a start() and a later enable() both fail before they apply", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        using _start = removedOnDispose(controller, "start");
+        controller.start = async () => {
+            throw new ImplementationError("Server start refused for test");
+        };
+
+        const starting = outcomeOf(peer1.start());
+        const enabling = outcomeOf(peer1.enable());
+
+        expect(await MockTime.resolve(starting)).instanceOf(ImplementationError);
+        expect(await MockTime.resolve(enabling)).instanceOf(ImplementationError);
+        expect(peer1.lifecycle.shouldBeOnline).equals(false);
+    });
+
+    it("ends offline when a start() fails before it applies and a later enable() is refused as the peer closes", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        await controller.set({ network: { autoStartCommissionedPeers: false } });
+        const start = controller.start.bind(controller);
+        controller.start = async () => {
+            controller.start = start;
+            throw new ImplementationError("Server start refused for test");
+        };
+        const { blocking, release } = await blockMutexOf(peer1);
+
+        const starting = outcomeOf(peer1.start());
+        const enabling = outcomeOf(peer1.enable());
+        expect(await MockTime.resolve(starting)).instanceOf(ImplementationError);
+        const closing = peer1.close();
+        release();
+
+        expect(await MockTime.resolve(enabling, { macrotasks: true })).instanceOf(DestroyedDependencyError);
+        expect(peer1.lifecycle.intent.target).equals("offline");
+        expect(peer1.isDisabled).equals(false);
+        await MockTime.resolve(Promise.all([blocking, closing]), { macrotasks: true });
+    });
+
+    it("resolves a stop() that a later start() reverses while the start() waits for its server node", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        await controller.set({ network: { autoStartCommissionedPeers: false } });
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+        const { promise: serverMayStart, resolver: letServerStart } = createPromise<void>();
+        const start = controller.start.bind(controller);
+        controller.start = async () => {
+            controller.start = start;
+            await serverMayStart;
+            await start();
+        };
+        const { blocking, release } = await blockMutexOf(peer1);
+
+        const stopping = outcomeOf(peer1.stop());
+        const starting = outcomeOf(peer1.start());
+        release();
+
+        expect(await MockTime.resolve(stopping, { macrotasks: true })).equals("ok");
+        letServerStart();
+        expect(await MockTime.resolve(starting, { macrotasks: true })).equals("ok");
+        await MockTime.resolve(blocking);
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+    });
+
     it("does not restart a peer that is deleted while it is erased", async () => {
         const { site, controller, peer1 } = await peerWithLightOn();
         await using _site = site;
@@ -1367,6 +2613,30 @@ describe("ClientNode", () => {
         expect(controller.env.get(PeerSet).has(address)).false;
     });
 
+    it("takes the other peers offline when one peer fails to go offline as its server node goes offline", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        await commission(controller, await site.addDevice());
+        await subscribedPeer(controller, "peer1");
+        await subscribedPeer(controller, "peer2");
+        const [first, last] = [...controller.peers];
+        first.applyIntent = async () => {
+            throw new ImplementationError("Peer teardown refused for test");
+        };
+
+        try {
+            const warnings = await captureWarningsOf(() => MockTime.resolve(controller.stop(), { macrotasks: true }));
+
+            expect(warnings.map(({ text }) => text).join("\n")).match(
+                /Error taking peer .* offline.*refused for test/s,
+            );
+        } finally {
+            Reflect.deleteProperty(first, "applyIntent");
+        }
+        expect(controller.lifecycle.isOnline).equals(false);
+        expect(last.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
     it("stays offline after its erase when its server node went offline meanwhile", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
@@ -1379,26 +2649,171 @@ describe("ClientNode", () => {
         expect(peers.length).equals(2);
         const [first, last] = peers;
         const { promise: offline, resolver: serverOffline } = createPromise<void>();
-        const stopFirst = first.stop.bind(first);
-        first.stop = async () => {
+        const applyIntentOfFirst = first.applyIntent.bind(first);
+        first.applyIntent = async () => {
             serverOffline();
-            await Time.sleep("slow peer stop", Seconds(1));
-            await stopFirst();
+            await Time.sleep("slow peer teardown", Seconds(1));
+            await applyIntentOfFirst();
         };
-        const store = last.env.get(ClientNodeStore);
+        const store = last.env.get(ServerNodeStore).clientStores.storeForNode(last);
         const eraseCaches = store.eraseCaches.bind(store);
         store.eraseCaches = async () => {
             await offline;
             await eraseCaches();
         };
 
-        const errors = await captureErrorsOf(() =>
-            MockTime.resolve(Promise.all([last.erase(), controller.stop()]), { macrotasks: true }),
-        );
+        let errors;
+        try {
+            errors = await captureErrorsOf(() =>
+                MockTime.resolve(Promise.all([last.erase(), controller.stop()]), { macrotasks: true }),
+            );
+        } finally {
+            Reflect.deleteProperty(first, "applyIntent");
+            store.eraseCaches = eraseCaches;
+        }
 
         expect(last.construction.status).equals(Lifecycle.Status.Active);
         expect(last.lifecycle.isOnline).equals(false);
         expect(errors).deep.equals([]);
+    });
+
+    it("rejects a start() that a stop() reversed with the error of the server node start it ran", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        controller.start = async () => {
+            throw new ImplementationError("Server start refused for test");
+        };
+
+        try {
+            const starting = outcomeOf(peer1.start());
+            const stopping = outcomeOf(peer1.stop());
+
+            expect(await MockTime.resolve(starting)).instanceOf(ImplementationError);
+            expect(await MockTime.resolve(stopping)).equals("ok");
+        } finally {
+            Reflect.deleteProperty(controller, "start");
+        }
+        expect(peer1.lifecycle.intent.target).equals("offline");
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
+    it("brings two peers online that start in the same tick while the mutex of their server node is busy", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        await commission(controller, await site.addDevice());
+        await subscribedPeer(controller, "peer1");
+        await subscribedPeer(controller, "peer2");
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        await controller.set({ network: { autoStartCommissionedPeers: false } });
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+        const peers = [...controller.peers];
+        expect(peers.length).equals(2);
+        const { blocking, release } = await blockMutexOf(controller);
+
+        const starting = Promise.all(peers.map(peer => outcomeOf(peer.start())));
+        release();
+
+        expect(await MockTime.resolve(starting, { macrotasks: true })).deep.equals(["ok", "ok"]);
+        await MockTime.resolve(blocking);
+        for (const peer of peers) {
+            expect(peer.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+        }
+    });
+
+    it("lets its server node go offline without waiting for the peer to close", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        const { blocking, release } = await blockMutexOf(peer1);
+        const closing = peer1.close();
+
+        let stopped = false;
+        const stopping = controller.stop().then(() => {
+            stopped = true;
+        });
+        await MockTime.resolve(Time.sleep("server stop", Minutes(1)), { macrotasks: true });
+        const stoppedWhilePeerWaits = stopped;
+        release();
+        await MockTime.resolve(Promise.all([blocking, closing, stopping]), { macrotasks: true });
+
+        expect(stoppedWhilePeerWaits).equals(true);
+    });
+
+    describe("when its server node restarts", () => {
+        async function restart(controller: ServerNode) {
+            await MockTime.resolve(controller.stop(), { macrotasks: true });
+            await MockTime.resolve(controller.start(), { macrotasks: true });
+        }
+
+        it("goes online again after a start() of its own without auto-start", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await controller.set({ network: { autoStartCommissionedPeers: false } });
+            await MockTime.resolve(peer1.stop(), { macrotasks: true });
+            (controller.env.get(Crypto) as MockCrypto).entropic = true;
+            await MockTime.resolve(peer1.start(), { macrotasks: true });
+
+            await MockTime.resolve(controller.stop(), { macrotasks: true });
+            expect(peer1.lifecycle.intent.target).equals("online");
+            expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Disconnected);
+            expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+            await MockTime.resolve(controller.start(), { macrotasks: true });
+
+            expect(peer1.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+        });
+
+        it("goes online with auto-start after a start() of its own that failed", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await MockTime.resolve(controller.stop(), { macrotasks: true });
+            controller.start = async () => {
+                throw new ImplementationError("Server start refused for test");
+            };
+            try {
+                await expect(MockTime.resolve(peer1.start(), { macrotasks: true })).rejectedWith(
+                    ImplementationError,
+                    /refused for test/,
+                );
+            } finally {
+                Reflect.deleteProperty(controller, "start");
+            }
+            (controller.env.get(Crypto) as MockCrypto).entropic = true;
+
+            await MockTime.resolve(controller.start(), { macrotasks: true });
+
+            expect(peer1.lifecycle.intent.target).equals("online");
+            expect(peer1.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+        });
+
+        it("stays offline after a stop() of its own with auto-start", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await MockTime.resolve(peer1.stop(), { macrotasks: true });
+
+            await restart(controller);
+
+            expect(peer1.lifecycle.intent.target).equals("offline");
+            expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+        });
+
+        // Characterization
+        it("stays offline while it is disabled", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await MockTime.resolve(peer1.disable(), { macrotasks: true });
+
+            await restart(controller);
+
+            expect(peer1.isDisabled).equals(true);
+            expect(peer1.lifecycle.connectionState).equals(NodeConnectionState.Disconnected);
+            expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+        });
     });
 
     describe("start", () => {
@@ -1480,16 +2895,21 @@ describe("ClientNode", () => {
             await using site = new MockSite();
             const { controller, peer1 } = await stoppedControllerWithPeer(site);
             let closing: Promise<void> | undefined;
-            const start = peer1.start.bind(peer1);
-            peer1.start = () => {
+            const applyIntent = peer1.applyIntent.bind(peer1);
+            peer1.applyIntent = () => {
                 closing ??= controller.close();
-                return start();
+                return applyIntent();
             };
 
-            const warnings = await captureWarningsOf(async () => {
-                await MockTime.resolve(controller.start(), { macrotasks: true });
-                await MockTime.resolve(closing, { macrotasks: true });
-            });
+            let warnings;
+            try {
+                warnings = await captureWarningsOf(async () => {
+                    await MockTime.resolve(controller.start(), { macrotasks: true });
+                    await MockTime.resolve(closing, { macrotasks: true });
+                });
+            } finally {
+                Reflect.deleteProperty(peer1, "applyIntent");
+            }
 
             expect(closing).not.undefined;
             expect(warnings).deep.equals([]);
@@ -2955,9 +4375,7 @@ describe("ClientNode", () => {
             const { site, peer1, device, transitions } = await setup();
             await using _site = site;
 
-            peer1.env.get(ClientNodeStore).localWriter.persist = async () => {
-                throw new Error("persist failure");
-            };
+            using _failing = failCachePersists(peer1);
 
             const warnings = await captureWarningsOf(() =>
                 MockTime.resolve(peer1.setStateOf(BasicInformationClient, { nodeLabel: writtenLabel }), {
@@ -2975,9 +4393,7 @@ describe("ClientNode", () => {
             const { site, peer1, transitions } = await setup();
             await using _site = site;
 
-            peer1.env.get(ClientNodeStore).localWriter.persist = async () => {
-                throw new Error("persist failure");
-            };
+            using _failing = failCachePersists(peer1);
 
             const { persistFailure } = await seedPeerCache(
                 peer1,
@@ -4860,6 +6276,43 @@ describe("ClientNode", () => {
             expect(neoStorageKeys(), "NEO storage should be erased").empty;
         });
 
+        it("drops a cluster whose store ended without a warning", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+            const structure = initializer.structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
+            await drain(structure.mutate(request, readResult(neoReports(10), descriptorServerListReport(10))));
+
+            const nodeStore = controller.env.get(ServerNodeStore).clientStores.storeOf(peer1.id);
+            await nodeStore?.storeForEndpointNumber(EP1).close();
+            const warnings = await captureWarningsOf(() =>
+                drain(structure.mutate(request, readResult(descriptorServerListReport(11)))),
+            );
+
+            expect(warnings.map(({ text }) => text)).deep.equals([]);
+        });
+
+        it("drops data of a new cluster on an endpoint whose store ended without a warning", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+            const structure = initializer.structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
+
+            const nodeStore = controller.env.get(ServerNodeStore).clientStores.storeOf(peer1.id);
+            await nodeStore?.storeForEndpointNumber(EP1).close();
+            const warnings = await captureWarningsOf(() =>
+                drain(structure.mutate(request, readResult(descriptorServerListWithNeoReport(10), neoReports(10)))),
+            );
+
+            expect(warnings.map(({ text }) => text)).deep.equals([]);
+        });
+
         it("re-installs a cluster the peer drops and later serves again", async () => {
             await using site = new MockSite();
             const { controller } = await site.addCommissionedPair();
@@ -4890,6 +6343,74 @@ describe("ClientNode", () => {
             // Peer serves NEO again and lists it in the descriptor.  It must come back.
             await drain(structure.mutate(request, readResult(descriptorServerListWithNeoReport(12), neoReports(12))));
             expect(neoActive(), "NEO must be re-installed after the peer serves it again").true;
+        });
+
+        it("keeps the values of a cluster the peer serves again while the dropped behavior leaves", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
+
+            await drain(structure.mutate(request, readResult(descriptorServerListWithNeoReport(10), neoReports(10))));
+
+            const behaviors = structure.endpointFor(EP1)!.behaviors;
+            const drop = behaviors.drop.bind(behaviors);
+            const dropping = createPromise<void>();
+            const dropReleased = createPromise<void>();
+            behaviors.drop = async (id: string) => {
+                dropping.resolver();
+                await dropReleased.promise;
+                await drop(id);
+            };
+
+            const dropped = drain(structure.mutate(request, readResult(descriptorServerListReport(11))));
+            await MockTime.resolve(dropping.promise);
+            const served = drain(
+                structure.mutate(request, readResult(descriptorServerListWithNeoReport(12), neoReports(12))),
+            );
+            await MockTime.resolve(Time.sleep("report runs", Seconds(1)), { macrotasks: true });
+            dropReleased.resolver();
+            await MockTime.resolve(dropped, { macrotasks: true });
+            await MockTime.resolve(served, { macrotasks: true });
+
+            const neoStorage = Object.entries(site.storageFor("controller1")).find(([key]) =>
+                key.endsWith(`.${EP1}.${NEO}`),
+            )?.[1];
+            expect(neoStorage?.[0]).equals(1234);
+        });
+
+        it("keeps a cluster the peer serves again while the erase of the dropped cluster waits", async () => {
+            await using site = new MockSite({ createStorageDriver: store => new BufferingStorageDriver(store) });
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
+            const buffer = controller.env.get(ClientCacheBuffer);
+
+            await drain(structure.mutate(request, readResult(descriptorServerListWithNeoReport(10), neoReports(10))));
+
+            const queueReleased = createPromise<void>();
+            const queueHeld = buffer.clear(() => queueReleased.promise);
+            const dropped = drain(structure.mutate(request, readResult(descriptorServerListReport(11))));
+            await MockTime.resolve(Time.sleep("drop reaches the erase", Seconds(1)), { macrotasks: true });
+            const served = drain(
+                structure.mutate(request, readResult(descriptorServerListWithNeoReport(12), neoReports(12))),
+            );
+            await MockTime.resolve(Time.sleep("report runs", Seconds(1)), { macrotasks: true });
+            queueReleased.resolver();
+            await MockTime.resolve(Promise.all([queueHeld, dropped, served]), { macrotasks: true });
+            await MockTime.resolve(buffer.flush());
+
+            const behaviors = structure.endpointFor(EP1)!.behaviors;
+            const neo = Object.values(behaviors.supported).find(
+                type => (type as ClusterBehavior.Type).cluster?.id === NEO,
+            );
+            expect(neo !== undefined && behaviors.isActive(neo.id), "NEO must be active").true;
+            const neoStorage = Object.entries(site.storageFor("controller1")).find(([key]) =>
+                key.endsWith(`.${EP1}.${NEO}`),
+            )?.[1];
+            expect(neoStorage?.[0]).equals(1234);
         });
 
         it("rebuilds a cluster when the peer changes its attribute list without a feature change", async () => {
@@ -5113,9 +6634,7 @@ describe("ClientNode", () => {
             const { controller, device } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
 
-            peer1.env.get(ClientNodeStore).localWriter.persist = async () => {
-                throw new Error("persist failure");
-            };
+            using _failing = failCachePersists(peer1);
 
             const installed = new Promise<Endpoint>(resolve =>
                 peer1.env
@@ -5134,6 +6653,7 @@ describe("ClientNode", () => {
 
             expect(peer1.endpoints.for(5)?.stateOf(OnOffClient).onOff).equals(false);
             expect(warnings.filter(({ text }) => text.includes("failed locally"))).length(1);
+            expect(warnings.filter(({ text }) => text.includes("Cache flush failed"))).length(0);
         });
 
         it("adopts an endpoint created by require() when the peer reports it", async () => {
@@ -5161,6 +6681,14 @@ describe("ClientNode", () => {
             expect(peer1.endpoints.for(5)).equals(required);
             expect(peer1.parts.size).equals(sizeBefore + 1);
             expect(required.stateOf(OnOffClient).onOff).equals(false);
+        });
+
+        it("requires the node itself for endpoint 0", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = controller.peers.get("peer1")!;
+
+            expect(peer1.endpoints.require(0)).equals(peer1);
         });
 
         it("refuses a duplicate number in a hand-built peer structure", async () => {

@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ServerNetworkRuntime } from "#behavior/system/network/ServerNetworkRuntime.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { MockSite } from "@matter/node/testing";
+import { NetworkError } from "@matter/general";
+import { MockServerNode, MockSite } from "@matter/node/testing";
 import { NumberedOccurrence, OccurrenceManager } from "@matter/protocol";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 
@@ -51,5 +53,25 @@ describe("EventsBehavior", () => {
 
         expect(await basicInformationEvents(device, "shutDown")).length(1);
         expect(await basicInformationEvents(device, "startUp")).length(2);
+    });
+
+    it("records no ShutDown event when a start fails before the node is online", async () => {
+        class TransportFailingRuntime extends ServerNetworkRuntime {
+            protected override async addTransports() {
+                throw new NetworkError("Port unavailable");
+            }
+        }
+        class NodeFailingStart extends MockServerNode {
+            protected override createRuntime() {
+                return new TransportFailingRuntime(this);
+            }
+        }
+        const node = new NodeFailingStart({});
+        await MockTime.resolve(node.construction);
+
+        await expect(MockTime.resolve(node.start())).rejectedWith(NetworkError);
+
+        expect(await basicInformationEvents(node, "shutDown")).length(0);
+        await MockTime.resolve(node.close());
     });
 });

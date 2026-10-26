@@ -214,8 +214,8 @@ export class OtaAnnouncements {
 
     /**
      * Determine if we can request an update for the given node and return node meta-data needed for the process.
-     * The Node needs to be commissioned (have a peer address), being not disabled, and having an active subscription
-     * (to not work with outdated data).
+     * The Node needs to be commissioned (have a peer address) and have an active subscription (to not work with
+     * outdated data).
      * When a node is applicable for updates, it also subscribes to softwareVersion changes to be able to react
      */
     peerApplicableForUpdate(peer: ClientNode) {
@@ -227,10 +227,8 @@ export class OtaAnnouncements {
         if (
             !peer.behaviors.has(NetworkClient) ||
             peerAddress === undefined ||
-            peer.stateOf(NetworkClient).isDisabled ||
             peer.behaviors.internalsOf(NetworkClient).activeSubscription === undefined
         ) {
-            // Node is disabled or not connected via an active subscription
             logger.info(
                 `Node`,
                 (peerAddress ?? peer.id).toString(),

@@ -55,7 +55,7 @@ describe("DatasourceCache settlement order", () => {
         expect(integrated).deep.equals([{ "1": "reported" }]);
     });
 
-    it("keeps a report that arrives while an accepted value persists", async () => {
+    it("applies a report that arrives while an accepted value persists after that value", async () => {
         const writer = gatedWriter();
         const cache = createCache({ localWriter: writer });
         const { integrated, consumer } = recordingConsumer();
@@ -63,17 +63,13 @@ describe("DatasourceCache settlement order", () => {
 
         const accepted = cache.settleAccepted({ "1": "accepted" }, 0);
         const report = cache.externalSet(attrs({ "1": "reported" }));
-        await MockTime.yield();
-        writer.pending[0].finish();
-        await accepted;
-        await MockTime.yield();
-        writer.pending[1].finish();
-        await report;
+        await writer.finishUntil(Promise.all([accepted, report]));
 
-        expect(integrated).deep.equals([{ "1": "reported" }]);
+        expect(integrated).deep.equals([{ "1": "accepted" }, { "1": "reported" }]);
+        expect(writer.stored["1"]).equals("reported");
     });
 
-    it("stores the latest settlement of a key when an older one would finish persisting last", async () => {
+    it("stores the latest settlement of a key that arrives while an older one persists", async () => {
         const writer = gatedWriter();
         const cache = createCache({ localWriter: writer });
         cache.consumer = recordingConsumer().consumer;
@@ -81,8 +77,7 @@ describe("DatasourceCache settlement order", () => {
         const accepted = cache.settleAccepted({ "1": "accepted" }, 0);
         const report = cache.externalSet(attrs({ "1": "reported" }));
 
-        await writer.finishNewestFirst(2);
-        await Promise.all([accepted, report]);
+        await writer.finishUntil(Promise.all([accepted, report]));
 
         const restarted = new DatasourceCache({
             writer: async () => [],
@@ -150,8 +145,7 @@ describe("DatasourceCache settlement order", () => {
 
         const report = cache.externalSet(attrs({ "1": "reported", __version__: 5 }));
         const forgotten = cache.forgetVersion();
-        await writer.finishNewestFirst(2);
-        await Promise.all([report, forgotten]);
+        await writer.finishUntil(Promise.all([report, forgotten]));
 
         expect(writer.stored[DatasourceCache.VERSION_KEY]).equals(-1);
     });

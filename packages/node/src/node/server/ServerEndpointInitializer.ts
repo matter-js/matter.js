@@ -40,7 +40,7 @@ export class ServerEndpointInitializer extends EndpointInitializer {
 
         this.#store.endpointStores.assignNumber(endpoint, {
             presetNumbers: () => presetNumbersNotInstalled(endpoint),
-            isInstalled: number => IndexBehavior.holderOf(endpoint, number) !== undefined,
+            isInstalled: number => IndexBehavior.holderOf(endpoint, number)?.lifecycle.isInstalled === true,
         });
     }
 

@@ -6,6 +6,7 @@
 
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { ClientStructure } from "#node/client/ClientStructure.js";
+import { ImplementationError } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
@@ -62,29 +63,24 @@ describe("wire change keys", () => {
         }
     });
 
-    it("keys a cluster it cannot resolve by property name", async () => {
+    it("refuses a wire change for a behavior it cannot resolve to a cluster", async () => {
         const node = await MockServerNode.createOnline();
         try {
             const { structure, stores } = recordingStructure(node);
 
-            // The unresolved cluster carries a placeholder ID, so a name the placeholder's schema happens to define
-            // must not be taken for that schema's attribute
-            await structure.applyWireChanges([
-                {
-                    kind: "update",
-                    node: node.id,
-                    endpoint: EndpointNumber(1),
-                    version: 1,
-                    behavior: "somethingUnresolvable",
-                    changes: { identifyTime: 7, clusterRevision: 5 },
-                },
-            ]);
-
-            expect(Object.keys(stores.get("somethingUnresolvable") ?? {}).sort()).deep.equals([
-                "__version__",
-                "clusterRevision",
-                "identifyTime",
-            ]);
+            await expect(
+                structure.applyWireChanges([
+                    {
+                        kind: "update",
+                        node: node.id,
+                        endpoint: EndpointNumber(1),
+                        version: 1,
+                        behavior: "somethingUnresolvable",
+                        changes: { identifyTime: 7, clusterRevision: 5 },
+                    },
+                ]),
+            ).rejectedWith(ImplementationError, /names no cluster/);
+            expect(stores.has("somethingUnresolvable")).false;
         } finally {
             await node.close();
         }

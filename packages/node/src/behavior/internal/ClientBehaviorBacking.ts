@@ -13,11 +13,20 @@ import { AttributeId, CommandId } from "@matter/types";
 import { BehaviorBacking } from "./BehaviorBacking.js";
 
 /**
+ * The global attributes {@link ClientBehaviorBacking.elements} derives from.
+ */
+const ELEMENT_LISTS = new Set(["attributeList", "acceptedCommandList"]);
+
+/**
  * This class backs the client implementation of a behavior.
  */
 export class ClientBehaviorBacking extends BehaviorBacking {
     #elements?: SupportedElements;
 
+    /**
+     * The elements the peer reports for the cluster.  They follow the current `attributeList` and
+     * `acceptedCommandList`.
+     */
     get elements(): SupportedElements | undefined {
         if (this.#elements) {
             return this.#elements;
@@ -72,7 +81,11 @@ export class ClientBehaviorBacking extends BehaviorBacking {
      */
     protected override broadcastChanges(props: string[]) {
         const idToName = this.type.supervisor.propertyIdsAndNames;
-        super.broadcastChanges(props.map(id => idToName.get(id) ?? id));
+        const names = props.map(id => idToName.get(id) ?? id);
+        if (names.some(name => ELEMENT_LISTS.has(name))) {
+            this.#elements = undefined;
+        }
+        super.broadcastChanges(names);
     }
 
     override close(): MaybePromise {

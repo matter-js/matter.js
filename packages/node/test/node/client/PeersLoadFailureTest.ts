@@ -143,4 +143,33 @@ describe("Peers load failures", () => {
         await MockTime.macrotask;
         expect(tracker.rejections.filter(reason => `${reason}`.includes("Behaviors have errors"))).deep.equals([]);
     });
+
+    it("stops and closes a controller with a peer that cannot load", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        await commissionAdditionalDevice(site, controller);
+        const id = controller.id;
+        const storage = site.storageFor(id);
+        await controller.close();
+        orphanPeerFromFabric(storage, "peer1");
+
+        const rebooted = await reboot(site, id);
+        const broken = rebooted.peers.get("peer1")!;
+        const healthy = rebooted.peers.get("peer2")!;
+        await expect(broken.construction).rejected;
+        (rebooted.env.get(Crypto) as MockCrypto).entropic = true;
+        await MockTime.resolve(rebooted.start(), { macrotasks: true });
+
+        const messages = new Array<CapturedMessage>();
+        await captureLog(messages, () => MockTime.resolve(rebooted.stop(), { macrotasks: true }));
+        expect(messages.filter(({ level }) => level >= LogLevel.WARN)).deep.equals([]);
+        expect(healthy.lifecycle.isOnline).equals(false);
+        await MockTime.resolve(broken.stop());
+        expect(broken.lifecycle.shouldBeOnline).equals(false);
+
+        await MockTime.resolve(rebooted.close(), { macrotasks: true });
+        expect(healthy.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(broken.construction.status).equals(Lifecycle.Status.Destroyed);
+        await MockTime.resolve(broken.close());
+    });
 });

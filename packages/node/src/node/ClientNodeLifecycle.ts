@@ -5,6 +5,7 @@
  */
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
+import type { Endpoint } from "#endpoint/Endpoint.js";
 import { Observable } from "@matter/general";
 import { NodeLifecycle } from "./NodeLifecycle.js";
 
@@ -21,8 +22,8 @@ export enum NodeConnectionState {
     Connected = 0,
 
     /**
-     * The node is disconnected because it is disabled, stopped or not yet started.  No connection is attempted and
-     * data is stale.
+     * The node is disconnected because it is disabled, stopped, not started, not commissioned, its server node is
+     * offline, or its start failed.  No connection is attempted and data is stale.
      */
     Disconnected = 1,
 
@@ -42,11 +43,25 @@ export enum NodeConnectionState {
 /**
  * Lifecycle information specific to client (peer) nodes.
  */
-export class ClientNodeLifecycle extends NodeLifecycle {
+export class ClientNodeLifecycle extends NodeLifecycle<ClientNodeLifecycle.Intent> {
     #seeded = Observable<[context: ActionContext]>();
     #connectionStateChanged = Observable<[state: NodeConnectionState]>();
     #isSeeded = false;
     #connectionState = NodeConnectionState.Disconnected;
+
+    constructor(endpoint: Endpoint) {
+        super(endpoint, { target: "offline", isDisabled: false });
+    }
+
+    /**
+     * Whether the last `ClientNode.enable()` or `disable()` asked for the node to be disabled.  Before the first call,
+     * and after a last call that failed, it is the persisted flag; before the node loads it is not disabled.
+     *
+     * @internal
+     */
+    get isDisabled(): boolean {
+        return this.intent.isDisabled;
+    }
 
     /**
      * True once the node's structure has been read at least once: BasicInformation is present and every endpoint the
@@ -107,5 +122,11 @@ export class ClientNodeLifecycle extends NodeLifecycle {
         }
         this.#connectionState = state;
         this.#connectionStateChanged.emit(state);
+    }
+}
+
+export namespace ClientNodeLifecycle {
+    export interface Intent extends NodeLifecycle.Intent {
+        readonly isDisabled: boolean;
     }
 }

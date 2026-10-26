@@ -55,7 +55,7 @@ Device info: `basicInformation` / `deviceInformation` → `new DeviceInformation
 | `controller.isNodeCommissioned(id)` | `serverNode.peers.get(id)?.lifecycle.isCommissioned` |
 | `controller.removeNode(id, tryDecommission)` | `clientNode.decommission()` (fallback `clientNode.delete()` for force) |
 | `controller.disconnectNode(id)` | `clientNode.disable()` |
-| `controller.connectNode(id)` | `clientNode.enable()` / `clientNode.start()` |
+| `controller.connectNode(id)` | `clientNode.enable()` |
 | `controller.discoverCommissionableDevices(opts)` | `serverNode.peers.discover(opts)` / `peers.locate(opts)` |
 | `controller.getActiveSessionInformation()` | `serverNode.stateOf(SessionsBehavior).sessions` |
 | `controller.updateFabricLabel(label)` | `fabric.setLabel(label)` (+ auto per-node sync on online) — **moves to node-management layer** |
@@ -287,16 +287,16 @@ off via a callback to complete the flow elsewhere. On the new API:
 needed** — the `NetworkClient`'s `SustainedSubscription` establishes and re-establishes the subscription
 automatically once the node is enabled.
 
-There is no separate "auto-connect" toggle: a node is *connected* when it is enabled (`!isDisabled`) and
+There is no separate "auto-connect" toggle: a node is *connected* when it is enabled (`!clientNode.isDisabled`) and
 holds a sustained subscription (`autoSubscribe`). The legacy node options map directly onto `NetworkClient`
 state:
 
-| Legacy | New (`NetworkClient` state, via `clientNode.set({ network: … })`) |
+| Legacy | New (`NetworkClient` state, via `clientNode.set({ network: … })`, except `autoConnect`) |
 | --- | --- |
-| `autoConnect` | `isDisabled` (**inverse**): `autoConnect: false` → `isDisabled: true`. Or use `clientNode.enable()` / `disable()`. |
+| `autoConnect` | `clientNode.disable()` / `enable()`: `autoConnect: false` → `disable()`. They persist the flag; read it with `clientNode.isDisabled`. The `NetworkClient` state `isDisabled` is deprecated and only mirrors that flag. |
 | `autoSubscribe` | `autoSubscribe` (same meaning) |
 | `subscribeAllAttributesAndEvents(opts)` / interval tuning | `defaultSubscription`: `Subscribe.Options` (interval floor/ceiling, filters) merged into the default wildcard subscription, or a built `Subscribe`/`Read` sent as given, with its paths and fabric filter; the node sets the event filter from the higher of the stored and the emitted event number, injects known data versions and defaults `keepSubscriptions` to false. To keep Leave handling, a built request needs the Basic Information attributes and events and the Operational Credentials `fabrics` attribute; without them the node notices a device going offline only through the subscription timeout and does not see a fabric Leave. The subscription re-applies automatically when you change it |
-| `node.connect()` | `clientNode.enable()` (subscription follows automatically) |
+| `node.connect()` | `clientNode.enable()` (subscription follows automatically). `PairedNode.connect()` itself calls `enable()`, so it also starts a stopped peer that is not disabled |
 | `node.disconnect()` | `clientNode.disable()` |
 | `node.reconnect()` / `triggerReconnect()` | not needed — `SustainedSubscription` re-establishes; observe `lifecycle.connectionState` |
 
@@ -324,10 +324,10 @@ Per-node enable/disable is on `ClientNode`:
 | Legacy | New |
 | --- | --- |
 | `controller.disconnectNode(id)` / "disable node" | `clientNode.disable()` — drops the subscription and prevents reconnection until re-enabled |
-| `controller.connectNode(id)` / "enable node" | `clientNode.enable()` — brings a disabled, reachable node back online |
-| — (read) | `clientNode.state.network.isDisabled` |
+| `controller.connectNode(id)` / "enable node" | `clientNode.enable()` — clears the disabled flag and brings the node online like `start()` |
+| — (read) | `clientNode.isDisabled` |
 
-`disable()` sets the persisted `network.isDisabled` flag, so a node stays disabled across controller
+`disable()` persists the disabled flag, so a node stays disabled across controller
 restarts. This is the "this node is intentionally off" state — a seasonal device (a christmas-light plug, a
 pool-pump socket) you want the controller to leave alone, and the bulk connect to skip, until you
 `enable()` it again. For a transient disconnect that keeps the node enabled for on-demand reconnect, use
@@ -361,13 +361,15 @@ for (const peer of serverNode.peers.commissioned) {
 `NetworkServer.autoStartCommissionedPeers` (default `true` = auto-connect commissioned peers on online).
 Set it to `false` at `ServerNode.create` (`network: { autoStartCommissionedPeers: false }`) for manual /
 on-demand control — the node then connects **no** peer on online. With it off, a commissioned peer is only
-usable **after you explicitly bring it online**: call `clientNode.enable()` for a peer that is `isDisabled`
-(this clears the flag and starts it — `start()` alone throws `UncommissionedError` on a disabled peer), or
-`clientNode.start()` for an already-enabled peer. This is the new-API replacement for the legacy
-`pairedNode.connect()` call: there is no implicit connect, you `enable()`/`start()` on demand. Enabling a
-peer while `autoStartCommissionedPeers` is `false` does **not** cause it to auto-connect on the next online
-— the sweep is off regardless of `isDisabled`. The nodejs-shell uses `false` so a debug session connects
-only the peers you ask for.
+usable **after you explicitly bring it online**: call `clientNode.enable()`, which clears the disabled
+flag and starts the peer (`start()` alone throws `NodeDisabledError` on a disabled peer). This is the
+new-API replacement for the legacy `pairedNode.connect()` call: there is no implicit connect, you
+`enable()`/`start()` on demand. A peer you started this way goes online again when the controller node
+restarts in the same process, as a server restart keeps the intent of each peer. Only the disabled flag
+persists, so with `autoStartCommissionedPeers: false` the peer does **not** connect after the process
+restarts. With `true`, the sweep starts each commissioned peer that is not disabled, unless a `start()`, `stop()`,
+`enable()` or `disable()` of its own set what it should be and did not fail. The nodejs-shell uses `false` so a debug session
+connects only the peers you ask for.
 
 ---
 
@@ -664,8 +666,8 @@ react to `connectionStateChanged`; drop any reconnect timers / availability debo
 `getNode(nodeId, allowUnknown)` for a peer commissioned by another controller on the shared fabric.
 
 **How do I get the `ClientNode`s to work with?** `await serverNode.start()` then read `serverNode.peers.commissioned`
-(the commissioned `ClientNode`s). Enabling a peer is `clientNode.enable()` (disabled) / `clientNode.start()`
-(already enabled). There is no `connectAndGetNodes` bulk call — enumerate `peers.commissioned` and enable as
+(the commissioned `ClientNode`s). Enabling a peer is `clientNode.enable()`, whether or not it
+is disabled. There is no `connectAndGetNodes` bulk call — enumerate `peers.commissioned` and enable as
 needed (bulk connect happens automatically on controller start unless `autoStartCommissionedPeers` is `false`; see above).
 
 **How do I subscribe to a node's changes?** Register a listener on

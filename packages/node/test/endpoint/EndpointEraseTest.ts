@@ -113,6 +113,20 @@ class UnpreparedEndpoint extends Endpoint {
     }
 }
 
+class StepCountingEndpoint extends Endpoint {
+    steps = 0;
+
+    protected override async eraseWithMutex(prepared: (erasure: EndpointInitializer.Erasure) => void) {
+        this.steps++;
+        await super.eraseWithMutex(prepared);
+    }
+
+    protected override async deleteWithMutex(prepared: (erasure: EndpointInitializer.Erasure) => void) {
+        this.steps++;
+        await super.deleteWithMutex(prepared);
+    }
+}
+
 class CountingEndpoint extends Endpoint {
     closes = 0;
 
@@ -778,6 +792,37 @@ describe("Endpoint.erase", () => {
         expect(rootVersion(node)).equals(before + 1);
         expect(light.construction.status).equals(Lifecycle.Status.Destroyed);
     });
+
+    // Characterization: the phase of a finished verb outlives it
+    it("names a finished delete when it refuses a later erase", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const light = await node.add(OnOffLightDevice, { id: "light" });
+        await light.delete();
+
+        await expect(light.erase()).rejectedWith(DestroyedDependencyError, /is deleted, so it cannot be erased/);
+    });
+
+    for (const verb of ["erase", "delete"] as const) {
+        it(`does nothing in ${verb}() of an endpoint destroyed while it waits`, async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const light = new StepCountingEndpoint(OnOffLightDevice, { id: "light" });
+            await node.add(light);
+            let release!: () => void;
+            const blocking = light.lifecycle.treeMutex.hold(
+                "blocking",
+                () => new Promise<void>(resolve => (release = resolve)),
+            );
+
+            const running = light[verb]();
+            await light.construction.close();
+            release();
+
+            await blocking;
+            await running;
+            expect(light.construction.status).equals(Lifecycle.Status.Destroyed);
+            expect(light.steps).equals(0);
+        });
+    }
 
     it("completes an erase that has not begun when the endpoint is closed", async () => {
         await using node = await MockServerNode.createOnline(undefined, { device: undefined });

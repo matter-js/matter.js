@@ -16,6 +16,7 @@ import { InteractionServer } from "#node/server/InteractionServer.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
+import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     AbortedError,
     Diagnostic,
@@ -425,7 +426,7 @@ describe("ClientSubscribe", () => {
             await settle(controller, peer);
 
             expect(filteredClusters(peer, false)).deep.equals([]);
-            expect(peer.env.get(ClientNodeStore).cacheFabricFiltered).false;
+            expect(peer.env.get(ServerNodeStore).clientStores.storeForNode(peer).cacheFabricFiltered).false;
             expect(peer.stateOf(BasicInformationClient).vendorId).equals(0xfff1);
         });
 
@@ -457,12 +458,14 @@ describe("ClientSubscribe", () => {
             const { controller } = await site.addCommissionedPair();
             const peer = await subscribedPeer(controller, "peer1");
             await MockTime.resolve(peer.set({ network: { autoSubscribe: false } }));
-            await MockTime.resolve(peer.env.get(ClientNodeStore).recordCacheFabricFiltered(false));
+            await MockTime.resolve(
+                peer.env.get(ServerNodeStore).clientStores.storeForNode(peer).recordCacheFabricFiltered(false),
+            );
 
             const restarted = await restartedPeer(site, controller.id);
 
             expect(filteredClusters(restarted, true)).deep.equals([]);
-            expect(restarted.env.get(ClientNodeStore).cacheFabricFiltered).true;
+            expect(restarted.env.get(ServerNodeStore).clientStores.storeForNode(restarted).cacheFabricFiltered).true;
             expect(restarted.stateOf(BasicInformationClient).vendorId).equals(0xfff1);
         });
 
@@ -475,10 +478,10 @@ describe("ClientSubscribe", () => {
             await settle(controller, peer);
 
             // The switch completed before the restart, so the restart finds the new filter recorded and forgets nothing
-            expect(peer.env.get(ClientNodeStore).cacheFabricFiltered).false;
+            expect(peer.env.get(ServerNodeStore).clientStores.storeForNode(peer).cacheFabricFiltered).false;
             const restarted = await restartedPeer(site, controller.id);
 
-            expect(restarted.env.get(ClientNodeStore).cacheFabricFiltered).false;
+            expect(restarted.env.get(ServerNodeStore).clientStores.storeForNode(restarted).cacheFabricFiltered).false;
             expect(filteredClusters(restarted, false)).deep.equals([]);
         });
 
@@ -509,7 +512,7 @@ describe("ClientSubscribe", () => {
             const restarted = await restartedPeer(site, controller.id);
 
             expect(filteredClusters(restarted, true)).to.have.members(before);
-            expect(restarted.env.get(ClientNodeStore).cacheFabricFiltered).true;
+            expect(restarted.env.get(ServerNodeStore).clientStores.storeForNode(restarted).cacheFabricFiltered).true;
         });
 
         it("applies reports of a sustained subscription by the fabric filter its refreshRequest returned", async () => {
@@ -673,7 +676,8 @@ describe("ClientSubscribe", () => {
 
                 expect(warnings.length).equals(1);
                 expect(errors).deep.equals([]);
-                expect(restarted.env.get(ClientNodeStore).cacheFabricFiltered).undefined;
+                expect(restarted.env.get(ServerNodeStore).clientStores.storeForNode(restarted).cacheFabricFiltered)
+                    .undefined;
                 expect(clientStructureOf(restarted).cacheFabricFiltered).true;
                 expect(filteredClusters(restarted, true)).to.have.members(before);
             });
@@ -685,7 +689,8 @@ describe("ClientSubscribe", () => {
                 await MockTime.resolve(peer.set({ network: { autoSubscribe: false } }));
                 delete site.storageFor(controller.id)[`nodes.${peer.id}.cache`];
                 const { result: restarted } = await refusingRecord(() => restartedPeer(site, controller.id));
-                expect(restarted.env.get(ClientNodeStore).cacheFabricFiltered).undefined;
+                expect(restarted.env.get(ServerNodeStore).clientStores.storeForNode(restarted).cacheFabricFiltered)
+                    .undefined;
                 const structure = clientStructureOf(restarted);
                 const onOff = { endpointId: EndpointNumber(1), clusterId: OnOffClient.cluster.id };
 
@@ -727,7 +732,9 @@ describe("ClientSubscribe", () => {
                 const { controller } = await site.addCommissionedPair();
                 const peer = await subscribedPeer(controller, "peer1");
                 await MockTime.resolve(peer.set({ network: { autoSubscribe: false } }));
-                await MockTime.resolve(peer.env.get(ClientNodeStore).recordCacheFabricFiltered(false));
+                await MockTime.resolve(
+                    peer.env.get(ServerNodeStore).clientStores.storeForNode(peer).recordCacheFabricFiltered(false),
+                );
 
                 const {
                     result: restarted,
@@ -797,7 +804,9 @@ describe("ClientSubscribe", () => {
                 const { controller } = await site.addCommissionedPair();
                 const peer = await subscribedPeer(controller, "peer1");
                 await MockTime.resolve(peer.set({ network: { autoSubscribe: false } }));
-                await MockTime.resolve(peer.env.get(ClientNodeStore).recordCacheFabricFiltered(false));
+                await MockTime.resolve(
+                    peer.env.get(ServerNodeStore).clientStores.storeForNode(peer).recordCacheFabricFiltered(false),
+                );
 
                 const { result: restarted, errors } = await refusingStorage(() => restartedPeer(site, controller.id));
 

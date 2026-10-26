@@ -9,6 +9,7 @@ import {
     Crypto,
     Entropy,
     Environment,
+    ImplementationError,
     MatterAggregateError,
     MemoryStorageDriver,
     MockCrypto,
@@ -29,7 +30,7 @@ import { MockServerNode, MockSite } from "@matter/node/testing";
 export class LegacyControllerSite {
     readonly #site = new MockSite();
     readonly #simulator = new NetworkSimulator();
-    readonly #controllers = new Set<CommissioningController>();
+    readonly #controllers = new Map<CommissioningController, string>();
     readonly #environments = new Set<Environment>();
     #nextControllerIndex = 0x40;
 
@@ -44,9 +45,9 @@ export class LegacyControllerSite {
      * Creates and starts a {@link CommissioningController}.  `autoConnect` defaults to `false` so a test decides when
      * paired nodes connect.
      */
-    async addController(options?: Partial<Omit<CommissioningControllerOptions, "environment">>) {
+    async addController(options?: Partial<Omit<CommissioningControllerOptions, "environment">>, id?: string) {
         const index = this.#nextControllerIndex++;
-        const id = `legacy-controller${index}`;
+        id ??= `legacy-controller${index}`;
 
         const environment = new Environment(id);
         this.#environments.add(environment);
@@ -62,11 +63,27 @@ export class LegacyControllerSite {
             ...options,
             environment: { environment, id },
         });
-        this.#controllers.add(controller);
+        this.#controllers.set(controller, id);
 
         await MockTime.resolve(controller.start(), { macrotasks: true });
 
         return controller;
+    }
+
+    /**
+     * Closes {@link controller} and starts a new controller on the storage it left behind.
+     */
+    async restartController(
+        controller: CommissioningController,
+        options?: Partial<Omit<CommissioningControllerOptions, "environment">>,
+    ) {
+        const id = this.#controllers.get(controller);
+        if (id === undefined) {
+            throw new ImplementationError("The controller does not belong to this site");
+        }
+        this.#controllers.delete(controller);
+        await MockTime.resolve(closeController(controller), { macrotasks: true });
+        return this.addController(options, id);
     }
 
     /**
@@ -127,7 +144,7 @@ export class LegacyControllerSite {
      * Closes all controllers and their runtimes, then the devices.
      */
     async close() {
-        const controllers = [...this.#controllers];
+        const controllers = [...this.#controllers.keys()];
         this.#controllers.clear();
         const environments = [...this.#environments];
         this.#environments.clear();
@@ -137,16 +154,7 @@ export class LegacyControllerSite {
                 () =>
                     MockTime.resolve(
                         MatterAggregateError.allSettled(
-                            controllers.map(async controller => {
-                                const { env } = controller;
-                                try {
-                                    await controller.close();
-                                } finally {
-                                    if (env.owns(RuntimeService)) {
-                                        await env.get(RuntimeService).close();
-                                    }
-                                }
-                            }),
+                            controllers.map(closeController),
                             "Error closing legacy controllers",
                         ),
                         { macrotasks: true },
@@ -164,6 +172,17 @@ export class LegacyControllerSite {
 
     async [Symbol.asyncDispose]() {
         await this.close();
+    }
+}
+
+async function closeController(controller: CommissioningController) {
+    const { env } = controller;
+    try {
+        await controller.close();
+    } finally {
+        if (env.owns(RuntimeService)) {
+            await env.get(RuntimeService).close();
+        }
     }
 }
 

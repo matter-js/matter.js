@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ServerNetworkRuntime } from "#behavior/system/network/ServerNetworkRuntime.js";
 import { GeneralDiagnosticsServer } from "#behaviors/general-diagnostics";
-import { Time } from "@matter/general";
+import { NetworkError, Time } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 
 describe("GeneralDiagnosticsServer operational hours", () => {
@@ -153,5 +154,33 @@ describe("GeneralDiagnosticsServer operational hours", () => {
         await MockTime.atTime(MockTime.nowMs - 2 * 60 * 60_000, () => node.close());
 
         expect(node.lifecycle.isOnline).equals(false);
+    });
+
+    it("does not count the offline time before a start that fails before the node is online", async () => {
+        class TransportFailingRuntime extends ServerNetworkRuntime {
+            protected override async addTransports() {
+                throw new NetworkError("Port unavailable");
+            }
+        }
+        class NodeWithFailingRestart extends MockServerNode {
+            failStart = false;
+
+            protected override createRuntime() {
+                return this.failStart ? new TransportFailingRuntime(this) : super.createRuntime();
+            }
+        }
+        const node = new NodeWithFailingRestart({});
+        await MockTime.resolve(node.start());
+        await MockTime.advance(10 * 60_000 + 1_000);
+        await MockTime.resolve(node.stop());
+        const counterWhenStopped = node.stateOf(GeneralDiagnosticsServer).totalOperationalHoursCounter;
+
+        await MockTime.advance(3 * 60 * 60_000);
+        node.failStart = true;
+        await expect(MockTime.resolve(node.start())).rejectedWith(NetworkError);
+
+        expect(node.stateOf(GeneralDiagnosticsServer).totalOperationalHoursCounter).equals(counterWhenStopped);
+
+        await MockTime.resolve(node.close());
     });
 });

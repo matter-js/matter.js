@@ -80,6 +80,43 @@ describe("Construction", () => {
             expect(subject.construction.status).equal(Lifecycle.Status.Crashed);
             expect(subject.construction.error?.message).equal("async boom");
         });
+
+        it("leaves a destroyed subject destroyed", async () => {
+            const subject = new Subject();
+            await subject.construction.close();
+            const changes = new Array<Lifecycle.Status>();
+            subject.construction.change.on(status => void changes.push(status));
+
+            subject.construction.crash(new Error("late boom"));
+
+            expect(subject.construction.status).equal(Lifecycle.Status.Destroyed);
+            expect(subject.construction.error?.message).equal("late boom");
+            expect(changes).deep.equal([]);
+        });
+
+        it("keeps the first cause of a destroyed subject", async () => {
+            const subject = new Subject();
+            await subject.construction.close();
+
+            subject.construction.crash(new Error("first boom"));
+            subject.construction.crash(new Error("second boom"));
+
+            expect(subject.construction.error?.message).equal("first boom");
+        });
+
+        it("leaves a destroying subject to finish its destruction", async () => {
+            const subject = new Subject();
+            let release!: () => void;
+            const closing = subject.construction.close(() => new Promise<void>(resolve => (release = resolve)));
+            expect(subject.construction.status).equal(Lifecycle.Status.Destroying);
+
+            subject.construction.crash(new Error("late boom"));
+
+            expect(subject.construction.status).equal(Lifecycle.Status.Destroying);
+            release();
+            await closing;
+            expect(subject.construction.status).equal(Lifecycle.Status.Destroyed);
+        });
     });
 
     describe("assert", () => {

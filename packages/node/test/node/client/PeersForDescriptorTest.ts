@@ -5,10 +5,11 @@
  */
 
 import type { ClientNode } from "#node/ClientNode.js";
-import type { ServerNode } from "#node/ServerNode.js";
-import { Lifecycle } from "@matter/general";
+import { ServerNode } from "#node/ServerNode.js";
+import { createPromise, Lifecycle, Minutes, Seconds, Time } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 import type { CommissionableDevice } from "@matter/protocol";
+import { captureWarningsOf } from "../../endpoint/validation/validation-helpers.js";
 
 const DEVICE: CommissionableDevice = {
     deviceIdentifier: "device-a",
@@ -95,5 +96,28 @@ describe("Peers.forDescriptor", () => {
         const found = await MockTime.resolve(lookup);
 
         expect(found).not.equals(peer);
+    });
+
+    it("deletes an expired node while its server node closes", async () => {
+        const peer = await MockTime.resolve(node.peers.forDescriptor(DEVICE));
+        const { promise: entered, resolver: enter } = createPromise<void>();
+        const { promise: released, resolver: release } = createPromise<void>();
+        const blocking = node.lifecycle.mutex.hold("blocking", async () => {
+            enter();
+            await released;
+        });
+        await entered;
+        const closing = ServerNode.prototype.close.call(node);
+
+        const warnings = await captureWarningsOf(async () => {
+            await MockTime.advance(Minutes(16));
+            await MockTime.resolve(Time.sleep("cull", Seconds(10)), { macrotasks: true });
+        });
+
+        expect(warnings.filter(({ text }) => text.includes("cull"))).deep.equals([]);
+        expect(peer.construction.status).equals(Lifecycle.Status.Destroyed);
+        await expect(peer.delete()).rejectedWith(/is deleted/);
+        release();
+        await MockTime.resolve(Promise.all([blocking, closing]), { macrotasks: true });
     });
 });

@@ -8,7 +8,7 @@ import { OnOffClient } from "#behaviors/on-off";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
-import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
+import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     createPromise,
     Crypto,
@@ -19,12 +19,15 @@ import {
     Minutes,
     MockCrypto,
     Seconds,
+    StorageDriver,
     StorageManager,
+    SupportedStorageTypes,
     Time,
 } from "@matter/general";
 import { MockSite, subscribedPeer } from "@matter/node/testing";
-import { EndpointNumber } from "@matter/types";
+import { EndpointNumber, GroupId, NodeId } from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
+import { HoldingStorageDriver, WriteHold } from "../storage/holding-storage-driver.js";
 
 /** Memory storage does not benefit from buffering, so tests that exercise the buffer need a driver that asks for it */
 class BufferingStorageDriver extends MemoryStorageDriver {
@@ -33,12 +36,54 @@ class BufferingStorageDriver extends MemoryStorageDriver {
     }
 }
 
+/**
+ * A buffering driver whose transactions apply their writes only when they commit, and whose commit waits for
+ * {@link commitHold} once that is set.
+ */
+class CommittingStorageDriver extends BufferingStorageDriver {
+    commitHold?: { committing: () => void; commit: Promise<void> };
+
+    override begin() {
+        const driver = this;
+        const writes = new Array<() => void>();
+        return new (class extends StorageDriver.Transaction {
+            override set(
+                contexts: string[],
+                keyOrValues: string | Record<string, SupportedStorageTypes>,
+                value?: SupportedStorageTypes,
+            ) {
+                writes.push(() => {
+                    if (typeof keyOrValues === "string") {
+                        driver.set(contexts, keyOrValues, value!);
+                    } else {
+                        driver.set(contexts, keyOrValues);
+                    }
+                });
+            }
+
+            override async commit() {
+                const hold = driver.commitHold;
+                driver.commitHold = undefined;
+                if (hold !== undefined) {
+                    hold.committing();
+                    await hold.commit;
+                }
+                for (const write of writes) {
+                    write();
+                }
+                await super.commit();
+            }
+        })(this);
+    }
+}
+
 function bufferingSite() {
     return new MockSite({ createStorageDriver: store => new BufferingStorageDriver(store) });
 }
 
-async function expectUnbuffered(site: MockSite, options?: MockSite.PairOptions) {
-    const { controller, device } = await site.addUncommissionedPair(options);
+async function expectUnbuffered(site: MockSite, configure?: (controller: ServerNode) => Promise<void>) {
+    const { controller, device } = await site.addUncommissionedPair();
+    await configure?.(controller);
 
     const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
     const deviceCrypto = device.env.get(Crypto) as MockCrypto;
@@ -54,8 +99,6 @@ async function expectUnbuffered(site: MockSite, options?: MockSite.PairOptions) 
     controllerCrypto.entropic = deviceCrypto.entropic = false;
 
     const peer = await subscribedPeer(controller, "peer1");
-
-    expect(controller.env.has(ClientCacheBuffer)).false;
 
     const storage = site.storageFor("controller1");
     const storageSnapshot = deepCopy(storage);
@@ -164,15 +207,16 @@ describe("ClientCacheBuffer", () => {
 
     // Holds the flush when it writes the values of endpoint 1, which it took from the cache before
     async function eraseWhileFlushWrites(controller: ServerNode, peer: ClientNode, erase: () => Promise<void>) {
-        const writer = peer.env.get(ClientNodeStore).localWriter;
-        const persist = writer.persistInTransaction.bind(writer);
+        const ep1Store = peer.env
+            .get(ServerNodeStore)
+            .clientStores.storeForNode(peer)
+            .storeForEndpointNumber(EndpointNumber(1));
+        const persist = ep1Store.persistCache.bind(ep1Store);
         const writing = createPromise<void>();
         const write = createPromise<void>();
-        writer.persistInTransaction = async (...args: Parameters<typeof persist>) => {
-            if (args[1] === EndpointNumber(1)) {
-                writing.resolver();
-                await write.promise;
-            }
+        ep1Store.persistCache = async (...args: Parameters<typeof persist>) => {
+            writing.resolver();
+            await write.promise;
             await persist(...args);
         };
 
@@ -193,30 +237,116 @@ describe("ClientCacheBuffer", () => {
         expect(await onOff.keys()).deep.equals([]);
     });
 
-    it("does not buffer when the storage driver writes immediately", async () => {
+    for (const [what, eraseOf] of [
+        ["endpoint", (peer: ClientNode) => peer.endpoints.require(1).erase()],
+        ["peer", (peer: ClientNode) => peer.erase()],
+    ] as const) {
+        it(`does not restore the cache of an erased ${what} from a flush that commits during the erase`, async () => {
+            let driver: CommittingStorageDriver | undefined;
+            await using site = new MockSite({
+                createStorageDriver: store => (driver ??= new CommittingStorageDriver(store)),
+            });
+            const { controller, peer, onOff } = await peerWithBufferedToggle(site);
+            const committing = createPromise<void>();
+            const commit = createPromise<void>();
+            driver!.commitHold = { committing: committing.resolver, commit: commit.promise };
+
+            const flushing = controller.env.get(ClientCacheBuffer).flush();
+            await MockTime.resolve(committing.promise);
+            const erasing = eraseOf(peer);
+            await MockTime.resolve(Time.sleep("erase runs", Seconds(1)), { macrotasks: true });
+            commit.resolver();
+            await MockTime.resolve(Promise.all([flushing, erasing]), { macrotasks: true });
+
+            expect(await onOff.keys()).not.contains(OnOff.Cluster.attributes.onOff.id.toString());
+        });
+    }
+
+    it("does not restore the values of an erased endpoint from an immediate persist that writes during the erase", async () => {
+        const hold = new WriteHold(`endpoints.1.${OnOff.Cluster.id}`);
+        await using site = new MockSite({ createStorageDriver: store => new HoldingStorageDriver(store, hold) });
+        const { controller } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const ep1 = peer.endpoints.require(1);
+        const onOff = controller.env
+            .get(StorageManager)
+            .createContext("nodes")
+            .createContext(peer.id)
+            .createContext("endpoints")
+            .createContext("1")
+            .createContext(OnOff.Cluster.id.toString());
+
+        // The erase reads the part again, which persists the values of the peer anew
+        peer.interaction.read = async function* () {};
+
+        hold.arm();
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
+        await MockTime.resolve(hold.writing.promise);
+        const erasing = ep1.erase();
+        await MockTime.resolve(Time.sleep("erase runs", Seconds(1)), { macrotasks: true });
+        hold.write.resolver();
+        await MockTime.resolve(erasing, { macrotasks: true });
+
+        expect(await onOff.keys()).deep.equals([]);
+    });
+
+    async function groupOf(controller: ServerNode, peer: ClientNode) {
+        return MockTime.resolve(
+            controller.peers.forAddress({
+                fabricIndex: peer.peerAddress!.fabricIndex,
+                nodeId: NodeId.fromGroupId(GroupId(5)),
+            }),
+        );
+    }
+
+    const groupKeysOf = (site: MockSite, controller: ServerNode, group: ClientNode) =>
+        Object.keys(site.storageFor(controller.id)).filter(key => key.startsWith(`nodes.${group.id}`));
+
+    it("keeps the caches of a client group in the memory of the group", async () => {
+        await using site = bufferingSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const group = await groupOf(controller, peer);
+        const store = controller.env.get(ServerNodeStore).clientStores.storeForNode(group);
+        const cache = store.storeForEndpointNumber(EndpointNumber(0)).createStoreForBehavior("6");
+
+        await cache.externalSet(new Map([[0, true]]));
+        await controller.env.get(ClientCacheBuffer).flush();
+
+        expect(groupKeysOf(site, controller, group)).deep.equals([]);
+        expect(store.buffer).not.equals(controller.env.get(ClientCacheBuffer));
+    });
+
+    it("keeps the local state of a client group in the memory of the group after an erase", async () => {
+        await using site = bufferingSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const group = await groupOf(controller, peer);
+        const address = group.state.commissioning.peerAddress;
+
+        await MockTime.resolve(group.erase());
+        await MockTime.resolve(group.set({ commissioning: { peerAddress: address } }));
+
+        expect(group.state.commissioning.peerAddress).deep.equals(address);
+        expect(groupKeysOf(site, controller, group)).deep.equals([]);
+    });
+
+    it("persists each report at once when the storage driver writes immediately", async () => {
         await using site = new MockSite();
         await expectUnbuffered(site);
     });
 
-    it("does not buffer when the configured interval is zero", async () => {
+    it("persists each report at once when the configured interval is Instant", async () => {
         await using site = bufferingSite();
-        await expectUnbuffered(site, { controller: { network: { clientCacheFlushInterval: Instant } } as any });
+        await expectUnbuffered(site, controller => controller.set({ network: { clientCacheFlushInterval: Instant } }));
     });
 
-    it("flushes on subscription established", async () => {
+    it("flushes once the subscription is established", async () => {
         await using site = bufferingSite();
         const { controller } = await site.addCommissionedPair();
         await subscribedPeer(controller, "peer1");
 
-        // Close and recreate — data should survive because subscription-established flush persisted it
-        await MockTime.resolve(controller.close());
-        const controller2 = await site.addController({ index: 1 });
-
-        const peer = controller2.peers.get("peer1")!;
-        expect(peer).not.undefined;
-
-        // Basic state should be present from the subscription flush
-        const ep1 = peer.endpoints.require(1);
-        expect(ep1.stateOf(OnOffClient).onOff).false;
+        const onOff = site.storageFor(controller.id)[`nodes.peer1.endpoints.1.${OnOff.Cluster.id}`];
+        expect(onOff?.[OnOff.Cluster.attributes.onOff.id]).equals(false);
     });
 });

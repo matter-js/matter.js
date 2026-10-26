@@ -164,6 +164,25 @@ describe("EndpointNumberConflict", () => {
         expect(partsListOf(node)).deep.equals([5, 6]);
     });
 
+    it("refuses a nested preset number that a later sibling of its parent installs first", async () => {
+        await using node = new MockServerNode();
+        const aggregator = new Endpoint(AggregatorEndpoint, {
+            id: "aggregator",
+            number: EndpointNumber(6),
+            parts: [{ type: OnOffLightDevice, id: "nested", number: EndpointNumber(5), isEssential: false }],
+        });
+        const holder = new Endpoint(OnOffLightDevice, { id: "holder", number: EndpointNumber(5) });
+        node.parts.add(aggregator);
+        node.parts.add(holder);
+
+        await node.start();
+        await MockTime.yield3();
+
+        const nested = aggregator.parts.require("nested");
+        expect(nested.construction.error).instanceOf(IdentityConflictError);
+        expect(holderOf(node, 5)).equals(holder);
+    });
+
     describe("a failed add of an essential endpoint", () => {
         it("closes the endpoint", async () => {
             await using node = await MockServerNode.createOnline(undefined, { device: undefined });

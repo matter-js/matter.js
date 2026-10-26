@@ -6,9 +6,12 @@
 
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import type { EndpointStore } from "#storage/EndpointStore.js";
-import { MaybePromise, Transaction } from "@matter/general";
+import { Logger, MaybePromise, Transaction } from "@matter/general";
 import { Val } from "@matter/protocol";
+import { StoreClosedError } from "../StoreLifecycle.js";
 import type { ServerEndpointStore } from "./ServerEndpointStore.js";
+
+const logger = Logger.get("DatasourceStore");
 
 interface StorageParticipant extends Transaction.Participant {
     mutations?: Record<string, Val.Struct>;
@@ -71,8 +74,15 @@ function participantFor(transaction: Transaction, endpointStore: EndpointStore) 
         },
 
         async commit2() {
-            if (this.mutations) {
+            if (!this.mutations) {
+                return;
+            }
+            try {
                 await endpointStore.set(this.mutations);
+            } catch (error) {
+                // The values of an erased or closed store are gone on purpose; the transaction still applies in memory
+                StoreClosedError.accept(error);
+                logger.debug(`Values committed after ${endpointStore} ended are not stored:`, error);
             }
         },
 

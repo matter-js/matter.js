@@ -26,6 +26,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Storage drivers state how long dirty values may be buffered via `StorageDriver.writeCoalescingInterval`
     - Enhancement: `nextEmitOf()` waits for the next emit of an `Observable` without missing one that comes right after a state check
     - Adjustment: The default log format is plain text instead of ANSI; set `log.format` or `Logger.format` to choose another
+    - Adjustment: `Construction.crash()` of a subject that is being or has been destroyed keeps its status
     - Fix: DNS-SD discovery ignores the known-answer records of mDNS queries, so a controller no longer dials a node through the wrong interface
     - Fix: (@grzonu) DNS-SD queries send known answers with their remaining TTL and omit those past half their TTL
     - Fix: DNS-SD honors the cache-flush bit and goodbyes after a re-announcement, ignores invalid SRV records, resolves A/AAAA for the SRV target host, and keeps an mDNS message that has one unreadable record
@@ -94,15 +95,31 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: `Endpoint.reset()`, `Node.reset()` and `EndpointContainer.reset()` are removed; `erase()` resets and also wipes the persisted data
     - Breaking: Changing the `owner` of an endpoint that already has one, also by adding it to another endpoint, throws; an endpoint cannot move, so close or delete it and add a new one
     - Breaking: `EndpointInitializer.eraseDescendant()` is replaced by `prepareEraseDescendant()` and `prepareDeleteDescendant()`
-    - Breaking: `erase()` and `delete()` throw `DestroyedDependencyError` once a close of the endpoint, or a close or delete of an ancestor of the same node, was requested; `erase()` also once a delete was requested
-    - Breaking: `start()` of a node whose close or delete was requested throws `DestroyedDependencyError` instead of `MutexClosedError`, and `stop()` does nothing
+    - Breaking: `erase()` and `delete()` throw `DestroyedDependencyError` once a close of the endpoint, or a close or delete of an ancestor of the same node, was requested
+    - Breaking: `erase()` also throws `DestroyedDependencyError` once a delete of the endpoint was requested
+    - Breaking: `erase()` and `delete()` of a `ClientNode` also throw `DestroyedDependencyError` once a close or delete of its server node was requested
+    - Breaking: `delete()` removes the endpoint and releases its number also when the storage erase fails; the failure still rejects
+    - Breaking: `start()` of a node whose close or delete was requested throws `DestroyedDependencyError` instead of `MutexClosedError`
+    - Breaking: `stop()` of a node whose close or delete was requested does nothing instead of throwing `MutexClosedError`
+    - Breaking: `ClientNode.start()` rejects with the new `NodeDisabledError`, `NodeUncommissionedError` or `ServerNodeOfflineError`
+    - Breaking: `ClientNode.enable()` also brings a node that is not disabled online, like `start()`
+    - Breaking: The option `network: { isDisabled }` has no effect when a node is created; call `ClientNode.disable()` instead
+    - Breaking: The `NodeLifecycle.targetState` setter is removed
+    - Breaking: The `NodeLifecycle` constructor takes the initial intent of the node
     - Breaking: `NodeLifecycle.mutex` is internal and no longer a `Mutex`
     - Breaking: `CommissioningClient` state `sessionParameters` is replaced by `reportedSessionParameters`, `advertisedIntervals` and `tcpUnsupported`; stored values migrate
     - Breaking: `WebRtcTransportRequestorServer.removeSession()` takes a session key (id, fabric, peer node) instead of the id
+    - Breaking: A write to an erased or closed `EndpointStore` or `ClientNodeStore` rejects with the new `StoreClosedError`
+    - Breaking: An erased or closed `EndpointStore` throws `StoreClosedError` instead of handing out a store for a behavior or a part
+    - Breaking: `ClientNodeStores.storeForNode()` throws `StoreClosedError` while an erase of that node's store or of all client stores runs
+    - Breaking: The environment of a `ClientNode` no longer holds its `ClientNodeStore`; `ClientNodeStores.storeOf()` returns the current store of a node
+    - Breaking: `LocalWriter` is removed; `DatasourceCache` takes a `persist` function, and its `flush()` requires a transaction
+    - Breaking: `ClientCacheBuffer.configure()`, `markDirty()`, `removeDirty()` and `settled()` are removed, and the constructor starts the flush timer
     - Breaking: The remote API `code` of a status error is its id, as the HTTP `Error-Code` header already was: `status-response` becomes the status id (such as `not-found`), and `path` becomes the expanded id (such as `constraint-error+door-lock`) for a write rejection
     - Breaking: Only a `ClientNode`'s default subscription and its read after commissioning emit peer events to its event observers and change notifications; other `ClientNode` reads and subscriptions return events in their result only, except those of the legacy `PairedNode` API
     - Breaking: A built `Read`/`Subscribe` as `defaultSubscription` is sent as given, including its fabric filter; to keep Leave handling, a built request needs the Basic Information attributes and events and the Operational Credentials `fabrics` attribute; without them the node notices a device going offline only through the subscription timeout and does not see a fabric Leave
     - Deprecation: `ClientNodeInteraction.localStateFor()` will be removed in 0.19
+    - Deprecation: `NetworkClient` state `isDisabled` mirrors `ClientNode.isDisabled`; writing it is deprecated, use `ClientNode.disable()` / `enable()`
     - Feature: Finalized the `ClientNode` API for controllers: `ServerNode.peers.commissioned`, `ClientNode.disable()`/`enable()`, connection state, split commissioning (`finalizeCommissioning` hands off discovery data and PASE session parameters to `peers.completeCommissioning`), opening commissioning windows on peers and more; see [Controller migration guide](docs/MIGRATION_CONTROLLER_018.md)
     - Feature: Groupcast cluster (`GroupcastServer`) and AccessControl `Auxiliary` feature; group commands via `ClientGroup` endpoints and group bindings
     - Feature: `ServerNode.RootEndpoint` includes `GroupcastServer` and selects the AccessControl `Auxiliary` feature by default; use `ServerNode.RootEndpointWithoutGroupcast` to opt out. A node type with its own AccessControl server must select `Auxiliary` (e.g. `.with("Extension", "Auxiliary")`), and a Group ACL entry without targets no longer grants access on endpoint 0
@@ -131,8 +148,17 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: A client command raises a `ReceivedStatusResponseError` for a status the device sent
     - Enhancement: `includeKnownVersions` on `ClientNode` subscriptions skips injecting cached data versions, also when a sustained subscription resubscribes
     - Enhancement: `Endpoint.act()` accepts an `abort` signal that ends the client commands its actor invokes, and `Endpoint.getStateOf()` accepts one for its read
+    - Enhancement: `ClientNode.isDisabled` tells whether the node is disabled
+    - Enhancement: `Peers.erase()` takes an optional storage erase, which runs before `forAddress()` can add a node again
     - Adjustment: For a part of a server node, the `IdAssigned` and `NumberAssigned` lifecycle changes are emitted before `Installed`
     - Adjustment: The `Destroying` lifecycle change is emitted when `close()` or `delete()` is called, so a node emits it before it goes offline
+    - Adjustment: A `ClientNode` that should be online but is not commissioned, or whose server node is offline or closing, reports `Disconnected` instead of `Reconnecting`
+    - Adjustment: A disabled flag stored in the `NetworkClient` state of a `ClientNode` migrates
+    - Adjustment: A `start()`, `stop()`, `enable()` or `disable()` of a node that a later call reversed resolves without taking effect
+    - Adjustment: A failed `start()`, `stop()`, `enable()` or `disable()` of a `ClientNode` leaves the node as it is, and disabled only if it persisted the flag
+    - Adjustment: A `ClientNode` whose last call was `start()` or `enable()` goes online again when its server node restarts, also with `autoStartCommissionedPeers: false`
+    - Adjustment: The auto-start of commissioned peers skips a peer whose last call was a `stop()` or `disable()` that did not fail
+    - Adjustment: A `ClientNode` whose start fails as its server node comes online reports `Disconnected` and tries again on its next `start()` or server node restart
     - Adjustment: `ChangeNotificationService.Change` has a new kind `"readable"`, emitted when an endpoint's state becomes readable; consumers that switch on kind must handle or ignore it
     - Adjustment: Device types with a mandatory client application cluster include `BindingServer`; `behaviors.require(BindingServer, options)` no longer sets its state (use `add()` or `setStateOf()`), and an own `BindingServer` implementation subclass must be declared with `.with()` on the endpoint on creation
     - Adjustment: A binding entry resolves only once something observes `binding.established`, and is ignored for the OTA Provider and WebRTC Transport clients
@@ -144,6 +170,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: A server rejects an obsolete (`Z`) element; a client sends and decodes it
     - Adjustment: A node's `ClusterProtocol.readState()` throws `ImplementationError` for a remote session without a transaction
     - Adjustment: A `ClientNode` takes a written attribute value locally only once the device accepts it
+    - Adjustment: Adding a part with a number that another endpoint of the node holds fails at once also while the parent resets, instead of when the parent restarts
     - Adjustment: `IcdClient` emits `registered`, `unregistered` and `keyRefreshed` after the change is stored; `unregister()` keeps the registration when a sleeping peer does not wake in time, `register()` joins a registration with the same options in flight, and `forget()` abandons work in flight
     - Adjustment: Subscription keep-alives request a status response, so a subscription on a session without MRP (TCP, BLE) ends when the controller answers with `INVALID_SUBSCRIPTION`
     - Fix: A write to an attribute that another exchange is still writing in chunks is answered BUSY, and a group or wildcard write skips that attribute, as in the CHIP SDK
@@ -220,7 +247,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `endpoints.size` no longer double-counts the root endpoint
     - Fix: `RemoteServer` declares `certificate` and `key` as PEM strings
     - Fix: Adding an endpoint below one of its own descendants fails with `ImplementationError` instead of creating a cycle
-    - Fix: An endpoint created with `ClientNodeEndpoints.require()` on a running `ClientNode` is reused when the peer later reports that endpoint
+    - Fix: An endpoint created with `ClientNode.endpoints.require()` on a running `ClientNode` is reused when the peer later reports that endpoint
     - Fix: `delete()` emits the `Destroying` lifecycle change once
     - Fix: Deleting an endpoint of a server node increases the ConfigurationVersion of the nearest bridged endpoint above it and of the node, or only of the node when there is none
     - Fix: `erase()`, `delete()` and `close()` of the endpoints of one node run one after another; `close()` waits for an erase or delete in progress, and a repeated call joins the one in progress
@@ -228,8 +255,20 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A factory reset or `delete()` of a server node waits for a peer that is closing before it erases the storage
     - Fix: A factory reset of a server node no longer hangs when one of its peers starts meanwhile
     - Fix: `start()` and `stop()` of a node take effect in call order; `start()` no longer returns at once while another start is in progress
+    - Fix: `enable()` and `disable()` of a `ClientNode` take effect in call order, also mixed with `start()` and `stop()`
     - Fix: `erase()` and `delete()` of an endpoint of a peer also erase the cached data of its parts
     - Fix: Erasing an endpoint of a peer waits for a running cache flush, so the flush no longer writes the erased values back
+    - Fix: A cache write or a commit that runs while a peer or one of its endpoints is erased or deleted no longer writes its values back, so a deleted peer no longer returns on the next start
+    - Fix: With a storage driver that writes at once, such as SQLite, the values that several peers report at the same time persist one after another and no longer fail with "Transaction is in progress"
+    - Fix: A node that `Peers.forAddress()` adds during a factory reset keeps its store
+    - Fix: A value that a server node commits while it is erased no longer returns after the erase
+    - Fix: Removing a closing peer erases its storage also when the stores of its server node close meanwhile
+    - Fix: A second erase of a removed peer no longer clears the storage of a new peer with the same ID
+    - Fix: Logging a deleted peer that has no address no longer creates a store for it
+    - Fix: A cache flush that keeps failing warns once until a flush succeeds, not on every resubscribe
+    - Fix: Erasing an endpoint of an online peer reads the endpoint and its parts again, so they no longer show default values until the device changes something; the erase rejects if that read fails
+    - Fix: `ClientNode.endpoints.require()` returns the endpoint the node holds also while an erase resets the node, instead of failing with `IdentityConflictError` or adding a second endpoint with the same number
+    - Fix: A `start()` right after a failed start waits for the old network runtime to close instead of failing with "Handler for protocol 1 already registered"
     - Fix: A peer whose network start fails no longer logs an unhandled error when it closes its network runtime
     - Fix: An endpoint without a `number` no longer gets a number that another endpoint of the node sets in its options but is not yet added, so adding that endpoint later no longer fails
     - Fix: An endpoint refused for its number is not listed in `PartsList` and is not reported as deleted
@@ -374,6 +413,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: `CommissioningController` accepts `clientCacheFlushInterval`
     - Enhancement: A status the device returns for a legacy `InteractionClient` invoke raises a `ReceivedStatusResponseError` with the message `Received non-success result (code <status>)`
     - Enhancement: `InteractionClient` options take an `abort` signal
+    - Adjustment: `CommissioningController.start()` no longer enables a peer that an earlier run disabled, only `connect()` does
+    - Adjustment: `PairedNode.connect()` also starts a stopped peer, not only a disabled one
     - Fix: `InteractionClient` sends a timed write only when requested or required, so group writes work
     - Fix: A closed `PairedNode` starts no interaction, and closing nodes or the controller completes even when a step fails
     - Fix: PASE with a known address reports a wrong passcode, and falls back to discovery when the address is unreachable
