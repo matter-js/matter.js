@@ -15,6 +15,7 @@ import {
     NetworkError,
     NetworkInterface,
     NetworkInterfaceDetails,
+    observant,
     onSameNetwork,
     TCP_CONNECTION_TIMEOUT_MS,
     TcpConnection,
@@ -34,6 +35,12 @@ import { NodeJsUdpSocket } from "./NodeJsUdpSocket.js";
 const logger = Logger.get("NetworkNode");
 
 export class NodeJsNetwork extends Network {
+    constructor() {
+        super();
+        // Clearing the lookup cache alone does not justify polling, so this observer does not start the checks
+        this.interfacesChanged.on(Object.assign(() => NodeJsNetwork.netInterfaces.clear(), { [observant]: false }));
+    }
+
     static getMulticastInterfaceIpv4(netInterface: string): string | undefined {
         const netInterfaceInfo = os.networkInterfaces()[netInterface];
         if (netInterfaceInfo === undefined) throw new NetworkError(`Unknown interface: ${netInterface}`);
@@ -132,6 +139,7 @@ export class NodeJsNetwork extends Network {
     );
 
     override async close() {
+        await super.close();
         // The cache is static and shared by every instance, so it must stay open
         await NodeJsNetwork.netInterfaces.clear();
     }

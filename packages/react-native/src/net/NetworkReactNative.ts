@@ -31,6 +31,7 @@ import {
     NetworkError,
     NetworkInterface,
     NetworkInterfaceDetails,
+    observant,
     onSameNetwork,
     TcpConnection,
     TcpConnectOptions,
@@ -75,6 +76,14 @@ async function networkInterfaces() {
 }
 
 export class NetworkReactNative extends Network {
+    constructor() {
+        super();
+        // Clearing the lookup cache alone does not justify polling, so this observer does not start the checks
+        this.interfacesChanged.on(
+            Object.assign(() => NetworkReactNative.netInterfaces.clear(), { [observant]: false }),
+        );
+    }
+
     static async getMulticastInterfaceIpv4(netInterface: string): Promise<string | undefined> {
         const netInterfaceInfo = (await networkInterfaces())[netInterface];
         if (netInterfaceInfo === undefined) throw new NetworkError(`Unknown interface: ${netInterface}`);
@@ -127,6 +136,7 @@ export class NetworkReactNative extends Network {
     );
 
     override async close() {
+        await super.close();
         // The cache is static and shared by every instance, so it must stay open
         await NetworkReactNative.netInterfaces.clear();
     }

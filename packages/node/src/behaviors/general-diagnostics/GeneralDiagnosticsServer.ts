@@ -24,6 +24,7 @@ import {
     MaybePromise,
     Millis,
     Minutes,
+    Network,
     Seconds,
     Time,
     Timer,
@@ -108,6 +109,10 @@ export class GeneralDiagnosticsServer extends Base {
         const lifecycle = this.endpoint.lifecycle as NodeLifecycle;
         this.reactTo(lifecycle.online, this.#online, { lock: true });
         this.reactTo(lifecycle.goingOffline, this.#goingOffline, { lock: true });
+        this.maybeReactTo(this.env.maybeGet(Network)?.interfacesChanged, this.#interfacesChanged, {
+            lock: true,
+            offline: true,
+        });
 
         this.maybeReactTo(this.events.activeHardwareFaults$Changed, this.#triggerActiveHardwareFaultsChangedEvent);
 
@@ -379,6 +384,14 @@ export class GeneralDiagnosticsServer extends Base {
         this.#updateTotalOperationalHoursCounter();
         this.internal.onlineAtUs = undefined;
         this.internal.onlineAtMs = undefined;
+    }
+
+    async #interfacesChanged() {
+        try {
+            await this.#updateNetworkList();
+        } catch (error) {
+            logger.warn("Cannot update the network interfaces after an interface change", error);
+        }
     }
 
     #updateTotalOperationalHoursCounter() {

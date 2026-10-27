@@ -5,7 +5,7 @@
  */
 
 import {
-    AsyncCache,
+    ClosedError,
     describeList,
     Diagnostic,
     DnsMessageType,
@@ -17,11 +17,12 @@ import {
     Lifetime,
     Logger,
     MatterAggregateError,
+    MaybePromise,
     MdnsSocket,
     Millis,
-    Minutes,
     NetworkInterfaceDetails,
     ObserverGroup,
+    Seconds,
     Time,
     Timer,
     Timestamp,
@@ -34,11 +35,40 @@ const RESPONDER_NAMES_OWNER = "mdns-responder";
 /** RFC 6762 §7.3 - Window for duplicate question suppression (999ms per python-zeroconf) */
 export const QUESTION_SUPPRESSION_WINDOW = Millis(999);
 
+/** RFC 6762 §8.3: the second transmission of an announcement follows the first after one second */
+const ANNOUNCEMENT_REPEAT_INTERVAL = Seconds(1);
+
+/**
+ * mDNS responder for the services this node publishes.
+ *
+ * The records of each interface are built once from the interface details and stay in use until the registrations
+ * change or `Network.interfacesChanged` reports the interface.  Answering a query reads the interface details only
+ * when the records of that interface do not exist yet.
+ *
+ * While services are registered, a reported change updates peer caches on the interfaces this server announces on.
+ * The update goes out at once and again one second after the last change; changes in between merge into it.
+ *
+ * | Interface state after the change | Sent                                                                   |
+ * |----------------------------------|------------------------------------------------------------------------|
+ * | records changed                  | goodbye for each removed record, then each changed record set complete |
+ * | newly served                     | all records                                                            |
+ * | gone or without details          | nothing; peers drop the records when their TTL ends                    |
+ *
+ * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-8.4} RFC 6762 §8.4
+ * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-10.1} RFC 6762 §10.1
+ */
 export class MdnsServer {
     #lifetime: Lifetime;
     #observers = new ObserverGroup();
     #recordsGenerator = new Map<string, MdnsServer.RecordGenerator>();
-    readonly #records: AsyncCache<MdnsServer.InterfaceRecords>;
+    readonly #records = new Map<string, MdnsServer.InterfaceRecords>();
+    readonly #building = new Map<string, Promise<MdnsServer.InterfaceRecords>>();
+    readonly #pendingUpdates = new Map<string, { goodbyes: DnsRecord[]; changedSets: Set<string> }>();
+    readonly #interfacesChangedObserver = (names: string[]) => this.#handleInterfacesChanged(names);
+    #isFollowingInterfaces = false;
+    readonly #updateRepeat = Time.getTimer("MDNS address update repeat", ANNOUNCEMENT_REPEAT_INTERVAL, () =>
+        this.#repeatUpdates(),
+    );
     // Union of advertised names across interfaces, fed to the socket so it keeps queries for our records (notably
     // bare-hostname A/AAAA queries, which carry no service-type label) before decoding.  Reset when records change.
     readonly #responderNames = new Set<string>();
@@ -59,32 +89,6 @@ export class MdnsServer {
     constructor(socket: MdnsSocket, lifetime = Lifetime.process) {
         this.#socket = socket;
         this.#lifetime = lifetime.join("mdns server");
-        this.#records = new AsyncCache<MdnsServer.InterfaceRecords>(
-            "MDNS discovery",
-            this.#lifetime,
-            async (multicastInterface: string) => {
-                const byService = new Map<string, DnsRecord<any>[]>();
-                const ownedNames = new Set<string>();
-                const addrs = await this.network.getIpMac(multicastInterface);
-                if (addrs === undefined) {
-                    return { byService, ownedNames };
-                }
-                const hostname = this.#hostname ?? hostnameForMac(addrs.mac);
-
-                for (const [service, generator] of this.#recordsGenerator) {
-                    const records = generator(multicastInterface, addrs, hostname);
-                    byService.set(service, records);
-                    for (const record of records) {
-                        ownedNames.add(record.name.toLowerCase());
-                    }
-                }
-
-                this.#registerResponderNames(ownedNames);
-
-                return { byService, ownedNames };
-            },
-            Minutes(15) /* matches maximum standard commissioning window time */,
-        );
         this.#observers.on(this.#socket.receipt, this.#handleMessage.bind(this));
     }
 
@@ -103,7 +107,7 @@ export class MdnsServer {
     async #handleMessage(incomingMessage: MdnsSocket.Message) {
         using _processing = this.#lifetime.join("processing message");
 
-        const { byService, ownedNames } = await this.#records.get(incomingMessage.sourceIntf);
+        const { byService, ownedNames } = await this.#recordsFor(incomingMessage.sourceIntf);
 
         // Ignore if we have no records for interface
         if (byService.size === 0) {
@@ -218,7 +222,7 @@ export class MdnsServer {
 
         await MatterAggregateError.allSettled(
             (await this.#getMulticastInterfacesForAnnounce()).map(async ({ name: netInterface }) => {
-                const { byService } = await this.#records.get(netInterface);
+                const { byService } = await this.#recordsFor(netInterface);
                 let sentPreviousPacket = false;
                 for (const [service, serviceRecords] of byService) {
                     if (services.length && !services.includes(service)) continue;
@@ -242,10 +246,13 @@ export class MdnsServer {
 
     async expireAnnouncements(...services: string[]) {
         using _expiring = this.#lifetime.join("expiring", Diagnostic.strong(describeList("and", ...services)));
+        if (this.#lifetime.isClosing) {
+            logger.debug("Not expiring mDNS announcements because the server is closed");
+            return;
+        }
 
         await MatterAggregateError.allSettled(
-            this.#records.keys().map(async netInterface => {
-                const { byService } = await this.#records.get(netInterface);
+            [...this.#records].map(async ([netInterface, { byService }]) => {
                 let sentPreviousPacket = false;
                 for (const [service, serviceRecords] of byService) {
                     if (services.length && !services.includes(service)) continue;
@@ -259,7 +266,6 @@ export class MdnsServer {
                         await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100)));
                     }
                     await this.#announceRecordsForInterface(netInterface, serviceRecords);
-                    this.#recordsGenerator.delete(service);
                     sentPreviousPacket = true;
                 }
             }),
@@ -271,6 +277,9 @@ export class MdnsServer {
                 logger.warn("Error happened when expiring MDNS announcements", error);
             }
         });
+        for (const service of services.length ? services : [...this.#recordsGenerator.keys()]) {
+            this.#recordsGenerator.delete(service);
+        }
         await this.#resetServices();
     }
 
@@ -281,10 +290,11 @@ export class MdnsServer {
 
     async #resetServices() {
         await this.#chooseHostname();
-        await this.#records.clear();
+        this.#followInterfaces(this.#recordsGenerator.size > 0);
+        this.#records.clear();
         this.#recordLastSentAsMulticastAnswer.clear();
         this.#recentlyAnsweredQueries.clear();
-        // Reset the accumulator but leave the prior footprints registered until the cache rebuilds and replaces them:
+        // Reset the accumulator but leave the prior footprints registered until rebuilt records replace them:
         // an empty registration here would open a window where queries for our own hostname get dropped, while stale
         // footprints only ever cause a harmless extra decode.
         this.#responderNames.clear();
@@ -308,8 +318,11 @@ export class MdnsServer {
     async close() {
         using _closing = this.#lifetime.closing();
         this.#observers.close();
+        this.#followInterfaces(false);
+        this.#updateRepeat.stop();
         this.#socket.unregisterRelevantNames(RESPONDER_NAMES_OWNER);
-        await this.#records.close();
+        this.#records.clear();
+        this.#building.clear();
         for (const { timer } of this.#truncatedQueryCache.values()) {
             timer.stop();
         }
@@ -347,6 +360,154 @@ export class MdnsServer {
             }
         } catch (error) {
             logger.warn("Cannot list network interfaces to choose the mDNS host name", error);
+        }
+    }
+
+    /**
+     * The records of {@link netInterface}, built from its details on first use.  Concurrent first uses share one build.
+     * Throws {@link ClosedError} once the server closes.
+     */
+    #recordsFor(netInterface: string): MaybePromise<MdnsServer.InterfaceRecords> {
+        if (this.#lifetime.isClosing) {
+            throw new ClosedError("The mDNS server is closed");
+        }
+        const records = this.#records.get(netInterface);
+        if (records !== undefined) {
+            return records;
+        }
+        let building = this.#building.get(netInterface);
+        if (building === undefined) {
+            building = this.#buildRecords(netInterface).then(records => {
+                // A reset or an interface change during the build replaced this build
+                if (this.#building.get(netInterface) === building) {
+                    this.#building.delete(netInterface);
+                    this.#records.set(netInterface, records);
+                }
+                return records;
+            });
+            this.#building.set(netInterface, building);
+        }
+        return building;
+    }
+
+    async #buildRecords(netInterface: string): Promise<MdnsServer.InterfaceRecords> {
+        const byService = new Map<string, DnsRecord<any>[]>();
+        const ownedNames = new Set<string>();
+        const addrs = await this.network.getIpMac(netInterface);
+        if (addrs === undefined) {
+            return { byService, ownedNames };
+        }
+        const hostname = this.#hostname ?? hostnameForMac(addrs.mac);
+
+        for (const [service, generator] of this.#recordsGenerator) {
+            const records = generator(netInterface, addrs, hostname);
+            byService.set(service, records);
+            for (const record of records) {
+                ownedNames.add(record.name.toLowerCase());
+            }
+        }
+
+        this.#registerResponderNames(ownedNames);
+
+        return { byService, ownedNames };
+    }
+
+    /** Interface changes matter only while services are registered, and observing them starts the periodic checks. */
+    #followInterfaces(follow: boolean) {
+        if (follow === this.#isFollowingInterfaces) {
+            return;
+        }
+        this.#isFollowingInterfaces = follow;
+        if (follow) {
+            this.network.interfacesChanged.on(this.#interfacesChangedObserver);
+        } else {
+            this.network.interfacesChanged.off(this.#interfacesChangedObserver);
+        }
+    }
+
+    async #handleInterfacesChanged(names: string[]) {
+        using _changing = this.#lifetime.join("interface change", Diagnostic.strong(describeList("and", ...names)));
+        try {
+            await this.#applyInterfaceChanges(names);
+        } catch (error) {
+            // The next use builds the records again from the current interface details
+            this.#records.clear();
+            logger.warn("Cannot update the mDNS records after an interface change", error);
+        }
+    }
+
+    async #applyInterfaceChanges(names: string[]) {
+        const previousHostname = this.#hostname;
+        await this.#chooseHostname();
+        const changed = new Set(names);
+        if (this.#hostname !== previousHostname) {
+            for (const netInterface of this.#records.keys()) {
+                changed.add(netInterface);
+            }
+        }
+
+        const served = new Set((await this.#getMulticastInterfacesForAnnounce()).map(({ name }) => name));
+        for (const netInterface of changed) {
+            await this.#rebuildRecords(netInterface, served.has(netInterface));
+        }
+    }
+
+    async #rebuildRecords(netInterface: string, isServed: boolean) {
+        const previous = this.#records.get(netInterface);
+        this.#building.delete(netInterface);
+        const current = isServed ? await this.#buildRecords(netInterface) : undefined;
+        if (current === undefined || current.byService.size === 0) {
+            this.#records.delete(netInterface);
+            return;
+        }
+        this.#records.set(netInterface, current);
+
+        const before = previous === undefined ? [] : allRecords(previous);
+        const after = allRecords(current);
+        const removed = before.filter(record => !after.some(other => sameRecord(record, other)));
+        const added = after.filter(record => !before.some(other => sameRecord(record, other)));
+        if (!removed.length && !added.length) {
+            return;
+        }
+
+        const update = this.#pendingUpdates.get(netInterface) ?? { goodbyes: [], changedSets: new Set<string>() };
+        update.goodbyes = uniqueRecords([...update.goodbyes, ...removed]);
+        for (const record of [...removed, ...added]) {
+            update.changedSets.add(setKeyOf(record));
+        }
+        this.#pendingUpdates.set(netInterface, update);
+
+        await this.#sendUpdate(netInterface, update);
+        this.#updateRepeat.start();
+    }
+
+    async #repeatUpdates() {
+        const updates = [...this.#pendingUpdates];
+        this.#pendingUpdates.clear();
+        using _repeating = this.#lifetime.join("repeating interface update");
+        for (const [netInterface, update] of updates) {
+            await this.#sendUpdate(netInterface, update);
+        }
+    }
+
+    /**
+     * Send goodbyes for the records of {@link update} that the interface no longer publishes, then the current members
+     * of each changed record set.  A goodbye carries no cache-flush bit, which would also remove the records that stay.
+     */
+    async #sendUpdate(netInterface: string, update: { goodbyes: DnsRecord[]; changedSets: Set<string> }) {
+        try {
+            const current = await this.#recordsFor(netInterface);
+            if (current.byService.size === 0) {
+                return;
+            }
+            const after = allRecords(current);
+            const goodbyes = update.goodbyes
+                .filter(record => !after.some(other => sameRecord(record, other)))
+                .map(record => ({ ...record, ttl: Instant, flushCache: false }));
+            const announced = after.filter(record => update.changedSets.has(setKeyOf(record)));
+            await this.#announceRecordsForInterface(netInterface, [...goodbyes, ...announced]);
+        } catch (error) {
+            logger.debug(`Cannot send the changed mDNS records of interface ${netInterface}`, error);
         }
     }
 
@@ -562,6 +723,19 @@ function setSizes(records: DnsRecord<any>[]) {
         sizes.set(key, (sizes.get(key) ?? 0) + 1);
     }
     return sizes;
+}
+
+function allRecords({ byService }: MdnsServer.InterfaceRecords) {
+    return uniqueRecords([...byService.values()].flat());
+}
+
+/** RFC 6762 §10.1 identifies a record by name, type, class and data; the TTL and the cache-flush bit do not count. */
+function sameRecord(a: DnsRecord<any>, b: DnsRecord<any>) {
+    return setKeyOf(a) === setKeyOf(b) && isDeepEqual(a.value, b.value);
+}
+
+function uniqueRecords(records: DnsRecord<any>[]) {
+    return records.filter((record, index) => records.findIndex(other => sameRecord(record, other)) === index);
 }
 
 /** DNS names are case-insensitive (RFC 6762 §16), but they rarely differ in case, so try the cheap comparison first. */

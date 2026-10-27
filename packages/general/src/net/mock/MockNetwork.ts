@@ -140,6 +140,7 @@ export class MockNetwork extends Network {
     }
 
     override async close() {
+        await super.close();
         this.#simulator.router.delete(this.router);
     }
 }
