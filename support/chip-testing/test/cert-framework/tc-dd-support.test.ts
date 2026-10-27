@@ -429,6 +429,34 @@ describe("CommissioningRefusals", () => {
         await expect(refusals.settle(cx)).rejectedWith(CertCleanupError, /stray-ref: node is unreachable/);
     });
 
+    it("removes a fabric with the controller that made the attempt", async () => {
+        const removedByDut = new Array<CertNodeRef>();
+        const cx = contextWith(
+            () => Promise.reject(new InternalError("not used by this test")),
+            async ref => {
+                removedByDut.push(ref);
+            },
+        );
+        const removedByHelper = new Array<CertNodeRef>();
+        cx.controllers.th_cr3 = {
+            ...cx.controllers.dut,
+            id: "th_cr3",
+            node: ref =>
+                fakeCertNode({
+                    decommission: async () => {
+                        removedByHelper.push(ref);
+                    },
+                }),
+        };
+        const refusals = new CommissioningRefusals<"th_cr3">(BUDGETS);
+
+        refusals.track(Promise.resolve("helper-ref"), "th_cr3");
+        await refusals.settle(cx);
+
+        expect(removedByHelper).deep.equal(["helper-ref"]);
+        expect(removedByDut).deep.equal([]);
+    });
+
     it("gives up on an attempt that never settles rather than holding the run open", async () => {
         const cx = contextWith(() => new Promise<CertNodeRef>(() => {}));
         const refusals = new CommissioningRefusals(BUDGETS);

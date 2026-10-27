@@ -16,6 +16,13 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 export interface LogLine {
     index: number;
     at: Date;
+
+    /**
+     * When the follower took the line in, on the monotonic clock (`performance.now()`, milliseconds). Use it for the
+     * time between two lines; {@link at} follows wall-clock steps.
+     */
+    receivedAt: number;
+
     text: string;
     /** Set on a line added via {@link LogFollower.annotate} — never matched by {@link LogFollower.expect}. */
     synthetic?: true;
@@ -172,7 +179,13 @@ export class LogFollower implements LogSource {
      * satisfying a step's own pattern.
      */
     annotate(text: string): void {
-        this.#lines.push({ index: this.#lines.length, at: new Date(), text, synthetic: true });
+        this.#lines.push({
+            index: this.#lines.length,
+            at: new Date(),
+            receivedAt: performance.now(),
+            text,
+            synthetic: true,
+        });
         this.#wake();
     }
 
@@ -224,6 +237,14 @@ export class LogFollower implements LogSource {
         // continuation append what it read.
         await delay(0).promise;
         await delay(0).promise;
+    }
+
+    /**
+     * Whether the source has ended, by {@link close} or because the process behind it stopped writing. Lines
+     * already taken in stay readable; no further line arrives.
+     */
+    get closed(): boolean {
+        return this.#closed;
     }
 
     /**
@@ -432,7 +453,12 @@ export class LogFollower implements LogSource {
 
                 // chip binaries colorize log output even when stdout isn't a TTY; a trailing ANSI reset
                 // sequence after the visible text breaks any pattern anchored on end-of-line ($).
-                this.#lines.push({ index: this.#lines.length, at: new Date(), text: deansify(outcome.result.value) });
+                this.#lines.push({
+                    index: this.#lines.length,
+                    at: new Date(),
+                    receivedAt: performance.now(),
+                    text: deansify(outcome.result.value),
+                });
                 this.#wake();
             }
         } catch (e) {

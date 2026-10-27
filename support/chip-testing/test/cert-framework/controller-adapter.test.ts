@@ -1367,6 +1367,33 @@ describe("ControllerAdapter registry", () => {
         }
     });
 
+    it("declares the AdministratorCommissioning client of the TC-CADMIN cases", () => {
+        // A file answering every key 0 shows that each one comes from the overlay; the real device files answer 1.
+        // Only the matterjs-server opens no basic window, which skips TC-CADMIN-1.2 and 1.18 there as a whole.
+        const commands = ["CADMIN.C.C00.Tx", "CADMIN.C.C01.Tx", "CADMIN.C.C02.Tx"];
+        const asDevice = new PicsFile(["CADMIN.C=0", ...commands.map(key => `${key}=0`)]);
+
+        for (const implementation of IMPLEMENTATIONS) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of ["CADMIN.C", ...commands]) {
+                const expected = !(implementation === "matterjs-server" && key === "CADMIN.C.C01.Tx");
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(expected);
+            }
+        }
+    });
+
+    it("declares that no controller has a user interface display", () => {
+        // The CHIP PICS file answers 1, which would have TC-CADMIN-1.1 step 3.b enter a code into a display
+        const asDevice = new PicsFile(["CADMIN.M.UserInterfaceDisplay=1"]);
+
+        for (const implementation of IMPLEMENTATIONS) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            expect(new PicsExpression("CADMIN.M.UserInterfaceDisplay").evaluate(forRun), implementation).equal(false);
+        }
+    });
+
     it("declares the group-administration client commands TC-SC-6.1 sends", () => {
         // ViewGroup is 0 in the device file; the two GroupKeyManagement keys are absent from it
         // entirely, and an absent key evaluates false, so either omission skips a step silently.

@@ -725,14 +725,17 @@ export function recordGeneratedPayload(
 export const PARSES_PAYLOAD: readonly ControllerCapability[] = ["onboarding-payload-parse"];
 
 /**
- * The commissioning attempts a TC has told the DUT to refuse.
+ * The commissioning attempts a TC expects to fail: one the DUT has to refuse, or one a TH controller makes that
+ * the TH has to refuse.
+ *
+ * `Role` names the case's controller roles that make such attempts besides the DUT (`dut`).
  *
  * A TC's `finalize` must {@link settle} this. An attempt outlives the check that judged it —
  * {@link expectRejection} stops waiting at its budget but the commissioning carries on — so a
  * fabric this class asked for can land after every other cleanup has run.
  */
-export class CommissioningRefusals {
-    #attempts = new Array<Promise<CertNodeRef | undefined>>();
+export class CommissioningRefusals<Role extends string = "dut"> {
+    #attempts = new Array<Promise<{ role: Role | "dut"; ref: CertNodeRef } | undefined>>();
     #refusalTimeout: Duration;
     #settleTimeout: Duration;
 
@@ -753,11 +756,14 @@ export class CommissioningRefusals {
      * remove. An attempt whose outcome the step *did* see is owned by the step, and handing that one
      * over as well would have its fabric removed twice. Kept as a settled outcome so an attempt nobody
      * awaits again cannot surface as an unhandled rejection.
+     *
+     * `role` names the controller that made the attempt, which is the one {@link settle} removes the
+     * fabric with.
      */
-    track(attempt: Promise<CertNodeRef>): void {
+    track(attempt: Promise<CertNodeRef>, role: Role | "dut"): void {
         this.#attempts.push(
             attempt.then(
-                ref => ref,
+                ref => ({ role, ref }),
                 () => undefined,
             ),
         );
@@ -773,7 +779,7 @@ export class CommissioningRefusals {
      */
     async requireRefusal(cx: CertStepContext, target: CommissioningTarget, what: string): Promise<void> {
         const attempt = cx.controllers.dut.commission(target);
-        this.track(attempt);
+        this.track(attempt, "dut");
 
         record(
             cx,
@@ -844,7 +850,7 @@ export class CommissioningRefusals {
 
         const label = `commissioning from ${describeTarget(target)}`;
         const attempt = dut.commission(target);
-        this.track(attempt);
+        this.track(attempt, "dut");
 
         const outcome = await expectRejection(label, attempt, timeout, isCommissioningGiveUp);
         const checks: RecordedCheck[] = [
@@ -880,20 +886,21 @@ export class CommissioningRefusals {
 
         if (refs === undefined) {
             throw new CertCleanupError(
-                `${attempts.length} commissioning attempt(s) the DUT was asked to refuse are still running after ` +
+                `${attempts.length} commissioning attempt(s) expected to fail are still running after ` +
                     `${Duration.format(this.#settleTimeout)}; one that succeeds now cannot be cleaned up`,
             );
         }
 
         const failures = new Array<string>();
-        for (const ref of refs) {
-            if (ref === undefined) {
+        for (const onboarded of refs) {
+            if (onboarded === undefined) {
                 continue;
             }
+            const { role, ref } = onboarded;
             try {
-                await cx.controllers.dut.node(ref).decommission();
+                await cx.controllers[role].node(ref).decommission();
             } catch (e) {
-                failures.push(`${ref}: ${e instanceof Error ? e.message : String(e)}`);
+                failures.push(`${role} ${ref}: ${e instanceof Error ? e.message : String(e)}`);
             }
         }
         if (failures.length) {
@@ -1374,7 +1381,7 @@ export async function recordVendorOutcome(
             // Only now does cleanup own the attempt: an outcome this step saw is already owned, by
             // `commissioned` for one that onboarded, and handing it over as well would have the fabric
             // removed twice.
-            refusals.track(attempt);
+            refusals.track(attempt, "dut");
             record(
                 cx,
                 {

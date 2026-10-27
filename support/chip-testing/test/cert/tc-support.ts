@@ -258,7 +258,7 @@ export function describeError(e: unknown): string {
  * Tracks commissioned node refs by role for one cert-test run. Each controller's own
  * `decommission()` only removes *that controller's* fabric via its own CASE session, so cleanup has
  * to visit every role independently. Shared by `TC-IDM-2.1.test.ts`/`TC-ACT-3.2.test.ts`/
- * `TC-IDM-1.1.test.ts` (single "dut" role) and `TC-CADMIN-1.17.test.ts` (multiple controller roles).
+ * `TC-IDM-1.1.test.ts` (single "dut" role) and the TC-CADMIN cases in `tc-cadmin-support.ts` (multiple controller roles).
  *
  * {@link decommissionAll} belongs in a TC's `certTest(...).finalize(...)` callback, which the engine
  * runs however the steps ended. So does anything else that keeps this map true to the TH: a
@@ -2820,27 +2820,5 @@ export async function expectRejection(
             }
             return { type: "response", verdict: "pass", detail: `${label} rejected after ${elapsed}: ${message}` };
         }
-    }
-}
-
-/**
- * A one-shot pairing code slot: {@link require} clears it on read so a commissioning attempt that
- * throws can't leave a stale code behind for a later run to pair against an expired window instead
- * of failing "the window-opening step must run first".
- */
-export class PendingPairingCode {
-    #code: string | undefined;
-
-    set(code: string): void {
-        this.#code = code;
-    }
-
-    require(): string {
-        if (this.#code === undefined) {
-            throw new InternalError("No pending manual pairing code; a commissioning-window step must run first");
-        }
-        const code = this.#code;
-        this.#code = undefined;
-        return code;
     }
 }
