@@ -127,6 +127,7 @@ export type NetworkInterfaceDetails = {
 export type NetworkInterfaceDetailed = NetworkInterface & NetworkInterfaceDetails;
 export abstract class Network {
     abstract getNetInterfaces(configuration?: NetworkInterface[]): MaybePromise<NetworkInterface[]>;
+    /** The details of {@link netInterface} at the time of the call; later changes of the interface do not change them. */
     abstract getIpMac(netInterface: string): MaybePromise<NetworkInterfaceDetails | undefined>;
     abstract createUdpSocket(options: UdpSocketOptions): Promise<UdpSocket>;
 

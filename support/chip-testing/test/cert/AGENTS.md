@@ -2346,8 +2346,10 @@ Step 1 reads `AB=12345` back from this process's DNS-SD cache (`cachedTxtValue`)
 that went out. The alias advertises the harness's own addresses, so the TH must run on this host
 (`chip-local`, `matterjs`).
 
-**Cleanup decommissions before closing the alias.** The alias's goodbye expires the A/AAAA records of the
-host name this process shares, which an in-process matterjs TH also announces under.
+**The cleanup order of the alias does not matter for the TH's addresses.** The alias publishes through the
+responder of this process, under the host name an in-process matterjs TH also announces under. The responder's
+goodbye leaves out records that another registered service still publishes, so closing the alias keeps the TH's
+A/AAAA records.
 
 ## What a commissioning step owes its own evidence
 
