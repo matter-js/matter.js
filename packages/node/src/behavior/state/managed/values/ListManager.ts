@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { isObject, serialize } from "@matter/general";
+import { InternalError, isObject, serialize } from "@matter/general";
 import type { Schema } from "@matter/model";
 import { Access, AttributeModel, DataModelPath, ValueModel } from "@matter/model";
 import { AccessControl, hasRemoteActor, ReadError, SchemaImplementationError, Val, WriteError } from "@matter/protocol";
@@ -14,6 +14,7 @@ import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 import type { ValidationLocation } from "../../validation/location.js";
 import { Internal } from "../Internal.js";
 import { ManagedReference } from "../ManagedReference.js";
+import { ReadOnlyReference } from "../ReadOnlyReference.js";
 import { ValReference } from "../ValReference.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
 
@@ -124,20 +125,11 @@ const entryEdits = new Map<PropertyKey, (...args: never[]) => unknown>([
 ]);
 
 /**
- * Wrap a `sort` comparator so it receives copies of the entries it compares.
+ * The list index a property key names, or `undefined` for any other key.  Like an array, the list treats only the
+ * canonical decimal form as an index, so `"1.5"` and `"01"` are not indices.
  */
-function compareCopies(compare: unknown) {
-    if (typeof compare !== "function") {
-        return compare;
-    }
-    const copies = new Map<Val, Val>();
-    const copyOf = (entry: Val) => {
-        if (!copies.has(entry)) {
-            copies.set(entry, Internal.copy(entry));
-        }
-        return copies.get(entry);
-    };
-    return (a: Val, b: Val): unknown => Reflect.apply(compare, undefined, [copyOf(a), copyOf(b)]);
+function entryIndexFor(property: PropertyKey) {
+    return typeof property === "string" && /^(0|[1-9]\d*)$/.test(property) ? Number.parseInt(property) : undefined;
 }
 
 class ListProxyHandler implements ProxyHandler<Val.List> {
@@ -279,8 +271,8 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
      * Replace the entries {@link visibleEntries} returns with `entries` in a single change.  Throws {@link WriteError}
      * when the list would exceed {@link MAX_LIST_LENGTH}.
      *
-     * A stored entry that ends up at another index is stored as a copy, because a nested write clones an entry only
-     * while it sits at the index of its committed original (see {@link ValReference.change}).
+     * An entry that `entries` holds more than once is stored as a copy from its second slot on.  The transaction may
+     * own the entry, and a nested write changes an owned entry in place (see {@link ValReference.owns}).
      */
     protected storeEntries(entries: Val[]) {
         if (entries.length > MAX_LIST_LENGTH) {
@@ -290,11 +282,17 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
             );
         }
 
-        const stored = this.readVal();
-        const isStored = new Set(stored);
-        const placed = entries.map((entry, index) =>
-            entry !== stored[index] && isStored.has(entry) ? Internal.copy(entry) : entry,
-        );
+        const seen = new Set<Val>();
+        const placed = entries.map(entry => {
+            if (typeof entry !== "object" || entry === null) {
+                return entry;
+            }
+            if (seen.has(entry)) {
+                return Internal.copy(entry);
+            }
+            seen.add(entry);
+            return entry;
+        });
 
         this.reference.change(() => {
             const list = this.writeVal();
@@ -307,26 +305,68 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
      * Apply an array method that changes entries, and return its result.
      *
      * The method runs on a plain array of the visible entries, because entry proxies follow their index.  A stored
-     * entry keeps its value; {@link storeEntries} copies it if it moves.  Every other value is new: it is copied,
-     * prepared and validated before anything is stored.  The result is stored in a single change, so a rejected entry
-     * leaves the list unchanged.
+     * entry keeps its value.  Every other value is new: it is copied, prepared and validated before anything is
+     * stored.  The result is stored in a single change, so a rejected entry leaves the list unchanged.
      *
-     * The method's result is returned as a copy, or as the list itself when the method returns its array.  A `sort`
-     * comparator receives copies of the entries.
+     * A stored entry leaves this method only as a read-only view (see {@link ReadOnlyReference}): the entries `pop`,
+     * `shift` and `splice` remove, and the entries a `sort` comparator receives.  A method that returns its array
+     * returns the list itself.
      */
     protected editEntries(method: (...args: never[]) => unknown, args: unknown[], receiver: Val.List): unknown {
         this.config.authorizeWrite(this.session, this.reference.location);
 
         const stored = this.visibleEntries();
+        const viewOf = this.#viewsOf(stored);
+        const [compare] = args;
         const edited = [...stored];
-        const result = Reflect.apply(method, edited, method === Array.prototype.sort ? [compareCopies(args[0])] : args);
+        const result = Reflect.apply(
+            method,
+            edited,
+            method === Array.prototype.sort && typeof compare === "function"
+                ? [(a: Val, b: Val): unknown => Reflect.apply(compare, undefined, [viewOf(a), viewOf(b)])]
+                : args,
+        );
 
         const isStored = new Set(stored);
         const entries = edited.map((entry, index) => (isStored.has(entry) ? entry : this.#acceptEntry(entry, index)));
 
         this.storeEntries(entries);
 
-        return result === edited ? receiver : Internal.copy(result);
+        if (result === edited) {
+            return receiver;
+        }
+        return Array.isArray(result) ? result.map(viewOf) : viewOf(result);
+    }
+
+    /**
+     * Create a function that returns a read-only managed view of an entry of `stored`, one view per entry.  Any other
+     * value, and every entry of a list of primitives, is returned unchanged.
+     */
+    #viewsOf(stored: Val[]) {
+        const views = new Map<Val, Val>();
+        let indices: Map<Val, number> | undefined;
+
+        return (entry: Val) => {
+            if (!this.config.manageEntries || typeof entry !== "object" || entry === null) {
+                return entry;
+            }
+
+            let view = views.get(entry);
+            if (view === undefined) {
+                indices ??= new Map(stored.map((entry, index) => [entry, index]));
+                const index = indices.get(entry);
+                if (index === undefined) {
+                    throw new InternalError(`Entry to view at ${this.reference.location.path} is not a stored entry`);
+                }
+
+                const location = { ...this.reference.location, path: this.reference.location.path.at(index) };
+                const reference = new ReadOnlyReference(entry, location, this.reference.rootOwner);
+                this.config.manageEntry(reference, this.session);
+                view = reference.owner;
+                views.set(entry, view);
+            }
+            return view;
+        };
     }
 
     /**
@@ -348,9 +388,10 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     }
 
     get(_target: Val.List, property: PropertyKey, receiver: Val.List) {
-        if (typeof property === "string" && property.match(/^\d+/)) {
-            this.#sublocation.path.id = property;
-            return this.readEntry(Number.parseInt(property), this.#sublocation);
+        const index = entryIndexFor(property);
+        if (index !== undefined) {
+            this.#sublocation.path.id = index;
+            return this.readEntry(index, this.#sublocation);
         }
 
         switch (property) {
@@ -382,9 +423,9 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     }
 
     set(_target: Val.List, property: PropertyKey, newValue: Val, receiver: Val.List) {
-        if (typeof property === "string" && property.match(/^\d+/)) {
+        const index = entryIndexFor(property);
+        if (index !== undefined) {
             this.config.authorizeWrite(this.session, this.reference.location);
-            const index = Number.parseInt(property);
             this.writeEntry(index, this.#acceptEntry(newValue, index), this.#sublocation);
             return true;
         } else if (property === "length") {
@@ -396,17 +437,19 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     }
 
     has(_target: Val.List, property: PropertyKey) {
-        if (typeof property === "string" && property.match(/^\d+/)) {
-            return this.hasEntry(Number.parseInt(property));
+        const index = entryIndexFor(property);
+        if (index !== undefined) {
+            return this.hasEntry(index);
         }
 
         return Reflect.has(this.readVal(), property);
     }
 
     deleteProperty(_target: Val.List, property: PropertyKey) {
-        if (typeof property === "string" && property.match(/^\d+/)) {
-            this.#sublocation.path.id = property;
-            this.deleteEntry(Number.parseInt(property), this.#sublocation);
+        const index = entryIndexFor(property);
+        if (index !== undefined) {
+            this.#sublocation.path.id = index;
+            this.deleteEntry(index, this.#sublocation);
             return true;
         }
 
@@ -545,20 +588,13 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
             if (typeof k !== "string") {
                 return true;
             }
-            if (!k.match(/^\d+$/)) {
-                return true;
-            }
-            if (Number.parseInt(k) < length) {
-                return true;
-            }
-            return false;
+            const index = entryIndexFor(k);
+            return index === undefined || index < length;
         });
     }
 
     override getOwnPropertyDescriptor(_target: Val.List, key: PropertyKey) {
-        if (typeof key === "string" && key.match(/^\d+$/)) {
-            key = Number.parseInt(key);
-        }
+        key = entryIndexFor(key) ?? key;
         if (typeof key !== "number") {
             return Reflect.getOwnPropertyDescriptor(this.readVal(), key);
         }

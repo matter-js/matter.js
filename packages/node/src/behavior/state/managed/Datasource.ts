@@ -936,6 +936,11 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     #changes: CommitChanges | undefined;
 
     /**
+     * Containers this session cloned since its last commit or rollback; see {@link owns}.
+     */
+    #owned = new WeakSet<object>();
+
+    /**
      * Keys of the members this session assigned since its last commit or rollback, whether or not the value differs.
      */
     #assigned: Set<string> | undefined;
@@ -1041,10 +1046,6 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
 
     // -- ValReference implementation --
 
-    get original() {
-        return this.#internals.values;
-    }
-
     get value() {
         if (this.#expired) {
             throw new ExpiredReferenceError(this.location);
@@ -1066,6 +1067,16 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
 
     get rootOwner() {
         return this.#internals.owner;
+    }
+
+    owns(container: Val) {
+        return typeof container === "object" && container !== null && this.#owned.has(container);
+    }
+
+    adopt(container: Val) {
+        if (typeof container === "object" && container !== null) {
+            this.#owned.add(container);
+        }
     }
 
     change(mutator: () => void, member: string | number) {
@@ -1256,6 +1267,9 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     commit2() {
         this.#assigned = undefined;
 
+        // The clones become canonical, so the next write must clone them again
+        this.#owned = new WeakSet();
+
         if (!this.#changes) {
             return;
         }
@@ -1314,6 +1328,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     rollback() {
         this.#values = this.#internals.values;
         this.#assigned = undefined;
+        this.#owned = new WeakSet();
 
         // A rolled back value was never adopted, so it must not stand as the baseline the next announcement diffs
         // against

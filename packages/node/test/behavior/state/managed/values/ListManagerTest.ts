@@ -8,7 +8,7 @@ import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { MaybePromise } from "@matter/general";
 import { MockExchange } from "@matter/node/testing";
-import { ConformanceError, Val, WriteError } from "@matter/protocol";
+import { ConformanceError, ExpiredReferenceError, Val, WriteError } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { TestCluster, TestStruct, aclEndpoint, fieldOf, listOf, rawValuesOf, structOf } from "./value-utils.js";
 
@@ -256,6 +256,39 @@ describe("ListManager", () => {
                 ref.targets = [{ cluster: 9 }];
                 await cx.transaction.commit();
                 expect(rawValuesOf(struct.fields).targets).deep.equals([{ cluster: 9 }]);
+            },
+        );
+    });
+
+    it("masks another fabric's sensitive field in the entries a sort comparator receives", async () => {
+        const struct = TestStruct(
+            {
+                list: listOf(structOf({ FabricIndex: "fabric-idx", secret: { type: "uint8", access: "RW S" } }), {
+                    access: "RW",
+                }),
+            },
+            {
+                list: [
+                    { fabricIndex: 2, secret: 7 },
+                    { fabricIndex: 1, secret: 3 },
+                ],
+            },
+        );
+
+        await struct.online(
+            {
+                fabricFiltered: false,
+                exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                node: aclEndpoint(),
+            },
+            ref => {
+                const secrets = new Set<number | undefined>();
+                (ref.list as { fabricIndex: number; secret?: number }[]).sort((a, b) => {
+                    secrets.add(a.secret);
+                    secrets.add(b.secret);
+                    return a.fabricIndex - b.fabricIndex;
+                });
+                expect([...secrets].sort()).deep.equals([3, undefined]);
             },
         );
     });
@@ -792,6 +825,17 @@ describe("ListManager", () => {
     });
 
     describe("write bounds", () => {
+        it("treats a key that is not a canonical number as no index", async () => {
+            const struct = TestStruct({ list: listOf("uint8") }, { list: [1, 2] });
+
+            await LocalActorContext.act("test", cx => {
+                const list = struct.reference(cx).list as number[];
+                expect(Reflect.get(list, "1.5")).undefined;
+                expect(Reflect.has(list, "1.5")).false;
+                expect(Reflect.get(list, "01")).undefined;
+            });
+        });
+
         async function writePlainList(defaults: Val.List, actor: (list: number[]) => void) {
             const struct = TestStruct({ list: listOf("uint8") }, { list: defaults });
             await LocalActorContext.act("test", cx => actor(struct.reference(cx).list as number[]));
@@ -1050,7 +1094,7 @@ describe("ListManager", () => {
             ]);
         });
 
-        it("returns copies of removed entries", async () => {
+        it("returns removed entries as read-only views", async () => {
             const struct = TestStruct(
                 { list: listOf(structOf({ value: "uint8" })) },
                 { list: [{ value: 1 }, { value: 2 }] },
@@ -1059,8 +1103,8 @@ describe("ListManager", () => {
             await LocalActorContext.act("test", async cx => {
                 const list = struct.reference(cx).list as { value: number }[];
                 const [removed] = list.splice(0, 1);
-                removed.value = 7;
-                list.pop()!.value = 8;
+                expect(removed.value).equals(1);
+                expect(() => (removed.value = 7)).throws(ExpiredReferenceError);
                 await cx.transaction.rollback();
             });
 
@@ -1082,7 +1126,52 @@ describe("ListManager", () => {
             struct.expect({ list: [{ value: 2 }] });
         });
 
-        it("ignores a change a sort comparator makes to an entry", async () => {
+        it("resolves field names for entries stored by tag number", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ value: { type: "uint8", id: 1 } })) },
+                { list: [{ 1: 3 }, { 1: 1 }, { 1: 2 }] },
+            );
+
+            await LocalActorContext.act("test", cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                list.sort((a, b) => a.value - b.value);
+                expect(list.pop()?.value).equals(3);
+            });
+
+            expect(rawValuesOf(struct.fields).list).deep.equals([{ 1: 1 }, { 1: 2 }]);
+        });
+
+        it("stores a separate copy when copyWithin() duplicates an entry the transaction changed", async () => {
+            const struct = TestStruct(
+                { list: listOf(structOf({ value: "uint8" })) },
+                { list: [{ value: 1 }, { value: 2 }] },
+            );
+
+            await LocalActorContext.act("test", cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                list[0].value = 5;
+                list.copyWithin(1, 0);
+                list[1].value = 9;
+            });
+
+            struct.expect({ list: [{ value: 5 }, { value: 9 }] });
+        });
+
+        it("clones an entry again for a nested write after a commit", async () => {
+            const struct = TestStruct({ list: listOf(structOf({ value: "uint8" })) }, { list: [{ value: 1 }] });
+
+            await LocalActorContext.act("test", async cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                list[0].value = 5;
+                await cx.transaction.commit();
+                list[0].value = 9;
+                await cx.transaction.rollback();
+            });
+
+            struct.expect({ list: [{ value: 5 }] });
+        });
+
+        it("refuses a change a sort comparator makes to an entry", async () => {
             const struct = TestStruct(
                 { list: listOf(structOf({ value: "uint8" })) },
                 { list: [{ value: 2 }, { value: 1 }] },
@@ -1090,10 +1179,12 @@ describe("ListManager", () => {
 
             await LocalActorContext.act("test", cx => {
                 const list = struct.reference(cx).list as { value: number }[];
-                list.sort(a => {
-                    a.value = 9;
-                    return 0;
-                });
+                expect(() =>
+                    list.sort(a => {
+                        a.value = 9;
+                        return 0;
+                    }),
+                ).throws(ExpiredReferenceError);
             });
 
             struct.expect({ list: [{ value: 2 }, { value: 1 }] });

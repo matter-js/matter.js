@@ -24,8 +24,8 @@ export namespace Internal {
      *
      * A managed proxy is replaced by a copy of its raw value, including the entries of other fabrics.  Every array and
      * every plain object is copied, so the stored value shares no array or plain object with the committed state, with
-     * another reference or with the caller.  A nested write clones a container only if it is the committed original,
-     * so a shared container would be changed in place.  A copied object keeps its symbol-keyed properties, such as
+     * another reference or with the caller.  A nested write changes a container in place once the transaction owns it,
+     * so a shared container would change in both places.  A copied object keeps its symbol-keyed properties, such as
      * `BitmapEncodedValue`, with the same values.
      *
      * Primitives, Uint8Array, Date and other class instances pass through unchanged.

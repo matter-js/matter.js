@@ -687,14 +687,17 @@ describe("Datasource", () => {
     });
 
     it("passes a dynamic list to its setter after each nested change", async () => {
-        let stored = [1];
+        const committed = [1];
+        let stored = committed;
         const written = new Array<number[]>();
+        const received = new Array<number[]>();
         const dynamic = {
             get list() {
                 return stored;
             },
             set list(value: number[]) {
                 written.push([...value]);
+                received.push(value);
                 stored = value;
             },
         };
@@ -731,6 +734,11 @@ describe("Datasource", () => {
             [1, 2],
             [3, 2],
         ]);
+
+        // One clone per transaction, even though the provider serves the working list as its current value
+        expect(received[0]).not.equals(committed);
+        expect(received[1]).equals(received[0]);
+        expect(committed).deep.equals([1]);
     });
 
     it("persists the features key with the values it belongs to", async () => {
