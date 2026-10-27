@@ -6,13 +6,15 @@
 
 import {
     DiscoveryAggregateError,
-    DiscoveryError,
+    DeviceNotDiscoveredError,
     ImplementationError,
     InternalError,
     Millis,
+    NoDiscoveryTransportError,
     UnexpectedDataError,
 } from "@matter/main";
 import type {
+    BackchannelCommand,
     CertDevice,
     CertNodeApi,
     CertNodeRef,
@@ -23,22 +25,32 @@ import type {
     DeviceExitInfo,
     DeviceFlavor,
 } from "@matter/testing";
-import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
+import {
+    LineQueue,
+    LogFollower,
+    PicsFile,
+    replaceControllerAdapterRegistrationForTesting,
+    UnsupportedByControllerError,
+    resolveControllerSelection,
+} from "@matter/testing";
 import { expect } from "chai";
 import { env } from "node:process";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
+import { MatterServerCommandError } from "../../src/matter-server/matter-server-client.js";
 import type { ManualPairingCodeParts, TransitionMark } from "../cert/tc-dd-support.js";
 import {
     checkGeneratedManualCode,
     chipToolDiscoveryGaveUp,
     checkGeneratedPayload,
     commissionByManualCode,
+    commissionChecked,
     commissionByQr,
     CUSTOM_FLOW,
     flowName,
     flowTitle,
     CommissioningRefusals,
+    isCommissioningGiveUp,
     manualPairingCode,
     manualPairingCodeDigits,
     ON_NETWORK_ONLY,
@@ -54,13 +66,17 @@ import {
     recordParse,
     recordGeneratedPayload,
     recordNotCommissioned,
+    recordNotCommissionable,
+    recordUserIntentCommissioningStart,
     recordUnpair,
+    thCodeParts,
     recordVendorOutcome,
     STANDARD_FLOW,
     thElevenDigitCodeParts,
     thPrintedManualCode,
     USER_INTENT_FLOW,
 } from "../cert/tc-dd-support.js";
+import type { RecordedCheck } from "../cert/tc-support.js";
 import { CertCheckFailedError, CertCleanupError, CommissionedRefs, record, withChecks } from "../cert/tc-support.js";
 import { fakeCertNode } from "./fake-cert-node.js";
 
@@ -217,6 +233,8 @@ function contextWith(
     const cx: CertStepContext = {
         controllers: { dut },
         devices: {},
+        controllerSelection: resolveControllerSelection(),
+        deviceFlavor: undefined,
         picsMet: () => {
             throw new InternalError("not used by these tests");
         },
@@ -298,7 +316,9 @@ describe("CommissioningRefusals", () => {
     });
 
     it("accepts a give-up on a well-formed code naming a device that is not there", async () => {
-        const cx = contextWith(() => Promise.reject(new DiscoveryError("No commissionable device was discovered")));
+        const cx = contextWith(() =>
+            Promise.reject(new DeviceNotDiscoveredError("No commissionable device was discovered")),
+        );
         const refusals = new CommissioningRefusals(BUDGETS);
 
         await giveUp(cx, refusals);
@@ -316,11 +336,18 @@ describe("CommissioningRefusals", () => {
         await expect(giveUp(cx, refusals)).rejectedWith(CertCheckFailedError, /unrelated reason/);
     });
 
+    it("does not accept a matterjs-server error reply that names no give-up", async () => {
+        const cx = contextWith(() => Promise.reject(new MatterServerCommandError("commission_with_code", 1, "failed")));
+        const refusals = new CommissioningRefusals(BUDGETS);
+
+        await expect(giveUp(cx, refusals)).rejectedWith(CertCheckFailedError, /unrelated reason/);
+    });
+
     it("makes no attempt when the TH is not observed advertising", async () => {
         let attempts = 0;
         const cx = contextWith(() => {
             attempts++;
-            return Promise.reject(new DiscoveryError("No commissionable device was discovered"));
+            return Promise.reject(new DeviceNotDiscoveredError("No commissionable device was discovered"));
         });
         const refusals = new CommissioningRefusals(BUDGETS);
         const notAdvertising = async () => {
@@ -449,6 +476,22 @@ describe("recordParse", () => {
     // chip-all-clusters-app's own payload: standard flow, BLE alone
     const BLE_PAYLOAD = "MT:-24J042C00KA0648G00";
 
+    it("hands a controller refusal on without recording it as the DUT failing to parse", async () => {
+        const cx = contextWithParser();
+        const refusal = new UnsupportedByControllerError(
+            "parseQrPayload",
+            "test",
+            "not offered",
+            "onboarding-payload-parse",
+        );
+        cx.controllers.dut.parseQrPayload = async () => {
+            throw refusal;
+        };
+
+        await expect(recordParse(cx, BLE_PAYLOAD, { th: thOf(BLE_PAYLOAD) })).rejectedWith(refusal);
+        expect(checksOf(cx)).deep.equal([]);
+    });
+
     it("passes for a standard-flow payload offering the capability asked for", async () => {
         const cx = contextWithParser();
 
@@ -479,9 +522,9 @@ describe("recordParse", () => {
         expect(checksOf(cx)[1]?.detail).contains("offering discovery over ble");
     });
 
-    // The flow a test case is named for is the caller's, not a constant: TC-DD-3.12 and 3.13 fabricate
-    // flows no subject publishes, and a helper hardcoding the standard one would have printed a
-    // verdict naming a flow nobody checked
+    // The flow a test case is named for is the caller's, not a constant: TC-DD-3.13 writes a flow no
+    // subject publishes, and a helper hardcoding the standard one would have printed a verdict naming
+    // a flow nobody checked
     it("judges the payload against the flow the caller asked for", async () => {
         const cx = contextWithParser();
 
@@ -623,7 +666,7 @@ describe("recordVendorOutcome", () => {
     it("records the DUT giving up on the code, and which vendor id the code named", async () => {
         const refusals = new CommissioningRefusals(BUDGET);
         const cx = contextWith(async () => {
-            throw new DiscoveryError("No commissionable device was discovered");
+            throw new DeviceNotDiscoveredError("No commissionable device was discovered");
         });
         const commissioned = new CommissionedRefs();
 
@@ -1264,6 +1307,8 @@ class UnpairFixture {
         this.cx = {
             devices: { [role]: device },
             controllers: { dut: controller },
+            controllerSelection: resolveControllerSelection(),
+            deviceFlavor: undefined,
             picsMet: () => {
                 throw new InternalError("not used by these tests");
             },
@@ -1305,6 +1350,29 @@ const CHIP_ADVERTISING_COMMISSIONABLE =
     "[1787433105.010] [23362:73430237:chip] [DIS] mDNS service published: _matterc._udp; instance name: 245375FD9D5602FE";
 const MATTERJS_ADVERTISING_COMMISSIONABLE =
     "2026-08-27 13:05:44.123 INFO MdnsAdvertisement Publishing kind: commissionable service: mdns:036341AECBC96116._matterc._udp.local";
+
+describe("thCodeParts", () => {
+    it("reads the TH's vendor and product id out of its own payload without asking the DUT", async () => {
+        const fixture = new UnpairFixture("chip-local", { qrPairingCode: "MT:-24J042C00KA0648G00" });
+        const cx: CertStepContext = {
+            ...fixture.cx,
+            controllers: {
+                dut: {
+                    ...fixture.cx.controllers.dut,
+                    parseQrPayload: () => Promise.reject(new InternalError("the DUT was asked")),
+                },
+            },
+        };
+
+        expect(await thCodeParts(cx)).deep.equal({
+            vidPidPresent: true,
+            discriminator: 3840,
+            passcode: 20202021,
+            vendorId: 0xfff1,
+            productId: 0x8001,
+        });
+    });
+});
 
 describe("recordUnpair", () => {
     it("records the removal and the ended sessions, and gives up the ref", async () => {
@@ -1441,7 +1509,7 @@ describe("restoreCommissioningMode, through recordVendorOutcome", () => {
     it("resets the TH and gives up the ref before the next attempt", async () => {
         const fixture = new UnpairFixture("chip-local", {
             backchannel: () => fixture.push(CHIP_SETUP_QR_CODE, CHIP_ADVERTISING_COMMISSIONABLE),
-            commission: () => Promise.reject(new DiscoveryError("No commissionable device was discovered")),
+            commission: () => Promise.reject(new DeviceNotDiscoveredError("No commissionable device was discovered")),
         });
         const probed = new Array<string>();
 
@@ -1515,9 +1583,84 @@ describe("commissionByQr's own causal boundary", () => {
     });
 });
 
+describe("commissionChecked", () => {
+    const completion = (fabric: string) =>
+        `2026-08-27 19:31:27.056 NOTICE GeneralCommissioningClusterHandler Commissioned fabric: ${fabric} (#1) node: 1`;
+    const TARGET = { passcode: 20202021, discriminator: 3840 };
+
+    it("records the node the controller assigned and the completion its own commissioning caused", async () => {
+        const fixture = new UnpairFixture("matterjs", {
+            commission: async () => {
+                fixture.push(completion("bbbbbbbbbbbbbbbb"));
+                return "peer7";
+            },
+        });
+        // Already written and left undrained, as a completion from an earlier commissioning would be
+        fixture.push(completion("aaaaaaaaaaaaaaaa"));
+
+        let ref: CertNodeRef | undefined;
+        await withChecks(fixture.cx, async checks => {
+            ref = await commissionChecked(
+                fixture.cx.controllers.dut,
+                TARGET,
+                fixture.device,
+                "DUT commissions TH",
+                checks,
+            );
+        });
+
+        expect(ref).equal("peer7");
+        expect(fixture.checks.map(({ type, verdict }) => ({ type, verdict }))).deep.equal([
+            { type: "response", verdict: "pass" },
+            { type: "device-log", verdict: "pass" },
+        ]);
+        expect(fixture.checks[0].detail).contains("commissioned as node peer7");
+        expect(fixture.checks[1].matched).contains("bbbbbbbbbbbbbbbb");
+    });
+
+    it("records the controller's failure alone and fails with it as the cause, without waiting for a completion", async () => {
+        const failure = new Error("PASE failed");
+        const fixture = new UnpairFixture("matterjs", {
+            commission: async () => {
+                throw failure;
+            },
+        });
+
+        const error = await withChecks(fixture.cx, async checks => {
+            await commissionChecked(fixture.cx.controllers.dut, TARGET, fixture.device, "DUT commissions TH", checks);
+        }).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(error).instanceOf(CertCheckFailedError);
+        expect(error)
+            .property("message")
+            .match(/^DUT commissions TH failed: .*PASE failed/);
+        expect(error).property("cause").equal(failure);
+        expect(fixture.checks.map(({ type, verdict }) => ({ type, verdict }))).deep.equal([
+            { type: "response", verdict: "fail" },
+        ]);
+        expect(fixture.checks[0].detail).match(/^DUT commissions TH failed: /);
+    });
+
+    it("lets a controller refusal through before adding any check", async () => {
+        const refusal = new UnsupportedByControllerError("commission", "test", "not offered", "attestation");
+        const fixture = new UnpairFixture("matterjs", {
+            commission: async () => {
+                throw refusal;
+            },
+        });
+        const checks = new Array<RecordedCheck>();
+
+        await expect(
+            commissionChecked(fixture.cx.controllers.dut, TARGET, fixture.device, "DUT commissions TH", checks),
+        ).rejectedWith(refusal);
+        expect(checks).deep.equal([]);
+    });
+});
+
 describe("the commissioning helpers' TH completion check", () => {
-    const completion =
-        "2026-08-27 19:31:27.056 NOTICE GeneralCommissioningClusterHandler Commissioned fabric: bb (#1) node: 1";
     const callersCheck: CheckRecord = { type: "response", verdict: "fail", detail: "caller's own check" };
 
     function fixtureWithoutCompletion() {
@@ -1558,24 +1701,29 @@ describe("the commissioning helpers' TH completion check", () => {
         expect(fixture.checks.find(check => check.type === "device-log")?.verdict).equal("fail");
     });
 
-    it("takes the TH's completion line when the DUT's commissioning fails", async () => {
-        const fixture: UnpairFixture = new UnpairFixture("matterjs", {
+    it("fails on the DUT's own error, as the cause, without waiting for the TH's completion line", async () => {
+        const failure = new ChipToolCommandError("chip-tool commissioning failed");
+        const fixture = new UnpairFixture("matterjs", {
             commission: async () => {
-                fixture.push(completion);
-                throw new ChipToolCommandError("chip-tool commissioning failed");
+                throw failure;
             },
         });
+        const commissioned = new CommissionedRefs();
 
-        await expect(
-            withChecks(fixture.cx, checks =>
-                commissionByQr(fixture.cx, "MT:-24J042C00KA0648G00", new CommissionedRefs(), checks),
-            ),
-        ).rejectedWith(ChipToolCommandError);
+        const error = await withChecks(fixture.cx, checks =>
+            commissionByQr(fixture.cx, "MT:-24J042C00KA0648G00", commissioned, checks),
+        ).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
 
+        expect(error).instanceOf(CertCheckFailedError);
+        expect(error).property("cause").equal(failure);
         const response = fixture.checks.find(check => check.detail?.startsWith("commissioning from"));
         expect(response?.verdict).equal("fail");
         expect(response?.detail).contains("MT:-24J042C00KA0648G00");
-        expect(fixture.checks.find(check => check.type === "device-log")?.verdict).equal("pass");
+        expect(fixture.checks.find(check => check.type === "device-log")).equal(undefined);
+        expect(commissioned.get("dut")).equal(undefined);
     });
 });
 
@@ -1616,6 +1764,51 @@ describe("commissionByQr's payload evidence", () => {
                 [],
             ),
         ).rejectedWith(CertCheckFailedError, /Onboarding payload parse/);
+    });
+});
+
+describe("commissioning a code with a DUT that cannot parse it", () => {
+    const completion =
+        "2026-08-27 19:31:27.056 NOTICE GeneralCommissioningClusterHandler Commissioned fabric: bb (#1) node: 1";
+
+    it("commissions without asking the DUT to parse the code", async () => {
+        const restore = replaceControllerAdapterRegistrationForTesting("matterjs-server", {
+            factory: () => {
+                throw new InternalError("no adapter is built here");
+            },
+            gaps: { "onboarding-payload-parse": "no parse command" },
+        });
+        // The variable names a controller that parses, so only the run's selection can keep the DUT from being asked
+        const original = env.MATTER_CERT_CONTROLLER;
+        env.MATTER_CERT_CONTROLLER = "matterjs";
+        try {
+            for (const commission of [
+                (fixture: UnpairFixture, checks: RecordedCheck[]) =>
+                    commissionByManualCode(fixture.cx, "34970112332", new CommissionedRefs(), checks),
+                (fixture: UnpairFixture, checks: RecordedCheck[]) =>
+                    commissionByQr(fixture.cx, "MT:-24J042C00KA0648G00", new CommissionedRefs(), checks),
+            ]) {
+                const fixture: UnpairFixture = new UnpairFixture("matterjs", {
+                    commission: async () => {
+                        fixture.push(completion);
+                        return "peer1";
+                    },
+                });
+                fixture.cx.controllerSelection = { dut: "matterjs-server", helper: "matterjs" };
+
+                await withChecks(fixture.cx, checks => commission(fixture, checks));
+
+                expect(fixture.checks.some(check => check.detail?.includes("passcode=") === true)).equal(false);
+                expect(fixture.checks.find(check => check.type === "device-log")?.verdict).equal("pass");
+            }
+        } finally {
+            if (original === undefined) {
+                delete env.MATTER_CERT_CONTROLLER;
+            } else {
+                env.MATTER_CERT_CONTROLLER = original;
+            }
+            restore();
+        }
     });
 });
 
@@ -1671,6 +1864,23 @@ describe("recordManualParse", () => {
         expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass"]);
     });
 
+    it("hands a controller refusal on without recording it as the DUT failing to parse", async () => {
+        const refusal = new UnsupportedByControllerError(
+            "parseManualPairingCode",
+            "test",
+            "not offered",
+            "onboarding-payload-parse",
+        );
+        const fixture = new UnpairFixture("matterjs", {
+            parseManualPairingCode: async () => {
+                throw refusal;
+            },
+        });
+
+        await expect(recordManualParse(fixture.cx, CODE)).rejectedWith(refusal);
+        expect(fixture.checks).deep.equal([]);
+    });
+
     it("fails when the DUT misreads the product id a 21-digit code carries", async () => {
         const fixture = new UnpairFixture("matterjs", {
             parseManualPairingCode: async code => ({ ...manualPairingCodeDigits(code), productId: 0x8002 }),
@@ -1685,6 +1895,22 @@ describe("recordManualParse", () => {
         });
 
         await expect(recordManualParse(fixture.cx, CODE)).rejectedWith(CertCheckFailedError);
+    });
+});
+
+describe("isCommissioningGiveUp", () => {
+    it("counts a discovery that ended without the device as a give-up", () => {
+        expect(isCommissioningGiveUp(new DeviceNotDiscoveredError("No commissionable device was discovered"))).equals(
+            true,
+        );
+    });
+
+    it("does not count a controller that had no scanner to look with", () => {
+        expect(isCommissioningGiveUp(new NoDiscoveryTransportError("no scanner is installed"))).equals(false);
+    });
+
+    it("does not count a refused onboarding payload", () => {
+        expect(isCommissioningGiveUp(new OnboardingPayloadRefusedError("bad code"))).equals(false);
     });
 });
 
@@ -1767,7 +1993,7 @@ describe("recordDiscriminatorHonored", () => {
         const fixture = fixtureFor(async target => {
             asked.push(target.qrPairingCode ?? "");
             budgets.push(target.giveUpAfterMs);
-            throw new DiscoveryError("no commissionable device was discovered");
+            throw new DeviceNotDiscoveredError("no commissionable device was discovered");
         });
 
         const probed = new Array<string>();
@@ -1803,7 +2029,7 @@ describe("recordDiscriminatorHonored", () => {
         const commissioned = new Array<string>();
         const fixture = fixtureFor(async target => {
             commissioned.push(target.qrPairingCode ?? "");
-            throw new DiscoveryError("no commissionable device was discovered");
+            throw new DeviceNotDiscoveredError("no commissionable device was discovered");
         });
 
         await expect(
@@ -1829,10 +2055,11 @@ describe("recordDiscriminatorHonored", () => {
             "[1791234767.200] [14468:64976223:chip] [CTL] Attempting PASE connection to UDP:[fe80::1%en0]:5540";
         const TIMED_OUT = "[1791234797.125] [14468:64976278:chip] [CTL] Discovery timed out";
 
+        // The variable names another controller, so a helper reading it instead of the run's selection fails here
         let original: string | undefined;
         beforeEach(() => {
             original = env.MATTER_CERT_CONTROLLER;
-            env.MATTER_CERT_CONTROLLER = "chip-tool";
+            env.MATTER_CERT_CONTROLLER = "matterjs";
         });
         afterEach(() => {
             if (original === undefined) {
@@ -1842,12 +2069,17 @@ describe("recordDiscriminatorHonored", () => {
             }
         });
 
+        function onChipTool(fixture: UnpairFixture) {
+            fixture.cx.controllerSelection = { dut: "chip-tool", helper: "chip-tool" };
+            return fixture;
+        }
+
         function chipToolFixture(lines: string[]) {
             const fixture: UnpairFixture = fixtureFor(async () => {
                 fixture.push(...lines);
                 throw new ChipToolCommandError("chip-tool commissioning failed");
             });
-            return fixture;
+            return onChipTool(fixture);
         }
 
         it("passes when chip-tool's own log shows it gave up on discovery", async () => {
@@ -1863,6 +2095,7 @@ describe("recordDiscriminatorHonored", () => {
                 fixture.push(TIMED_OUT);
                 throw new OnboardingPayloadRefusedError("chip-tool refused the payload");
             });
+            onChipTool(fixture);
 
             await expect(
                 recordDiscriminatorHonored(fixture.cx, new CommissioningRefusals(), undefined, advertising),
@@ -2060,5 +2293,136 @@ describe("recordBackInCommissioningMode", () => {
         ).rejectedWith(CertCheckFailedError);
 
         expect(probed).deep.equal([]);
+    });
+});
+
+describe("recordNotCommissionable and recordUserIntentCommissioningStart", () => {
+    const CHIP_NO_WINDOW = "[1.0] [1:1:main] [DIS] Updating services using commissioning mode 0";
+    const CHIP_BASIC_WINDOW = "[1.0] [1:1:main] [DIS] Updating services using commissioning mode 1";
+    const CHIP_ENHANCED_WINDOW = "[1.0] [1:1:main] [DIS] Updating services using commissioning mode 2";
+    const CHIP_PUBLISHED = "[1.0] [1:1:chip] [DIS] mDNS service published: _matterc._udp; instance name: X";
+    const MATTERJS_DISABLED =
+        "DEBUG Commissioning binford-6100 does not advertise as commissionable: commissioning is disabled";
+    const MATTERJS_ADVERTISEMENT =
+        "INFO MdnsAdvertisement Publishing kind: commissionable service: mdns:X._matterc._udp";
+
+    /** A TH whose log holds `lines`, then whatever `queue` gets later; `trigger` runs on its user action. */
+    function thLogging(
+        flavor: DeviceFlavor,
+        lines: string[],
+        queue = new LineQueue(),
+        trigger: (command: BackchannelCommand) => void = () => {},
+    ): CertDevice {
+        for (const line of lines) {
+            queue.push(line);
+        }
+        return {
+            id: "th",
+            app: "all-clusters",
+            commissioning: { kind: "on-network", passcode: 20202021, discriminator: 3840, qrPairingCode: "" },
+            pics: new PicsFile([]),
+            async initialize() {},
+            async start() {},
+            async stop() {},
+            async close() {},
+            async snapshot() {
+                return {};
+            },
+            async restore() {},
+            backchannel: async command => trigger(command),
+            flavor,
+            log: new LogFollower(queue.follow(), "th"),
+            exit: new Promise<DeviceExitInfo>(() => {}),
+        };
+    }
+
+    const unusedContext = () => contextWith(() => Promise.reject(new InternalError("not used by these tests")));
+    const verdicts = (cx: CertStepContext) => checksOf(cx).map(({ verdict }) => verdict);
+
+    it("passes for a matter.js TH that started with commissioning disabled", async () => {
+        const cx = unusedContext();
+
+        await recordNotCommissionable(cx, thLogging("matterjs", [MATTERJS_DISABLED]));
+
+        expect(verdicts(cx)).deep.equal(["pass", "pass"]);
+    });
+
+    it("fails for a matter.js TH that advertised as commissionable", async () => {
+        const cx = unusedContext();
+
+        await expect(recordNotCommissionable(cx, thLogging("matterjs", [MATTERJS_ADVERTISEMENT]))).rejectedWith(
+            CertCheckFailedError,
+        );
+        expect(checksOf(cx)[1]).include({ verdict: "fail", matched: MATTERJS_ADVERTISEMENT });
+    });
+
+    it("ignores a synthetic line quoting the pattern, as the harness's step reports in a device log are", async () => {
+        const cx = unusedContext();
+        const th = thLogging("matterjs", [MATTERJS_DISABLED]);
+        th.log.annotate(`0: fail: matched=${MATTERJS_ADVERTISEMENT}`);
+
+        await recordNotCommissionable(cx, th);
+
+        expect(verdicts(cx)).deep.equal(["pass", "pass"]);
+    });
+
+    it("passes for a chip TH that started without a window", async () => {
+        const cx = unusedContext();
+
+        await recordNotCommissionable(cx, thLogging("chip-local", [CHIP_NO_WINDOW]));
+
+        expect(verdicts(cx)).deep.equal(["pass", "pass"]);
+    });
+
+    for (const [mode, line] of [
+        ["basic", CHIP_BASIC_WINDOW],
+        ["enhanced", CHIP_ENHANCED_WINDOW],
+    ]) {
+        it(`fails for a chip TH that started with a ${mode} window`, async () => {
+            const cx = unusedContext();
+
+            await expect(recordNotCommissionable(cx, thLogging("chip-local", [line]))).rejectedWith(
+                CertCheckFailedError,
+            );
+            expect(verdicts(cx)).deep.equal(["pass", "fail"]);
+        });
+    }
+
+    it("reads a chip TH's log only once the TH has logged its decision", async () => {
+        const cx = unusedContext();
+        const queue = new LineQueue();
+        const checked = recordNotCommissionable(cx, thLogging("chip-local", [], queue));
+
+        await new Promise(resolve => setTimeout(resolve, 50));
+        queue.push(CHIP_BASIC_WINDOW);
+
+        await expect(checked).rejectedWith(CertCheckFailedError);
+    });
+
+    it("records a TH flavor without patterns as unverified", async () => {
+        const cx = unusedContext();
+
+        await recordNotCommissionable(cx, thLogging("python-wrapped", []));
+
+        expect(verdicts(cx)).deep.equal(["unverified", "unverified"]);
+    });
+
+    it("counts only the window the user action opens, not one the TH logged before it", async () => {
+        const cx = unusedContext();
+        const queue = new LineQueue();
+        const sent = new Array<string>();
+        const th = thLogging("chip-local", [CHIP_BASIC_WINDOW, CHIP_PUBLISHED], queue, command => {
+            sent.push(command.name);
+            queue.push(CHIP_BASIC_WINDOW);
+            queue.push(CHIP_PUBLISHED);
+        });
+
+        await recordUserIntentCommissioningStart(cx, th);
+
+        expect(sent).deep.equal(["userIntentCommissioningStart"]);
+        expect(checksOf(cx).map(({ verdict, logLine }) => ({ verdict, logLine }))).deep.equal([
+            { verdict: "pass", logLine: 2 },
+            { verdict: "pass", logLine: 3 },
+        ]);
     });
 });

@@ -5,6 +5,10 @@
  */
 
 import {
+    Diagnostic,
+    LogDestination,
+    Logger,
+    LogLevel,
     MockNetwork,
     NetworkError,
     NetworkSimulator,
@@ -142,6 +146,59 @@ describe("UdpMulticastServer", () => {
         }
     });
 
+    it("opens no broadcast channel for a send after the server closed", async () => {
+        const network = new SocketCountingNetwork(new NetworkSimulator(), "00:11:22:33:44:07", [
+            "192.168.1.8",
+            "fe80::7",
+        ]);
+        const server = await UdpMulticastServer.create({
+            network,
+            listeningPort: BROADCAST_PORT,
+            broadcastAddressIpv4: BROADCAST_IPV4,
+            broadcastAddressIpv6: BROADCAST_IPV6,
+            netInterface: NET_INTERFACE,
+        });
+
+        const levels = captureLogLevels();
+        try {
+            await server.close();
+            await server.send(new Uint8Array([1, 2, 3]));
+            await server.send(new Uint8Array([1, 2, 3]), NET_INTERFACE, "192.168.1.9");
+
+            expect(network.openSockets).equals(0);
+            expect(levels).not.empty;
+            expect(levels.filter(level => level > LogLevel.DEBUG)).deep.equals([]);
+        } finally {
+            delete Logger.destinations.capture;
+            await network.close();
+        }
+    });
+
+    // Characterization: also holds without the closed check, because close() expires a channel a racing send creates
+    it("leaves no broadcast channel open for a send started while the server closes", async () => {
+        const network = new SocketCountingNetwork(new NetworkSimulator(), "00:11:22:33:44:08", [
+            "192.168.1.10",
+            "fe80::8",
+        ]);
+        const server = await UdpMulticastServer.create({
+            network,
+            listeningPort: BROADCAST_PORT,
+            broadcastAddressIpv4: BROADCAST_IPV4,
+            broadcastAddressIpv6: BROADCAST_IPV6,
+            netInterface: NET_INTERFACE,
+        });
+
+        try {
+            const closing = server.close();
+            await server.send(new Uint8Array([1, 2, 3]));
+            await closing;
+
+            expect(network.openSockets).equals(0);
+        } finally {
+            await network.close();
+        }
+    });
+
     it("closes the IPv4 socket when the IPv6 socket cannot be created", async () => {
         await expectFailedStartToCloseSockets("create", "00:11:22:33:44:04", ["192.168.1.5", "fe80::4"]);
     });
@@ -150,6 +207,35 @@ describe("UdpMulticastServer", () => {
         await expectFailedStartToCloseSockets("membership", "00:11:22:33:44:05", ["192.168.1.6", "fe80::5"]);
     });
 });
+
+/** Collects the levels of UdpMulticastServer log messages until `Logger.destinations.capture` is deleted. */
+function captureLogLevels() {
+    const levels = new Array<LogLevel>();
+    Logger.destinations.capture = LogDestination({
+        add(message: Diagnostic.Message) {
+            if (message.facility === "UdpMulticastServer") {
+                levels.push(message.level);
+            }
+        },
+    });
+    return levels;
+}
+
+/** A network that counts the sockets left open. */
+class SocketCountingNetwork extends MockNetwork {
+    openSockets = 0;
+
+    override async createUdpSocket(options: UdpSocketOptions) {
+        const socket = await super.createUdpSocket(options);
+        this.openSockets++;
+        const close = socket.close.bind(socket);
+        socket.close = async () => {
+            this.openSockets--;
+            await close();
+        };
+        return socket;
+    }
+}
 
 /** A network whose IPv6 socket fails to open or to join a group, and that counts the sockets left open. */
 class Ipv6FailingNetwork extends MockNetwork {

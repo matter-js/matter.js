@@ -66,7 +66,8 @@ const logger = Logger.get("SecureGroupSession");
 /** Secure Group session instance */
 export class GroupSession extends SecureSession {
     readonly #id: number;
-    readonly #fabric: Fabric;
+    readonly #fabricIndex: FabricIndex;
+    readonly #createdFor: Fabric;
     readonly #peerNodeId: NodeId;
     readonly #operationalGroupKey: Bytes;
     readonly #operationalPrivacyKey?: Bytes;
@@ -94,7 +95,8 @@ export class GroupSession extends SecureSession {
             messageCounter,
         });
         this.#id = id;
-        this.#fabric = fabric;
+        this.#fabricIndex = fabric.fabricIndex;
+        this.#createdFor = fabric;
         this.#peerNodeId = peerNodeId;
         this.keySetId = keySetId;
         this.#operationalGroupKey = operationalGroupKey;
@@ -178,8 +180,12 @@ export class GroupSession extends SecureSession {
         return true;
     }
 
+    /**
+     * The current Fabric object of this session's fabric.  A replacement (UpdateNOC) can change the node ID this
+     * session sends as, so the object it was created with is used only while the fabric is being removed.
+     */
     get fabric(): Fabric {
-        return this.#fabric;
+        return this.manager?.maybeFabricFor(this.#fabricIndex) ?? this.#createdFor;
     }
 
     get id() {
@@ -195,7 +201,7 @@ export class GroupSession extends SecureSession {
     }
 
     get nodeId() {
-        return this.#fabric.nodeId;
+        return this.fabric.nodeId;
     }
 
     get peerNodeId() {
@@ -203,7 +209,7 @@ export class GroupSession extends SecureSession {
     }
 
     get associatedFabric(): Fabric {
-        return this.#fabric;
+        return this.fabric;
     }
 
     /**
@@ -211,7 +217,7 @@ export class GroupSession extends SecureSession {
      */
     get peerAddress() {
         return PeerAddress({
-            fabricIndex: this.#fabric?.fabricIndex ?? FabricIndex.NO_FABRIC,
+            fabricIndex: this.#fabricIndex,
             nodeId: this.#peerNodeId,
         });
     }
@@ -231,7 +237,7 @@ export class GroupSession extends SecureSession {
     matches(fabricIndex: FabricIndex, id: number, operationalKey: Bytes): boolean {
         return (
             this.#id === id &&
-            this.#fabric.fabricIndex === fabricIndex &&
+            this.#fabricIndex === fabricIndex &&
             Bytes.areEqual(this.#operationalGroupKey, operationalKey)
         );
     }
@@ -244,27 +250,24 @@ export class GroupSession extends SecureSession {
         if (sourceNodeId === undefined || operationalKey === undefined) {
             throw new InternalError("Source Node ID is required for GroupSession updateMessageCounter.");
         }
-        const receptionState = this.#fabric.groups.messaging.receptionStateFor(sourceNodeId, operationalKey);
+        const receptionState = this.fabric.groups.messaging.receptionStateFor(sourceNodeId, operationalKey);
         receptionState.updateMessageCounter(messageCounter);
     }
 
     encode(message: Message): Packet {
         message.packetHeader.sessionId = this.#id;
         const { header, applicationPayload } = MessageCodec.encodePayload(message);
-        if (header.destGroupId === undefined) {
+        if (header.destGroupId === undefined || header.sourceNodeId === undefined) {
             // Just to be sure
-            throw new UnexpectedDataError("Group ID is required for GroupSession encode.");
+            throw new UnexpectedDataError("Group ID and source node ID are required for GroupSession encode.");
         }
 
         const headerBytes = MessageCodec.encodePacketHeader(message.packetHeader);
         const securityFlags = headerBytes[3];
-        const nonce = Session.generateNonce(securityFlags, header.messageId, this.#fabric.nodeId);
-        const ciphertext = this.#fabric.crypto.encrypt(
-            this.#operationalGroupKey,
-            applicationPayload,
-            nonce,
-            headerBytes,
-        );
+        const fabric = this.fabric;
+        // Receivers derive the nonce from the header, so the header's source node ID is the only one used
+        const nonce = Session.generateNonce(securityFlags, header.messageId, header.sourceNodeId);
+        const ciphertext = fabric.crypto.encrypt(this.#operationalGroupKey, applicationPayload, nonce, headerBytes);
 
         if (!message.packetHeader.hasPrivacyEnhancements) {
             return { header, applicationPayload: ciphertext };
@@ -276,12 +279,7 @@ export class GroupSession extends SecureSession {
         const mic = Bytes.of(ciphertext).slice(-CRYPTO_AEAD_MIC_LENGTH_BYTES);
         const privacyNonce = MessagePrivacy.buildNonce(header.sessionId, mic);
         const region = Bytes.of(headerBytes).slice(4);
-        const obfuscated = MessagePrivacy.obfuscate(
-            this.#fabric.crypto,
-            this.#operationalPrivacyKey,
-            region,
-            privacyNonce,
-        );
+        const obfuscated = MessagePrivacy.obfuscate(fabric.crypto, this.#operationalPrivacyKey, region, privacyNonce);
         const obfuscatedHeader = Bytes.concat(Bytes.of(headerBytes).slice(0, 4), obfuscated);
         return { header, applicationPayload: ciphertext, headerBytes: obfuscatedHeader };
     }

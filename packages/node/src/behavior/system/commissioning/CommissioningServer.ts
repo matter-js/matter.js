@@ -111,22 +111,23 @@ export class CommissioningServer extends Behavior {
         this.env.delete(CommissioningConfigProvider);
     }
 
-    handleFabricChange(fabricIndex: FabricIndex, fabricAction: CommissioningServer.FabricAction) {
-        // An added or updated fabric counts only once the fail-safe ends, because the fail-safe may still roll it back.
-        // A deletion is final, whoever holds the fail-safe
+    /**
+     * Brings the commissioned state in line with the node's fabrics after `fabricAction` and emits
+     * {@link CommissioningServer.Events.fabricsChanged}.
+     */
+    async handleFabricChange(fabricIndex: FabricIndex, fabricAction: CommissioningServer.FabricAction) {
+        // The fail-safe rolls back only the fabric its AddNOC or UpdateNOC changed, so only a change of that fabric waits
+        // for the fail-safe to end.  A deletion is final, whoever holds the fail-safe
         if (fabricAction !== "deleted" && this.env.has(FailsafeContext)) {
             const failsafe = this.env.get(FailsafeContext);
-            if (failsafe.construction.status !== Lifecycle.Status.Destroyed) {
-                if (failsafe.fabricIndex === fabricIndex) {
-                    this.#monitorFailsafe(failsafe);
-                    return;
-                } else {
-                    throw new MatterFlowError(
-                        `Failsafe owns a different fabricIndex than ${failsafe.forUpdateNoc ? "updated" : "added"}: ${failsafe.fabricIndex} vs. ${fabricIndex}`,
-                    );
-                }
+            if (failsafe.construction.status !== Lifecycle.Status.Destroyed && failsafe.fabricIndex === fabricIndex) {
+                this.#monitorFailsafe(failsafe);
+                return;
             }
         }
+
+        // Another transaction may hold this state; a synchronous write would throw instead of waiting
+        await this.context.transaction.lock(this);
 
         const doFactoryReset = this.#syncCommissioned();
 
@@ -218,16 +219,16 @@ export class CommissioningServer extends Behavior {
     }
 
     /** Updates the commissioning status once the monitored failsafe ends */
-    #failsafeChanged(status: Lifecycle.Status) {
+    async #failsafeChanged(status: Lifecycle.Status) {
         const failsafe = this.internal.monitoredFailsafe;
         if (status !== Lifecycle.Status.Destroyed || failsafe === undefined) {
             return;
         }
 
-        if (failsafe.fabricIndex !== undefined) {
-            this.handleFabricChange(failsafe.fabricIndex, failsafe.forUpdateNoc ? "updated" : "added");
-        }
         this.#stopMonitoringFailsafe();
+        if (failsafe.fabricIndex !== undefined) {
+            await this.handleFabricChange(failsafe.fabricIndex, failsafe.forUpdateNoc ? "updated" : "added");
+        }
     }
 
     #stopMonitoringFailsafe() {
@@ -246,7 +247,11 @@ export class CommissioningServer extends Behavior {
         // start) is not seen by the reactor above, which only exists from here on
         const lifecycle = this.endpoint.lifecycle as NodeLifecycle;
         if (!lifecycle.isCommissioned && fabrics.length) {
+            // Commit before the awaits below so the commissioning state is not held while the node restores
+            // subscriptions and advertises
+            await this.context.transaction.lock(this);
             this.#syncCommissioned();
+            await this.context.transaction.commit();
         }
 
         // If already commissioned, trigger operational announcement
@@ -260,6 +265,10 @@ export class CommissioningServer extends Behavior {
 
         // Skip auto commissioning if disabled
         if (this.state.enabled === false) {
+            logger.debug(
+                Diagnostic.strong(this.endpoint.toString()),
+                "does not advertise as commissionable: commissioning is disabled",
+            );
             return;
         }
 

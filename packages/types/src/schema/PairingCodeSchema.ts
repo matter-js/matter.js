@@ -486,7 +486,7 @@ class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
         let productId: number | undefined;
         if (hasVendorProductIds) {
             const statedVendorId = statedIdentifier(parseInt(encoded.slice(10, 15)));
-            vendorId = statedVendorId === undefined ? undefined : VendorId(statedVendorId);
+            vendorId = statedVendorId === undefined ? undefined : VendorId(statedVendorId, false);
             productId = statedIdentifier(parseInt(encoded.slice(15, 20)));
         }
         return { shortDiscriminator, passcode, vendorId, productId };

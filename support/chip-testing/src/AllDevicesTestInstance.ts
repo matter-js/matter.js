@@ -60,6 +60,15 @@ function parseRuntimeArgs(args: string[]): RuntimeArgs {
 
     const specs = new Array<DeviceSpec>();
     for (const token of tokens) {
+        // As in the CHIP all-devices-app, "*" selects every device type
+        if (token === "*") {
+            specs.push(...listDeviceTypes().map(type => ({ type })));
+            continue;
+        }
+        if (token.startsWith("*:") || token.startsWith("*,")) {
+            throw new ValidationError(`--device "${token}": "*" takes no endpoint number or options`);
+        }
+
         const colonIdx = token.indexOf(":");
         if (colonIdx === -1) {
             specs.push({ type: token });
@@ -103,7 +112,7 @@ export class AllDevicesTestInstance extends NodeTestInstance {
 
         if (specs.length === 0) {
             throw new ValidationError(
-                `--device <type[:endpoint]> required (supported: ${listDeviceTypes().join(", ")})`,
+                `--device <type[:endpoint]|*> required (supported: ${listDeviceTypes().join(", ")})`,
             );
         }
 

@@ -27,6 +27,7 @@ export function fakeCertNode(overrides: Partial<CertNodeApi> = {}): CertNodeApi 
         writeAttribute: unused,
         writeAttributes: unused,
         subscribe: unused,
+        subscribeAttributes: unused,
         readEvents: unused,
         subscribeEvents: unused,
         observeEvents: unused,

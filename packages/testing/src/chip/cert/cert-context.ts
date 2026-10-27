@@ -7,7 +7,13 @@
 import type { Subject } from "../../device/subject.js";
 import type { ChipBinsSource } from "../chip-bins.js";
 import type { CertAppVariant } from "./cert-dsl.js";
-import type { ControllerTransport } from "./controller-adapter.js";
+import type {
+    CertControllerGroup,
+    ControllerCapability,
+    ControllerRoleKind,
+    ControllerSelection,
+    ControllerTransport,
+} from "./controller-adapter.js";
 import type { ControllerAdapter } from "./controller-adapter.js";
 import { forFlavor, type LogFollower } from "./log-follower.js";
 
@@ -84,12 +90,17 @@ export interface CertDeviceFactory extends Subject.Factory {
  * Outcome of a single cert-test step.
  *
  * `"unverified"` means the step ran and nothing in it threw, but at least one of its checks could not
- * be evaluated, so the step observed less than its claim needs. It fails the run — unlike `"skipped"`,
- * which states the step never ran at all — because a gap in what was observed must not read as proof.
+ * be evaluated, or it recorded no check at all, so the step observed less than its claim needs. It fails
+ * the run — unlike `"skipped"`, which states the step never ran at all — because a gap in what was
+ * observed must not read as proof.
  * A check whose claim the run genuinely cannot observe says so with {@link CheckRecord.accepted} and
  * leaves the step at `"pass"`.
+ *
+ * `"error"` means the step reached a defect of the test framework or of a declaration rather than an outcome of the
+ * device: a controller refused a capability the step did not declare, or one its implementation does not declare as
+ * a gap (see `UnsupportedByControllerError`).
  */
-export type StepVerdict = "pass" | "fail" | "unverified" | "skipped" | "aborted";
+export type StepVerdict = "pass" | "fail" | "unverified" | "skipped" | "aborted" | "error";
 
 /**
  * A single piece of evidence a step recorded while running.
@@ -145,10 +156,9 @@ export interface StepRecorder {
      */
     runHeaderLines?(): string[];
     /**
-     * Records how many steps were skipped because the controller under test cannot express the
-     * operation they need. A run whose remaining steps all skip that way still ends with a "pass"
-     * verdict, so without this the persisted record alone would not say the run proved less than its
-     * verdict suggests.
+     * Records how many steps were skipped because the controller under test lacks a capability they
+     * declare. A run with such a step proved less than its plan, so it settles as
+     * `"controller-gap"` rather than `"pass"` (see `EvidenceRecorder`), and the count says how much less.
      */
     recordControllerUnsupportedSkips?(count: number): void;
     /**
@@ -165,10 +175,16 @@ export interface StepRecorder {
      */
     recordLongRunningSkips?(count: number): void;
     /**
-     * Records how many steps a condition of the plan itself skipped for this run's devices. Without the count a bundle
+     * Records how many steps a condition of the plan itself skipped for this run. Without the count a bundle
      * whose plan branches would not say which part of the plan it covered.
      */
     recordPlanConditionSkips?(count: number): void;
+    /**
+     * Records how many steps were skipped because they need a capability the controller under test deliberately does
+     * not offer. Such a step is outside what the controller is for, so it does not keep the run from passing; the count
+     * is what tells a bundle that covered the plan minus those steps from one that covered all of it.
+     */
+    recordOutOfScopeSkips?(count: number): void;
     /**
      * Records how many of the run's checks reported `"unverified"` — a check whose claim could not be
      * evaluated at all. Counts the checks that declared their gap ({@link CheckRecord.accepted})
@@ -203,9 +219,15 @@ export interface StepRecorder {
      * the record already names — so a failed run cannot settle as a pass over a cause this recorder was
      * never told about (see {@link EvidenceRecorder.concludeRun}). `outcome.unproven` says the run's
      * only failure is that some step ended `"unverified"`, which the record states as its own verdict
-     * rather than as a failure of the device.
+     * rather than as a failure of the device. `outcome.frameworkError` says the run failed on a defect of the
+     * framework or of a declaration (see {@link StepVerdict}'s `"error"`), not on the device.
      */
-    concludeRun?(outcome: { failed: boolean; detail?: string; unproven?: boolean }): Promise<void>;
+    concludeRun?(outcome: {
+        failed: boolean;
+        detail?: string;
+        unproven?: boolean;
+        frameworkError?: boolean;
+    }): Promise<void>;
 }
 
 /**
@@ -226,15 +248,45 @@ export interface CertStepContext {
      * expression as met.
      */
     picsMet(expression: string): boolean;
+
+    /**
+     * The controllers this case was collected for. A step decides anything that depends on the controller from
+     * this, never from `MATTER_CERT_CONTROLLER`, so it agrees with the gates, the controllers built and the evidence.
+     */
+    controllerSelection: ControllerSelection;
+
+    /**
+     * The device flavor this case was collected for, `undefined` where the run has no device to tell it. A step
+     * decides anything that depends on the flavor from this, never from `MATTER_CERT_DEVICE`.
+     */
+    deviceFlavor: DeviceFlavor | undefined;
 }
+
+/** What a case was collected for, which a step option resolved per run is decided by. */
+export type CertRunSetup = Pick<CertStepContext, "controllerSelection" | "deviceFlavor">;
+
+/**
+ * A step option whose value depends on what the case was collected for: given as is, or as a function of the
+ * {@link CertRunSetup} the engine calls before the step runs.
+ */
+export type CertStepSetting = string | ((setup: CertRunSetup) => string | undefined);
+
+/**
+ * The groups a DUT controller sends on, given as is or as a function of the {@link CertRunSetup}: a case whose plan
+ * branches on the TH sends on another group address depending on the TH it runs against, and a controller that needs
+ * its keys before it starts has to know which before any step runs.
+ */
+export type CertControllerGroupsSetting =
+    | readonly CertControllerGroup[]
+    | ((setup: CertRunSetup) => readonly CertControllerGroup[] | undefined);
 
 /**
  * What a run's wiring provides before {@link CertTest} adds what only it can answer.
  *
- * {@link CertStepContext.picsMet} rests on the PICS the run resolves once it starts, so the wiring cannot
- * supply it.
+ * {@link CertStepContext.picsMet} rests on the PICS the run resolves once it starts, the selection is the one the
+ * {@link CertTest} was built with, and the flavor the one its `flavorFor` reports, so the wiring supplies none of them.
  */
-export type CertStepWiring = Omit<CertStepContext, "picsMet">;
+export type CertStepWiring = Omit<CertStepContext, "picsMet" | "controllerSelection" | "deviceFlavor">;
 
 /**
  * A single step of a cert test plan.
@@ -247,9 +299,13 @@ export interface CertStepDefinition {
     /** Device flavors this step supports; absent runs on every flavor (see `cert-dsl.ts`'s `certTest`/`.step`). */
     flavors?: SelectableDeviceFlavor[];
     /** Reason this step can never execute; present makes the engine skip it (see `cert-dsl.ts`'s `CertStepOptions`). */
-    notApplicable?: string;
+    notApplicable?: CertStepSetting;
+    /** Decides at run time whether the plan applies this step (see `cert-dsl.ts`'s `CertStepOptions`). */
+    notApplicableAtRun?: (cx: CertStepContext) => Promise<string | undefined>;
     /** Why this step costs minutes of real time (see `cert-dsl.ts`'s `CertStepOptions`). */
-    longRunning?: string;
+    longRunning?: CertStepSetting;
+    /** What this step needs of its controllers (see `cert-dsl.ts`'s `CertStepOptions`). */
+    controllerCapabilities?: readonly ControllerCapability[];
     run: (cx: CertStepContext) => Promise<void>;
 }
 
@@ -290,6 +346,12 @@ export interface CertTestDefinition {
      * here; every other test keeps the transport its evidence and timing were written against.
      */
     transport?: ControllerTransport;
+    /** Role name → controller kind (see `cert-dsl.ts`'s `CertTestOptions`). */
+    controllers: Readonly<Record<string, ControllerRoleKind>>;
+    /** What every step of this test needs of its controllers (see `cert-dsl.ts`'s `CertTestOptions`). */
+    controllerCapabilities?: readonly ControllerCapability[];
+    /** The groups the DUT controller sends on (see `cert-dsl.ts`'s `CertTestOptions`). */
+    controllerGroups?: CertControllerGroupsSetting;
     /** Role name → arguments that role's app starts with (see `cert-dsl.ts`'s `CertTestOptions`). */
     appArgs?: Record<string, CertAppArgs>;
 }

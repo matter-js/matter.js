@@ -16,6 +16,7 @@ import { picsWithOverrides } from "./cert-app-pics.js";
 import {
     CertDevice,
     CertStepContext,
+    CertRunSetup,
     CertStepDefinition,
     CertStepWiring,
     CertTestDefinition,
@@ -25,7 +26,13 @@ import {
     StepRecorder,
     StepVerdict,
 } from "./cert-context.js";
-import { UnsupportedByControllerError } from "./controller-adapter.js";
+import {
+    capabilitiesFor,
+    controllerCapabilityGap,
+    controllerCapabilityOutOfScope,
+    type ControllerSelection,
+    UnsupportedByControllerError,
+} from "./controller-adapter.js";
 import { StepActions } from "./step-actions.js";
 
 const inertRecorder: StepRecorder = {
@@ -47,14 +54,29 @@ const inertRecorder: StepRecorder = {
  */
 export class CertTest extends BaseTest {
     #definition: CertTestDefinition;
+    #selection: ControllerSelection;
 
-    constructor(definition: CertTestDefinition, descriptor: TestFileDescriptor, container: Container) {
+    /**
+     * `selection` names the controllers of the run: the step gates and the PICS overlay judge by it, so it has to be
+     * the selection the run's controllers were built from.
+     */
+    constructor(
+        definition: CertTestDefinition,
+        descriptor: TestFileDescriptor,
+        container: Container,
+        selection: ControllerSelection,
+    ) {
         super(descriptor, container);
         this.#definition = definition;
+        this.#selection = selection;
     }
 
     get definition() {
         return this.#definition;
+    }
+
+    get selection() {
+        return this.#selection;
     }
 
     async initializeSubject(_subject: Subject): Promise<void> {
@@ -68,14 +90,18 @@ export class CertTest extends BaseTest {
         _uncommissioned: boolean,
     ): Promise<void> {
         let picsFile: PicsFile | undefined;
-        const cx: CertStepContext = Object.assign(this.contextFor(subject), {
+        const wiring = this.contextFor(subject);
+        const flavor = this.flavorFor(wiring.devices);
+        const cx: CertStepContext = Object.assign(wiring, {
             picsMet: (expression: string) => picsAnswer(expression, picsFile),
+            controllerSelection: this.#selection,
+            deviceFlavor: flavor,
         });
         const { devices } = cx;
 
-        // A step's own checks are how the suite defines "something was observed" — AGENTS.md requires
-        // a response check on essentially every step. Counting them is what lets a controller refusal
-        // discovered *after* the step acted be told apart from one discovered before it acted.
+        // A step's own checks are how the suite defines "something was observed", and a step that ran
+        // without recording one ends unverified. Together with the actions below, the count also decides
+        // whether a step may still skip itself (CertStepNotApplicableError, the notApplicableAtRun probe).
         let observedThisStep = 0;
         // Checks alone miss a step that changed the device before it recorded anything
         const actions = new StepActions();
@@ -119,6 +145,10 @@ export class CertTest extends BaseTest {
                 recorded.recordPlanConditionSkips === undefined
                     ? undefined
                     : count => recorded.recordPlanConditionSkips?.(count),
+            recordOutOfScopeSkips:
+                recorded.recordOutOfScopeSkips === undefined
+                    ? undefined
+                    : count => recorded.recordOutOfScopeSkips?.(count),
             recordUnverifiedChecks:
                 recorded.recordUnverifiedChecks === undefined
                     ? undefined
@@ -140,7 +170,6 @@ export class CertTest extends BaseTest {
             Object.entries(cx.controllers).map(([role, controller]) => [role, actions.track(controller)]),
         );
         const deviceExitWatch = watchDeviceExits(devices, recorder);
-        const flavor = this.flavorFor(devices);
         const tc = this.#definition.tc;
 
         let aborted = false;
@@ -150,8 +179,11 @@ export class CertTest extends BaseTest {
         let picsSkips = 0;
         let longRunningSkips = 0;
         let planConditionSkips = 0;
+        let outOfScopeSkips = 0;
         let unverifiedSteps = 0;
+        const uncheckedSteps = new Array<CertStepDefinition["number"]>();
         let unproven = false;
+        let frameworkError = false;
         let reportingFailure: unknown;
 
         // Ends a step and announces its outcome. A throw here must not become the step's outcome —
@@ -169,10 +201,10 @@ export class CertTest extends BaseTest {
         };
 
         try {
-            // Inside the try: reading the subject's PICS, and resolving what the controller declares,
-            // can both throw, and everything this run opened is closed by the teardown below.
+            // Inside the try: reading the subject's PICS can throw, and everything this run opened is
+            // closed by the teardown below.
             const subjectPics = resolvePicsFile(subject);
-            picsFile = subjectPics && picsWithOverrides(subjectPics, this.#definition);
+            picsFile = subjectPics && picsWithOverrides(subjectPics, this.#definition, this.#selection.dut, flavor);
 
             // Provenance reporting must never be why a run that would otherwise pass its steps
             // aborts before running any of them.
@@ -183,9 +215,31 @@ export class CertTest extends BaseTest {
             }
 
             for (const stepDef of this.#definition.steps) {
+                let notApplicable: string | undefined;
+                let longRunning: string | undefined;
+                try {
+                    notApplicable = settingFor(stepDef, "notApplicable", cx);
+                    longRunning = settingFor(stepDef, "longRunning", cx);
+                } catch (e) {
+                    // The run's first failure decides its outcome; this step would not have run anyway
+                    if (aborted) {
+                        console.warn(`Cert test ${tc} step ${stepDef.number}: deciding its options failed:`, e);
+                        report(stepDef, "aborted");
+                        continue;
+                    }
+
+                    // A defect of the declaration, not an outcome of the device
+                    aborted = true;
+                    failed = true;
+                    frameworkError = true;
+                    failure = e;
+                    report(stepDef, "error");
+                    continue;
+                }
+
                 // A step that can never execute keeps its declared reason; "aborted by step N" loses it.
-                if (stepDef.notApplicable !== undefined) {
-                    report(stepDef, "skipped", stepDef.notApplicable);
+                if (notApplicable !== undefined) {
+                    report(stepDef, "skipped", notApplicable);
                     continue;
                 }
 
@@ -218,23 +272,92 @@ export class CertTest extends BaseTest {
                         continue;
                     }
 
-                    if (stepDef.longRunning !== undefined && !longRunningEnabled()) {
-                        longRunningSkips++;
-                        report(stepDef, "skipped", `${stepDef.longRunning}; set MATTER_CERT_LONG_RUNNING=1 to run it`);
+                    let opened = false;
+                    const open = () => {
+                        if (opened) {
+                            return;
+                        }
+                        opened = true;
+                        step(`Test Step ${stepDef.number}: ${stepDef.text}`);
+                        announceStepStart(cx, tc, stepDef);
+                        observedThisStep = 0;
+                        actions.nextStep();
+                        unaccountedThisStep = 0;
+                        recorder.beginStep(stepDef);
+                    };
+
+                    const capabilityGap =
+                        stepDef.controllerCapabilities === undefined
+                            ? undefined
+                            : controllerCapabilityGap(
+                                  stepDef.controllerCapabilities,
+                                  Object.values(this.#definition.controllers),
+                                  this.#selection,
+                              );
+                    if (capabilityGap !== undefined) {
+                        controllerUnsupportedSkips++;
+                        report(stepDef, "skipped", capabilityGap);
                         continue;
                     }
 
-                    step(`Test Step ${stepDef.number}: ${stepDef.text}`);
-                    announceStepStart(cx, tc, stepDef);
-                    observedThisStep = 0;
-                    actions.nextStep();
-                    unaccountedThisStep = 0;
-                    recorder.beginStep(stepDef);
+                    const outOfScope =
+                        stepDef.controllerCapabilities === undefined
+                            ? undefined
+                            : controllerCapabilityOutOfScope(
+                                  stepDef.controllerCapabilities,
+                                  Object.values(this.#definition.controllers),
+                                  this.#selection,
+                              );
+                    if (outOfScope !== undefined) {
+                        outOfScopeSkips++;
+                        report(stepDef, "skipped", outOfScope);
+                        continue;
+                    }
+
+                    if (longRunning !== undefined && !longRunningEnabled()) {
+                        longRunningSkips++;
+                        report(stepDef, "skipped", `${longRunning}; set MATTER_CERT_LONG_RUNNING=1 to run it`);
+                        continue;
+                    }
+
+                    // After the static gates: the decision reads the DUT and the TH log, and a read that fails must
+                    // not turn a step this controller cannot run into an error.
+                    if (stepDef.notApplicableAtRun !== undefined) {
+                        open();
+                        const reason = await raceAgainstDeviceExit(
+                            stepDef.notApplicableAtRun(cx),
+                            deviceExitWatch.exit,
+                            tc,
+                            stepDef.number,
+                        );
+                        const misuse =
+                            observedThisStep > 0 || actions.count > 0
+                                ? `recorded ${observedThisStep} check(s) and made ${actions.count} controller ` +
+                                  "call(s) that may change the device while deciding whether it applies; it may only read"
+                                : reason?.trim() === ""
+                                  ? 'decided its "notApplicableAtRun" option with a blank reason'
+                                  : undefined;
+                        if (misuse !== undefined) {
+                            aborted = true;
+                            failed = true;
+                            frameworkError = true;
+                            failure = new CertFrameworkError(`Cert test ${tc} step ${stepDef.number} ${misuse}`);
+                            report(stepDef, "error");
+                            continue;
+                        }
+                        if (reason !== undefined) {
+                            planConditionSkips++;
+                            report(stepDef, "skipped", reason);
+                            continue;
+                        }
+                    }
+
+                    open();
 
                     await raceAgainstDeviceExit(stepDef.run(cx), deviceExitWatch.exit, tc, stepDef.number);
                 } catch (e) {
                     if (e instanceof CertStepNotApplicableError) {
-                        // Same rule as a controller refusal: a step that already recorded evidence or acted did act
+                        // "skipped" claims nothing was evaluated, which a step that recorded evidence or acted cannot
                         if (observedThisStep === 0 && actions.count === 0) {
                             planConditionSkips++;
                             report(stepDef, "skipped", e.message);
@@ -254,26 +377,11 @@ export class CertTest extends BaseTest {
                     }
 
                     if (e instanceof UnsupportedByControllerError) {
-                        // "skipped" claims nothing was evaluated. A step that already recorded
-                        // evidence or acted did act, so every later step would rest on a device state
-                        // nobody declared — that is the run's outcome, not a skip.
-                        if (observedThisStep === 0 && actions.count === 0) {
-                            controllerUnsupportedSkips++;
-                            report(stepDef, "skipped", e.message);
-                            continue;
-                        }
-
                         aborted = true;
                         failed = true;
-                        failure = new Error(
-                            `Cert test ${tc} step ${stepDef.number}: the controller refused "${e.operation}" after ` +
-                                `the step had already recorded ${observedThisStep} check(s) and made ${actions.count} ` +
-                                `controller call(s) that may change the device, so the device ` +
-                                `is in a state this run cannot describe. Declare the limitation in the controller's own ` +
-                                `PICS so the step is skipped before it acts. Refusal: ${e.message}`,
-                        );
-
-                        report(stepDef, "fail");
+                        frameworkError = true;
+                        failure = undeclaredRefusal(tc, stepDef, this.#definition, e);
+                        report(stepDef, "error");
                         continue;
                     }
 
@@ -291,6 +399,12 @@ export class CertTest extends BaseTest {
                     continue;
                 }
 
+                if (observedThisStep === 0) {
+                    uncheckedSteps.push(stepDef.number);
+                    report(stepDef, "unverified");
+                    continue;
+                }
+
                 report(stepDef, "pass");
             }
 
@@ -299,10 +413,6 @@ export class CertTest extends BaseTest {
                 failure = reportingFailure;
             }
 
-            // Every remaining step in a run can skip as controller-unsupported without ever failing
-            // it (verdict stays "pass" if at least one earlier step passed) — the log banner and the
-            // recorded count are what would tell a reader the run proved less than its verdict
-            // suggests; a raw result.json with no attached logs must say it too.
             if (controllerUnsupportedSkips > 0) {
                 recordSummary(
                     () => recorder.recordControllerUnsupportedSkips?.(controllerUnsupportedSkips),
@@ -332,6 +442,14 @@ export class CertTest extends BaseTest {
                     () => recorder.recordPlanConditionSkips?.(planConditionSkips),
                     () => announcePlanConditionSkipSummary(cx, tc, planConditionSkips),
                     "plan-condition-skip",
+                );
+            }
+
+            if (outOfScopeSkips > 0) {
+                recordSummary(
+                    () => recorder.recordOutOfScopeSkips?.(outOfScopeSkips),
+                    () => announceOutOfScopeSkipSummary(cx, tc, outOfScopeSkips),
+                    "out-of-scope-skip",
                 );
             }
 
@@ -439,16 +557,26 @@ export class CertTest extends BaseTest {
 
             // Only where nothing else failed: a device that died or cleanup that threw is the run's
             // own outcome, and a step that observed nothing is the weaker claim of the two.
-            if (!failed && unverifiedSteps > 0) {
+            if (!failed && (unverifiedSteps > 0 || uncheckedSteps.length > 0)) {
+                const gaps = new Array<string>();
+                if (unverifiedSteps > 0) {
+                    gaps.push(
+                        `${unverifiedSteps} step${unverifiedSteps === 1 ? "" : "s"} ended with a check that could ` +
+                            "not be evaluated. Close the gap — a device-log check usually needs the pattern for this " +
+                            "device's flavor written — or, where this run genuinely cannot observe the claim, say so " +
+                            'in the check\'s "accepted" field.',
+                    );
+                }
+                if (uncheckedSteps.length > 0) {
+                    gaps.push(
+                        `Step${uncheckedSteps.length === 1 ? "" : "s"} ${uncheckedSteps.join(", ")} ended without ` +
+                            "recording any check. Record what the step established, such as the node a " +
+                            "commissioning assigned or the device's own line confirming it.",
+                    );
+                }
                 unproven = true;
                 failed = true;
-                failure = new Error(
-                    `Cert test ${tc}: ${unverifiedSteps} step${unverifiedSteps === 1 ? "" : "s"} ended with a ` +
-                        "check that could not be evaluated, so the run proved less than those steps claim. Close " +
-                        "the gap — a device-log check usually needs the pattern for this device's flavor written " +
-                        "— or, where this run genuinely cannot observe the claim, say so in the check's " +
-                        '"accepted" field.',
-                );
+                failure = new Error(`Cert test ${tc}: the run proved less than its steps claim. ${gaps.join(" ")}`);
             }
 
             // Last, so the outcome handed over is the one this method is about to report. The record
@@ -458,6 +586,7 @@ export class CertTest extends BaseTest {
                     failed,
                     detail: failed ? errorText(failure) : undefined,
                     unproven,
+                    frameworkError,
                 });
             } catch (e) {
                 if (failed) {
@@ -471,6 +600,13 @@ export class CertTest extends BaseTest {
 
         if (failed) {
             throw failure;
+        }
+
+        if (controllerUnsupportedSkips > 0) {
+            throw new CertControllerGapError(
+                `Cert test ${tc}: ${controllerUnsupportedSkips} step${controllerUnsupportedSkips === 1 ? "" : "s"} ` +
+                    "skipped for a gap of the controller, so the plan did not run in full",
+            );
         }
     }
 
@@ -545,6 +681,24 @@ function currentFlavor(devices: Record<string, CertDevice>): DeviceFlavor | unde
     return Object.values(devices)[0]?.flavor;
 }
 
+/**
+ * The value of a step's {@link CertStepSetting} for this run. A function that answers with a blank reason is a defect
+ * of the declaration, as a blank string is at declaration time, since the step would be skipped with nothing to say
+ * why.
+ */
+function settingFor(
+    stepDef: CertStepDefinition,
+    name: "notApplicable" | "longRunning",
+    setup: CertRunSetup,
+): string | undefined {
+    const setting = stepDef[name];
+    const value = typeof setting === "function" ? setting(setup) : setting;
+    if (typeof setting === "function" && value !== undefined && value.trim() === "") {
+        throw new CertFrameworkError(`Cert step ${stepDef.number} decided its "${name}" option with a blank reason`);
+    }
+    return value;
+}
+
 /** Whether this run asked for the steps that cost minutes of real time. */
 export function longRunningEnabled() {
     const value = env.MATTER_CERT_LONG_RUNNING;
@@ -573,8 +727,9 @@ function stepPicsMet(stepDef: CertStepDefinition, picsFile: PicsFile | undefined
 export class PicsUnansweredError extends Error {}
 
 /**
- * Thrown by a step that finds, from what the devices of this run expose, that the plan does not apply it here — the
- * run-time counterpart of {@link CertStepOptions.notApplicable}, for a plan that branches on a device's capability.
+ * Thrown by a step that finds, from what this run observes, that the plan does not apply it here — the run-time
+ * counterpart of {@link CertStepOptions.notApplicable}, for a plan that branches on a device's capability or on the
+ * transport of the DUT's session to it.
  * The engine records the step as skipped with the message as its reason, provided the step has recorded no check and
  * made no controller call that may change the device; a step that throws it after either fails the run, because it did
  * act.
@@ -582,6 +737,45 @@ export class PicsUnansweredError extends Error {}
  * A plain `Error` because `packages/testing` carries no dependency on the library and therefore no `MatterError`.
  */
 export class CertStepNotApplicableError extends Error {}
+
+/**
+ * Thrown by a step run that reached a defect of the framework or of a declaration rather than an outcome of the device
+ * (see {@link StepVerdict}'s `"error"`).
+ *
+ * A plain `Error` because `packages/testing` carries no dependency on the library and therefore no `MatterError`.
+ */
+export class CertFrameworkError extends Error {}
+
+/**
+ * Thrown by a run that failed no step but skipped at least one for a gap of the controller under test. Every step of
+ * a plan has to run for the plan to pass, so the runner reports such a run as skipped rather than passed; the
+ * evidence settles it as `"controller-gap"`.
+ *
+ * A plain `Error` because `packages/testing` carries no dependency on the library and therefore no `MatterError`.
+ */
+export class CertControllerGapError extends Error {}
+
+/**
+ * The framework error for a refusal of `capability` that reached the step runner. A step or test case that declares
+ * the capability is skipped before it runs wherever the controller lacks it, so the refusal means either the
+ * declaration is missing or the implementation refuses a capability it declares neither as a gap nor out of scope.
+ */
+function undeclaredRefusal(
+    tc: string,
+    stepDef: CertStepDefinition,
+    definition: CertTestDefinition,
+    refusal: UnsupportedByControllerError,
+): CertFrameworkError {
+    const { capability } = refusal;
+    const declared =
+        stepDef.controllerCapabilities?.includes(capability) ||
+        definition.controllerCapabilities?.includes(capability) ||
+        capabilitiesFor({ transport: definition.transport }).includes(capability);
+    const cause = declared
+        ? `controller "${refusal.controller}" refused ${capability}, which its registration declares neither as a gap nor out of scope`
+        : `the step needs ${capability} and neither it nor its test case declares it`;
+    return new CertFrameworkError(`Cert test ${tc} step ${stepDef.number}: ${cause}. Refusal: ${refusal.message}`);
+}
 
 /**
  * {@link CertStepContext.picsMet}. Unlike a gate it cannot treat a missing PICS file as "met": a step
@@ -677,6 +871,14 @@ function announcePlanConditionSkipSummary(cx: CertStepContext, tc: string, count
     announceStep(cx, [
         STEP_BANNER_RULE,
         `${tc} — ${count} step${count === 1 ? "" : "s"} skipped by a condition of the plan for these devices`,
+        STEP_BANNER_RULE,
+    ]);
+}
+
+function announceOutOfScopeSkipSummary(cx: CertStepContext, tc: string, count: number): void {
+    announceStep(cx, [
+        STEP_BANNER_RULE,
+        `${tc} — ${count} step${count === 1 ? "" : "s"} skipped as out of the controller's scope`,
         STEP_BANNER_RULE,
     ]);
 }
@@ -853,17 +1055,18 @@ function watchDeviceExits(devices: Record<string, CertDevice>, recorder: StepRec
  * Fails the current step immediately if a device exits while it's running, rather than waiting for
  * the step's own timeout to notice the device is gone.
  */
-async function raceAgainstDeviceExit(
-    stepRun: Promise<void>,
+async function raceAgainstDeviceExit<T>(
+    stepRun: Promise<T>,
     deviceExit: Promise<DeviceExit>,
     tc: string,
     step: number | string,
-): Promise<void> {
-    const exitedRole = await Promise.race([
-        stepRun.then((): string | undefined => undefined),
-        deviceExit.then(({ role }) => role),
+): Promise<T> {
+    const outcome = await Promise.race([
+        stepRun.then(value => ({ value })),
+        deviceExit.then(({ role }) => ({ exitedRole: role })),
     ]);
-    if (exitedRole !== undefined) {
+    if ("exitedRole" in outcome) {
+        const { exitedRole } = outcome;
         // stepRun keeps running independently of this race and settles on its own time; observe
         // its eventual rejection so it can't surface as an unhandled rejection attributed to
         // whatever runs later, without trying to cancel the operation itself.
@@ -872,6 +1075,7 @@ async function raceAgainstDeviceExit(
         });
         throw new Error(`Cert-test device "${exitedRole}" exited unexpectedly while a step was running`);
     }
+    return outcome.value;
 }
 
 const certTestFactories = new WeakMap<TestDescriptor, () => CertTest>();

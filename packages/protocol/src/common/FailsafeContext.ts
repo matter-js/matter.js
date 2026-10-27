@@ -217,8 +217,7 @@ export abstract class FailsafeContext {
         if (this.associatedFabric === undefined) {
             throw new MatterFlowError("No fabric associated with failsafe context, but we prepare an Fabric update.");
         }
-        this.#builder.initializeFromFabricForUpdate(this.associatedFabric);
-        await this.#builder.setOperationalCert(nocValue, icacValue);
+        await this.#builder.updateOperationalCert(this.associatedFabric, nocValue, icacValue);
         return await this.#builder.build(this.associatedFabric.fabricIndex);
     }
 

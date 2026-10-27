@@ -11,6 +11,7 @@ import {
     CommissioningRefusals,
     INVALID_PASSCODES,
     onNetworkOnlyPayload,
+    PARSES_PAYLOAD,
     qrPayloadWith,
     qrPayloadWithPrefix,
     recordDiscoveryCapabilityAbsent,
@@ -51,7 +52,7 @@ certTest("TC-DD-3.14", {
         async cx => {
             await recordParse(cx, await thQrPayload(cx.devices.th));
         },
-        { expected: "Verify the DUT is able to scan/read the QR code" },
+        { controllerCapabilities: PARSES_PAYLOAD, expected: "Verify the DUT is able to scan/read the QR code" },
     )
     .step(
         "2.a",
@@ -94,6 +95,7 @@ certTest("TC-DD-3.14", {
                 await thQrPayload(cx.devices.th),
             ),
         {
+            controllerCapabilities: PARSES_PAYLOAD,
             pics: "MCORE.DD.DISCOVERY_BLE",
             expected: "User has a QR code generated to pass into DUT.",
         },
@@ -125,6 +127,7 @@ certTest("TC-DD-3.14", {
                 await thQrPayload(cx.devices.th),
             ),
         {
+            controllerCapabilities: PARSES_PAYLOAD,
             pics: "MCORE.DD.DISCOVERY_PAF",
             expected: "User has a QR code generated to pass into DUT.",
         },

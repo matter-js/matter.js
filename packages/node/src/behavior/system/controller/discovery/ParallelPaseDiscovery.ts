@@ -18,7 +18,7 @@ import {
 } from "@matter/general";
 import { CommissioningError, PasscodeMismatchError, PeerCommunicationError } from "@matter/protocol";
 import { Discovery } from "./Discovery.js";
-import { DiscoveryAggregateError, DiscoveryError } from "./DiscoveryError.js";
+import { DeviceNotDiscoveredError, DiscoveryAggregateError, DiscoveryIncompleteError } from "./DiscoveryError.js";
 
 const logger = Logger.get("ParallelPaseDiscovery");
 
@@ -38,8 +38,9 @@ const CROSS_DEVICE_STAGGER_DELAY = Seconds(1);
  *  - an {@code extractWinner} to pull the result value from the settled promise.
  *
  * Attempts are staggered: the first starts immediately, each subsequent one waits an additional
- * {@link CROSS_DEVICE_STAGGER_DELAY}.  When {@code winOnPase} is called, the internal abort signal fires,
- * which cancels any pending stagger sleeps so that no further attempts are started.
+ * {@link CROSS_DEVICE_STAGGER_DELAY}.  The internal abort signal fires once the race is decided: when a candidate
+ * wins, when discovery is interrupted before a win, or when discovery ends without a win.  From then on no further
+ * attempt starts and {@code winOnPase} refuses every attempt.
  */
 export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
     #paseWon = false;
@@ -72,7 +73,8 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
      *
      * @param factory Produces the attempt promise.  Receives a {@code winOnPase} callback that the implementation
      *   passes as the {@code continueXxx} option to the underlying PASE/commissioning call.  When invoked, it
-     *   performs the race-gate logic and returns true if this attempt wins, false if another already won.
+     *   performs the race-gate logic and returns true if this attempt wins, false if the race is already decided:
+     *   another attempt won, or discovery ended or was interrupted.
      * @param extractWinner Extracts the winner value from the settled attempt result.  Called only for the
      *   winning attempt after its promise resolves.
      */
@@ -80,14 +82,11 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
         factory: (winOnPase: () => boolean) => R | PromiseLike<R>,
         extractWinner: (result: R) => W | undefined,
     ): void {
-        // attempt is declared before assignment so the winOnPase closure can reference it by name.
-        // The closure is only ever invoked asynchronously (after PASE establishes), well after
-        // the synchronous assignment below.
         let attempt!: Promise<R | undefined>;
         let isWinner = false;
 
         const winOnPase = () => {
-            if (this.#paseWon) {
+            if (this.#abort.signal.aborted) {
                 return false;
             }
             this.#paseWon = true;
@@ -108,15 +107,13 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
             return factory(winOnPase);
         };
 
-        attempt = (
-            stagger > 0
-                ? Abort.sleep("PASE stagger", this.#abort.signal, stagger).then(() => {
-                      if (!this.#abort.signal.aborted) {
-                          return startFactory();
-                      }
-                  })
-                : Promise.resolve(startFactory())
-        )
+        const startAfter = stagger > 0 ? Abort.sleep("PASE stagger", this.#abort.signal, stagger) : Promise.resolve();
+        attempt = startAfter
+            .then(() => {
+                if (!this.#abort.signal.aborted) {
+                    return startFactory();
+                }
+            })
             .catch(error => {
                 if (isWinner) {
                     // Winner's error is meaningful — capture it for onComplete to rethrow
@@ -125,7 +122,7 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
                 }
                 // Loser: resolve to prevent unhandled rejection.
                 // Collect the error for the final failure message unless it was a cancellation
-                // triggered by our own abort (i.e. another candidate won or discovery timed out).
+                // triggered by our own abort (another candidate won, or discovery ended or was interrupted).
                 if (causedBy(error, CanceledError)) {
                     logger.debug("Canceled parallel commissioning attempt:", Diagnostic.errorMessage(error));
                 } else if (
@@ -153,6 +150,29 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
         this.#pending.add(attempt);
     }
 
+    /**
+     * Ending discovery before a candidate has won, also through the timeout, closes the race at once so no attempt can
+     * win while the scan winds down.
+     */
+    override stop() {
+        if (!this.#paseWon) {
+            this.#abort.abort();
+        }
+        super.stop();
+    }
+
+    /**
+     * Before a candidate has won, an interruption aborts every attempt so none can win afterwards.  After the win the
+     * winner's operation is not interrupted, and the discovery completes with the winner or the winner's error.
+     */
+    protected override onInterrupt() {
+        if (this.#paseWon) {
+            return false;
+        }
+        this.#abort.abort();
+        return true;
+    }
+
     protected override async onComplete(): Promise<W> {
         if (!this.#paseWon) {
             // Discovery ended without any candidate winning PASE — cancel any remaining attempts.
@@ -178,19 +198,18 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
         }
 
         if (this.#winner === undefined) {
-            let detail: string;
             if (this.#attemptCount === 0) {
-                detail = "No commissionable device was discovered";
-            } else if (this.#attemptErrors.length > 0) {
-                detail = `${this.failureMessage} (${this.#attemptErrors.length} of ${this.#startedCount} started attempt(s) failed, ${this.#attemptCount} discovered)`;
-            } else {
-                detail = `${this.failureMessage} (${this.#startedCount} attempt(s) started of ${this.#attemptCount} discovered, all canceled or timed out)`;
+                throw new DeviceNotDiscoveredError(`${this} failed: No commissionable device was discovered`);
             }
-            const message = `${this} failed: ${detail}`;
             if (this.#attemptErrors.length > 0) {
-                throw new DiscoveryAggregateError(this.#attemptErrors, message);
+                throw new DiscoveryAggregateError(
+                    this.#attemptErrors,
+                    `${this} failed: ${this.failureMessage} (${this.#attemptErrors.length} of ${this.#startedCount} started attempt(s) failed, ${this.#attemptCount} discovered)`,
+                );
             }
-            throw new DiscoveryError(message);
+            throw new DiscoveryIncompleteError(
+                `${this} failed: ${this.failureMessage} (${this.#startedCount} attempt(s) started of ${this.#attemptCount} discovered, all canceled or timed out)`,
+            );
         }
 
         return this.#winner;

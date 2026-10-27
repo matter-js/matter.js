@@ -55,6 +55,25 @@ describe("DnssdParameters", () => {
         });
     });
 
+    describe("key case", () => {
+        it("looks keys up regardless of case", () => {
+            const p = fixture();
+            expect(p.get("sii")).equal("5000");
+            expect(p.has("XA")).true;
+            expect(Bytes.areEqual(p.raw("Xa")!, xaBytes)).true;
+        });
+
+        it("keeps the first of several entries whose keys differ only in case, spelled as received", () => {
+            const p = new DnssdParameters([
+                ["Sii", Bytes.fromString("5000")],
+                ["SII", Bytes.fromString("300")],
+            ]);
+            expect(p.get("sii")).equal("5000");
+            expect([...p.keys()]).deep.equals(["Sii"]);
+            expect([...p.entries()]).deep.equals([["Sii", "5000"]]);
+        });
+    });
+
     describe("size", () => {
         it("matches the underlying entry count", () => {
             expect(fixture().size).equal(3);

@@ -8,11 +8,12 @@ import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { ClientNodePhysicalProperties } from "#node/client/ClientNodePhysicalProperties.js";
+import { ClientStructure } from "#node/client/ClientStructure.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { NodeConnectionState } from "#node/ClientNodeLifecycle.js";
 import { Node } from "#node/Node.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
-import { ChannelType, Logger, Observable } from "@matter/general";
+import { ChannelType, InternalError, Logger, MaybePromise, Mutex, Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import {
     ClientSubscription,
@@ -20,6 +21,7 @@ import {
     PeerSet,
     Subscribe,
     SustainedSubscription,
+    type SustainedClientSubscribe,
     type Peer,
     Val,
 } from "@matter/protocol";
@@ -41,11 +43,13 @@ export class NetworkClient extends NetworkBehavior {
             this.state.autoSubscribe = false;
             this.state.defaultSubscription = undefined;
         } else {
-            this.reactTo(this.events.autoSubscribe$Changed, this.#syncAutoSubscribe, { offline: true });
+            this.reactTo(this.events.autoSubscribe$Changed, this.#handleAutoSubscribeChange, { offline: true });
             this.reactTo(this.events.defaultSubscription$Changed, this.#handleDefaultSubscriptionChange, {
                 offline: true,
             });
             this.reactTo(this.events.subscriptionStatusChanged, this.#flushCacheOnSubscribed);
+            // Waits for the lock instead of failing when another transaction holds this behavior, such as a state write
+            this.internal.storeMaxEventNumber = this.asyncCallback(this.#storeMaxEventNumber, { lock: true });
 
             this.reactTo(this.events.subscriptionStatusChanged, this.#recomputeConnectionState);
             this.reactTo(this.events.isDisabled$Changed, this.#recomputeConnectionState);
@@ -81,11 +85,17 @@ export class NetworkClient extends NetworkBehavior {
                     this.reactTo(peer.establishmentUnresponsive, this.#markLikelyOffline, { offline: true });
                     this.reactTo(peer.sessions.added, this.#onSessionEstablished, { offline: true });
                     this.reactTo(peer.sessions.deleted, this.#recomputeConnectionState, { offline: true });
+                    this.reactTo(peer.service.changed, this.#recomputeConnectionState, { offline: true });
                 }
             }
         }
 
-        await this.#syncAutoSubscribe();
+        await this.internal.subscriptionChanges.produce(async () => {
+            if (this.#node.nodeType !== "group") {
+                await this.#adoptFabricFilter();
+            }
+            await this.#syncAutoSubscribe();
+        });
 
         if (this.#node.nodeType !== "group") {
             if (this.endpoint.behaviors.has(IcdClient)) {
@@ -101,13 +111,21 @@ export class NetworkClient extends NetworkBehavior {
         this.internal.runtime!.isReady = true;
     }
 
-    async #handleDefaultSubscriptionChange() {
-        // Terminate any existing subscription
-        await this.#syncAutoSubscribe(false);
+    async #handleAutoSubscribeChange() {
+        await this.internal.subscriptionChanges.produce(() => this.#syncAutoSubscribe());
+    }
 
-        if (this.state.autoSubscribe && !this.state.isDisabled) {
-            await this.#syncAutoSubscribe(true);
-        }
+    async #handleDefaultSubscriptionChange() {
+        await this.internal.subscriptionChanges.produce(async () => {
+            // Terminate any existing subscription
+            await this.#syncAutoSubscribe(false);
+
+            await this.#adoptFabricFilter();
+
+            if (this.state.autoSubscribe && !this.state.isDisabled) {
+                await this.#syncAutoSubscribe(true);
+            }
+        });
     }
 
     async #syncAutoSubscribe(desiredState = this.state.autoSubscribe) {
@@ -118,17 +136,9 @@ export class NetworkClient extends NetworkBehavior {
         const { isDisabled } = this.state;
         const subscriptionDesired = desiredState && !isDisabled;
 
-        const buildSubscribe = () =>
-            Subscribe({
-                fabricFilter: true,
-                keepSubscriptions: false,
-                attributes: [{}],
-                events: [{ isUrgent: true }],
-                ...this.state.defaultSubscription,
-            });
         // Pin one snapshot of defaultSubscription across the intervening read await so both call sites agree.
         let builtSubscribe: Subscribe | undefined;
-        const subscribe = () => (builtSubscribe ??= buildSubscribe());
+        const subscribe = () => (builtSubscribe ??= this.#defaultSubscribe());
 
         // A newly-commissioned peer is reachable on the live commissioning session, so read its structure now
         // (regardless of autoSubscribe) unless the caller opts out.  This guarantees state is available once
@@ -137,62 +147,211 @@ export class NetworkClient extends NetworkBehavior {
         if (this.internal.isNewlyCommissioned) {
             this.internal.isNewlyCommissioned = false;
             if (this.state.autoStateInitialize !== false) {
-                for await (const _chunk of this.#node.interaction.read(subscribe()));
+                await this.#initializeState(subscribe());
                 didInitialRead = true;
             }
         }
 
-        if (subscriptionDesired === !!this.internal.activeSubscription) {
+        if (subscriptionDesired === (this.internal.subscriptionOwner !== undefined)) {
             return;
         }
 
-        if (subscriptionDesired) {
-            this.internal.activeSubscription = await (this.#node.interaction as ClientNodeInteraction).subscribe({
-                ...subscribe(),
-                sustain: true,
-                eventFilters: [{ eventMin: this.state.maxEventNumber + 1n }],
-                // The newly-commissioned read above already primed state; otherwise bootstrap with a read inside the
-                // sustained subscription so network errors don't interfere with subscription establishment.
-                bootstrapWithRead: !didInitialRead,
-                updated: async update => {
-                    // Read over all changes
-                    for await (const _chunk of update);
-
-                    // Trigger subscription alive event but ensure we actually have a subscription and this isn't just
-                    // the bootstrap read
-                    if (this.internal.activeSubscription?.subscriptionId !== ClientSubscription.NO_SUBSCRIPTION) {
-                        this.events.subscriptionAlive.emit(); // Inform that subscription is alive
-                    }
-                },
-                keepaliveReceived: () => {
-                    // Empty keepalives invoke keepaliveReceived, not updated(), so mirror the liveness emit here.
-                    if (this.internal.activeSubscription?.subscriptionId !== ClientSubscription.NO_SUBSCRIPTION) {
-                        this.events.subscriptionAlive.emit();
-                    }
-                },
-                closed: () => {
-                    if (!(this.internal.activeSubscription instanceof SustainedSubscription)) {
-                        this.events.subscriptionStatusChanged.emit(false);
-                    }
-                    this.internal.activeSubscription = undefined;
-                },
-            });
-
-            if (this.internal.activeSubscription instanceof SustainedSubscription) {
-                this.internal.activeSubscription.active.on(isActive => {
-                    this.events.subscriptionStatusChanged.emit(isActive);
-                    // Also signal liveness directly on establishment; the subscriptionId-gated emit in updated() misses the priming report.
-                    if (isActive) {
-                        this.events.subscriptionAlive.emit();
-                    }
-                });
-            } else {
-                this.events.subscriptionStatusChanged.emit(true);
-            }
-        } else {
-            this.internal.activeSubscription?.close();
-            this.internal.activeSubscription = undefined;
+        if (!subscriptionDesired) {
+            this.#endDefaultSubscription();
+            return;
         }
+
+        // Callbacks and event emits act only while this is still the node's default subscription, so a replaced or
+        // ended subscription never acts for its successor
+        const owner = {};
+        const isCurrent = () => this.internal.subscriptionOwner === owner;
+
+        const request: SustainedClientSubscribe & ClientNodeInteraction.Options = {
+            ...subscribe(),
+            sustain: true,
+            emitEvents: isCurrent,
+            eventEmitted: number => this.#eventEmitted(number),
+            eventFilters: [{ eventMin: this.#maxEventNumber + 1n }],
+            // The newly-commissioned read above already primed state; otherwise bootstrap with a read inside the
+            // sustained subscription so network errors don't interfere with subscription establishment.
+            bootstrapWithRead: !didInitialRead,
+            maxEventNumberChanged: () => this.internal.storeMaxEventNumber?.(),
+            updated: async update => {
+                // Read over all changes
+                for await (const _chunk of update);
+
+                // Trigger subscription alive event but ensure we actually have a subscription and this isn't just
+                // the bootstrap read
+                if (
+                    isCurrent() &&
+                    this.internal.activeSubscription?.subscriptionId !== ClientSubscription.NO_SUBSCRIPTION
+                ) {
+                    this.events.subscriptionAlive.emit(); // Inform that subscription is alive
+                }
+            },
+            keepaliveReceived: () => {
+                // Empty keepalives invoke keepaliveReceived, not updated(), so mirror the liveness emit here.
+                if (
+                    isCurrent() &&
+                    this.internal.activeSubscription?.subscriptionId !== ClientSubscription.NO_SUBSCRIPTION
+                ) {
+                    this.events.subscriptionAlive.emit();
+                }
+            },
+            closed: () => {
+                if (isCurrent()) {
+                    this.#endDefaultSubscription();
+                }
+            },
+        };
+
+        this.internal.subscriptionOwner = owner;
+        let subscription: ClientSubscription;
+        try {
+            subscription = await this.#interaction.subscribe(request);
+        } catch (error) {
+            if (isCurrent()) {
+                this.internal.subscriptionOwner = undefined;
+            }
+            throw error;
+        }
+
+        if (!isCurrent()) {
+            // Ended or replaced while it was being established
+            subscription.close();
+            return;
+        }
+
+        this.internal.activeSubscription = subscription;
+        if (subscription instanceof SustainedSubscription) {
+            subscription.active.on(isActive => {
+                if (!isCurrent()) {
+                    return;
+                }
+                this.events.subscriptionStatusChanged.emit(isActive);
+                // Also signal liveness directly on establishment; the subscriptionId-gated emit in updated() misses the priming report.
+                if (isActive) {
+                    this.events.subscriptionAlive.emit();
+                }
+            });
+        }
+    }
+
+    /**
+     * End the default subscription and report it as not subscribed if it was reported subscribed.
+     */
+    #endDefaultSubscription() {
+        const subscription = this.internal.activeSubscription;
+        const wasActive = this.subscriptionActive;
+        this.internal.subscriptionOwner = undefined;
+        this.internal.activeSubscription = undefined;
+        subscription?.close();
+        if (wasActive) {
+            this.events.subscriptionStatusChanged.emit(false);
+        }
+    }
+
+    /**
+     * The request of the default subscription.  {@link State.defaultSubscription} may hold a built request, which
+     * names its paths and fabric filter as on the wire, or options for {@link Subscribe}.
+     */
+    #defaultSubscribe(): Subscribe {
+        const definition = this.state.defaultSubscription;
+        if (definition !== undefined && "isFabricFiltered" in definition) {
+            // A built Read has no keepSubscriptions although its type says it is a Subscribe
+            return { ...definition, keepSubscriptions: definition.keepSubscriptions ?? false };
+        }
+
+        return Subscribe({
+            fabricFilter: true,
+            keepSubscriptions: false,
+            attributes: [{}],
+            events: [{ isUrgent: true }],
+            ...definition,
+        });
+    }
+
+    /**
+     * Make the fabric filter the default subscription sends the filter of the node's cache.  The node still starts and
+     * subscribes after a storage failure.  If the cache then has another filter than the default subscription, it takes
+     * no data from that subscription until the switch succeeds at the next start or the next change of the default
+     * subscription.
+     */
+    async #adoptFabricFilter() {
+        const structure = this.env.get(ClientStructure);
+        const fabricFiltered = this.#defaultSubscribe().isFabricFiltered ?? true;
+        try {
+            await structure.adoptFabricFilter(fabricFiltered);
+        } catch (error) {
+            if (structure.cacheFabricFiltered === fabricFiltered) {
+                logger.warn(
+                    `Could not record the fabric filter of the cache of ${this.#node}; the next start records it:`,
+                    error,
+                );
+                return;
+            }
+            logger.error(
+                `Could not switch the cache of ${this.#node} to the fabric filter of its default subscription; the cache takes no data from that subscription until the node restarts or the default subscription changes:`,
+                error,
+            );
+        }
+    }
+
+    /**
+     * Read the state of a newly-commissioned node and store the highest number of an event the read emitted, also when
+     * the read fails.
+     */
+    async #initializeState(request: Subscribe) {
+        try {
+            const read = this.#interaction.read({
+                ...request,
+                emitEvents: true,
+                eventEmitted: number => this.#eventEmitted(number),
+            });
+            for await (const chunk of read) {
+                for await (const _report of chunk);
+            }
+        } finally {
+            await this.#persistMaxEventNumber();
+        }
+    }
+
+    /**
+     * The highest number of an event emitted to the node's event observers, stored or not yet stored.
+     */
+    get #maxEventNumber() {
+        const stored = this.state.maxEventNumber;
+        const emitted = this.internal.emittedEventNumber;
+        return emitted !== undefined && emitted > stored ? emitted : stored;
+    }
+
+    #eventEmitted(number: EventNumber) {
+        const emitted = this.internal.emittedEventNumber;
+        if (emitted === undefined || number > emitted) {
+            this.internal.emittedEventNumber = number;
+        }
+    }
+
+    /**
+     * Store the event number without rejecting, so a storage failure does not replace the outcome of the read.
+     */
+    async #persistMaxEventNumber() {
+        try {
+            await this.internal.storeMaxEventNumber?.();
+        } catch (error) {
+            logger.warn(
+                `Could not store the event number of ${this.#node}; after a restart it may emit events it already emitted:`,
+                error,
+            );
+        }
+    }
+
+    #storeMaxEventNumber() {
+        const emitted = this.internal.emittedEventNumber;
+        if (emitted === undefined || emitted <= this.state.maxEventNumber) {
+            return;
+        }
+        this.state.maxEventNumber = emitted;
     }
 
     /**
@@ -228,7 +387,8 @@ export class NetworkClient extends NetworkBehavior {
             // resume in WaitingForDeviceDiscovery before any fresh session.
             this.internal.likelyOffline = false;
             state = NodeConnectionState.Disconnected;
-        } else if (this.internal.likelyOffline) {
+        } else if (this.internal.likelyOffline || (peer !== undefined && !hasAnyAddress(peer))) {
+            // With no address to try, establishmentUnresponsive never fires to mark the peer offline
             state = NodeConnectionState.WaitingForDeviceDiscovery;
         } else {
             state = NodeConnectionState.Reconnecting;
@@ -307,9 +467,7 @@ export class NetworkClient extends NetworkBehavior {
     }
 
     override async [Symbol.asyncDispose]() {
-        // Clean up any active subscription
-        this.internal.activeSubscription?.close();
-        this.internal.activeSubscription = undefined;
+        this.#endDefaultSubscription();
     }
 
     #flushCacheOnSubscribed(isActive: boolean) {
@@ -323,6 +481,14 @@ export class NetworkClient extends NetworkBehavior {
 
     get #node() {
         return this.env.get(Node) as ClientNode;
+    }
+
+    get #interaction() {
+        const { interaction } = this.#node;
+        if (!(interaction instanceof ClientNodeInteraction)) {
+            throw new InternalError(`Interaction of ${this.#node} is not a ClientNodeInteraction`);
+        }
+        return interaction;
     }
 
     /**
@@ -372,6 +538,12 @@ export class NetworkClient extends NetworkBehavior {
     });
 }
 
+function hasAnyAddress(peer: Peer) {
+    return (
+        peer.sessions.size > 0 || peer.descriptor.operationalAddress !== undefined || peer.service.addresses.size > 0
+    );
+}
+
 export namespace NetworkClient {
     export class Internal extends NetworkBehavior.Internal {
         declare runtime?: ClientNetworkRuntime;
@@ -380,6 +552,19 @@ export namespace NetworkClient {
          * The active default subscription.
          */
         activeSubscription?: ClientSubscription;
+
+        /**
+         * Identifies the default subscription being established or active.  Its callbacks change the subscription
+         * status and liveness and emit events only while it is set.  Event numbers are recorded only for events it
+         * emits.
+         */
+        subscriptionOwner?: object;
+
+        /**
+         * Runs startup and the reactions to {@link State.autoSubscribe} and {@link State.defaultSubscription} one at a
+         * time.
+         */
+        subscriptionChanges = new Mutex(this);
 
         /**
          * Indicates the node is newly commissioned.
@@ -405,18 +590,39 @@ export namespace NetworkClient {
 
         /** Was the fabric label already checked? */
         fabricLabelReconciled = false;
+
+        /**
+         * The highest number of an event the default subscription or the read that initializes a newly-commissioned
+         * node emitted to the node's event observers since the node started.  Each new default subscription requests
+         * only events above it or above {@link State.maxEventNumber}, whichever is higher.
+         */
+        emittedEventNumber?: EventNumber;
+
+        /**
+         * Raises {@link State.maxEventNumber} to {@link emittedEventNumber} in a transaction of its own; calls run one
+         * after the other.  Undefined for group nodes.
+         */
+        storeMaxEventNumber?: () => MaybePromise<void>;
     }
 
     export class State extends NetworkBehavior.State {
         /**
          * This subscription defines the default set of attributes and events to which the node will automatically
-         * subscribe when started, if autoSubscribe is true. Alternatively, also just Subscribe.Options can be provided
-         * to adjust chosen default subscription parameters (see below).
+         * subscribe when started, if autoSubscribe is true.
          *
-         * The default subscription is a wildcard for all attributes of the node.  You can set to undefined or filter
-         * the fields and values but only values selected by this subscription will update automatically.
+         * {@link Subscribe.Options} are merged into the default: all attributes and urgent events, fabric filtered.
          *
-         * The default subscription updates automatically if you change this property.
+         * A built {@link Subscribe} or `Read` is sent as given, with its paths and fabric filter.  The node sets the
+         * event filter from the higher of the stored and the emitted event number, adds data versions as for any subscription and sets
+         * `keepSubscriptions` to false where the request has none.  A built request that should keep the node's
+         * Leave handling needs the attributes and events of the Basic Information cluster and the `fabrics` attribute
+         * of the Operational Credentials cluster.  Without them the node notices a device going offline only through
+         * the subscription timeout, and it does not see the Leave of a device that leaves the fabric.
+         *
+         * Only values selected by this subscription update automatically.
+         *
+         * The node's cache follows this subscription's fabric filter; changing the filter makes the cache forget its
+         * data versions.  The default subscription updates automatically if you change this property.
          */
         defaultSubscription?: Subscribe | Subscribe.Options;
 
@@ -445,7 +651,8 @@ export namespace NetworkClient {
         autoStateInitialize?: boolean;
 
         /**
-         * The highest event number seen from this node for the default read/subscription.
+         * The highest number of an event the default subscription, or the read that initializes a newly-commissioned
+         * node, emitted to the node's event observers.  Each new default subscription requests only events above it.
          */
         maxEventNumber = EventNumber(0);
 

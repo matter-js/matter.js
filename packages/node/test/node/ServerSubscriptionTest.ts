@@ -22,13 +22,26 @@ import { interaction, MockServerNode } from "@matter/node/testing";
 import {
     ExchangeManager,
     InteractionServerMessenger,
+    Message,
     MessageExchange,
+    MessageType,
     NodeSession,
     PeerUnresponsiveError,
     ProtocolMocks,
     SessionManager,
 } from "@matter/protocol";
-import { AttributeId, AttributePath, ClusterId, EndpointNumber, EventPath } from "@matter/types";
+import {
+    AttributeId,
+    AttributePath,
+    ClusterId,
+    EndpointNumber,
+    EventPath,
+    INTERACTION_PROTOCOL_ID,
+    Status,
+    StatusResponseError,
+    TlvDataReport,
+    TlvStatusResponse,
+} from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { LIT_CONFIG } from "./icd-helpers.js";
@@ -183,6 +196,220 @@ describe("ServerSubscription", () => {
         expect(subscription.maxInterval).to.be.below(Seconds(70));
 
         await MockTime.resolve(node.close());
+    });
+
+    it("terminates on close() but not on closeForShutdown()", async () => {
+        const node = await MockServerNode.createOnline();
+
+        const closed = await createSubscription(node, () => ({}) as any);
+        closed.activate();
+        await closed.close();
+
+        const shutDown = await createSubscription(node, () => ({}) as any);
+        shutDown.activate();
+        await shutDown.closeForShutdown();
+        await shutDown.close();
+
+        expect(closed.isTerminated).is.true;
+        expect(shutDown.isTerminated).is.false;
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("terminates when the peer refuses a report sent during a shutdown close", async () => {
+        const node = await MockServerNode.createOnline();
+
+        const sendBlocker = new DataReadQueue<void>();
+        const subscription = await createSubscription(
+            node,
+            () =>
+                ({
+                    maxPayloadSize: 1200,
+                    async send() {
+                        await sendBlocker.read();
+                    },
+                    async close() {},
+                }) as unknown as MessageExchange,
+        );
+        subscription.activate();
+
+        // A report is in flight when the shutdown close starts
+        await MockTime.advance(200);
+        const closing = subscription.closeForShutdown();
+        sendBlocker.close(new StatusResponseError("Invalid subscription", Status.InvalidSubscription));
+        await MockTime.resolve(closing);
+
+        expect(subscription.isTerminated).is.true;
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("keeps a subscription that joins a session closing for shutdown", async () => {
+        const node = await MockServerNode.createOnline();
+
+        const first = await createSubscription(node, () => ({}) as any);
+        const session = first.session as NodeSession;
+        first.activate();
+        await MockTime.resolve(session.closeSubscriptionsForShutdown());
+
+        const late = await createSubscription(node, () => ({}) as any, { session });
+        late.activate();
+        await MockTime.resolve(session.closeSubscriptions());
+
+        expect(first.isTerminated).is.false;
+        expect(late.isTerminated).is.false;
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("terminates when the peer answers a report with an error status", async () => {
+        const node = await MockServerNode.createOnline();
+
+        const subscription = await createSubscription(
+            node,
+            () =>
+                ({
+                    maxPayloadSize: 1200,
+                    async send() {
+                        throw new StatusResponseError("Busy", Status.Busy);
+                    },
+                    async close() {},
+                }) as unknown as MessageExchange,
+        );
+        const session = subscription.session as NodeSession;
+        subscription.activate();
+
+        await MockTime.advance(200);
+
+        expect(subscription.isTerminated).is.true;
+        expect([...session.subscriptions]).is.empty;
+
+        await MockTime.resolve(node.close());
+    });
+
+    describe("keep-alive status", () => {
+        async function sendKeepAlive(options: { usesMrp: boolean }) {
+            const node = await MockServerNode.createOnline();
+            const fabric = await node.addFabric();
+            const channel = new ProtocolMocks.NetworkChannel({ index: 2 });
+            channel.isReliable = !options.usesMrp;
+            const session = new ProtocolMocks.NodeSession({ index: 2, fabric, channel });
+            expect(session.usesMrp).equals(options.usesMrp);
+
+            // Every update opens its own exchange; the test answers the first one
+            const exchanges = new Array<ProtocolMocks.Exchange>();
+            const firstClosed = createPromise<void>();
+            const subscription = await createSubscription(
+                node,
+                () => {
+                    const exchange = new ProtocolMocks.Exchange({
+                        index: exchanges.length + 2,
+                        protocolId: INTERACTION_PROTOCOL_ID,
+                        context: { session },
+                        maxPayloadSize: 1200,
+                    });
+                    if (!exchanges.length) {
+                        const close = exchange.close.bind(exchange);
+                        exchange.close = async (...args) => {
+                            await close(...args);
+                            firstClosed.resolver();
+                        };
+                    } else {
+                        // Later keep-alives are answered so they cannot block closing the subscription
+                        const send = exchange.send.bind(exchange);
+                        exchange.send = async (...args) => {
+                            await send(...args);
+                            await exchange.writeStatus(Status.Success);
+                        };
+                    }
+                    exchanges.push(exchange);
+                    return exchange;
+                },
+                { session },
+            );
+            subscription.activate();
+
+            await MockTime.advance(200);
+            const [exchange] = exchanges;
+            const report = await MockTime.resolve(exchange.read());
+
+            return {
+                node,
+                session,
+                exchange,
+                subscription,
+                suppressResponse: TlvDataReport.decode(report.payload).suppressResponse,
+                report,
+                updateDone: firstClosed.promise,
+            };
+        }
+
+        function statusMessage(report: Message, status: Status): Message {
+            return {
+                packetHeader: { ...report.packetHeader, messageId: report.packetHeader.messageId + 1 },
+                payloadHeader: {
+                    ...report.payloadHeader,
+                    messageType: MessageType.StatusResponse,
+                    isInitiatorMessage: false,
+                    requiresAck: true,
+                    ackedMessageId: report.packetHeader.messageId,
+                },
+                payload: TlvStatusResponse.encode({
+                    status,
+                    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+                }),
+            };
+        }
+
+        it("ends the subscription when the peer answers INVALID_SUBSCRIPTION on a session without MRP", async () => {
+            const { node, session, exchange, subscription, suppressResponse, updateDone } = await sendKeepAlive({
+                usesMrp: false,
+            });
+
+            expect(suppressResponse).not.true;
+            await exchange.writeStatus(Status.InvalidSubscription);
+            await MockTime.resolve(updateDone);
+
+            expect(subscription.isTerminated).is.true;
+            expect([...session.subscriptions]).is.empty;
+
+            await MockTime.resolve(node.close());
+        });
+
+        it("waits for the status and keeps the subscription when the peer answers SUCCESS on a session without MRP", async () => {
+            const { node, session, exchange, subscription, updateDone } = await sendKeepAlive({ usesMrp: false });
+
+            await MockTime.advance(1000);
+            const pending = Symbol("pending");
+            expect(await Promise.race([updateDone, Promise.resolve(pending)])).equals(pending);
+
+            await exchange.writeStatus(Status.Success);
+            await MockTime.resolve(updateDone);
+
+            expect(subscription.isTerminated).is.false;
+            expect([...session.subscriptions]).has.length(1);
+
+            await subscription.close();
+            await MockTime.resolve(node.close());
+        });
+
+        it("requests a status on an MRP session and ends the subscription on INVALID_SUBSCRIPTION", async () => {
+            const { node, session, exchange, subscription, suppressResponse, report, updateDone } = await sendKeepAlive(
+                { usesMrp: true },
+            );
+
+            expect(suppressResponse).not.true;
+            // The ack is processed by the real exchange; the mock exchange reads responses from its own queue
+            const status = statusMessage(report, Status.InvalidSubscription);
+            await exchange.onMessageReceived(status);
+            await exchange.write(status);
+            await MockTime.resolve(updateDone);
+
+            expect(subscription.isTerminated).is.true;
+            expect([...session.subscriptions]).is.empty;
+
+            await MockTime.resolve(node.close());
+        });
     });
 
     it("closes subscription even when in-flight exchange close throws", async () => {

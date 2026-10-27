@@ -19,8 +19,6 @@ const DEFAULT_WEBSOCKET_PORT = 3000;
 const logger = Logger.get("Shell");
 let theShell: Shell;
 
-if (process.stdin?.isTTY) Logger.format = LogFormat.ANSI;
-
 let theNode: MatterNode;
 
 export function setLogLevel(identifier: string, level: string): void {

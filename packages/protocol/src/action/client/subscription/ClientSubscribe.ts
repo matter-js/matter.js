@@ -1,17 +1,19 @@
 import { Subscribe } from "#action/request/Subscribe.js";
 import type { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
-import type { Observable } from "@matter/general";
-import type { NodeId } from "@matter/types";
+import type { MaybePromise, Observable } from "@matter/general";
+import type { EventNumber, NodeId } from "@matter/types";
+import type { ClientRead } from "../ClientRead.js";
 import { ClientRequest } from "../ClientRequest.js";
+import type { SustainedSubscription } from "./SustainedSubscription.js";
 
-export interface PlainClientSubscribe extends Subscribe, ClientRequest {
+export interface PlainClientSubscribe extends Subscribe, ClientRequest, Pick<ClientRead, "includeKnownVersions"> {
     /**
      * If true the subscription is virtualized and the underlying subscription is reestablished when lost.
      */
     sustain?: false;
 }
 
-export interface SustainedClientSubscribe extends Subscribe, ClientRequest {
+export interface SustainedClientSubscribe extends Subscribe, ClientRequest, Pick<ClientRead, "includeKnownVersions"> {
     /**
      * If true, the subscription is virtualized and the underlying subscription is reestablished when lost.
      */
@@ -30,8 +32,20 @@ export interface SustainedClientSubscribe extends Subscribe, ClientRequest {
     /**
      * If provided, this function is called to modify the request before it is sent to the node.
      * This is mainly used to update the Dataversion filters in the request for sustained subscriptions.
+     *
+     * Once the subscription delivered an event, it replaces the `eventFilters` of the returned request with one filter
+     * for the events above {@link SustainedSubscription.maxEventNumber}.
      */
     refreshRequest?: (request: SustainedClientSubscribe) => SustainedClientSubscribe;
+
+    /**
+     * Called with the new value whenever {@link SustainedSubscription.maxEventNumber} rises, before the delivery of the
+     * report that raised it settles, so a consumer can persist the value and seed `eventFilters` of a later
+     * subscription with it.  A failure of this callback is logged and does not change the outcome of the delivery.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 8.9.3.1
+     */
+    maxEventNumberChanged?: (maxEventNumber: EventNumber) => MaybePromise<void>;
 
     /**
      * Live provider of the peer's {@link IcdPeerWakefulness}.  Read on each sustained-subscription loop decision: when

@@ -1,6 +1,7 @@
 import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
 import { NotImplementedError } from "@matter/general";
 import {
+    AttributeWriteResponse,
     Interactable,
     Invoke,
     InvokeResult,
@@ -15,10 +16,10 @@ import {
 } from "@matter/protocol";
 
 export class OnlineServerInteraction implements Interactable<RemoteActorContext.Options> {
-    readonly #interaction: ServerInteraction;
+    readonly #interaction: ServerInteraction<RemoteActorContext>;
 
-    constructor(node: NodeProtocol) {
-        this.#interaction = new ServerInteraction(node);
+    constructor(node: NodeProtocol, writeOptions?: AttributeWriteResponse.Options<RemoteActorContext>) {
+        this.#interaction = new ServerInteraction(node, writeOptions);
     }
 
     async *read(request: Read, context: RemoteActorContext.Options): ReadResult {

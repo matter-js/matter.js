@@ -115,19 +115,19 @@ describe("ClusterEvents", () => {
     describe("Type", () => {
         it("extends EventEmitter on base behavior", () => {
             type Events = ClusterEvents.Type<MyClusterTyping, typeof ClusterBehavior>;
-            (({}) as InstanceType<Events>).addListener;
+            ({} as InstanceType<Events>).addListener;
             ({}) as InstanceType<Events> satisfies EventEmitter;
         });
 
         it("extends EventEmitter on behavior with swapped cluster", () => {
             type Events = ClusterEvents.Type<MyClusterTyping, typeof MyClusterBehavior>;
-            (({}) as InstanceType<Events>).addListener;
+            ({} as InstanceType<Events>).addListener;
             ({}) as InstanceType<Events> satisfies EventEmitter;
         });
 
         it("extends EventEmitter on behavior with swapped cluster having enabled events", () => {
             type Events = ClusterEvents.Type<MyClusterWithOptEvent, typeof MyClusterBehavior>;
-            (({}) as InstanceType<Events>).addListener;
+            ({} as InstanceType<Events>).addListener;
             ({}) as InstanceType<Events> satisfies EventEmitter;
         });
 

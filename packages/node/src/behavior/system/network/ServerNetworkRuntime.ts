@@ -158,6 +158,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         const network = this.owner.env.get(Network);
 
         const port = this.owner.state.network.port;
+        const tcpConfig = NetworkServer.resolveTcpConfig(netconf.tcp);
 
         // When port is auto-assigned (0/undefined), we need both IPv6 and IPv4 UDP on the same port.
         // The OS may assign an IPv6 port already taken on IPv4, so we retry up to 10 times.
@@ -200,13 +201,20 @@ export class ServerNetworkRuntime extends NetworkRuntime {
                 }
             }
 
-            const tcpConfig = NetworkServer.resolveTcpConfig(netconf.tcp);
+            // TCP support is reported in our session parameters (not only mDNS) so peers learn it during PASE/CASE and
+            // can select TCP for sessions they initiate to us
+            const sessions = this.owner.env.get(SessionManager);
+            sessions.sessionParameters = {
+                supportedTransports: { tcpClient: tcpConfig.outgoing, tcpServer: tcpConfig.incoming },
+                maxTcpMessageSize: tcpConfig.maxMessageSize,
+            };
             let tcpTransport: TcpTransport | undefined;
             if (tcpConfig.incoming || tcpConfig.outgoing) {
                 try {
                     tcpTransport = await TcpTransport.create({
                         network,
                         listeningPort: tcpConfig.incoming ? ipv6Interface.port : undefined,
+                        maxMessageSize: tcpConfig.maxMessageSize,
                     });
                 } catch (error) {
                     if (error instanceof AddressInUseError && attempt < maxPortRetries) {
@@ -352,14 +360,10 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
         await owner.act("start-network", agent => agent.load(ProductDescriptionServer));
 
-        // Apply settings to environmental components. TCP support is reported in our session parameters (not only
-        // mDNS) so peers learn it during PASE/CASE and can select TCP for sessions they initiate to us.
+        // Apply settings to environmental components
         env.get(SessionManager).sessionParameters = {
             maxPathsPerInvoke: this.owner.state.basicInformation.maxPathsPerInvoke,
             ...this.owner.state.sessions.intervals,
-            ...(tcpConfig.incoming || tcpConfig.outgoing
-                ? { supportedTransports: { tcpClient: tcpConfig.outgoing, tcpServer: tcpConfig.incoming } }
-                : {}),
         };
 
         await this.#initializeGroupNetworking();

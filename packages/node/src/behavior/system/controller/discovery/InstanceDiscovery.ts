@@ -8,7 +8,7 @@ import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import type { MaybePromise } from "@matter/general";
 import { Discovery } from "./Discovery.js";
-import { DiscoveryError } from "./DiscoveryError.js";
+import { DeviceNotDiscoveredError } from "./DiscoveryError.js";
 
 /**
  * Locates a single node and returns it.
@@ -23,13 +23,24 @@ export class InstanceDiscovery extends Discovery<ClientNode> {
     }
 
     protected onDiscovered(node: ClientNode) {
+        // The first node found is the result; devices still being prepared when it arrives do not replace it
+        if (this.#result !== undefined) {
+            return;
+        }
         this.#result = node;
         this.stop();
     }
 
+    /**
+     * Once the node is found the result stands, so a later interruption is ignored.
+     */
+    protected override onInterrupt() {
+        return this.#result === undefined;
+    }
+
     protected onComplete(): MaybePromise<ClientNode> {
         if (this.#result === undefined) {
-            throw new DiscoveryError(`${this} failed: Node not found`);
+            throw new DeviceNotDiscoveredError(`${this} failed: Node not found`);
         }
         return this.#result;
     }

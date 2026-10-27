@@ -52,10 +52,9 @@ describe("Peers#instrumentBasicInformation", () => {
         }
     });
 
-    // The observer that watches for seeding stays attached while a node has not seeded, and delete()
+    // Peers evaluates seeding on every lifecycle change of a peer that has not seeded, and delete()
     // emits lifecycle.changed after the behaviors are gone. Reading state from there throws
-    // uninitialized-dependency, which surfaced as an unhandled handler error when a case
-    // decommissioned a peer whose structure read had not finished.
+    // uninitialized-dependency, which would surface as an unhandled handler error.
     it("does not read a closing node's state when it never seeded", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
@@ -63,7 +62,7 @@ describe("Peers#instrumentBasicInformation", () => {
         const peerAddress = controller.peers.get("peer1")!.peerAddress!;
         await MockTime.resolve(controller.peers.get("peer1")!.delete());
 
-        // A freshly recreated peer has no structure read yet, so the observer stays attached
+        // A freshly recreated peer has no structure read yet, so it does not seed
         const peer = await controller.peers.forAddress(peerAddress);
         peer.behaviors.require(BasicInformationClient);
         controller.env.get(ClientStructureEvents).emitCluster(peer, BasicInformationClient);

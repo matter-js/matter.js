@@ -26,6 +26,7 @@ import {
     PeerAddressSet,
     PeerSet,
     Subscription,
+    SubscriptionId,
     TransientPeerCommunicationError,
 } from "@matter/protocol";
 import { Status, StatusResponseError } from "@matter/types";
@@ -169,18 +170,34 @@ export class SubscriptionsServer extends Behavior {
 
     #subscriptionCancelled(subscription: Subscription): MaybePromise {
         if (subscription.isTerminated && this.state.persistenceEnabled !== false) {
-            const { subscriptionId: id } = subscription;
-            const subscriptionIndex = this.state.subscriptions.findIndex(({ subscriptionId }) => id === subscriptionId);
-            if (subscriptionIndex !== -1) {
-                return this.#removeSubscriptionIndex(subscriptionIndex);
-            }
+            return this.#removeSubscription(subscription.subscriptionId);
         }
     }
 
-    async #removeSubscriptionIndex(index: number) {
+    async #removeSubscription(id: SubscriptionId) {
+        await this.#updateStored(subscriptions => subscriptions.filter(({ subscriptionId }) => subscriptionId !== id));
+    }
+
+    /**
+     * Re-establishment re-adds subscriptions newest first.  Put them back in creation order, which the next
+     * re-establishment depends on, with subscriptions added since this run started after them.
+     */
+    async #restoreCreationOrder(formerSubscriptions: PeerSubscription[]) {
+        const formerIndex = new Map(formerSubscriptions.map(({ subscriptionId }, index) => [subscriptionId, index]));
+        const orderOf = ({ subscriptionId }: PeerSubscription) =>
+            formerIndex.get(subscriptionId) ?? formerSubscriptions.length;
+
+        await this.#updateStored(subscriptions => [...subscriptions].sort((a, b) => orderOf(a) - orderOf(b)));
+    }
+
+    /**
+     * Change the stored subscriptions outside a locked reactor.  The list is read only under the lock, because adds
+     * and removals of other subscriptions commit while this waits for it.
+     */
+    async #updateStored(update: (subscriptions: readonly PeerSubscription[]) => PeerSubscription[]) {
         await this.context.transaction.addResources(this);
         await this.context.transaction.begin();
-        this.state.subscriptions.splice(index, 1);
+        this.state.subscriptions = update(this.state.subscriptions);
         await this.context.transaction.commit();
     }
 
@@ -268,7 +285,9 @@ export class SubscriptionsServer extends Behavior {
                         return;
                     }
 
-                    for (const subscription of peerSubscriptions) {
+                    // Newest first: an older entry is likelier the one the peer dropped, and InvalidSubscription ends
+                    // this peer's loop
+                    for (const subscription of peerSubscriptions.reverse()) {
                         const { subscriptionId } = subscription;
                         if (peerStopList.has(peerAddress)) {
                             logger.debug(
@@ -313,6 +332,8 @@ export class SubscriptionsServer extends Behavior {
         } finally {
             interactionServer.subscriptionEstablishmentStarted.off(blockHandler);
         }
+
+        await this.#restoreCreationOrder(formerSubscriptions);
 
         logger.info(
             `Reestablished ${successfulReEstablishments.length}${successfulReEstablishments.length ? ` (${successfulReEstablishments.join(",")})` : ""} of ${formerSubscriptions.length} former subscriptions successfully`,

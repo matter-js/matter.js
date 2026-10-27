@@ -5,9 +5,8 @@
  */
 
 import { Subject } from "#action/server/Subject.js";
-import type { Fabric } from "#fabric/Fabric.js";
 import { BasicMap, Bytes, DataWriter, ipv6BytesToString } from "@matter/general";
-import { EndpointNumber, GroupId } from "@matter/types";
+import { EndpointNumber, FabricId, GroupId } from "@matter/types";
 import { GroupKeySetMissingError } from "./errors.js";
 import { KeySets, OperationalKeySet } from "./KeySets.js";
 
@@ -18,7 +17,7 @@ export type GroupMulticastPolicy = "ianaAddr" | "perGroupId";
 export const IANA_GROUPCAST_MULTICAST_ADDRESS = "ff05::fa";
 
 export class Groups {
-    #fabric: Fabric;
+    readonly #fabricId: FabricId;
     #keySets: KeySets<OperationalKeySet>;
 
     /** Operational variant of the group key map attribute from Group Key Management cluster, maps group Ids to key sets. */
@@ -34,8 +33,8 @@ export class Groups {
      */
     readonly #groupMulticastPolicy = new BasicMap<GroupId, GroupMulticastPolicy>();
 
-    constructor(fabric: Fabric, keySets: KeySets<OperationalKeySet>) {
-        this.#fabric = fabric;
+    constructor(fabricId: FabricId, keySets: KeySets<OperationalKeySet>) {
+        this.#fabricId = fabricId;
         this.#keySets = keySets;
     }
 
@@ -109,7 +108,7 @@ export class Groups {
         writer.writeUInt16(0xff35);
         writer.writeUInt16(0x0040);
         writer.writeUInt8(0xfd);
-        writer.writeUInt64(this.#fabric.fabricId);
+        writer.writeUInt64(this.#fabricId);
         writer.writeUInt8(0x00);
         writer.writeUInt16(GroupId(groupId));
         return ipv6BytesToString(writer.toByteArray());

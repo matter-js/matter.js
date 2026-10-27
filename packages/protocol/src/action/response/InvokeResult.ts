@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ClusterId, CommandId, CommandPath, EndpointNumber, Status, TlvStream } from "@matter/types";
+import type { ResultStatus } from "#action/response/ResultStatus.js";
+import type { ClusterId, CommandId, CommandPath, EndpointNumber, TlvStream } from "@matter/types";
 
 export type InvokeResult = AsyncIterable<InvokeResult.Chunk>;
 
@@ -23,12 +24,10 @@ export namespace InvokeResult {
         commandId: CommandId;
     }
 
-    export interface CommandStatus {
+    export interface CommandStatus extends ResultStatus {
         kind: "cmd-status";
         path: ConcreteCommandPath;
         commandRef?: number;
-        status: Status;
-        clusterStatus?: number;
     }
 
     export interface CommandResponse {

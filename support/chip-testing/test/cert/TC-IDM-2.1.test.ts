@@ -7,10 +7,11 @@
 import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { AttributePathSpec, CertStepContext, CheckRecord } from "@matter/testing";
-import { certTest, flavorFamily } from "@matter/testing";
+import { certTest, CertStepNotApplicableError, flavorFamily } from "@matter/testing";
 import type { RecordedCheck } from "./tc-support.js";
 import {
     attempt,
+    chunkingNotApplicableOverTcp,
     CommissionedRefs,
     expectAttributePathIB,
     expectChunkedTransfer,
@@ -224,7 +225,9 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 },
             ]);
         }),
-        { expected: "Verify that the TH receives the right Read Request Message." },
+        {
+            expected: "Verify that the TH receives the right Read Request Message.",
+        },
     )
     .step(
         3,
@@ -254,7 +257,9 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 },
             ]);
         }),
-        { expected: "Verify that the TH receives the right Read Request Message." },
+        {
+            expected: "Verify that the TH receives the right Read Request Message.",
+        },
     )
     .step(
         4,
@@ -307,7 +312,9 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 },
             ]);
         }),
-        { expected: "Verify that the TH receives the right Read Request Message." },
+        {
+            expected: "Verify that the TH receives the right Read Request Message.",
+        },
     )
     .step(
         6,
@@ -364,7 +371,9 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 },
             ]);
         }),
-        { expected: "Verify that the TH receives the right Read Request Message." },
+        {
+            expected: "Verify that the TH receives the right Read Request Message.",
+        },
     )
     .step(
         8,
@@ -728,6 +737,10 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
 
             const spec: AttributePathSpec = {};
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
+            const overTcp = chunkingNotApplicableOverTcp(th.log, th.flavor, logCheck);
+            if (overTcp !== undefined) {
+                throw new CertStepNotApplicableError(overTcp);
+            }
             const checks: RecordedCheck[] = [
                 logCheckOf(logCheck),
                 {
@@ -811,6 +824,8 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 },
             ]);
         }),
-        { expected: "Verify that the TH receives the right Read Request Message." },
+        {
+            expected: "Verify that the TH receives the right Read Request Message.",
+        },
     )
     .finalize(cx => commissioned.decommissionAll(cx));

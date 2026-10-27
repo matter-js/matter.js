@@ -128,7 +128,7 @@ async function recordBusyThenAvailable(cx: CertStepContext) {
     if (ref === undefined) {
         throw new CertCheckFailedError("the TH was not commissioned by the precondition step");
     }
-    const delay = delayedActionTime();
+    const delay = delayedActionTime(cx);
 
     await dut.node(ref).scriptOtaProvider({
         queryImage: [{ status: OtaQueryStatus.Busy, delayedActionTime: delay }],
@@ -154,11 +154,11 @@ async function recordBusyThenAvailable(cx: CertStepContext) {
         },
         {
             what: "that answer named the DelayedActionTime the case scripted",
-            check: () => delayedActionTimeCheck(queries[0]?.response.delayedActionTime),
+            check: () => delayedActionTimeCheck(cx, queries[0]?.response.delayedActionTime),
         },
         {
             what: "the value scripted is the one the plan names",
-            check: () => planDelayCoverageCheck(),
+            check: () => planDelayCoverageCheck(cx),
         },
         {
             what: "the DUT answered the TH's next QueryImage UpdateAvailable",
@@ -195,6 +195,7 @@ certTest("TC-SU-3.2", {
     plan: "softwareupdate.adoc",
     pics: ["MCORE.OTA.Provider"],
     app: "ota-requestor",
+    controllerCapabilities: ["ota-provider", "ota-provider-script"],
 })
     .step(
         "0a",

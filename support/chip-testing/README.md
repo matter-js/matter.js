@@ -122,7 +122,7 @@ depending on flavor. This validates matter.js as a **controller**, not just as a
 Which TH implementation a run uses is chosen by `MATTER_CERT_DEVICE`:
 
 -   **`matterjs`** — TH is an in-process matter.js `TestInstance` (e.g. `AllClustersTestInstance`).
-    No Docker, no external binary; the fastest loop for iterating on a TC's own step logic. Not a
+    No external binary; the fastest loop for iterating on a TC's own step logic. Not a
     certification claim by itself — see `test/cert/AGENTS.md`'s "Flavor policy" section.
 -   **`chip-local`** — TH is a real `chip-<app>-app` binary, spawned as a local child process.
     Needs `MATTER_CERT_APP_DIR` pointed at a directory containing the binaries (built from a
@@ -174,6 +174,8 @@ directory of symlinks to each app's own build output).
 | `MATTER_CERT_DEVICE`          | Flavor: `matterjs`, `chip-local`, or `chip-docker`.                                        | `matterjs`                      |
 | `MATTER_CERT_APP_DIR`         | Directory containing the CHIP app binaries (`chip-<app>-app`, or CHIP's own name where it differs) (`chip-local` only, ignored when `MATTER_CHIP_BINS_SOURCE=cert-bins` — see "Choosing a CHIP binary source" above). | none (required for `chip-local`) |
 | `MATTER_CERT_CHIP_IMAGE_BASE` | Docker image base name for `chip-docker` (image pulled is `<base>-<app>:latest`).          | `ghcr.io/matter-js/chip`        |
+| `MATTER_CERT_CONTROLLER`      | Controller under test: `matterjs` (in process), `chip-tool`, or `matterjs-server` (a server run as a child process and driven through its WebSocket API; it serves only the DUT role, so helper roles run on `matterjs`). | `matterjs`                      |
+| `MATTER_CERT_SERVER_ENTRY`    | Entry point of the server for `MATTER_CERT_CONTROLLER=matterjs-server`: a `.js`/`.mjs`/`.cjs` file run with the current Node, or a command line that starts the server directly. The run record names it. | none (required for `matterjs-server`) |
 | `MATTER_CERT_EVIDENCE_DIR`    | Where `result.json`/`*.log` evidence bundles are written.                                  | `<package cwd>/cert-evidence`   |
 | `MATTER_CERT_TH_SERVER_APP_PATH` | Container-side path to a TH_SERVER binary for python-wrapped TCs (e.g. `TC-SC-3.5`); unset means the TC self-skips. | none |
 | `MATTER_CERT_CAMERA_APP_PATH` | Container-side path to `chip-camera-app`, the TH_SERVER of the WebRTC TCs (e.g. `TC-WEBRTCR-2.1`); unset means the TC self-skips. | none |
@@ -230,6 +232,9 @@ attached log stream (`device-<role>.log`, `controller-<name>.log`). Sketch of `r
     "run": {
         "timestamp": "2026-08-08T07:37:17.811Z",
         "controller": "dut",
+        "controllerImplementation": "matterjs-server",
+        "helperControllerImplementation": "matterjs",
+        "controllerBuild": { "entry": "dist/main.js", "sdkVersion": "0.18.0", "schemaVersion": "14" },
         "devices": [{ "role": "th", "app": "all-clusters", "flavor": "chip-local", "chipRef": "..." }],
         "matterJsCommit": "25dd21a01533bd9434b0e8a42e6f96d9ba1ad878"
     },
@@ -246,10 +251,24 @@ attached log stream (`device-<role>.log`, `controller-<name>.log`). Sketch of `r
 }
 ```
 
-A run-level `verdict` is one of `"pass" | "fail" | "unverified" | "skipped" | "incomplete"`; a step's
-is `"pass" | "fail" | "unverified" | "skipped" | "aborted"` (`"aborted"` for a step never reached
-after an earlier one failed). A run-level `"skipped"` means every step was skipped (a flavor or PICS
-gap) — not a failure.
+`helperControllerImplementation` is present only where the helper roles run on another implementation than
+`controllerImplementation`. `controllerBuild` is present only for a controller that runs outside the test process
+(`matterjs-server`): it names the entry point and the server's SDK and schema version, because the same
+`MATTER_CERT_SERVER_ENTRY` variable can point at any build.
+
+A run-level `verdict` is one of `"pass" | "fail" | "unverified" | "controller-gap" | "error" | "skipped" |
+"incomplete"`; a step's is `"pass" | "fail" | "unverified" | "skipped" | "aborted" | "error"` (`"aborted"` for a
+step never reached after an earlier one failed). A run-level `"skipped"` means every step was skipped (a flavor or
+PICS gap), or the whole test case is out of the DUT controller's scope — not a failure. Such a test case writes a
+record with `outOfScope` naming the controller's reason and no devices.
+
+`"controller-gap"` means the run failed nothing but skipped at least one step, or the whole test case, because the
+controller under test lacks a capability the plan needs (`controllerUnsupportedSkips`, or `controllerGap` for a
+test case skipped as a whole, whose record names no devices). A step or test case that needs a capability the
+controller lacks is a gap, also when it needs another capability that is out of scope. Every step of a plan has to
+run for it to pass, so mocha reports such a test as pending. `"error"` means the run stopped on a defect of the framework or of a
+declaration, such as a controller refusing a capability the step did not declare, not on the device; a device that
+exited during such a run still makes it `"fail"`.
 
 `"unverified"` means the step ran without failing but one of its checks could not be evaluated, so it
 observed less than it claims; the test itself then fails, and the run reads `"unverified"` unless
@@ -268,9 +287,11 @@ and, where they apply, `deviceExit`, `finalizationError` (cleanup threw), `teard
 controller or device would not close) and `evidenceError` (evidence the checks cite could not be
 assembled). `unverifiedChecks` counts checks whose claim could not be evaluated at all, those that
 stated a reason in `accepted` included, so it says how much the run left unobserved whatever the
-verdicts say; `controllerUnsupportedSkips` counts steps the controller could not express and
-`picsSkips` counts steps their own PICS excluded — both gaps in what a passing run proved rather than
-failures. A `picsSkips` figure that changes without the plan changing is worth reading as a PICS value
+verdicts say; `controllerUnsupportedSkips` counts steps skipped for a capability the controller lacks, which keep
+the run from passing, `outOfScopeSkips` counts steps that need a capability the DUT controller deliberately does not
+offer (its `outOfScope` registration), which do not keep the run from `"pass"`, and `picsSkips` counts steps their own
+PICS excluded, a gap in what a passing run proved
+rather than a failure. A `picsSkips` figure that changes without the plan changing is worth reading as a PICS value
 gone wrong: the step skips just as quietly either way.
 
 Every attached `.log` file also carries a step-boundary banner (chip python/yaml style) at the point

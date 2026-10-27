@@ -61,6 +61,12 @@ export namespace ConditionAssertions {
         conditionsOf(endpoint: E): Set<string>;
 
         /**
+         * The names among the {@link conditionsOf conditions} of {@link endpoint} that are true only because a device
+         * type in the node scope asserts them at the `Root` location; empty for every endpoint but the node endpoint.
+         */
+        rootAssertedOf(endpoint: E): ReadonlySet<string>;
+
+        /**
          * The asserted `Descendant` condition requirements of {@link endpoint}; empty for an endpoint outside the node
          * scope.
          */
@@ -358,6 +364,8 @@ export enum NodeCondition {
 
 const nodeConditionNames: ReadonlySet<string> = new Set(Object.values(NodeCondition));
 
+const NO_NAMES: ReadonlySet<string> = new Set();
+
 const interfaceConditions = new Map<string, NodeCondition>([
     ["WI", NodeCondition.WiFi],
     ["TH", NodeCondition.Thread],
@@ -383,6 +391,7 @@ class ScopeConditions<E> implements ConditionAssertions.Collection<E> {
     readonly #underived = new Map<E, Set<string>>();
     readonly #assertions = new Map<E, Assertion[]>();
     readonly #conditions = new Map<E, Set<string>>();
+    readonly #rootAsserted = new Set<string>();
     readonly #descendantAssertions = new Map<E, ConditionAssertions.DescendantAssertion<E>[]>();
 
     constructor(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>) {
@@ -397,6 +406,14 @@ class ScopeConditions<E> implements ConditionAssertions.Collection<E> {
             this.#conditions.set(endpoint, conditions);
         }
         return conditions;
+    }
+
+    rootAssertedOf(endpoint: E): ReadonlySet<string> {
+        if (endpoint !== this.#nodeEndpoint) {
+            return NO_NAMES;
+        }
+        this.conditionsOf(endpoint);
+        return this.#rootAsserted;
     }
 
     descendantAssertionsOf(endpoint: E) {
@@ -425,6 +442,9 @@ class ScopeConditions<E> implements ConditionAssertions.Collection<E> {
      * ancestors whose composition scope covers it at their descendants, and, for the node endpoint, by any reaching
      * endpoint at the node endpoint. An asserted condition never triggers another condition requirement; chains are not
      * followed.
+     *
+     * Also records the names that only the assertions at the node endpoint make true, which {@link rootAssertedOf}
+     * answers.
      */
     #assertedOn(endpoint: E) {
         const pass = this.#pass;
@@ -442,6 +462,9 @@ class ScopeConditions<E> implements ConditionAssertions.Collection<E> {
                 asserting => this.#assertedAtRootBy(asserting),
             );
             for (const name of asserted) {
+                if (!conditions.has(name)) {
+                    this.#rootAsserted.add(name);
+                }
                 conditions.add(name);
             }
         }

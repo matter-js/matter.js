@@ -203,7 +203,7 @@ describe("a peer that reports its bridge across two interactions", () => {
         const peer = controller.peers.get("peer1")!;
 
         const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
-        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+        const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
         // *** THE ROOT'S LIST, AND NOTHING ELSE ***
 
@@ -251,7 +251,7 @@ describe("a peer that reports its bridge across two interactions", () => {
         const peer = controller.peers.get("peer1")!;
 
         const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
-        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+        const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
         // The whole bridge, named by the root alone: every part is claimed and none can be placed yet
         await drain(
@@ -294,7 +294,7 @@ describe("a peer that reports its bridge across two interactions", () => {
         const peer = controller.peers.get("peer1")!;
 
         const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
-        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+        const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
         // chip's composed device: a bridged node that is also a power source, and nothing else. Named
         // by the root first, so the endpoint exists carrying the unknown sentinel before its own
@@ -335,7 +335,7 @@ describe("a peer that reports its bridge across two interactions", () => {
         const peer = controller.peers.get("peer1")!;
 
         const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
-        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+        const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
         await drain(
             structure.mutate(
@@ -372,7 +372,7 @@ describe("a peer whose root omits an endpoint it serves", () => {
         const { controller } = await site.addCommissionedPair({ device: { type: ServerNode.RootEndpoint } });
         const peer = controller.peers.get("peer1")!;
         const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
-        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+        const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
         // The root names only the plugs; the aggregator names them too but nothing names the aggregator
         const root = [descriptorAttr(0, Descriptor.attributes.partsList.id, PLUGS, 10)];
@@ -426,7 +426,7 @@ describe("a peer that changes what it says between interactions", () => {
         const { controller } = await site.addCommissionedPair({ device: { type: ServerNode.RootEndpoint } });
         const peer = controller.peers.get("peer1")!;
         const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
-        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+        const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
         return { site, peer, structure, request };
     }
 
@@ -792,7 +792,7 @@ describe("a peer that reports an aggregator below an aggregator", () => {
         const { controller } = await site.addCommissionedPair({ device: { type: ServerNode.RootEndpoint } });
         const peer = controller.peers.get("peer1")!;
         const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
-        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+        const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
         return { site, peer, structure, request };
     }
 
@@ -1089,7 +1089,7 @@ describe("a peer that bridges a device of several endpoints", () => {
         const { controller } = await site.addCommissionedPair({ device: { type: ServerNode.RootEndpoint } });
         const peer = controller.peers.get("peer1")!;
         const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
-        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+        const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
         return { site, peer, structure, request };
     }
 

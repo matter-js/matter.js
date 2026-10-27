@@ -14,12 +14,16 @@ import { ClientEndpointStore } from "./ClientEndpointStore.js";
 import { LocalWriter } from "./LocalWriter.js";
 import type { RemoteWriter } from "./RemoteWriter.js";
 
+const FABRIC_FILTERED_KEY = "fabricFiltered";
+
 /**
  * {@link ClientNode} persistence.
  */
 export class ClientNodeStore extends NodeStore {
     #id: string;
     #storage?: StorageContext;
+    #cacheStorage?: StorageContext;
+    #cacheFabricFiltered?: boolean;
     #stores = new Map<EndpointNumber, ClientEndpointStore>();
     #write?: RemoteWriter;
     #localWriter?: LocalWriter;
@@ -73,6 +77,25 @@ export class ClientNodeStore extends NodeStore {
         this.#buffer = buffer;
     }
 
+    /**
+     * The fabric filter of the interactions the cached cluster data and data versions come from, or undefined if not
+     * recorded yet.
+     */
+    get cacheFabricFiltered() {
+        return this.#cacheFabricFiltered;
+    }
+
+    /**
+     * Record the fabric filter of the cache in storage.
+     */
+    async recordCacheFabricFiltered(fabricFiltered: boolean) {
+        if (this.#cacheStorage === undefined) {
+            throw new InternalError(`Cache storage of ${this} accessed before load`);
+        }
+        await this.#cacheStorage.set(FABRIC_FILTERED_KEY, fabricFiltered);
+        this.#cacheFabricFiltered = fabricFiltered;
+    }
+
     get endpointStores() {
         return this.#stores.values();
     }
@@ -100,6 +123,11 @@ export class ClientNodeStore extends NodeStore {
                     return this.#storage?.clearAll();
                 },
 
+                () => {
+                    this.#cacheFabricFiltered = undefined;
+                    return this.#cacheStorage?.clearAll();
+                },
+
                 () => this.construction.close(),
             ],
             `Error while erasing ${this}`,
@@ -124,6 +152,7 @@ export class ClientNodeStore extends NodeStore {
 
     protected override async load() {
         this.#storage = this.storageFactory.createContext("endpoints");
+        this.#cacheStorage = this.storageFactory.createContext("cache");
         for (const id of await this.#storage.contexts()) {
             const number = Number.parseInt(id) as EndpointNumber;
             if (!Number.isFinite(number)) {
@@ -133,6 +162,10 @@ export class ClientNodeStore extends NodeStore {
             const store = new ClientEndpointStore(this, number, this.#storage.createContext(id));
             await store.load();
             this.#stores.set(number, store);
+        }
+
+        if (await this.#cacheStorage.has(FABRIC_FILTERED_KEY)) {
+            this.#cacheFabricFiltered = await this.#cacheStorage.get<boolean>(FABRIC_FILTERED_KEY);
         }
     }
 }

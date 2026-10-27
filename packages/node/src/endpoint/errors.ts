@@ -6,8 +6,7 @@
 
 import type { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { describeList, ImplementationError, MatterAggregateError, MatterError } from "@matter/general";
-import type { ReadResult } from "@matter/protocol";
-import type { Status } from "@matter/types";
+import type { ReadResult, ResultStatus } from "@matter/protocol";
 import type { Endpoint } from "./Endpoint.js";
 
 /**
@@ -87,10 +86,8 @@ export class AttributeNotPresentError extends MatterError {
 /**
  * Describes a single failed attribute read.
  */
-export interface EndpointReadFailure {
+export interface EndpointReadFailure extends Readonly<ResultStatus> {
     readonly path: ReadResult.ConcreteAttributePath;
-    readonly status: Status;
-    readonly clusterStatus?: number;
 }
 
 /**

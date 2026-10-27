@@ -8,7 +8,7 @@ import type { PicsFile } from "../pics/file.js";
 import type { PicsValues } from "../pics/values.js";
 import type { CertTestDefinition, DeviceFlavor, SelectableDeviceFlavor } from "./cert-context.js";
 import { controllerPicsOverridesFor } from "./controller-adapter.js";
-import { resolveControllerImplementation, resolveDeviceFlavor } from "./device-config.js";
+import type { ControllerImplementation } from "./device-config.js";
 
 const appPics = new Map<string, PicsValues>();
 
@@ -55,7 +55,8 @@ export function unregisterCertAppPics(flavor: SelectableDeviceFlavor, app: strin
 }
 
 /**
- * `base` with the self-declarations of both sides applied, the DUT's own side last.
+ * `base` with the self-declarations of both sides applied, the DUT's own side last; `controller` is the selected
+ * controller implementation (`ControllerSelection.dut`) and `flavor` the device flavor the case was collected for.
  *
  * The PICS file describes a generic device, and both a controller and a cert app state what they are
  * on top of it. Where the two disagree the DUT's side wins, because the claim a step makes is about
@@ -68,9 +69,11 @@ export function unregisterCertAppPics(flavor: SelectableDeviceFlavor, app: strin
 export function picsWithOverrides(
     base: PicsFile,
     definition: Pick<CertTestDefinition, "app" | "dutIsDevice" | "dutApp">,
+    controller: ControllerImplementation,
+    flavor: DeviceFlavor | undefined,
 ) {
-    const controllerOverrides = controllerPicsOverridesFor(resolveControllerImplementation());
-    const appOverrides = certAppPicsOverridesFor(resolveDeviceFlavor(), definition.dutApp ?? definition.app);
+    const controllerOverrides = controllerPicsOverridesFor(controller);
+    const appOverrides = certAppPicsOverridesFor(flavor, definition.dutApp ?? definition.app);
     return definition.dutIsDevice === true
         ? base.with(controllerOverrides).with(appOverrides)
         : base.with(appOverrides).with(controllerOverrides);

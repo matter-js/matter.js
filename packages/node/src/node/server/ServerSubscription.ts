@@ -599,7 +599,6 @@ export class ServerSubscription implements Subscription {
                         // The session is left alone: failing to push reports says nothing about whether the
                         // controller can still reach us, and recovery is its call regardless
                         using _messaging = updating?.join("abandoning");
-                        this.#isTerminated = true;
                         await this.#closeFromUpdate();
                         break;
                     } else {
@@ -764,13 +763,20 @@ export class ServerSubscription implements Subscription {
     }
 
     /**
-     * Closes the subscription and flushes all outstanding data updates if requested.
+     * Ends the subscription for good and flushes all outstanding data updates if requested.
      */
     async close(flushViaSession?: Session, currentExchange?: MessageExchange) {
-        if (this.#isClosed) {
+        await this.#close(true, flushViaSession, currentExchange);
+    }
+
+    async closeForShutdown(flushViaSession?: Session) {
+        await this.#close(false, flushViaSession);
+    }
+
+    async #close(terminate: boolean, flushViaSession?: Session, currentExchange?: MessageExchange) {
+        if (!this.#markClosed(terminate)) {
             return;
         }
-        this.#isClosed = true;
         using _closing = this.#lifetime?.closing();
 
         await this.#cancel(flushViaSession, currentExchange);
@@ -783,12 +789,23 @@ export class ServerSubscription implements Subscription {
 
     /** Close from within the update loop, which {@link close} would wait on -- it is our own caller. */
     async #closeFromUpdate() {
-        if (this.#isClosed) {
+        if (!this.#markClosed(true)) {
             return;
         }
-        this.#isClosed = true;
         using _closing = this.#lifetime?.closing();
         await this.#cancel();
+    }
+
+    /** Returns false if the subscription was already closed. */
+    #markClosed(terminate: boolean) {
+        if (this.#isClosed) {
+            return false;
+        }
+        this.#isClosed = true;
+        if (terminate) {
+            this.#isTerminated = true;
+        }
+        return true;
     }
 
     /** Whether our in-flight update is sending on this exchange, making it this close's own caller. */
@@ -893,7 +910,8 @@ export class ServerSubscription implements Subscription {
                 using _sending = lifetime?.join("sending keepalive");
                 await messenger.sendDataReport({
                     baseDataReport: {
-                        suppressResponse: true, // suppressResponse true for empty DataReports
+                        // Requested so the peer's INVALID_SUBSCRIPTION answer (Core § 8.5) is read on every transport
+                        suppressResponse: false,
                         subscriptionId: this.subscriptionId,
                         interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
                     },
@@ -920,11 +938,13 @@ export class ServerSubscription implements Subscription {
         } catch (error) {
             if (StatusResponseError.is(error, Status.InvalidSubscription, Status.Failure)) {
                 logger.notice(`Subscription ${this.idStr} reported invalid by peer`);
-                this.#isTerminated = true;
             } else {
                 StatusResponseError.accept(error);
                 logger.info(`Subscription ${this.idStr} update failed:`, error);
             }
+
+            // The peer refused the report, which ends the subscription even during a shutdown close
+            this.#isTerminated = true;
 
             using _canceling = lifetime?.join("canceling");
             await this.#closeFromUpdate();

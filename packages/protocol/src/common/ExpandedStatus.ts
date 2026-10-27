@@ -6,10 +6,12 @@
 
 import { decamelize } from "@matter/general";
 import { ClusterModel, Matter, MatterModel } from "@matter/model";
-import { ClusterId, Status } from "@matter/types";
+import { ClusterId, Status, StatusResponseError } from "@matter/types";
 
 /**
  * Detailed status information expanded from status codes.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 8.10
  *
  * TODO - maybe update codegen to include description in operational models so we can use as detailed error message
  */
@@ -24,12 +26,7 @@ export class ExpandedStatus {
 
         let statusStr: undefined | string;
         if (status !== Status.Failure) {
-            const name = Status[this.status];
-            if (name === undefined) {
-                statusStr = `unknown-${this.status}`;
-            } else {
-                statusStr = decamelize(name);
-            }
+            statusStr = StatusResponseError.idOf(this.status);
         }
 
         if (clusterStatus === undefined) {

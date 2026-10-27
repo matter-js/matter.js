@@ -8,8 +8,10 @@ import { env } from "node:process";
 import type { SelectableDeviceFlavor } from "./cert-context.js";
 
 /**
- * Thrown when `MATTER_CERT_DEVICE` or `MATTER_CERT_CONTROLLER` names no known implementation. Extends `Error` because
- * `@matter/testing` does not depend on `@matter/general`.
+ * Thrown when the cert-test environment cannot be turned into a running setup: `MATTER_CERT_DEVICE` or
+ * `MATTER_CERT_CONTROLLER` names no known implementation, `MATTER_CERT_SERVER_ENTRY` is missing or empty for the
+ * `matterjs-server` controller, or the server it names exits early or does not become ready in time. Extends `Error`
+ * because `@matter/testing` does not depend on `@matter/general`.
  */
 export class CertConfigError extends Error {
     override name = "CertConfigError";
@@ -48,10 +50,10 @@ export function resolveDeviceFlavor(): SelectableDeviceFlavor {
 /**
  * Which controller stack a cert-test run drives the DUT with.
  */
-export type ControllerImplementation = "chip-tool" | "matterjs";
+export type ControllerImplementation = "chip-tool" | "matterjs" | "matterjs-server";
 
 function isControllerImplementation(value: string): value is ControllerImplementation {
-    return value === "matterjs" || value === "chip-tool";
+    return value === "matterjs" || value === "chip-tool" || value === "matterjs-server";
 }
 
 /**
@@ -72,5 +74,7 @@ export function resolveControllerImplementation(): ControllerImplementation {
         return value;
     }
 
-    throw new CertConfigError(`Unknown MATTER_CERT_CONTROLLER "${value}" (expected "chip-tool" or "matterjs")`);
+    throw new CertConfigError(
+        `Unknown MATTER_CERT_CONTROLLER "${value}" (expected "chip-tool", "matterjs", or "matterjs-server")`,
+    );
 }

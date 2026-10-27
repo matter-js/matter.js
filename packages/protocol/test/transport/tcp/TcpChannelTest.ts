@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { MessageTooLargeError } from "#protocol/errors.js";
 import { TcpChannel } from "#transport/tcp/TcpChannel.js";
 import {
     Bytes,
@@ -222,7 +223,7 @@ describe("TcpChannel", () => {
     });
 
     describe("oversized message handling", () => {
-        it("rejects message at the size limit", async () => {
+        it("rejects a message one byte over MAX_TCP_MESSAGE_SIZE", async () => {
             const { client, server } = createPair();
             const conn = new TcpChannel(server);
 
@@ -234,14 +235,13 @@ describe("TcpChannel", () => {
             const messages: Bytes[] = [];
             conn.onMessage(data => messages.push(data));
 
-            // Max message content = 64000 - 4 = 63996. Sending 64000 exceeds it.
-            await client.send(lengthHeader(DEFAULT_MAX_TCP_MESSAGE_SIZE));
+            await client.send(lengthHeader(DEFAULT_MAX_TCP_MESSAGE_SIZE + 1));
 
             expect(messages).length(0);
             expect(closed).true;
         });
 
-        it("accepts message just under the size limit", async () => {
+        it("accepts a message of exactly MAX_TCP_MESSAGE_SIZE, which excludes the length header", async () => {
             const { client, server } = createPair();
             const conn = new TcpChannel(server);
 
@@ -253,9 +253,7 @@ describe("TcpChannel", () => {
             const messages: Bytes[] = [];
             conn.onMessage(data => messages.push(data));
 
-            // Max message content = DEFAULT_MAX_TCP_MESSAGE_SIZE - 4 (framing) = 63996
-            // The check is >= so 63995 should be accepted (just under limit)
-            const messageSize = DEFAULT_MAX_TCP_MESSAGE_SIZE - 4 - 1; // 63995
+            const messageSize = DEFAULT_MAX_TCP_MESSAGE_SIZE;
             const payload = new Uint8Array(messageSize);
             for (let i = 0; i < messageSize; i++) {
                 payload[i] = i & 0xff;
@@ -265,6 +263,48 @@ describe("TcpChannel", () => {
 
             expect(messages).length(1);
             expect(Bytes.of(messages[0]).length).equals(messageSize);
+            expect(closed).false;
+
+            await conn.close();
+        });
+
+        it("accepts two maximum-size messages arriving in one chunk", async () => {
+            const { client, server } = createPair();
+            const conn = new TcpChannel(server);
+
+            let closed = false;
+            conn.onClose(() => {
+                closed = true;
+            });
+
+            const messages: Bytes[] = [];
+            conn.onMessage(data => messages.push(data));
+
+            const payload = new Uint8Array(DEFAULT_MAX_TCP_MESSAGE_SIZE);
+            await client.send(concat(frame(payload), frame(payload)));
+
+            expect(messages).length(2);
+            expect(closed).false;
+
+            await conn.close();
+        });
+
+        it("accepts several messages at a small limit arriving in one chunk", async () => {
+            const { client, server } = createPair();
+            const conn = new TcpChannel(server, 1526);
+
+            let closed = false;
+            conn.onClose(() => {
+                closed = true;
+            });
+
+            const messages: Bytes[] = [];
+            conn.onMessage(data => messages.push(data));
+
+            const payload = new Uint8Array(1526);
+            await client.send(concat(frame(payload), frame(payload), frame(payload)));
+
+            expect(messages).length(3);
             expect(closed).false;
 
             await conn.close();
@@ -333,17 +373,9 @@ describe("TcpChannel", () => {
             const { server } = createPair();
             const conn = new TcpChannel(server);
 
-            // maxMessageSize = DEFAULT_MAX_TCP_MESSAGE_SIZE - 4 = 63996
-            const oversized = new Uint8Array(conn.maxMessageSize + 1);
+            const oversized = new Uint8Array(DEFAULT_MAX_TCP_MESSAGE_SIZE + 1);
 
-            let threw = false;
-            try {
-                await conn.send(oversized);
-            } catch (e) {
-                threw = true;
-                expect((e as Error).message).to.include("exceeds TCP limit");
-            }
-            expect(threw).true;
+            await expect(conn.send(oversized)).rejectedWith(MessageTooLargeError, "exceeds TCP limit");
 
             await conn.close();
         });
@@ -352,9 +384,8 @@ describe("TcpChannel", () => {
             const { server } = createPair();
             const conn = new TcpChannel(server);
 
-            const atLimit = new Uint8Array(conn.maxMessageSize);
+            const atLimit = new Uint8Array(DEFAULT_MAX_TCP_MESSAGE_SIZE);
 
-            // Should not throw — maxMessageSize is inclusive
             await conn.send(atLimit);
 
             await conn.close();

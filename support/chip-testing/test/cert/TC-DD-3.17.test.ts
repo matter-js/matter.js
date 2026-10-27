@@ -16,6 +16,7 @@ import {
     INVALID_PASSCODES,
     MANUAL_CODE_GUIDELINES,
     manualPairingCode,
+    PARSES_PAYLOAD,
     recordGeneratedManualCode,
     recordManualParse,
     recordVendorOutcome,
@@ -43,7 +44,10 @@ certTest("TC-DD-3.17", {
         async cx => {
             await recordManualParse(cx, await thManualPairingCode(cx));
         },
-        { expected: "Verify that the Manual Pairing Code can be provided to DUT" },
+        {
+            controllerCapabilities: PARSES_PAYLOAD,
+            expected: "Verify that the Manual Pairing Code can be provided to DUT",
+        },
     )
     .step(
         "2.a",

@@ -18,6 +18,7 @@ import { OtaSoftwareUpdateRequestorServer } from "@matter/main/behaviors/ota-sof
 import { OtaImageWriter } from "@matter/main/protocol";
 import { NodeId, VendorId } from "@matter/main/types";
 import type { CertNodeRef } from "@matter/testing";
+import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 import { expect } from "chai";
 import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAdapter.js";
@@ -49,7 +50,7 @@ function stateName(state: unknown) {
     return typeof state === "number" ? (OtaSoftwareUpdateRequestor.UpdateState[state] ?? `${state}`) : String(state);
 }
 
-/** `QueryStatus` Busy (Matter Core § 11.20.6.5.2). */
+/** `QueryStatus` Busy (Matter Core § 11.20.6.4.1). */
 const OTA_STATUS_BUSY = 1;
 
 /** Kept clear of the 5540 every other subject defaults to, so a start here cannot lose a port race. */
@@ -428,6 +429,87 @@ describe("OtaRequestorTestInstance", () => {
                 throw cleanupFailure;
             }
             console.warn("OtaRequestorTestInstance cleanup failed after the test body already failed:", cleanupFailure);
+        }
+
+        if (bodyFailure !== undefined) {
+            throw bodyFailure;
+        }
+    });
+
+    it("waits past a deferred apply and reports the Discontinue that ends it", async function () {
+        this.timeout(60_000);
+
+        let device: OtaRequestorTestInstance | undefined;
+        let adapter: InProcessControllerAdapter | undefined;
+        let ref: CertNodeRef | undefined;
+        let bodyFailure: unknown;
+
+        // Without it the requestor waits out the two minutes the specification floors a deferral to
+        const fastRetry = process.env.MATTER_CERT_OTA_FAST_RETRY;
+        process.env.MATTER_CERT_OTA_FAST_RETRY = "1";
+        try {
+            device = new OtaRequestorTestInstance({
+                domain: `ota-requestor-test-${Math.random().toString(36).slice(2)}`,
+                commandPipeFactory: async () => {},
+                discriminator: REQUESTOR_DISCRIMINATOR,
+                passcode: REQUESTOR_PASSCODE,
+                port: REQUESTOR_PORT,
+            });
+            await device.initialize();
+            await device.start();
+            expect(device.node.lifecycle.isOnline, "the subject is listening after start()").equal(true);
+
+            adapter = new InProcessControllerAdapter("ota-requestor-dut");
+            await adapter.start();
+
+            ref = await adapter.commission({ passcode: REQUESTOR_PASSCODE, discriminator: REQUESTOR_DISCRIMINATOR });
+            const node = adapter.node(ref);
+
+            await node.scriptOtaProvider({
+                applyUpdate: [
+                    { action: OtaSoftwareUpdateProvider.ApplyUpdateAction.AwaitNextAction, delayedActionTime: 1 },
+                    { action: OtaSoftwareUpdateProvider.ApplyUpdateAction.Discontinue },
+                ],
+            });
+
+            const transfer = await node.serveOtaUpdate({ expectApply: true, applyTimeoutMs: 20_000 });
+            const returnedAt = Time.nowUs;
+
+            expect(transfer.applyAcknowledged, "the apply was refused").equal(false);
+            const applies = transfer.exchanges.applyUpdate;
+            expect(
+                applies.map(({ response }) => response.action),
+                "the ApplyUpdateRequest answers the provider recorded",
+            ).deep.equal([
+                OtaSoftwareUpdateProvider.ApplyUpdateAction.AwaitNextAction,
+                OtaSoftwareUpdateProvider.ApplyUpdateAction.Discontinue,
+            ]);
+
+            // A wait that only timed out would still find both answers in the record, so how soon the
+            // call returned after the Discontinue is what shows that answer settled it
+            expect(returnedAt - applies[1].receivedAtMs, "the wait settled on the Discontinue").below(5_000);
+        } catch (error) {
+            bodyFailure = error;
+        }
+
+        try {
+            await runCleanups(
+                () =>
+                    ref === undefined || adapter === undefined ? Promise.resolve() : adapter.node(ref).decommission(),
+                () => adapter?.close() ?? Promise.resolve(),
+                () => device?.close() ?? Promise.resolve(),
+            );
+        } catch (cleanupFailure) {
+            if (bodyFailure === undefined) {
+                throw cleanupFailure;
+            }
+            console.warn("OtaRequestorTestInstance cleanup failed after the test body already failed:", cleanupFailure);
+        } finally {
+            if (fastRetry === undefined) {
+                delete process.env.MATTER_CERT_OTA_FAST_RETRY;
+            } else {
+                process.env.MATTER_CERT_OTA_FAST_RETRY = fastRetry;
+            }
         }
 
         if (bodyFailure !== undefined) {

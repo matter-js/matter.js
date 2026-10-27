@@ -5,7 +5,9 @@
  */
 
 import { MockFilesystem } from "#fs/MockFilesystem.js";
-import { type WalOp, deserializeCommit, segmentFilename } from "#storage/wal/WalCommit.js";
+import { StorageError } from "#storage/StorageDriver.js";
+import { type WalOp, deserializeCommit } from "#storage/wal/WalCommit.js";
+import { segmentFilename } from "#storage/wal/WalSegments.js";
 import { WalWriter } from "#storage/wal/WalWriter.js";
 
 describe("WalWriter", () => {
@@ -17,7 +19,7 @@ describe("WalWriter", () => {
 
     it("writes a single commit", async () => {
         const walDir = fs.directory("wal");
-        const writer = new WalWriter(walDir, { fsync: false });
+        const writer = new WalWriter(walDir, { fsync: false, firstSegment: 1 });
 
         const ops: WalOp[] = [{ op: "upd", key: "a", values: { x: 1 } }];
         const result = await writer.write(ops);
@@ -38,7 +40,7 @@ describe("WalWriter", () => {
 
     it("writes multiple commits to the same segment", async () => {
         const walDir = fs.directory("wal");
-        const writer = new WalWriter(walDir, { fsync: false });
+        const writer = new WalWriter(walDir, { fsync: false, firstSegment: 1 });
 
         const ops1: WalOp[] = [{ op: "upd", key: "a", values: { x: 1 } }];
         const ops2: WalOp[] = [{ op: "upd", key: "b", values: { y: 2 } }];
@@ -59,7 +61,7 @@ describe("WalWriter", () => {
     it("rotates segment on size threshold", async () => {
         const walDir = fs.directory("wal");
         // Very small max size to force rotation
-        const writer = new WalWriter(walDir, { fsync: false, maxSegmentSize: 10 });
+        const writer = new WalWriter(walDir, { fsync: false, maxSegmentSize: 10, firstSegment: 1 });
 
         const ops1: WalOp[] = [{ op: "upd", key: "a", values: { x: "hello world this is a long value" } }];
         const ops2: WalOp[] = [{ op: "upd", key: "b", values: { y: "another value" } }];
@@ -73,32 +75,72 @@ describe("WalWriter", () => {
         expect(r2.id.segment).equal(2);
     });
 
-    it("resumes writing to existing segment", async () => {
+    it("starts at the given first segment", async () => {
         const walDir = fs.directory("wal");
 
-        // Write one commit, then close
-        const writer1 = new WalWriter(walDir, { fsync: false });
-        const ops1: WalOp[] = [{ op: "upd", key: "a", values: { x: 1 } }];
-        await writer1.write(ops1);
-        await writer1.close();
+        const writer = new WalWriter(walDir, { fsync: false, firstSegment: 8 });
+        const result = await writer.write([{ op: "upd", key: "a", values: { x: 1 } }]);
+        await writer.close();
 
-        // Open new writer, should continue from existing segment
-        const writer2 = new WalWriter(walDir, { fsync: false });
-        const ops2: WalOp[] = [{ op: "upd", key: "b", values: { y: 2 } }];
-        const r2 = await writer2.write(ops2);
-        await writer2.close();
+        expect(result.id).deep.equal({ segment: 8, offset: 0 });
+    });
 
-        expect(r2.id).deep.equal({ segment: 1, offset: 1 });
+    it("starts a new segment after a failed write", async () => {
+        const walDir = fs.directory("wal");
+        const writer = new WalWriter(walDir, { fsync: true, firstSegment: 1 });
+        await writer.write([{ op: "upd", key: "a", values: { x: 1 } }]);
 
-        const file = walDir.file(segmentFilename(1));
-        const text = await file.readAllText();
-        const lines = text.split("\n").filter(l => l.length > 0);
-        expect(lines.length).equal(2);
+        {
+            using _failingFsync = fs.intercept(operation => {
+                if (operation === "fsync") {
+                    throw new StorageError("disk failure");
+                }
+            });
+            await expect(writer.write([{ op: "upd", key: "b", values: { y: 2 } }])).rejectedWith("disk failure");
+        }
+
+        const result = await writer.write([{ op: "upd", key: "c", values: { z: 3 } }]);
+        await writer.close();
+
+        expect(result.id).deep.equal({ segment: 2, offset: 0 });
+    });
+
+    it("keeps writing after a failed segment open during rotation, without skipping a segment number", async () => {
+        const walDir = fs.directory("wal");
+        const writer = new WalWriter(walDir, { fsync: false, maxSegmentSize: 10, firstSegment: 1 });
+        await writer.write([{ op: "upd", key: "a", values: { x: 1 } }]);
+
+        {
+            using _failingOpen = fs.intercept((operation, path) => {
+                if (operation === "open" && path.endsWith(segmentFilename(2))) {
+                    throw new StorageError("cannot open");
+                }
+            });
+            await expect(writer.write([{ op: "upd", key: "b", values: { y: 2 } }])).rejectedWith("cannot open");
+        }
+
+        const result = await writer.write([{ op: "upd", key: "c", values: { z: 3 } }]);
+        await writer.close();
+
+        expect(result.id).deep.equal({ segment: 2, offset: 0 });
+    });
+
+    it("reports a failure to close the segment", async () => {
+        const walDir = fs.directory("wal");
+        const writer = new WalWriter(walDir, { fsync: false, firstSegment: 1 });
+        await writer.write([{ op: "upd", key: "a", values: { x: 1 } }]);
+
+        using _failingClose = fs.intercept(operation => {
+            if (operation === "close") {
+                throw new StorageError("close failed");
+            }
+        });
+        await expect(writer.close()).rejectedWith("close failed");
     });
 
     it("serializes concurrent writes", async () => {
         const walDir = fs.directory("wal");
-        const writer = new WalWriter(walDir, { fsync: false });
+        const writer = new WalWriter(walDir, { fsync: false, firstSegment: 1 });
 
         // Fire 20 concurrent writes
         const count = 20;
@@ -128,7 +170,7 @@ describe("WalWriter", () => {
 
     it("creates wal directory if it does not exist", async () => {
         const walDir = fs.directory("wal");
-        const writer = new WalWriter(walDir, { fsync: false });
+        const writer = new WalWriter(walDir, { fsync: false, firstSegment: 1 });
 
         const ops: WalOp[] = [{ op: "upd", key: "a", values: { x: 1 } }];
         await writer.write(ops);

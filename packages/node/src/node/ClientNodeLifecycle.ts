@@ -49,8 +49,11 @@ export class ClientNodeLifecycle extends NodeLifecycle {
     #connectionState = NodeConnectionState.Disconnected;
 
     /**
-     * True once the node's structure has been read at least once (BasicInformation present and more than just the
-     * root endpoint present).
+     * True once the node's structure has been read at least once: BasicInformation is present and every endpoint the
+     * root endpoint's PartsList names is installed.  A node with only its root endpoint qualifies.  A node built by hand
+     * without a root PartsList needs an endpoint beyond the root.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 9.2, § 9.5.6.4
      */
     get isSeeded() {
         return this.#isSeeded;

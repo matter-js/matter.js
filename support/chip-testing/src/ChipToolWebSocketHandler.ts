@@ -5,6 +5,7 @@
  */
 
 import {
+    Abort,
     AbortedError,
     Bytes,
     causedBy,
@@ -15,6 +16,7 @@ import {
     Logger,
     LogLevel,
     Millis,
+    nextEmitOf,
     NotImplementedError,
     Seconds,
     Time,
@@ -366,9 +368,7 @@ function parseChipJSON(json: string) {
  * Use the matter.js model to convert the incoming data for write and invoke commands into the
  * expected format.
  *
- * Exported only as a test seam (see `resetControllerAdapterFactoryForTesting` in
- * `packages/testing/src/chip/cert/controller-adapter.ts` for the same pattern); no production
- * caller outside this module should import it.
+ * Exported only as a test seam; no production caller outside this module should import it.
  */
 export function convertWebsocketDataToMatter(value: any, model: ValueModel, clusterModel: ClusterModel): any {
     if (value === undefined) {
@@ -738,24 +738,17 @@ export class ChipToolWebSocketHandler {
         }
 
         if (this.#subscriptionData.length === 0) {
-            if (deadline === undefined) {
-                await this.#subscriptionUpdated;
-            } else {
-                const abort = new AbortController();
-                const timer = Time.getTimer("Report timeout", deadline, () => abort.abort()).start();
-                try {
-                    await Promise.race([
-                        this.#subscriptionUpdated,
-                        new Promise<void>(resolve => abort.signal.addEventListener("abort", () => resolve())),
-                    ]);
-                } finally {
-                    timer.stop();
+            using timeout = new Abort({ timeout: deadline });
+            try {
+                await nextEmitOf(this.#subscriptionUpdated, timeout.signal);
+            } catch (error) {
+                if (!(error instanceof AbortedError)) {
+                    throw error;
                 }
-
-                if (this.#subscriptionData.length === 0) {
-                    logger.error(`No subscription report within ${Duration.format(deadline)}`);
-                    return { results: [{ error: "FAILURE" }] };
-                }
+            }
+            if (deadline !== undefined && this.#subscriptionData.length === 0) {
+                logger.error(`No subscription report within ${Duration.format(deadline)}`);
+                return { results: [{ error: "FAILURE" }] };
             }
         }
 

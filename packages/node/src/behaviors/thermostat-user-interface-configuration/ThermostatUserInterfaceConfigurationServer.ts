@@ -27,6 +27,8 @@ export class ThermostatUserInterfaceConfigurationServer extends ThermostatUserIn
                 temperatureDisplayMode ?? ThermostatUserInterfaceConfiguration.TemperatureDisplayMode.Celsius;
         }
 
-        this.state.keypadLockout = ThermostatUserInterfaceConfiguration.KeypadLockout.NoLockout;
+        if (this.state.keypadLockout === undefined) {
+            this.state.keypadLockout = ThermostatUserInterfaceConfiguration.KeypadLockout.NoLockout;
+        }
     }
 }

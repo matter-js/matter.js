@@ -8,7 +8,7 @@ import { OperationalCredentials } from "@matter/main/clusters";
 import { PeerCommunicationError } from "@matter/main/protocol";
 import { Status, StatusResponseError, ValidationError } from "@matter/main/types";
 import type { LogExpectPatterns } from "@matter/testing";
-import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
+import { ControllerCommandError } from "../../src/cert/controller-command-error.js";
 import { NoCommissionedPeerError } from "../../src/cert/InProcessControllerAdapter.js";
 import { MATTERJS_COMMISSIONED_FABRIC } from "./tc-support.js";
 
@@ -35,7 +35,7 @@ export const WINDOW_OPEN: LogExpectPatterns = {
  * {@link NoCommissionedPeerError}. Leave processing is conditional on an active subscription, so a
  * controller that missed it instead attempts a connection the device no longer serves and surfaces a
  * {@link PeerCommunicationError} — the plan's own expected symptom ("TH_CR2 is no longer on the
- * network"). chip-tool reports {@link ChipToolCommandError} — its output cannot separate a failed
+ * network"). chip-tool reports a {@link ControllerCommandError} — its output cannot separate a failed
  * device interaction from every other command failure, so on those legs this only excludes a
  * controller that would not start or crashed — or a status the device answered with
  * ({@link StatusResponseError}). {@link ValidationError} is a {@link StatusResponseError} but is the
@@ -58,7 +58,7 @@ export function isPostRemovalRefusal(error: unknown): boolean {
     return (
         error instanceof NoCommissionedPeerError ||
         error instanceof PeerCommunicationError ||
-        error instanceof ChipToolCommandError
+        error instanceof ControllerCommandError
     );
 }
 

@@ -116,14 +116,6 @@ export class ServerBehaviorBacking extends BehaviorBacking {
             }
         }
 
-        // Build response model index for responseId/responseSchema lookup
-        const responseModels = new Map<string, CommandModel>();
-        for (const cmd of schema.commands) {
-            if (!cmd.isRequest) {
-                responseModels.set(cmd.name, cmd);
-            }
-        }
-
         const acceptedIds = [] as CommandId[];
         const generatedIds = new Set<CommandId>();
 
@@ -134,13 +126,9 @@ export class ServerBehaviorBacking extends BehaviorBacking {
             }
             acceptedIds.push(model.id as CommandId);
 
-            // Find the response command if any
-            const responseName = model.effectiveResponse;
-            if (responseName && responseName !== "status") {
-                const responseModel = responseModels.get(responseName);
-                if (responseModel && responseModel.id !== (CommandId.NONE as number)) {
-                    generatedIds.add(responseModel.id as CommandId);
-                }
+            const { responseModel } = model;
+            if (responseModel !== undefined && responseModel.id !== (CommandId.NONE as number)) {
+                generatedIds.add(responseModel.id as CommandId);
             }
         }
 

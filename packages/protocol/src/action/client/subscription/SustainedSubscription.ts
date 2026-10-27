@@ -7,6 +7,7 @@
 import type { SustainedClientSubscribe } from "#action/client/subscription/ClientSubscribe.js";
 import { Read } from "#action/request/Read.js";
 import { Subscribe } from "#action/request/Subscribe.js";
+import { EventNumberTracker } from "#action/response/EventNumberTracker.js";
 import { ReadResult } from "#action/response/ReadResult.js";
 import type { ActiveSubscription } from "#action/response/SubscribeResult.js";
 import type { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
@@ -21,13 +22,14 @@ import {
     Hours,
     ImplementationError,
     Logger,
+    MatterAggregateError,
     Observable,
     Observer,
     RetrySchedule,
     Seconds,
     Time,
 } from "@matter/general";
-import { type NodeId, SubscribeResponse } from "@matter/types";
+import { type EventNumber, type NodeId, SubscribeResponse } from "@matter/types";
 import { ClientSubscription } from "./ClientSubscription.js";
 import { PeerSubscription } from "./PeerSubscription.js";
 
@@ -44,6 +46,10 @@ const logger = Logger.get("ClientSubscription");
  * is read live via the {@link SustainedSubscription.Configuration#wakefulness} provider, so a peer registered after
  * construction is honored on the loop's next iteration.  A runtime SIT⇄LIT operating-mode flip recreates the
  * subscription so its intervals are renegotiated for the new mode.
+ *
+ * Each replacement subscription requests only events above {@link maxEventNumber}.  When our own processing of a
+ * report fails, the failure is logged, the events pulled from the report before the failure count as seen and the
+ * subscription continues.
  *
  * TODO - need to make underlying exchange provider abortable and work out how the retry schedule at this level
  *   interacts with the MDNS and secure protocol retries.  Will require some refactoring at lower levels.  Leaving
@@ -64,6 +70,8 @@ export class SustainedSubscription extends ClientSubscription {
     #subscriptionHold?: Disposable;
     #active = AsyncObservableValue(false);
     #inactive = AsyncObservableValue(true);
+    #maxEventNumber?: EventNumber;
+    #localFailureLogged = false;
 
     constructor(config: SustainedSubscription.Configuration) {
         super(config);
@@ -94,13 +102,28 @@ export class SustainedSubscription extends ClientSubscription {
         return this.#inactive;
     }
 
+    /**
+     * The highest event number of the results this subscription processed, or undefined before the first event.  An
+     * event counts once {@link SustainedClientSubscribe.updated} pulled it and settled for its result.  The number
+     * never decreases.  Until it is set, requests carry the `eventFilters` the request and its `refreshRequest` give.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 8.9.3.1
+     */
+    get maxEventNumber() {
+        return this.#maxEventNumber;
+    }
+
     async #run() {
         // Do we trust the session to work? Initially yes
         let sessionTrusted = true;
 
-        const updated = this.#request.updated?.bind(this.#request);
+        const consumer = this.#request.updated?.bind(this.#request);
+        const updated = consumer && ((result: ReadResult) => this.#deliver(result, consumer));
 
-        let { bootstrapWithRead, refreshRequest } = this.#request;
+        let { bootstrapWithRead } = this.#request;
+        const { refreshRequest } = this.#request;
+        const refresh = (request: SustainedClientSubscribe) =>
+            this.#requestNewEvents(refreshRequest === undefined ? request : refreshRequest(request));
         let needToRefreshRequest = false;
 
         // After a failed send to an await-mode LIT peer we must wait for a fresh wake signal rather than retry within
@@ -138,19 +161,19 @@ export class SustainedSubscription extends ClientSubscription {
                 // live.
                 const wakefulnessBefore = this.#wakefulness?.();
                 if (wakefulnessBefore?.requiresAwait) {
-                    // Gate on active: on the initial park (active already false) this await must be skipped, else the
-                    // added microtask would let a synchronous wake signal race ahead of the observer registration below.
+                    // Gate on #isNotLive: on the initial park this await must be skipped, else the added microtask would
+                    // let a synchronous wake signal race ahead of the observer registration below.
                     if (awaitFreshSignal) {
-                        if (this.#active.value) {
-                            await this.#reportNotLive();
+                        if (!this.#isNotLive) {
+                            await this.#setLive(false);
                         }
                         await this.#nextWake(wakefulnessBefore);
                         awaitFreshSignal = false;
                     } else if (!wakefulnessBefore.awake.value) {
-                        if (this.#active.value) {
-                            await this.#reportNotLive();
+                        if (!this.#isNotLive) {
+                            await this.#setLive(false);
                         }
-                        // Re-check after the #reportNotLive await: a wake that landed during it is the edge we would
+                        // Re-check after the #setLive await: a wake that landed during it is the edge we would
                         // park for, and #awaitAwake's observer only fires on the *next* emit, so skip the park.
                         if (!wakefulnessBefore.awake.value) {
                             await this.#awaitAwake(wakefulnessBefore);
@@ -179,9 +202,8 @@ export class SustainedSubscription extends ClientSubscription {
                 // Subscribe
                 for (const retry of this.#retries) {
                     try {
-                        if (needToRefreshRequest && refreshRequest !== undefined) {
-                            // Update request
-                            request = refreshRequest(request);
+                        if (needToRefreshRequest) {
+                            request = refresh(request);
                         }
                         needToRefreshRequest = true; // We do a read or subscription request now, so we might have got data, even partial
                         if (bootstrapWithRead) {
@@ -197,10 +219,7 @@ export class SustainedSubscription extends ClientSubscription {
                             }
 
                             bootstrapWithRead = false;
-                            if (refreshRequest !== undefined) {
-                                // Update request because read was successful
-                                request = refreshRequest(request);
-                            }
+                            request = refresh(request);
                         }
                         const subscription = await this.#subscribe(request, this.abort);
                         this.#subscription = subscription;
@@ -220,8 +239,8 @@ export class SustainedSubscription extends ClientSubscription {
                         }
 
                         // A mode-flip recreate whose subscribe failed is about to park/retry with no subscription held.
-                        if (this.#active.value) {
-                            await this.#reportNotLive();
+                        if (!this.#isNotLive) {
+                            await this.#setLive(false);
                         }
 
                         // An await-mode LIT peer has no timed retry: park for the next fresh wake signal instead.
@@ -250,17 +269,17 @@ export class SustainedSubscription extends ClientSubscription {
                     }
                 }
 
+                if (this.abort.aborted) {
+                    break;
+                }
+
                 // A LIT park-failure exits the retry loop without a subscription; loop back to await the next wake
                 // signal.
                 if (awaitFreshSignal) {
-                    if (this.abort.aborted) {
-                        break;
-                    }
                     continue;
                 }
 
-                await this.#inactive.emit(false);
-                await this.#active.emit(true);
+                await this.#setLive(true);
                 if (this.abort.aborted) {
                     break;
                 }
@@ -270,7 +289,7 @@ export class SustainedSubscription extends ClientSubscription {
                 if (!modeFlipped) {
                     // Genuine loss: report not-live so consumers re-establish.  A deliberate mode-flip recreate keeps
                     // active until it either re-establishes (no-op, no churn) or has to park/retry (reported there).
-                    await this.#reportNotLive();
+                    await this.#setLive(false);
                 }
 
                 // If aborted, then we're done
@@ -306,13 +325,125 @@ export class SustainedSubscription extends ClientSubscription {
                 this.#releaseSubscriptionHold();
                 await subscription.close();
             }
+
+            // Every exit, including an abort or observer failure while going live, leaves us not live.
+            try {
+                await this.#setLive(false);
+            } catch (e) {
+                // Logged, not thrown: this finally must not replace the outcome #run is already returning or throwing
+                logger.warn(`Observer failed while ${this.peer} subscription stopped:`, e);
+            }
         }
     }
 
-    /** Report that we no longer hold an established subscription.  Callers gate this on {@link active} being set. */
-    async #reportNotLive() {
-        await this.#active.emit(false);
-        await this.#inactive.emit(true);
+    async #deliver(result: ReadResult, consumer: (result: ReadResult) => Promise<void>) {
+        const eventNumbers = new EventNumberTracker();
+        const report = new PeerReport(result);
+        try {
+            await consumer(eventNumbers.observe(report.read()));
+        } catch (error) {
+            if (report.failed) {
+                throw error;
+            }
+            this.#logLocalFailure("Processing a report", error);
+        } finally {
+            await this.#raiseMaxEventNumber(eventNumbers.value);
+        }
+    }
+
+    async #raiseMaxEventNumber(number: EventNumber | undefined) {
+        if (number === undefined || (this.#maxEventNumber !== undefined && number <= this.#maxEventNumber)) {
+            return;
+        }
+        this.#maxEventNumber = number;
+        try {
+            await this.#request.maxEventNumberChanged?.(number);
+        } catch (error) {
+            this.#logLocalFailure("Handling the event number of a report", error);
+        }
+    }
+
+    /**
+     * A peer can trigger a failure of our own processing with every report, so only the first one is a warning.
+     */
+    #logLocalFailure(what: string, error: unknown) {
+        const message = `${what} from ${this.peer} failed; the subscription continues:`;
+        if (this.#localFailureLogged) {
+            logger.debug(message, error);
+            return;
+        }
+        this.#localFailureLogged = true;
+        logger.warn(message, error);
+    }
+
+    #requestNewEvents(request: SustainedClientSubscribe): SustainedClientSubscribe {
+        if (this.#maxEventNumber === undefined) {
+            return request;
+        }
+        return { ...request, eventFilters: [{ eventMin: this.#maxEventNumber + 1n }] };
+    }
+
+    /** True when {@link active} and {@link inactive} both report not live. */
+    get #isNotLive() {
+        return !this.#active.value && !!this.#inactive.value;
+    }
+
+    /**
+     * Update {@link active} and {@link inactive} together.  An observable stores its new value before its observers
+     * run, so an observer that throws does not undo that value.
+     *
+     * Going live emits both values even if already live, so a re-established subscription is announced again.  It
+     * stops at the first observer failure or when the subscription was closed meanwhile; #run then ends, and its
+     * finally goes back to not live.
+     *
+     * Going not live emits only the values that change, and attempts both even if an observer fails.
+     *
+     * Observer failures are rethrown after the update, as one error or as a {@link MatterAggregateError}.
+     */
+    async #setLive(live: boolean) {
+        const errors = new Array<unknown>();
+
+        if (live) {
+            const steps: [AsyncObservableValue, boolean][] = [
+                [this.#inactive, false],
+                [this.#active, true],
+            ];
+            for (const [observable, value] of steps) {
+                if (errors.length || this.abort.aborted) {
+                    break;
+                }
+                try {
+                    await observable.emit(value);
+                } catch (e) {
+                    errors.push(e);
+                }
+            }
+        } else {
+            const steps: [AsyncObservableValue, boolean][] = [
+                [this.#active, false],
+                [this.#inactive, true],
+            ];
+            for (const [observable, value] of steps) {
+                if (observable.value === value) {
+                    continue;
+                }
+                try {
+                    await observable.emit(value);
+                } catch (e) {
+                    errors.push(e);
+                }
+            }
+        }
+
+        if (errors.length === 1) {
+            throw errors[0];
+        }
+        if (errors.length) {
+            throw new MatterAggregateError(
+                errors,
+                `Observers failed while ${this.peer} subscription went ${live ? "live" : "not live"}`,
+            );
+        }
     }
 
     #releaseSubscriptionHold() {
@@ -497,4 +628,45 @@ export namespace SustainedSubscription {
 
         jitterFactor: 0.25,
     };
+}
+
+/**
+ * A report as received from the peer, noting whether receiving or decoding it failed as opposed to processing it.
+ */
+class PeerReport {
+    #result: ReadResult;
+    failed = false;
+
+    constructor(result: ReadResult) {
+        this.#result = result;
+    }
+
+    async *read(): ReadResult {
+        try {
+            for await (const chunk of this.#result) {
+                yield Symbol.iterator in chunk ? this.#readReports(chunk) : this.#readReportsAsync(chunk);
+            }
+        } catch (error) {
+            this.failed = true;
+            throw error;
+        }
+    }
+
+    *#readReports(reports: Iterable<ReadResult.Report>) {
+        try {
+            yield* reports;
+        } catch (error) {
+            this.failed = true;
+            throw error;
+        }
+    }
+
+    async *#readReportsAsync(reports: AsyncIterable<ReadResult.Report>) {
+        try {
+            yield* reports;
+        } catch (error) {
+            this.failed = true;
+            throw error;
+        }
+    }
 }

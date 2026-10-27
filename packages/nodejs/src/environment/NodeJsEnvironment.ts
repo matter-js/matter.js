@@ -21,7 +21,6 @@ import {
     Filesystem,
     HttpEndpointFactory,
     ImplementationError,
-    LogFormat,
     Logger,
     MemoryStorageDriver,
     Network,
@@ -39,6 +38,7 @@ import { resolve } from "node:path";
 
 import { NodeJsFilesystem } from "../fs/NodeJsFilesystem.js";
 import { NodeJsNetwork } from "../net/NodeJsNetwork.js";
+import { configureLogFormat } from "./ConsoleLogFormat.js";
 import { ProcessManager } from "./ProcessManager.js";
 
 const logger = Logger.get("NodeJsEnvironment");
@@ -97,12 +97,7 @@ export function NodeJsEnvironment() {
     configureNetwork(env);
     configureFilesystem(env);
 
-    // When no logger format is set, we still use the default, and the process is running in a TTY, use ANSI formatting
-    // If a user wants to change the log format he still can do after the environment was initialized (which should be
-    // first thing anyway)
-    if (!env.vars.has("logger.format") && Logger.format === LogFormat.PLAIN && process.stdin?.isTTY) {
-        env.vars.set("logger.format", LogFormat.ANSI);
-    }
+    configureLogFormat(env);
 
     ServiceBundle.default.deploy(env);
 

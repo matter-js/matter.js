@@ -7,16 +7,18 @@
 import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { IcdPeerAsleepError } from "#behavior/system/icd/IcdPeerAsleepError.js";
 import { IcdManagementServer } from "#behaviors/icd-management";
+import { IcdManagementClient } from "#behaviors/icd-management";
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
-import { Seconds } from "@matter/general";
+import { AbortedError, Seconds } from "@matter/general";
 import { MockSite, subscribedPeer } from "@matter/node/testing";
 import type { Peer } from "@matter/protocol";
-import { NetworkProfiles, Read } from "@matter/protocol";
+import { NetworkProfiles, Read, Write } from "@matter/protocol";
 import { EndpointNumber, NodeId, SubjectId } from "@matter/types";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
-import { commission, LIT_CONFIG, wakeDevice, wakefulnessOf } from "../icd-helpers.js";
+import { commission, deviceLink, LIT_CONFIG, wakeDevice, wakefulnessOf } from "../icd-helpers.js";
 
 const DslsIcdServer = IcdManagementServer.with(
     IcdManagement.Feature.CheckInProtocolSupport,
@@ -25,6 +27,16 @@ const DslsIcdServer = IcdManagementServer.with(
     IcdManagement.Feature.DynamicSitLitSupport,
 );
 const RootWithDslsIcd = ServerNode.RootEndpoint.with(DslsIcdServer);
+
+/** Counts the StayActiveRequest commands the device receives. */
+class CountingDslsIcdServer extends DslsIcdServer {
+    static stayActiveRequests = 0;
+
+    override stayActiveRequest(request: IcdManagement.StayActiveRequest) {
+        CountingDslsIcdServer.stayActiveRequests++;
+        return super.stayActiveRequest(request);
+    }
+}
 
 const SitIcdServer = IcdManagementServer.with(IcdManagement.Feature.CheckInProtocolSupport);
 const RootWithSitIcd = ServerNode.RootEndpoint.with(SitIcdServer);
@@ -36,9 +48,9 @@ const descriptorRead = Read(
 );
 
 /** Commission a DSLS device that is operating in LIT mode and register the controller as a Check-In client. */
-async function registeredLitPair(site: MockSite) {
+async function registeredLitPair(site: MockSite, type: ServerNode.RootEndpoint = RootWithDslsIcd) {
     const { controller, device } = await site.addUncommissionedPair({
-        device: { type: RootWithDslsIcd, icdManagement: LIT_CONFIG },
+        device: { type, icdManagement: LIT_CONFIG },
     });
     await device.act(agent => agent.get(DslsIcdServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
     await commission(controller, device);
@@ -224,5 +236,94 @@ describe("ClientNodeInteraction ICD hold", () => {
         await MockTime.resolve(read, { macrotasks: true });
 
         expect(caught).instanceof(IcdPeerAsleepError);
+    });
+
+    it("abandons a held read when its request aborts", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer1 } = await registeredLitPair(site);
+        expect(wakefulnessOf(controller, peer1)!.awake.value).false;
+        // Other traffic from the device would count as a wake and release the hold
+        deviceLink(device).silence();
+
+        const abort = new AbortController();
+        const abortableRead = { ...descriptorRead, abort: abort.signal };
+        let caught: unknown;
+        const read = (async () => {
+            for await (const chunk of peer1.interaction.read(abortableRead)) {
+                for await (const _report of chunk);
+            }
+        })().catch(e => (caught = e));
+        await MockTime.macrotask;
+
+        abort.abort();
+        await MockTime.resolve(read, { macrotasks: true });
+
+        expect(caught).instanceof(AbortedError);
+    });
+
+    it("abandons a held write when its request aborts", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer1 } = await registeredLitPair(site);
+        expect(wakefulnessOf(controller, peer1)!.awake.value).false;
+        deviceLink(device).silence();
+
+        const abort = new AbortController();
+        const write = {
+            ...Write(
+                Write.Attribute({
+                    endpoint: EndpointNumber(0),
+                    cluster: BasicInformation,
+                    attributes: "nodeLabel",
+                    value: "x",
+                }),
+            ),
+            abort: abort.signal,
+        };
+        let caught: unknown;
+        const writing = Promise.resolve(peer1.interaction.write(write)).catch(e => (caught = e));
+        await MockTime.macrotask;
+
+        abort.abort();
+        await MockTime.resolve(writing, { macrotasks: true });
+
+        expect(caught).instanceof(AbortedError);
+    });
+
+    it("abandons a held command when its acting context aborts, so the device never receives it", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer1 } = await registeredLitPair(
+            site,
+            ServerNode.RootEndpoint.with(CountingDslsIcdServer),
+        );
+        expect(wakefulnessOf(controller, peer1)!.awake.value).false;
+        CountingDslsIcdServer.stayActiveRequests = 0;
+        // Other traffic from the device would count as a wake and release the hold
+        const link = deviceLink(device);
+        link.silence();
+
+        const abort = new AbortController();
+        let caught: unknown;
+        const invoking = MockTime.resolve(
+            peer1.act(
+                "held-command",
+                agent => agent.get(IcdManagementClient).stayActiveRequest({ stayActiveDuration: 1000 }),
+                { abort: abort.signal },
+            ),
+        );
+        const outcome = Promise.resolve(invoking).catch(e => (caught = e));
+        await MockTime.macrotask;
+
+        abort.abort();
+        await MockTime.resolve(outcome, { macrotasks: true });
+        expect(caught).instanceof(AbortedError);
+
+        link.restore();
+        const checkedIn = new Promise<void>(resolve => peer1.eventsOf(IcdClient).checkedIn.once(() => resolve()));
+        // Waking without settling the device, whose traffic during the silence is still being retransmitted
+        await device.act(agent => agent.get(CountingDslsIcdServer).enterIdleMode());
+        await device.act(agent => agent.get(CountingDslsIcdServer).requestActiveMode());
+        await MockTime.resolve(checkedIn, { macrotasks: true });
+        await MockTime.advance(Seconds(1));
+        expect(CountingDslsIcdServer.stayActiveRequests).equals(0);
     });
 });

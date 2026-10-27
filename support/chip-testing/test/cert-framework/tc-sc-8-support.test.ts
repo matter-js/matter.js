@@ -14,7 +14,7 @@ import type {
     DeviceFlavor,
     Subject,
 } from "@matter/testing";
-import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
+import { LineQueue, LogFollower, PicsFile, resolveControllerSelection } from "@matter/testing";
 import {
     largePayloadSessionCheck,
     noFurtherSessionCheck,
@@ -126,6 +126,8 @@ async function withDut<T>(
     const cx: CertStepContext = {
         controllers: {},
         devices: { dut },
+        controllerSelection: resolveControllerSelection(),
+        deviceFlavor: undefined,
         picsMet: () => {
             throw new InternalError("not used by these tests");
         },
@@ -620,6 +622,8 @@ describe("recordSeveredSession", () => {
         const cx: CertStepContext = {
             controllers: { th },
             devices: { dut },
+            controllerSelection: resolveControllerSelection(),
+            deviceFlavor: undefined,
             picsMet: () => {
                 throw new InternalError("not used by these tests");
             },

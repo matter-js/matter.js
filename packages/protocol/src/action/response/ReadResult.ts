@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ResultStatus } from "#action/response/ResultStatus.js";
 import type {
     AttributeId,
     AttributePath,
@@ -14,7 +15,6 @@ import type {
     EventPath,
     NodeId,
     Priority,
-    Status,
     TlvSchema,
 } from "@matter/types";
 
@@ -54,11 +54,9 @@ export namespace ReadResult {
         tlv: TlvSchema<unknown>; // TODO: Remove when we also move encoding to the new format
     }
 
-    export interface AttributeStatus {
+    export interface AttributeStatus extends ResultStatus {
         kind: "attr-status";
         path: ConcreteAttributePath;
-        status: Status;
-        clusterStatus?: number;
     }
 
     export interface ConcreteEventPath extends EventPath {
@@ -74,21 +72,31 @@ export namespace ReadResult {
         number: EventNumber;
 
         /**
-         * Collapsed numeric form of whichever wire timestamp variant the publisher sent. Convenience for callers
-         * that don't care about the distinction; the specific variant is in the four fields below.
+         * Collapsed numeric form of whichever wire timestamp variant the publisher sent. For a delta variant this is
+         * the delta; use {@link resolvedTimestamp} for the absolute time.
          */
         timestamp: number;
 
-        /** Absolute Posix epoch timestamp (milliseconds). Per Matter Core §10.7 exactly one of the four is set. */
+        /**
+         * Absolute timestamp in milliseconds, on the clock of whichever variant the publisher sent. Equals the absolute
+         * variant when the publisher sent one. For a delta it is the absolute time of the event directly before it in
+         * the same ReportData message plus the delta. Undefined when the publisher sent no timestamp, or sent a delta
+         * and the event directly before it has no absolute time on the same clock.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 10.7.3.1
+         */
+        resolvedTimestamp?: number;
+
+        /** Absolute Posix epoch timestamp (milliseconds). Matter Core §10.6.9 allows a peer to send only one of the four. */
         epochTimestamp?: number | bigint;
 
         /** Absolute system-time timestamp (milliseconds). */
         systemTimestamp?: number | bigint;
 
-        /** Relative epoch-time delta from the previous event (milliseconds). */
+        /** Relative epoch-time delta from the prior event (milliseconds). */
         deltaEpochTimestamp?: number | bigint;
 
-        /** Relative system-time delta from the previous event (milliseconds). */
+        /** Relative system-time delta from the prior event (milliseconds). */
         deltaSystemTimestamp?: number | bigint;
 
         priority: Priority;
@@ -96,10 +104,8 @@ export namespace ReadResult {
         tlv: TlvSchema<unknown>;
     }
 
-    export interface EventStatus {
+    export interface EventStatus extends ResultStatus {
         kind: "event-status";
         path: ConcreteEventPath;
-        status: Status;
-        clusterStatus?: number;
     }
 }

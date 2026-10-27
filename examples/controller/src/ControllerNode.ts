@@ -11,7 +11,7 @@
  * because you need to adjust the code in any way depending on your use case.
  */
 
-import { Diagnostic, Environment, Logger, serialize, StorageService, Time } from "@matter/main";
+import { Diagnostic, Environment, Logger, serialize, StorageService, Time, nextEmitOf } from "@matter/main";
 import { DescriptorClient } from "@matter/main/behaviors/descriptor";
 import { OnOffClient } from "@matter/main/behaviors/on-off";
 import { BasicInformationCluster, Descriptor, GeneralCommissioning } from "@matter/main/clusters";
@@ -219,7 +219,7 @@ class ControllerNode {
 
             // Wait for initialization oif not yet initialized - this should only happen if we just commissioned it
             if (!node.initialized) {
-                await node.events.initialized;
+                await nextEmitOf(node.events.initialized);
             }
 
             // Or use this to wait for full remote initialization and reconnection.

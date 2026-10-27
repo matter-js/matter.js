@@ -9,18 +9,47 @@ import { ClientSubscription } from "#action/client/subscription/ClientSubscripti
 import { PeerSubscription } from "#action/client/subscription/PeerSubscription.js";
 import { SustainedSubscription } from "#action/client/subscription/SustainedSubscription.js";
 import { Subscribe } from "#action/request/Subscribe.js";
+import { ReadResult } from "#action/response/ReadResult.js";
 import { IcdPeerSchedule } from "#icd/IcdPeerSchedule.js";
 import { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
-import { Entropy, Hours, Lifetime, Millis, Observable, RetrySchedule, Seconds, Time, Timestamp } from "@matter/general";
-import { FabricIndex, NodeId } from "@matter/types";
+import {
+    Diagnostic,
+    Entropy,
+    Hours,
+    Lifetime,
+    LogDestination,
+    Logger,
+    LogLevel,
+    MatterError,
+    Millis,
+    Observable,
+    RetrySchedule,
+    Seconds,
+    Time,
+    Timestamp,
+} from "@matter/general";
+import {
+    ClusterId,
+    EndpointNumber,
+    EventId,
+    EventNumber,
+    FabricIndex,
+    NodeId,
+    Priority,
+    TlvAny,
+    TypeFromSchema,
+    TlvEventFilter,
+} from "@matter/types";
 
 const LIT_TIMINGS: IcdPeerSchedule.Timings = {
     activeModeThreshold: Seconds(5),
     activeModeDuration: Millis(0),
     idleModeDuration: Seconds(30),
 };
+
+class ListenerFailedError extends MatterError {}
 
 function fakePeerSub(onClose?: () => void): PeerSubscription {
     return {
@@ -143,6 +172,141 @@ describe("SustainedSubscription", () => {
 
             subscription.close();
             await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("never reports active when closed during the retry backoff", async () => {
+            let subscribeCount = 0;
+            const subscription = build({
+                subscribe: async () => {
+                    subscribeCount++;
+                    throw new Error("transient failure");
+                },
+            });
+            const activeEmits = new Array<boolean>();
+            const inactiveEmits = new Array<boolean>();
+            subscription.active.on(value => void activeEmits.push(value));
+            subscription.inactive.on(value => void inactiveEmits.push(value));
+
+            await flush();
+            expect(subscribeCount).equal(1);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+            await flush();
+
+            expect(subscribeCount).equal(1);
+            expect(activeEmits).deep.equal([]);
+            expect(inactiveEmits).deep.equal([]);
+            expect(subscription.active.value).equal(false);
+            expect(subscription.inactive.value).equal(true);
+        });
+
+        it("never reports active when closed while the subscribe is in flight and then succeeds", async () => {
+            let peerSubClosed = 0;
+            let finishSubscribe: (() => void) | undefined;
+            const subscription = build({
+                subscribe: () =>
+                    new Promise<PeerSubscription>(resolve => {
+                        finishSubscribe = () => resolve(fakePeerSub(() => peerSubClosed++));
+                    }),
+            });
+            const activeEmits = new Array<boolean>();
+            subscription.active.on(value => void activeEmits.push(value));
+
+            await flush();
+            subscription.close();
+            finishSubscribe?.();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+            await flush();
+
+            expect(activeEmits).deep.equal([]);
+            expect(subscription.active.value).equal(false);
+            expect(peerSubClosed).equal(1);
+        });
+
+        it("reports not live when closed while the active observers run", async () => {
+            const subscription = build();
+            const activeEmits = new Array<boolean>();
+            subscription.active.on(value => {
+                activeEmits.push(value);
+                if (value) {
+                    subscription.close();
+                }
+            });
+
+            await flush();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+            await flush();
+
+            expect(activeEmits).deep.equal([true, false]);
+            expect(subscription.active.value).equal(false);
+            expect(subscription.inactive.value).equal(true);
+        });
+
+        it("never reports active when an inactive observer closes the subscription while going live", async () => {
+            const subscription = build();
+            const activeEmits = new Array<boolean>();
+            const inactiveEmits = new Array<boolean>();
+            subscription.active.on(value => void activeEmits.push(value));
+            subscription.inactive.on(value => {
+                inactiveEmits.push(value);
+                if (!value) {
+                    subscription.close();
+                }
+            });
+
+            await flush();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+            await flush();
+
+            expect(activeEmits).deep.equal([]);
+            expect(inactiveEmits).deep.equal([false, true]);
+            expect(subscription.active.value).equal(false);
+            expect(subscription.inactive.value).equal(true);
+        });
+
+        it("ends not live and rejects done when an inactive observer throws while going live", async () => {
+            const subscription = build();
+            const failure = new Error("inactive observer failed going live");
+            const activeEmits = new Array<boolean>();
+            subscription.active.on(value => void activeEmits.push(value));
+            subscription.inactive.on(value => {
+                // The second failure, while stopping, must not replace the first as the outcome of done
+                throw value ? new Error("inactive observer failed stopping") : failure;
+            });
+            const outcome = subscription.done!.then(
+                () => undefined,
+                (e: unknown) => e,
+            );
+
+            await flush();
+            expect(await MockTime.resolve(outcome, { macrotasks: true })).equal(failure);
+
+            expect(activeEmits).deep.equal([]);
+            expect(subscription.active.value).equal(false);
+            expect(subscription.inactive.value).equal(true);
+            subscription.close();
+        });
+
+        it("still reports inactive when an active observer throws during the final not-live update", async () => {
+            const subscription = build();
+            const inactiveEmits = new Array<boolean>();
+            subscription.inactive.on(value => void inactiveEmits.push(value));
+            subscription.active.on(value => {
+                if (value) {
+                    subscription.close();
+                } else {
+                    throw new Error("active observer failed");
+                }
+            });
+
+            await flush();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+            await flush();
+
+            expect(inactiveEmits).deep.equal([false, true]);
+            expect(subscription.active.value).equal(false);
+            expect(subscription.inactive.value).equal(true);
         });
 
         it("probes after a subscription loss before resubscribing", async () => {
@@ -631,6 +795,42 @@ describe("SustainedSubscription", () => {
             await MockTime.resolve(subscription.done!, { macrotasks: true });
         });
 
+        it("reports not live when closed while a mode-flip recreate tears down the old subscription", async () => {
+            const wakefulness = litWakefulness();
+
+            let releaseClose: (() => void) | undefined;
+            let subscribeCount = 0;
+            const subscription = build({
+                wakefulness: () => wakefulness,
+                subscribe: async () => {
+                    subscribeCount++;
+                    const sub = fakePeerSub();
+                    if (subscribeCount === 1) {
+                        sub.close = () => new Promise<void>(resolve => (releaseClose = resolve));
+                    }
+                    return sub;
+                },
+            });
+
+            wakefulness.noteActive();
+            await flush();
+            expect(subscription.active.value).equal(true);
+
+            // The LIT->SIT flip starts the recreate, which waits on the old subscription's close.
+            wakefulness.requiresAwait = false;
+            await flush();
+            expect(releaseClose).not.equal(undefined);
+            expect(subscription.active.value).equal(true);
+
+            subscription.close();
+            releaseClose?.();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+            await flush();
+
+            expect(subscription.active.value).equal(false);
+            expect(subscription.inactive.value).equal(true);
+        });
+
         it("recreates on the icdLit network profile, then reverts to the default on a later loss", async () => {
             const wakefulness = litWakefulness();
 
@@ -990,6 +1190,523 @@ describe("SustainedSubscription", () => {
 
             subscription.close();
             await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+    });
+
+    describe("event numbers", () => {
+        function event(number: number): ReadResult.EventValue {
+            return {
+                kind: "event-value",
+                path: { endpointId: EndpointNumber(1), clusterId: ClusterId(0x3b), eventId: EventId(1) },
+                number: EventNumber(number),
+                timestamp: number,
+                priority: Priority.Info,
+                value: undefined,
+                tlv: TlvAny,
+            };
+        }
+
+        async function* result(...numbers: number[]): ReadResult {
+            yield numbers.map(event);
+        }
+
+        async function* asyncChunk(numbers: number[]) {
+            for (const number of numbers) {
+                yield event(number);
+            }
+        }
+
+        async function* asyncResult(...numbers: number[]): ReadResult {
+            yield asyncChunk(numbers);
+        }
+
+        /** Runs the subscription's loop until {@link condition} holds. */
+        async function until(condition: () => boolean) {
+            for (let turn = 0; !condition(); turn++) {
+                if (turn > 1000) {
+                    expect.fail("Condition not reached");
+                }
+                await MockTime.yield();
+                await MockTime.advance(0);
+            }
+        }
+
+        async function consume(data: ReadResult) {
+            for await (const chunk of data) {
+                for await (const _report of chunk);
+            }
+        }
+
+        /**
+         * A peer that delivers the next queued result as each subscription's priming report and records the event
+         * filters of every subscribe request.
+         */
+        function peer(...results: number[][]) {
+            const requests = new Array<TypeFromSchema<typeof TlvEventFilter>[] | undefined>();
+            let current: Subscribe | undefined;
+            const device = {
+                requests,
+
+                /** Subscriptions established so far. */
+                established: 0,
+
+                lose: () => current?.closed?.(),
+
+                /** Sends a report on the current subscription. */
+                report: (data: ReadResult) => current?.updated?.(data),
+
+                subscribe: async (request: Subscribe) => {
+                    requests.push(request.eventFilters);
+                    current = request;
+                    const numbers = results.shift();
+                    if (numbers !== undefined) {
+                        await request.updated?.(result(...numbers));
+                    }
+                    device.established++;
+                    return fakePeerSub(() => request.closed?.());
+                },
+            };
+            return device;
+        }
+
+        it("keeps the caller's event filters until it delivered an event", async () => {
+            const device = peer([]);
+            const subscription = build({
+                request: {
+                    ...Subscribe({ events: [{}], eventFilters: [{ eventMin: 7 }] }),
+                    sustain: true,
+                    updated: async data => {
+                        for await (const _chunk of data);
+                    },
+                },
+                subscribe: device.subscribe,
+            });
+            await until(() => device.established === 1);
+
+            device.lose();
+            await until(() => device.established === 2);
+
+            expect(device.requests).deep.equals([[{ eventMin: 7 }], [{ eventMin: 7 }]]);
+            expect(subscription.maxEventNumber).undefined;
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("resubscribes for events above the highest one it delivered", async () => {
+            const device = peer([5, 9, 7]);
+            const changes = new Array<EventNumber>();
+            const subscription = build({
+                request: {
+                    ...Subscribe({ events: [{}], eventFilters: [{ eventMin: 3 }] }),
+                    sustain: true,
+                    updated: async data => {
+                        for await (const chunk of data) {
+                            for await (const _report of chunk);
+                        }
+                    },
+                    maxEventNumberChanged: async number => {
+                        changes.push(number);
+                    },
+                },
+                subscribe: device.subscribe,
+            });
+            await until(() => device.established === 1);
+
+            device.lose();
+            await until(() => device.established === 2);
+
+            expect(subscription.maxEventNumber).equals(EventNumber(9));
+            expect(changes).deep.equals([EventNumber(9)]);
+            expect(device.requests).deep.equals([[{ eventMin: 3 }], [{ eventMin: 10n }]]);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("counts a result only once its consumer resolved", async () => {
+            const device = peer([4]);
+            let seenWhileConsuming: EventNumber | undefined | null = null;
+            const subscription = build({
+                request: {
+                    ...Subscribe({ events: [{}] }),
+                    sustain: true,
+                    updated: async data => {
+                        for await (const chunk of data) {
+                            for await (const _report of chunk);
+                        }
+                        seenWhileConsuming = subscription.maxEventNumber;
+                    },
+                },
+                subscribe: device.subscribe,
+            });
+            await until(() => device.established === 1);
+
+            expect(seenWhileConsuming).undefined;
+            expect(subscription.maxEventNumber).equals(EventNumber(4));
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("requests events above the bootstrap read's highest event", async () => {
+            const device = peer([]);
+            const subscription = build({
+                request: {
+                    ...Subscribe({ events: [{}] }),
+                    sustain: true,
+                    bootstrapWithRead: true,
+                    updated: async data => {
+                        for await (const chunk of data) {
+                            for await (const _report of chunk);
+                        }
+                    },
+                },
+                read: () => result(2, 8),
+                subscribe: device.subscribe,
+            });
+            await until(() => device.established === 1);
+
+            expect(device.requests).deep.equals([[{ eventMin: 9n }]]);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("does not lower its number when a later result carries lower event numbers", async () => {
+            const device = peer([9], [5]);
+            const changes = new Array<EventNumber>();
+            const subscription = build({
+                request: {
+                    ...Subscribe({ events: [{}] }),
+                    sustain: true,
+                    updated: consume,
+                    maxEventNumberChanged: async number => {
+                        changes.push(number);
+                    },
+                },
+                subscribe: device.subscribe,
+            });
+            await until(() => device.established === 1);
+
+            device.lose();
+            await until(() => device.established === 2);
+            await MockTime.resolve(subscription.active);
+
+            expect(subscription.maxEventNumber).equals(EventNumber(9));
+            expect(changes).deep.equals([EventNumber(9)]);
+            expect(device.requests).deep.equals([undefined, [{ eventMin: 10n }]]);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("counts events of reports with asynchronous chunks", async () => {
+            const device = peer([]);
+            const subscription = build({
+                request: { ...Subscribe({ events: [{}] }), sustain: true, updated: consume },
+                subscribe: device.subscribe,
+            });
+            await until(() => device.established === 1);
+
+            await MockTime.resolve(device.report(asyncResult(3, 6))!);
+
+            expect(subscription.maxEventNumber).equals(EventNumber(6));
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("keeps its number when a report without events follows", async () => {
+            const device = peer([5], []);
+            const changes = new Array<EventNumber | undefined>();
+            const subscription = build({
+                request: {
+                    ...Subscribe({ events: [{}] }),
+                    sustain: true,
+                    updated: consume,
+                    maxEventNumberChanged: async number => {
+                        changes.push(number);
+                    },
+                },
+                subscribe: device.subscribe,
+            });
+            await until(() => device.established === 1);
+
+            await MockTime.resolve(device.report(result())!);
+            device.lose();
+            await until(() => device.established === 2);
+
+            expect(subscription.maxEventNumber).equals(EventNumber(5));
+            expect(changes).deep.equals([EventNumber(5)]);
+            expect(device.requests).deep.equals([undefined, [{ eventMin: 6n }]]);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("settles the delivery of a report only after maxEventNumberChanged settled", async () => {
+            const device = peer([]);
+            let release!: () => void;
+            const released = new Promise<void>(resolve => (release = resolve));
+            const subscription = build({
+                request: {
+                    ...Subscribe({ events: [{}] }),
+                    sustain: true,
+                    updated: consume,
+                    maxEventNumberChanged: () => released,
+                },
+                subscribe: device.subscribe,
+            });
+            await until(() => device.established === 1);
+
+            let delivered = false;
+            const delivery = device.report(result(4))!.then(() => {
+                delivered = true;
+            });
+            await flush();
+            expect(subscription.maxEventNumber).equals(EventNumber(4));
+            expect(delivered).false;
+
+            release();
+            await MockTime.resolve(delivery);
+            expect(delivered).true;
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        it("replaces the event filters a refreshRequest returns with its own once it delivered an event", async () => {
+            const device = peer([5]);
+            const subscription = build({
+                request: {
+                    ...Subscribe({ events: [{}] }),
+                    sustain: true,
+                    updated: consume,
+                    refreshRequest: request => ({ ...request, eventFilters: [{ eventMin: 1 }] }),
+                },
+                subscribe: device.subscribe,
+            });
+            await until(() => device.established === 1);
+
+            device.lose();
+            await until(() => device.established === 2);
+
+            expect(device.requests).deep.equals([undefined, [{ eventMin: 6n }]]);
+
+            subscription.close();
+            await MockTime.resolve(subscription.done!, { macrotasks: true });
+        });
+
+        describe("when a report fails", () => {
+            class PeerFailedError extends MatterError {}
+
+            /**
+             * A subscription whose consumer fails for every report carrying event 4 or 5, with the warnings it logs and
+             * the probes it sends.
+             */
+            function failingOnEvents(device: ReturnType<typeof peer>) {
+                let probes = 0;
+                const activity = new Array<boolean>();
+                const subscription = build({
+                    request: {
+                        ...Subscribe({ events: [{}] }),
+                        sustain: true,
+                        updated: async data => {
+                            const numbers = new Array<EventNumber>();
+                            for await (const chunk of data) {
+                                for await (const report of chunk) {
+                                    if (report.kind === "event-value") {
+                                        numbers.push(report.number);
+                                    }
+                                }
+                            }
+                            if (numbers.some(number => number === 4n || number === 5n)) {
+                                throw new ListenerFailedError("listener failed");
+                            }
+                        },
+                    },
+                    subscribe: device.subscribe,
+                    probe: async () => {
+                        probes++;
+                        return true;
+                    },
+                });
+                subscription.active.on(value => {
+                    activity.push(value);
+                });
+                return { subscription, activity, probes: () => probes };
+            }
+
+            let warnings: string[];
+
+            beforeEach(() => {
+                const captured = new Array<string>();
+                warnings = captured;
+                Logger.destinations.capture = LogDestination({
+                    add(message: Diagnostic.Message) {
+                        if (message.facility === "ClientSubscription" && message.level === LogLevel.WARN) {
+                            captured.push(message.values.join(" "));
+                        }
+                    },
+                });
+            });
+
+            afterEach(() => {
+                delete Logger.destinations.capture;
+            });
+
+            it("keeps a subscription whose priming report fails to process and counts its events", async () => {
+                const device = peer([4]);
+                const { subscription, activity } = failingOnEvents(device);
+                await until(() => device.established === 1);
+                await MockTime.advance(Seconds(15));
+                await flush();
+
+                expect(device.established).equals(1);
+                expect(device.requests).deep.equals([undefined]);
+                expect(activity).deep.equals([true]);
+                expect(subscription.maxEventNumber).equals(EventNumber(4));
+                expect(warnings.length).equals(1);
+
+                subscription.close();
+                await MockTime.resolve(subscription.done!, { macrotasks: true });
+            });
+
+            it("keeps a subscription whose live report fails to process and counts its events", async () => {
+                const device = peer([3], []);
+                const { subscription, activity, probes } = failingOnEvents(device);
+                await until(() => device.established === 1);
+
+                await MockTime.resolve(device.report(result(5))!);
+                await flush();
+
+                expect(device.established).equals(1);
+                expect(probes()).equals(0);
+                expect(activity).deep.equals([true]);
+                expect(subscription.maxEventNumber).equals(EventNumber(5));
+                expect(warnings.length).equals(1);
+
+                device.lose();
+                await until(() => device.established === 2);
+                expect(device.requests).deep.equals([undefined, [{ eventMin: 6n }]]);
+
+                subscription.close();
+                await MockTime.resolve(subscription.done!, { macrotasks: true });
+            });
+
+            it("warns only for the first failure of its own processing", async () => {
+                const device = peer([3], []);
+                const { subscription } = failingOnEvents(device);
+                await until(() => device.established === 1);
+
+                await MockTime.resolve(device.report(result(4))!);
+                await MockTime.resolve(device.report(result(5))!);
+
+                expect(subscription.maxEventNumber).equals(EventNumber(5));
+                expect(warnings.length).equals(1);
+
+                subscription.close();
+                await MockTime.resolve(subscription.done!, { macrotasks: true });
+            });
+
+            describe("in maxEventNumberChanged", () => {
+                function failingCallback(device: ReturnType<typeof peer>) {
+                    return build({
+                        request: {
+                            ...Subscribe({ events: [{}] }),
+                            sustain: true,
+                            updated: consume,
+                            maxEventNumberChanged: async () => {
+                                throw new ListenerFailedError("storing the number failed");
+                            },
+                        },
+                        subscribe: device.subscribe,
+                    });
+                }
+
+                it("logs it and delivers the report", async () => {
+                    const device = peer([]);
+                    const subscription = failingCallback(device);
+                    await until(() => device.established === 1);
+
+                    await MockTime.resolve(device.report(result(4))!);
+
+                    expect(subscription.maxEventNumber).equals(EventNumber(4));
+                    expect(warnings.length).equals(1);
+
+                    subscription.close();
+                    await MockTime.resolve(subscription.done!, { macrotasks: true });
+                });
+
+                it("keeps the failure of the report", async () => {
+                    const device = peer([]);
+                    const subscription = failingCallback(device);
+                    await until(() => device.established === 1);
+
+                    async function* aborted(): ReadResult {
+                        yield [event(3)];
+                        throw new PeerFailedError("report aborted");
+                    }
+                    const reported = device.report(aborted())!.then(
+                        () => undefined,
+                        (error: unknown) => error,
+                    );
+
+                    expect(await MockTime.resolve(reported)).instanceOf(PeerFailedError);
+                    expect(subscription.maxEventNumber).equals(EventNumber(3));
+
+                    subscription.close();
+                    await MockTime.resolve(subscription.done!, { macrotasks: true });
+                });
+            });
+
+            function* failingReports(): Iterable<ReadResult.Report> {
+                yield event(3);
+                throw new PeerFailedError("report decoding failed");
+            }
+
+            async function* failingReportsAsync(): AsyncIterable<ReadResult.Report> {
+                yield event(3);
+                throw new PeerFailedError("report decoding failed");
+            }
+
+            const brokenReports: Record<string, () => ReadResult> = {
+                "receiving the next chunk": async function* () {
+                    yield [event(3)];
+                    throw new PeerFailedError("report aborted");
+                },
+                "decoding a chunk": async function* () {
+                    yield failingReports();
+                },
+                "decoding an asynchronous chunk": async function* () {
+                    yield failingReportsAsync();
+                },
+            };
+
+            for (const [failure, brokenReport] of Object.entries(brokenReports)) {
+                it(`passes a failure while ${failure} on and counts the events received before it`, async () => {
+                    const device = peer([2], []);
+                    const { subscription, activity, probes } = failingOnEvents(device);
+                    await until(() => device.established === 1);
+
+                    const reported = device.report(brokenReport())!.then(
+                        () => undefined,
+                        (error: unknown) => error,
+                    );
+                    expect(await MockTime.resolve(reported)).instanceOf(PeerFailedError);
+                    await flush();
+
+                    expect(device.established).equals(1);
+                    expect(probes()).equals(0);
+                    expect(activity).deep.equals([true]);
+                    expect(subscription.maxEventNumber).equals(EventNumber(3));
+                    expect(warnings).deep.equals([]);
+
+                    subscription.close();
+                    await MockTime.resolve(subscription.done!, { macrotasks: true });
+                });
+            }
         });
     });
 });

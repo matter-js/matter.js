@@ -11,6 +11,7 @@ import { certTest } from "@matter/testing";
 import {
     commissionByQr,
     CommissioningRefusals,
+    PARSES_PAYLOAD,
     recordDiscriminatorHonored,
     recordParse,
     thQrPayload,
@@ -89,7 +90,11 @@ certTest("TC-DD-1.8", {
         async cx => {
             await recordParse(cx, await thQrPayload(cx.devices.th));
         },
-        { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
+        {
+            controllerCapabilities: PARSES_PAYLOAD,
+            pics: "MCORE.DD.SCAN_QR_CODE",
+            expected: "Verify the QR code has been scanned successfully.",
+        },
     )
     .step(
         2,
@@ -106,7 +111,11 @@ certTest("TC-DD-1.8", {
         async cx => {
             await recordParse(cx, withTlvData(await thQrPayload(cx.devices.th), PLAN_TLV_DATA));
         },
-        { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
+        {
+            controllerCapabilities: PARSES_PAYLOAD,
+            pics: "MCORE.DD.SCAN_QR_CODE",
+            expected: "Verify the QR code has been scanned successfully.",
+        },
     )
     .step(
         "3.b",
@@ -128,7 +137,11 @@ certTest("TC-DD-1.8", {
         async cx => {
             await recordParse(cx, largeQrPayload(await thQrPayload(cx.devices.th)));
         },
-        { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
+        {
+            controllerCapabilities: PARSES_PAYLOAD,
+            pics: "MCORE.DD.SCAN_QR_CODE",
+            expected: "Verify the QR code has been scanned successfully.",
+        },
     )
     .step(
         "4.b",

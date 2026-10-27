@@ -21,7 +21,7 @@ import {
     ObserverGroup,
     serialize,
 } from "@matter/general";
-import { DataModelPath } from "@matter/model";
+import { type AttributeModel, DataModelPath } from "@matter/model";
 import {
     AccessControl,
     assertRemoteActor,
@@ -89,11 +89,43 @@ export class AtomicWriteHandler {
     }
 
     /**
-     * Initializes an AtomicWrite state for the given request, context, endpoint and cluster.
-     * It also implements all relevant validation according to the Matter spec.
+     * Validates the parts of a request that every request type shares and that fail the whole command, so they come
+     * before any per-attribute status.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 7.15.6.4
      */
-    #initializeState<B extends Behavior.Type>(
-        { requestType, attributeRequests, timeout }: Thermostat.AtomicRequest,
+    #validateRequest(
+        { attributeRequests }: Thermostat.AtomicRequest,
+        context: ActionContext,
+        endpoint: Endpoint,
+        cluster: ClusterBehavior.Type,
+    ) {
+        // Ensure we have a valid peer and so also associated fabric
+        const peerAddress = this.#assertValidPeer(context);
+
+        if (attributeRequests.length === 0) {
+            throw new StatusResponse.InvalidCommandError("No attribute requests provided");
+        }
+        const attributes = new Map<AttributeId, AttributeModel>();
+        for (const attr of attributeRequests) {
+            const model = cluster.schema.conformant.attributes(attr);
+            if (model === undefined || endpoint.stateOf(cluster.id)[attr] === undefined) {
+                throw new StatusResponse.InvalidCommandError(`Attribute ${attr} not supported by cluster`);
+            }
+            if (attributes.has(attr)) {
+                throw new StatusResponse.InvalidCommandError("Duplicate attribute in attribute requests");
+            }
+            attributes.set(attr, model);
+        }
+
+        return { peerAddress, attributes };
+    }
+
+    /**
+     * Returns the atomic write state a CommitWrite or RollbackWrite request addresses.
+     */
+    #assertExistingState<B extends Behavior.Type>(
+        request: Thermostat.AtomicRequest,
         context: ActionContext,
         endpoint: Endpoint,
         cluster: B,
@@ -101,54 +133,10 @@ export class AtomicWriteHandler {
         if (!ClusterBehavior.is(cluster)) {
             throw new InternalError("Cluster behavior expected for atomic write handler");
         }
-
-        // Ensure we have a valid peer and so also associated fabric
-        const peerAddress = this.#assertValidPeer(context);
-
-        // Validate AttributeRequests
-        if (attributeRequests.length === 0) {
-            throw new StatusResponse.InvalidCommandError("No attribute requests provided");
-        }
-        const attributes = new Map<AttributeId, string>();
-        for (const attr of attributeRequests) {
-            const [attributeName, _] =
-                Object.entries(cluster.cluster.attributes ?? {}).find(([_, { id }]) => id === attr) ?? [];
-            if (attributeName === undefined || endpoint.stateOf(cluster.id)[attr] === undefined) {
-                throw new StatusResponse.InvalidCommandError(`Attribute ${attr} not supported by cluster`);
-            }
-            if (attributes.has(attr)) {
-                throw new StatusResponse.InvalidCommandError("Duplicate attribute in attribute requests");
-            }
-            attributes.set(attr, attributeName);
-        }
+        const { peerAddress } = this.#validateRequest(request, context, endpoint, cluster);
+        const { attributeRequests } = request;
 
         const existingState = this.#pendingWriteForPeer(peerAddress, endpoint, cluster.cluster.id);
-
-        if (requestType === Thermostat.RequestType.BeginWrite) {
-            if (timeout === undefined) {
-                throw new StatusResponse.InvalidCommandError("Timeout missing for BeginWrite request");
-            }
-
-            const initialValues: Val.Struct = {};
-            for (const attr of attributeRequests) {
-                initialValues[attr] = endpoint.stateOf(cluster.id)[attr];
-            }
-
-            const state = new AtomicWriteState(
-                peerAddress,
-                endpoint,
-                cluster.cluster.id,
-                attributeRequests,
-                timeout,
-                attributes,
-                initialValues,
-            );
-            this.#pendingWrites.add(state);
-            state.closed.once(() => void this.#pendingWrites.delete(state));
-            state.start();
-            logger.debug("Added atomic write state:", state);
-            return state;
-        }
         if (existingState === undefined) {
             throw new StatusResponse.InvalidInStateError("No atomic write in progress for this peer");
         }
@@ -177,36 +165,37 @@ export class AtomicWriteHandler {
             throw new InternalError("Cluster behavior expected for atomic write handler");
         }
 
+        const { peerAddress, attributes } = this.#validateRequest(request, context, endpoint, cluster);
+
         // §7.15.6.4.1 step 1: reject at command level if this peer already holds an atomic write on the cluster/endpoint
         // for any attributes, before per-attribute processing (matches CHIP's InAtomicWrite gate).
-        const peerAddress = this.#derivePeerAddress(context);
-        if (peerAddress !== undefined && this.#pendingWriteForPeer(peerAddress, endpoint, cluster.cluster.id)) {
+        if (this.#pendingWriteForPeer(peerAddress, endpoint, cluster.cluster.id)) {
             throw new StatusResponse.InvalidInStateError(
                 "An atomic write is already in progress for this peer on this cluster and endpoint",
             );
         }
 
+        const { attributeRequests, timeout } = request;
+        if (timeout === undefined) {
+            throw new StatusResponse.InvalidCommandError("Timeout missing for BeginWrite request");
+        }
+
         let commandStatusCode = Status.Success;
-        const attributeStatus = request.attributeRequests.map(attr => {
+        const attributeStatus = [...attributes].map(([attr, attributeModel]) => {
             let statusCode = Status.Success;
-            const attributeModel = cluster.schema.conformant.attributes(attr);
-            if (attributeModel === undefined) {
+            const { writeLevel } = cluster.supervisor.get(attributeModel).access.limits;
+            const location = {
+                path: DataModelPath.none,
+                endpoint: endpoint.number,
+                cluster: cluster.cluster.id,
+                owningFabric: context.fabric,
+            };
+            if (context.authorityAt(writeLevel, location) !== AccessControl.Authority.Granted) {
+                statusCode = Status.UnsupportedAccess;
+            } else if (!attributeModel.effectiveQuality.atomic) {
                 statusCode = Status.InvalidCommand;
-            } else {
-                const { writeLevel } = cluster.supervisor.get(attributeModel).access.limits;
-                const location = {
-                    path: DataModelPath.none,
-                    endpoint: endpoint.number,
-                    cluster: cluster.cluster.id,
-                    owningFabric: context.fabric,
-                };
-                if (context.authorityAt(writeLevel, location) !== AccessControl.Authority.Granted) {
-                    statusCode = Status.UnsupportedAccess;
-                } else if (!attributeModel.effectiveQuality.atomic) {
-                    statusCode = Status.InvalidCommand;
-                } else if (this.#pendingWriteStateForAttribute(endpoint, cluster, attr) !== undefined) {
-                    statusCode = Status.Busy;
-                }
+            } else if (this.#pendingWriteStateForAttribute(endpoint, cluster, attr) !== undefined) {
+                statusCode = Status.Busy;
             }
 
             if (statusCode !== Status.Success) {
@@ -218,16 +207,32 @@ export class AtomicWriteHandler {
             };
         });
 
-        let timeout;
-        if (commandStatusCode === Status.Success) {
-            const state = this.#initializeState(request, context, endpoint, cluster);
-            timeout = state.timeout;
+        if (commandStatusCode !== Status.Success) {
+            return { statusCode: commandStatusCode, attributeStatus };
         }
+
+        const initialValues: Val.Struct = {};
+        for (const attr of attributeRequests) {
+            initialValues[attr] = endpoint.stateOf(cluster.id)[attr];
+        }
+        const state = new AtomicWriteState(
+            peerAddress,
+            endpoint,
+            cluster.cluster.id,
+            attributeRequests,
+            timeout,
+            new Map([...attributes].map(([attr, { propertyName }]) => [attr, propertyName])),
+            initialValues,
+        );
+        this.#pendingWrites.add(state);
+        state.closed.once(() => void this.#pendingWrites.delete(state));
+        state.start();
+        logger.debug("Added atomic write state:", state);
 
         return {
             statusCode: commandStatusCode,
             attributeStatus,
-            timeout,
+            timeout: state.timeout,
         };
     }
 
@@ -270,7 +275,7 @@ export class AtomicWriteHandler {
         cluster: B,
         clusterState: ClusterState.Type<ClusterTyping, B>,
     ): Promise<Thermostat.AtomicResponse> {
-        const state = this.#initializeState(request, context, endpoint, cluster);
+        const state = this.#assertExistingState(request, context, endpoint, cluster);
         const events = endpoint.eventsOf(cluster.id);
 
         // §7.15.6.4.2: the pending writes apply as one unit, so every attribute is staged in this one transaction and
@@ -356,7 +361,7 @@ export class AtomicWriteHandler {
         endpoint: Endpoint,
         cluster: Behavior.Type,
     ): Thermostat.AtomicResponse {
-        const state = this.#initializeState(request, context, endpoint, cluster);
+        const state = this.#assertExistingState(request, context, endpoint, cluster);
         state.close();
         return {
             statusCode: Status.Success,

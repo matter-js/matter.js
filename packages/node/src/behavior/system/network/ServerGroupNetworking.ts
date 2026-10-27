@@ -36,6 +36,9 @@ export class ServerGroupNetworking {
     /** Addresses the socket has actually joined.  Changed only after addMembership/dropMembership succeeded. */
     #joined = new Set<string>();
 
+    /** Addresses whose join failed and is being retried, so only the first failure logs at info. */
+    #failedJoins = new Set<string>();
+
     #reconciling?: Promise<void>;
     #reconcileRequested = false;
     #closed = false;
@@ -74,19 +77,6 @@ export class ServerGroupNetworking {
             this.#observersForFabric(fabricIndex).close();
             this.#fabricObservers.delete(fabricIndex);
             this.#desired.delete(fabricIndex);
-            return this.#reconcile();
-        });
-
-        this.#observers.on(fabrics.events.replaced, fabric => {
-            const fabricIndex = fabric.fabricIndex;
-            this.#observersForFabric(fabricIndex).close();
-            this.#fabricObservers.delete(fabricIndex);
-            this.#registerFabricGroupObserver(fabric);
-
-            this.#desired.delete(fabricIndex);
-            for (const groupId of fabric.groups.endpoints.keys()) {
-                this.#want(groupId, fabric);
-            }
             return this.#reconcile();
         });
 
@@ -143,6 +133,11 @@ export class ServerGroupNetworking {
                 }
             }
 
+            for (const address of this.#failedJoins) {
+                if (!wanted.has(address)) {
+                    this.#failedJoins.delete(address);
+                }
+            }
             for (const address of [...this.#joined]) {
                 if (!wanted.has(address)) {
                     await this.#leave(address);
@@ -166,12 +161,16 @@ export class ServerGroupNetworking {
         try {
             await this.#udpInterface.addMembership(address);
             this.#joined.add(address);
+            this.#failedJoins.delete(address);
             return true;
         } catch (error) {
-            logger.warn(
-                `Failed to join multicast address ${address}, retrying in ${Duration.format(JOIN_RETRY_INTERVAL)}`,
-                error,
-            );
+            const message = `Failed to join multicast address ${address}, retrying in ${Duration.format(JOIN_RETRY_INTERVAL)}`;
+            if (this.#failedJoins.has(address)) {
+                logger.debug(message, error);
+            } else {
+                this.#failedJoins.add(address);
+                logger.info(message, error);
+            }
             return false;
         }
     }
@@ -215,11 +214,11 @@ export class ServerGroupNetworking {
         });
 
         // A group's resolved address can change independent of endpoint add/remove (e.g. Groupcast applying its
-        // policy after GKM has already restored endpoints on reload/fabric-replace).  The policy map emits before it
-        // commits the value, so the address is read after a yield.
+        // policy after GKM has already restored endpoints on reload).  The policy map emits before it commits the
+        // value, so the address is read after a yield.
         const rebind = async (groupId: GroupId) => {
             await Promise.resolve();
-            // A replaced fabric registers new observers; the old fabric's pending rebind must not overwrite its address
+            // A fabric added later under the same index registers new observers; a pending rebind must not touch it
             if (this.#fabricObservers.get(fabricIndex) === observers && this.#desired.get(fabricIndex)?.has(groupId)) {
                 this.#want(groupId, fabric);
                 await this.#reconcile();

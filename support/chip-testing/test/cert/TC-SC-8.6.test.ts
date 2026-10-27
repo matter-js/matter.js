@@ -13,7 +13,6 @@ import {
     TCP_ROLES,
     TcpSessionRef,
     tcpSessionStep,
-    tcpStep,
 } from "./tc-sc-8-support.js";
 import { CommissionedRefs, recordAll } from "./tc-support.js";
 
@@ -78,7 +77,7 @@ certTest("TC-SC-8.6", {
             expected: "Verify that the session established with DUT allows large payloads.",
         },
     )
-    .step(2, "TH initiates a Read of all attributes of all clusters of DUT", tcpStep(readEverything), {
+    .step(2, "TH initiates a Read of all attributes of all clusters of DUT", readEverything, {
         expected:
             "Verify DUT successfully transmits all the attribute data in one ReportData message to TH. Verify " +
             "receipt of ReportData message at TH.",

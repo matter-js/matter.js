@@ -122,12 +122,6 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
 
         const fabrics = this.env.get(FabricManager);
 
-        // TODO handle delete fabric more generically later to remove fabric scoped data
-        // Added fabric always have no groups, so no need to initialize anything on adding the fabric
-
-        // Fabric was updated, so basically newly created, so we need to reinitialize the group key sets
-        this.reactTo(fabrics.events.replaced, this.#handleFabricUpdate);
-
         // When we have group key sets, we need to ensure that they are initialized on the Fabric group manager
         if (this.state.groupKeySets.length) {
             const groupKeysForFabric = new Map<FabricIndex, GroupKeyManagement.GroupKeySet[]>();
@@ -169,43 +163,6 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
                 if (fabrics.has(fabricIndex)) {
                     fabrics.for(fabricIndex).groups.endpoints.set(groupId, [...endpoints]);
                 }
-            }
-        }
-    }
-
-    /** Handle the recreation (update) of a fabric, so we need to reinitialize the group key sets */
-    async #handleFabricUpdate(fabric: Fabric) {
-        if (this.state.groupKeySets.length === 0) {
-            return; // No group key sets, so nothing to do
-        }
-        const fabricIndex = fabric.fabricIndex;
-        const groupKeysForFabric = this.state.groupKeySets.filter(
-            ({ fabricIndex: entryIndex }) => entryIndex === fabricIndex,
-        );
-        for (const groupKeySet of groupKeysForFabric) {
-            await fabric.groups.setFromGroupKeySet(groupKeySet);
-        }
-        if (this.state.groupKeyMap.length) {
-            fabric.groups.groupKeyIdMap = new Map<GroupId, number>(
-                this.state.groupKeyMap
-                    .filter(({ fabricIndex: entryIndex }) => entryIndex === fabricIndex)
-                    .map(({ groupId, groupKeySetId }) => [groupId, groupKeySetId]),
-            );
-        }
-        if (this.state.groupTable.length) {
-            // Diff instead of clear+refill: endpoint map events drive the UDP multicast memberships, a blind rebuild
-            // would leave and rejoin every group address
-            const groupTable = this.state.groupTable.filter(
-                ({ fabricIndex: entryIndex }) => entryIndex === fabricIndex,
-            );
-            const targetGroupIds = new Set(groupTable.map(({ groupId }) => groupId));
-            for (const groupId of fabric.groups.endpoints.keys()) {
-                if (!targetGroupIds.has(groupId)) {
-                    fabric.groups.endpoints.delete(groupId);
-                }
-            }
-            for (const entry of groupTable) {
-                fabric.groups.endpoints.set(entry.groupId, entry.endpoints);
             }
         }
     }

@@ -43,11 +43,6 @@ export interface PeerDescriptor {
     address: PeerAddress;
 
     /**
-     * The data model revision the peer supports, if known.
-     */
-    dataModelRevision?: number;
-
-    /**
      * A physical address the peer may be accessed at, if known.
      */
     operationalAddress?: OperationalAddress;

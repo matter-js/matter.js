@@ -5,16 +5,14 @@
  */
 
 import { Subject } from "#action/server/Subject.js";
-import type { Fabric } from "#fabric/Fabric.js";
 import { GroupKeySetMissingError } from "#groups/errors.js";
 import { Groups } from "#groups/Groups.js";
 import { KeySets, type OperationalKeySet } from "#groups/KeySets.js";
 import { EndpointNumber, FabricId, GroupId } from "@matter/types";
 
 function groups() {
-    const fabric = { fabricId: FabricId(0x1122334455667788n) } as Fabric;
     const keySets = {} as unknown as KeySets<OperationalKeySet>;
-    return new Groups(fabric, keySets);
+    return new Groups(FabricId(0x1122334455667788n), keySets);
 }
 
 function keySet(groupKeySetId: number, operationalEpochKey0: Uint8Array): OperationalKeySet {
@@ -78,13 +76,12 @@ describe("Groups", () => {
         const OTHER = Uint8Array.from({ length: 16 }, () => 0xaa);
 
         function mapped() {
-            const fabric = { fabricId: FabricId(0x1122334455667788n) } as Fabric;
             const keySets = new KeySets<OperationalKeySet>();
             // 0x01a3 and 0x01a4 carry identical key material, so they derive the same group session id.
             keySets.add(keySet(0x01a3, SHARED));
             keySets.add(keySet(0x01a4, Uint8Array.from(SHARED)));
             keySets.add(keySet(0x0055, OTHER));
-            const g = new Groups(fabric, keySets);
+            const g = new Groups(FabricId(0x1122334455667788n), keySets);
             g.idMap = new Map([
                 [GroupId(0x0101), 0x01a4],
                 [GroupId(0x0300), 0x0055],
@@ -121,7 +118,7 @@ describe("Groups", () => {
             for (const set of sets) {
                 keySets.add(set);
             }
-            return new Groups({ fabricId: FabricId(1) } as Fabric, keySets);
+            return new Groups(FabricId(1), keySets);
         }
 
         it("refuses a group the fabric maps no key set to", () => {

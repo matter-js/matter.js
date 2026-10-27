@@ -15,7 +15,13 @@ const AclClusterId = AccessControl.id;
 const AclAttributeId = AccessControl.attributes.acl.id;
 const AclExtensionAttributeId = AccessControl.attributes.extension.id;
 
-function isAclOrExtensionPath(path: { clusterId: ClusterId; attributeId: AttributeId }) {
+/**
+ * Whether the path is the ACL or Extension attribute of the Access Control cluster, the only lists a WriteRequest may
+ * replace with a non-empty array.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 10.6.4.3.1
+ */
+export function isAclOrExtensionPath(path: { clusterId?: ClusterId; attributeId?: AttributeId }) {
     const { clusterId, attributeId } = path;
     return clusterId === AclClusterId && (attributeId === AclAttributeId || attributeId === AclExtensionAttributeId);
 }

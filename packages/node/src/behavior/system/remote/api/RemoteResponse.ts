@@ -32,13 +32,15 @@ export function RemoteResponse(local: LocalResponse): RemoteResponse {
                 value: local.value.js,
             };
 
-        case "error":
+        case "error": {
+            const { error } = local;
             return {
                 kind: "error",
                 id: local.id,
-                code: MatterError.idFor(local.error.constructor),
-                message: (local.error as StatusResponseError).bareMessage ?? local.error.message,
+                code: error instanceof MatterError ? error.id : MatterError.idFor(error.constructor),
+                message: error instanceof StatusResponseError ? error.bareMessage : error.message,
             };
+        }
 
         default:
             throw new InternalError(`Cannot convert local response kind "${local.kind}" to remote response`);

@@ -396,6 +396,7 @@ describe("SessionManager", () => {
                 async close(_flushViaSession, exchange) {
                     received.push(exchange);
                 },
+                async closeForShutdown() {},
             });
 
             await sessionManager.handlePeerLoss(PEER_ADDRESS, {

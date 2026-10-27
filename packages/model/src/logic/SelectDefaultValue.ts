@@ -5,7 +5,9 @@
  */
 
 import { FieldValue, Metatype } from "../common/index.js";
+import { AttributeModel, ClusterModel } from "../models/index.js";
 import type { ValueModel } from "../models/ValueModel.js";
+import { ClusterRevision } from "../standard/elements/definitions.js";
 import { DecodedBitmap } from "./DecodedBitmap.js";
 import { DefaultValue } from "./DefaultValue.js";
 import type { Scope } from "./Scope.js";
@@ -21,6 +23,11 @@ export function SelectDefaultValue(scope: Scope, member: ValueModel): unknown {
     // No default unless mandatory or explicitly marked as implemented
     if (!scope.hasOperationalSupport(member)) {
         return;
+    }
+
+    // A cluster outside the standard model shares the global ClusterRevision, which states no default
+    if (member instanceof AttributeModel && member.id === ClusterRevision.id && scope.owner instanceof ClusterModel) {
+        return scope.owner.revision;
     }
 
     return defaultValueForMetatype(scope, member);

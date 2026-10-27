@@ -24,6 +24,7 @@ import {
     AsyncCache,
     InterfaceType,
     isIPv6,
+    Lifetime,
     Logger,
     Minutes,
     Network,
@@ -120,12 +121,14 @@ export class NetworkReactNative extends Network {
 
     private static readonly netInterfaces = new AsyncCache<string | undefined>(
         "Network interface",
+        Lifetime.process,
         (ip: string) => this.getNetInterfaceForRemoteAddress(ip),
         Minutes(5),
     );
 
     override async close() {
-        await NetworkReactNative.netInterfaces.close();
+        // The cache is static and shared by every instance, so it must stay open
+        await NetworkReactNative.netInterfaces.clear();
     }
 
     private static async getNetInterfaceForRemoteAddress(ip: string) {

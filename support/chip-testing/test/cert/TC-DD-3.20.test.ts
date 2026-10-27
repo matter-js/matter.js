@@ -10,6 +10,7 @@ import type { TransitionMark } from "./tc-dd-support.js";
 import {
     commissionByQr,
     CommissioningRefusals,
+    PARSES_PAYLOAD,
     recordBackInCommissioningMode,
     recordCommissionable,
     recordDiscriminatorHonored,
@@ -61,7 +62,11 @@ certTest("TC-DD-3.20", {
         async cx => {
             await recordParse(cx, await thQrPayload(cx.devices.th));
         },
-        { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
+        {
+            controllerCapabilities: PARSES_PAYLOAD,
+            pics: "MCORE.DD.SCAN_QR_CODE",
+            expected: "Verify the QR code has been scanned successfully.",
+        },
     )
     .step(
         "2.b",
@@ -98,7 +103,11 @@ certTest("TC-DD-3.20", {
         async cx => {
             await recordParse(cx, await thQrPayload(cx.devices.th, unpaired()));
         },
-        { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
+        {
+            controllerCapabilities: PARSES_PAYLOAD,
+            pics: "MCORE.DD.SCAN_QR_CODE",
+            expected: "Verify the QR code has been scanned successfully.",
+        },
     )
     .step(
         "5.b",

@@ -236,6 +236,9 @@ certTest("TC-BR-4", {
     pics: ["MCORE.BRIDGECLIENT"],
     app: "bridge",
 
+    // Most steps wait for the DUT to notice what the bridge changes after commissioning.
+    controllerCapabilities: ["sustained-subscription"],
+
     // chip's bridge-app cannot encode PowerSource.GeneratedCommandList on its composed endpoint and
     // destroys the read handler mid-chunk, so a controller's wildcard read of the bridge never
     // completes and it never subscribes. Restore the chip flavors once

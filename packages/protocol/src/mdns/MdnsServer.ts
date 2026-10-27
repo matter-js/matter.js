@@ -38,31 +38,7 @@ export class MdnsServer {
     #lifetime: Lifetime;
     #observers = new ObserverGroup();
     #recordsGenerator = new Map<string, MdnsServer.RecordGenerator>();
-    readonly #records = new AsyncCache<MdnsServer.InterfaceRecords>(
-        "MDNS discovery",
-        async (multicastInterface: string) => {
-            const byService = new Map<string, DnsRecord<any>[]>();
-            const ownedNames = new Set<string>();
-            const addrs = await this.network.getIpMac(multicastInterface);
-            if (addrs === undefined) {
-                return { byService, ownedNames };
-            }
-            const hostname = this.#hostname ?? hostnameForMac(addrs.mac);
-
-            for (const [service, generator] of this.#recordsGenerator) {
-                const records = generator(multicastInterface, addrs, hostname);
-                byService.set(service, records);
-                for (const record of records) {
-                    ownedNames.add(record.name.toLowerCase());
-                }
-            }
-
-            this.#registerResponderNames(ownedNames);
-
-            return { byService, ownedNames };
-        },
-        Minutes(15) /* matches maximum standard commissioning window time */,
-    );
+    readonly #records: AsyncCache<MdnsServer.InterfaceRecords>;
     // Union of advertised names across interfaces, fed to the socket so it keeps queries for our records (notably
     // bare-hostname A/AAAA queries, which carry no service-type label) before decoding.  Reset when records change.
     readonly #responderNames = new Set<string>();
@@ -83,6 +59,32 @@ export class MdnsServer {
     constructor(socket: MdnsSocket, lifetime = Lifetime.process) {
         this.#socket = socket;
         this.#lifetime = lifetime.join("mdns server");
+        this.#records = new AsyncCache<MdnsServer.InterfaceRecords>(
+            "MDNS discovery",
+            this.#lifetime,
+            async (multicastInterface: string) => {
+                const byService = new Map<string, DnsRecord<any>[]>();
+                const ownedNames = new Set<string>();
+                const addrs = await this.network.getIpMac(multicastInterface);
+                if (addrs === undefined) {
+                    return { byService, ownedNames };
+                }
+                const hostname = this.#hostname ?? hostnameForMac(addrs.mac);
+
+                for (const [service, generator] of this.#recordsGenerator) {
+                    const records = generator(multicastInterface, addrs, hostname);
+                    byService.set(service, records);
+                    for (const record of records) {
+                        ownedNames.add(record.name.toLowerCase());
+                    }
+                }
+
+                this.#registerResponderNames(ownedNames);
+
+                return { byService, ownedNames };
+            },
+            Minutes(15) /* matches maximum standard commissioning window time */,
+        );
         this.#observers.on(this.#socket.receipt, this.#handleMessage.bind(this));
     }
 
@@ -229,7 +231,13 @@ export class MdnsServer {
                 }
             }),
             "Error announcing MDNS messages",
-        ).catch(error => logger.error("Error announcing MDNS messages", error));
+        ).catch(error => {
+            if (this.#lifetime.isClosing) {
+                logger.debug("Error announcing MDNS messages while closing", error);
+            } else {
+                logger.error("Error announcing MDNS messages", error);
+            }
+        });
     }
 
     async expireAnnouncements(...services: string[]) {
@@ -256,7 +264,13 @@ export class MdnsServer {
                 }
             }),
             "Error happened when expiring MDNS announcements",
-        ).catch(error => logger.warn("Error happened when expiring MDNS announcements", error));
+        ).catch(error => {
+            if (this.#lifetime.isClosing) {
+                logger.debug("Error happened when expiring MDNS announcements while closing", error);
+            } else {
+                logger.warn("Error happened when expiring MDNS announcements", error);
+            }
+        });
         await this.#resetServices();
     }
 

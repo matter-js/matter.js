@@ -14,6 +14,7 @@ import { AttributeModel, ClusterModel, DatatypeModel, MetadataConflictError } fr
 import { FieldModel } from "#models/FieldModel.js";
 import { Schema } from "#models/Schema.js";
 import { any, locationdesc, string, struct, uint32, WindowCovering } from "#standard/elements/models.js";
+import { ImplementationError } from "@matter/general";
 
 describe("ClassSemantics", () => {
     describe("defines datatypes", () => {
@@ -122,6 +123,44 @@ describe("ClassSemantics", () => {
         const bar = schema.fields("bar");
         expect(bar).not.undefined;
         expect(bar!.base).equals(any);
+    });
+
+    it("invokes the afterFinalize hook once, with the final model", () => {
+        const seen = new Array<unknown>();
+
+        class Hooked {
+            @field(uint32)
+            foo = 1;
+
+            static [ClassSemantics.afterFinalize](decoration: ClassSemantics) {
+                seen.push(decoration.semanticModel);
+            }
+        }
+
+        const schema = Schema.Required(Hooked);
+        Schema.Required(Hooked);
+
+        expect(seen).deep.equals([schema]);
+        expect(schema.isFinal).true;
+        expect(schema.children.length).equals(1);
+    });
+
+    it("rethrows an afterFinalize error on every later resolution", () => {
+        let calls = 0;
+
+        class Failing {
+            @field(uint32)
+            foo = 1;
+
+            static [ClassSemantics.afterFinalize]() {
+                calls++;
+                throw new ImplementationError("hook failed");
+            }
+        }
+
+        expect(() => Schema(Failing)).throws(ImplementationError, "hook failed");
+        expect(() => Schema(Failing)).throws(ImplementationError, "hook failed");
+        expect(calls).equals(1);
     });
 
     describe("final base", () => {

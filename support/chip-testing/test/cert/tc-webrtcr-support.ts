@@ -11,6 +11,7 @@ import type {
     CertNodeRef,
     CertStepWiring,
     CertStepDefinition,
+    ControllerAdapterOptions,
     PromptHandler,
     StepVerdict,
     Subject,
@@ -19,17 +20,24 @@ import type {
     WebRtcSignalRecord,
 } from "@matter/testing";
 import {
+    capabilitiesFor,
     CertLogTimeoutError,
     chip,
     createControllerAdapter,
     EvidenceRecorder,
     PromptDrivenPythonTest,
-    resolveControllerImplementation,
+    skipOnControllerGap,
 } from "@matter/testing";
 import { join } from "node:path";
 import { env } from "node:process";
 import { CertCheckFailedError, CertCleanupError, settleWithin } from "./tc-support.js";
 import { WebRtcPeer } from "./webrtc-peer.js";
+
+/**
+ * The provider signals by invoking the requestor cluster on the controller, and every signaling command carries the
+ * specification's Large Message quality, which requires a TCP session.
+ */
+const DUT_OPTIONS: ControllerAdapterOptions = { webRtcRequestor: true, transport: "tcp" };
 
 /** Endpoint of TH_SERVER's camera clusters, which `chip-camera-app` fixes at 1. */
 const PROVIDER_ENDPOINT = 1;
@@ -236,6 +244,8 @@ export function certCameraCase<S>(definition: CameraCase<S> & { begin?: () => S 
         subpath: definition.subpath,
     };
 
+    const run = { tc: definition.tc, plan: "camera.adoc", controllers: { dut: "dut" } } as const;
+
     describe(definition.tc, () => {
         it(`[${definition.tc}] ${definition.title}`, async function () {
             const appPath = cameraAppPath();
@@ -243,32 +253,25 @@ export function certCameraCase<S>(definition: CameraCase<S> & { begin?: () => S 
                 this.skip();
             }
 
-            // Only a controller that is itself a node can host the requestor cluster the provider
-            // signals against; chip-tool's adapter refuses the option rather than pretending to.
-            if (resolveControllerImplementation() !== "matterjs") {
-                this.skip();
-            }
+            const selection = await skipOnControllerGap(this, run, capabilitiesFor(DUT_OPTIONS));
 
             this.timeout(10 * 60_000);
 
             const answered = new Set<CameraStep<S>>();
             const state: { ref?: CertNodeRef; session?: CameraSession } = {};
-            const peer = new WebRtcPeer();
             let bodyFailure: unknown;
             let flushFailure: unknown;
             let closeFailure: unknown;
             let concludeFailure: unknown;
 
-            // Every signaling command carries the specification's Large Message quality, which requires
-            // a TCP session; a controller with no TCP client cannot send one at all.
-            const dut = createControllerAdapter("dut", { webRtcRequestor: true, transport: "tcp" });
+            const dut = createControllerAdapter("dut", DUT_OPTIONS, "dut", selection);
 
             const recorder = new EvidenceRecorder(evidenceOutDir(), {
-                tc: definition.tc,
-                plan: "camera.adoc",
+                tc: run.tc,
+                plan: run.plan,
                 timestamp: new Date().toISOString(),
                 controller: "dut",
-                controllerImplementation: resolveControllerImplementation(),
+                controllerImplementation: selection.dut,
                 devices: [{ role: "th_server", app: descriptor.path, flavor: "python-wrapped" }],
                 matterJsCommit: "(not recorded)",
             });
@@ -277,9 +280,11 @@ export function certCameraCase<S>(definition: CameraCase<S> & { begin?: () => S 
 
             let test: PromptDrivenPythonTest | undefined;
             const startedAt = Time.nowUs;
+            const peer = new WebRtcPeer();
 
             try {
                 await dut.start();
+                recorder.recordControllerBuild(dut.build);
 
                 let endsAt: number | undefined;
                 let scriptEndsAt = Number.MAX_SAFE_INTEGER;
@@ -614,7 +619,7 @@ export async function establishSession(
 
     const id = mode === "solicit" ? await solicitOffer(session) : await provideOfferFor(session);
     if (id !== expected) {
-        await session.requestor.removeSession(expected);
+        await session.requestor.removeSession(session.ref, expected);
         throw new CertCheckFailedError(
             `The provider minted session ${id} where ${expected} was registered ahead of it, so its signaling for ` +
                 "that session could not be accepted and this run cannot establish one",
@@ -752,7 +757,7 @@ export async function endSession(session: CameraSession, id: number, reason: num
         ),
     );
 
-    await session.requestor.removeSession(id);
+    await session.requestor.removeSession(session.ref, id);
 }
 
 /** Records the sessions the DUT's requestor cluster holds, which `CurrentSessions` reports. */
@@ -942,7 +947,7 @@ export async function expectControlAccepted(
     if (control !== expected) {
         // Registering after the response cannot win the race this pre-registration exists for, so the
         // control can no longer witness anything about the DUT
-        await session.requestor.removeSession(expected);
+        await session.requestor.removeSession(session.ref, expected);
         throw new CertCheckFailedError(
             `The provider minted session ${control} where ${expected} was registered ahead of it, so this run ` +
                 "cannot establish whether the DUT accepts a session it holds",

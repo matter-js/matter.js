@@ -525,6 +525,81 @@ describe("EvidenceRecorder", () => {
         expect(resultJson.run.chipToolRef).equal("df8bd0308caa0680e2a78cda724a959e5b385205");
     });
 
+    it("persists helperControllerImplementation only when supplied", async () => {
+        const meta = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut,th",
+            controllerImplementation: "matterjs-server",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" as const }],
+            matterJsCommit: "abc1234",
+        };
+
+        const withHelper = JSON.parse(
+            await fsp.readFile(
+                pathMod.join(
+                    await publish(
+                        new EvidenceRecorder(outDir, { ...meta, helperControllerImplementation: "matterjs" }),
+                    ),
+                    "result.json",
+                ),
+                "utf8",
+            ),
+        );
+        expect(withHelper.run.helperControllerImplementation).equal("matterjs");
+
+        const without = JSON.parse(
+            await fsp.readFile(pathMod.join(await publish(new EvidenceRecorder(outDir, meta)), "result.json"), "utf8"),
+        );
+        expect(without.run).not.to.have.property("helperControllerImplementation");
+    });
+
+    it("persists controllerBuild only when supplied, and names it in the run header", async () => {
+        const meta = {
+            tc: "TC-CADMIN-1.17",
+            plan: "multiplefabrics.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs-server",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" as const }],
+            matterJsCommit: "abc1234",
+        };
+        const controllerBuild = { entry: "dist/main.js", sdkVersion: "0.18.0", schemaVersion: "13" };
+
+        const recorder = new EvidenceRecorder(outDir, { ...meta, controllerBuild });
+        const withBuild = JSON.parse(await fsp.readFile(pathMod.join(await publish(recorder), "result.json"), "utf8"));
+        expect(withBuild.run.controllerBuild).deep.equal(controllerBuild);
+        expect(recorder.runHeaderLines()).to.include(
+            "build      : entry=dist/main.js, sdkVersion=0.18.0, schemaVersion=13",
+        );
+
+        const without = JSON.parse(
+            await fsp.readFile(pathMod.join(await publish(new EvidenceRecorder(outDir, meta)), "result.json"), "utf8"),
+        );
+        expect(without.run).not.to.have.property("controllerBuild");
+    });
+
+    it("persists a controllerBuild recorded after construction, as a case that starts its controller late does", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-DA-1.9",
+            plan: "deviceattestation.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs-server",
+            devices: [{ role: "th", app: "all-clusters", flavor: "python-wrapped" }],
+            matterJsCommit: "abc1234",
+        });
+        const controllerBuild = { entry: "dist/main.js", sdkVersion: "0.18.0" };
+
+        recorder.recordControllerBuild(controllerBuild);
+        recorder.recordControllerBuild(undefined);
+
+        const record = JSON.parse(await fsp.readFile(pathMod.join(await publish(recorder), "result.json"), "utf8"));
+        expect(record.run.controllerBuild).deep.equal(controllerBuild);
+        expect(recorder.runHeaderLines()).to.include("build      : entry=dist/main.js, sdkVersion=0.18.0");
+    });
+
     it("persists the controller-unsupported skip count, so a bare result.json says the run proved less", async () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-IDM-3.1",
@@ -543,9 +618,87 @@ describe("EvidenceRecorder", () => {
         const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
-        // A pass verdict alongside a nonzero count is exactly the case the field exists for.
-        expect(resultJson.verdict).equal("pass");
+        expect(resultJson.verdict).equal("controller-gap");
         expect(resultJson.controllerUnsupportedSkips).equal(2);
+    });
+
+    it("settles a run skipped as a whole for a controller gap as controller-gap, naming the gap", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-SU-3.1",
+            plan: "softwareupdate.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs-server",
+            devices: [],
+            matterJsCommit: "abc1234",
+        });
+        recorder.recordControllerGap('controller "matterjs-server" lacks ota-provider: no staging');
+
+        const dir = await publish(recorder);
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect(resultJson.verdict).equal("controller-gap");
+        expect(resultJson.controllerGap).equal('controller "matterjs-server" lacks ota-provider: no staging');
+        expect(resultJson.steps).deep.equal([]);
+    });
+
+    it("settles a run that stopped on a framework error as error, not fail", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-SC-5.3",
+            plan: "group_communication.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs-server",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
+            matterJsCommit: "abc1234",
+        });
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "error");
+        const dir = await recorder.flush();
+        await recorder.concludeRun({ failed: true, detail: "undeclared group-messaging", frameworkError: true });
+
+        const errorRun = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+        expect(errorRun.verdict).equal("error");
+        expect(errorRun.runError).equal("undeclared group-messaging");
+    });
+
+    it("settles a framework-error run whose device exited as fail, the device's outcome", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-SC-5.3",
+            plan: "group_communication.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs-server",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
+            matterJsCommit: "abc1234",
+        });
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "error");
+        recorder.deviceExited("th", { code: 134, signal: null });
+        const dir = await recorder.flush();
+        await recorder.concludeRun({ failed: true, detail: "undeclared group-messaging", frameworkError: true });
+
+        const run = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+        expect(run.verdict).equal("fail");
+    });
+
+    it("settles a run with an unverified check and a controller-gap skip as unverified", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-IDM-3.1",
+            plan: "interactiondatamodel.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs-server",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
+            matterJsCommit: "abc1234",
+        });
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "unverified");
+        recorder.recordControllerUnsupportedSkips(1);
+
+        const dir = await publish(recorder);
+        const run = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+        expect(run.verdict).equal("unverified");
     });
 
     it("persists the PICS-skip count, so a bundle says a run tested less than the plan asks", async () => {
@@ -642,6 +795,35 @@ describe("EvidenceRecorder", () => {
         expect(withSkips.verdict).equal("pass");
         expect(withSkips.planConditionSkips).equal(1);
         expect("planConditionSkips" in withoutSkips).equal(false);
+    });
+
+    it("records how many steps were out of the controller's scope as a pass, and omits the count where none were", async () => {
+        const recorder = (tc: string) =>
+            new EvidenceRecorder(outDir, {
+                tc,
+                plan: "interactiondatamodel.adoc",
+                timestamp: "2026-10-15T00:00:00.000Z",
+                controller: "dut",
+                controllerImplementation: "matterjs-server",
+                devices: [{ role: "th", app: "all-clusters", flavor: "chip-local" }],
+                matterJsCommit: "abc1234",
+            });
+
+        const scoped = recorder("TC-IDM-5.1");
+        scoped.beginStep(step1);
+        scoped.endStep(step1, "pass");
+        scoped.endStep(step2, "skipped", 'controller "matterjs-server" does not offer icd-client: not for controllers');
+        scoped.recordOutOfScopeSkips(1);
+        const withSkips = JSON.parse(await fsp.readFile(pathMod.join(await publish(scoped), "result.json"), "utf8"));
+
+        const plain = recorder("TC-IDM-2.1");
+        plain.beginStep(step1);
+        plain.endStep(step1, "pass");
+        const withoutSkips = JSON.parse(await fsp.readFile(pathMod.join(await publish(plain), "result.json"), "utf8"));
+
+        expect(withSkips.verdict).equal("pass");
+        expect(withSkips.outOfScopeSkips).equal(1);
+        expect("outOfScopeSkips" in withoutSkips).equal(false);
     });
 
     it("omits the PICS-skip count when every step's PICS was met", async () => {

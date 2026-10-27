@@ -35,5 +35,6 @@ import "./SmokeCoAlarmEndpoint.js";
 import "./SoilSensorEndpoint.js";
 import "./SpeakerEndpoint.js";
 import "./TemperatureSensorEndpoint.js";
+import "./ThermostatEndpoint.js";
 import "./WaterFreezeDetectorEndpoint.js";
 import "./WaterLeakDetectorEndpoint.js";

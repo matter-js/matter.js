@@ -14,7 +14,6 @@ import {
     TCP_ROLES,
     TcpSessionRef,
     tcpSessionStep,
-    tcpStep,
     timeSnapshotResponseCheck,
 } from "./tc-sc-8-support.js";
 import { CommissionedRefs, recordAll, requireId } from "./tc-support.js";
@@ -79,7 +78,7 @@ certTest("TC-SC-8.5", {
             expected: "Verify that the session established with DUT allows large payloads.",
         },
     )
-    .step(2, "TH initiates an InvokeCommandRequest with DUT over the established session", tcpStep(invokeOverTcp), {
+    .step(2, "TH initiates an InvokeCommandRequest with DUT over the established session", invokeOverTcp, {
         expected: "Verify Command response received successfully at TH.",
     })
     .finalize(async cx => {

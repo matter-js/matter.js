@@ -23,11 +23,11 @@ describe("Client startUp event handling", () => {
         const peerAddress = peer1.stateOf(CommissioningClient).peerAddress!;
         const sessionManager = controller.env.get(SessionManager);
 
-        // Nullify activeSubscription so subscriptionActive returns false while the peer
+        // End the default subscription so subscriptionActive returns false while the peer
         // remains online (the session still exists).  This tests the subscriptionActive
         // guard directly without going through device stop, which would also trigger the
         // isOnline guard and close sessions on its own.
-        peer1.behaviors.internalsOf(NetworkClient).activeSubscription = undefined;
+        await MockTime.resolve(peer1.set({ network: { autoSubscribe: false } }));
         expect(peer1.lifecycle.isOnline).true;
         expect(peer1.act(agent => agent.get(NetworkClient).subscriptionActive)).false;
 

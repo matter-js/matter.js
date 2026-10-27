@@ -4,9 +4,31 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, Diagnostic, LogDestination, LogFormat, Logger, MockCrypto, Seconds } from "@matter/general";
+import {
+    Bytes,
+    Crypto,
+    Diagnostic,
+    Lifecycle,
+    LogDestination,
+    LogFormat,
+    LogLevel,
+    Logger,
+    MockCrypto,
+    MockNetwork,
+    Network,
+    Seconds,
+    Time,
+} from "@matter/general";
 import { MockServerNode, MockSite } from "@matter/node/testing";
-import { ClientInvoke, GroupKeySetMissingError, Invoke, Read, SessionManager, Write } from "@matter/protocol";
+import {
+    ClientInvoke,
+    GroupKeySetMissingError,
+    Invoke,
+    Read,
+    SessionManager,
+    SustainedSubscription,
+    Write,
+} from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, NodeId } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { Binding } from "@matter/types/clusters/binding";
@@ -14,31 +36,37 @@ import { GroupKeyManagement } from "@matter/types/clusters/group-key-management"
 import { OnOff } from "@matter/types/clusters/on-off";
 import { NetworkClient } from "../../../src/behavior/system/network/NetworkClient.js";
 import { AccessControlServer } from "../../../src/behaviors/access-control/AccessControlServer.js";
+import { BasicInformationClient } from "../../../src/behaviors/basic-information/BasicInformationClient.js";
 import { BindingResolution } from "../../../src/behaviors/binding/BindingManager.js";
 import { BindingServer } from "../../../src/behaviors/binding/BindingServer.js";
+import { DescriptorClient } from "../../../src/behaviors/descriptor/DescriptorClient.js";
 import { GroupsClient } from "../../../src/behaviors/groups/GroupsClient.js";
 import { OnOffClient } from "../../../src/behaviors/on-off/OnOffClient.js";
 import { OnOffServer } from "../../../src/behaviors/on-off/OnOffServer.js";
+import { OperationalCredentialsClient } from "../../../src/behaviors/operational-credentials/OperationalCredentialsClient.js";
 import { OnOffLightSwitchDevice } from "../../../src/devices/on-off-light-switch.js";
 import { OnOffLightDevice } from "../../../src/devices/on-off-light.js";
 import type { Endpoint } from "../../../src/endpoint/Endpoint.js";
 import { InvalidGroupOperationError } from "../../../src/node/client/ClientGroupInteraction.js";
 import { ClientNodeInteraction } from "../../../src/node/client/ClientNodeInteraction.js";
 import { ClientGroup } from "../../../src/node/ClientGroup.js";
+import { NodeConnectionState } from "../../../src/node/ClientNodeLifecycle.js";
+import type { ServerNode } from "../../../src/node/ServerNode.js";
+import { ClientNodeStore } from "../../../src/storage/client/ClientNodeStore.js";
 
 describe("Binding integration", () => {
     before(() => {
         MockTime.init();
     });
 
-    it("kind=client: admin writes binding → established fires → command round-trips to peer → removed fires", async () => {
-        await using site = new MockSite();
-
-        // Commission the switch (device index 2) to the controller (index 1).
-        // OnOffLightSwitchDevice declares OnOffClient and includes BindingServer, so the
-        // BindingManager activates on the switch.
-        // MockServerNode.RootEndpoint adds ControllerBehavior so the switch can initiate CASE
-        // sessions to the light (required by BindingManager when it resolves the client kind).
+    /**
+     * Commissions a switch and a light to one controller and binds the switch's endpoint 1 to the light's endpoint 1.
+     * The switch→light CASE handshakes need entropy on both sides, so {@link entropic} switches it for both.
+     */
+    async function boundLight(site: MockSite) {
+        // OnOffLightSwitchDevice declares OnOffClient and includes BindingServer, so the BindingManager activates on
+        // the switch.  MockServerNode.RootEndpoint adds ControllerBehavior so the switch can initiate CASE sessions to
+        // the light (required by BindingManager when it resolves the client kind).
         const { controller, device: switchNode } = await site.addCommissionedPair({
             device: {
                 type: MockServerNode.RootEndpoint,
@@ -46,7 +74,6 @@ describe("Binding integration", () => {
             },
         });
 
-        // Commission the light (device index 3) to the same controller.
         const lightNode = await site.addDevice({ index: 3, device: OnOffLightDevice });
         const lightCrypto = lightNode.env.get(Crypto) as MockCrypto;
         const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
@@ -57,8 +84,8 @@ describe("Binding integration", () => {
         });
         controllerCrypto.entropic = lightCrypto.entropic = false;
 
-        // Grant any CASE-authenticated fabric member Operate access on the light so the switch
-        // (which is on the same fabric) can invoke OnOff commands.
+        // Grant any CASE-authenticated fabric member Operate access on the light so the switch (which is on the same
+        // fabric) can invoke OnOff commands.
         await lightNode.act("grant-operate", agent => {
             const acl = agent.get(AccessControlServer);
             acl.state.acl = [
@@ -73,40 +100,28 @@ describe("Binding integration", () => {
             ];
         });
 
-        // Get the controller's peer view of the light — the second commissioned peer.
-        const peerLight = controller.peers.get("peer2")!;
-        expect(peerLight).not.undefined;
-
-        // The binding entry on the switch must point to the light's operational address as seen
-        // from the shared fabric (fabricIndex and nodeId on the switch's fabric).
-        const lightPeerAddress = peerLight.state.commissioning.peerAddress!;
+        // The binding entry on the switch points to the light's operational address on the shared fabric
+        const lightPeerAddress = controller.peers.get("peer2")!.state.commissioning.peerAddress!;
         expect(lightPeerAddress).not.undefined;
 
-        // Subscribe to established / removed on the switch's BindingServer BEFORE writing the
-        // binding attribute so we don't race the event.
+        // Subscribe to established / removed before writing the binding attribute so we don't race the event
         const switchEp = switchNode.parts.get(1)!;
         switchEp.behaviors.require(BindingServer);
         await switchEp.construction;
 
         const established = new Array<BindingResolution>();
         const removed = new Array<BindingResolution>();
-
-        // resolveEstablished drives MockTime resolution after the write.
         let resolveEstablished!: () => void;
         const establishedPromise = new Promise<void>(res => (resolveEstablished = res));
-
         switchEp.eventsOf(BindingServer).established.on(r => {
             void established.push(r);
             resolveEstablished();
         });
         switchEp.eventsOf(BindingServer).removed.on(r => void removed.push(r));
 
-        // Get the controller's peer view of the switch — the first commissioned peer.
         const peerSwitch = controller.peers.get("peer1")!;
         expect(peerSwitch).not.undefined;
 
-        // Write the binding entry on the switch via the controller interaction.  The entry points
-        // to the light's endpoint 1 on the shared fabric.
         const bindingEntry = new Binding.Target({
             node: lightPeerAddress.nodeId,
             endpoint: EndpointNumber(1),
@@ -115,10 +130,12 @@ describe("Binding integration", () => {
             fabricIndex: lightPeerAddress.fabricIndex,
         });
 
-        // The switch→light CASE handshake requires entropy on both sides, same as commissioning.
         const switchCrypto = switchNode.env.get(Crypto) as MockCrypto;
-        switchCrypto.entropic = lightCrypto.entropic = true;
+        const entropic = (on: boolean) => {
+            switchCrypto.entropic = lightCrypto.entropic = on;
+        };
 
+        entropic(true);
         await MockTime.resolve(
             peerSwitch.interaction.write(
                 Write(
@@ -133,15 +150,102 @@ describe("Binding integration", () => {
             { macrotasks: true },
         );
 
-        // Drive the switch→light CASE handshake; established fires once the peer is online.
+        // Drive the switch→light CASE handshake; established fires once the peer is online
         await MockTime.resolve(establishedPromise, { macrotasks: true });
-
-        switchCrypto.entropic = lightCrypto.entropic = false;
+        entropic(false);
 
         expect(established).has.length(1);
+        const resolution = established[0];
+        if (resolution.kind !== "client") {
+            expect.fail(`Expected a client binding resolution, got ${resolution.kind}`);
+        }
 
-        const resolution = established[0] as BindingResolution & { kind: "client" };
-        expect(resolution.kind).equals("client");
+        return {
+            switchNode,
+            lightNode,
+            peerSwitch,
+            lightPeerAddress,
+            bindingEntry,
+            established,
+            removed,
+            resolution,
+            entropic,
+        };
+    }
+
+    /**
+     * Subscribes the bound node to the light's `onOff` attribute only, as the binding examples do, and returns the
+     * default subscription once it is active.
+     */
+    async function subscribeToOnOff(
+        resolution: BindingResolution & { kind: "client" },
+        entropic: (on: boolean) => void,
+    ) {
+        // Wire up the subscription-active signal before enabling the subscription so we don't miss the
+        // subscriptionStatusChanged(true) event that fires when the handshake completes.
+        const subscriptionActive = new Promise<void>(resolve => {
+            const handler = (isActive: boolean) => {
+                if (isActive) {
+                    resolution.node.eventsOf(NetworkClient).subscriptionStatusChanged.off(handler);
+                    resolve();
+                }
+            };
+            resolution.node.eventsOf(NetworkClient).subscriptionStatusChanged.on(handler);
+        });
+
+        // The bootstrap read populates cached state; subsequent attribute reports arrive via the subscription.  The
+        // async reactor (#syncAutoSubscribe) fires after set() resolves, so we drive it to completion separately via
+        // subscriptionActive.
+        entropic(true);
+        void resolution.node.set({
+            network: {
+                defaultSubscription: Read(
+                    Read.Attribute({
+                        endpoint: EndpointNumber(1),
+                        cluster: OnOff.Cluster,
+                        attributes: "onOff",
+                    }),
+                ),
+                autoSubscribe: true,
+            },
+        });
+        await MockTime.resolve(subscriptionActive, { macrotasks: true });
+        entropic(false);
+
+        const subscription = resolution.node.behaviors.internalsOf(NetworkClient).activeSubscription;
+        if (!(subscription instanceof SustainedSubscription)) {
+            expect.fail("Expected a sustained default subscription");
+        }
+        return subscription;
+    }
+
+    /** Switches the light and waits until the bound endpoint reports the new value. */
+    async function switchLight(
+        lightNode: ServerNode,
+        resolution: BindingResolution & { kind: "client" },
+        onOff: boolean,
+    ) {
+        const reported = new Promise<void>(resolve => {
+            const handler = (value: boolean) => {
+                if (value === onOff) {
+                    resolution.endpoint.eventsOf(OnOffClient).onOff$Changed.off(handler);
+                    resolve();
+                }
+            };
+            resolution.endpoint.eventsOf(OnOffClient).onOff$Changed.on(handler);
+        });
+        await lightNode.parts.get(1)!.act(onOff ? "on" : "off", agent => {
+            const server = agent.get(OnOffServer);
+            return onOff ? server.on() : server.off();
+        });
+        await MockTime.resolve(reported, { macrotasks: true });
+        expect(resolution.endpoint.stateOf(OnOffClient).onOff).equals(onOff);
+    }
+
+    it("kind=client: admin writes binding → established fires → command round-trips to peer → removed fires", async () => {
+        await using site = new MockSite();
+        const { lightNode, peerSwitch, lightPeerAddress, bindingEntry, established, removed, resolution, entropic } =
+            await boundLight(site);
 
         // The materialized endpoint on the switch's ClientNode must carry OnOffClient.
         const targetEp = resolution.endpoint;
@@ -158,57 +262,13 @@ describe("Binding integration", () => {
         const onOffUpdates = new Array<boolean>();
         resolution.endpoint.eventsOf(OnOffClient).onOff$Changed.on(v => void onOffUpdates.push(v));
 
-        // Wire up the subscription-active signal before enabling the subscription so we don't
-        // miss the subscriptionStatusChanged(true) event that fires when the handshake completes.
-        const subscriptionActive = new Promise<void>(resolve => {
-            const handler = (isActive: boolean) => {
-                if (isActive) {
-                    resolution.node.eventsOf(NetworkClient).subscriptionStatusChanged.off(handler);
-                    resolve();
-                }
-            };
-            resolution.node.eventsOf(NetworkClient).subscriptionStatusChanged.on(handler);
-        });
-
-        // Enable a sustained subscription targeted at the onOff attribute.  The bootstrap
-        // read populates cached state; subsequent attribute reports arrive via the subscription.
-        // The async reactor (#syncAutoSubscribe) fires after set() resolves, so we drive it
-        // to completion separately via subscriptionActive.
-        switchCrypto.entropic = lightCrypto.entropic = true;
-        void resolution.node.set({
-            network: {
-                defaultSubscription: Read(
-                    Read.Attribute({
-                        endpoint: EndpointNumber(1),
-                        cluster: OnOff.Cluster,
-                        attributes: "onOff",
-                    }),
-                ),
-                autoSubscribe: true,
-            },
-        });
-
-        // Drive the bootstrap read + subscribe handshake to completion.
-        await MockTime.resolve(subscriptionActive, { macrotasks: true });
-        switchCrypto.entropic = lightCrypto.entropic = false;
+        await subscribeToOnOff(resolution, entropic);
 
         // Bootstrap read populated initial state — light is on from the invoke above.
         expect(resolution.endpoint.stateOf(OnOffClient).onOff).true;
 
-        // Wire up the wait for the off-notification before triggering the state change.
-        const offReceived = new Promise<void>(resolve =>
-            resolution.endpoint.eventsOf(OnOffClient).onOff$Changed.once(v => {
-                if (v === false) resolve();
-            }),
-        );
-
-        // Turn the light off and drive the subscription update round-trip.
-        const lightEp1 = lightNode.parts.get(1)!;
-        await lightEp1.act("off", agent => agent.get(OnOffServer).off());
-        await MockTime.resolve(offReceived, { macrotasks: true });
-
-        // Subscription delivered the updated state.
-        expect(resolution.endpoint.stateOf(OnOffClient).onOff).false;
+        // Turn the light off; the subscription delivers the updated state.
+        await switchLight(lightNode, resolution, false);
         expect(onOffUpdates).deep.equals([true, false]);
 
         // Write a two-entry list: original bindingEntry plus a second entry pointing at the light's root endpoint.
@@ -287,6 +347,129 @@ describe("Binding integration", () => {
         }
         expect(removed).has.length(2);
         expect(removed[1].kind).equals("client");
+    });
+
+    describe("kind=client with a default subscription of one attribute", () => {
+        /**
+         * Collects the messages {@link node}, or no known node, logged at warn level or above while {@link run} runs.
+         */
+        async function problemsDuring(node: ServerNode, run: () => Promise<void>) {
+            const problems = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    if (message.level < LogLevel.WARN) {
+                        return;
+                    }
+                    let origin = message.origin;
+                    while (origin?.parent !== undefined) {
+                        origin = origin.parent;
+                    }
+                    if (origin === undefined || origin.name === node.id) {
+                        problems.push(`${message.facility}: ${message.values.join(" ")}`);
+                    }
+                },
+            });
+            try {
+                await run();
+            } finally {
+                delete Logger.destinations.capture;
+            }
+            return problems;
+        }
+
+        /** Drops every packet from or to {@link node} while the returned switch is on. */
+        function isolate(node: ServerNode) {
+            const network = node.env.get(Network);
+            if (!(network instanceof MockNetwork)) {
+                expect.fail(`${node} has no mock network`);
+            }
+            const { ipV4, ipV6 } = network.getIpMac("fake0");
+            const addresses = new Set([...ipV4, ...ipV6]);
+            const isolation = { on: false };
+            network.simulator.router.intercept((packet, route) => {
+                if (isolation.on && (addresses.has(packet.sourceAddress) || addresses.has(packet.destAddress))) {
+                    return;
+                }
+                route(packet);
+            });
+            return isolation;
+        }
+
+        it("receives reports without data of the peer's root endpoint", async () => {
+            await using site = new MockSite();
+            const { switchNode, lightNode, resolution, entropic } = await boundLight(site);
+
+            const problems = await problemsDuring(switchNode, async () => {
+                await subscribeToOnOff(resolution, entropic);
+                await switchLight(lightNode, resolution, true);
+                await switchLight(lightNode, resolution, false);
+            });
+
+            const { node } = resolution;
+            expect(node.behaviors.has(BasicInformationClient)).false;
+            expect(node.behaviors.has(DescriptorClient)).false;
+            expect(node.behaviors.has(OperationalCredentialsClient)).false;
+            expect(node.lifecycle.connectionState).equals(NodeConnectionState.Connected);
+            expect(switchNode.peers.size).equals(1);
+            expect(problems).deep.equals([]);
+        });
+
+        it("detects a lost peer by the subscription timeout and resubscribes once it is back", async () => {
+            await using site = new MockSite();
+            const { switchNode, lightNode, resolution, entropic } = await boundLight(site);
+            const isolation = isolate(lightNode);
+            const subscription = await subscribeToOnOff(resolution, entropic);
+            const { maxInterval } = subscription;
+            const statuses = new Array<boolean>();
+            resolution.node.eventsOf(NetworkClient).subscriptionStatusChanged.on(status => void statuses.push(status));
+
+            const problems = await problemsDuring(switchNode, async () => {
+                // A report just before the loss starts the subscription timeout
+                await switchLight(lightNode, resolution, true);
+                isolation.on = true;
+                const lostAt = Time.nowUs;
+                await MockTime.resolve(subscription.inactive);
+                expect(Time.nowUs - lostAt).at.least(Seconds(maxInterval));
+                expect(statuses).deep.equals([false]);
+
+                entropic(true);
+                isolation.on = false;
+                await MockTime.resolve(subscription.active, { macrotasks: true });
+                entropic(false);
+                expect(statuses).deep.equals([false, true]);
+                await switchLight(lightNode, resolution, false);
+            });
+
+            expect(resolution.node.behaviors.internalsOf(NetworkClient).activeSubscription).equals(subscription);
+            expect(switchNode.peers.size).equals(1);
+            expect(problems).deep.equals([]);
+        });
+
+        it("detects a restarting peer by the subscription timeout and resubscribes after its restart", async () => {
+            await using site = new MockSite();
+            const { switchNode, lightNode, resolution, entropic } = await boundLight(site);
+            const isolation = isolate(lightNode);
+            const subscription = await subscribeToOnOff(resolution, entropic);
+
+            const problems = await problemsDuring(switchNode, async () => {
+                await switchLight(lightNode, resolution, true);
+
+                // A power loss: the light goes away without a word to the switch
+                isolation.on = true;
+                await MockTime.resolve(lightNode.stop());
+                await MockTime.resolve(subscription.inactive);
+
+                entropic(true);
+                isolation.on = false;
+                await MockTime.resolve(lightNode.start());
+                await MockTime.resolve(subscription.active, { macrotasks: true });
+                entropic(false);
+                await switchLight(lightNode, resolution, false);
+            });
+
+            expect(switchNode.peers.size).equals(1);
+            expect(problems).deep.equals([]);
+        });
     });
 
     it("kind=server: self-binding resolves locally and dispatches to the bound server endpoint", async () => {
@@ -505,6 +688,30 @@ describe("Binding integration, group sends", () => {
             },
         };
     }
+
+    it("records no cache fabric filter for a group", async () => {
+        const { node, fabric, switchEp, established } = await switchNode();
+        const problems = new Array<string>();
+        Logger.destinations.capture = LogDestination({
+            add(message: Diagnostic.Message) {
+                if (message.facility === "NetworkClient" && message.level >= LogLevel.WARN) {
+                    problems.push(message.values.join(" "));
+                }
+            },
+        });
+        try {
+            await provisionKey(node, fabric.fabricIndex);
+            const resolution = await bindGroup(switchEp, fabric.fabricIndex, established);
+            await MockTime.resolve(resolution.node.start(), { macrotasks: true });
+
+            expect(resolution.node.construction.status).equals(Lifecycle.Status.Active);
+            expect(resolution.node.env.get(ClientNodeStore).cacheFabricFiltered).undefined;
+            expect(problems).deep.equals([]);
+        } finally {
+            delete Logger.destinations.capture;
+            await node.close();
+        }
+    });
 
     it("sends a command through a binding as a group command without an endpoint", async () => {
         const { node, fabric, switchEp, established } = await switchNode();

@@ -75,7 +75,7 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
 
     get parameters(): DnssdParameters {
         if (this.#parameters === undefined) {
-            const raw = new Map<string, Bytes>();
+            const entries = new Array<[key: string, value: Bytes]>();
             // Process newest TXT records first so an updated record's keys win over the not-yet-expired older copy;
             // first-wins (RFC 6763 §6.4) then applies to entries within each record in their wire order.
             const txtRecords = new Array<DnssdName.TextRecord>();
@@ -99,14 +99,10 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
                         continue;
                     }
                     const key = eqIndex === -1 ? Bytes.toString(bytes) : Bytes.toString(bytes.subarray(0, eqIndex));
-                    // RFC 6763 §6.4: first occurrence wins on duplicates.
-                    if (raw.has(key)) {
-                        continue;
-                    }
-                    raw.set(key, eqIndex === -1 ? new Uint8Array(0) : bytes.subarray(eqIndex + 1));
+                    entries.push([key, eqIndex === -1 ? new Uint8Array(0) : bytes.subarray(eqIndex + 1)]);
                 }
             }
-            this.#parameters = new DnssdParameters(raw);
+            this.#parameters = new DnssdParameters(entries);
         }
         return this.#parameters;
     }

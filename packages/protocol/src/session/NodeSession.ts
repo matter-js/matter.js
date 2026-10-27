@@ -64,6 +64,7 @@ export class NodeSession extends SecureSession {
     #rolloverCloseTimer?: Timer;
     readonly #rolloverClose = new Mutex(this);
     #isPeerLost = false;
+    #closingForShutdown = false;
 
     // TODO - remove this; subscriptions should be owned by the peer, not the session
     readonly #subscriptions = new BasicSet<Subscription>();
@@ -134,6 +135,13 @@ export class NodeSession extends SecureSession {
         this.#caseAuthenticatedTags = caseAuthenticatedTags ?? [];
         this.#reportedParameters = SessionParameters.reported(reportedSessionParameters);
         this.#isInitiator = isInitiator;
+
+        if (this.maxTcpMessageSize !== undefined && this.#reportedParameters?.maxTcpMessageSize === 0) {
+            logger.info(
+                this.via,
+                `Peer announced a MAX_TCP_MESSAGE_SIZE of 0, using the default of ${this.maxTcpMessageSize} bytes`,
+            );
+        }
 
         logger.debug(
             `Created secure ${this.isPase ? "PASE" : "CASE"} session for fabric index ${fabric?.fabricIndex}`,
@@ -293,9 +301,20 @@ export class NodeSession extends SecureSession {
     override async closeSubscriptions(flush = false, currentExchange?: MessageExchange) {
         const subscriptions = [...this.#subscriptions]; // get all values because subscriptions will remove themselves when cancelled
         for (const subscription of subscriptions) {
-            await subscription.close(flush ? this : undefined, currentExchange);
+            const flushViaSession = flush ? this : undefined;
+            if (this.#closingForShutdown) {
+                // A subscription that joined during the shutdown flush is kept for re-establishment like the others
+                await subscription.closeForShutdown(flushViaSession);
+            } else {
+                await subscription.close(flushViaSession, currentExchange);
+            }
         }
         return subscriptions.length;
+    }
+
+    override async closeSubscriptionsForShutdown() {
+        this.#closingForShutdown = true;
+        return this.closeSubscriptions(true);
     }
 
     get closedByPeer() {

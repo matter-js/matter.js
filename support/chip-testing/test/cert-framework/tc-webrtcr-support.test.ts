@@ -14,11 +14,17 @@ import type {
     WebRtcSessionRecord,
     WebRtcSignalRecord,
 } from "@matter/testing";
-import { CertLogClosedError, LineQueue, LogFollower } from "@matter/testing";
+import { CertLogClosedError, LineQueue, LogFollower, resolveControllerSelection } from "@matter/testing";
 import { expect } from "chai";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { env } from "node:process";
+import "../../src/cert/index.js";
 import { CertCheckFailedError } from "../cert/tc-support.js";
 import {
     CameraSession,
+    certCameraCase,
     endSession,
     establishSession,
     expectConstraintRefusal,
@@ -92,6 +98,8 @@ function fakeContext(dutLog?: LogFollower): { cx: CertStepContext; checks: Check
         cx: {
             controllers: { dut },
             devices: {},
+            controllerSelection: resolveControllerSelection(),
+            deviceFlavor: undefined,
             picsMet: () => {
                 throw new InternalError("not used by these tests");
             },
@@ -232,12 +240,12 @@ describe("expectControlAccepted", () => {
 
     it("throws rather than blaming the DUT where the provider minted another id", async () => {
         const { cx, checks } = fakeContext();
-        const removed = new Array<number>();
+        const removed = new Array<string>();
         const session = fakeSession(
             fakeRequestor({
                 upsertSession: async () => {},
-                removeSession: async id => {
-                    removed.push(id);
+                removeSession: async (peer, id) => {
+                    removed.push(`${peer}/${id}`);
                 },
             }),
         );
@@ -246,7 +254,7 @@ describe("expectControlAccepted", () => {
             CertCheckFailedError,
             /minted session 11 where 8 was registered/,
         );
-        expect(removed).deep.equal([8]);
+        expect(removed).deep.equal([`${REF}/8`]);
         expect(checks).deep.equal([]);
     });
 });
@@ -282,19 +290,19 @@ describe("establishSession", () => {
 
     it("raises rather than blaming the DUT where the provider minted another id", async () => {
         const { cx, checks } = fakeContext();
-        const removed = new Array<number>();
+        const removed = new Array<string>();
         const session = fakeSession(
             fakeRequestor({
                 upsertSession: async () => {},
-                removeSession: async id => {
-                    removed.push(id);
+                removeSession: async (peer, id) => {
+                    removed.push(`${peer}/${id}`);
                 },
             }),
             fakeCertNode({ invoke: async () => ({ webRtcSessionId: 4 }) }),
         );
 
         await expect(establishSession(session, "solicit")).rejectedWith(CertCheckFailedError, /minted session 4/);
-        expect(removed).deep.equal([0]);
+        expect(removed).deep.equal([`${REF}/0`]);
         expect(checks).deep.equal([]);
         void cx;
     });
@@ -379,11 +387,11 @@ describe("expectSessions", () => {
 describe("endSession", () => {
     it("tells the provider and stops the requestor reporting it", async () => {
         const invoked = new Array<string>();
-        const removed = new Array<number>();
+        const removed = new Array<string>();
         const session = fakeSession(
             fakeRequestor({
-                removeSession: async id => {
-                    removed.push(id);
+                removeSession: async (peer, id) => {
+                    removed.push(`${peer}/${id}`);
                 },
             }),
             fakeCertNode({
@@ -397,7 +405,7 @@ describe("endSession", () => {
         await endSession(session, 5, 2);
 
         expect(invoked).deep.equal(["endSession"]);
-        expect(removed).deep.equal([5]);
+        expect(removed).deep.equal([`${REF}/5`]);
     });
 });
 
@@ -467,5 +475,80 @@ describe("expectConstraintRefusal", () => {
             await expect(expectConstraintRefusal(cx, fakeSession(fakeRequestor()), 0)).rejectedWith(CertLogClosedError);
             expect(checks).deep.equal([]);
         });
+    });
+});
+
+describe("certCameraCase", () => {
+    type CaseBody = (this: { skip(): never; timeout(ms: number): void }) => Promise<void>;
+
+    /** Declares `tc` with the mocha registration functions stubbed, returning the body `it` received. */
+    function declare(tc: string): CaseBody {
+        const originalDescribe = Reflect.get(globalThis, "describe");
+        const originalIt = Reflect.get(globalThis, "it");
+        let body: CaseBody | undefined;
+        Reflect.set(globalThis, "describe", (_name: string, run: () => void) => run());
+        Reflect.set(globalThis, "it", (_name: string, fn: CaseBody) => (body = fn));
+        try {
+            certCameraCase({
+                tc,
+                script: "TC_WEBRTCR_0_0.py",
+                subpath: "test_TC_WebRTCR_0_0",
+                title: "gap",
+                commissioning: "fixed-passcode",
+                steps: [],
+            });
+        } finally {
+            Reflect.set(globalThis, "describe", originalDescribe);
+            Reflect.set(globalThis, "it", originalIt);
+        }
+        if (body === undefined) {
+            throw new InternalError(`certCameraCase registered no test for ${tc}`);
+        }
+        return body;
+    }
+
+    it("records a controller-gap bundle and skips, before building anything, where the controller is no requestor", async () => {
+        class Skipped extends InternalError {}
+        const tc = `TC-WEBRTCR-GAP-${Date.now().toString(36)}`;
+        const outDir = await mkdtemp(join(tmpdir(), "webrtcr-gap-"));
+        const original = {
+            MATTER_CERT_CONTROLLER: env.MATTER_CERT_CONTROLLER,
+            MATTER_CERT_EVIDENCE_DIR: env.MATTER_CERT_EVIDENCE_DIR,
+            MATTER_CERT_CAMERA_APP_PATH: env.MATTER_CERT_CAMERA_APP_PATH,
+        };
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
+        env.MATTER_CERT_EVIDENCE_DIR = outDir;
+        env.MATTER_CERT_CAMERA_APP_PATH = "/nonexistent/chip-camera-app";
+        try {
+            let thrown: unknown;
+            try {
+                await declare(tc).call({
+                    skip(): never {
+                        throw new Skipped("skipped");
+                    },
+                    timeout() {},
+                });
+            } catch (e) {
+                thrown = e;
+            }
+            expect(thrown).instanceOf(Skipped);
+
+            const runDir = (await readdir(outDir)).find(name => name.endsWith(`-${tc}`));
+            if (!runDir) {
+                throw new InternalError(`No evidence directory found for ${tc}`);
+            }
+            const result = JSON.parse(await readFile(join(outDir, runDir, "result.json"), "utf-8"));
+            expect(result.verdict).equal("controller-gap");
+            expect(result.controllerGap).contain('controller "chip-tool" lacks ');
+        } finally {
+            for (const [name, value] of Object.entries(original)) {
+                if (value === undefined) {
+                    delete env[name];
+                } else {
+                    env[name] = value;
+                }
+            }
+            await rm(outDir, { recursive: true, force: true });
+        }
     });
 });

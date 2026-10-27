@@ -5,9 +5,9 @@
  */
 
 import { ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
-import { DeepPartial, Duration, Logger } from "@matter/general";
+import { DEFAULT_MAX_TCP_MESSAGE_SIZE, DeepPartial, Duration, Logger } from "@matter/general";
 import { duration, field, uint16 } from "@matter/model";
-import { Ble, FabricManager, NetworkProfiles, PeerTimingParameters } from "@matter/protocol";
+import { Ble, FabricManager, NetworkProfiles, PeerTimingParameters, SessionParameters } from "@matter/protocol";
 import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema } from "@matter/types";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
@@ -213,8 +213,14 @@ export namespace NetworkServer {
          * Enable TCP transport. `true` enables both incoming (server) and outgoing (client).
          * Fine-grained control via `{ incoming?: boolean; outgoing?: boolean }`.
          * Disabled by default.
+         *
+         * `maxMessageSize` is the largest TCP message in bytes, without the 4-byte length header, that the node accepts.
+         * The node announces it to peers as MAX_TCP_MESSAGE_SIZE.  It must be a whole number from
+         * {@link MAX_UDP_MESSAGE_SIZE} to the uint32 maximum; the default is {@link DEFAULT_MAX_TCP_MESSAGE_SIZE}.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 4.13.1
          */
-        tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
+        tcp?: boolean | NetworkServer.TcpConfig;
 
         /**
          * Preferred transport for outgoing connections. Defaults to UDP when not set.
@@ -255,19 +261,32 @@ export namespace NetworkServer {
         clientCacheFlushInterval?: Duration = undefined;
     }
 
+    export interface TcpConfig {
+        incoming?: boolean;
+        outgoing?: boolean;
+        maxMessageSize?: number;
+    }
+
     /**
-     * Resolve the tcp shorthand to explicit incoming/outgoing booleans.
+     * Resolve the tcp shorthand to explicit incoming/outgoing booleans and the effective maximum message size.
+     *
+     * @throws ImplementationError when TCP is enabled with a `maxMessageSize` that
+     * {@link SessionParameters.assertMaxTcpMessageSize} rejects
      */
-    export function resolveTcpConfig(tcp?: boolean | { incoming?: boolean; outgoing?: boolean }): {
-        incoming: boolean;
-        outgoing: boolean;
-    } {
+    export function resolveTcpConfig(tcp?: boolean | TcpConfig): Required<TcpConfig> {
         if (tcp === true) {
-            return { incoming: true, outgoing: true };
+            return { incoming: true, outgoing: true, maxMessageSize: DEFAULT_MAX_TCP_MESSAGE_SIZE };
         }
         if (tcp === false || tcp === undefined) {
-            return { incoming: false, outgoing: false };
+            return { incoming: false, outgoing: false, maxMessageSize: DEFAULT_MAX_TCP_MESSAGE_SIZE };
         }
-        return { incoming: tcp.incoming ?? false, outgoing: tcp.outgoing ?? false };
+        const incoming = tcp.incoming ?? false;
+        const outgoing = tcp.outgoing ?? false;
+        if (!incoming && !outgoing) {
+            return { incoming, outgoing, maxMessageSize: DEFAULT_MAX_TCP_MESSAGE_SIZE };
+        }
+        const { maxMessageSize = DEFAULT_MAX_TCP_MESSAGE_SIZE } = tcp;
+        SessionParameters.assertMaxTcpMessageSize(maxMessageSize, "network.tcp.maxMessageSize");
+        return { incoming, outgoing, maxMessageSize };
     }
 }

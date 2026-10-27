@@ -6,9 +6,8 @@
 
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
-import { BasicInformationClient } from "#behaviors/basic-information";
+import { BasicInformationClient, BasicInformationServer } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
-import { ClientEventEmitter } from "#node/client/ClientEventEmitter.js";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { FabricOperationInProgressError } from "#node/client/Peers.js";
 import type { ClientNode } from "#node/ClientNode.js";
@@ -16,13 +15,25 @@ import {
     CrashedDependencyError,
     Crypto,
     DestroyedDependencyError,
+    Diagnostic,
     Lifecycle,
+    LogDestination,
+    Logger,
+    LogLevel,
     MockCrypto,
     Minutes,
     Seconds,
 } from "@matter/general";
 import { clientStructureOf, MockSite, settled, subscribedPeer } from "@matter/node/testing";
-import { PeerMessageMissingError, PeerSet, PeerUnresponsiveError, Read, ReadResult, Subscribe } from "@matter/protocol";
+import {
+    PeerAckMissingError,
+    PeerMessageMissingError,
+    PeerSet,
+    PeerUnresponsiveError,
+    Read,
+    ReadResult,
+    Subscribe,
+} from "@matter/protocol";
 import { EndpointNumber, EventId, EventNumber, FabricIndex, Priority, TlvAny } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
@@ -416,8 +427,9 @@ describe("Decommission", () => {
     for (const { removed, failure } of [
         { removed: true, failure: () => new PeerMessageMissingError(Seconds(11)) },
         { removed: false, failure: () => new PeerUnresponsiveError(Seconds(11)) },
+        { removed: false, failure: () => new PeerAckMissingError(Seconds(11)) },
     ]) {
-        it(`waits for a running decommission before handing out a node (${removed ? "removed" : "kept"})`, async () => {
+        it(`waits for a running decommission before handing out a node (${removed ? "removed" : "kept"} on ${failure().constructor.name})`, async () => {
             await using site = new MockSite();
             const { controller } = await site.addCommissionedPair();
 
@@ -624,7 +636,7 @@ describe("Decommission", () => {
 
         const peer1 = controller.peers.get("peer1")!;
         const fabricIndex = peer1.stateOf(OperationalCredentialsClient).currentFabricIndex;
-        const emit = ClientEventEmitter(peer1, clientStructureOf(peer1));
+        const structure = clientStructureOf(peer1);
         const leave: ReadResult.EventValue = {
             kind: "event-value",
             path: {
@@ -639,10 +651,18 @@ describe("Decommission", () => {
             tlv: TlvAny,
         };
 
+        async function* report(): ReadResult {
+            yield [leave];
+        }
+
         let delivering: Promise<void> | undefined;
         peer1.construction.change.on(status => {
             if (status === Lifecycle.Status.Inactive && delivering === undefined) {
-                delivering = emit(leave);
+                delivering = (async () => {
+                    for await (const _chunk of structure.mutate(Read({ events: [{}] }), report(), {
+                        emitEvents: true,
+                    }));
+                })();
             }
         });
 
@@ -651,5 +671,37 @@ describe("Decommission", () => {
         expect(delivering).not.undefined;
         await MockTime.resolve(delivering!);
         expect(controller.peers.size).equals(0);
+    });
+
+    it("leaves no storage behind when the default subscription delivers the leave that deletes the node", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        const { id } = peer1;
+        const fabricIndex = peer1.stateOf(OperationalCredentialsClient).currentFabricIndex;
+
+        const errors = new Array<string>();
+        Logger.destinations.capture = LogDestination({
+            add(message: Diagnostic.Message) {
+                if (message.level >= LogLevel.ERROR) {
+                    errors.push(message.values.join(" "));
+                }
+            },
+        });
+        try {
+            await device.act(agent => {
+                agent.get(BasicInformationServer).events.leave.emit({ fabricIndex }, agent.context);
+            });
+            for (let wait = 0; controller.peers.size && wait < 100; wait++) {
+                await MockTime.resolve(MockTime.sleep("peer deletion", Seconds(1)), { macrotasks: true });
+            }
+            await MockTime.resolve(MockTime.sleep("settle", Seconds(5)), { macrotasks: true });
+        } finally {
+            delete Logger.destinations.capture;
+        }
+
+        expect(controller.peers.size).equals(0);
+        expect(Object.keys(site.storageFor(controller.id)).filter(key => key.includes(id))).deep.equals([]);
+        expect(errors).deep.equals([]);
     });
 });

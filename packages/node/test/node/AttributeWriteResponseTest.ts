@@ -6,8 +6,8 @@
 
 import { AccessLevel } from "@matter/model";
 import { MockServerNode } from "@matter/node/testing";
-import { AttributeWriteResponse, Write } from "@matter/protocol";
-import { AttributeId, EndpointNumber, Status, TlvString, WriteRequest } from "@matter/types";
+import { AttributeWriteResponse, hasRemoteActor, Subject, Write, WriteResult } from "@matter/protocol";
+import { AttributeId, EndpointNumber, GroupId, Status, TlvString, WriteRequest } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 
 describe("AttributeWriteRequest", () => {
@@ -309,6 +309,54 @@ describe("AttributeWriteRequest", () => {
             }),
         ).rejectedWith("Wildcard path write must specify a clusterId and attributeId");
     });
+
+    for (const group of [true, false]) {
+        it(`${group ? "group" : "wildcard"} write skips an attribute that another write interaction holds`, async () => {
+            await using node = await MockServerNode.createOnline();
+            const fabric = await node.addFabric();
+            const exchange = await node.createExchange({ fabric });
+            const nodeLabel = { clusterId: BasicInformation.id, attributeId: AttributeId(5) };
+
+            const wildcardWrite = (label: string, locked: boolean) =>
+                node.online({ command: true, exchange }, async ({ context }) => {
+                    if (!hasRemoteActor(context)) {
+                        expect.fail("write context has no remote actor");
+                    }
+                    const session = group
+                        ? {
+                              ...context,
+                              subject: Subject.Group({
+                                  id: GroupId(1),
+                                  hasValidMapping: true,
+                                  endpoints: [EndpointNumber(0)],
+                              }),
+                          }
+                        : context;
+                    const checked = new Array<WriteResult.ConcreteAttributePath>();
+                    const response = new AttributeWriteResponse(node.protocol, session, {
+                        isHeldByOtherWrite: (path, lockSession) => {
+                            expect(lockSession).equals(session);
+                            checked.push(path);
+                            return locked;
+                        },
+                    });
+                    const statuses = await response.process({
+                        suppressResponse: false,
+                        timedRequest: false,
+                        writeRequests: [{ path: nodeLabel, data: TlvString.encodeTlv(label) }],
+                    });
+                    expect(checked).deep.equals([{ ...nodeLabel, endpointId: EndpointNumber(0) }]);
+                    return statuses;
+                });
+
+            const before = node.state.basicInformation.nodeLabel;
+            expect(await wildcardWrite("skipped", true)).deep.equals([]);
+            expect(node.state.basicInformation.nodeLabel).equals(before);
+
+            await wildcardWrite("written", false);
+            expect(node.state.basicInformation.nodeLabel).equals("written");
+        });
+    }
 
     // TODO - more tests and Migrate some from InteractionProtocolTest
 });

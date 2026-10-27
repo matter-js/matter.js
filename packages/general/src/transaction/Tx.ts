@@ -15,7 +15,7 @@ import { Lifetime } from "#util/Lifetime.js";
 import { Observable } from "#util/Observable.js";
 import { MaybePromise } from "#util/Promises.js";
 import { describeList } from "#util/String.js";
-import { FinalizationError, TransactionDestroyedError, TransactionFlowError, UnsettledStateError } from "./errors.js";
+import { TransactionDestroyedError, TransactionFlowError, UnsettledStateError } from "./errors.js";
 import type { Participant } from "./Participant.js";
 import type { Resource } from "./Resource.js";
 import { ResourceSet } from "./ResourceSet.js";
@@ -933,12 +933,13 @@ class Tx implements Transaction, Transaction.Finalization {
     #executeCommit1(cycle: CommitCycle): MaybePromise {
         // Commit phase 1
 
-        let needRollback = false;
+        let errored: undefined | Array<ParticipantError>;
         let asyncCommits: undefined | Promise<void>[];
         for (const participant of this.participants) {
-            const handleParticipantError = (error: any) => {
-                logger.warn(`Error committing ${participant} (phase one):`, error);
-                needRollback = true;
+            // Debug only: the caller receives the error
+            const handleParticipantError = (error: unknown) => {
+                logger.debug(`Error committing ${participant} (phase one):`, error);
+                (errored ??= []).push({ participant, error });
             };
 
             try {
@@ -956,17 +957,13 @@ class Tx implements Transaction, Transaction.Finalization {
         }
 
         const abortIfFailed = () => {
-            if (needRollback) {
-                const result = this.#executeRollback(cycle);
-
-                if (MaybePromise.is(result)) {
-                    return result.then(() => {
-                        throw new FinalizationError("Rolled back due to commit phase one error");
-                    });
-                }
-
-                throw new FinalizationError("Rolled back due to commit phase one error");
+            if (!errored) {
+                return;
             }
+
+            // The rollback logs a participant that fails to revert; the caller needs why the commit failed
+            const rethrow = () => throwIfErrored(errored, "in commit phase 1");
+            return MaybePromise.then(() => this.#executeRollback(cycle), rethrow, rethrow);
         };
 
         if (asyncCommits) {

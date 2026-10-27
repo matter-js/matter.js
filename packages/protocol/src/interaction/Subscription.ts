@@ -18,15 +18,25 @@ export interface Subscription {
 
     // TODO - these should reside in a server-specific interface
     /**
-     * Whether the subscription ended for good and the peer must establish a new one.  False for one torn down with
-     * its session, which may still be re-established.
+     * Whether the subscription ended for good and the peer must establish a new one.  Stays false after
+     * {@link closeForShutdown}, so the node may re-establish the subscription when it starts again.
      */
     isTerminated: boolean;
 
     handlePeerCancel(): Promise<void>;
 
-    /** @param currentExchange the exchange whose send triggered this close; a subscription sending on it must not wait for itself */
+    /**
+     * End the subscription for good.
+     *
+     * @param currentExchange the exchange whose send triggered this close; a subscription sending on it must not wait for itself
+     */
     close(flushViaSession?: Session, currentExchange?: MessageExchange): Promise<void>;
+
+    /**
+     * Close the subscription because the node shuts down.  Unlike {@link close} it does not terminate the
+     * subscription, so the node may re-establish it on its next start.
+     */
+    closeForShutdown(flushViaSession?: Session): Promise<void>;
 }
 
 export namespace Subscription {

@@ -4,43 +4,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, Duration, Logger, Millis, ObserverGroup, Timestamp } from "@matter/general";
-import {
-    ChangeNotificationService,
-    ClientNode,
-    ClusterBehavior,
-    Endpoint,
-    NodeConnectionState,
-    ServerNode,
-} from "@matter/node";
+import { Diagnostic, Duration, Millis, ObserverGroup } from "@matter/general";
+import { ChangeNotificationService, ClientNode, ClusterBehavior, NodeConnectionState, ServerNode } from "@matter/node";
 import { Priority } from "@matter/types";
 
-const logger = Logger.get("DiagnosticLogging");
-
-/** True if `endpoint` belongs to `node`'s endpoint tree (the node itself is its own root endpoint). */
-function ownedBy(endpoint: Endpoint, node: Endpoint) {
-    for (let e: Endpoint | undefined = endpoint; e !== undefined; e = e.owner) {
-        if (e === node) {
-            return true;
-        }
+function occurredAt({ timestamp, timestampKind, resolvedTimestamp }: ChangeNotificationService.OccurrenceProperties) {
+    switch (timestampKind) {
+        case "epoch":
+            return resolvedTimestamp === undefined ? "no timestamp" : epochTime(resolvedTimestamp);
+        case "system":
+            return resolvedTimestamp === undefined ? "no timestamp" : uptime(resolvedTimestamp);
+        case "epoch-delta":
+            return resolvedTimestamp === undefined
+                ? `${Duration.format(Millis(timestamp))} after the previous event`
+                : epochTime(resolvedTimestamp);
+        case "system-delta":
+            return resolvedTimestamp === undefined
+                ? `${Duration.format(Millis(timestamp))} after the previous event, on the device clock`
+                : uptime(resolvedTimestamp);
     }
-    return false;
 }
 
-function occurredAt(timestamp: Timestamp, kind: ChangeNotificationService.TimestampKind) {
-    switch (kind) {
-        case "epoch": {
-            // The wire type is a uint64 while Date spans ±8.64e15 ms, so a peer can report a time no date renders
-            const date = Timestamp.dateOf(timestamp);
-            return Number.isNaN(date.getTime()) ? `epoch + ${timestamp} ms` : date.toISOString();
-        }
-        case "system":
-            return `${Duration.format(Millis(timestamp))} device uptime`;
-        case "epoch-delta":
-            return `${Duration.format(Millis(timestamp))} after the previous event`;
-        case "system-delta":
-            return `${Duration.format(Millis(timestamp))} after the previous event, on the device clock`;
-    }
+function epochTime(ms: number) {
+    // The wire type is a uint64 while Date spans ±8.64e15 ms, so a peer can report a time no date renders
+    const date = new Date(ms);
+    return Number.isNaN(date.getTime()) ? `epoch + ${ms} ms` : date.toISOString();
+}
+
+function uptime(ms: number) {
+    return `${Duration.format(Millis(ms))} device uptime`;
 }
 
 /** The web UI matches the first word of these labels (shell/webassets/index.html). */
@@ -66,15 +58,7 @@ function connectionStateLabel(state: NodeConnectionState) {
  * lifecycle. Registered handlers are owned by `observers` and torn down when it closes.
  */
 export function installDiagnosticLogging(node: ServerNode, observers: ObserverGroup): void {
-    observers.on(node.env.get(ChangeNotificationService).change, change => {
-        // Observers share one emit that rethrows: a throw here would skip every later consumer of the change and
-        // surface in the peer's report processing, so diagnostics must not fail the interaction that produced them
-        try {
-            logChange(node, change);
-        } catch (error) {
-            logger.warn("Failed to log a peer change:", error);
-        }
-    });
+    observers.on(node.env.get(ChangeNotificationService).change, logChange);
 
     // Log each commissioned peer's connection-state transitions, torn down when the peer is removed.
     // peers.added/deleted fire for every node in the container (including transient discovery and group nodes),
@@ -107,11 +91,11 @@ export function installDiagnosticLogging(node: ServerNode, observers: ObserverGr
     observers.on(node.peers.deleted, unwatchConnection);
 }
 
-function logChange(node: ServerNode, change: ChangeNotificationService.Change) {
+function logChange(change: ChangeNotificationService.Change) {
     const { endpoint } = change;
-    const peer = node.peers.commissioned.find(peer => ownedBy(endpoint, peer));
-    if (peer === undefined) {
-        return; // A change on the controller's own node, not a peer.
+    const peer = endpoint.ownerOfType(ClientNode.RootEndpoint);
+    if (!(peer instanceof ClientNode) || peer.nodeType !== "client" || !peer.lifecycle.isCommissioned) {
+        return; // A change on the controller's own node, a group or a discovered node.
     }
     const nodeId = peer.peerAddress?.nodeId;
 
@@ -132,11 +116,11 @@ function logChange(node: ServerNode, change: ChangeNotificationService.Change) {
             break;
         }
         case "event": {
-            const { behavior, event, number, timestamp, timestampKind, priority, payload } = change;
+            const { behavior, event, number, priority, payload } = change;
             if (!ClusterBehavior.is(behavior)) {
                 break;
             }
-            const when = occurredAt(timestamp, timestampKind);
+            const when = occurredAt(change);
             console.log(
                 `Node ${nodeId}: Event ${nodeId}/${endpoint.number}/${behavior.cluster.id}/${event.propertyName} (#${number}, priority ${Priority[priority]}, at ${when}) triggered with ${Diagnostic.json(payload)}`,
             );

@@ -241,8 +241,6 @@ export default function commands(theNode: MatterNode) {
 
                                     let node: ClientNode;
                                     if (ip !== undefined && port !== undefined) {
-                                        // Known address: locate/create the peer node directly instead of running mDNS
-                                        // discovery. Mirrors MatterController's own known-address commissioning path.
                                         node = await theNode.node.peers.forDescriptor({
                                             addresses: [{ ip, port, type: "udp" }],
                                         });

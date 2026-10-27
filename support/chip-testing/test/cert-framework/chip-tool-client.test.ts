@@ -386,7 +386,7 @@ describe("ChipToolClient", function () {
         await expect(chipTool.execute("any read-by-id 0x6 0x0 1 2")).rejectedWith(/exit(ed)? .*7/);
     });
 
-    it("closes cleanly after a failed start", async () => {
+    it("stops the binary when start fails, and closes cleanly after", async () => {
         const chipTool = await create(NEVER_READY_BODY, Millis(300));
         client = undefined; // close() below is this test's assertion, not afterEach's cleanup
 
@@ -395,7 +395,7 @@ describe("ChipToolClient", function () {
         await expect(chipTool.start()).rejectedWith(CHIP_TOOL_READY_MESSAGE);
 
         await waitFor(() => existsSync(pidFile), "the stand-in binary to record its pid");
-        expect(await isRunning(pidFile)).equal(true);
+        expect(await isRunning(pidFile)).equal(false);
 
         await chipTool.close();
         await chipTool.close();

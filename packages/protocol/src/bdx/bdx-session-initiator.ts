@@ -5,7 +5,7 @@
  */
 
 import { FileDesignator } from "#bdx/FileDesignator.js";
-import { ImplementationError, InternalError, Logger } from "@matter/general";
+import { ImplementationError, InternalError, Logger, UINT16_MAX } from "@matter/general";
 import { BdxStatusCode, TypeFromPartialBitSchema } from "@matter/types";
 import { BdxError } from "./BdxError.js";
 import { BdxMessenger } from "./BdxMessenger.js";
@@ -152,7 +152,7 @@ export async function bdxSessionInitiator(messenger: BdxMessenger, config: BdxSe
             }
         }
 
-        let maxBlockSize = messenger.maxPayloadSize - 4; // 4 bytes for the block counter by default
+        let maxBlockSize = Math.min(messenger.maxPayloadSize - 4, UINT16_MAX); // 4 bytes for the block counter
         const requestedBlockSize = config.transferConfig.maxBlockSize;
         if (requestedBlockSize !== undefined) {
             if (maxBlockSize > requestedBlockSize) {

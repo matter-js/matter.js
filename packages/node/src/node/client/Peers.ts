@@ -18,11 +18,13 @@ import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { BridgedDeviceBasicInformationClient } from "#behaviors/bridged-device-basic-information";
+import { DescriptorClient } from "#behaviors/descriptor";
 import { IcdManagementClient } from "#behaviors/icd-management";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointContainer } from "#endpoint/properties/EndpointContainer.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
+import { RootEndpoint } from "#endpoints/root";
 import { ClientGroup } from "#node/ClientGroup.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
@@ -58,14 +60,17 @@ import {
     Peer,
     PeerAddress,
     PeerLeftError,
+    ResultStatus,
     SessionManager,
     SessionParameters,
 } from "@matter/protocol";
-import { FabricIndex, NodeId, Status } from "@matter/types";
+import { EndpointNumber, FabricIndex, NodeId, Status } from "@matter/types";
+import { Descriptor } from "@matter/types/clusters/descriptor";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { ClientNode } from "../ClientNode.js";
 import type { ServerNode } from "../ServerNode.js";
 import { ClientNodeFactory } from "./ClientNodeFactory.js";
+import { ClientStructure } from "./ClientStructure.js";
 import { ClientStructureEvents } from "./ClientStructureEvents.js";
 
 const logger = Logger.get("Peers");
@@ -111,6 +116,11 @@ export class Peers extends EndpointContainer<ClientNode> {
         this.clusterInstalled(BridgedDeviceBasicInformationClient).on(
             this.#instrumentBridgedConfigurationVersion.bind(this),
         );
+        owner.env.get(ClientStructureEvents).structureApplied.on(node => {
+            if (node instanceof ClientNode) {
+                this.#evaluateSeeded(node);
+            }
+        });
 
         const lifecycle = owner.lifecycle;
         lifecycle.online.on(this.#nodeOnline.bind(this));
@@ -309,6 +319,9 @@ export class Peers extends EndpointContainer<ClientNode> {
                         if (entry.kind === "cmd-status" && entry.status !== Status.Success) {
                             throw new CommissioningError(
                                 `CommissioningComplete failed for ${nodeId}: status ${entry.status}`,
+                                {
+                                    cause: ResultStatus.errorOf(entry),
+                                },
                             );
                         }
                         if (entry.kind === "cmd-response") {
@@ -533,11 +546,26 @@ export class Peers extends EndpointContainer<ClientNode> {
         }
     }
 
-    #handlePeerAdded() {
+    #handlePeerAdded(peer: ClientNode) {
+        this.#watchSeeding(peer);
         if (this.owner.env.has(InteractionServer)) {
             this.#configureInteractionServer();
         }
         this.#manageExpiration();
+    }
+
+    /**
+     * Evaluates seeding wherever the node's structure may have become complete: after the structure applies data (see
+     * the constructor), when the node becomes active with its cached structure, and when endpoints or behaviors change
+     * outside of the structure, as with `ClientNodeEndpoints.require()`.
+     */
+    #watchSeeding(peer: ClientNode) {
+        peer.construction.change.on(status => {
+            if (status === Lifecycle.Status.Active) {
+                this.#evaluateSeeded(peer);
+            }
+        });
+        peer.lifecycle.changed.on(() => this.#evaluateSeeded(peer));
     }
 
     /**
@@ -719,7 +747,6 @@ export class Peers extends EndpointContainer<ClientNode> {
         // clusterInstalled re-emits per node (endpoint-install, cluster-add, structure rebuilds), so register the
         // device-event handlers below once per node to avoid duplicate side effects on repeat emits.
         if (this.#instrumented.has(node)) {
-            this.#evaluateSeeded(node);
             return;
         }
         this.#instrumented.add(node);
@@ -728,34 +755,46 @@ export class Peers extends EndpointContainer<ClientNode> {
         node.eventsOf(type).shutDown?.on(() => this.#onShutdown(node));
         node.eventsOf(type).startUp?.on(() => this.#onStartUp(node));
         node.eventsOf(type).configurationVersion$Changed?.on(() => node.lifecycle.configurationVersionChanged.emit());
-
-        this.#evaluateSeeded(node);
-        if (!node.lifecycle.isSeeded) {
-            // Self-disposing: removes itself once seeding latches, or once the node goes away without ever
-            // seeding, so no dead listener persists for the node's remaining lifetime.  Safe to call off() from
-            // within this callback because Observable#emit iterates a snapshot of its observers.
-            const onChanged = () => {
-                this.#evaluateSeeded(node);
-                if (node.lifecycle.isSeeded || node.lifecycle.isGone) {
-                    node.lifecycle.changed.off(onChanged);
-                }
-            };
-            node.lifecycle.changed.on(onChanged);
-        }
     }
 
     /**
-     * A node is seeded once its structure has been read at least once: BasicInformation is present and at least one
-     * endpoint beyond the root is present.  Re-evaluated on BasicInformation install and on any endpoint tree change.
+     * A node is seeded once its structure is known: BasicInformation is present and every endpoint the PartsList the
+     * root endpoint reported names is installed.  An empty PartsList means the node has only its root endpoint.  A node
+     * whose PartsList is unknown, such as one built with `ClientNodeEndpoints.require()`, needs an endpoint beyond
+     * the root.
      */
     #evaluateSeeded(node: ClientNode) {
         if (node.lifecycle.isSeeded || !node.lifecycle.isReadable) {
             return;
         }
-        if (node.maybeStateOf(BasicInformationClient) === undefined || node.endpoints.size <= 1) {
+        const structure = node.env.maybeGet(ClientStructure);
+        if (structure?.isApplying || node.maybeStateOf(BasicInformationClient) === undefined) {
             return;
         }
+
+        // Values outside the endpoint number range name nothing the structure could place
+        const descriptor = node.maybeStateOf(DescriptorClient);
+        const parts = structure?.isDescriptorListReported(EndpointNumber(0), Descriptor.attributes.partsList.id)
+            ? descriptor?.partsList.filter(number => EndpointNumber.isValid(number))
+            : undefined;
+        const endpoints = node.endpoints;
+        if (parts === undefined ? endpoints.size <= 1 : parts.some(number => !endpoints.has(number))) {
+            return;
+        }
+
         node.lifecycle.markSeeded(LocalActorContext.ReadOnly);
+
+        if (
+            parts !== undefined &&
+            !parts.length &&
+            structure?.isDescriptorListReported(EndpointNumber(0), Descriptor.attributes.deviceTypeList.id) &&
+            descriptor?.deviceTypeList.every(({ deviceType }) => deviceType === RootEndpoint.deviceType)
+        ) {
+            logger.warn(
+                `Peer ${node} has no endpoint besides its root and no device type besides Root Node,`,
+                "so it offers no function beyond node management",
+            );
+        }
     }
 
     /**

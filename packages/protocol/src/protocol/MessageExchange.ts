@@ -8,8 +8,8 @@ import { Message, PacketHeader, SessionType } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
 import { NetworkProfile } from "#peer/NetworkProfile.js";
 import {
+    PeerAckMissingError,
     PeerMessageMissingError,
-    PeerUnresponsiveError,
     TransientPeerCommunicationError,
 } from "#peer/PeerCommunicationError.js";
 import { GroupSession } from "#session/GroupSession.js";
@@ -115,10 +115,21 @@ export interface ExchangeSendOptions {
     /** Additional context information for logging to be included at the beginning of the Message log. */
     logContext?: ExchangeLogContext;
 
-    /** Aborts sending; does not throw */
+    /**
+     * Aborts sending.  Before or during the first transmission the send rejects with {@link AbortedError} (cause: the
+     * reason).  While waiting for the ack it resolves if the reason is an {@link AbortedError}, otherwise it rejects with
+     * the reason.
+     */
     abort?: AbortSignal;
 
-    /** Number of MRP retries to attempt (default: MRP.MAX_TRANSMISSIONS) */
+    /**
+     * Ends only the waits for the ack and for retransmissions; the message is still transmitted once, even when this
+     * fired before.  The send then resolves.  Either this or {@link abort} ends the waits; only {@link abort} stops the
+     * transmission.
+     */
+    ackWaitAbort?: AbortSignal;
+
+    /** Number of MRP transmissions, the first one included (default: MRP.MAX_TRANSMISSIONS) */
     maxRetransmissions?: number;
 
     /** Maximum MRP retransmission time (default: unlimited) */
@@ -127,12 +138,27 @@ export interface ExchangeSendOptions {
     /** Initial MRP retransmission time (default: calculated as by Matter specification) */
     initialRetransmissionTime?: Duration;
 
+    /**
+     * Time after the first transmission from which no further retransmission is sent (default: unlimited).  It applies
+     * only once {@link MRP.MAX_TRANSMISSIONS} transmissions went out, so the peer always gets the standard MRP budget.
+     * Reaching it ends the send the same way as reaching {@link maxRetransmissions}, including the final wait for a
+     * response that may still be on its way.
+     */
+    retransmissionTimeLimit?: Duration;
+
+    /**
+     * Transmission number at which the MRP backoff schedule of this send starts (default: 0).  Lets a new exchange
+     * continue the schedule of one it replaces instead of falling back to the base interval.  Does not count against
+     * {@link maxRetransmissions}.
+     */
+    backoffOffset?: number;
+
     /** Suppress peer-loss reporting for this send.  OR'd with {@link MessageExchange.Options.suppressPeerLoss}. */
     suppressPeerLoss?: boolean;
 }
 
 export interface ExchangeReceiveOptions {
-    /** Aborts sending; does not throw */
+    /** Aborts receiving; rejects with {@link AbortedError} (cause: the reason) unless a message is already queued. */
     abort?: AbortSignal;
 
     timeout?: Duration;
@@ -265,6 +291,10 @@ export class MessageExchange {
     #messageSendCounter = 0;
     #messageReceivedCounter = 0;
     #retransmissionTimer?: Timer;
+
+    /** A pending message whose ack wait ended: it still awaits its ack for close(), but is never transmitted again. */
+    #retransmissionEndedFor?: Message;
+    #firstTransmissionAt?: Timestamp;
     #lastTransmissionAt?: Timestamp;
     #lastActive = Time.nowMs;
 
@@ -565,7 +595,7 @@ export class MessageExchange {
 
         // Taking the last slot early would leave the scheduled attempt with none, and MRP would report the peer as
         // unresponsive without ever having retried inside the window we are trying to hit
-        if (this.#retransmissionCounter + 1 >= (this.#sendOptions.maxRetransmissions ?? MRP.MAX_TRANSMISSIONS)) {
+        if (this.#isTransmissionBudgetSpent(this.#retransmissionCounter + 1)) {
             return false;
         }
 
@@ -641,11 +671,13 @@ export class MessageExchange {
         const {
             expectAckOnly = false,
             disableMrpLogic,
+            ackWaitAbort,
             expectedProcessingTime = MRP.DEFAULT_EXPECTED_PROCESSING_TIME,
             logContext = {},
         } = this.#sendOptions;
 
         using abort = new Abort(this.#sendOptions);
+        using waiting = new Abort({ abort: [abort, ackWaitAbort] });
 
         const isStandaloneAck = standaloneAckMessageId !== undefined;
         if (standaloneAckMessageId !== undefined) {
@@ -725,7 +757,8 @@ export class MessageExchange {
                 sessionType: SessionType.Group,
                 messageId,
                 destGroupId,
-                sourceNodeId: this.#nodeId, // We are the source node, so use our NodeId
+                // The fabric's node ID can change during the exchange's lifetime (NOC update), so it is read per message
+                sourceNodeId: session.nodeId,
                 hasPrivacyEnhancements: this.session.usePrivacy,
                 isControlMessage: false,
                 hasMessageExtensions: false,
@@ -761,10 +794,13 @@ export class MessageExchange {
             this.#sentMessageAckSuccess = resolver;
             const startedWaitingAt = Time.nowMs;
             this.#sentMessageAckFailure = () => {
-                abort.abort(new PeerUnresponsiveError(Timestamp.delta(startedWaitingAt)));
+                abort.abort(new PeerAckMissingError(Timestamp.delta(startedWaitingAt)));
             };
         }
 
+        if (ackPromise !== undefined) {
+            this.#firstTransmissionAt = Time.nowUs;
+        }
         this.#onSend?.(message, 0);
         using sending = this.join("sending", Diagnostic.strong(Message.via(this, message)));
         if (isStandaloneAck) {
@@ -774,7 +810,8 @@ export class MessageExchange {
                 this.channel.send(message, { exchange: this, logContext, addressOverride: this.#addressOverride }),
             );
         }
-        if (abort.aborted) {
+        if (waiting.aborted) {
+            this.#endAckWait();
             return;
         }
 
@@ -790,15 +827,16 @@ export class MessageExchange {
             // Use race (not attempt) so that on abort we fall through to the cleanup block below
             // instead of throwing immediately — we need to stop the retransmission timer first.
             using _waiting = sending.join("waiting for ack");
-            const responseMessage = await abort.race(ackPromise);
-            if (abort.aborted) {
+            const responseMessage = await waiting.race(ackPromise);
+            if (waiting.aborted) {
                 // Aborted — stop the retransmission timer immediately so we don't keep sending
                 // packets to an unreachable peer while the exchange is being torn down.
                 // Leave #sentMessageToAck and the ack callbacks intact so that exchange.close()
                 // still sees the pending ack and can handle cleanup properly.
+                this.#endAckWait();
                 this.#retransmissionTimer?.stop();
 
-                if (!causedBy(abort.reason, AbortedError)) {
+                if (abort.aborted && !causedBy(abort.reason, AbortedError)) {
                     throw abort.reason;
                 }
                 return;
@@ -872,23 +910,37 @@ export class MessageExchange {
     }
 
     /**
+     * Whether the transmission with this number may not be sent any more, by either {@link
+     * ExchangeSendOptions.maxRetransmissions} or {@link ExchangeSendOptions.retransmissionTimeLimit}.
+     */
+    #isTransmissionBudgetSpent(transmissionNumber: number) {
+        const { maxRetransmissions = MRP.MAX_TRANSMISSIONS, retransmissionTimeLimit } = this.#sendOptions;
+        if (transmissionNumber >= maxRetransmissions) {
+            return true;
+        }
+        return (
+            retransmissionTimeLimit !== undefined &&
+            transmissionNumber >= MRP.MAX_TRANSMISSIONS &&
+            this.#firstTransmissionAt !== undefined &&
+            Timestamp.delta(this.#firstTransmissionAt, Time.nowUs) >= retransmissionTimeLimit
+        );
+    }
+
+    /**
      * Transmits the pending message again.  Returns whether a transmission was actually started: the budget may be
      * spent, in which case this only schedules the final wait, and a caller that treats "attempted" as "sent" would
      * drop whatever the transmission was meant to convey.
      */
     #retransmitMessage(message: Message, expectedProcessingTime?: Duration) {
-        // The message may have been acked while an earlier transmission of it was still in flight.  Its timers must
-        // neither outlive it nor spend the retransmission budget of whatever is pending now.
-        if (this.#sentMessageToAck !== message) {
+        // The message may have been acked, or its ack wait ended, while an earlier transmission of it was still in
+        // flight.  Its timers must neither outlive it nor spend the retransmission budget of whatever is pending now.
+        if (!this.#retransmits(message)) {
             return false;
         }
 
         this.#retransmissionCounter++;
         this.#totalRetransmissionCounter++;
-        if (
-            this.considerClosed ||
-            this.#retransmissionCounter >= (this.#sendOptions.maxRetransmissions ?? MRP.MAX_TRANSMISSIONS)
-        ) {
+        if (this.considerClosed || this.#isTransmissionBudgetSpent(this.#retransmissionCounter)) {
             // Ok all resubmissions are done, but we need to wait a bit longer because of processing time and the
             // resubmissions from the other side
             if (expectedProcessingTime && !this.considerClosed) {
@@ -965,10 +1017,22 @@ export class MessageExchange {
         return true;
     }
 
+    /**
+     * Ends the ack wait of the message awaiting an ack.  It stays pending for close() but is never transmitted again.
+     * Standalone acks never await one, so they cannot take its place.
+     */
+    #endAckWait() {
+        this.#retransmissionEndedFor = this.#sentMessageToAck;
+    }
+
+    #retransmits(message: Message) {
+        return this.#sentMessageToAck === message && this.#retransmissionEndedFor !== message;
+    }
+
     #initializeResubmission(message: Message, resubmissionBackoffTime: Duration, expectedProcessingTimeMs?: Duration) {
-        // An ack may have landed while the transmission we are following up on was in flight; arming a timer for a
-        // message that is no longer pending leaves it running unreferenced, so nothing can ever stop it
-        if (this.#sentMessageToAck !== message) {
+        // An ack may have landed, or the ack wait ended, while the transmission we are following up on was in flight;
+        // a timer armed then would retransmit a message nobody waits for
+        if (!this.#retransmits(message)) {
             return;
         }
 
@@ -1177,6 +1241,13 @@ export class MessageExchange {
         return `${this.#messageReceivedCounter}${Mark.TRANSFERRED}${this.#messageSendCounter}${this.#totalRetransmissionCounter > 0 ? `+${this.#totalRetransmissionCounter}` : ""}`;
     }
 
+    /**
+     * Backoff of a first transmission on the base MRP schedule, without the schedule options of the current send.
+     */
+    get #baseBackOff() {
+        return this.#backOffFor(0, {});
+    }
+
     get #mrpResubmissionBackOffTime() {
         return this.#backOffFor(this.#retransmissionCounter);
     }
@@ -1200,16 +1271,22 @@ export class MessageExchange {
      * apply mid-transfer: per {@link MatterSpecification.v161.Core} § 4.12.2.1 a peer awaiting an acknowledgement is in
      * active mode, because it holds an open exchange.
      */
-    #backOffFor(retransmissionCount: number) {
+    #backOffFor(
+        retransmissionCount: number,
+        {
+            backoffOffset = 0,
+            initialRetransmissionTime,
+        }: Pick<ExchangeSendOptions, "backoffOffset" | "initialRetransmissionTime"> = this.#sendOptions,
+    ) {
         let backOff = this.channel.getMrpResubmissionBackOffTime(
-            retransmissionCount,
+            retransmissionCount + backoffOffset,
             undefined,
             false,
             this.#sendAdditionalDelay,
             this.#context.localFixedMrpBackoff,
         );
-        if (this.#sendOptions.initialRetransmissionTime !== undefined) {
-            backOff = Millis(backOff + this.#sendOptions.initialRetransmissionTime);
+        if (initialRetransmissionTime !== undefined) {
+            backOff = Millis(backOff + initialRetransmissionTime);
         }
         const idleInterval = this.session.parameters.idleInterval;
         let cap = Duration.max(this.#sendOptions.maxRetransmissionTime ?? Forever, idleInterval);
@@ -1220,9 +1297,10 @@ export class MessageExchange {
     }
 
     /**
-     * How much restarting the exchange (resetting the retransmission counter to 0) would shorten the wait until
-     * the next (re)transmission.  Roughly zero near the base interval — e.g. an idle peer, whose fresh interval is
-     * just as slow.
+     * How much restarting on a new exchange with the base MRP schedule would shorten the wait until the next
+     * (re)transmission.  The base schedule has no {@link ExchangeSendOptions.backoffOffset} and no
+     * {@link ExchangeSendOptions.initialRetransmissionTime}.  Roughly zero near the base interval — e.g. an idle
+     * peer, whose fresh interval is just as slow.
      */
     get retransmissionRestartSaving(): Duration {
         // No pending retransmit → nothing for a restart to shorten → report no saving so the kick is suppressed.
@@ -1231,7 +1309,7 @@ export class MessageExchange {
             return Instant;
         }
         // Read the live timer's real interval (margins/jitter/cap baked in), not a freshly recomputed random one.
-        return Duration.max(Instant, Millis(currentWait - this.#backOffFor(0)));
+        return Duration.max(Instant, Millis(currentWait - this.#baseBackOff));
     }
 }
 

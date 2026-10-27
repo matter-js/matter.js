@@ -49,6 +49,9 @@
         "node-datachannel": "^0.33.4",
         "ws": "^8.22.0"
     },
+    "engines": {
+        "node": ">=22.13.0"
+    },
     "nacho": {
         "test": false
     }

@@ -26,7 +26,8 @@ export class SynchronousTransactionConflictError extends MatterError {}
 export class TransactionDeadlockError extends MatterError {}
 
 /**
- * Thrown if an error occurs during commit or rollback.
+ * Base class of errors that prevent a transaction from finalizing, such as {@link UnsettledStateError}.  A failing
+ * commit or rollback rejects with the participant's own error instead.
  */
 export class FinalizationError extends MatterError {}
 

@@ -89,6 +89,13 @@ export class ClientCacheBuffer {
     }
 
     /**
+     * Resolves once the flushes running or scheduled so far have completed, without scheduling another one.
+     */
+    async settled(): Promise<void> {
+        await this.#mutex;
+    }
+
+    /**
      * Stop the timer and flush any remaining dirty data.
      */
     async close(): Promise<void> {

@@ -65,8 +65,10 @@ export class ClientEndpointInitializer extends EndpointInitializer {
     get structure() {
         if (this.#structure === undefined) {
             const nodeStore = this.#store;
-            this.#structure = new ClientStructure(this.#node, (endpoint, behaviorId) =>
-                nodeStore.storeForEndpoint(endpoint).createStoreForBehavior(behaviorId),
+            this.#structure = new ClientStructure(
+                this.#node,
+                (endpoint, behaviorId) => nodeStore.storeForEndpoint(endpoint).createStoreForBehavior(behaviorId),
+                { cacheRecord: nodeStore },
             );
             this.#structure.eventEmitter = ClientEventEmitter(this.#node as ClientNode, this.#structure);
         }

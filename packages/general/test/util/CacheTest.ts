@@ -4,8 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Diagnostic, LogDestination, Logger, LogLevel } from "#index.js";
+import { ClosedError, MatterAggregateError } from "#MatterError.js";
 import { Minutes } from "#time/TimeUnit.js";
 import { AsyncCache, Cache } from "#util/Cache.js";
+import { Lifetime } from "#util/Lifetime.js";
 
 describe("Cache", () => {
     describe("key encoding", () => {
@@ -13,6 +16,7 @@ describe("Cache", () => {
             const calls = new Array<unknown[]>();
             const cache = new Cache<string>(
                 "test",
+                Lifetime.mock,
                 (...params) => {
                     calls.push(params);
                     return `v${calls.length}`;
@@ -31,7 +35,7 @@ describe("Cache", () => {
         });
 
         it("keeps single-param keys round-trippable via keys()", async () => {
-            const cache = new Cache<string>("test", (iface: string) => `records-${iface}`, Minutes(5));
+            const cache = new Cache<string>("test", Lifetime.mock, (iface: string) => `records-${iface}`, Minutes(5));
 
             cache.get("eth0");
             cache.get("wlan0");
@@ -51,6 +55,7 @@ describe("Cache", () => {
             let calls = 0;
             const cache = new Cache<string | undefined>(
                 "test",
+                Lifetime.mock,
                 () => {
                     calls++;
                     return undefined;
@@ -65,6 +70,19 @@ describe("Cache", () => {
             await cache.close();
         });
     });
+
+    describe("close()", () => {
+        it("throws on get() after close and creates nothing", async () => {
+            let calls = 0;
+            const cache = new Cache<string>("test", Lifetime.mock, () => `v${++calls}`, Minutes(5));
+
+            await cache.close();
+
+            expect(() => cache.get("k")).throws(ClosedError);
+            expect(calls).equals(0);
+            expect(cache.keys()).deep.equals([]);
+        });
+    });
 });
 
 describe("AsyncCache", () => {
@@ -74,6 +92,7 @@ describe("AsyncCache", () => {
             let calls = 0;
             const cache = new AsyncCache<string>(
                 "test",
+                Lifetime.mock,
                 () => {
                     calls++;
                     return new Promise<string>(resolve => (pendingResolve = resolve));
@@ -101,6 +120,7 @@ describe("AsyncCache", () => {
             let pendingResolve!: (value: string) => void;
             const cache = new AsyncCache<string>(
                 "test",
+                Lifetime.mock,
                 () => {
                     attempt++;
                     if (attempt === 1) {
@@ -131,6 +151,7 @@ describe("AsyncCache", () => {
             let calls = 0;
             const cache = new AsyncCache<string>(
                 "test",
+                Lifetime.mock,
                 async (key: string) => {
                     calls++;
                     return `v-${key}`;
@@ -149,6 +170,7 @@ describe("AsyncCache", () => {
             let attempt = 0;
             const cache = new AsyncCache<string>(
                 "test",
+                Lifetime.mock,
                 (): Promise<string> => {
                     attempt++;
                     if (attempt === 1) {
@@ -173,6 +195,7 @@ describe("AsyncCache", () => {
             const expired = new Array<[string, string]>();
             const cache = new AsyncCache<string>(
                 "test",
+                Lifetime.mock,
                 () => new Promise<string>(resolve => (pendingResolve = resolve)),
                 Minutes(5),
                 async (key, value) => {
@@ -199,6 +222,7 @@ describe("AsyncCache", () => {
             let expireCalls = 0;
             const cache = new AsyncCache<string>(
                 "test",
+                Lifetime.mock,
                 () => new Promise<string>((_, reject) => (pendingReject = reject)),
                 Minutes(5),
                 async () => {
@@ -225,6 +249,7 @@ describe("AsyncCache", () => {
             let calls = 0;
             const cache = new AsyncCache<string | undefined>(
                 "test",
+                Lifetime.mock,
                 async () => {
                     calls++;
                     return undefined;
@@ -245,6 +270,7 @@ describe("AsyncCache", () => {
             let attempt = 0;
             const cache = new AsyncCache<string>(
                 "test",
+                Lifetime.mock,
                 async (key: string) => {
                     attempt++;
                     if (key === "bad") {
@@ -271,6 +297,7 @@ describe("AsyncCache", () => {
             const expired = new Array<[string, string]>();
             const cache = new AsyncCache<string>(
                 "test",
+                Lifetime.mock,
                 (key: string) => new Promise<string>(resolve => resolvers.set(key, resolve)),
                 Minutes(5),
                 async (key, value) => {
@@ -299,12 +326,236 @@ describe("AsyncCache", () => {
         });
     });
 
+    describe("close()", () => {
+        it("rejects get() after close and creates nothing", async () => {
+            let calls = 0;
+            const cache = new AsyncCache<string>("test", Lifetime.mock, async () => `v${++calls}`, Minutes(5));
+
+            await cache.close();
+
+            await expect(cache.get("k")).rejectedWith(ClosedError);
+            expect(calls).equals(0);
+            expect(cache.keys()).deep.equals([]);
+        });
+
+        it("rejects get() while close runs and expires a creation pending at close", async () => {
+            let pendingResolve!: (value: string) => void;
+            let calls = 0;
+            const expired = new Array<[string, string]>();
+            const cache = new AsyncCache<string>(
+                "test",
+                Lifetime.mock,
+                () => {
+                    calls++;
+                    return new Promise<string>(resolve => (pendingResolve = resolve));
+                },
+                Minutes(5),
+                async (key, value) => {
+                    expired.push([key, value]);
+                },
+            );
+
+            const pending = cache.get("a");
+            const closing = cache.close();
+
+            await expect(cache.get("b")).rejectedWith(ClosedError);
+
+            // Characterization from here: clear() expired pending creations before close() refused get()
+            pendingResolve("A");
+            expect(await pending).equals("A");
+            await closing;
+
+            expect(calls).equals(1);
+            expect(expired).deep.equals([["a", "A"]]);
+            expect(cache.keys()).deep.equals([]);
+        });
+    });
+
+    describe("lifetime", () => {
+        it("joins the owner's lifetime and leaves it on close", async () => {
+            const owner = Lifetime.mock;
+            const cache = new AsyncCache<string>("test", owner, async () => "v", Minutes(5));
+
+            expect([...owner.spans].map(span => span.name)).deep.equals(["test cache"]);
+
+            await cache.close();
+
+            expect(owner.spans.size).equals(0);
+        });
+
+        it("rejects get() once the owner closes and still expires the values on close()", async () => {
+            const owner = Lifetime.mock.join("owner");
+            const expired = new Array<[string, string]>();
+            const cache = new AsyncCache<string>(
+                "test",
+                owner,
+                async (key: string) => `v-${key}`,
+                Minutes(5),
+                async (key, value) => {
+                    expired.push([key, value]);
+                },
+            );
+            expect(await cache.get("a")).equals("v-a");
+
+            using _closing = owner.closing();
+
+            await expect(cache.get("b")).rejectedWith(ClosedError);
+            await expect(cache.get("a")).rejectedWith(ClosedError);
+
+            await cache.close();
+
+            expect(expired).deep.equals([["a", "v-a"]]);
+            expect([...owner.spans].map(span => span.name)).not.contains("test cache");
+        });
+    });
+
+    describe("failing expireCallback", () => {
+        before(() => MockTime.enable());
+
+        let attempted: string[];
+        let warnings: unknown[];
+
+        beforeEach(() => {
+            attempted = new Array<string>();
+            warnings = new Array<unknown>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    if (message.facility === "Cache" && message.level === LogLevel.WARN) {
+                        warnings.push(message.values[0]);
+                    }
+                },
+            });
+        });
+
+        afterEach(() => {
+            delete Logger.destinations.capture;
+        });
+
+        async function filledCache() {
+            const cache = new AsyncCache<string>(
+                "failing",
+                Lifetime.mock,
+                async (key: string) => `v-${key}`,
+                Minutes(5),
+                async key => {
+                    attempted.push(key);
+                    if (key === "a") {
+                        throw new Error("close failed");
+                    }
+                },
+            );
+            await cache.get("a");
+            await cache.get("b");
+            return cache;
+        }
+
+        it("close() expires every value, logs the failure and resolves", async () => {
+            const cache = await filledCache();
+
+            await cache.close();
+
+            expect(attempted).deep.equals(["a", "b"]);
+            expect(warnings).deep.equals(["failing cache failed to expire a:"]);
+        });
+
+        it("clear() expires every value and throws the failures", async () => {
+            const cache = await filledCache();
+
+            await expect(cache.clear()).rejectedWith(MatterAggregateError, "failing cache failed to expire a");
+
+            expect(attempted).deep.equals(["a", "b"]);
+            await cache.close();
+            expect(attempted).deep.equals(["a", "b"]);
+        });
+
+        it("periodic expiry expires every value and logs the failure", async () => {
+            const cache = await filledCache();
+
+            await MockTime.advance(Minutes(5));
+
+            expect(attempted).deep.equals(["a", "b"]);
+            expect(warnings).deep.equals(["failing cache failed to expire a:"]);
+            await cache.close();
+            expect(attempted).deep.equals(["a", "b"]);
+        });
+
+        it("delete() drops the value even when the callback rejects", async () => {
+            const cache = await filledCache();
+
+            await expect(cache.delete("a")).rejectedWith("close failed");
+            await cache.close();
+
+            expect(attempted).deep.equals(["a", "b"]);
+        });
+    });
+
+    describe("values touched while an expire callback is pending", () => {
+        before(() => MockTime.enable());
+
+        let expired: string[];
+        let callbackStarted: () => void;
+        let started: Promise<void>;
+        let release: () => void;
+        let cache: AsyncCache<string>;
+        let calls: number;
+
+        beforeEach(async () => {
+            expired = new Array<string>();
+            calls = 0;
+            started = new Promise<void>(resolve => (callbackStarted = resolve));
+            const gate = new Promise<void>(resolve => (release = resolve));
+            cache = new AsyncCache<string>(
+                "test",
+                Lifetime.mock,
+                async (key: string) => `v-${key}-${++calls}`,
+                Minutes(5),
+                async (_key, value) => {
+                    expired.push(value);
+                    if (value === "v-a-1") {
+                        callbackStarted();
+                        await gate;
+                    }
+                },
+            );
+            await cache.get("a");
+        });
+
+        afterEach(async () => {
+            await cache.close();
+        });
+
+        it("clear() also expires a value created during the clear", async () => {
+            const clearing = cache.clear();
+            await started;
+
+            expect(await cache.get("b")).equals("v-b-2");
+            release();
+            await clearing;
+
+            expect(expired).deep.equals(["v-a-1", "v-b-2"]);
+        });
+
+        it("periodic expiry keeps a value refreshed while an earlier callback is pending", async () => {
+            await cache.get("b");
+            const advancing = MockTime.advance(Minutes(5));
+            await started;
+
+            expect(await cache.get("b")).equals("v-b-2");
+            release();
+            await advancing;
+
+            expect(expired).deep.equals(["v-a-1"]);
+            expect(await cache.get("b")).equals("v-b-2");
+        });
+    });
+
     describe("evict()", () => {
         it("closes the cached resource and regenerates on the next get() for the same params", async () => {
             let calls = 0;
             const expired = new Array<string>();
             const cache = new AsyncCache<string>(
                 "test",
+                Lifetime.mock,
                 async (netInterface: string, isIPv4: boolean) => `${netInterface}-${isIPv4}-${++calls}`,
                 Minutes(5),
                 async (_key, value) => {

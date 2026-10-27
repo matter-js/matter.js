@@ -7,7 +7,6 @@
 import { Diagnostic, Lifetime, LogDestination, Logger, LogLevel } from "#index.js";
 import { MatterAggregateError } from "#MatterError.js";
 import {
-    FinalizationError,
     SynchronousTransactionConflictError,
     TransactionDeadlockError,
     TransactionFlowError,
@@ -349,17 +348,17 @@ describe("Transaction", () => {
         });
     });
 
-    describe("rolls back and throws on commit phase 1 error", () => {
+    describe("rolls back and throws the participant's error on commit phase 1 error", () => {
         test("synchronously", () => {
             const p = join({
                 commit1() {
-                    throw new Error("oops in sync participant");
+                    throw new SomeError("oops in sync participant");
                 },
             });
 
             transaction.beginSync();
 
-            expect(() => transaction.commit()).throws(FinalizationError);
+            expect(() => transaction.commit()).throws(SomeError, "oops in sync participant");
 
             p.expect("commit1", "rollback");
             validateUnlocked(transaction);
@@ -368,7 +367,7 @@ describe("Transaction", () => {
         test("asychonously", async () => {
             const p = join({
                 async commit1() {
-                    throw new Error("oops in async participant");
+                    throw new SomeError("oops in async participant");
                 },
 
                 async rollback() {},
@@ -376,7 +375,59 @@ describe("Transaction", () => {
 
             await transaction.begin();
 
-            await expect(transaction.commit()).rejectedWith(FinalizationError);
+            await expect(transaction.commit()).rejectedWith(SomeError, "oops in async participant");
+
+            p.expect("commit1", "rollback");
+            validateUnlocked(transaction);
+        });
+
+        test("even when a rollback fails", async () => {
+            const p = join({
+                async commit1() {
+                    throw new SomeError("oops in commit1");
+                },
+            });
+            transaction.addParticipants({
+                toString: () => "FailingRollback",
+                rollback() {
+                    throw new Error("oops in rollback");
+                },
+            });
+
+            await transaction.begin();
+
+            await expect(committing()).rejectedWith(SomeError, "oops in commit1");
+
+            p.expect("commit1", "rollback");
+            validateUnlocked(transaction);
+        });
+
+        test("with the errors of every failing participant", async () => {
+            const p = join({
+                async commit1() {
+                    throw new SomeError("oops in first participant");
+                },
+            });
+            transaction.addParticipants({
+                toString: () => "SecondParticipant",
+                async commit1() {
+                    throw new SomeError("oops in second participant");
+                },
+            });
+
+            await transaction.begin();
+
+            const error = await committing().then(
+                () => undefined,
+                (e: unknown) => e,
+            );
+            if (!(error instanceof MatterAggregateError)) {
+                expect.fail(`expected a MatterAggregateError, got ${error}`);
+            }
+            expect(error.errors.map(e => (e instanceof Error ? e.message : e))).deep.equals([
+                "oops in first participant",
+                "oops in second participant",
+            ]);
 
             p.expect("commit1", "rollback");
             validateUnlocked(transaction);
@@ -701,7 +752,7 @@ describe("Transaction", () => {
 
             await transaction.begin();
 
-            await expect(committing()).rejectedWith(FinalizationError);
+            await expect(committing()).rejectedWith(SomeError);
 
             p.expect("commit1", "rollback", "concluded rolled back");
             validateUnlocked(transaction);

@@ -5,12 +5,26 @@
  */
 
 import { DiscoveryData } from "#common/Scanner.js";
-import { Millis } from "@matter/general";
+import { Bytes, DnssdParameters, Millis } from "@matter/general";
 
 describe("DiscoveryData", () => {
     function decode(entries: Record<string, string>) {
         return DiscoveryData(new Map(Object.entries(entries)));
     }
+
+    it("decodes the keys of DNS-SD parameters regardless of their case", () => {
+        const parameters = new DnssdParameters(
+            Object.entries({ sii: "5000", Sat: "4000", dn: "Kitchen" }).map(([key, value]) => [
+                key,
+                Bytes.fromString(value),
+            ]),
+        );
+        expect(DiscoveryData(parameters)).deep.equal({
+            SII: Millis(5000),
+            SAT: Millis(4000),
+            DN: "Kitchen",
+        });
+    });
 
     describe("SII/SAI/SAT decoding", () => {
         it("decodes valid values", () => {

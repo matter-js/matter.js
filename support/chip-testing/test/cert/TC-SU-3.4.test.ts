@@ -94,7 +94,7 @@ function commissionedOrFail() {
 async function recordDeferredApply(cx: CertStepContext) {
     const dut = cx.controllers.dut;
     const ref = commissionedOrFail();
-    const delay = delayedActionTime();
+    const delay = delayedActionTime(cx);
 
     await dut.node(ref).scriptOtaProvider({
         applyUpdate: [{ action: OtaApplyAction.AwaitNextAction, delayedActionTime: delay }],
@@ -122,11 +122,11 @@ async function recordDeferredApply(cx: CertStepContext) {
         },
         {
             what: "that answer named the DelayedActionTime the case scripted",
-            check: () => delayedActionTimeCheck(applies[0]?.response.delayedActionTime),
+            check: () => delayedActionTimeCheck(cx, applies[0]?.response.delayedActionTime),
         },
         {
             what: "the value scripted is the one the plan names",
-            check: () => planDelayCoverageCheck(),
+            check: () => planDelayCoverageCheck(cx),
         },
         {
             // The plan's own point: the deferral is not the end of the exchange. A DUT that answered
@@ -212,6 +212,7 @@ certTest("TC-SU-3.4", {
     plan: "softwareupdate.adoc",
     pics: ["MCORE.OTA.Provider"],
     app: "ota-requestor",
+    controllerCapabilities: ["ota-provider", "ota-provider-script"],
 
     // chip's ota-requestor-app ends the update at the download without this, so the ApplyUpdateRequest
     // this case is about would never be sent. chip's own Test_TC_SU_3_4 passes the same flag.

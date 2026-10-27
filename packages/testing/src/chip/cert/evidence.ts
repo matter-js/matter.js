@@ -81,6 +81,14 @@ export interface RunRecord {
         timestamp: string;
         controller: string;
         controllerImplementation: string;
+        /** Implementation serving the helper roles; absent when it is the same as `controllerImplementation`. */
+        helperControllerImplementation?: string;
+        /**
+         * Which build of an external controller served the run (see `ControllerAdapter.build`), absent for a
+         * controller that runs in the test process. Without it a record names the implementation but not the
+         * build that ran, and a build chosen by the environment cannot be told apart afterwards.
+         */
+        controllerBuild?: Record<string, string>;
         /** Every device the run declared: the primary first, then the rest in declaration order. */
         devices: RunDeviceRecord[];
         matterJsCommit: string;
@@ -92,8 +100,13 @@ export interface RunRecord {
      * hanging against an unreachable device still leaves a bundle behind, and a run that has not
      * finished reporting has no verdict to state — so no hang, interruption or unwritable volume can
      * leave a passing record standing for a run that failed.
+     *
+     * `"controller-gap"` is a run that failed nothing but skipped a step, or the whole test case, because the
+     * controller under test lacks something the plan needs ({@link controllerUnsupportedSkips},
+     * {@link controllerGap}): every step of a plan has to run for it to pass. `"error"` is a run that stopped on a
+     * defect of the framework or of a declaration rather than on the device (see `StepVerdict`).
      */
-    verdict: "pass" | "fail" | "unverified" | "skipped" | "incomplete";
+    verdict: "pass" | "fail" | "unverified" | "controller-gap" | "error" | "skipped" | "incomplete";
     /**
      * The device that exited unexpectedly, named by its role — the role is what tells a reader of a
      * multi-device bundle which binary to look at. The run races its devices and reports one exit,
@@ -114,11 +127,20 @@ export interface RunRecord {
      */
     runError?: string;
     /**
-     * How many steps the controller under test could not express, absent if none. A run can reach a
-     * "pass" verdict with most of its steps skipped this way, so a reader of this record alone needs
-     * the count to know how much the run actually proved.
+     * How many steps were skipped because the controller under test lacks a capability they declare, absent if none.
+     * Any such step makes the verdict `"controller-gap"`, and the count says how much of the plan the run left out.
      */
     controllerUnsupportedSkips?: number;
+    /**
+     * Why the controller under test cannot serve the test case at all, for a run that was skipped as a whole before
+     * any device started. Such a record names no devices.
+     */
+    controllerGap?: string;
+    /**
+     * Why the test case is out of the scope of a controller filling one of its roles, for a run skipped as a whole
+     * before any device started. Such a record names no devices, and its verdict is `"skipped"`.
+     */
+    outOfScope?: string;
     /**
      * How many steps their own PICS excluded, absent if none. Such a step is meant to skip where the
      * device or controller does not declare what it needs — but a PICS value that is simply wrong skips
@@ -133,11 +155,17 @@ export interface RunRecord {
      */
     longRunningSkips?: number;
     /**
-     * How many steps a condition of the plan itself skipped for this run's devices, absent if none — a plan that
-     * branches on a device capability skips the steps of the branch the devices do not take
-     * (`CertStepNotApplicableError`). A bundle without this count took no such branch.
+     * How many steps a condition of the plan itself skipped for this run, absent if none — a plan that branches on a
+     * device capability or on the transport of the DUT's session skips the steps of the branch the run does not take
+     * (`CertStepNotApplicableError`, `CertStepOptions.notApplicableAtRun`). A bundle without this count took no such
+     * branch.
      */
     planConditionSkips?: number;
+    /**
+     * How many steps were skipped because they need a capability the controller under test declares out of its scope,
+     * absent if none. Unlike {@link controllerUnsupportedSkips} these never change the verdict.
+     */
+    outOfScopeSkips?: number;
     /**
      * How many checks reported `"unverified"`, absent if none. Such a check neither proves nor
      * disproves what its step claims, so this is what tells a reader of this record alone how much of
@@ -173,8 +201,7 @@ function describeDevice({ role, app, appVariant, flavor, appArgs, chipRef }: Run
  * `<name>.log` per {@link attachLog} call.
  *
  * `endStep` always receives the full {@link CertStepDefinition}, not just a verdict — that's what
- * lets a step the engine never reached (PICS-skipped, or trailing a prior abort, so `beginStep` was
- * never called for it) still become a complete {@link StepRecord}: its `text`/`expected` come from
+ * lets a step the engine skipped or aborted, whether or not `beginStep` was called for it, still become a complete {@link StepRecord}: its `text`/`expected` come from
  * the definition `endStep` was given, and its `checks` default to empty.
  */
 export class EvidenceRecorder implements StepRecorder {
@@ -189,10 +216,14 @@ export class EvidenceRecorder implements StepRecorder {
     #evidenceError?: string;
     #runError?: string;
     #unproven = false;
+    #frameworkError = false;
     #controllerUnsupportedSkips?: number;
+    #controllerGap?: string;
+    #outOfScope?: string;
     #picsSkips?: number;
     #longRunningSkips?: number;
     #planConditionSkips?: number;
+    #outOfScopeSkips?: number;
     #unverifiedChecks?: number;
     #concluded = false;
 
@@ -215,7 +246,7 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     endStep(step: CertStepDefinition, verdict: StepVerdict, skipReason?: string): CheckRecord[] {
-        // No active step is fine (skipped/aborted steps never begin), but ending a *different*
+        // No active step is fine (a skipped or aborted step may never have begun), but ending a *different*
         // step than the active one would silently discard the active step's checks.
         if (this.#current !== undefined && this.#current.def !== step) {
             throw new Error(
@@ -256,16 +287,36 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     /**
-     * Records how many steps the controller under test could not express (see
-     * {@link RunRecord.controllerUnsupportedSkips}). Unlike a failed step this never changes the
-     * verdict — such a step is a gap in coverage, not a defect in the device.
+     * Records how many steps were skipped because the controller under test lacks a capability they declare (see
+     * {@link RunRecord.controllerUnsupportedSkips}). Such a step is a gap in coverage, not a defect in the device,
+     * so it settles a run that failed nothing as `"controller-gap"`.
      */
     recordControllerUnsupportedSkips(count: number): void {
         this.#controllerUnsupportedSkips = count;
     }
 
     /**
-     * Records how many steps their own PICS excluded (see {@link RunRecord.picsSkips}). Like a
+     * Records the build of the controller under test (see `RunRecord.run.controllerBuild`), for a case that builds
+     * its recorder before it starts the controller, which is when an adapter knows its build.
+     */
+    recordControllerBuild(build: Record<string, string> | undefined): void {
+        if (build !== undefined) {
+            this.#meta = { ...this.#meta, controllerBuild: build };
+        }
+    }
+
+    /** Records that the test case was skipped as a whole for `reason` (see {@link RunRecord.controllerGap}). */
+    recordControllerGap(reason: string): void {
+        this.#controllerGap = reason;
+    }
+
+    /** Records that the test case was skipped as a whole as out of scope (see {@link RunRecord.outOfScope}). */
+    recordOutOfScope(reason: string): void {
+        this.#outOfScope = reason;
+    }
+
+    /**
+     * Records how many steps their own PICS excluded (see {@link RunRecord.picsSkips}). Unlike a
      * controller-unsupported skip this never changes the verdict: the step was not meant to run.
      */
     recordPicsSkips(count: number): void {
@@ -282,12 +333,20 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     /**
-     * Records how many steps a condition of the plan skipped for this run's devices (see
+     * Records how many steps a condition of the plan skipped for this run (see
      * {@link RunRecord.planConditionSkips}). Like a PICS skip this never changes the verdict: the plan does not apply
      * those steps here.
      */
     recordPlanConditionSkips(count: number): void {
         this.#planConditionSkips = count;
+    }
+
+    /**
+     * Records how many steps were skipped as out of the controller's scope (see {@link RunRecord.outOfScopeSkips}).
+     * Like a PICS skip this never changes the verdict: the controller declares those steps out of its scope.
+     */
+    recordOutOfScopeSkips(count: number): void {
+        this.#outOfScopeSkips = count;
     }
 
     /**
@@ -370,8 +429,16 @@ export class EvidenceRecorder implements StepRecorder {
      * cause this recorder was never told about, and `outcome.detail` records that report as
      * {@link RunRecord.runError} whether or not another field already names a mechanism for it.
      */
-    async concludeRun(outcome: { failed: boolean; detail?: string; unproven?: boolean }): Promise<void> {
+    async concludeRun(outcome: {
+        failed: boolean;
+        detail?: string;
+        unproven?: boolean;
+        frameworkError?: boolean;
+    }): Promise<void> {
         this.#concluded = true;
+        if (outcome.frameworkError && outcome.failed) {
+            this.#frameworkError = true;
+        }
         if (outcome.failed && this.#runError === undefined) {
             this.#runError = outcome.detail ?? "the run failed";
         }
@@ -393,6 +460,8 @@ export class EvidenceRecorder implements StepRecorder {
                 timestamp: this.#meta.timestamp,
                 controller: this.#meta.controller,
                 controllerImplementation: this.#meta.controllerImplementation,
+                helperControllerImplementation: this.#meta.helperControllerImplementation,
+                controllerBuild: this.#meta.controllerBuild,
                 devices: this.#meta.devices,
                 matterJsCommit: this.#meta.matterJsCommit,
                 chipToolRef: this.#meta.chipToolRef,
@@ -405,9 +474,12 @@ export class EvidenceRecorder implements StepRecorder {
             evidenceError: this.#evidenceError,
             runError: this.#runError,
             controllerUnsupportedSkips: this.#controllerUnsupportedSkips,
+            controllerGap: this.#controllerGap,
+            outOfScope: this.#outOfScope,
             picsSkips: this.#picsSkips,
             longRunningSkips: this.#longRunningSkips,
             planConditionSkips: this.#planConditionSkips,
+            outOfScopeSkips: this.#outOfScopeSkips,
             unverifiedChecks: this.#unverifiedChecks,
         };
 
@@ -426,7 +498,16 @@ export class EvidenceRecorder implements StepRecorder {
      * A log excerpt then carries its own provenance.
      */
     runHeaderLines(): string[] {
-        const { tc, plan, devices, controller, controllerImplementation, chipToolRef, matterJsCommit } = this.#meta;
+        const {
+            tc,
+            plan,
+            devices,
+            controller,
+            controllerImplementation,
+            chipToolRef,
+            matterJsCommit,
+            controllerBuild,
+        } = this.#meta;
         const controllerLine =
             chipToolRef === undefined
                 ? `${controllerImplementation} (${controller})`
@@ -437,6 +518,13 @@ export class EvidenceRecorder implements StepRecorder {
             `plan       : ${plan}`,
             ...devices.map(device => `device     : ${describeDevice(device)}`),
             `controller : ${controllerLine}`,
+            ...(controllerBuild === undefined
+                ? []
+                : [
+                      `build      : ${Object.entries(controllerBuild)
+                          .map(([key, value]) => `${key}=${value}`)
+                          .join(", ")}`,
+                  ]),
             `matter.js  : ${matterJsCommit}`,
             `evidence   : ${this.#dir}`,
         ];
@@ -445,15 +533,22 @@ export class EvidenceRecorder implements StepRecorder {
     /**
      * A run where every step was skipped (or that had no steps at all — a malformed definition) is
      * neither a pass nor a fail: nothing was actually exercised, so reporting `"pass"` would overstate
-     * what the run proved. Only a run with at least one non-skipped step can pass, and only a run
-     * whose every executed step observed what it claims can pass rather than settle `"unverified"`.
+     * what the run proved. Only a run with at least one non-skipped step can pass, only a run whose
+     * every executed step observed what it claims can pass rather than settle `"unverified"`, and only a
+     * run that skipped no step for a controller gap can pass rather than settle `"controller-gap"`.
      */
     #verdict(): RunRecord["verdict"] {
         if (!this.#concluded) {
             return "incomplete";
         }
+        // A device that ended on its own is an outcome of the device, whatever else went wrong in the run
+        if (this.#deviceExit) {
+            return "fail";
+        }
+        if (this.#frameworkError) {
+            return "error";
+        }
         if (
-            this.#deviceExit ||
             this.#finalizationError !== undefined ||
             this.#teardownError !== undefined ||
             this.#evidenceError !== undefined ||
@@ -466,8 +561,14 @@ export class EvidenceRecorder implements StepRecorder {
         if (this.#steps.some(step => step.verdict === "fail" || step.verdict === "aborted")) {
             return "fail";
         }
+        if (this.#steps.some(step => step.verdict === "error")) {
+            return "error";
+        }
         if (this.#unproven || this.#steps.some(step => step.verdict === "unverified")) {
             return "unverified";
+        }
+        if (this.#controllerGap !== undefined || (this.#controllerUnsupportedSkips ?? 0) > 0) {
+            return "controller-gap";
         }
         if (this.#steps.some(step => step.verdict === "pass")) {
             return "pass";

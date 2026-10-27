@@ -10,6 +10,7 @@ import { CertificationDeclaration } from "#certificate/kinds/CertificationDeclar
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
 import {
     Bytes,
+    ClosedError,
     Crypto,
     Diagnostic,
     Environment,
@@ -1731,6 +1732,28 @@ describe("DclCertificateService", () => {
             expect(result).to.be.false;
 
             await service.close();
+        });
+
+        it("isRevoked rejects instead of answering not revoked while and after the service closes", async () => {
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            const closing = service.close();
+            await expect(service.isRevoked("AABBCCDD", "01AB")).rejectedWith(ClosedError);
+            await closing;
+
+            await expect(service.isRevoked("AABBCCDD", "01AB")).rejectedWith(ClosedError);
         });
 
         it("isRevoked fetches CRL on demand and checks serial", async () => {

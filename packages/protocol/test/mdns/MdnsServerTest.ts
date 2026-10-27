@@ -15,6 +15,9 @@ import {
     DnsRecord,
     DnsRecordClass,
     DnsRecordType,
+    LogDestination,
+    Logger,
+    LogLevel,
     MdnsSocket,
     MockNetwork,
     Network,
@@ -1615,6 +1618,52 @@ describe("MdnsServer", () => {
                     uniCastTarget: undefined,
                 },
             ]);
+        });
+    });
+
+    describe("Close", () => {
+        let levels: LogLevel[];
+
+        beforeEach(() => {
+            levels = new Array<LogLevel>();
+            Logger.destinations.capture = LogDestination({
+                add(message) {
+                    if (message.facility === "MdnsServer") {
+                        levels.push(message.level);
+                    }
+                },
+            });
+        });
+
+        afterEach(() => {
+            delete Logger.destinations.capture;
+        });
+
+        it("sends nothing and logs at debug level for a broadcast after close", async () => {
+            const responses = new Array<Bytes>();
+            onResponse = async message => {
+                responses.push(message);
+            };
+
+            await mdnsServer.close();
+            await mdnsServer.broadcast("foo");
+
+            expect(responses).deep.equal([]);
+            expect(levels).not.empty;
+            expect(levels.filter(level => level > LogLevel.DEBUG)).deep.equal([]);
+        });
+
+        it("logs at debug level when expiring announcements while the server closes", async () => {
+            onResponse = async () => {};
+            await mdnsServer.broadcast("foo");
+            levels.length = 0;
+
+            const closing = mdnsServer.close();
+            await mdnsServer.expireAnnouncements("foo");
+            await closing;
+
+            expect(levels).not.empty;
+            expect(levels.filter(level => level > LogLevel.DEBUG)).deep.equal([]);
         });
     });
 

@@ -5,7 +5,6 @@
  */
 
 import { Duration, ImplementationError, isDeepEqual, Millis, Seconds, Time } from "@matter/main";
-import { resolveControllerImplementation } from "@matter/testing";
 import type { AttributePathSpec, CertNodeRef, CertStepContext } from "@matter/testing";
 import {
     CertCheckFailedError,
@@ -133,19 +132,24 @@ export async function subscribeAndModify<Value>(
     const reported = new Array<unknown>();
     let matched = 0;
     let mismatch: string | undefined;
+    let ended: Error | undefined;
     let notify: (() => void) | undefined;
     await node.subscribe(path, {
         minIntervalFloorSeconds: MIN_INTERVAL_FLOOR_SECONDS,
         maxIntervalCeilingSeconds: MAX_INTERVAL_CEILING_SECONDS,
         onUpdate: value => {
             reported.push(value);
-            if (matched < values.length && values[matched] === value) {
+            if (matched < values.length && isDeepEqual(values[matched], value)) {
                 matched++;
-            } else if (mismatch === undefined && !values.some(written => written === value)) {
+            } else if (mismatch === undefined && !values.some(written => isDeepEqual(written, value))) {
                 mismatch =
                     `report ${reported.length} carried ${JSON.stringify(value)}, which is none of the values ` +
                     `this step wrote (${JSON.stringify(values)})`;
             }
+            notify?.();
+        },
+        onEnded: cause => {
+            ended = cause;
             notify?.();
         },
     });
@@ -153,12 +157,7 @@ export async function subscribeAndModify<Value>(
     const subscribeCheck = await expectMessageWithPath(th.log, th.flavor, "subscribe", path, from, establish);
     record(cx, subscribeCheck, `SubscribeRequestMessage log for step ${step}`);
 
-    // The follower pumps the device stream asynchronously, so a previous step's SubscribeResponse
-    // can surface after this step marked — reading the id out of that one pins every later check to
-    // the wrong subscription.
-    const established = subscribeCheck.logLine !== undefined ? subscribeCheck.logLine + 1 : from;
-
-    const idLookup = await expectSubscriptionId(th.log, th.flavor, established, establish);
+    const idLookup = await expectSubscriptionId(th.log, th.flavor, subscribeCheck, establish);
     record(cx, idLookup.check, `Subscription-id lookup for step ${step}`);
 
     // Every flavor names its subscriptions in its own log. One that does not cannot show the TH's own
@@ -174,7 +173,7 @@ export async function subscribeAndModify<Value>(
     // A subscription can be established with nothing to report yet, so this one report is allowed to
     // carry no data; every later check in this step requires data, which is what tells a report of this
     // write from a keepalive on the same subscription.
-    const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup, established, establish, {
+    const primingAckCheck = await expectReportAck(th.log, th.flavor, idLookup, from, establish, {
         carriesData: false,
     });
     record(cx, primingAckCheck, `Priming-report status for step ${step}`);
@@ -213,12 +212,15 @@ export async function subscribeAndModify<Value>(
     // A log-confirmed report can outrun its own callback, so the values are settled here rather than
     // per write.
     const allReported = await waitForReport(
-        () => matched >= values.length,
+        () => matched >= values.length || ended !== undefined,
         fn => (notify = fn),
         report,
     );
     if (mismatch !== undefined) {
         failResponse(`step ${step}: ${mismatch}`);
+    }
+    if (ended !== undefined && matched < values.length) {
+        failResponse(`step ${step}: the subscription ended before it reported every written value: ${ended}`);
     }
     if (!allReported) {
         // What the plan asks to verify is the TH's own view: it reported, and the DUT acked Success,
@@ -230,7 +232,7 @@ export async function subscribeAndModify<Value>(
             type: "response",
             verdict: "unverified",
             accepted:
-                resolveControllerImplementation() === "chip-tool"
+                cx.controllerSelection.dut === "chip-tool"
                     ? "chip-tool's interactive server hands over only the first result of a batch and discards " +
                       "the rest, so a report the TH coalesced with another attribute reaches no callback at all"
                     : undefined,

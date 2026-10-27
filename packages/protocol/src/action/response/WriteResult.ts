@@ -5,9 +5,10 @@
  */
 
 import { Write } from "#action/request/Write.js";
+import { ResultStatus } from "#action/response/ResultStatus.js";
 import { ExpandedPath } from "#common/ExpandedPath.js";
 import { ExpandedStatus } from "#common/ExpandedStatus.js";
-import { PathError } from "#common/PathError.js";
+import { PathError, ReceivedPathError } from "#common/PathError.js";
 import { MatterAggregateError } from "@matter/general";
 import {
     Status,
@@ -31,20 +32,20 @@ export namespace WriteResult {
         listIndex?: number | null;
     }
 
-    export interface AttributeStatus {
+    export interface AttributeStatus extends ResultStatus {
         kind: "attr-status";
         path: ConcreteAttributePath;
-        status: Status;
-        clusterStatus?: number;
     }
 
     export function assertSuccess(result: AttributeStatus[]) {
         const errors = result
             .filter(attr => attr.status !== Status.Success)
             .map(attr => {
-                const path = ExpandedPath({ ...attr, kind: "attribute" });
-                const status = new ExpandedStatus(attr);
-                return new PathError({ path, status });
+                const definition = {
+                    path: ExpandedPath({ ...attr, kind: "attribute" }),
+                    status: new ExpandedStatus({ ...attr, cluster: attr.path.clusterId }),
+                };
+                return attr.received ? new ReceivedPathError(definition) : new PathError(definition);
             });
 
         if (!errors.length) {

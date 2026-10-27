@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger, Transaction } from "@matter/general";
+import { InternalError, Logger, Transaction } from "@matter/general";
 import { Val, WriteResult } from "@matter/protocol";
-import { EndpointNumber } from "@matter/types";
+import { EndpointNumber, Status } from "@matter/types";
 import type { RemoteWriter } from "./RemoteWriter.js";
 
 const logger = Logger.get("RemoteWriteParticipant");
@@ -29,12 +29,18 @@ function ordinalFor(writer: RemoteWriter) {
  * A transaction participant that persists changes to a remote node.
  *
  * There is one of these for node/transaction pair.  All attributes in a transaction commit with a single interaction.
+ *
+ * The Write Request is the transaction's durable write, so it goes out in commit phase one.  The values the peer
+ * accepts are settled in the cache right away, while the transaction still holds its locks; a declined attribute fails
+ * phase one, which rolls back every participant.  Accepted values are device truth and stay either way.  Their change
+ * notifications are released when the transaction concludes, so no observer runs inside the commit.
  */
 export class RemoteWriteParticipant implements Transaction.Participant {
     #request: RemoteWriter.Request = [];
     #writer: RemoteWriter;
     #name: string;
-    #snapshots = new Map<string, RemoteWriteParticipant.Snapshot>();
+    #pending = new Map<string, RemoteWriteParticipant.PendingWrite>();
+    #releases = new Array<() => Promise<void>>();
 
     /**
      * There is one participant for each transaction/writer pair.  We use the writer function itself as the dedup key.
@@ -46,96 +52,88 @@ export class RemoteWriteParticipant implements Transaction.Participant {
     /**
      * Add an attribute update to the write request.
      *
-     * The optional {@link snapshot} captures the pre-write values for the affected attributes plus a
-     * {@link RemoteWriteParticipant.Compensator} the participant invokes if the remote rejects the write.
+     * @param receiver settles the values the peer accepts
+     * @param epoch the receiver's epoch when this write is queued, so it can tell a value the peer settled afterwards
+     * from one that predates the write
      */
     set(
         endpointNumber: EndpointNumber,
         behaviorId: string,
         values: Val.Struct,
-        snapshot?: RemoteWriteParticipant.SnapshotInput,
+        receiver: RemoteWriteParticipant.Receiver,
+        epoch: number,
     ) {
-        this.#request.push({
-            number: endpointNumber,
-            behaviorId: behaviorId,
-            values,
-        });
-
-        if (snapshot) {
-            const key = snapshotKey(endpointNumber, behaviorId);
-            const existing = this.#snapshots.get(key);
-            if (existing) {
-                Object.assign(existing.writtenValues, values);
-                for (const [k, v] of Object.entries(snapshot.previousValues)) {
-                    // Keep the earliest captured baseline; later writes within the same transaction don't overwrite it
-                    if (!(k in existing.previousValues)) {
-                        existing.previousValues[k] = v;
-                    }
-                }
-            } else {
-                this.#snapshots.set(key, {
-                    compensator: snapshot.compensator,
-                    previousValues: { ...snapshot.previousValues },
-                    writtenValues: { ...values },
-                    reportEpoch: snapshot.reportEpoch,
-                });
-            }
+        const key = writeKey(endpointNumber, behaviorId);
+        if (this.#pending.has(key)) {
+            throw new InternalError(`${this} received a second write for ${key} in one commit`);
         }
+
+        this.#request.push({ number: endpointNumber, behaviorId, values });
+        this.#pending.set(key, { receiver, epoch, values });
     }
 
-    async commit2() {
+    async commit1() {
         if (!this.#request.length) {
             return;
         }
 
         const request = this.#request;
-        const snapshots = this.#snapshots;
+        const pending = this.#pending;
         this.#request = [];
-        this.#snapshots = new Map();
+        this.#pending = new Map();
 
-        await this.#writer(request, failures => this.#compensate(snapshots, failures));
-    }
-
-    async #compensate(
-        snapshots: Map<string, RemoteWriteParticipant.Snapshot>,
-        failures: WriteResult.AttributeStatus[],
-    ) {
-        if (!snapshots.size) {
-            return;
-        }
+        const statuses = await this.#writer(request);
 
         const failedByCluster = new Map<string, Set<string>>();
-        for (const f of failures) {
-            const key = snapshotKey(f.path.endpointId, String(f.path.clusterId));
+        for (const { status, path } of statuses) {
+            if (status === Status.Success) {
+                continue;
+            }
+            const key = writeKey(path.endpointId, String(path.clusterId));
             let ids = failedByCluster.get(key);
             if (!ids) {
                 ids = new Set();
                 failedByCluster.set(key, ids);
             }
-            ids.add(String(f.path.attributeId));
+            ids.add(String(path.attributeId));
         }
 
-        for (const [key, snapshot] of snapshots) {
-            const failedIds = failedByCluster.get(key);
-            if (!failedIds?.size) {
-                continue;
-            }
+        for (const [key, { receiver, values, epoch }] of pending) {
+            const failed = failedByCluster.get(key);
+            const accepted = Object.fromEntries(Object.entries(values).filter(([id]) => !failed?.has(id)));
             try {
-                await snapshot.compensator.compensate(
-                    failedIds,
-                    snapshot.previousValues,
-                    snapshot.writtenValues,
-                    snapshot.reportEpoch,
-                );
-            } catch (compensateError) {
-                logger.warn(`Failed to restore local state for ${key} after remote write decline:`, compensateError);
+                const { release, persistFailure } = await receiver.settleAccepted(accepted, epoch);
+                this.#releases.push(release);
+                if (persistFailure !== undefined) {
+                    logger.warn(
+                        `Failed to persist values ${this.#name} wrote to ${key}; the device and the local cache hold them:`,
+                        persistFailure,
+                    );
+                }
+            } catch (e) {
+                logger.warn(`Failed to settle values ${this.#name} wrote to ${key} in the local cache:`, e);
+            }
+        }
+
+        WriteResult.assertSuccess(statuses);
+    }
+
+    async conclusion() {
+        const releases = this.#releases;
+        this.#releases = [];
+
+        for (const release of releases) {
+            try {
+                await release();
+            } catch (e) {
+                logger.warn(`Failed to announce values ${this.#name} wrote:`, e);
             }
         }
     }
 
     rollback() {
         this.#request = [];
-        this.#snapshots = new Map();
+        this.#pending = new Map();
     }
 
     toString() {
@@ -148,50 +146,48 @@ export class RemoteWriteParticipant implements Transaction.Participant {
     }
 }
 
-function snapshotKey(endpointNumber: EndpointNumber | number, behaviorId: string) {
+function writeKey(endpointNumber: EndpointNumber | number, behaviorId: string) {
     return `${endpointNumber}|${behaviorId}`;
 }
 
 export namespace RemoteWriteParticipant {
     /**
-     * Restores local cache state for attribute writes the remote device did not accept.
-     *
-     * The participant invokes this with the failed attribute keys after a write fails.  Implementations should only
-     * restore values for keys present in {@link previousValues}, only when the current local value still equals what
-     * was just written, and only when the peer has said nothing about the attribute since {@link reportEpoch} — the
-     * device defines its own state, so anything it told us during the write outranks our pre-write snapshot.
+     * Settles the values of a write the peer accepted in the local cache.
      */
-    export interface Compensator {
-        compensate(
-            failedAttributeIds: Set<string>,
-            previousValues: Val.Struct,
-            writtenValues: Val.Struct,
-            reportEpoch: number,
-        ): Promise<void>;
+    export interface Receiver {
+        /**
+         * Settle {@link values}, except for an attribute the peer settled after {@link epoch}: what the device
+         * reported while the write was in flight outranks the write.  The values apply in memory even when persisting
+         * them fails.
+         */
+        settleAccepted(values: Val.Struct, epoch: number): Promise<Settled>;
     }
 
     /**
-     * The pre-write baseline supplied by the caller of {@link RemoteWriteParticipant.set} together with the
-     * {@link Compensator} responsible for restoring it.
+     * The result of {@link Receiver.settleAccepted}.
      */
-    export interface SnapshotInput {
-        compensator: Compensator;
-        previousValues: Val.Struct;
+    export interface Settled {
+        /**
+         * Releases the change notifications of the settled values.  They are announced in settlement order, after the
+         * announcements of earlier changes of the cluster, including those held until their own transaction ends, so
+         * they may complete after this resolves.
+         */
+        release: () => Promise<void>;
 
         /**
-         * The compensator's report counter when this write was queued, so it can tell a report that arrived afterwards
-         * from one that predates the write.
+         * The error that kept the values from being persisted locally, if any.  A failure thrown as `undefined` is not
+         * reported.
          */
-        reportEpoch: number;
+        persistFailure?: unknown;
     }
 
     /**
-     * Internal per-cluster snapshot held by the participant for the duration of a transaction.
+     * The values of one cluster a transaction writes, with the receiver that settles those the peer accepts and its
+     * epoch when the write was queued.
      */
-    export interface Snapshot {
-        compensator: Compensator;
-        previousValues: Val.Struct;
-        writtenValues: Val.Struct;
-        reportEpoch: number;
+    export interface PendingWrite {
+        receiver: Receiver;
+        epoch: number;
+        values: Val.Struct;
     }
 }

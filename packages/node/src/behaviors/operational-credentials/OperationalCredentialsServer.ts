@@ -573,17 +573,17 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
 
     async #handleAddedFabric({ fabricIndex }: Fabric) {
         await this.#updateFabrics();
-        this.agent.get(CommissioningServer).handleFabricChange(fabricIndex, "added");
+        await this.agent.get(CommissioningServer).handleFabricChange(fabricIndex, "added");
     }
 
     async #handleUpdatedFabric({ fabricIndex }: Fabric) {
         await this.#updateFabrics();
-        this.agent.get(CommissioningServer).handleFabricChange(fabricIndex, "updated");
+        await this.agent.get(CommissioningServer).handleFabricChange(fabricIndex, "updated");
     }
 
     async #handleRemovedFabric({ fabricIndex }: Fabric) {
         await this.#updateFabrics();
-        this.agent.get(CommissioningServer).handleFabricChange(fabricIndex, "deleted");
+        await this.agent.get(CommissioningServer).handleFabricChange(fabricIndex, "deleted");
     }
 
     async #handleFailsafeClosed() {

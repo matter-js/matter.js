@@ -13,6 +13,7 @@ import {
     commissionByQr,
     CommissioningRefusals,
     MDNS_TIMEOUT,
+    PARSES_PAYLOAD,
     qrPayloadFields,
     recordDiscriminatorHonored,
     recordNotCommissioned,
@@ -150,7 +151,11 @@ certTest("TC-DD-3.18", {
             const { th1 } = await distinctSubjects(cx);
             await recordParse(cx, await thQrPayload(th1), { th: th1 });
         },
-        { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
+        {
+            controllerCapabilities: PARSES_PAYLOAD,
+            pics: "MCORE.DD.SCAN_QR_CODE",
+            expected: "Verify the QR code has been scanned successfully.",
+        },
     )
     .step(
         "2.b",
@@ -183,7 +188,11 @@ certTest("TC-DD-3.18", {
             const { th2 } = await distinctSubjects(cx);
             await recordParse(cx, await thQrPayload(th2), { th: th2 });
         },
-        { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
+        {
+            controllerCapabilities: PARSES_PAYLOAD,
+            pics: "MCORE.DD.SCAN_QR_CODE",
+            expected: "Verify the QR code has been scanned successfully.",
+        },
     )
     .step(
         "3.b",

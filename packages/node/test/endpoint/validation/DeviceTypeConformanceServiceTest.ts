@@ -12,6 +12,7 @@ import { Environment, ImplementationError, LogLevel } from "@matter/general";
 import { ClusterModel, DeviceTypeModel, Matter, MatterModel, RequirementModel } from "@matter/model";
 import { MockServerNode } from "@matter/node/testing";
 import {
+    captureAllLog,
     captureLog,
     captureLogOf,
     createNode,
@@ -221,6 +222,91 @@ describe("DeviceTypeConformanceService", () => {
             expect(error.errors[0].message).equals("OnOffLight Identify: Mandatory server cluster Identify is missing");
         }
         expect(logged).deep.equals([]);
+
+        await node.close();
+    });
+
+    it("logs at debug and never refuses what only a Root assertion requires, even when strict", async () => {
+        const node = await createUnjudgedNode();
+        const camera = await node.add(lightWithoutIdentify, { id: "camera" });
+        await camera.set({ descriptor: { deviceTypeList: deviceTypeList("Camera") } });
+        const service = judgeOf(node, "strict");
+
+        const logged = captureAllLog(() => service.validate(node));
+
+        const flagged = service.violationsOf(node).filter(({ assertedAtRoot }) => assertedAtRoot);
+        expect(flagged.map(({ requirement }) => requirement)).include("TlsCertificateManagement");
+        expect(
+            logged.filter(({ text }) => text.includes("TlsCertificateManagement")).map(({ level }) => level),
+        ).deep.equals([LogLevel.DEBUG]);
+        expect(
+            logged.filter(({ level, text }) => level === LogLevel.WARN && text.includes(`Endpoint ${node} `)),
+        ).deep.equals([]);
+
+        await node.close();
+    });
+
+    it("warns of a violation once it no longer only follows from a Root assertion", async () => {
+        const node = await createUnjudgedNode();
+        const camera = await node.add(lightWithoutIdentify, { id: "camera" });
+        await camera.set({ descriptor: { deviceTypeList: deviceTypeList("Camera") } });
+        const service = judgeOf(node, "warn");
+        const levelsOfPowerSource = (logged: ReturnType<typeof captureAllLog>) =>
+            logged.filter(({ text }) => text.includes("device:PowerSource:")).map(({ level }) => level);
+
+        expect(levelsOfPowerSource(captureAllLog(() => service.validate(node)))).deep.equals([LogLevel.DEBUG]);
+
+        // BatteryStorage requires PowerSource components whatever holds
+        await node.set({ descriptor: { deviceTypeList: deviceTypeList("RootNode", "BatteryStorage") } });
+        const logged = captureAllLog(() => service.validate(node));
+        expect(levelsOfPowerSource(logged)).deep.equals([LogLevel.WARN]);
+        expect(logged.filter(({ text }) => text.includes("assert at the Root"))).deep.equals([]);
+
+        await node.close();
+    });
+
+    it("logs the violations a Root assertion explains apart from the others", async () => {
+        const node = await createUnjudgedNode();
+        const camera = await node.add(lightWithoutIdentify, { id: "camera" });
+        await camera.set({ descriptor: { deviceTypeList: deviceTypeList("Camera") } });
+        // OnOffLight adds the mandatory OnOff server the root lacks
+        await node.set({ descriptor: { deviceTypeList: deviceTypeList("RootNode", "OnOffLight") } });
+        const service = judgeOf(node, "warn");
+
+        const ofRoot = captureAllLog(() => service.validate(node)).filter(({ text }) =>
+            text.includes(`Endpoint ${node} `),
+        );
+        const textAt = (level: LogLevel) => ofRoot.filter(entry => entry.level === level).map(({ text }) => text);
+
+        expect(textAt(LogLevel.WARN).length).equals(1);
+        expect(textAt(LogLevel.WARN)[0]).include("OnOffLight OnOff:").not.include("TlsCertificateManagement");
+        expect(textAt(LogLevel.DEBUG).length).equals(1);
+        expect(textAt(LogLevel.DEBUG)[0]).include("TlsCertificateManagement").not.include("OnOffLight OnOff:");
+
+        await node.close();
+    });
+
+    it("refuses an endpoint only for the violations no Root assertion explains", async () => {
+        const node = await createUnjudgedNode();
+        const camera = await node.add(lightWithoutIdentify, { id: "camera" });
+        await camera.set({ descriptor: { deviceTypeList: deviceTypeList("Camera") } });
+        // OnOffLight adds the mandatory OnOff server the root lacks
+        await node.set({ descriptor: { deviceTypeList: deviceTypeList("RootNode", "OnOffLight") } });
+        const service = judgeOf(node, "strict");
+
+        let error: unknown;
+        try {
+            service.validate(node);
+        } catch (e) {
+            error = e;
+        }
+
+        expect(error).instanceOf(DeviceTypeConformanceError);
+        if (error instanceof DeviceTypeConformanceError) {
+            const requirements = error.errors.map(({ violation }) => violation.requirement);
+            expect(requirements).include("OnOff");
+            expect(requirements).not.include("TlsCertificateManagement");
+        }
 
         await node.close();
     });

@@ -142,10 +142,23 @@ certTest("TC-IDM-6.4", {
                 detail: `subscribeEvents ${JSON.stringify(EVENT_PATH)} resolved, so the priming report was received`,
             });
 
+            const requestCheck = await expectSequence(
+                th.log,
+                th.flavor,
+                `SubscribeRequestMessage for EventPathIBs ${JSON.stringify(EVENT_PATH)}`,
+                {
+                    chip: subscribeEnvelopeSequence(STEP_2_MIN_INTERVAL, STEP_2_MAX_INTERVAL),
+                    matterjs: [matterjsSubscribeEventPath(EVENT_PATH)],
+                },
+                from,
+                LOG_TIMEOUT,
+            );
+            record(cx, requestCheck, "SubscribeRequestMessage");
+
             // Several subscriptions of this run report concurrently (step 1's is still live, as is the
             // controller's own node-level one), so the ack this step needs is identified by the
-            // subscription the TH just minted, not by position in the log.
-            const idLookup = await expectSubscriptionId(th.log, th.flavor, from, LOG_TIMEOUT);
+            // subscription the TH minted for this step's request, not by position in the log.
+            const idLookup = await expectSubscriptionId(th.log, th.flavor, requestCheck, LOG_TIMEOUT);
             record(cx, idLookup.check, "SubscribeResponseMessage");
 
             // The priming report of an event subscription legitimately carries no events yet.

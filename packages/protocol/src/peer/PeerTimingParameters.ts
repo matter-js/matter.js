@@ -30,7 +30,9 @@ export interface PeerTimingParameters {
     /**
      * The longest time between retries.
      *
-     * This is the longest period between packets between MRP retries when we attempt initial contact.
+     * This is the longest period between packets between MRP retries when we attempt initial contact.  One Sigma1 is
+     * also retransmitted until both `MRP.MAX_TRANSMISSIONS` transmissions and this time since the first one have
+     * passed; then we continue with a fresh Sigma1 on a new exchange.
      */
     maxDelayBetweenInitialContactRetries: Duration;
 
@@ -46,8 +48,8 @@ export interface PeerTimingParameters {
      *
      * We use this when we could not contact the peer.
      *
-     * Note that this includes MRP timeouts *except* for initial contact; in that case we continue MRP retransmission
-     * until response or abort.
+     * Note that this includes MRP timeouts *except* for an unacknowledged Sigma1 on initial contact; in that case we
+     * continue with a fresh Sigma1 at once.
      */
     delayAfterNetworkError: Duration;
 
@@ -76,8 +78,8 @@ export interface PeerTimingParameters {
     /**
      * Minimum number of MRP retransmissions before a kick may restart the exchange.
      *
-     * Gives the peer a fair chance to respond before aborting. A kick arriving while the exchange
-     * has retransmitted fewer than this many times is suppressed.
+     * Gives the peer a fair chance to respond before aborting. A kick arriving while Sigma1 to the address has been
+     * retransmitted fewer than this many times, counted across fresh Sigma1 messages, is suppressed.
      */
     kickMinRetransmissions: number;
 

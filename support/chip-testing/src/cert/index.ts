@@ -31,24 +31,42 @@ import { LightSwitchNoGroupcastTestInstance, LightSwitchTestInstance } from "../
 import { NodeTestInstance } from "../NodeTestInstance.js";
 import { OtaProviderTestInstance } from "../OtaProviderTestInstance.js";
 import { OtaRequestorTestInstance } from "../OtaRequestorTestInstance.js";
-import { CHIP_TOOL_CONTROLLER_PICS, ChipToolControllerAdapter } from "./ChipToolControllerAdapter.js";
+import {
+    CHIP_TOOL_CAPABILITY_GAPS,
+    CHIP_TOOL_CONTROLLER_PICS,
+    ChipToolControllerAdapter,
+} from "./ChipToolControllerAdapter.js";
 import {
     controllerAdapterClaimsLogs,
     InProcessControllerAdapter,
     MATTERJS_CONTROLLER_PICS,
 } from "./InProcessControllerAdapter.js";
 import { forgetLogOriginClaims, logOriginsAreClaimed, OriginDestination, registerLogOrigin } from "./log-origins.js";
+import {
+    MATTERJS_SERVER_CAPABILITY_GAPS,
+    MATTERJS_SERVER_OUT_OF_SCOPE,
+    MATTERJS_SERVER_CONTROLLER_PICS,
+    MatterServerControllerAdapter,
+} from "./MatterServerControllerAdapter.js";
 
-registerControllerAdapterFactory(
-    "matterjs",
-    (id, options) => new InProcessControllerAdapter(id, options),
-    MATTERJS_CONTROLLER_PICS,
-);
-registerControllerAdapterFactory(
-    "chip-tool",
-    (id, options) => new ChipToolControllerAdapter(id, options),
-    CHIP_TOOL_CONTROLLER_PICS,
-);
+registerControllerAdapterFactory("matterjs", {
+    factory: (id, options) => new InProcessControllerAdapter(id, options),
+    pics: MATTERJS_CONTROLLER_PICS,
+});
+
+registerControllerAdapterFactory("chip-tool", {
+    factory: (id, options) => new ChipToolControllerAdapter(id, options),
+    pics: CHIP_TOOL_CONTROLLER_PICS,
+    gaps: CHIP_TOOL_CAPABILITY_GAPS,
+});
+
+registerControllerAdapterFactory("matterjs-server", {
+    factory: (id, options) => new MatterServerControllerAdapter(id, options),
+    pics: MATTERJS_SERVER_CONTROLLER_PICS,
+    gaps: MATTERJS_SERVER_CAPABILITY_GAPS,
+    outOfScope: MATTERJS_SERVER_OUT_OF_SCOPE,
+    helperImplementation: "matterjs",
+});
 
 // EvidenceRecorder (packages/testing, generic) has no knowledge of this package's own directory
 // layout; this is the seam cert-dsl.ts documents for choosing an outDir. matter-test's working

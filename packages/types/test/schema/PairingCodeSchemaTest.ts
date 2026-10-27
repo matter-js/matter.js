@@ -22,7 +22,7 @@ import {
 import { TlvUInt8 } from "#tlv/TlvNumber.js";
 import { TlvField, TlvObject } from "#tlv/TlvObject.js";
 import { TlvString } from "#tlv/TlvString.js";
-import { Bytes } from "@matter/general";
+import { Bytes, UnexpectedDataError } from "@matter/general";
 
 const QR_CODE = "MT:YNJV7VSC00CMVH7SR00";
 const QR_CODE_DATA: QrCodeData = {
@@ -481,7 +481,30 @@ describe("ManualPairingCodeCodec", () => {
 
         it("rejects a product ID the field cannot hold", () => {
             // Five digits reach 99999, so a manual code can name a product ID past 16 bits
-            expect(() => ManualPairingCodeCodec.decode("749701123365521655363")).throw("Invalid product ID 65536");
+            expect(() => ManualPairingCodeCodec.decode("749701123365521655363")).throw(
+                UnexpectedDataError,
+                "Invalid product ID 65536",
+            );
+        });
+
+        it("rejects a vendor ID past the last test vendor as an invalid payload", () => {
+            // Five digits reach 99999, so a manual code can name a vendor ID past the valid range
+            expect(() => ManualPairingCodeCodec.decode("749701123370000327699")).throw(
+                UnexpectedDataError,
+                "Invalid vendor ID 70000",
+            );
+            expect(() => ManualPairingCodeCodec.decode("749701123365525327699")).throw(
+                UnexpectedDataError,
+                "Invalid vendor ID 65525",
+            );
+        });
+
+        it("decodes an out-of-range vendor ID when validation is disabled", () => {
+            expect(ManualPairingCodeCodec.decode("749701123370000327699", false).vendorId).equal(70000);
+        });
+
+        it("decodes the last test vendor ID", () => {
+            expect(ManualPairingCodeCodec.decode("749701123365524327693").vendorId).equal(0xfff4);
         });
     });
 

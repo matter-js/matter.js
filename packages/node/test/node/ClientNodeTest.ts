@@ -38,6 +38,8 @@ import { FabricOperationInProgressError } from "#node/client/Peers.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerNode } from "#node/ServerNode.js";
+import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
+import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import {
     b$,
     Bytes,
@@ -47,7 +49,9 @@ import {
     deepCopy,
     Entropy,
     ImplementationError,
+    InternalError,
     MatterAggregateError,
+    MaybePromise,
     Millis,
     Minutes,
     MockCrypto,
@@ -95,6 +99,7 @@ import {
     EndpointNumber,
     FabricIndex,
     NodeId,
+    ReceivedStatusResponseError,
     SECURE_CHANNEL_PROTOCOL_ID,
     SecureMessageType,
     Status,
@@ -109,7 +114,7 @@ import { OnOff } from "@matter/types/clusters/on-off";
 import { PowerSource } from "@matter/types/clusters/power-source";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
-import { captureErrorsOf } from "../endpoint/validation/validation-helpers.js";
+import { captureErrorsOf, captureWarningsOf } from "../endpoint/validation/validation-helpers.js";
 
 /** Records what a commissioning tells the scanners to forget. */
 class ForgetRecordingScanner implements Scanner {
@@ -1291,6 +1296,17 @@ describe("ClientNode", () => {
         }
     }
 
+    /**
+     * Settles with the rejection of {@link promise}, or undefined.  The rejection is handled at once, so one that
+     * arrives while the test still advances time is not reported as unhandled.
+     */
+    function rejectionOf(promise: unknown) {
+        return Promise.resolve(promise).then(
+            () => undefined,
+            (error: unknown) => error ?? new InternalError("Promise rejected without a reason"),
+        );
+    }
+
     async function captureRejection(write: () => unknown) {
         let caught: unknown;
         try {
@@ -1304,8 +1320,7 @@ describe("ClientNode", () => {
     describe("surfaces a server-side write rejection to the caller", () => {
         // A server-side $Changing listener throws StatusResponseError so the remote write returns a
         // failure status.  The client's setStateOf / agent.state / endpoint.set must reject with a
-        // StatusResponseError carrying the device's code, not the generic transaction
-        // FinalizationError that previously hid it.
+        // StatusResponseError carrying the device's code, not a generic transaction error.
 
         const DecliningContactSensor = ContactSensorDevice.with(DecliningBscWithLevels);
 
@@ -1388,9 +1403,9 @@ describe("ClientNode", () => {
     describe("forwards a model-invalid write so the peer device adjudicates", () => {
         // A value the local model rejects on conformance/spec grounds (here an enum value not defined in the model) is
         // forwarded to the peer rather than rejected during local validation.  The device declines it via its own
-        // validation, the rejection surfaces to the caller as the device's status, and the local cache is rolled back.
+        // validation, the rejection surfaces to the caller as the device's status, and the local cache keeps its value.
 
-        it("device rejects the value and the local cache is compensated", async () => {
+        it("device rejects the value and the local cache keeps its value", async () => {
             await using site = new MockSite();
             const { controller, device } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
@@ -1406,11 +1421,10 @@ describe("ClientNode", () => {
             // The rejection is the device's write-response status, not a local ValidateError, proving the value was
             // forwarded to the device rather than rejected during local validation (which would throw before any
             // exchange and never contact the device).
-            expect(caught).instanceOf(StatusResponseError);
+            expect(caught).instanceOf(ReceivedStatusResponseError);
             expect(caught).not.instanceOf(ValidateError);
             expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
 
-            // The device did not apply the value and the local cache was rolled back to match.
             expect(ep1Server.state.onOff.startUpOnOff).equals(before);
             expect(ep1Client.stateOf(OnOffClient).startUpOnOff).equals(before);
         });
@@ -1453,7 +1467,7 @@ describe("ClientNode", () => {
                 }),
             );
 
-            expect(caught).instanceOf(StatusResponseError);
+            expect(caught).instanceOf(ReceivedStatusResponseError);
             expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
 
             // The accepted write committed on the server; the rejected one did not.
@@ -1476,7 +1490,7 @@ describe("ClientNode", () => {
             const aggregate = caught as MatterAggregateError;
             expect(aggregate.errors).lengthOf(2);
             for (const inner of aggregate.errors) {
-                expect(inner).instanceOf(StatusResponseError);
+                expect(inner).instanceOf(ReceivedStatusResponseError);
             }
             const codes = (aggregate.errors as StatusResponseError[]).map(e => e.code);
             expect(codes).contains(Status.ConstraintError);
@@ -1487,10 +1501,9 @@ describe("ClientNode", () => {
         });
     });
 
-    describe("rolls local cache back when a remote write is declined", () => {
-        // After a declined remote write, the local cache must NOT keep the value the user attempted to
-        // write.  Compensation restores the pre-write value via the same path subscription updates
-        // use, so the client mirror stays consistent with the server.
+    describe("keeps the local cache when a remote write is declined", () => {
+        // After a declined remote write, the local cache must NOT take the value the user attempted to write, so the
+        // client mirror stays consistent with the server.
 
         const PartialDeclineDevice = ContactSensorDevice.with(DecliningBscWithLevels);
         const FullDeclineDevice = ContactSensorDevice.with(DecliningBscWithLevels, DecliningIdentify);
@@ -1527,7 +1540,7 @@ describe("ClientNode", () => {
             return value;
         }
 
-        it("restores the pre-write value when the only write is declined", async () => {
+        it("keeps the pre-write value when the only write is declined", async () => {
             const { site, ep1Client } = await setup(PartialDeclineDevice);
             await using _site = site;
 
@@ -1539,9 +1552,18 @@ describe("ClientNode", () => {
             expect(await readClientCurrentSensitivityLevel(ep1Client)).equals(0);
         });
 
-        it("restores only the declined attribute when one of two writes is declined", async () => {
+        it("applies only the accepted attribute when one of two writes is declined", async () => {
             const { site, ep1Client, ep1Server } = await setup(PartialDeclineDevice);
             await using _site = site;
+
+            const identifyTimes = new Array<number>();
+            ep1Client.eventsOf(IdentifyClient).identifyTime$Changed.on(value => {
+                identifyTimes.push(value);
+            });
+            const sensitivityLevels = new Array<number>();
+            ep1Client.eventsOf(BooleanStateConfigurationClient).currentSensitivityLevel$Changed.on(value => {
+                sensitivityLevels.push(value);
+            });
 
             const caught = await captureRejection(() =>
                 ep1Client.act(agent => {
@@ -1557,9 +1579,11 @@ describe("ClientNode", () => {
             // Accepted: client and server both at 5
             expect(await readClientIdentifyTime(ep1Client)).equals(5);
             expect(ep1Server.stateOf(IdentifyServer).identifyTime).equals(5);
+            expect(identifyTimes).deep.equals([5]);
+            expect(sensitivityLevels).deep.equals([]);
         });
 
-        it("restores both attributes when both writes are declined", async () => {
+        it("keeps both attributes when both writes are declined", async () => {
             const { site, ep1Client } = await setup(FullDeclineDevice);
             await using _site = site;
 
@@ -1602,12 +1626,9 @@ describe("ClientNode", () => {
                 peer1.setStateOf(BasicInformationClient, { vendorName: "Overwritten Vendor" }),
             );
 
-            expect(caught).instanceOf(StatusResponseError);
+            expect(caught).instanceOf(ReceivedStatusResponseError);
             expect((caught as StatusResponseError).code).equals(Status.UnsupportedWrite);
-            // The forward notification is queued but never emitted, because a commit-phase-two rejection skips the
-            // transaction's post-commit phase.  What remains is compensation's restore, which travels the same path a
-            // subscription update does.  So the value the caller invented is never announced.
-            expect(observed).deep.equals([originalVendorName]);
+            expect(observed).deep.equals([]);
             expect(peer1.stateOf(BasicInformationClient).vendorName).equals(originalVendorName);
             expect(device.stateOf(BasicInformationServer).vendorName).equals(originalVendorName);
         });
@@ -1625,6 +1646,7 @@ describe("ClientNode", () => {
             );
 
             expect(caught).instanceOf(StatusResponseError);
+            expect(caught).not.instanceOf(ReceivedStatusResponseError);
             expect((caught as StatusResponseError).code).equals(Status.UnsupportedWrite);
             expect(peer1.stateOf("basicInformation").clusterRevision).equals(originalRevision);
         });
@@ -1640,6 +1662,176 @@ describe("ClientNode", () => {
             expect(caught).instanceOf(StatusResponseError);
             expect((caught as StatusResponseError).code).equals(Status.UnsupportedWrite);
             expect(peer1.stateOf("generalDiagnostics").upTime).not.equals(999999);
+        });
+    });
+
+    describe("sends a write of the value the cache already holds", () => {
+        // The cache may be stale, and only the device knows whether it accepts the write, so an unchanged value is
+        // still a write request.  It is not a change, so it emits no change event.
+
+        async function setup() {
+            const site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            return { site, peer1, device };
+        }
+
+        /** Counts the Write Requests {@link peer} sends. */
+        function countWrites(peer: ClientNode) {
+            const counter = { count: 0 };
+            const { interaction } = peer;
+            const write = interaction.write.bind(interaction);
+            interaction.write = request => {
+                counter.count++;
+                return write(request);
+            };
+            return counter;
+        }
+
+        it("writes a value twice and the device receives both writes", async () => {
+            const { site, peer1, device } = await setup();
+            await using _site = site;
+
+            const writes = countWrites(peer1);
+            const observed = new Array<string>();
+            peer1.eventsOf(BasicInformationClient).nodeLabel$Changed.on(value => {
+                observed.push(value);
+            });
+
+            await MockTime.resolve(peer1.setStateOf(BasicInformationClient, { nodeLabel: "Written Label" }));
+            await MockTime.resolve(peer1.setStateOf(BasicInformationClient, { nodeLabel: "Written Label" }));
+
+            expect(writes.count).equals(2);
+            expect(observed).deep.equals(["Written Label"]);
+            expect(device.stateOf(BasicInformationServer).nodeLabel).equals("Written Label");
+        });
+
+        it("fails an unchanged write of a read-only attribute with the device's status", async () => {
+            const { site, peer1, device } = await setup();
+            await using _site = site;
+
+            const originalVendorName = peer1.stateOf(BasicInformationClient).vendorName;
+            const observed = new Array<string>();
+            peer1.eventsOf(BasicInformationClient).vendorName$Changed.on(value => {
+                observed.push(value);
+            });
+
+            const caught = await captureRejection(() =>
+                peer1.setStateOf(BasicInformationClient, { vendorName: originalVendorName }),
+            );
+
+            expect(caught).instanceOf(ReceivedStatusResponseError);
+            expect((caught as StatusResponseError).code).equals(Status.UnsupportedWrite);
+            expect(observed).deep.equals([]);
+            expect(peer1.stateOf(BasicInformationClient).vendorName).equals(originalVendorName);
+            expect(device.stateOf(BasicInformationServer).vendorName).equals(originalVendorName);
+        });
+
+        it("writes a list twice and the device receives both writes", async () => {
+            const { site, peer1 } = await setup();
+            await using _site = site;
+
+            const [admin] = peer1.stateOf(AccessControlClient).acl;
+            const acl = [
+                {
+                    privilege: admin.privilege,
+                    authMode: admin.authMode,
+                    subjects: admin.subjects,
+                    targets: null,
+                    fabricIndex: admin.fabricIndex,
+                },
+                {
+                    privilege: AccessControl.AccessControlEntryPrivilege.View,
+                    authMode: AccessControl.AccessControlEntryAuthMode.Case,
+                    subjects: [NodeId(BigInt(0x58))],
+                    targets: null,
+                    fabricIndex: admin.fabricIndex,
+                },
+            ];
+
+            const writes = countWrites(peer1);
+            await MockTime.resolve(peer1.setStateOf(AccessControlClient, { acl }));
+            expect(writes.count).equals(1);
+            const written = peer1.stateOf(AccessControlClient).acl;
+
+            await MockTime.resolve(peer1.setStateOf(AccessControlClient, { acl }));
+            expect(writes.count).equals(2);
+            expect(peer1.stateOf(AccessControlClient).acl).deep.equals(written);
+        });
+
+        it("does not send an assignment refused locally", async () => {
+            const { site, peer1 } = await setup();
+            await using _site = site;
+
+            const writes = countWrites(peer1);
+            let refusal: unknown;
+            await MockTime.resolve(
+                peer1.act(agent => {
+                    try {
+                        agent.get(BasicInformationClient).state.nodeLabel = "x".repeat(33);
+                    } catch (e) {
+                        refusal = e;
+                    }
+                }),
+            );
+
+            expect((refusal as StatusResponseError).code).equals(Status.ConstraintError);
+            expect(writes.count).equals(0);
+        });
+
+        it("does not resend an assignment after its transaction rolled back", async () => {
+            const { site, peer1, device } = await setup();
+            await using _site = site;
+
+            const originalVendorName = peer1.stateOf(BasicInformationClient).vendorName;
+            await MockTime.resolve(
+                peer1.act(async agent => {
+                    agent.get(BasicInformationClient).state.vendorName = originalVendorName;
+                    await agent.context.transaction.rollback();
+                    agent.get(BasicInformationClient).state.location = "DE";
+                }),
+            );
+
+            expect(device.stateOf(BasicInformationServer).location).equals("DE");
+        });
+
+        it("does not resend an assignment after the device declined it", async () => {
+            const { site, peer1, device } = await setup();
+            await using _site = site;
+
+            let declined: unknown;
+            await MockTime.resolve(
+                peer1.act(async agent => {
+                    agent.get(BasicInformationClient).state.vendorName = "Overwritten Vendor";
+                    try {
+                        await agent.context.transaction.commit();
+                    } catch (e) {
+                        declined = e;
+                    }
+                    agent.get(BasicInformationClient).state.location = "DE";
+                }),
+            );
+
+            expect((declined as StatusResponseError).code).equals(Status.UnsupportedWrite);
+            expect(device.stateOf(BasicInformationServer).location).equals("DE");
+        });
+
+        it("does not write back a value a report applies", async () => {
+            const { site, peer1, device } = await setup();
+            await using _site = site;
+
+            const writes = countWrites(peer1);
+            await seedPeerCache(
+                peer1,
+                peer1,
+                BasicInformationClient,
+                new Map([[BasicInformation.attributes.nodeLabel.id, "Reported Label"]]),
+            );
+            await MockTime.resolve(peer1.setStateOf(BasicInformationClient, { location: "XX" }));
+
+            expect(writes.count).equals(1);
+            expect(device.stateOf(BasicInformationServer).nodeLabel).not.equals("Reported Label");
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals("Reported Label");
         });
     });
 
@@ -1703,11 +1895,15 @@ describe("ClientNode", () => {
             const { controller, device } = await site.addCommissionedPair();
 
             const peer1 = await subscribedPeer(controller, "peer1");
+            const observed = new Array<string>();
+            peer1.eventsOf(BasicInformationClient).vendorName$Changed.on(value => {
+                observed.push(value);
+            });
 
             // A report landing mid-transaction does not refresh the already-cloned reference, so afterwards our copy
             // of every untouched attribute diverges from canonical.  Only what this transaction wrote may go to the
             // peer: writing a stale read-only attribute back is declined, which would fail the caller's own accepted
-            // write and then compensate the fresh value away.
+            // write.
             const caught = await captureRejection(() =>
                 MockTime.resolve(
                     peer1.act(async agent => {
@@ -1727,17 +1923,53 @@ describe("ClientNode", () => {
             expect(device.stateOf(BasicInformationServer).nodeLabel).equals("Written Label");
             // …and the report survives the commit rather than being reverted to the value our clone captured
             expect(peer1.stateOf(BasicInformationClient).vendorName).equals("Reported Vendor");
+            expect(observed).deep.equals(["Reported Vendor"]);
         });
 
-        it("and keeps a same-value assignment from reverting a concurrent report", async () => {
+        it("and keeps a same-value assignment the device accepted over a concurrent report", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const originalLabel = peer1.stateOf(BasicInformationClient).nodeLabel;
+            const observed = new Array<string>();
+            peer1.eventsOf(BasicInformationClient).nodeLabel$Changed.on(value => {
+                observed.push(value);
+            });
+
+            // The assignment reaches the device after the report, so the device ends up holding the assigned value and
+            // the cache must too
+            const caught = await captureRejection(() =>
+                MockTime.resolve(
+                    peer1.act(async agent => {
+                        agent.get(BasicInformationClient).state.nodeLabel = originalLabel;
+                        await seedPeerCache(
+                            peer1,
+                            peer1,
+                            BasicInformationClient,
+                            new Map([[BasicInformation.attributes.nodeLabel.id, "Reported Label"]]),
+                        );
+                    }),
+                ),
+            );
+
+            expect(caught).undefined;
+            expect(device.stateOf(BasicInformationServer).nodeLabel).equals(originalLabel);
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(originalLabel);
+            expect(observed).deep.equals(["Reported Label", originalLabel]);
+        });
+
+        it("and keeps a concurrent report when the device declines a same-value assignment", async () => {
             await using site = new MockSite();
             const { controller } = await site.addCommissionedPair();
 
             const peer1 = await subscribedPeer(controller, "peer1");
             const originalVendorName = peer1.stateOf(BasicInformationClient).vendorName;
+            const observed = new Array<string>();
+            peer1.eventsOf(BasicInformationClient).vendorName$Changed.on(value => {
+                observed.push(value);
+            });
 
-            // Assigning the value the cache already holds is not a change, so nothing is written.  The commit must
-            // still not resurrect that value over the report that landed while we held the clone.
             const caught = await captureRejection(() =>
                 MockTime.resolve(
                     peer1.act(async agent => {
@@ -1752,11 +1984,12 @@ describe("ClientNode", () => {
                 ),
             );
 
-            expect(caught).undefined;
+            expect((caught as StatusResponseError).code).equals(Status.UnsupportedWrite);
             expect(peer1.stateOf(BasicInformationClient).vendorName).equals("Reported Vendor");
+            expect(observed).deep.equals(["Reported Vendor"]);
         });
 
-        it("reverts the local value when the peer never answers", async () => {
+        it("keeps the old local value when the peer never answers", async () => {
             await using site = new MockSite();
             const { controller, device } = await site.addCommissionedPair();
 
@@ -1766,16 +1999,13 @@ describe("ClientNode", () => {
 
             await device.close();
 
-            const caught = await captureRejection(async () => {
-                const write = ep1Client.setStateOf(OnOffClient, { startUpOnOff: OnOff.StartUpOnOff.Toggle });
-                for (let i = 0; i < 80; i++) {
-                    await MockTime.advance(Seconds(1));
-                    await MockTime.macrotask;
-                }
-                await write;
-            });
+            const caught = rejectionOf(ep1Client.setStateOf(OnOffClient, { startUpOnOff: OnOff.StartUpOnOff.Toggle }));
+            for (let i = 0; i < 80; i++) {
+                await MockTime.advance(Seconds(1));
+                await MockTime.macrotask;
+            }
 
-            expect(caught).not.undefined;
+            expect(await MockTime.resolve(caught)).not.undefined;
             expect(ep1Client.stateOf(OnOffClient).startUpOnOff).equals(before);
         });
 
@@ -1788,33 +2018,30 @@ describe("ClientNode", () => {
 
             await device.close();
 
-            const caught = await captureRejection(async () => {
-                const write = ep1Client.setStateOf(OnOffClient, { startUpOnOff: OnOff.StartUpOnOff.Toggle });
+            const caught = rejectionOf(ep1Client.setStateOf(OnOffClient, { startUpOnOff: OnOff.StartUpOnOff.Toggle }));
 
-                // Let the write reach the wire before the report lands, or the value is already canonical and there is
-                // nothing left to send
-                for (let i = 0; i < 3; i++) {
-                    await MockTime.advance(Millis(100));
-                    await MockTime.macrotask;
-                }
+            // Let the write reach the wire before the report lands, or the value is already canonical and there is
+            // nothing left to send
+            for (let i = 0; i < 3; i++) {
+                await MockTime.advance(Millis(100));
+                await MockTime.macrotask;
+            }
 
-                // The device applied the write and reported it; only the write response was lost.  A report carrying
-                // the value we already hold is discarded as unchanged, so this is the sole record that it arrived.
-                await seedPeerCache(
-                    peer1,
-                    ep1Client,
-                    OnOffClient,
-                    new Map([[OnOff.Complete.attributes.startUpOnOff.id, OnOff.StartUpOnOff.Toggle]]),
-                );
+            // The device applied the write and reported it; only the write response was lost.  A report carrying
+            // the value we already hold is discarded as unchanged, so this is the sole record that it arrived.
+            await seedPeerCache(
+                peer1,
+                ep1Client,
+                OnOffClient,
+                new Map([[OnOff.Complete.attributes.startUpOnOff.id, OnOff.StartUpOnOff.Toggle]]),
+            );
 
-                for (let i = 0; i < 80; i++) {
-                    await MockTime.advance(Seconds(1));
-                    await MockTime.macrotask;
-                }
-                await write;
-            });
+            for (let i = 0; i < 80; i++) {
+                await MockTime.advance(Seconds(1));
+                await MockTime.macrotask;
+            }
 
-            expect(caught).not.undefined;
+            expect(await MockTime.resolve(caught)).not.undefined;
             expect(ep1Client.stateOf(OnOffClient).startUpOnOff).equals(OnOff.StartUpOnOff.Toggle);
         });
 
@@ -1846,6 +2073,697 @@ describe("ClientNode", () => {
             expect(caught).instanceOf(StatusResponseError);
             expect((caught as StatusResponseError).code).equals(Status.UnsupportedWrite);
             expect(peer1.stateOf(BasicInformationClient).vendorName).equals(originalVendorName);
+        });
+    });
+
+    describe("applies a write locally only once the device accepts it", () => {
+        // A report the device sends after the local commit and before the write response is the device's own word
+        // and outranks the response, whatever it says.  Without a subscription the injected reports are the only ones.
+
+        const initialLabel = "Initial Label";
+        const writtenLabel = "Written Label";
+        const otherLabel = "Other Label";
+
+        async function setup() {
+            const site = new MockSite();
+            const { controller, device } = await site.addUncommissionedPair();
+
+            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+            const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+            await controller.start();
+            const { passcode, discriminator } = device.state.commissioning;
+            await MockTime.resolve(
+                controller.peers.commission({ passcode, discriminator, timeout: Seconds(90), autoSubscribe: false }),
+                { macrotasks: true },
+            );
+            controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            const peer1 = controller.peers.get("peer1")!;
+            await MockTime.resolve(peer1.setStateOf(BasicInformationClient, { nodeLabel: initialLabel }), {
+                macrotasks: true,
+            });
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(initialLabel);
+
+            const transitions = new Array<[string, string]>();
+            peer1.eventsOf(BasicInformationClient).nodeLabel$Changed.on((value, oldValue) => {
+                transitions.push([oldValue, value]);
+            });
+
+            return { site, controller, peer1, device, transitions };
+        }
+
+        /**
+         * Writes {@link writtenLabel}; while the device processes the write, the controller receives {@link reports}
+         * before the response.  The device declines the write when {@link decline} is set.
+         */
+        async function writeWithReports(reports: string[], decline: boolean) {
+            const { site, peer1, device, transitions } = await setup();
+
+            let inFlight: string | undefined;
+            device.eventsOf(BasicInformationServer).nodeLabel$Changing.on(async () => {
+                inFlight = peer1.stateOf(BasicInformationClient).nodeLabel;
+                for (const label of reports) {
+                    await seedPeerCache(
+                        peer1,
+                        peer1,
+                        BasicInformationClient,
+                        new Map([[BasicInformation.attributes.nodeLabel.id, label]]),
+                    );
+                }
+                if (decline) {
+                    throw new StatusResponseError("nodeLabel write declined", Status.ConstraintError);
+                }
+            });
+
+            const caught = await captureRejection(() =>
+                MockTime.resolve(peer1.setStateOf(BasicInformationClient, { nodeLabel: writtenLabel }), {
+                    macrotasks: true,
+                }),
+            );
+
+            if (decline) {
+                expect((caught as StatusResponseError).code).equals(Status.ConstraintError);
+            } else {
+                expect(caught).undefined;
+            }
+            expect(inFlight).equals(initialLabel);
+
+            return { site, final: peer1.stateOf(BasicInformationClient).nodeLabel, transitions };
+        }
+
+        function cacheOf(peer: ClientNode) {
+            const store = clientStructureOf(peer).storeForRemote(peer, BasicInformationClient);
+            if (!(store instanceof DatasourceCache)) {
+                expect.fail("BasicInformation is not cached in a DatasourceCache");
+            }
+            return store;
+        }
+
+        /** Every event is a real transition: it starts where the previous one ended and ends where the state is. */
+        function expectRealTransitions(transitions: [string, string][], final: string) {
+            let current = initialLabel;
+            for (const [from, to] of transitions) {
+                expect(from).equals(current);
+                expect(to).not.equals(from);
+                current = to;
+            }
+            expect(current).equals(final);
+        }
+
+        it("accepted, with no report", async () => {
+            const { site, final, transitions } = await writeWithReports([], false);
+            await using _site = site;
+
+            expect(final).equals(writtenLabel);
+            expect(transitions).deep.equals([[initialLabel, writtenLabel]]);
+        });
+
+        it("declined, with no report", async () => {
+            const { site, final, transitions } = await writeWithReports([], true);
+            await using _site = site;
+
+            expect(final).equals(initialLabel);
+            expect(transitions).deep.equals([]);
+        });
+
+        for (const decline of [false, true]) {
+            const outcome = decline ? "declined" : "accepted";
+            for (const [name, reported] of [
+                ["the initial value", initialLabel],
+                ["the written value", writtenLabel],
+                ["another value", otherLabel],
+            ]) {
+                it(`${outcome}, reported ${name} in flight`, async () => {
+                    const { site, final, transitions } = await writeWithReports([reported], decline);
+                    await using _site = site;
+
+                    expect(final).equals(reported);
+                    expectRealTransitions(transitions, final);
+                });
+            }
+        }
+
+        for (const reports of [[otherLabel], [writtenLabel, otherLabel]]) {
+            it(`accepted, another controller's write wins with ${reports.length} report(s)`, async () => {
+                const { site, final, transitions } = await writeWithReports(reports, false);
+                await using _site = site;
+
+                expect(final).equals(otherLabel);
+                expectRealTransitions(transitions, final);
+            });
+        }
+
+        it("shows the transaction its own assignment and everyone else the old value until the device accepts", async () => {
+            const { site, peer1, device } = await setup();
+            await using _site = site;
+
+            let inFlight: string | undefined;
+            device.eventsOf(BasicInformationServer).nodeLabel$Changing.on(() => {
+                inFlight = peer1.stateOf(BasicInformationClient).nodeLabel;
+            });
+
+            let ownRead: string | undefined;
+            await MockTime.resolve(
+                peer1.act(agent => {
+                    const state = agent.get(BasicInformationClient).state;
+                    state.nodeLabel = writtenLabel;
+                    ownRead = state.nodeLabel;
+                }),
+                { macrotasks: true },
+            );
+
+            expect(ownRead).equals(writtenLabel);
+            expect(inFlight).equals(initialLabel);
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(writtenLabel);
+        });
+
+        it("holds the accepted value when the writing transaction's post-commit reads it", async () => {
+            const { site, controller, peer1 } = await setup();
+            await using _site = site;
+
+            let seen: string | undefined;
+            controller.eventsOf(BasicInformationServer).nodeLabel$Changed.on((_value, _oldValue, context) => {
+                if (context) {
+                    seen = peer1.agentFor(context).get(BasicInformationClient).state.nodeLabel;
+                }
+            });
+
+            await MockTime.resolve(
+                peer1.act(agent => {
+                    agent.get(BasicInformationClient).state.nodeLabel = writtenLabel;
+                    controller.agentFor(agent.context).get(BasicInformationServer).state.nodeLabel = "Trigger";
+                }),
+                { macrotasks: true },
+            );
+
+            expect(seen).equals(writtenLabel);
+        });
+
+        it("keeps a later write of the same transaction over an earlier one", async () => {
+            const { site, controller, peer1, device, transitions } = await setup();
+            await using _site = site;
+
+            controller.eventsOf(BasicInformationServer).nodeLabel$Changed.on((_value, _oldValue, context) => {
+                if (context) {
+                    peer1.agentFor(context).get(BasicInformationClient).state.nodeLabel = otherLabel;
+                }
+            });
+
+            await MockTime.resolve(
+                peer1.act(agent => {
+                    agent.get(BasicInformationClient).state.nodeLabel = writtenLabel;
+                    controller.agentFor(agent.context).get(BasicInformationServer).state.nodeLabel = "Trigger";
+                }),
+                { macrotasks: true },
+            );
+
+            expect(device.stateOf(BasicInformationServer).nodeLabel).equals(otherLabel);
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(otherLabel);
+            expect(transitions).deep.equals([
+                [initialLabel, writtenLabel],
+                [writtenLabel, otherLabel],
+            ]);
+        });
+
+        it("announces a report that lands before the accepted value is announced after it", async () => {
+            const { site, controller, peer1, transitions } = await setup();
+            await using _site = site;
+
+            // Post-commit reaches this observer before the participant that announces the accepted value
+            controller.eventsOf(BasicInformationServer).nodeLabel$Changed.on(async () => {
+                await seedPeerCache(
+                    peer1,
+                    peer1,
+                    BasicInformationClient,
+                    new Map([[BasicInformation.attributes.nodeLabel.id, otherLabel]]),
+                );
+            });
+
+            await MockTime.resolve(
+                peer1.act(agent => {
+                    agent.get(BasicInformationClient).state.nodeLabel = writtenLabel;
+                    controller.agentFor(agent.context).get(BasicInformationServer).state.nodeLabel = "Trigger";
+                }),
+                { macrotasks: true },
+            );
+
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(otherLabel);
+            expect(transitions).deep.equals([
+                [initialLabel, writtenLabel],
+                [writtenLabel, otherLabel],
+            ]);
+        });
+
+        it("announces accepted values when the transaction concludes, after its local changes", async () => {
+            const { site, controller, peer1 } = await setup();
+            await using _site = site;
+
+            const log = new Array<string>();
+            peer1.eventsOf(BasicInformationClient).nodeLabel$Changed.on(value => {
+                log.push(`client ${value}`);
+            });
+            controller.eventsOf(BasicInformationServer).location$Changed.on(value => {
+                log.push(`controller ${value}`);
+            });
+            controller.eventsOf(BasicInformationServer).nodeLabel$Changed.on((value, _oldValue, context) => {
+                log.push(`controller ${value}`);
+                if (context) {
+                    peer1.agentFor(context).get(BasicInformationClient).state.nodeLabel = otherLabel;
+                    controller.agentFor(context).get(BasicInformationServer).state.location = "YY";
+                }
+            });
+
+            await MockTime.resolve(
+                peer1.act(agent => {
+                    agent.get(BasicInformationClient).state.nodeLabel = writtenLabel;
+                    controller.agentFor(agent.context).get(BasicInformationServer).state.nodeLabel = "Trigger";
+                }),
+                { macrotasks: true },
+            );
+
+            expect(log).deep.equals([
+                "controller Trigger",
+                "controller YY",
+                `client ${writtenLabel}`,
+                `client ${otherLabel}`,
+            ]);
+        });
+
+        it("does not resend an earlier cycle's write in a cascaded cycle of the same transaction", async () => {
+            const { site, controller, peer1, device } = await setup();
+            await using _site = site;
+
+            const received = new Array<string>();
+            device.eventsOf(BasicInformationServer).nodeLabel$Changing.on(value => {
+                received.push(value);
+            });
+            controller.eventsOf(BasicInformationServer).nodeLabel$Changed.on((_value, _oldValue, context) => {
+                if (context) {
+                    peer1.agentFor(context).get(BasicInformationClient).state.location = "XX";
+                }
+            });
+
+            await MockTime.resolve(
+                peer1.act(agent => {
+                    agent.get(BasicInformationClient).state.nodeLabel = writtenLabel;
+                    controller.agentFor(agent.context).get(BasicInformationServer).state.nodeLabel = "Trigger";
+                }),
+                { macrotasks: true },
+            );
+
+            expect(received).deep.equals([writtenLabel]);
+            expect(device.stateOf(BasicInformationServer).location).equals("XX");
+        });
+
+        it("holds the accepted value when the next transaction takes the lock", async () => {
+            const { site, peer1, device } = await setup();
+            await using _site = site;
+
+            // Starts while the write is in flight and so waits for the writing transaction's lock
+            let read: MaybePromise<string> | undefined;
+            device.eventsOf(BasicInformationServer).nodeLabel$Changing.on(() => {
+                read ??= peer1.act(async agent => {
+                    const basicInformation = agent.get(BasicInformationClient);
+                    await agent.context.transaction.addResources(basicInformation);
+                    await agent.context.transaction.begin();
+                    return basicInformation.state.nodeLabel;
+                });
+            });
+
+            await MockTime.resolve(peer1.setStateOf(BasicInformationClient, { nodeLabel: writtenLabel }), {
+                macrotasks: true,
+            });
+            expect(await MockTime.resolve(Promise.resolve(read), { macrotasks: true })).equals(writtenLabel);
+        });
+
+        it("lets an observer of the accepted value write a datasource a cascaded cycle of the writer held", async () => {
+            const { site, controller, peer1 } = await setup();
+            await using _site = site;
+
+            controller.eventsOf(BasicInformationServer).nodeLabel$Changed.on((_value, _oldValue, context) => {
+                if (context) {
+                    controller.agentFor(context).get(BasicInformationServer).state.location = "YY";
+                }
+            });
+            peer1.eventsOf(BasicInformationClient).nodeLabel$Changed.on(async () => {
+                await controller.setStateOf(BasicInformationServer, { location: "ZZ" });
+            });
+
+            await MockTime.resolve(
+                peer1.act(agent => {
+                    agent.get(BasicInformationClient).state.nodeLabel = writtenLabel;
+                    controller.agentFor(agent.context).get(BasicInformationServer).state.nodeLabel = "Trigger";
+                }),
+                { macrotasks: true },
+            );
+
+            expect(controller.stateOf(BasicInformationServer).location).equals("ZZ");
+        });
+
+        it("rolls back a local change of the same transaction when the device declines the write", async () => {
+            const { site, controller, peer1 } = await setup();
+            await using _site = site;
+
+            const originalVendorName = peer1.stateOf(BasicInformationClient).vendorName;
+            const originalLabel = controller.stateOf(BasicInformationServer).nodeLabel;
+
+            const caught = await captureRejection(() =>
+                MockTime.resolve(
+                    peer1.act(agent => {
+                        agent.get(BasicInformationClient).state.vendorName = "Overwritten Vendor";
+                        controller.agentFor(agent.context).get(BasicInformationServer).state.nodeLabel = "Trigger";
+                    }),
+                    { macrotasks: true },
+                ),
+            );
+
+            expect((caught as StatusResponseError).code).equals(Status.UnsupportedWrite);
+            expect(peer1.stateOf(BasicInformationClient).vendorName).equals(originalVendorName);
+            expect(controller.stateOf(BasicInformationServer).nodeLabel).equals(originalLabel);
+        });
+
+        it("settles the accepted attributes of a partly declined write and rolls back the rest", async () => {
+            const { site, controller, peer1, device, transitions } = await setup();
+            await using _site = site;
+
+            const originalVendorName = peer1.stateOf(BasicInformationClient).vendorName;
+            const originalControllerLabel = controller.stateOf(BasicInformationServer).nodeLabel;
+            const locations = new Array<string>();
+            peer1.eventsOf(BasicInformationClient).location$Changed.on(value => {
+                locations.push(value);
+            });
+
+            // The device reports a location while it processes the write, so the written location loses
+            device.eventsOf(BasicInformationServer).nodeLabel$Changing.on(async () => {
+                await seedPeerCache(
+                    peer1,
+                    peer1,
+                    BasicInformationClient,
+                    new Map([[BasicInformation.attributes.location.id, "RR"]]),
+                );
+            });
+
+            const caught = await captureRejection(() =>
+                MockTime.resolve(
+                    peer1.act(agent => {
+                        const state = agent.get(BasicInformationClient).state;
+                        state.nodeLabel = writtenLabel;
+                        state.vendorName = "Overwritten Vendor";
+                        state.location = "XX";
+                        controller.agentFor(agent.context).get(BasicInformationServer).state.nodeLabel = "Trigger";
+                    }),
+                    { macrotasks: true },
+                ),
+            );
+
+            expect((caught as StatusResponseError).code).equals(Status.UnsupportedWrite);
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(writtenLabel);
+            expect(transitions).deep.equals([[initialLabel, writtenLabel]]);
+            expect(peer1.stateOf(BasicInformationClient).vendorName).equals(originalVendorName);
+            expect(peer1.stateOf(BasicInformationClient).location).equals("RR");
+            expect(locations).deep.equals(["RR"]);
+            expect(device.stateOf(BasicInformationServer).location).equals("XX");
+            expect(controller.stateOf(BasicInformationServer).nodeLabel).equals(originalControllerLabel);
+        });
+
+        it("sends only the last value of an attribute assigned twice", async () => {
+            const { site, peer1, device } = await setup();
+            await using _site = site;
+
+            const received = new Array<string>();
+            device.eventsOf(BasicInformationServer).nodeLabel$Changing.on(value => {
+                received.push(value);
+            });
+
+            await MockTime.resolve(
+                peer1.act(agent => {
+                    const state = agent.get(BasicInformationClient).state;
+                    state.nodeLabel = otherLabel;
+                    state.nodeLabel = writtenLabel;
+                }),
+                { macrotasks: true },
+            );
+
+            expect(received).deep.equals([writtenLabel]);
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(writtenLabel);
+        });
+
+        // There is no atomic commit across devices: each peer's write goes out in its own participant's phase one, and
+        // all of them go out before any answer is known
+        for (const declinedFirst of [false, true]) {
+            it(`keeps what one peer accepted when another declines, ${declinedFirst ? "declining" : "accepting"} peer assigned first`, async () => {
+                const { site, controller, peer1, device } = await setup();
+                await using _site = site;
+
+                const device2 = await site.addDevice({ commissioning: { discriminator: 999, passcode: 22223333 } });
+                const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+                const device2Crypto = device2.env.get(Crypto) as MockCrypto;
+                controllerCrypto.entropic = device2Crypto.entropic = true;
+                await MockTime.resolve(
+                    controller.peers.commission({
+                        passcode: 22223333,
+                        discriminator: 999,
+                        timeout: Seconds(90),
+                        autoSubscribe: false,
+                    }),
+                    { macrotasks: true },
+                );
+                controllerCrypto.entropic = device2Crypto.entropic = false;
+                const peer2 = controller.peers.get("peer2")!;
+                const originalVendorName = peer2.stateOf(BasicInformationClient).vendorName;
+
+                const caught = await captureRejection(() =>
+                    MockTime.resolve(
+                        peer1.act(agent => {
+                            const decline = () => {
+                                peer2.agentFor(agent.context).get(BasicInformationClient).state.vendorName =
+                                    "Overwritten Vendor";
+                            };
+                            if (declinedFirst) {
+                                decline();
+                            }
+                            agent.get(BasicInformationClient).state.nodeLabel = writtenLabel;
+                            if (!declinedFirst) {
+                                decline();
+                            }
+                        }),
+                        { macrotasks: true },
+                    ),
+                );
+
+                expect((caught as StatusResponseError).code).equals(Status.UnsupportedWrite);
+                expect(device.stateOf(BasicInformationServer).nodeLabel).equals(writtenLabel);
+                expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(writtenLabel);
+                expect(peer2.stateOf(BasicInformationClient).vendorName).equals(originalVendorName);
+            });
+        }
+
+        it("applies and announces an accepted value whose local persist failed", async () => {
+            const { site, peer1, device, transitions } = await setup();
+            await using _site = site;
+
+            peer1.env.get(ClientNodeStore).localWriter.persist = async () => {
+                throw new Error("persist failure");
+            };
+
+            const warnings = await captureWarningsOf(() =>
+                MockTime.resolve(peer1.setStateOf(BasicInformationClient, { nodeLabel: writtenLabel }), {
+                    macrotasks: true,
+                }),
+            );
+
+            expect(device.stateOf(BasicInformationServer).nodeLabel).equals(writtenLabel);
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(writtenLabel);
+            expect(transitions).deep.equals([[initialLabel, writtenLabel]]);
+            expect(warnings.map(({ text }) => text).join("\n")).contains("persist failure");
+        });
+
+        it("applies a report whose local persist failed", async () => {
+            const { site, peer1, transitions } = await setup();
+            await using _site = site;
+
+            peer1.env.get(ClientNodeStore).localWriter.persist = async () => {
+                throw new Error("persist failure");
+            };
+
+            const { persistFailure } = await seedPeerCache(
+                peer1,
+                peer1,
+                BasicInformationClient,
+                new Map([[BasicInformation.attributes.nodeLabel.id, otherLabel]]),
+            );
+            expect(persistFailure).instanceOf(Error);
+
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(otherLabel);
+            expect(transitions).deep.equals([[initialLabel, otherLabel]]);
+        });
+
+        it("lets a post-commit observer await a write of the same client cluster in another transaction", async () => {
+            const { site, controller, peer1, transitions } = await setup();
+            await using _site = site;
+
+            controller.eventsOf(BasicInformationServer).nodeLabel$Changed.on(async () => {
+                await peer1.setStateOf(BasicInformationClient, { nodeLabel: otherLabel });
+            });
+
+            await MockTime.resolve(
+                peer1.act(agent => {
+                    agent.get(BasicInformationClient).state.nodeLabel = writtenLabel;
+                    controller.agentFor(agent.context).get(BasicInformationServer).state.nodeLabel = "Trigger";
+                }),
+                { macrotasks: true },
+            );
+
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(otherLabel);
+            expect(transitions).deep.equals([
+                [initialLabel, writtenLabel],
+                [writtenLabel, otherLabel],
+            ]);
+        });
+
+        it("announces every cluster of a write when an observer of one throws", async () => {
+            const { site, peer1, transitions } = await setup();
+            await using _site = site;
+
+            const ep1Client = peer1.parts.get("ep1")!;
+            ep1Client.eventsOf(OnOffClient).startUpOnOff$Changed.on(() => {
+                throw new Error("observer failure");
+            });
+
+            await captureWarningsOf(() =>
+                MockTime.resolve(
+                    peer1.act(agent => {
+                        agent.get(BasicInformationClient).state.nodeLabel = writtenLabel;
+                        ep1Client.agentFor(agent.context).get(OnOffClient).state.startUpOnOff =
+                            OnOff.StartUpOnOff.Toggle;
+                    }),
+                    { macrotasks: true },
+                ),
+            );
+            await seedPeerCache(
+                peer1,
+                peer1,
+                BasicInformationClient,
+                new Map([[BasicInformation.attributes.nodeLabel.id, otherLabel]]),
+            );
+
+            expect(ep1Client.stateOf(OnOffClient).startUpOnOff).equals(OnOff.StartUpOnOff.Toggle);
+            expect(transitions).deep.equals([
+                [initialLabel, writtenLabel],
+                [writtenLabel, otherLabel],
+            ]);
+        });
+
+        it("lets an observer of the accepted value write", async () => {
+            const { site, peer1, device } = await setup();
+            await using _site = site;
+
+            peer1.eventsOf(BasicInformationClient).nodeLabel$Changed.on(async value => {
+                if (value === writtenLabel) {
+                    await peer1.setStateOf(BasicInformationClient, { location: "XX" });
+                }
+            });
+
+            await MockTime.resolve(peer1.setStateOf(BasicInformationClient, { nodeLabel: writtenLabel }), {
+                macrotasks: true,
+            });
+
+            expect(peer1.stateOf(BasicInformationClient).location).equals("XX");
+            expect(device.stateOf(BasicInformationServer).location).equals("XX");
+        });
+
+        it("logs an observer of the accepted value that fails and still resolves the write", async () => {
+            const { site, peer1 } = await setup();
+            await using _site = site;
+
+            peer1.eventsOf(BasicInformationClient).nodeLabel$Changed.on(() => {
+                throw new Error("observer failure");
+            });
+
+            const warnings = await captureWarningsOf(() =>
+                MockTime.resolve(peer1.setStateOf(BasicInformationClient, { nodeLabel: writtenLabel }), {
+                    macrotasks: true,
+                }),
+            );
+
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(writtenLabel);
+            expect(warnings.map(({ text }) => text).join("\n")).contains("observer failure");
+        });
+
+        it("logs a failure to settle an accepted value and still resolves the write", async () => {
+            const { site, peer1 } = await setup();
+            await using _site = site;
+
+            const cache = cacheOf(peer1);
+            cache.settleAccepted = async () => {
+                throw new Error("apply failure");
+            };
+
+            const warnings = await captureWarningsOf(() =>
+                MockTime.resolve(peer1.setStateOf(BasicInformationClient, { nodeLabel: writtenLabel }), {
+                    macrotasks: true,
+                }),
+            );
+
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(initialLabel);
+            const logged = warnings.map(({ text }) => text).join("\n");
+            expect(logged).contains("in the local cache");
+            expect(logged).contains("apply failure");
+        });
+
+        for (const [what, detach] of [
+            ["erased", (cache: DatasourceCache) => cache.erase()],
+            ["reclaimed", (cache: DatasourceCache) => cache.reclaimValues()],
+        ] as const) {
+            it(`applies nothing when the cache is ${what} while the write is in flight`, async () => {
+                const { site, peer1, device, transitions } = await setup();
+                await using _site = site;
+
+                const cache = cacheOf(peer1);
+                device.eventsOf(BasicInformationServer).nodeLabel$Changing.on(async () => {
+                    await detach(cache);
+                });
+
+                const caught = await captureRejection(() =>
+                    MockTime.resolve(peer1.setStateOf(BasicInformationClient, { nodeLabel: writtenLabel }), {
+                        macrotasks: true,
+                    }),
+                );
+
+                expect(caught).undefined;
+                expect(device.stateOf(BasicInformationServer).nodeLabel).equals(writtenLabel);
+                expect(transitions).deep.equals([]);
+            });
+        }
+
+        it("applies and announces the attributes the device accepted when it declines another", async () => {
+            const { site, peer1, device, transitions } = await setup();
+            await using _site = site;
+
+            const originalVendorName = peer1.stateOf(BasicInformationClient).vendorName;
+            const vendorNames = new Array<string>();
+            peer1.eventsOf(BasicInformationClient).vendorName$Changed.on(value => {
+                vendorNames.push(value);
+            });
+
+            const caught = await captureRejection(() =>
+                MockTime.resolve(
+                    peer1.setStateOf(BasicInformationClient, {
+                        nodeLabel: writtenLabel,
+                        vendorName: "Overwritten Vendor",
+                    }),
+                    { macrotasks: true },
+                ),
+            );
+
+            expect((caught as StatusResponseError).code).equals(Status.UnsupportedWrite);
+            expect(device.stateOf(BasicInformationServer).nodeLabel).equals(writtenLabel);
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(writtenLabel);
+            expect(transitions).deep.equals([[initialLabel, writtenLabel]]);
+            expect(peer1.stateOf(BasicInformationClient).vendorName).equals(originalVendorName);
+            expect(vendorNames).deep.equals([]);
         });
     });
 
@@ -2289,7 +3207,7 @@ describe("ClientNode", () => {
         });
         const peer1 = controller.peers.get("peer1")!;
         const { structure } = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
-        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+        const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
         const filteredClusters = (options?: { refreshChangesOmitted?: boolean }) =>
             (structure.injectVersionFilters(request, options).dataVersionFilters ?? [])
@@ -2309,7 +3227,7 @@ describe("ClientNode", () => {
         const { controller } = await site.addCommissionedPair();
         const peer1 = controller.peers.get("peer1")!;
         const { structure } = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
-        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+        const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
         // Time Synchronization with an empty AttributeList and without UTCTime, its changes-omitted attribute
         const timeSync = TimeSynchronizationClient.cluster.id;
@@ -2883,7 +3801,7 @@ describe("ClientNode", () => {
                 yield reports;
             }
 
-            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+            const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
             for await (const _chunk of structure.mutate(request, result())) {
                 // Drain
             }
@@ -3442,7 +4360,7 @@ describe("ClientNode", () => {
             const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
             const structure = initializer.structure;
 
-            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+            const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             const neoBehaviorId = () => {
                 const endpoint = structure.endpointFor(EP1);
@@ -3477,7 +4395,7 @@ describe("ClientNode", () => {
 
             const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
             const structure = initializer.structure;
-            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+            const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             const neoActive = () => {
                 const endpoint = structure.endpointFor(EP1);
@@ -3520,7 +4438,7 @@ describe("ClientNode", () => {
 
             const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
             const structure = initializer.structure;
-            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+            const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             const neoStorageKeys = () =>
                 Object.keys(site.storageFor("controller1")).filter(key => key.includes(NEO.toString()));
@@ -3558,7 +4476,7 @@ describe("ClientNode", () => {
 
             const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
             const structure = initializer.structure;
-            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+            const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             const neoActive = () => {
                 const endpoint = structure.endpointFor(EP1);
@@ -3588,7 +4506,7 @@ describe("ClientNode", () => {
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
             const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
-            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+            const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             const neoType = () => {
                 const endpoint = structure.endpointFor(EP1);
@@ -3620,7 +4538,7 @@ describe("ClientNode", () => {
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
             const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
-            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+            const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             const neoType = () => {
                 const endpoint = structure.endpointFor(EP1);
@@ -3649,7 +4567,7 @@ describe("ClientNode", () => {
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
             const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
-            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+            const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             await drain(structure.mutate(request, readResult(descriptorServerListReport(10))));
 
@@ -3703,7 +4621,7 @@ describe("ClientNode", () => {
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
             const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
-            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+            const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             await drain(structure.mutate(request, readResult(descriptorServerListReport(10))));
 
@@ -3757,7 +4675,7 @@ describe("ClientNode", () => {
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
             const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
-            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+            const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             const neoType = () => {
                 const endpoint = structure.endpointFor(EP1);
@@ -3797,6 +4715,34 @@ describe("ClientNode", () => {
 
             expect(peer1.endpoints.for(9)).equals(peerEp9);
             expect(controller.endpoints.for(9)).not.equals(peerEp9);
+        });
+
+        it("builds the structure of a reported endpoint whose values it fails to persist, and warns once", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            peer1.env.get(ClientNodeStore).localWriter.persist = async () => {
+                throw new Error("persist failure");
+            };
+
+            const installed = new Promise<Endpoint>(resolve =>
+                peer1.env
+                    .get(ClientStructureEvents)
+                    .clusterInstalled(OnOffClient)
+                    .on(endpoint => {
+                        if (endpoint.number === 5) {
+                            resolve(endpoint);
+                        }
+                    }),
+            );
+            const warnings = await captureWarningsOf(async () => {
+                await device.add(OnOffLightDevice, { id: "late5", number: 5 });
+                await MockTime.resolve(installed);
+            });
+
+            expect(peer1.endpoints.for(5)?.stateOf(OnOffClient).onOff).equals(false);
+            expect(warnings.filter(({ text }) => text.includes("failed locally"))).length(1);
         });
 
         it("adopts an endpoint created by require() when the peer reports it", async () => {

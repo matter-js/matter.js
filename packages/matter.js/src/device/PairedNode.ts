@@ -644,9 +644,8 @@ export class PairedNode {
             return;
         }
 
-        // Inform interested parties that the node is initialized
-        await this.events.initialized.emit(this.#nodeDetails.details);
         this.#localInitializationDone = true;
+        await this.events.initialized.emit(this.#nodeDetails.details);
     }
 
     #handleNodeChange(changes: ChangeNotificationService.Change) {

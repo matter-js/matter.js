@@ -84,9 +84,9 @@ export class LegacyControllerSite {
     }
 
     /**
-     * Commissions the device into the controller's fabric without creating a `PairedNode` for it.
+     * Commissions the device into the controller's fabric, without creating a `PairedNode` for it unless `connect` is true.
      */
-    async commission(controller: CommissioningController, device: ServerNode) {
+    async commission(controller: CommissioningController, device: ServerNode, { connect = false } = {}) {
         const { passcode, discriminator } = device.state.commissioning;
 
         // Without entropy both sides derive colliding session parameters
@@ -102,7 +102,7 @@ export class LegacyControllerSite {
                         discovery: { identifierData: { longDiscriminator: discriminator } },
                         passcode,
                     },
-                    { connectNodeAfterCommissioning: false },
+                    { connectNodeAfterCommissioning: connect },
                 ),
                 { macrotasks: true },
             );

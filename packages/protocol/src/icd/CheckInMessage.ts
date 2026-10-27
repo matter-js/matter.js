@@ -123,8 +123,16 @@ export class CheckInMessage {
     static validateCounter(counter: number, state: CheckInMessage.CounterState): CheckInMessage.CounterValidation {
         const offset = (counter - state.counterStart) >>> 0;
         const valid = offset > state.lastOffset;
-        const refreshNeeded = offset >= KEY_REFRESH_OFFSET;
-        return { valid, offset, refreshNeeded };
+        return { valid, offset, refreshNeeded: CheckInMessage.refreshNeededAt(offset) };
+    }
+
+    /**
+     * Whether a counter offset of `offset` from the key's starting counter requires a key refresh.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.22.3.4.1
+     */
+    static refreshNeededAt(offset: number) {
+        return offset >= KEY_REFRESH_OFFSET;
     }
 
     static #counterToBytes(counter: number): Uint8Array {
@@ -154,7 +162,7 @@ export namespace CheckInMessage {
      * @see {@link MatterSpecification.v161.Core} § 4.22.3.4.1
      */
     export interface CounterState {
-        /** The counter value received when the ICD was first registered or the key was last refreshed. */
+        /** The starting counter value of the current key, from which offsets are measured. */
         counterStart: number;
         /** The unsigned offset of the last accepted counter from counterStart. */
         lastOffset: number;

@@ -27,6 +27,7 @@ import {
     ServerAddressUdp,
     UdpNetworkChannel,
 } from "@matter/general";
+import { MessageTooLargeError } from "./errors.js";
 import { MRP } from "./MRP.js";
 
 const logger = new Logger("MessageChannel");
@@ -75,11 +76,19 @@ export class MessageChannel implements Channel<Message> {
     }
 
     /**
-     * Max Payload size of the exchange which bases on the maximum payload size of the channel. The full encoded matter
-     * message payload sent here can be as huge as allowed by the channel.
+     * Maximum size of an encoded Matter message sent on this channel.
+     *
+     * On TCP this is also capped at {@link Session.peerMaxTcpMessageSize}, because the peer closes the connection when
+     * it receives a larger message.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.15.2.3
      */
     get maxPayloadSize() {
-        return this.#channel.maxPayloadSize;
+        const channelMax = this.#channel.maxPayloadSize;
+        if (this.type !== ChannelType.TCP) {
+            return channelMax;
+        }
+        return Math.min(channelMax, this.session.peerMaxTcpMessageSize);
     }
 
     async send(message: Message, options?: MessageChannelSendOptions) {
@@ -95,6 +104,12 @@ export class MessageChannel implements Channel<Message> {
         const packet = this.session.encode(message);
         const bytes = MessageCodec.encodePacket(packet);
         if (bytes.byteLength > this.maxPayloadSize) {
+            if (this.type === ChannelType.TCP) {
+                // The peer closes the TCP connection on an oversized message, which would end every exchange on it
+                throw new MessageTooLargeError(
+                    `Matter message to send to ${this.name} is ${bytes.byteLength} bytes long, which exceeds the TCP limit of ${this.maxPayloadSize}; split it by maxPayloadSize`,
+                );
+            }
             logger.warn(
                 `Matter message to send to ${this.name} is ${bytes.byteLength}bytes long, which is larger than the maximum allowed size of ${this.maxPayloadSize}. This only works if both nodes support it.`,
             );

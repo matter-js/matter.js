@@ -27,7 +27,7 @@ export interface PeerLossContext {
     currentExchange?: MessageExchange;
 
     /**
-     * Indicates that subscriptions should not be closed due to the peer loss event.
+     * Leave the session's subscriptions out of the force close.  They still end, for good, when the session closes.
      */
     keepSubscriptions?: boolean;
 

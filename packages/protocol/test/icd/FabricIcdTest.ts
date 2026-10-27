@@ -7,7 +7,7 @@
 import { CheckInMessage } from "#icd/CheckInMessage.js";
 import { FabricIcd } from "#icd/FabricIcd.js";
 import { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
-import { Bytes, InternalError, Seconds, StandardCrypto } from "@matter/general";
+import { Bytes, ImplementationError, InternalError, Seconds, StandardCrypto } from "@matter/general";
 import { NodeId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 
@@ -95,9 +95,7 @@ describe("FabricIcd", () => {
             const result = await icd.processCheckIn(payload);
 
             expect(result).true;
-            expect(received).deep.equal([
-                { peerNodeId: NodeId(11), counter: 12, offset: 2, activeModeThreshold: 5000, refreshNeeded: false },
-            ]);
+            expect(received).deep.equal([{ peerNodeId: NodeId(11), counter: 12, activeModeThreshold: 5000 }]);
         });
 
         it("ignores undecryptable payloads", async () => {
@@ -160,6 +158,174 @@ describe("FabricIcd", () => {
             const result = await icd.processCheckIn(payload);
 
             expect(result).false;
+        });
+    });
+
+    describe("controller role — pending key", () => {
+        /** A peer whose last Check-In under {@link KEY_A} carried counter 15, with {@link KEY_B} pending. */
+        function refreshingPeer(received: FabricIcd.ReceivedCheckIn[] = [], counterStart = 10, lastOffset = 5) {
+            const icd = fabricIcd();
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart, lastOffset }, checkIn => {
+                received.push(checkIn);
+            });
+            icd.setPendingKey(NodeId(11), KEY_B);
+            return icd;
+        }
+
+        it("keeps decrypting with the current key", async () => {
+            const received = new Array<FabricIcd.ReceivedCheckIn>();
+            const icd = refreshingPeer(received);
+
+            expect(await icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_A, 16, 5000))).true;
+
+            expect(received.map(({ counter }) => counter)).deep.equal([16]);
+            expect(icd.peerFor(NodeId(11))?.lastOffset).equal(6);
+            expect(icd.peerFor(NodeId(11))?.key).equal(KEY_A);
+            expect(icd.peerFor(NodeId(11))?.pendingKey).equal(KEY_B);
+        });
+
+        it("promotes the pending key on its first Check-In, counting from the last counter under the old key", async () => {
+            const received = new Array<FabricIcd.ReceivedCheckIn>();
+            const icd = refreshingPeer(received);
+
+            expect(await icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_B, 20, 5000))).true;
+
+            expect(received.map(({ counter }) => counter)).deep.equal([20]);
+            expect(icd.peerFor(NodeId(11))).deep.equal({
+                peerNodeId: NodeId(11),
+                key: KEY_B,
+                counterStart: 15,
+                lastOffset: 5,
+                pendingKey: undefined,
+            });
+        });
+
+        it("computes the promotion baseline modulo 2³²", async () => {
+            const received = new Array<FabricIcd.ReceivedCheckIn>();
+            const icd = refreshingPeer(received, 0xfffffff0, 0x20);
+
+            expect(await icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_B, 0x13, 5000))).true;
+
+            expect(received.map(({ counter }) => counter)).deep.equal([0x13]);
+            expect(icd.peerFor(NodeId(11))?.lastOffset).equal(3);
+            expect(icd.peerFor(NodeId(11))?.counterStart).equal(0x10);
+        });
+
+        it("rejects a replay and an earlier counter under the promoted key", async () => {
+            const received = new Array<FabricIcd.ReceivedCheckIn>();
+            const icd = refreshingPeer(received);
+            const promoting = await CheckInMessage.encodeIcd(crypto, KEY_B, 20, 5000);
+            await icd.processCheckIn(promoting);
+
+            expect(await icd.processCheckIn(promoting)).true;
+            expect(await icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_B, 18, 5000))).true;
+
+            expect(received.length).equal(1);
+            expect(icd.peerFor(NodeId(11))?.lastOffset).equal(5);
+        });
+
+        for (const counter of [15, 12]) {
+            it(`does not promote the pending key with counter ${counter}, not after the old key's last counter 15`, async () => {
+                const received = new Array<FabricIcd.ReceivedCheckIn>();
+                const icd = refreshingPeer(received);
+
+                expect(await icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_B, counter, 5000))).true;
+
+                expect(received).deep.equal([]);
+                expect(icd.peerFor(NodeId(11))).deep.include({ key: KEY_A, pendingKey: KEY_B, lastOffset: 5 });
+                expect(await icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_B, 20, 5000))).true;
+                expect(received.map(({ counter }) => counter)).deep.equal([20]);
+                expect(icd.peerFor(NodeId(11))?.lastOffset).equal(5);
+            });
+        }
+
+        it("stops decrypting with the old key once the pending key is promoted", async () => {
+            const icd = refreshingPeer();
+            await icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_B, 20, 5000));
+
+            expect(await icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_A, 30, 5000))).false;
+        });
+
+        describe("confirmKey", () => {
+            it("replaces the key with the pending one at the reported start", () => {
+                const icd = refreshingPeer();
+                expect(icd.confirmKey(NodeId(11), KEY_B, 17)).true;
+
+                expect(icd.peerFor(NodeId(11))).deep.include({
+                    key: KEY_B,
+                    pendingKey: undefined,
+                    counterStart: 17,
+                    lastOffset: 0,
+                });
+            });
+
+            it("measures the last counter of a key a Check-In promoted from the reported start", async () => {
+                const icd = refreshingPeer();
+                await icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_B, 20, 5000));
+                expect(icd.confirmKey(NodeId(11), KEY_B, 17)).true;
+
+                expect(icd.peerFor(NodeId(11))).deep.include({ key: KEY_B, counterStart: 17, lastOffset: 3 });
+                expect(await icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_B, 20, 5000))).true;
+                expect(icd.peerFor(NodeId(11))?.lastOffset).equal(3);
+            });
+
+            it("keeps the Check-In baseline when the reported start lies after the last counter", async () => {
+                const icd = refreshingPeer();
+                await icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_B, 20, 5000));
+                expect(icd.confirmKey(NodeId(11), KEY_B, 25)).true;
+
+                expect(icd.peerFor(NodeId(11))).deep.include({ key: KEY_B, counterStart: 15, lastOffset: 5 });
+            });
+
+            it("measures across the 2³² wrap from the reported start", async () => {
+                const icd = refreshingPeer([], 0xfffffff0, 0x10);
+                await icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_B, 2, 5000));
+                expect(icd.confirmKey(NodeId(11), KEY_B, 0xfffffffe)).true;
+
+                expect(icd.peerFor(NodeId(11))).deep.include({ counterStart: 0xfffffffe, lastOffset: 4 });
+            });
+
+            it("ignores a key that is neither current nor pending", () => {
+                const icd = refreshingPeer();
+                expect(icd.confirmKey(NodeId(11), Bytes.fromHex("00112233445566778899aabbccddeeff"), 12)).false;
+
+                expect(icd.peerFor(NodeId(11))).deep.include({
+                    key: KEY_A,
+                    pendingKey: KEY_B,
+                    counterStart: 10,
+                    lastOffset: 5,
+                });
+            });
+        });
+
+        it("answers refreshNeeded from the current key's last offset", async () => {
+            const icd = refreshingPeer([], 10, 0x7fffffff);
+            expect(icd.refreshNeeded(NodeId(11))).false;
+
+            await icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_A, (10 + 0x80000000) >>> 0, 5000));
+            expect(icd.refreshNeeded(NodeId(11))).true;
+
+            icd.confirmKey(NodeId(11), KEY_B, 0x80000010);
+            expect(icd.refreshNeeded(NodeId(11))).false;
+            expect(fabricIcd().refreshNeeded(NodeId(11))).false;
+        });
+
+        it("rethrows an error that is not a failed decryption", async () => {
+            class BrokenCrypto extends StandardCrypto {
+                override signHmac(): never {
+                    throw new InternalError("crypto broken");
+                }
+            }
+            const icd = new FabricIcd(new BrokenCrypto());
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
+
+            await expect(icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_A, 12, 5000))).rejectedWith(
+                InternalError,
+            );
+        });
+
+        it("refuses a pending key for an unregistered peer", () => {
+            expect(() => fabricIcd().setPendingKey(NodeId(11), KEY_B)).throws(ImplementationError);
         });
     });
 

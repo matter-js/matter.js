@@ -14,7 +14,7 @@ import {
     NotImplementedError,
     Seconds,
 } from "@matter/general";
-import { CommonNumberTag, Endpoint, ServerNode, ServerSubscriptionConfig } from "@matter/main";
+import { CommissioningServer, CommonNumberTag, Endpoint, ServerNode, ServerSubscriptionConfig } from "@matter/main";
 import {
     AccessControlServer,
     AdministratorCommissioningServer,
@@ -95,7 +95,7 @@ import {
 } from "@matter/main/clusters";
 import { GenericSwitchDevice, OnOffLightDevice } from "@matter/main/devices";
 import { MdnsAdvertiser } from "@matter/main/protocol";
-import { DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
+import { CommissioningFlowType, DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
 import { BackchannelCommand } from "@matter/testing";
 import { TestActivatedCarbonFilterMonitoringServer } from "./cluster/TestActivatedCarbonFilterMonitoringServer.js";
 import { TestDishwasherModeServer } from "./cluster/TestDishwasherModeServer.js";
@@ -121,8 +121,11 @@ export class AllClustersTestInstance extends NodeTestInstance {
     /** Subscription interval limits; undefined keeps the matter.js defaults. Overridden by the full-max-interval variant. */
     protected readonly subscriptionOptions?: ServerSubscriptionConfig = undefined;
 
+    #appArgs?: string[];
+
     constructor(config: DeviceTestInstanceConfig) {
         super(config);
+        this.#appArgs = config.appArgs;
     }
 
     /** Set up the test instance MatterServer. */
@@ -271,6 +274,9 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 });
                 break;
             }
+            case "userIntentCommissioningStart":
+                await this.node.act(agent => agent.get(CommissioningServer).enterCommissionableMode());
+                break;
             case "setBooleanState":
                 if (endpoint === undefined) {
                     throw new ImplementationError(`Endpoint ${endpointId} not found`);
@@ -291,6 +297,8 @@ export class AllClustersTestInstance extends NodeTestInstance {
         if (argsEnableKeyIndex !== -1) {
             deviceTestEnableKey = Bytes.fromHex(process.argv[argsEnableKeyIndex + 1]);
         }
+
+        const flowType = customFlowOf(this.#appArgs ?? process.argv.slice(2));
 
         const rootEndpoint = this.groupcast
             ? ServerNode.RootEndpoint.with(
@@ -343,6 +351,10 @@ export class AllClustersTestInstance extends NodeTestInstance {
             commissioning: {
                 passcode: this.config.passcode ?? 20202021,
                 discriminator: this.config.discriminator ?? 3840,
+                flowType,
+
+                // As chip's apps do for `--custom-flow 1`: no window until `userIntentCommissioningStart`
+                enabled: flowType !== CommissioningFlowType.UserIntent,
                 mdns: {
                     schedules: [
                         {
@@ -1263,4 +1275,21 @@ export class AllClustersFullMaxIntervalTestInstance extends AllClustersTestInsta
     static override id = "binford-6100-full-max-interval";
 
     protected override readonly subscriptionOptions = ServerSubscriptionConfig.of({ maxInterval: Hours.one });
+}
+
+/**
+ * The flow named by `--custom-flow`, the argument chip's apps take for the same purpose, or the standard flow
+ * without it.
+ */
+function customFlowOf(args: string[]): CommissioningFlowType {
+    const index = args.indexOf("--custom-flow");
+    if (index === -1) {
+        return CommissioningFlowType.Standard;
+    }
+
+    const value = Number(args[index + 1]);
+    if (!(value in CommissioningFlowType)) {
+        throw new ImplementationError(`--custom-flow takes 0, 1 or 2, not "${args[index + 1]}"`);
+    }
+    return value;
 }

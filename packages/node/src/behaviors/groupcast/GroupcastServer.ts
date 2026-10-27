@@ -140,9 +140,7 @@ export class GroupcastServer extends GroupcastBase {
         // it from its sources on every input change, so the stored copy is never authoritative and cannot diverge.
         this.#deriveMembership();
 
-        // A replaced fabric gets a fresh Groups instance, so the multicast address policies must be re-applied
-        this.reactTo(fabrics.events.added, this.#handleFabricChanged, { offline: true });
-        this.reactTo(fabrics.events.replaced, this.#handleFabricChanged, { offline: true });
+        this.reactTo(fabrics.events.added, this.#handleFabricAdded, { offline: true });
         this.reactTo(fabrics.events.deleted, this.#handleFabricDeleted, { offline: true });
 
         // GKM owns endpoints (groupTable) and keySetId (groupKeyMap); any external change to either (e.g. legacy
@@ -510,8 +508,8 @@ export class GroupcastServer extends GroupcastBase {
         this.#deriveNow();
     }
 
-    /** The fabric add/replace events carry no writer context, so this derive emits its aux ACL without an admin. */
-    #handleFabricChanged() {
+    /** The fabric add event carries no writer context, so this derive emits its aux ACL without an admin. */
+    #handleFabricAdded() {
         this.#deriveNow();
     }
 

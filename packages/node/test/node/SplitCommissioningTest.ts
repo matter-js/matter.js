@@ -31,7 +31,7 @@ import {
     Peer,
     SessionParameters,
 } from "@matter/protocol";
-import { NodeId } from "@matter/types";
+import { NodeId, ReceivedStatusResponseError, Status, StatusResponse } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 
 class NonOkCommissioningCompleteServer extends GeneralCommissioningServer {
@@ -44,6 +44,14 @@ class NonOkCommissioningCompleteServer extends GeneralCommissioningServer {
 }
 
 const NonOkCommissioningCompleteRoot = MockServerNode.RootEndpoint.with(NonOkCommissioningCompleteServer);
+
+class RejectingCommissioningCompleteServer extends GeneralCommissioningServer {
+    override async commissioningComplete(): Promise<GeneralCommissioning.CommissioningCompleteResponse> {
+        throw new StatusResponse.FailureError(undefined, 9);
+    }
+}
+
+const RejectingCommissioningCompleteRoot = MockServerNode.RootEndpoint.with(RejectingCommissioningCompleteServer);
 
 /**
  * Reconstruct the CA from the owner's exported config, then import the fabric directly, so
@@ -259,6 +267,62 @@ describe("split commissioning", () => {
         expect(b.peers.size).equals(0);
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).equals(true);
         expect(device.state.commissioning.commissioned).equals(false);
+    });
+
+    it("keeps the device's CommissioningComplete status as the cause of the CommissioningError", async () => {
+        await using site = new MockSite();
+
+        const a = await site.addController({ id: "controllerA", index: 1 });
+        const device = await site.addNode(RejectingCommissioningCompleteRoot, { device: OnOffLightDevice, index: 2 });
+
+        for (const node of [a, device]) {
+            const crypto = node.env.get(Crypto);
+            if ("entropic" in crypto) {
+                crypto.entropic = true;
+            }
+        }
+
+        await a.start();
+
+        const { passcode, discriminator } = device.state.commissioning;
+        let handoff: { nodeId: NodeId; discoveryData?: DiscoveryData } | undefined;
+        await MockTime.resolve(
+            a.peers.commission({
+                passcode,
+                discriminator,
+                timeout: Seconds(90),
+                autoSubscribe: false,
+                autoStateInitialize: false,
+                finalizeCommissioning: async (address, discoveryData) => {
+                    handoff = { nodeId: address.nodeId, discoveryData };
+                },
+            }),
+            { macrotasks: true },
+        );
+        expect(handoff).not.equals(undefined);
+
+        const b = await addControllerSharingFabric(
+            site,
+            "controllerB",
+            3,
+            a.env.get(CertificateAuthority).config,
+            a.env.get(FabricAuthority).fabrics[0].config,
+        );
+
+        let error: unknown;
+        try {
+            await MockTime.resolve(b.peers.completeCommissioning(handoff!.nodeId, handoff!.discoveryData), {
+                macrotasks: true,
+            });
+        } catch (e) {
+            error = e;
+        }
+
+        expect(error).instanceOf(CommissioningError);
+        expect(error).property("message").contains(`status ${Status.Failure}`);
+        const status = ReceivedStatusResponseError.of(error);
+        expect(status?.code).equals(Status.Failure);
+        expect(status?.clusterCode).equals(9);
     });
 
     it("aborts and leaves no node if the fabric cannot be persisted", async () => {

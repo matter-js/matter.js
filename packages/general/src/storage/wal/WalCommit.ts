@@ -33,11 +33,16 @@ export interface WalCommit {
 
 /**
  * 48-bit commit ID: high 32 bits = segment number, low 16 bits = line offset.
+ *
+ * The offset is the line's position in the segment file, counting every line, as `WalReader` reads it.
  */
-export interface WalCommitId {
+export type WalCommitId = {
     segment: number;
     offset: number;
-}
+};
+
+/** Maximum segment number (32-bit). */
+export const MAX_SEGMENT = 0xffffffff;
 
 /** Maximum line offset within a single segment (16-bit). */
 export const MAX_SEGMENT_LINES = 0xffff;
@@ -60,7 +65,8 @@ export function decodeContextKey(key: string): string[] {
  * Serialize a commit to a JSON line for the WAL.
  */
 export function serializeCommit(commit: WalCommit): string {
-    return toJson({ ts: commit.ts, ops: commit.ops } as unknown as SupportedStorageTypes);
+    const value: SupportedStorageTypes = { ts: commit.ts, ops: commit.ops };
+    return toJson(value);
 }
 
 /**
@@ -122,38 +128,6 @@ function validateOp(op: unknown, index: number): void {
         return;
     }
     throw new StorageError(`WAL op[${index}] has unknown op kind \`${String(kind)}\``);
-}
-
-/**
- * Format a segment number as an 8-digit hex filename with `.jsonl` extension.
- */
-export function segmentFilename(segment: number): string {
-    return segment.toString(16).padStart(8, "0") + ".jsonl";
-}
-
-/**
- * Format a segment number as a compressed segment filename.
- */
-export function compressedSegmentFilename(segment: number): string {
-    return segment.toString(16).padStart(8, "0") + ".jsonl.gz";
-}
-
-/**
- * Returns true if the filename is a gzip-compressed segment file.
- */
-export function isCompressedSegmentFile(name: string): boolean {
-    return /^[0-9a-f]{8}\.jsonl\.gz$/i.test(name);
-}
-
-/**
- * Parse a segment number from a filename.  Returns undefined if not a valid segment file.
- */
-export function parseSegmentFilename(name: string): number | undefined {
-    const match = name.match(/^([0-9a-f]{8})\.jsonl(\.gz)?$/i);
-    if (!match) {
-        return undefined;
-    }
-    return parseInt(match[1], 16);
 }
 
 /**

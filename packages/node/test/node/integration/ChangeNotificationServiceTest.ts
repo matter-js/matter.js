@@ -8,9 +8,11 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { Lifecycle } from "@matter/general";
+import { Lifecycle, MatterError } from "@matter/general";
 import { MockServerNode, MockSite } from "@matter/node/testing";
 import type { CommissionableDevice } from "@matter/protocol";
+
+class ObserverFailedError extends MatterError {}
 
 const DEVICE: CommissionableDevice = {
     deviceIdentifier: "device-a",
@@ -78,6 +80,17 @@ describe("ChangeNotificationService", () => {
 
         await restart(light);
         expect(recorded.endpointsOf("readable")).deep.equals([light, light]);
+    });
+
+    it("keeps notifying the other observers when one throws", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+        node.env.get(ChangeNotificationService).change.on(() => {
+            throw new ObserverFailedError("observer failure");
+        });
+        const recorded = record(node);
+
+        const light = await node.add(OnOffLightDevice, { id: "light" });
+        expect(recorded.endpointsOf("readable")).deep.equals([light]);
     });
 
     // Characterization: peers added after the service started were observed before the restored-peer fix as well
@@ -164,6 +177,19 @@ describe("ChangeNotificationService", () => {
         expect(recorded.changes.filter(change => change.kind === "event").map(change => change.event.name)).contains(
             "ShutDown",
         );
+    });
+
+    it("reports the epoch timestamp of a local event as its resolved timestamp", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const recorded = record(node);
+
+        await MockTime.resolve(node.close());
+
+        const shutDown = recorded.changes.find(change => change.kind === "event" && change.event.name === "ShutDown");
+        expect(shutDown?.kind).equals("event");
+        if (shutDown?.kind !== "event") return;
+        expect(shutDown.timestampKind).equals("epoch");
+        expect(shutDown.resolvedTimestamp).equals(shutDown.timestamp);
     });
 
     // Characterization: guards against suppressing deletions outside the node's own destruction

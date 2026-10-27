@@ -4,11 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { isAclOrExtensionPath } from "#action/request/Write.js";
 import { ReadResult } from "#action/response/ReadResult.js";
 import { Mark } from "#common/Mark.js";
 import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import { UnexpectedMessageError } from "#protocol/errors.js";
 import {
+    asError,
     Bytes,
     causedBy,
     Diagnostic,
@@ -22,10 +24,14 @@ import {
 } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
+    AttributeData,
+    AttributePath,
     ReceivedStatusResponseError,
     Status,
     StatusResponseError,
     TlvAny,
+    TlvAttributeData,
+    TlvAttributeStatus,
     TlvBoolean,
     TlvDataReport,
     TlvDataReportForSend,
@@ -42,6 +48,7 @@ import {
     TlvSubscribeRequest,
     TlvSubscribeResponse,
     TlvTimedRequest,
+    TlvType,
     TlvWriteRequest,
     TlvWriteResponse,
     TypeFromSchema,
@@ -60,7 +67,7 @@ import {
     encodeEventPayload,
     EventReportPayload,
 } from "./AttributeDataEncoder.js";
-import { Subscription } from "./Subscription.js";
+import { Subscription, SubscriptionId } from "./Subscription.js";
 
 export enum MessageType {
     StatusResponse = 0x01,
@@ -87,6 +94,57 @@ export type WriteRequest = TypeFromSchema<typeof TlvWriteRequest>;
 export type WriteResponse = TypeFromSchema<typeof TlvWriteResponse>;
 
 const logger = Logger.get("InteractionMessenger");
+
+function isSameAttribute(a: AttributePath, b: AttributePath) {
+    return a.endpointId === b.endpointId && a.clusterId === b.clusterId && a.attributeId === b.attributeId;
+}
+
+/** The largest AttributeStatusIB a peer answers {@link path} with. */
+function maxStatusSizeOf(path: AttributePath) {
+    return TlvAttributeStatus.encode({ path, status: { status: Status.Failure, clusterStatus: Status.Failure } })
+        .byteLength;
+}
+
+function isVersionedListAdd({ path, dataVersion }: AttributeData) {
+    return path.listIndex === null && dataVersion !== undefined;
+}
+
+function lastStatusOf(statuses: NonNullable<WriteResponse["writeResponses"]>, path: AttributePath) {
+    for (let i = statuses.length - 1; i >= 0; i--) {
+        if (isSameAttribute(statuses[i].path, path)) {
+            return statuses[i].status.status;
+        }
+    }
+}
+
+/**
+ * The TLV streams of the top-level entries of an encoded list, or undefined if the stream is not a list.
+ */
+function listEntriesOf(data: TlvStream) {
+    if (data[0]?.typeLength.type !== TlvType.Array) {
+        return;
+    }
+
+    const entries = new Array<TlvStream>();
+    let depth = 0;
+    for (const element of data.slice(1, -1)) {
+        if (depth === 0) {
+            entries.push([]);
+        }
+        entries[entries.length - 1].push(element);
+        switch (element.typeLength.type) {
+            case TlvType.Array:
+            case TlvType.List:
+            case TlvType.Structure:
+                depth++;
+                break;
+            case TlvType.EndOfContainer:
+                depth--;
+                break;
+        }
+    }
+    return entries;
+}
 
 /**
  * Only the SuppressResponse field of an Invoke or Write request.  Reads a request whose other fields break the schema;
@@ -207,9 +265,9 @@ class InteractionMessenger {
         if (messageType !== MessageType.StatusResponse) return;
         const { status } = TlvStatusResponse.decode(payload);
         if (status !== Status.Success)
-            throw new ReceivedStatusResponseError(
-                `Received error status: ${Status[status]}(${status})${logHint ? ` (${logHint})` : ""}`,
+            throw ReceivedStatusResponseError.create(
                 status,
+                `Received error status ${Status[status] ?? "unknown"}${logHint ? ` (${logHint})` : ""}`,
             );
     }
 
@@ -910,7 +968,20 @@ export class InteractionServerMessenger extends InteractionMessenger {
     }
 }
 
+/** The subscription ID of a data report, for logging only; a report that does not decode has none. */
+function subscriptionIdOf(message: Message) {
+    try {
+        return TlvDataReport.decode(message.payload).subscriptionId;
+    } catch (error) {
+        logger.debug("Undecodable data report:", Diagnostic.errorMessage(asError(error)));
+        return undefined;
+    }
+}
+
 export class IncomingInteractionClientMessenger extends InteractionMessenger {
+    #reportAwaitsStatus = false;
+    #subscriptionId?: SubscriptionId;
+
     async waitFor(expectedMessageInfo: string, messageType: number, options?: ExchangeReceiveOptions) {
         const message = await this.anyNextMessage(expectedMessageInfo, options);
         const {
@@ -919,7 +990,10 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
         if (receivedMessageType !== messageType) {
             if (receivedMessageType === MessageType.StatusResponse) {
                 const statusCode = TlvStatusResponse.decode(message.payload).status;
-                throw new ReceivedStatusResponseError(`Received status response ${statusCode}`, statusCode);
+                throw ReceivedStatusResponseError.create(
+                    statusCode,
+                    `Received status response ${Status[statusCode] ?? "unknown"}`,
+                );
             }
             throw new MatterFlowError(
                 `Received unexpected message type ${receivedMessageType.toString(16)}. Expected ${messageType.toString(
@@ -938,10 +1012,17 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
     async *readDataReports(options?: ExchangeReceiveOptions) {
         while (true) {
             const dataReportMessage = await this.waitFor("DataReport", MessageType.ReportData, options);
+            this.#reportAwaitsStatus = true;
+            this.#subscriptionId = undefined;
             const report = TlvDataReport.decode(dataReportMessage.payload);
+            this.#subscriptionId = report.subscriptionId;
+            if (report.suppressResponse && !report.moreChunkedMessages) {
+                this.#reportAwaitsStatus = false;
+            }
 
             yield report;
 
+            this.#reportAwaitsStatus = false;
             if (report.moreChunkedMessages) {
                 await this.sendStatus(Status.Success, {
                     multipleMessageInteraction: true,
@@ -971,6 +1052,33 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
         }
     }
 
+    /** Whether the peer waits for our status on the last data report it sent. */
+    get reportAwaitsStatus() {
+        return this.#reportAwaitsStatus;
+    }
+
+    /** The subscription ID of the last data report, if it had one. */
+    protected get reportSubscriptionId() {
+        return this.#subscriptionId;
+    }
+
+    /**
+     * Answers the peer's data report with INVALID_SUBSCRIPTION, which makes the peer terminate the subscription.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 8.5
+     */
+    async sendInvalidSubscription(
+        subscriptionId?: SubscriptionId,
+        options?: Pick<ExchangeSendOptions, "ackWaitAbort">,
+    ) {
+        this.#reportAwaitsStatus = false;
+        await this.sendStatus(Status.InvalidSubscription, {
+            ...options,
+            multipleMessageInteraction: true,
+            logContext: Subscription.diagnosticOf(subscriptionId),
+        });
+    }
+
     #logContextOf(report: DataReport) {
         return {
             subId: report.subscriptionId === undefined ? undefined : Subscription.idStrOf(report.subscriptionId),
@@ -989,6 +1097,43 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
     static async create(exchangeProvider: ExchangeProvider, options?: NewExchangeOptions) {
         const exchange = await exchangeProvider.initiateExchange(options);
         return new this(exchange);
+    }
+
+    /**
+     * Ends a subscribe interaction the client gave up, or that failed, before the peer confirmed the subscription.
+     *
+     * The peer holds the subscription from the moment it accepts the request, so it must learn that the client no
+     * longer wants it.  Answers the report the peer waits on with INVALID_SUBSCRIPTION.  If there is none and
+     * `awaitReport` is set, waits for the next message until `abort` or the usual response time and answers it if it
+     * is a report.  A SubscribeResponse cannot be answered; the peer then drops the subscription when its next report
+     * is refused.
+     *
+     * `abort` never suppresses an owed answer: an abort that fired before the first transmission still sends it, once,
+     * without retransmission, and a later abort stops the waits for its ack and retransmissions.  Never throws.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 8.5
+     */
+    async abandonSubscription({ awaitReport, abort }: { awaitReport: boolean; abort?: AbortSignal }) {
+        try {
+            let subscriptionId = this.reportSubscriptionId;
+            if (!this.reportAwaitsStatus) {
+                if (!awaitReport) {
+                    return;
+                }
+                const message = await this.anyNextMessage("DataReport", { abort, suppressPeerLoss: true });
+                if (message.payloadHeader.messageType !== MessageType.ReportData) {
+                    return;
+                }
+                subscriptionId = subscriptionIdOf(message);
+            }
+            await this.sendInvalidSubscription(subscriptionId, { ackWaitAbort: abort });
+        } catch (error) {
+            logger.debug(
+                this.exchange.via,
+                "Abandoned subscription not terminated on the peer:",
+                Diagnostic.errorMessage(asError(error)),
+            );
+        }
     }
 
     async sendReadRequest(readRequest: ReadRequest, options?: ExchangeSendOptions) {
@@ -1107,18 +1252,189 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         return finalResponse;
     }
 
-    async sendWriteCommand(writeRequest: WriteRequest, options?: ExchangeSendOptions) {
+    /**
+     * Send a write and return the WriteResponse, or undefined if suppressResponse.
+     *
+     * A write that does not fit one message is sent as several chunked WriteRequestMessages in this exchange.  Each
+     * chunk waits for its WriteResponse before the next is sent; the returned response carries the statuses of all
+     * chunks.
+     *
+     * A list write whose ADDs carry a DataVersion sends its REPLACE as the last AttributeDataIB of a chunk.  Once the
+     * REPLACE succeeded, the ADDs are sent without DataVersion: the REPLACE changed the data version, so the held one
+     * can no longer match.  If the REPLACE failed, the ADDs keep it, so a version mismatch rejects them too.  A timed or
+     * suppressResponse write that fits one message is not chunked for this, as such a write cannot be chunked.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 10.7.6.2
+     */
+    async sendWriteCommand(
+        writeRequest: WriteRequest,
+        options?: ExchangeSendOptions,
+    ): Promise<WriteResponse | undefined> {
+        const chunks = this.#chunkWriteRequest(writeRequest);
+
         if (writeRequest.suppressResponse) {
             await this.requestWithSuppressedResponse(MessageType.WriteRequest, TlvWriteRequest, writeRequest, options);
-        } else {
-            return await this.request(
+            return;
+        }
+
+        const writeResponses = new Array<WriteResponse["writeResponses"][number]>();
+        const replacedLists = new Array<AttributePath>();
+        let response: WriteResponse | undefined;
+        for (const chunk of chunks) {
+            const writeRequests = chunk.writeRequests.map(attributeData =>
+                attributeData.path.listIndex === null &&
+                attributeData.dataVersion !== undefined &&
+                replacedLists.some(path => isSameAttribute(path, attributeData.path))
+                    ? { ...attributeData, dataVersion: undefined }
+                    : attributeData,
+            );
+            response = await this.request(
                 MessageType.WriteRequest,
                 TlvWriteRequest,
                 MessageType.WriteResponse,
                 TlvWriteResponse,
-                writeRequest,
+                { ...chunk, writeRequests },
+                options,
+            );
+            const statuses = response.writeResponses ?? [];
+            writeResponses.push(...statuses);
+
+            for (const { path, dataVersion } of chunk.writeRequests) {
+                if (path.listIndex !== undefined || dataVersion === undefined) {
+                    continue;
+                }
+                const replaced = replacedLists.findIndex(replacedPath => isSameAttribute(replacedPath, path));
+                if (replaced !== -1) {
+                    replacedLists.splice(replaced, 1);
+                }
+                // A versioned REPLACE followed by ADDs ends its chunk, so its status is the last for this attribute
+                if (lastStatusOf(statuses, path) === Status.Success) {
+                    replacedLists.push(path);
+                }
+            }
+        }
+        return { ...response, writeResponses };
+    }
+
+    /**
+     * Split a write into WriteRequestMessages that each fit {@link MessageExchange.maxPayloadSize}, and whose
+     * WriteResponse fits it too, counting the largest status for each path.  A WriteResponse cannot be chunked, so a
+     * peer cannot send a status list larger than one message.  A wildcard path counts as one status although the
+     * peer answers it with one per matching endpoint, which the client cannot know.
+     *
+     * AttributeDataIBs keep their order, so the ADDs of a chunked list still follow its REPLACE.  A whole-list IB too
+     * large for one message is sent as a REPLACE followed by an ADD per remaining entry.  The REPLACE of the ACL or its
+     * Extension carries as many leading entries as fit, so the ACL is never emptied in between; for any other list it
+     * is empty.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 10.6.4.3.1
+     */
+    #chunkWriteRequest(writeRequest: WriteRequest): WriteRequest[] {
+        const { maxPayloadSize } = this.exchange;
+        const { writeRequests, timedRequest, suppressResponse } = writeRequest;
+        const availableForStatuses = suppressResponse
+            ? Infinity
+            : maxPayloadSize -
+              TlvWriteResponse.encode({
+                  writeResponses: [],
+                  interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+              }).byteLength;
+
+        const encodedSize = TlvWriteRequest.encode(writeRequest).byteLength;
+        const statusesSize = suppressResponse
+            ? 0
+            : writeRequests.reduce((size, { path }) => size + maxStatusSizeOf(path), 0);
+        if (encodedSize <= maxPayloadSize && statusesSize <= availableForStatuses) {
+            if (timedRequest || suppressResponse || !writeRequests.some(isVersionedListAdd)) {
+                return [writeRequest];
+            }
+        } else if (timedRequest || suppressResponse) {
+            throw new MatterFlowError(
+                `Write of ${encodedSize} bytes with statuses of up to ${statusesSize} bytes exceeds the maximum message size of ${maxPayloadSize} bytes and cannot be chunked because it is ${timedRequest ? "timed" : "sent with suppressResponse"}`,
             );
         }
+
+        const available =
+            maxPayloadSize -
+            TlvWriteRequest.encode({ ...writeRequest, writeRequests: [], moreChunkedMessages: true }).byteLength;
+        const chunks = new Array<WriteRequest>();
+        let current = new Array<AttributeData>();
+        let used = 0;
+        let usedForStatuses = 0;
+
+        const flush = () => {
+            if (current.length) {
+                chunks.push({ ...writeRequest, writeRequests: current, moreChunkedMessages: true });
+                current = [];
+                used = 0;
+                usedForStatuses = 0;
+            }
+        };
+
+        const add = (attributeData: AttributeData) => {
+            const size = TlvAttributeData.encode(attributeData).byteLength;
+            const statusSize = maxStatusSizeOf(attributeData.path);
+            const previous = current[current.length - 1];
+            if (
+                used + size > available ||
+                usedForStatuses + statusSize > availableForStatuses ||
+                (isVersionedListAdd(attributeData) &&
+                    previous !== undefined &&
+                    previous.path.listIndex === undefined &&
+                    isSameAttribute(previous.path, attributeData.path))
+            ) {
+                flush();
+            }
+            if (size > available) {
+                throw new MatterFlowError(
+                    `Write data for ${Diagnostic.json(attributeData.path)} has ${size} bytes and does not fit a single message of ${maxPayloadSize} bytes`,
+                );
+            }
+            current.push(attributeData);
+            used += size;
+            usedForStatuses += statusSize;
+        };
+
+        for (const attributeData of writeRequest.writeRequests) {
+            const { path, data } = attributeData;
+            const entries =
+                path.listIndex === undefined && TlvAttributeData.encode(attributeData).byteLength > available
+                    ? listEntriesOf(data)
+                    : undefined;
+            if (entries === undefined) {
+                add(attributeData);
+                continue;
+            }
+            if (path.endpointId === undefined || path.clusterId === undefined || path.attributeId === undefined) {
+                throw new MatterFlowError(
+                    `Write of the list at wildcard path ${Diagnostic.json(path)} does not fit a single message and cannot be chunked, because list ADDs need a concrete path`,
+                );
+            }
+
+            const [start, ...rest] = data;
+            const end = rest[rest.length - 1];
+            const replaceAll = (count: number): AttributeData => ({
+                ...attributeData,
+                data: [start, ...entries.slice(0, count).flat(), end],
+            });
+            let count = 0;
+            if (isAclOrExtensionPath(path)) {
+                while (
+                    count < entries.length &&
+                    TlvAttributeData.encode(replaceAll(count + 1)).byteLength <= available
+                ) {
+                    count++;
+                }
+            }
+            add(replaceAll(count));
+            for (const entry of entries.slice(count)) {
+                add({ ...attributeData, path: { ...path, listIndex: null }, data: entry });
+            }
+        }
+
+        flush();
+        chunks[chunks.length - 1].moreChunkedMessages = false;
+        return chunks;
     }
 
     sendTimedRequest(timeout: Duration, options?: ExchangeSendOptions) {

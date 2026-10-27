@@ -21,6 +21,7 @@ import {
     MaybePromise,
     Observable,
     Observer,
+    ObserverGroup,
     StorageContext,
     StorageManager,
 } from "@matter/general";
@@ -37,6 +38,7 @@ export class FabricManager {
     #crypto: Crypto;
     #nextFabricIndex = 1;
     readonly #fabrics = new BasicSet<Fabric>();
+    readonly #fabricObservers = new Map<Fabric, ObserverGroup>();
     #initializationDone = false;
     #storage?: StorageContext;
     #events = {
@@ -93,6 +95,7 @@ export class FabricManager {
         await this.#construction.close();
         // Release fabric-scoped in-memory resources (ICD wakefulness timers) so they do not delay shutdown.
         for (const fabric of this.#fabrics) {
+            this.#detach(fabric);
             fabric[Symbol.dispose]();
         }
     }
@@ -110,6 +113,10 @@ export class FabricManager {
     async clear() {
         await this.#construction;
         this.#nextFabricIndex = 1;
+        for (const fabric of this.#fabrics) {
+            this.#detach(fabric);
+            fabric[Symbol.dispose]();
+        }
         this.#fabrics.clear();
         await this.#storage?.clearAll();
     }
@@ -214,14 +221,17 @@ export class FabricManager {
     #addOrUpdateFabricEntry(fabric: Fabric) {
         const existing = this.#fabrics.get("fabricIndex", fabric.fabricIndex);
         if (existing) {
+            this.#detach(existing);
             this.#fabrics.delete(existing);
         }
 
         this.#fabrics.add(fabric);
 
-        fabric.leaving.on(() => this.events.leaving.emit(fabric));
-        fabric.deleting.on(() => this.events.deleting.emit(fabric));
-        fabric.deleted.on(() => this.#handleFabricDeleted(fabric));
+        const observers = new ObserverGroup();
+        observers.on(fabric.leaving, () => this.events.leaving.emit(fabric));
+        observers.on(fabric.deleting, () => this.events.deleting.emit(fabric));
+        observers.on(fabric.deleted, () => this.#handleFabricDeleted(fabric));
+        this.#fabricObservers.set(fabric, observers);
 
         fabric.persistCallback = (isUpdate = true) => {
             if (!this.#storage) {
@@ -242,9 +252,18 @@ export class FabricManager {
         }
     }
 
+    /** Stop forwarding the events of a fabric object that left the table. */
+    #detach(fabric: Fabric) {
+        this.#fabricObservers.get(fabric)?.close();
+        this.#fabricObservers.delete(fabric);
+        fabric.persistCallback = undefined;
+    }
+
     async #handleFabricDeleted(fabric: Fabric) {
         await this.#construction;
 
+        this.#detach(fabric);
+        fabric[Symbol.dispose]();
         this.#fabrics.delete(fabric);
         if (this.#storage) {
             await this.persistFabrics();
@@ -354,6 +373,11 @@ export class FabricManager {
         );
     }
 
+    /**
+     * Replace a fabric by a new object for the same fabric under new operational credentials, as UpdateNOC and NOC
+     * rotation produce.  The new object shares the groups, access control and ICD state of the replaced one, so these
+     * stay intact and in effect throughout.
+     */
     async replaceFabric(fabric: Fabric) {
         await this.#construction;
 
@@ -368,7 +392,7 @@ export class FabricManager {
             // Nothing changed, so it is a restore without any change
             return;
         }
-
+        fabric.takeOverRuntimeStateOf(existingFabric);
         this.#addOrUpdateFabricEntry(fabric);
 
         if (this.#storage) {

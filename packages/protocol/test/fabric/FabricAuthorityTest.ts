@@ -6,12 +6,35 @@
 
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { Noc } from "#certificate/kinds/Noc.js";
+import { FabricBuilder } from "#fabric/Fabric.js";
 import { FabricAuthority } from "#fabric/FabricAuthority.js";
 import { FabricManager } from "#fabric/FabricManager.js";
-import { Bytes, ImplementationError, MemoryStorageDriver, StandardCrypto, StorageManager } from "@matter/general";
-import { CaseAuthenticatedTag, FabricId, NodeId, VendorId } from "@matter/types";
+import {
+    Bytes,
+    CertificateError,
+    createPromise,
+    ImplementationError,
+    MemoryStorageDriver,
+    StandardCrypto,
+    StorageError,
+    StorageManager,
+    SupportedStorageTypes,
+} from "@matter/general";
+import { CaseAuthenticatedTag, FabricId, GroupId, NodeId, VendorId } from "@matter/types";
+import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 
 const crypto = new StandardCrypto();
+
+async function createAuthority(driver: MemoryStorageDriver) {
+    const storageManager = new StorageManager(driver);
+    await storageManager.initialize();
+    const fabrics = new FabricManager(crypto, storageManager.createContext("fabrics"));
+    await fabrics.construction.ready;
+    const ca = await CertificateAuthority.create(crypto, storageManager.createContext("ca"));
+    const authority = new FabricAuthority({ ca, fabrics });
+    await authority.construction;
+    return { authority, fabrics };
+}
 
 describe("FabricAuthority", () => {
     let storage: MemoryStorageDriver;
@@ -42,6 +65,64 @@ describe("FabricAuthority", () => {
             await expect(
                 authority.createFabric({ adminFabricLabel: "test-fabric", adminVendorId: VendorId(0xfff5, false) }),
             ).rejectedWith(ImplementationError, /Admin vendor ID 0xfff5 is reserved/);
+        });
+
+        it("completes once the fabric list is persisted and reports the fabric only as added", async () => {
+            const writing = createPromise<void>();
+            const release = createPromise<void>();
+            class GatedDriver extends MemoryStorageDriver {
+                override set(
+                    contexts: string[],
+                    keyOrValues: string | Record<string, SupportedStorageTypes>,
+                    value?: SupportedStorageTypes,
+                ) {
+                    if (contexts.includes("fabrics")) {
+                        writing.resolver();
+                        return release.promise.then(() => super.set(contexts, keyOrValues, value));
+                    }
+                    return super.set(contexts, keyOrValues, value);
+                }
+            }
+            const { authority, fabrics } = await createAuthority(new GatedDriver());
+
+            const events = new Array<string>();
+            fabrics.events.added.on(fabric => void events.push(`added ${fabric.fabricIndex}`));
+            fabrics.events.replaced.on(fabric => void events.push(`replaced ${fabric.fabricIndex}`));
+
+            let completed = false;
+            const created = authority.createFabric({ adminFabricLabel: "test-fabric" }).then(fabric => {
+                completed = true;
+                return fabric;
+            });
+            await writing.promise;
+            await MockTime.yield3();
+            expect(completed).false;
+
+            release.resolver();
+            const fabric = await created;
+
+            expect(events).deep.equals([`added ${fabric.fabricIndex}`]);
+        });
+
+        it("rejects when the fabric list cannot be persisted", async () => {
+            class FailingDriver extends MemoryStorageDriver {
+                override set(
+                    contexts: string[],
+                    keyOrValues: string | Record<string, SupportedStorageTypes>,
+                    value?: SupportedStorageTypes,
+                ) {
+                    if (contexts.includes("fabrics")) {
+                        return Promise.reject(new StorageError("Disk full"));
+                    }
+                    return super.set(contexts, keyOrValues, value);
+                }
+            }
+            const { authority } = await createAuthority(new FailingDriver());
+
+            await expect(authority.createFabric({ adminFabricLabel: "test-fabric" })).rejectedWith(
+                StorageError,
+                "Disk full",
+            );
         });
     });
 
@@ -79,6 +160,48 @@ describe("FabricAuthority", () => {
 
             // Verify root node ID is preserved
             expect(rotatedFabric.rootNodeId).to.equal(initialFabric.rootNodeId);
+        });
+
+        it("rotated fabric sends to a group at once with the keys of the previous fabric", async () => {
+            const config = { adminFabricLabel: "test-fabric", adminFabricId: FabricId(1n) };
+            const initialFabric = await authority.createFabric(config);
+            await initialFabric.groups.setFromGroupKeySet({
+                groupKeySetId: 0x1a1,
+                groupKeySecurityPolicy: GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst,
+                epochKey0: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
+                epochStartTime0: 1n,
+                epochKey1: null,
+                epochStartTime1: null,
+                epochKey2: null,
+                epochStartTime2: null,
+            });
+            initialFabric.groups.groupKeyIdMap.set(GroupId(7), 0x1a1);
+            const { key, sessionId } = initialFabric.groups.currentKeyForGroup(GroupId(7));
+
+            const rotatedFabric = await authority.defaultFabric(config, true);
+
+            expect(rotatedFabric).not.equals(initialFabric);
+            const current = rotatedFabric.groups.currentKeyForGroup(GroupId(7));
+            expect(Bytes.areEqual(current.key, key)).true;
+            expect(current.sessionId).equals(sessionId);
+        });
+
+        it("rotated fabric keeps receiving Check-Ins of the ICD peers of the previous fabric", async () => {
+            const config = { adminFabricLabel: "test-fabric", adminFabricId: FabricId(1n) };
+            const initialFabric = await authority.createFabric(config);
+            const peer = {
+                peerNodeId: NodeId(0x55n),
+                key: Bytes.fromHex("00112233445566778899aabbccddeeff"),
+                counterStart: 0,
+                lastOffset: 0,
+            };
+            initialFabric.icd.addPeer(peer, () => {});
+
+            const rotatedFabric = await authority.defaultFabric(config, true);
+
+            expect(rotatedFabric).not.equals(initialFabric);
+            expect(rotatedFabric.icdActive).true;
+            expect(rotatedFabric.icd.peerFor(peer.peerNodeId)?.peerNodeId).equals(peer.peerNodeId);
         });
 
         it("rotation occurs exactly once per runtime per fabric", async () => {
@@ -324,6 +447,24 @@ describe("FabricAuthority", () => {
 
             const createdFabric = await authority.createFabric(config);
             expect(emittedFabric).to.equal(createdFabric);
+        });
+    });
+
+    describe("FabricBuilder.updateOperationalCert", () => {
+        it("refuses a NOC for another fabric ID and takes over nothing", async () => {
+            const fabric = await authority.createFabric({
+                adminFabricLabel: "test-fabric",
+                adminFabricId: FabricId(1n),
+            });
+            const builder = await FabricBuilder.create(crypto);
+            const noc = await ca.generateNoc(builder.publicKey, FabricId(2n), fabric.nodeId);
+
+            await expect(builder.updateOperationalCert(fabric, noc, fabric.intermediateCACert)).rejectedWith(
+                CertificateError,
+                /fabric ID 2/,
+            );
+            expect(builder.rootCert).undefined;
+            expect(builder.fabricId).undefined;
         });
     });
 });

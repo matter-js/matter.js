@@ -28,6 +28,7 @@ import {
     Network,
     NetworkSimulator,
     StorageService,
+    nextEmitOf,
 } from "@matter/general";
 import { AccessLevel, MatterModel } from "@matter/model";
 import { ExchangeManager, FabricManager, ProtocolMocks, SessionManager, TestFabric } from "@matter/protocol";
@@ -247,7 +248,7 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
         };
 
         if (!node.lifecycle.isOnline) {
-            await node.lifecycle.online;
+            await nextEmitOf(node.lifecycle.online);
         }
 
         return node;
@@ -294,10 +295,9 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
      * Installs a test fabric in the node's fabric manager and returns it once the node has reported the change.
      */
     async addFabric() {
+        const installed = nextEmitOf(this.events.commissioning.fabricsChanged);
         const fabric = await TestFabric({ fabrics: this.env.get(FabricManager) });
-
-        // Wait for fabric install
-        await this.events.commissioning.fabricsChanged;
+        await installed;
 
         return fabric;
     }

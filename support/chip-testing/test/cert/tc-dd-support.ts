@@ -12,6 +12,7 @@ import {
     ImplementationError,
     InternalError,
     Millis,
+    NoDiscoveryTransportError,
     Seconds,
     Time,
     Verhoeff,
@@ -22,12 +23,14 @@ import type {
     CertStepContext,
     CheckRecord,
     CommissioningTarget,
+    ControllerAdapter,
+    ControllerCapability,
     LogFollower,
     OnboardingPayloadFields,
 } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
-import { flavorFamily, forFlavor, resolveControllerImplementation } from "@matter/testing";
-import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
+import { controllerCapabilityGap, flavorFamily, forFlavor, UnsupportedByControllerError } from "@matter/testing";
+import { ControllerCommandError } from "../../src/cert/controller-command-error.js";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import {
@@ -76,8 +79,8 @@ export const COMMISSIONING_LOG_TIMEOUT = Seconds(30);
 export const MDNS_TIMEOUT = Seconds(30);
 
 /**
- * Bounds a "the DUT must refuse this" commissioning attempt. Both controllers read the payload
- * before they touch the network, so a refusal lands in milliseconds; the budget is what keeps a
+ * Bounds a "the DUT must refuse this" commissioning attempt. Every controller adapter reads the payload
+ * before it touches the network, so a refusal lands in milliseconds; the budget is what keeps a
  * controller that instead went looking for the commissionee from hanging the step.
  */
 export const REFUSAL_TIMEOUT = Seconds(15);
@@ -115,6 +118,61 @@ const COMMISSIONING_COMPLETE = /Commissioning completed successfully/;
 
 /** A device announcing it completed a commissioning, in whichever form its implementation prints. */
 export const COMMISSIONED = { chip: COMMISSIONING_COMPLETE, matterjs: MATTERJS_COMMISSIONED_FABRIC };
+
+/**
+ * Has `controller` commission `device` from `target`, and adds two checks to `checks`: the controller's own result,
+ * naming the node it assigned, and the device's own line saying a commissioning completed. Returns the node ref.
+ *
+ * Where the controller fails, its failure is the only check added and this throws a {@link CertCheckFailedError}
+ * whose `cause` is the controller's error. The step has failed at that point, so waiting out the device's completion
+ * line would only delay the report.
+ */
+export async function commissionChecked(
+    controller: ControllerAdapter,
+    target: CommissioningTarget,
+    device: CertDevice,
+    what: string,
+    checks: RecordedCheck[],
+): Promise<CertNodeRef> {
+    // Settled, because the completion pattern does not tell one commissioning from another: a line still in flight
+    // from an earlier commissioning would otherwise satisfy this one
+    const from = await device.log.markSettled();
+    const commissioned = await attempt(
+        () => controller.commission(target),
+        ref => `${what}: commissioned as node ${ref}`,
+    );
+    if (!commissioned.ok) {
+        const detail = `${what} failed: ${commissioned.check.detail}`;
+        checks.push({ what, check: () => ({ ...commissioned.check, detail }) });
+        throw new CertCheckFailedError(detail, { cause: commissioned.error });
+    }
+    checks.push({ what, check: () => commissioned.check });
+
+    const logged = await expectDeviceLog(device.log, device.flavor, COMMISSIONED, from, COMMISSIONING_LOG_TIMEOUT);
+    checks.push({ what: `${device.id} logged the commissioning completing`, check: () => logged.check });
+
+    return commissioned.value;
+}
+
+/**
+ * A precondition step for a case that needs nothing on the TH but the DUT's fabric: the DUT commissions the TH through
+ * {@link commissionChecked}, and `commissioned` holds the node for the DUT role, so the case's finalizer removes the
+ * fabric again.
+ */
+export function commissionThStep(commissioned: CommissionedRefs): (cx: CertStepContext) => Promise<void> {
+    return cx =>
+        withChecks(cx, async checks => {
+            const th = theTh(cx);
+            const ref = await commissionChecked(
+                cx.controllers.dut,
+                { passcode: th.commissioning.passcode, discriminator: th.commissioning.discriminator },
+                th,
+                "DUT commissions TH",
+                checks,
+            );
+            commissioned.set("dut", ref);
+        });
+}
 
 /**
  * Records that `th` did **not** complete a commissioning since `from`, which is how a plan's "only
@@ -173,9 +231,29 @@ const ADVERTISING_COMMISSIONABLE = {
 };
 
 /**
+ * The device deciding at start what to advertise, whichever way it decides. chip prints its line in
+ * `DnssdServer::StartServer` on every platform, also when the decision waits for the platform's mDNS to come up;
+ * matter.js prints one line for a disabled commissioning window and another when it publishes.
+ */
+const ADVERTISING_DECIDED = {
+    chip: /Updating services using commissioning mode \d/,
+    matterjs:
+        /does not advertise as commissionable: commissioning is disabled|MdnsAdvertisement Publishing kind: commissionable/,
+};
+
+/**
+ * The device advertising in commissioning mode. chip's mode 0 is no window, which includes extended discovery.
+ * Unlike {@link ADVERTISING_COMMISSIONABLE}, chip's line here is not printed from the platform's publish callback,
+ * which the Darwin build does not reliably print at boot.
+ */
+const COMMISSIONING_MODE_ADVERTISEMENT = {
+    chip: /Updating services using commissioning mode [12]\b/,
+    matterjs: /MdnsAdvertisement Publishing kind: commissionable/,
+};
+
+/**
  * The onboarding payload the TH publishes for its own setup code. A subject that renders one reports
- * it directly; a chip app only prints it, and the first of the two it prints is the standard
- * commissioning flow's.
+ * it directly; a chip app only prints it, twice, and both carry the flow it was started with.
  *
  * `from` is the log cursor to read it at, and a step after a device restart must supply one: the
  * default reads the whole log and so returns the payload the *previous* generation printed.
@@ -234,6 +312,9 @@ export async function recordParse(
     try {
         parsed = await cx.controllers.dut.parseQrPayload(payload);
     } catch (e) {
+        if (e instanceof UnsupportedByControllerError) {
+            throw e;
+        }
         cx.recorder.check({ type: "response", verdict: "fail", detail: `DUT could not parse the payload: ${e}` });
         throw e;
     }
@@ -640,6 +721,9 @@ export function recordGeneratedPayload(
     record(cx, checkGeneratedPayload(payload, expected), what);
 }
 
+/** What a step that reads a code through the DUT needs of it: {@link recordParse}, {@link recordManualParse}. */
+export const PARSES_PAYLOAD: readonly ControllerCapability[] = ["onboarding-payload-parse"];
+
 /**
  * The commissioning attempts a TC has told the DUT to refuse.
  *
@@ -755,7 +839,7 @@ export class CommissioningRefusals {
         await probeCommissionable(cx);
 
         const dut = cx.controllers.dut;
-        const chipTool = resolveControllerImplementation() === "chip-tool";
+        const chipTool = cx.controllerSelection.dut === "chip-tool";
         const from = chipTool ? await dut.log.markSettled() : 0;
 
         const label = `commissioning from ${describeTarget(target)}`;
@@ -882,7 +966,8 @@ function absentDiscriminator(cx: CertStepContext, payload: string): number {
  *   {@link CommissioningRefusals.requireGiveUp}'s, which the manual-code plans use directly.
  *
  * The claim is about the commissioner rather than about any one step, so a test case establishes it
- * once, in a precondition step of its own that no PICS gate can skip.
+ * once, before its first commissioning and where no PICS gate can skip it. It needs the TH to advertise,
+ * so a case whose TH starts without a commissioning window runs it after opening one.
  */
 export async function recordDiscriminatorHonored(
     cx: CertStepContext,
@@ -919,7 +1004,7 @@ function describeTarget(target: CommissioningTarget): string {
 
 /**
  * Whether `error` is a controller refusing the onboarding payload rather than failing for some other
- * reason. Both adapters mark that refusal where it happens, because neither controller's own error
+ * reason. Every adapter marks that refusal where it happens, because no controller's own error
  * types distinguish it: chip-tool funnels discovery, PASE, attestation and command timeouts into one
  * command error, and matter.js raises `UnexpectedDataError` from the commissioning flow as well (an
  * invalid CSR response, for one). Either would let a commissioner that took a forbidden code and only
@@ -983,10 +1068,10 @@ export async function thCodeParts(
     cx: CertStepContext,
 ): Promise<ManualPairingCodeParts & { vendorId: number; productId: number }> {
     const th = theTh(cx);
-    const { vendorId, productId } = await cx.controllers.dut.parseQrPayload(await thQrPayload(th));
-    if (vendorId === undefined || productId === undefined) {
-        // parseQrPayload reports § 2.5.2/§ 2.5.3's "unspecified" as absent, and Table 64's 21-digit
-        // form has nowhere to put an absent one — a TH publishing neither cannot host these plans
+    const { vendorId, productId } = qrPayloadFields(await thQrPayload(th));
+    if (vendorId === 0 || productId === 0) {
+        // § 2.5.2/§ 2.5.3 write "unspecified" as 0, and Table 64's 21-digit form has nowhere to put an
+        // unspecified one — a TH publishing neither cannot host these plans
         throw new InternalError(
             `The TH's onboarding payload names vendor ${vendorId} and product ${productId}; a 21-digit ` +
                 "manual pairing code carries both",
@@ -1013,6 +1098,9 @@ export async function recordManualParse(cx: CertStepContext, code: string, th = 
     try {
         parsed = await cx.controllers.dut.parseManualPairingCode(code);
     } catch (e) {
+        if (e instanceof UnsupportedByControllerError) {
+            throw e;
+        }
         cx.recorder.check({ type: "response", verdict: "fail", detail: `DUT could not parse ${code}: ${e}` });
         throw e;
     }
@@ -1066,6 +1154,73 @@ export async function recordCommissionable(
     record(cx, await expectMdns(th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT }), what);
 }
 
+/**
+ * Records that `th` has not advertised in commissioning mode since it started, as a TH started with a
+ * user-intent flow does until {@link recordUserIntentCommissioningStart}.
+ *
+ * The device's own log is the witness, not mDNS: the scanner's cache is shared by the whole run, and every
+ * primary TH uses the same discriminator, so a record an earlier TH published can still be cached. The log is
+ * read once the device has logged its decision at start. That the pattern matches this device's log at all is
+ * shown where the case later opens the window.
+ */
+export async function recordNotCommissionable(cx: CertStepContext, th = theTh(cx)): Promise<void> {
+    record(
+        cx,
+        (await expectDeviceLog(th.log, th.flavor, ADVERTISING_DECIDED, 0, COMMISSIONING_LOG_TIMEOUT)).check,
+        `${th.id} decided at start what to advertise`,
+    );
+    await th.log.settled();
+    record(cx, noCommissioningModeAdvertisement(th), `${th.id} has not advertised in commissioning mode`);
+}
+
+/** Skips synthetic lines: the step banners and reports the harness writes into every device's log. */
+function noCommissioningModeAdvertisement(th: Pick<CertDevice, "flavor" | "log">): CheckRecord {
+    const family = flavorFamily(th.flavor);
+    if (family === undefined) {
+        return { type: "device-log", verdict: "unverified", detail: `no advertisement pattern for ${th.flavor}` };
+    }
+
+    const pattern = COMMISSIONING_MODE_ADVERTISEMENT[family];
+    const lines = th.log.lines.filter(line => !line.synthetic);
+    const line = lines.find(line => pattern.test(line.text));
+    if (line !== undefined) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            pattern: pattern.source,
+            matched: line.text,
+            logLine: line.index,
+        };
+    }
+    return {
+        type: "device-log",
+        verdict: "pass",
+        pattern: pattern.source,
+        detail: `none of ${lines.length} device lines matches`,
+    };
+}
+
+/**
+ * The user action a user-intent flow waits for: sends `userIntentCommissioningStart` to `th`, then records the
+ * device deciding to advertise in commissioning mode, which is the line {@link recordNotCommissionable} looks for,
+ * and the advertisement going out.
+ */
+export async function recordUserIntentCommissioningStart(cx: CertStepContext, th = theTh(cx)): Promise<void> {
+    const since = await markTransition(cx, th);
+    await th.backchannel({ name: "userIntentCommissioningStart" });
+    record(
+        cx,
+        (await expectDeviceLog(th.log, th.flavor, COMMISSIONING_MODE_ADVERTISEMENT, since, COMMISSIONING_LOG_TIMEOUT))
+            .check,
+        `${th.id} decided to advertise in commissioning mode after the user action`,
+    );
+    record(
+        cx,
+        (await expectDeviceLog(th.log, th.flavor, ADVERTISING_COMMISSIONABLE, since, COMMISSIONING_LOG_TIMEOUT)).check,
+        `${th.id} published its commissionable advertisement`,
+    );
+}
+
 const CHIP_TOOL_DISCOVERY_TIMED_OUT = /\[CTL\] Discovery timed out/;
 const CHIP_TOOL_PASE_ATTEMPT = /Attempting PASE connection/;
 
@@ -1098,26 +1253,31 @@ export async function chipToolDiscoveryGaveUp(log: LogFollower, from: number): P
  * Whether `error` is a commissioner giving up on a code it read successfully, which is what the
  * negative vendor and product plans mean by "the DUT terminates the commissioning process".
  *
- * The two controllers say it differently. In-process, a code no advertisement satisfies ends as a
+ * The controllers say it differently. In-process, a code no advertisement satisfies ends as a
  * {@link DiscoveryError}, or as a {@link DiscoveryAggregateError} where a candidate was tried and
  * failed — a manual code carries only the discriminator's 4 most significant bits, so one device in
  * sixteen on the network is a candidate the scanner hands on. chip-tool's output cannot separate one
- * command failure from another, so its give-up arrives as a {@link ChipToolCommandError}; on those legs
+ * command failure from another, so its give-up arrives as a {@link ControllerCommandError}; on those legs
  * chip-tool's own log has to show the give-up ({@link chipToolDiscoveryGaveUp}), and the probe the
- * caller makes first excludes a TH that was not there.
+ * caller makes first excludes a TH that was not there. The matterjs-server adapter reports the server's
+ * `not-discovered` reason as a {@link DiscoveryError}, and any other failure as its own type; it bounds the
+ * give-up with `discovery_timeout_s`.
  *
  * An {@link OnboardingPayloadRefusedError} is the opposite outcome — the controller rejected the code
  * before it looked for anything, and these steps generate a well-formed one. It is not a subclass of
  * either accepted error today, and the guard is what keeps that true if it becomes one.
+ *
+ * A {@link NoDiscoveryTransportError} is a {@link DiscoveryError}, but it means the controller had no
+ * scanner and never looked, so it is not a give-up either.
  */
 export function isCommissioningGiveUp(error: unknown): boolean {
-    if (error instanceof OnboardingPayloadRefusedError) {
+    if (error instanceof OnboardingPayloadRefusedError || error instanceof NoDiscoveryTransportError) {
         return false;
     }
     return (
         error instanceof DiscoveryError ||
         error instanceof DiscoveryAggregateError ||
-        error instanceof ChipToolCommandError
+        error instanceof ControllerCommandError
     );
 }
 
@@ -1126,7 +1286,7 @@ export function isCommissioningGiveUp(error: unknown): boolean {
  * and the plan accepts either outcome: terminating commissioning, or onboarding anyway with the user
  * aware of the risk.
  *
- * The two controllers genuinely differ. chip-tool matches a code's vendor and product id against the
+ * The controllers genuinely differ. chip-tool matches a code's vendor and product id against the
  * device it discovered (`SetUpCodePairer::NodeMatchesCurrentFilter`) and finds nothing; matter.js
  * filters its own discovery on the ids the code carries and finds nothing either. A fabric that
  * results is handed to `commissioned`, and the next attempt's restore takes it off the TH again.
@@ -1432,45 +1592,20 @@ async function commissionByTarget(
     await restoreCommissioningMode(cx, commissioned, undefined, subject);
 
     // A commissioner that ignored the code and onboarded whatever it could find writes the same
-    // completion line as one that read it, so the code has to be evidence in its own right
-    if (target.qrPairingCode !== undefined) {
-        await recordParse(cx, target.qrPairingCode, { th });
-    } else if (target.manualPairingCode !== undefined) {
-        await recordManualParse(cx, target.manualPairingCode, th);
+    // completion line as one that read it, so the code has to be evidence in its own right where the
+    // DUT can say what it read
+    if (controllerCapabilityGap(PARSES_PAYLOAD, ["dut"], cx.controllerSelection) === undefined) {
+        if (target.qrPairingCode !== undefined) {
+            await recordParse(cx, target.qrPairingCode, { th });
+        } else if (target.manualPairingCode !== undefined) {
+            await recordManualParse(cx, target.manualPairingCode, th);
+        }
     }
 
-    // Settled, because the line this waits for names no fabric on either flavor: a completion still
-    // in flight from an earlier commissioning would otherwise satisfy this one
-    const from = await th.log.markSettled();
-    const commissioning = await attempt(
-        () => dut.commission(target),
-        ref => `commissioned as node ${ref}`,
+    commissioned.set(
+        "dut",
+        await commissionChecked(dut, target, th, `commissioning from ${describeTarget(target)}`, checks),
     );
-    if (commissioning.ok) {
-        commissioned.set("dut", commissioning.value);
-    }
-    const what = `commissioning from ${describeTarget(target)}`;
-    checks.push({
-        what,
-        check: () =>
-            commissioning.ok
-                ? commissioning.check
-                : { ...commissioning.check, detail: `${what} failed: ${commissioning.check.detail}` },
-    });
-
-    const completed = await expectSequence(
-        th.log,
-        th.flavor,
-        "commissioning complete",
-        { chip: [COMMISSIONING_COMPLETE], matterjs: [MATTERJS_COMMISSIONED_FABRIC] },
-        from,
-        COMMISSIONING_LOG_TIMEOUT,
-    );
-    checks.push({ what: `${th.id} commissioning`, check: () => completed });
-
-    if (!commissioning.ok) {
-        throw commissioning.error;
-    }
 }
 
 /**

@@ -23,6 +23,7 @@ export type BackchannelCommand =
     | BackchannelCommand.SetBooleanState
     | BackchannelCommand.BridgeSimulation
     | BackchannelCommand.SendOnOffToBindings
+    | BackchannelCommand.UserIntentCommissioningStart
     | BackchannelCommand.NoParameters;
 
 export namespace BackchannelCommand {
@@ -162,6 +163,17 @@ export namespace BackchannelCommand {
         name: "sendOnOffToBindings";
         endpointId: number;
         command: "on" | "off";
+    };
+
+    /**
+     * The user action a device started with a user-intent commissioning flow waits for: it opens the basic
+     * commissioning window, which such a device does not open at boot. chip's all-clusters app takes it on its command pipe
+     * when started with `--custom-flow 1`; the matter.js all-clusters test app takes the same argument.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 5.7.2
+     */
+    export type UserIntentCommissioningStart = {
+        name: "userIntentCommissioningStart";
     };
 
     export type NoParameters = {

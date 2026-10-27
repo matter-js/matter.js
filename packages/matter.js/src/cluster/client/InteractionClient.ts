@@ -33,6 +33,7 @@ import {
     PeerSet,
     Read,
     ReadResult,
+    ResultStatus,
     SecureSession,
     Subscribe,
     Write,
@@ -498,6 +499,8 @@ export class InteractionClient {
             }),
             abort,
             includeKnownVersions: !dataVersionFilters,
+            // Legacy listeners are fed from the node's change notifications
+            emitEvents: true,
             [Diagnostic.value]: () =>
                 Diagnostic.dict({
                     attributes: attributeRequests?.length
@@ -986,6 +989,8 @@ export class InteractionClient {
 
         const subscribe = await (this.#interaction as ClientNodeInteraction).subscribe({
             abort,
+            // Legacy listeners are fed from the node's change notifications
+            emitEvents: true,
             ...Subscribe({
                 interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
                 attributes: attributeRequests,
@@ -1151,13 +1156,8 @@ export class InteractionClient {
                     return chunk.data as CommandResponse<C>;
                 }
 
-                const resultCode = chunk.status;
-                if (resultCode !== Status.Success) {
-                    throw new StatusResponseError(
-                        `Received non-success result: ${resultCode}`,
-                        resultCode ?? Status.Failure,
-                        chunk.clusterStatus,
-                    );
+                if (chunk.status !== Status.Success) {
+                    throw ResultStatus.errorOf(chunk, "Received non-success result");
                 }
                 return undefined as CommandResponse<C>; // ResponseType is void
             }

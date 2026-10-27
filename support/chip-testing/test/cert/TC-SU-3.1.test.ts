@@ -8,7 +8,13 @@ import type { CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import type { BdxTransferEvidence } from "./tc-bdx-support.js";
 import { serveOtaTransfer, transferOrFail } from "./tc-bdx-support.js";
-import { OtaQueryStatus, queryImageResponseLines, queryStatusName, singleQueryImage } from "./tc-su-support.js";
+import {
+    OtaQueryStatus,
+    queryImageResponseLines,
+    queryStatusName,
+    singleQueryImage,
+    userConsentCheck,
+} from "./tc-su-support.js";
 import { CommissionedRefs, expectSequence, LOG_TIMEOUT, recordAll } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
@@ -68,39 +74,20 @@ async function recordQueryImageResponse(cx: CertStepContext) {
         },
         {
             what: "the TH received the QueryImageResponse the DUT recorded sending",
-            check: async () => {
-                const check = await expectSequence(
+            check: () =>
+                expectSequence(
                     th.log,
                     th.flavor,
                     "QueryImageResponse the TH received",
                     queryImageResponseLines(response),
                     from,
                     LOG_TIMEOUT,
-                );
-                if (check.verdict !== "unverified") {
-                    return check;
-                }
-                return {
-                    ...check,
-                    accepted:
-                        "matter.js's requestor writes no line for a QueryImageResponse it received, so this " +
-                        "flavor cannot state the response's fields; the DUT's own record above is what carries " +
-                        "them, and the transfer is what shows the TH acted on them",
-                };
-            },
+                ),
         },
         {
-            // The plan's own Notes: "User Consent is obtained from the user and is specific to vendor
-            // implementation." This DUT is a controller with no user to ask, and its provider answers
-            // the query on the consent it already holds for the update the case staged.
-            what: "the DUT obtained user consent before answering",
-            check: () => ({
-                type: "response",
-                verdict: "unverified",
-                accepted:
-                    "the plan makes this step vendor specific, and this DUT is a controller with no user " +
-                    "interface: its provider answers on the consent the update was staged with",
-            }),
+            // How the DUT obtains consent is vendor specific (the plan's Notes)
+            what: "the DUT obtained user consent before answering, or delegated it to a requestor that offered it",
+            check: () => userConsentCheck({ request, response }),
         },
     ]);
 }
@@ -109,6 +96,7 @@ certTest("TC-SU-3.1", {
     plan: "softwareupdate.adoc",
     pics: ["MCORE.OTA.Provider"],
     app: "ota-requestor",
+    controllerCapabilities: ["ota-provider"],
 })
     .step(
         "0",

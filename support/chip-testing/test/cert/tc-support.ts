@@ -44,6 +44,20 @@ import {
 } from "@matter/testing";
 
 /**
+ * The log family the DUT controller's own output is written in, for a check that reads that log. matterjs-server is a
+ * matter.js controller in a process of its own and logs through matter.js's logger.
+ */
+export function dutControllerLogFlavor(cx: Pick<CertStepContext, "controllerSelection">): "chip" | "matterjs" {
+    switch (cx.controllerSelection.dut) {
+        case "chip-tool":
+            return "chip";
+        case "matterjs":
+        case "matterjs-server":
+            return "matterjs";
+    }
+}
+
+/**
  * Bounds a device-log check's wait for a line the step has already caused — one the device writes
  * while answering the interaction the step drove, not one it writes after work of its own.
  */
@@ -112,7 +126,7 @@ export async function attempt<T>(
     try {
         value = await action();
     } catch (e) {
-        // The harness turns this refusal into a skipped step; judged as a failure it would fail the step instead
+        // The step runner judges a refusal itself; judged as a failure here it would fail the step instead
         if (e instanceof UnsupportedByControllerError) {
             throw e;
         }
@@ -153,7 +167,10 @@ export async function recordAll(cx: CertStepContext, checks: readonly RecordedCh
  * recorded and the action's error fails the step. Checks are evaluated after `body`, so a check should hold a result
  * already obtained rather than contact a device.
  */
-export async function withChecks(cx: CertStepContext, body: (checks: RecordedCheck[]) => Promise<void>): Promise<void> {
+export async function withChecks(
+    cx: CertStepContext,
+    body: (checks: RecordedCheck[]) => Promise<unknown>,
+): Promise<void> {
     const checks = new Array<RecordedCheck>();
     try {
         await body(checks);
@@ -405,12 +422,19 @@ export const SUBSCRIBE_RESPONSE_MESSAGE = /\[DMG\] SubscribeResponseMessage =\s*
 export const REPORT_DATA_IBS = /(?:Attribute|Event)ReportIBs =\s*$/;
 export const SUBSCRIPTION_ID_LINE = /SubscriptionId = 0x([0-9a-f]+),\s*$/;
 
-/** matter.js names the subscription it just minted on the response that carries it. */
-const MATTERJS_SUBSCRIBE_RESPONSE = /Message » for: I\/SubscribeResponse sub#: ([0-9a-f]+)/;
+/**
+ * matter.js names the subscription it just minted on the response that carries it (capture 1), and the
+ * session (capture 2) and exchange (capture 3) the response went out on, which are its request's.
+ */
+const MATTERJS_SUBSCRIBE_RESPONSE =
+    /Message » for: I\/SubscribeResponse sub#: ([0-9a-f]+) .*?id: ([^⇵\s]+)⇵([0-9a-f]+)✉/;
+
+/** The session (capture 1) and exchange (capture 2) on any of matter.js's lines for a subscribe request it received. */
+const MATTERJS_SUBSCRIBE_REQUEST = /InteractionServer Subscribe\b[^«]*« ([^⇵\s]+)⇵([0-9a-f]+)/;
 
 /**
- * matter.js's own outgoing report, tagged with the subscription it belongs to and the message counter
- * its ack will name. A report says how much it carries — `attr:` for attributes, `ev:` for events —
+ * matter.js's own outgoing report, tagged with the subscription it belongs to. Capture 1 is the session the
+ * report went out on, capture 2 its exchange, capture 3 its message counter. A report says how much it carries — `attr:` for attributes, `ev:` for events —
  * where the keepalive an idle subscription sends at its maximum interval is marked `empty`, and a
  * keepalive's ack must not stand in for a report's.
  */
@@ -419,7 +443,7 @@ function matterjsReportPattern(subscriptionId: number, carriesData: boolean): Re
     // (`InteractionMessenger`'s report logContext), so requiring the counts is what excludes a keepalive.
     const carried = carriesData ? "(?:attr|ev): \\d+" : "";
     return new RegExp(
-        `Message » for: I/ReportData sub#: ${matterjsSubscriptionIdOf(subscriptionId)} ${carried}.*?✉([0-9a-f]+)`,
+        `Message » for: I/ReportData sub#: ${matterjsSubscriptionIdOf(subscriptionId)} ${carried}.*? id: (\\S+)⇵([0-9a-f]+)✉([0-9a-f]+)`,
     );
 }
 
@@ -429,12 +453,21 @@ function matterjsSubscriptionIdOf(subscriptionId: number): string {
 }
 
 /**
- * The DUT's answer to the report `counter` identifies, whose payload is a `StatusResponseMessage`:
- * an anonymous structure whose context tag 0 holds the status, so `152400` opens it and the byte after
- * is the status itself (Matter Core § 8.9.2.3, § A.7.3).
+ * The DUT's answer to the report sent in `session` on `exchange` with message counter `counter`, whose payload is a
+ * `StatusResponseMessage`: an anonymous structure whose context tag 0 holds the status, so `152400` opens it
+ * and the byte after is the status itself (Matter Core § 8.9.2.3, § A.7.3).
+ *
+ * Session and exchange identify the answer on every transport. Where the message names the counter it acks
+ * (`acked:`, present with MRP on UDP and absent on TCP), that counter must be the report's.
  */
-function matterjsReportAckPattern(counter: string): RegExp {
-    return new RegExp(`Message « for: I/StatusResponse .*acked: ${counter} .*?payload: 152400([0-9a-f]{2})`);
+function matterjsReportAckPattern(session: string, exchange: string, counter: string): RegExp {
+    return new RegExp(
+        `Message « for: I/StatusResponse id: ${escapeRegExp(session)}⇵${exchange}✉[0-9a-f]+ (?:(?!.*acked: )|.*acked: ${counter} ).*?payload: 152400([0-9a-f]{2})`,
+    );
+}
+
+function escapeRegExp(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export function subscriptionIdPattern(subscriptionId: number): RegExp {
@@ -508,6 +541,19 @@ export function attributePathIBSequence(fields: AttributePathSpec): RegExp[] {
     }
     sequence.push(/\}\s*$/);
     return sequence;
+}
+
+/**
+ * The consecutive `CHIP:DMG` lines of a request's whole `AttributePathIBs` list carrying exactly `paths`,
+ * in order. `AttributePathIB::Parser::PrettyPrint` closes each block with a line of whitespace only.
+ */
+export function attributePathIBsSequence(paths: AttributePathSpec[]): RegExp[] {
+    return [
+        /AttributePathIBs =\s*$/,
+        /\[\s*$/,
+        ...paths.flatMap(path => [...attributePathIBSequence(path), /\[DMG\]\s*$/]),
+        /\],\s*$/,
+    ];
 }
 
 /**
@@ -690,13 +736,13 @@ export function removeFabricSucceeded(fabricIndex: number): LogExpectPatterns {
 
 /**
  * The removed fabric's sessions going away. A matter.js session is named
- * `@<fabricIndex>:<fabricId>•<id>`, so one such line per session is what chip states once as
- * "Expiring all sessions for fabric N".
+ * `@<fabricIndex in hex>:<peer node id>•<id>`, with `(tcp)` after the id over TCP, so one such line per session is
+ * what chip states once as "Expiring all sessions for fabric N".
  */
 export function fabricSessionsEnded(fabricIndex: number): LogExpectPatterns {
     return {
         chip: new RegExp(`Expiring all sessions for fabric 0x${fabricIndex.toString(16)}!!`),
-        matterjs: new RegExp(`Session @${fabricIndex}:[0-9a-f]+•[0-9a-f]+ Session ended`),
+        matterjs: new RegExp(`Session @${fabricIndex.toString(16)}:[0-9a-f]+•[0-9a-f]+(?:\\(\\w+\\))? Session ended`),
     };
 }
 
@@ -742,9 +788,26 @@ function matterjsWritePath(fields: AttributePathSpec): RegExp {
 // carries path counts only. Its attribute list is bounded by the data-version filters that may follow
 // it as well as by the event paths.
 function matterjsSubscribePath(fields: AttributePathSpec): RegExp {
-    return new RegExp(
-        `InteractionServer Subscribe request details «.*attributes: (?:(?! (?:dataVersionFilters|events):).)*?${MATTERJS_PATH_START}${matterjsPath(fields)}${MATTERJS_PATH_END}`,
-    );
+    return new RegExp(`InteractionServer Subscribe request details «${matterjsSubscribeAttribute(fields)}`);
+}
+
+function matterjsSubscribeAttribute(fields: AttributePathSpec): string {
+    return `.*attributes: (?:(?! (?:dataVersionFilters|events):).)*?${MATTERJS_PATH_START}${matterjsPath(fields)}${MATTERJS_PATH_END}`;
+}
+
+/**
+ * matter.js's lines for one subscribe request carrying exactly `paths`: the INFO line with the request's `flags` and
+ * its attribute path count, then the DEBUG line naming each path.
+ */
+export function matterjsSubscribePaths(paths: AttributePathSpec[], ...flags: string[]): RegExp[] {
+    return [
+        new RegExp(
+            `InteractionServer Subscribe «${flags.map(flag => `.* ${flag}`).join("")}.* attributePaths: ${paths.length}(?!\\d)`,
+        ),
+        new RegExp(
+            `InteractionServer Subscribe request details «${paths.map(path => `(?=${matterjsSubscribeAttribute(path)})`).join("")}`,
+        ),
+    ];
 }
 
 /**
@@ -1049,7 +1112,7 @@ export function literally(value: string): string {
  * The trailing type name is load-bearing: without it `0x0 = 2,` also matches the first two digits of
  * `0x0 = 20,`.
  */
-function chipCommandField({ id, value }: { id: number; value: number | bigint | string }): RegExp {
+export function chipCommandField({ id, value }: { id: number; value: number | bigint | string }): RegExp {
     const rendered =
         typeof value === "string"
             ? `"${literally(value)}" \\(${new TextEncoder().encode(value).length} chars\\)`
@@ -1508,21 +1571,44 @@ export async function invokeCommand(
     ref: CertNodeRef,
     invocation: CommandInvocation,
 ): Promise<InvokedCommand> {
+    const { cluster, endpoint, command, fields } = invocation;
+    const name = `${cluster.name}.${command}`;
+    const clusterId = requireId(cluster.id, `${cluster.name} cluster`);
+    const commandId = requireId(cluster.commands.require(command).id, name);
+    const th = theTh(cx);
+
+    const invoked = await invokeWithResponseChecks(cx, ref, invocation);
+    const logged = await expectCommandInvoke(
+        th.log,
+        th.flavor,
+        endpoint,
+        clusterId,
+        commandId,
+        fields,
+        invoked.from,
+        LOG_TIMEOUT,
+    );
+    invoked.checks.push({ what: `CommandDataIB log for ${name}`, check: () => logged });
+    return invoked;
+}
+
+/** The invoke and response checks of {@link invokeCommand}, without its log check. */
+async function invokeWithResponseChecks(
+    cx: CertStepContext,
+    ref: CertNodeRef,
+    invocation: Omit<CommandInvocation, "fields">,
+): Promise<InvokedCommand> {
     const {
         cluster,
         endpoint,
         command,
         args,
-        fields,
         describe = describeInvokeResponse,
         options,
         anyStatus = false,
     } = invocation;
     const name = `${cluster.name}.${command}`;
-    const clusterId = requireId(cluster.id, `${cluster.name} cluster`);
-    const commandId = requireId(cluster.commands.require(command).id, name);
-    const th = theTh(cx);
-    const from = th.log.mark();
+    const from = theTh(cx).log.mark();
 
     const response = await attempt(
         () => cx.controllers.dut.node(ref).invoke(cluster.name, command, args, endpoint, options),
@@ -1558,20 +1644,160 @@ export async function invokeCommand(
         checks.push({ what: `${name} response status`, check: () => statusCheck });
     }
 
-    const logged = await expectCommandInvoke(
-        th.log,
-        th.flavor,
-        endpoint,
-        clusterId,
-        commandId,
-        fields,
-        from,
-        LOG_TIMEOUT,
-    );
-    checks.push({ what: `CommandDataIB log for ${name}`, check: () => logged });
-
     return { response: response.ok ? { ok: true, value: response.value } : { ok: false }, accepted, checks, from };
 }
+
+/** The whole request payload a command carried, as each TH flavor prints it; see {@link expectCommandPayload}. */
+export interface CommandPayload {
+    /** Names the claim in the evidence. */
+    label: string;
+
+    /**
+     * Every line inside chip's `CommandFields` block, in order ({@link chipCommandField} for a number or a string);
+     * none for a command without fields.
+     */
+    chip: RegExp[];
+
+    /** The text that ends matter.js's line for the dispatched command: its fields, or {@link MATTERJS_NO_PAYLOAD}. */
+    matterjs: string;
+}
+
+/**
+ * Checks that the TH's log shows `command`'s request at or after `from` carrying exactly `payload` and no other
+ * command, within `timeout`.
+ *
+ * {@link expectCommandInvoke} finds each field line anywhere after the command path, which also matches a TH
+ * subscription report printing a field of the same id and value. This check reads the request itself:
+ *
+ * - chip prints the request's raw TLV. The check demands its whole `InvokeRequests` list as consecutive lines: the
+ *   command's own `CommandPathIB`, then `payload`'s field lines, then the closing lines of the fields, the
+ *   `CommandDataIB` and the list. A field that is missing, has another value or is extra fails it, an extra field
+ *   with a tag the schema does not know included, and so does a second command in the request.
+ * - matter.js prints the arguments after decoding them through the command's schema, which drops a field whose tag
+ *   the schema does not know. The check demands `payload` at the end of the line that dispatches the command on
+ *   `endpoint`, so a missing or different known field, or an extra one, fails it; an extra unknown field cannot. It
+ *   then demands that the request summary line of the same exchange lists this command and no other.
+ */
+export async function expectCommandPayload(
+    log: LogFollower,
+    flavor: LogFlavor,
+    invocation: { cluster: ClusterModel; endpoint: number; command: string },
+    payload: CommandPayload,
+    from: number,
+    timeout: Duration,
+): Promise<CheckRecord> {
+    const { label } = payload;
+    const { cluster, endpoint, command } = invocation;
+    const model = cluster.commands.require(command);
+    const clusterId = requireId(cluster.id, `${cluster.name} cluster`);
+    const commandId = requireId(model.id, `${cluster.name}.${command}`);
+
+    if (flavorFamily(flavor) === "matterjs") {
+        return matterjsCommandPayload(log, flavor, endpoint, cluster, command, payload, from, timeout);
+    }
+    return expectSequence(
+        log,
+        flavor,
+        label,
+        {
+            chip: [
+                /InvokeRequests =\s*$/,
+                /\[\s*$/,
+                ...commandPathIBSequence(endpoint, clusterId, commandId),
+                /\},\s*$/,
+                /\[DMG\]\s*$/,
+                /CommandFields =\s*$/,
+                /\{\s*$/,
+                ...payload.chip,
+                /\},\s*$/,
+                /\},\s*$/,
+                /\[DMG\]\s*$/,
+                /\],\s*$/,
+            ],
+        },
+        from,
+        timeout,
+    );
+}
+
+/**
+ * As {@link expectCommandPayload} against a matter.js TH: the line dispatching the command, then the summary line
+ * `InteractionServer` writes for the request on the same exchange (`@<session>⇵<exchange>`), which names every
+ * command path the request carried.
+ */
+async function matterjsCommandPayload(
+    log: LogFollower,
+    flavor: LogFlavor,
+    endpoint: number,
+    cluster: ClusterModel,
+    command: string,
+    payload: CommandPayload,
+    from: number,
+    timeout: Duration,
+): Promise<CheckRecord> {
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
+    const model = cluster.commands.require(command);
+
+    // The dispatch line names the exchange, then the message (`✉…`) the command arrived in
+    const dispatchLine = new RegExp(
+        `ProtocolService Invoke « \\S+\\.ep${endpoint}\\.${camelize(cluster.name)}\\.${camelize(model.name)} ` +
+            `(@[^\\s✉]+)\\S* ${literally(payload.matterjs)}$`,
+    );
+    const dispatch = await expectDeviceLog(log, flavor, { matterjs: dispatchLine }, from, remaining());
+    const exchange = dispatch.check.matched?.match(dispatchLine)?.[1];
+    if (dispatch.check.verdict !== "pass" || exchange === undefined) {
+        return { ...dispatch.check, pattern: payload.label };
+    }
+
+    const commandPath = matterjsCommandPath(
+        endpoint,
+        requireId(cluster.id, `${cluster.name} cluster`),
+        requireId(model.id, `${cluster.name}.${command}`),
+    );
+    const request = await expectDeviceLog(
+        log,
+        flavor,
+        {
+            matterjs: new RegExp(`InteractionServer Invoke « ${literally(exchange)} (?:.* )?invokes: ${commandPath}$`),
+        },
+        from,
+        remaining(),
+    );
+    if (request.check.verdict !== "pass") {
+        return {
+            ...request.check,
+            pattern: payload.label,
+            detail:
+                `no summary line on ${exchange} lists ${command} as the request's only command: ` +
+                `${request.check.detail}`,
+        };
+    }
+    return { ...dispatch.check, pattern: payload.label };
+}
+
+/**
+ * Has the DUT invoke a command on the TH and records {@link invokeCommand}'s response checks together with
+ * {@link expectCommandPayload}'s check, for a step whose plan names every field the command carries. The payload
+ * check covers the command path as well, so this waits for the TH's log once.
+ */
+export function sendCommand(
+    cx: CertStepContext,
+    ref: CertNodeRef,
+    invocation: Omit<CommandInvocation, "fields">,
+    payload: CommandPayload,
+): Promise<void> {
+    return withChecks(cx, async checks => {
+        const invoked = await invokeWithResponseChecks(cx, ref, invocation);
+        checks.push(...invoked.checks);
+        const th = theTh(cx);
+        const logged = await expectCommandPayload(th.log, th.flavor, invocation, payload, invoked.from, LOG_TIMEOUT);
+        checks.push({ what: payload.label, check: () => logged });
+    });
+}
+
+/** What matter.js prints for a command without fields. */
+export const MATTERJS_NO_PAYLOAD = "(no payload)";
 
 function isStatusAnswer(error: unknown): error is StatusResponseError {
     return error instanceof StatusResponseError && !(error instanceof ValidationError);
@@ -1636,8 +1862,8 @@ interface ExchangeSource {
  * out on, and which line is the DUT's ack of a chunk on that exchange.
  */
 interface ChunkedTransferDialect {
-    /** The DUT's read request, read off the line the step's own path check matched. */
-    request: ExchangeSource;
+    /** The DUT's read request, read off the line the step's own path check matched, and whether it arrived over TCP. */
+    request: ExchangeSource & { overTcp(log: LogFollower, line: LogLine): boolean };
 
     /** An outbound report chunk. */
     chunk: ExchangeSource & { line: RegExp };
@@ -1652,6 +1878,38 @@ interface ChunkedTransferDialect {
 
     /** The DUT's ack of a chunk sent on `exchange`. */
     ack(exchange: string): RegExp;
+}
+
+/**
+ * Why a step whose plan expects a payload just over one MTU to be chunked does not apply, where the read request the
+ * check `request` matched on the TH's log arrived over TCP: TCP carries such a payload as one message, so nothing is
+ * chunked. `undefined` where the request arrived otherwise, or where `request` matched nothing to tell it from.
+ *
+ * The transport is the session's, so the read tells it for a later interaction on the same session. That a later
+ * write reuses the read's session is assumed, not checked.
+ */
+export function chunkingNotApplicableOverTcp(
+    log: LogFollower,
+    flavor: LogFlavor,
+    request: CheckRecord,
+): string | undefined {
+    const dialect = forFlavor(CHUNKED_TRANSFER_DIALECTS, flavor);
+    const requestLine =
+        dialect === undefined || request.verdict !== "pass" || request.logLine === undefined
+            ? undefined
+            : log.lines[request.logLine];
+    if (dialect === undefined || requestLine === undefined || !dialect.request.overTcp(log, requestLine)) {
+        return undefined;
+    }
+    return chunkingOverTcpReason("read request", requestLine.index);
+}
+
+/** The reason a chunking step does not apply, naming the TH's log line that shows `request` arrived over TCP. */
+export function chunkingOverTcpReason(request: string, logLine: number) {
+    return (
+        `the DUT's session to the TH runs over TCP (${request} at TH log line ${logLine}), which carries a payload ` +
+        "just over one MTU as one message, so the plan's chunking does not apply"
+    );
 }
 
 /**
@@ -1676,6 +1934,8 @@ interface ChunkedTransferDialect {
  * What this cannot tell apart: exchange ids are allocated per initiator and neither implementation
  * logs the initiator, so a TH-initiated exchange whose id collides with this read's would be read as
  * part of the transfer.
+ *
+ * A read over TCP is not this check's to judge: the step skips first ({@link chunkingNotApplicableOverTcp}).
  */
 export async function expectChunkedTransfer(
     log: LogFollower,
@@ -1930,105 +2190,141 @@ export type SubscriptionIdLookup =
     /** The lookup itself failed; `check` carries why. */
     | { outcome: "failed"; check: CheckRecord };
 
-async function matterjsSubscriptionId(
+/** The session and exchange a subscribe request arrived on, and where the search for its response starts. */
+interface SubscribeRequestOrigin {
+    session: string;
+    exchange: string;
+    line: number;
+}
+
+/**
+ * Where the request `request` matched arrived from, read off that request's own log line: chip's trace line
+ * for it, matter.js's line itself. A string is why it cannot be read.
+ *
+ * chip prints its own session id on an inbound message and the peer's on an outbound one, so its request and
+ * response lines never share a session number; the peer address on the trace line stands for the session.
+ */
+function subscribeRequestOrigin(
+    log: LogFollower,
+    flavor: LogFlavor,
+    requestLine: number,
+): SubscribeRequestOrigin | string {
+    if (flavorFamily(flavor) === "matterjs") {
+        const text = log.at(requestLine)?.text ?? "";
+        const [, session, exchange] = MATTERJS_SUBSCRIBE_REQUEST.exec(text) ?? [];
+        if (session === undefined || exchange === undefined) {
+            return `The subscribe request at line ${requestLine} names no session and exchange: ${text}`;
+        }
+        return { session, exchange, line: requestLine };
+    }
+
+    const header = chipHeaderBefore(log, SUBSCRIBE_REQUEST_RECEIVED_LINE, requestLine, EXCHANGE_LOOKBACK_LINES);
+    if (header === undefined) {
+        return `No inbound Subscribe Request trace line of its own (carrying a peer and an Exchange id) before line ${requestLine}`;
+    }
+    const [, session, exchange] = header.match;
+    return { session, exchange, line: header.line.index };
+}
+
+/** The next SubscribeResponse at or after `from`, with the session and exchange it went out on. */
+async function nextSubscribeResponse(
     log: LogFollower,
     flavor: LogFlavor,
     from: number,
     timeout: Duration,
-): Promise<SubscriptionIdLookup> {
-    const pattern = String(MATTERJS_SUBSCRIBE_RESPONSE);
-    let response: LogExpectResult;
-    try {
-        response = await log.expect({ matterjs: MATTERJS_SUBSCRIBE_RESPONSE }, { flavor, timeoutMs: timeout, from });
-    } catch (e) {
-        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
-            return {
-                outcome: "failed",
-                check: { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: from },
-            };
-        }
-        throw e;
-    }
-    if (response.verdict === "unverified") {
-        return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
+): Promise<{ line: LogLine; id?: string; session?: string; exchange?: string }> {
+    if (flavorFamily(flavor) === "matterjs") {
+        const line = await log.expectPattern(MATTERJS_SUBSCRIBE_RESPONSE, { timeoutMs: timeout, from });
+        const [, id, session, exchange] = MATTERJS_SUBSCRIBE_RESPONSE.exec(line.text) ?? [];
+        return { line, id, session, exchange };
     }
 
-    const id = MATTERJS_SUBSCRIBE_RESPONSE.exec(response.matched.text)?.[1];
-    if (id === undefined) {
-        return {
-            outcome: "failed",
-            check: {
-                type: "device-log",
-                verdict: "fail",
-                pattern,
-                detail: `SubscribeResponse carries no readable subscription id: ${response.matched.text}`,
-                logLine: response.matched.index,
-            },
-        };
-    }
-
-    return {
-        outcome: "found",
-        subscriptionId: parseInt(id, 16),
-        check: {
-            type: "device-log",
-            verdict: "pass",
-            pattern,
-            matched: response.matched.text,
-            logLine: response.matched.index,
-        },
-    };
+    const line = await adjacentRun(log, [SUBSCRIBE_RESPONSE_MESSAGE, /\{\s*$/, SUBSCRIPTION_ID_LINE], from, timeout);
+    const [, session, exchange] =
+        chipHeaderBefore(log, SUBSCRIBE_RESPONSE_SENT_LINE, line.index, EXCHANGE_LOOKBACK_LINES)?.match ?? [];
+    return { line, id: SUBSCRIPTION_ID_LINE.exec(line.text)?.[1], session, exchange };
 }
 
 /**
- * Reads back the id the TH minted for the subscription whose SubscribeResponse it sends at or after
- * `from`. Every step here keeps its subscriptions (`keepSubscriptions: true`) and their max interval
- * is shorter than the whole run, so several subscriptions report concurrently from step 3 onward —
- * the id is what tells one step's reports from another's. Both flavors name it: chip in its decode
- * dump, matter.js on the response itself.
+ * Reads back the id the TH minted for the subscription it established on the subscribe request `request`
+ * matched. Every step here keeps its subscriptions (`keepSubscriptions: true`) and their max interval is
+ * shorter than the whole run, so several subscriptions report concurrently from step 3 onward — the id is
+ * what tells one step's reports from another's. Both flavors name it: chip in its decode dump, matter.js on
+ * the response itself.
+ *
+ * A SubscribeResponse after the request is not necessarily its answer: the follower pumps the device stream
+ * asynchronously, so a previous step's response can surface after this step's request, and the controller's
+ * own subscription can be established at any time. A response goes out on its request's session and
+ * exchange, so only one on both of the request's is taken.
  */
 export async function expectSubscriptionId(
     log: LogFollower,
     flavor: LogFlavor,
-    from: number,
+    request: CheckRecord,
     timeout: Duration,
 ): Promise<SubscriptionIdLookup> {
-    if (flavorFamily(flavor) === "matterjs") {
-        return matterjsSubscriptionId(log, flavor, from, timeout);
+    if (request.verdict === "unverified" || flavorFamily(flavor) === undefined) {
+        return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
     }
 
-    const sequence = [SUBSCRIBE_RESPONSE_MESSAGE, /\{\s*$/, SUBSCRIPTION_ID_LINE];
-    try {
-        const result = await expectAdjacentLines(log, flavor, { chip: sequence }, from, timeout);
-        if (result.verdict === "unverified") {
-            return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
-        }
+    const failed = (detail: string, logLine?: number): SubscriptionIdLookup => ({
+        outcome: "failed",
+        check: {
+            type: "device-log",
+            verdict: "fail",
+            pattern: "SubscribeResponse answering the request",
+            detail,
+            logLine,
+        },
+    });
+    if (request.verdict !== "pass" || request.logLine === undefined) {
+        return failed(
+            `The subscribe request was not found, so no response can be bound to it: ${request.detail ?? ""}`,
+        );
+    }
 
-        const id = SUBSCRIPTION_ID_LINE.exec(result.last.text)?.[1];
-        if (id === undefined) {
+    const origin = subscribeRequestOrigin(log, flavor, request.logLine);
+    if (typeof origin === "string") {
+        return failed(origin, request.logLine);
+    }
+
+    const pattern = `SubscribeResponse on ${origin.session} exchange ${origin.exchange}, answering the request at line ${origin.line}`;
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
+    let passedOver = 0;
+    try {
+        for (let cursor = origin.line; ;) {
+            const response = await nextSubscribeResponse(log, flavor, cursor, remaining());
+            if (response.session === undefined || response.exchange === undefined) {
+                return failed(
+                    `No session and exchange for the SubscribeResponse at line ${response.line.index}: ${response.line.text}`,
+                    response.line.index,
+                );
+            }
+            if (response.session !== origin.session || response.exchange !== origin.exchange) {
+                passedOver++;
+                cursor = response.line.index + 1;
+                continue;
+            }
+            if (response.id === undefined) {
+                return failed(
+                    `SubscribeResponse carries no readable subscription id: ${response.line.text}`,
+                    response.line.index,
+                );
+            }
+
             return {
-                outcome: "failed",
+                outcome: "found",
+                subscriptionId: parseInt(response.id, 16),
                 check: {
                     type: "device-log",
-                    verdict: "fail",
-                    pattern: String(SUBSCRIPTION_ID_LINE),
-                    detail: `SubscribeResponseMessage carries no readable subscription id: ${result.last.text}`,
-                    logLine: result.last.index,
+                    verdict: "pass",
+                    pattern,
+                    matched: response.line.text,
+                    logLine: response.line.index,
                 },
             };
         }
-
-        return {
-            outcome: "found",
-            subscriptionId: parseInt(id, 16),
-            check: {
-                type: "device-log",
-                verdict: "pass",
-                pattern: String(SUBSCRIBE_RESPONSE_MESSAGE),
-                matched: result.last.text,
-                logLine: result.last.index,
-            },
-        };
     } catch (e) {
         if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
             return {
@@ -2036,32 +2332,44 @@ export async function expectSubscriptionId(
                 check: {
                     type: "device-log",
                     verdict: "fail",
-                    pattern: String(SUBSCRIBE_RESPONSE_MESSAGE),
-                    detail: e.message,
-                    logLine: from,
+                    pattern,
+                    detail: e.message + passedOverNote(passedOver),
+                    logLine: origin.line,
                 },
             };
         }
         throw e;
     }
+}
+
+// chip's trace lines for the two ends of a subscribe request's exchange (same shape as REPORT_SENT_LINE),
+// capturing the peer (1) and the Exchange id (2).
+const SUBSCRIBE_REQUEST_RECEIVED_LINE =
+    /\[DMG\] << from ((?:UDP|TCP):\S+) \|.*\/ Subscribe Request \(0x03\) \/ Session = \d+ \/ Exchange = (\d+)\]\s*$/;
+const SUBSCRIBE_RESPONSE_SENT_LINE =
+    /\[DMG\] >> to ((?:UDP|TCP):\S+) \|.*\/ Subscribe Response \(0x04\) \/ Session = \d+ \/ Exchange = (\d+)\]\s*$/;
+
+function passedOverNote(passedOver: number): string {
+    return passedOver === 0 ? "" : ` (passed over ${passedOver} SubscribeResponse(s) on another session or exchange)`;
 }
 
 // chip's own trace line for an outbound message — printed once, immediately before that message's
 // raw/decode dump — names the CHIP Exchange id it was sent on (verified against a real capture:
 // `>> to UDP:[...] | <msgCounter> | [Interaction Model  (1) / Report Data (0x05) / Session = <s> /
-// Exchange = <id>]`). Matter Core's MRP (§ 4.12) always acks a message on the exchange it was
+// Exchange = <id>]`, `TCP:` on a TCP session). The DUT answers a report on the exchange it was
 // received on, and the same capture shows the DUT's ack line naming that identical id, so this is
 // what ties one specific report to one specific ack even though the two lines aren't adjacent (a
 // variable amount of raw-frame/decode-dump content sits between a trace line and its own message
 // name line, depending on payload size).
-const REPORT_SENT_LINE = /\[DMG\] >> to UDP:.*\/ Report Data \(0x05\) \/ Session = \d+ \/ Exchange = (\d+)\]\s*$/;
+const REPORT_SENT_LINE =
+    /\[DMG\] >> to (?:UDP|TCP):.*\/ Report Data \(0x05\) \/ Session = \d+ \/ Exchange = (\d+)\]\s*$/;
 
 // Every message of an exchange carries its id, which is how a responder's messages are matched to the
 // request that caused them (Matter Core, "Message Exchanges"). A subscription's reports are a different
 // exchange either way — the SubscribeRequest's on a chip TH, a freshly initiated one per report round
 // on a matter.js TH — but the id is all the log prints, so a collision is possible and unnoticeable.
 const READ_REQUEST_RECEIVED_LINE =
-    /\[DMG\] << from UDP:.*\/ Read Request \(0x02\) \/ Session = \d+ \/ Exchange = (\d+)\]\s*$/;
+    /\[DMG\] << from (?:UDP|TCP):.*\/ Read Request \(0x02\) \/ Session = \d+ \/ Exchange = (\d+)\]\s*$/;
 
 /**
  * chip prints the *peer's* session id on a message it sends and its own on one it receives — a real
@@ -2072,7 +2380,7 @@ const READ_REQUEST_RECEIVED_LINE =
  */
 function reportAckedOnExchange(exchange: string): RegExp {
     return new RegExp(
-        `\\[DMG\\] << from UDP:.*/ Status Response \\(0x01\\) / Session = \\d+ / Exchange = ${exchange}\\]\\s*$`,
+        `\\[DMG\\] << from (?:UDP|TCP):.*/ Status Response \\(0x01\\) / Session = \\d+ / Exchange = ${exchange}\\]\\s*$`,
     );
 }
 
@@ -2136,6 +2444,7 @@ const MATTERJS_REPORT_CHUNK = /Message » for: I\/ReportData .*⇵([0-9a-f]+)✉
 // matter.js names the exchange on the read line itself; the bound stops the match from running past
 // this line's own session into a later message's id.
 const MATTERJS_READ_EXCHANGE = /InteractionServer Read « [^⇵]*⇵([0-9a-f]+)/;
+const MATTERJS_TCP_READ = /InteractionServer Read « [^⇵\s]*\(tcp\)⇵/;
 
 // Both implementations say on which message a transfer ends, in their own place: matter.js renders the
 // report's own flags on the report line, chip prints them inside that message's decode dump.
@@ -2144,7 +2453,7 @@ const MATTERJS_SUPPRESSED_RESPONSE = /Message » for: I\/ReportData [^⇵]*\bsup
 const CHIP_MORE_CHUNKS = /\[DMG\]\s+MoreChunkedMessages = true,\s*$/;
 
 // chip logs one message at a time, its trace line before its dump, whichever direction it went.
-const CHIP_MESSAGE_TRACE_LINE = /\[DMG\] (?:>> to|<< from) UDP:/;
+const CHIP_MESSAGE_TRACE_LINE = /\[DMG\] (?:>> to|<< from) (?:UDP|TCP):/;
 const CHIP_SUPPRESSED_RESPONSE = /\[DMG\]\s+SuppressResponse = true,\s*$/;
 
 /**
@@ -2183,6 +2492,13 @@ const CHUNKED_TRANSFER_DIALECTS: { chip: ChunkedTransferDialect; matterjs: Chunk
             exchangeOf: (log, line) => exchangeIdBefore(log, READ_REQUEST_RECEIVED_LINE, line.index),
             attribution: String(READ_REQUEST_RECEIVED_LINE),
             unattributed: "No inbound Read Request trace line of its own (carrying an Exchange id)",
+            overTcp: (log, line) =>
+                chipHeaderBefore(
+                    log,
+                    READ_REQUEST_RECEIVED_LINE,
+                    line.index,
+                    EXCHANGE_LOOKBACK_LINES,
+                )?.line.text.includes("<< from TCP:") === true,
         },
         chunk: {
             line: REPORT_DATA_MESSAGE,
@@ -2199,6 +2515,7 @@ const CHUNKED_TRANSFER_DIALECTS: { chip: ChunkedTransferDialect; matterjs: Chunk
             exchangeOf: (_log, line) => MATTERJS_READ_EXCHANGE.exec(line.text)?.[1],
             attribution: String(MATTERJS_READ_EXCHANGE),
             unattributed: "No exchange id on the read line",
+            overTcp: (_log, line) => MATTERJS_TCP_READ.test(line.text),
         },
         chunk: {
             line: MATTERJS_REPORT_CHUNK,
@@ -2218,8 +2535,8 @@ const CHUNKED_TRANSFER_DIALECTS: { chip: ChunkedTransferDialect; matterjs: Chunk
 
 /**
  * As {@link expectReportAck} against a matter.js TH, which names both the subscription a report
- * belongs to and the message counter its ack carries — so the ack is matched to this very report
- * rather than to whatever answered on the same exchange next.
+ * belongs to and the exchange it went out on — so the ack is matched to this very report by exchange,
+ * which holds over TCP as well, where messages carry no `acked:`.
  */
 async function matterjsReportAck(
     log: LogFollower,
@@ -2240,18 +2557,18 @@ async function matterjsReportAck(
             return { type: "device-log", verdict: "unverified" };
         }
 
-        const counter = reportPattern.exec(report.matched.text)?.[1];
-        if (counter === undefined) {
+        const [, session, exchange, counter] = reportPattern.exec(report.matched.text) ?? [];
+        if (session === undefined || exchange === undefined || counter === undefined) {
             return {
                 type: "device-log",
                 verdict: "fail",
                 pattern,
-                detail: `Report carries no readable message counter: ${report.matched.text}`,
+                detail: `Report carries no readable session, exchange and message counter: ${report.matched.text}`,
                 logLine: report.matched.index,
             };
         }
 
-        const ackPattern = matterjsReportAckPattern(counter);
+        const ackPattern = matterjsReportAckPattern(session, exchange, counter);
         const ack = await log.expect(
             { matterjs: ackPattern },
             { flavor, timeoutMs: remaining(), from: report.matched.index + 1 },
@@ -2297,9 +2614,8 @@ async function matterjsReportAck(
  * subscription's own report/ack pair carries its own, different exchange id, so it can no longer
  * stand in for ours.
  *
- * Against a matter.js TH the correlation is tighter still: it names the message counter each ack
- * carries, so the ack is matched to this very report rather than to whatever answered on the same
- * exchange next.
+ * Against a matter.js TH the ack is matched by the exchange the report went out on, which works over
+ * UDP and TCP alike. Where the ack also names the counter it acks (UDP), that must be the report's.
  *
  * A report carrying no data is not accepted by default, because it is acked exactly like a report and so
  * could stand in for one the step asked for — that is the keepalive an idle subscription sends. Pass
@@ -2434,6 +2750,9 @@ export type SettleReport<T = unknown> = { elapsed: string } & (
  *
  * A step that stops waiting is still responsible for what the operation does afterwards — a
  * commissioning that succeeds late leaves a fabric on the device.
+ *
+ * An {@link UnsupportedByControllerError} rejects rather than reporting `"rejected"`: a controller that cannot do
+ * what was asked has not answered for the device, and a step asserting a refusal would pass on it.
  */
 export async function settleWithin<T>(label: string, op: Promise<T>, timeout: Duration): Promise<SettleReport<T>> {
     // nowUs is the monotonic clock despite the name; nowMs tracks UTC and a step of it would put a
@@ -2446,7 +2765,12 @@ export async function settleWithin<T>(label: string, op: Promise<T>, timeout: Du
         return await Promise.race([
             op.then(
                 (value): SettleReport<T> => ({ kind: "resolved", value, elapsed: elapsed() }),
-                (error: unknown): SettleReport<T> => ({ kind: "rejected", error, elapsed: elapsed() }),
+                (error: unknown): SettleReport<T> => {
+                    if (error instanceof UnsupportedByControllerError) {
+                        throw error;
+                    }
+                    return { kind: "rejected", error, elapsed: elapsed() };
+                },
             ),
             timer.then((): SettleReport<T> => ({ kind: "timeout", elapsed: elapsed() })),
         ]);

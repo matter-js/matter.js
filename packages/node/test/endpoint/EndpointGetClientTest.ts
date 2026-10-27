@@ -9,6 +9,7 @@ import { OperationalCredentialsClient } from "#behaviors/operational-credentials
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointBehaviorNotPresentError } from "#endpoint/errors.js";
 import type { EndpointType } from "#endpoint/type/EndpointType.js";
+import { AbortedError } from "@matter/general";
 import { MockSite, subscribedPeer } from "@matter/node/testing";
 
 // The peer's static type (ClientNode.RootEndpoint) does not include device behaviors such as basicInformation,
@@ -87,6 +88,18 @@ describe("Endpoint.get on a client endpoint", () => {
 describe("Endpoint.getStateOf on a client endpoint", () => {
     before(() => {
         MockTime.init();
+    });
+
+    it("abandons the read when its abort signal aborts", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        const abort = new AbortController();
+        abort.abort();
+        await expect(
+            asEndpoint(peer).getStateOf(BasicInformationClient, ["vendorName"], { abort: abort.signal }),
+        ).rejectedWith(AbortedError);
     });
 
     it("returns full behavior state when called with type only (Behavior.Type overload)", async () => {

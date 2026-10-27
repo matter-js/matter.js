@@ -11,6 +11,8 @@ import { StatusResponseError } from "@matter/types";
 
 /**
  * A protocol error associated with a specific data model path.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 8.10
  */
 export class PathError extends StatusResponseError {
     #id: string;
@@ -35,6 +37,17 @@ export class PathError extends StatusResponseError {
     }
 }
 
+/**
+ * A {@link PathError} the peer reported.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 8.10
+ */
+export class ReceivedPathError extends PathError {
+    override get received(): true {
+        return true;
+    }
+}
+
 export namespace PathError {
     export interface Definition {
         path: DataModelPath;
@@ -43,4 +56,7 @@ export namespace PathError {
     }
 }
 
+/**
+ * Raised when multiple {@link PathError}s occur in one operation.
+ */
 export class AggregatePathError extends MatterAggregateError {}

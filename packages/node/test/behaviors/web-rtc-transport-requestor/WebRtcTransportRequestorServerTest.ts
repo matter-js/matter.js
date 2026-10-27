@@ -101,9 +101,9 @@ describe("WebRtcTransportRequestorServer", () => {
             expect(sessions[0].id).to.equal(1);
         });
 
-        it("replaces an existing session with the same id", async () => {
-            const session1 = makeSession({ id: 1, peerNodeId: NodeId(10n) });
-            const session2 = makeSession({ id: 1, peerNodeId: NodeId(99n) });
+        it("replaces an existing session with the same id, fabric and peer node", async () => {
+            const session1 = makeSession({ id: 1, streamUsage: StreamUsage.LiveView });
+            const session2 = makeSession({ id: 1, streamUsage: StreamUsage.Recording });
             await cameraEndpoint!.act(agent => {
                 const server = agent.get(WebRtcTransportRequestorServer);
                 server.upsertSession(session1);
@@ -111,7 +111,27 @@ describe("WebRtcTransportRequestorServer", () => {
             });
             const sessions = cameraEndpoint!.stateOf(WebRtcTransportRequestorServer).currentSessions;
             expect(sessions).to.have.lengthOf(1);
-            expect(sessions[0].peerNodeId).to.equal(NodeId(99n));
+            expect(sessions[0].streamUsage).to.equal(StreamUsage.Recording);
+        });
+
+        it("keeps sessions with the same id from different peer nodes", async () => {
+            await cameraEndpoint!.act(agent => {
+                const server = agent.get(WebRtcTransportRequestorServer);
+                server.upsertSession(makeSession({ id: 1, peerNodeId: NodeId(10n) }));
+                server.upsertSession(makeSession({ id: 1, peerNodeId: NodeId(99n) }));
+            });
+            const sessions = cameraEndpoint!.stateOf(WebRtcTransportRequestorServer).currentSessions;
+            expect(sessions.map(({ peerNodeId }) => peerNodeId)).deep.equals([NodeId(10n), NodeId(99n)]);
+        });
+
+        it("keeps sessions with the same id and peer node on different fabrics", async () => {
+            await cameraEndpoint!.act(agent => {
+                const server = agent.get(WebRtcTransportRequestorServer);
+                server.upsertSession(makeSession({ id: 1, fabricIndex: FabricIndex(1) }));
+                server.upsertSession(makeSession({ id: 1, fabricIndex: FabricIndex(2) }));
+            });
+            const sessions = cameraEndpoint!.stateOf(WebRtcTransportRequestorServer).currentSessions;
+            expect(sessions.map(({ fabricIndex }) => fabricIndex)).deep.equals([FabricIndex(1), FabricIndex(2)]);
         });
 
         it("mirrors videoStreams[0] into deprecated videoStreamId scalar", async () => {
@@ -132,12 +152,12 @@ describe("WebRtcTransportRequestorServer", () => {
             expect(stored.audioStreamId).to.equal(20);
         });
 
-        it("removes a session by id", async () => {
+        it("removes a session by its key", async () => {
             const session = makeSession({ id: 1 });
             await cameraEndpoint!.act(agent => {
                 const server = agent.get(WebRtcTransportRequestorServer);
                 server.upsertSession(session);
-                server.removeSession(1);
+                server.removeSession({ id: 1, fabricIndex: session.fabricIndex, peerNodeId: session.peerNodeId });
             });
             const sessions = cameraEndpoint!.stateOf(WebRtcTransportRequestorServer).currentSessions;
             expect(sessions).to.have.lengthOf(0);
@@ -148,10 +168,36 @@ describe("WebRtcTransportRequestorServer", () => {
             await cameraEndpoint!.act(agent => {
                 const server = agent.get(WebRtcTransportRequestorServer);
                 server.upsertSession(session);
-                server.removeSession(999);
+                server.removeSession({ ...session, id: 999 });
             });
             const sessions = cameraEndpoint!.stateOf(WebRtcTransportRequestorServer).currentSessions;
             expect(sessions).to.have.lengthOf(1);
+        });
+
+        it("removeSession keeps the session with the same id from another peer node", async () => {
+            const sessionA = makeSession({ id: 1, peerNodeId: NodeId(10n) });
+            const sessionB = makeSession({ id: 1, peerNodeId: NodeId(99n) });
+            await cameraEndpoint!.act(agent => {
+                const server = agent.get(WebRtcTransportRequestorServer);
+                server.upsertSession(sessionA);
+                server.upsertSession(sessionB);
+                server.removeSession(sessionB);
+            });
+            const sessions = cameraEndpoint!.stateOf(WebRtcTransportRequestorServer).currentSessions;
+            expect(sessions.map(({ peerNodeId }) => peerNodeId)).deep.equals([NodeId(10n)]);
+        });
+
+        it("removeSession keeps the session with the same id and peer node on another fabric", async () => {
+            const sessionA = makeSession({ id: 1, fabricIndex: FabricIndex(1) });
+            const sessionB = makeSession({ id: 1, fabricIndex: FabricIndex(2) });
+            await cameraEndpoint!.act(agent => {
+                const server = agent.get(WebRtcTransportRequestorServer);
+                server.upsertSession(sessionA);
+                server.upsertSession(sessionB);
+                server.removeSession(sessionB);
+            });
+            const sessions = cameraEndpoint!.stateOf(WebRtcTransportRequestorServer).currentSessions;
+            expect(sessions.map(({ fabricIndex }) => fabricIndex)).deep.equals([FabricIndex(1)]);
         });
     });
 
@@ -335,6 +381,99 @@ describe("WebRtcTransportRequestorServer", () => {
             expect(
                 cameraEndpoint!.stateOf(WebRtcTransportRequestorServer).currentSessions.map(({ id }) => id),
             ).deep.equals([SESSION_ID + 1]);
+        });
+
+        describe("with a session of the same id from another peer node", () => {
+            const OTHER_PEER_NODE = NodeId(43n);
+
+            beforeEach(async () => {
+                const other = makeSession({
+                    id: SESSION_ID,
+                    peerNodeId: OTHER_PEER_NODE,
+                    fabricIndex: FABRIC,
+                    streamUsage: StreamUsage.Recording,
+                });
+                await cameraEndpoint!.act(agent => {
+                    agent.get(WebRtcTransportRequestorServer).upsertSession(other);
+                });
+            });
+
+            it("delivers each peer's signaling with its own session", async () => {
+                const answered = new Array<{ peerNodeId: NodeId; sdp: string }>();
+                cameraEndpoint!.eventsOf(WebRtcTransportRequestorServer).answer.on(({ peerNodeId }, sdp) => {
+                    answered.push({ peerNodeId, sdp });
+                });
+
+                const answer = (peerNodeId: NodeId, sdp: string) =>
+                    withPeerContext(node, FABRIC, peerNodeId, async context => {
+                        await cameraEndpoint!
+                            .agentFor(context)
+                            .get(WebRtcTransportRequestorServer)
+                            .answer({ webRtcSessionId: SESSION_ID, sdp });
+                    });
+                await answer(PEER_NODE, "a");
+                await answer(OTHER_PEER_NODE, "b");
+
+                expect(answered).deep.equals([
+                    { peerNodeId: PEER_NODE, sdp: "a" },
+                    { peerNodeId: OTHER_PEER_NODE, sdp: "b" },
+                ]);
+            });
+
+            it("end from one peer keeps the other peer's session", async () => {
+                await withPeerContext(node, FABRIC, PEER_NODE, async context => {
+                    await cameraEndpoint!.agentFor(context).get(WebRtcTransportRequestorServer).end({
+                        webRtcSessionId: SESSION_ID,
+                        reason: WebRtcTransportDefinitions.WebRtcEndReason.UserHangup,
+                    });
+                });
+
+                expect(
+                    cameraEndpoint!
+                        .stateOf(WebRtcTransportRequestorServer)
+                        .currentSessions.map(({ id, peerNodeId }) => ({ id, peerNodeId })),
+                ).deep.equals([{ id: SESSION_ID, peerNodeId: OTHER_PEER_NODE }]);
+
+                await withPeerContext(node, FABRIC, OTHER_PEER_NODE, async context => {
+                    await cameraEndpoint!
+                        .agentFor(context)
+                        .get(WebRtcTransportRequestorServer)
+                        .answer({ webRtcSessionId: SESSION_ID, sdp: "b" });
+                });
+            });
+        });
+
+        describe("with a session of the same id and peer node on another fabric", () => {
+            const OTHER_FABRIC = FabricIndex(2);
+
+            beforeEach(async () => {
+                const other = makeSession({ id: SESSION_ID, peerNodeId: PEER_NODE, fabricIndex: OTHER_FABRIC });
+                await cameraEndpoint!.act(agent => {
+                    agent.get(WebRtcTransportRequestorServer).upsertSession(other);
+                });
+            });
+
+            it("end on one fabric keeps the session on the other fabric", async () => {
+                await withPeerContext(node, FABRIC, PEER_NODE, async context => {
+                    await cameraEndpoint!.agentFor(context).get(WebRtcTransportRequestorServer).end({
+                        webRtcSessionId: SESSION_ID,
+                        reason: WebRtcTransportDefinitions.WebRtcEndReason.UserHangup,
+                    });
+                });
+
+                expect(
+                    cameraEndpoint!
+                        .stateOf(WebRtcTransportRequestorServer)
+                        .currentSessions.map(({ id, fabricIndex }) => ({ id, fabricIndex })),
+                ).deep.equals([{ id: SESSION_ID, fabricIndex: OTHER_FABRIC }]);
+
+                await withPeerContext(node, OTHER_FABRIC, PEER_NODE, async context => {
+                    await cameraEndpoint!
+                        .agentFor(context)
+                        .get(WebRtcTransportRequestorServer)
+                        .answer({ webRtcSessionId: SESSION_ID, sdp: "b" });
+                });
+            });
         });
 
         it("offer emits the offer observable exactly once", async () => {

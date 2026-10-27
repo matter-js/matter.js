@@ -24,11 +24,11 @@ export type ChipBinsSource = "matterjs" | "cert-bins";
 export const CERT_BINS_IMAGE = "connectedhomeip/chip-cert-bins";
 
 /**
- * Maintainer-vetted default tag: the connectedhomeip commit SHA `chip-cert-bins` publishes for
- * Matter 1.6.1, verified pullable and `linux/arm64`-inventoried at the time this integration was
- * built. Override with `MATTER_CHIP_BINS_TAG`.
+ * Default tag: the `SDK_DOCKER_TAG` of the official Matter 1.6.1 test harness, which is the
+ * `test_collections/matter/config.py` of the certification-tool backend that the certification-tool
+ * branch `v2.15.1+summer2026` pins. Override with `MATTER_CHIP_BINS_TAG`.
  */
-export const DEFAULT_CERT_BINS_TAG = "df8bd0308caa0680e2a78cda724a959e5b385205";
+export const DEFAULT_CERT_BINS_TAG = "e91ea83caae4adb1871aa4bbe93c4be2dd9e1abf";
 
 /**
  * `chip-cert-bins` publishes `linux/arm64` only, at every tag on Docker Hub (no `amd64` manifest

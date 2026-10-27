@@ -10,6 +10,7 @@ import {
     commissionByQr,
     CommissioningRefusals,
     ON_NETWORK_ONLY,
+    PARSES_PAYLOAD,
     qrPayloadWith,
     recordCommissionable,
     recordDiscriminatorHonored,
@@ -87,6 +88,7 @@ certTest("TC-DD-3.11", {
             await recordParse(cx, payload, { offering: { capability: "ble" } });
         },
         {
+            controllerCapabilities: PARSES_PAYLOAD,
             // A leg's steps stand or fall together: this one scans "the QR code from the previous
             // step", so it must not run where that step was gated out
             pics: "MCORE.DD.SCAN_QR_CODE & MCORE.DD.DISCOVERY_BLE",
@@ -134,6 +136,7 @@ certTest("TC-DD-3.11", {
             await recordParse(cx, payload, { offering: { capability: "wifiPublicActionFrame" } });
         },
         {
+            controllerCapabilities: PARSES_PAYLOAD,
             pics: "MCORE.DD.SCAN_QR_CODE & MCORE.DD.DISCOVERY_PAF",
             expected: "Verify the QR code has been scanned successfully.",
         },
@@ -178,7 +181,11 @@ certTest("TC-DD-3.11", {
             });
             await recordParse(cx, payload, { offering: { capability: "onIpNetwork" } });
         },
-        { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
+        {
+            controllerCapabilities: PARSES_PAYLOAD,
+            pics: "MCORE.DD.SCAN_QR_CODE",
+            expected: "Verify the QR code has been scanned successfully.",
+        },
     )
     .step(
         "3.c",

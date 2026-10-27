@@ -19,10 +19,12 @@ import type {
     LogExpectPatterns,
     LogFlavor,
 } from "@matter/testing";
-import { LogFollower, PicsFile, UnsupportedByControllerError } from "@matter/testing";
+import { LogFollower, PicsFile, resolveControllerSelection, UnsupportedByControllerError } from "@matter/testing";
+import { env } from "node:process";
 import {
     attempt,
     attributePathIBSequence,
+    attributePathIBsSequence,
     CertCheckFailedError,
     CertCleanupError,
     commandPathIBSequence,
@@ -30,8 +32,10 @@ import {
     EVENT_PATH_IBS_SEQUENCE,
     eventPathIBSequence,
     expectAttributePathIB,
+    chunkingNotApplicableOverTcp,
     expectChunkedTransfer,
     expectCommandInvoke,
+    expectCommandPayload,
     expectMessageWithPath,
     expectNoCommandInvoke,
     expectRejection,
@@ -41,12 +45,14 @@ import {
     expectSequence,
     expectDeviceLog,
     expectSubscriptionId,
+    dutControllerLogFlavor,
     fabricFilteredPattern,
     fabricSessionsEnded,
     invokeCommand,
     matterjsReadEventPath,
     matterjsSubscribeEventPath,
     matterjsSubscribeFlags,
+    matterjsSubscribePaths,
     matterjsSubscribeTiming,
     READ_REQUEST_MESSAGE,
     readOwnFabricIndex,
@@ -57,6 +63,7 @@ import {
     requireId,
     runCleanups,
     sameMessageFrom,
+    settleWithin,
     statedInPrompt,
     WRITE_REQUEST_MESSAGE,
 } from "../cert/tc-support.js";
@@ -297,6 +304,16 @@ describe("expectChunkedTransfer", function () {
         expect(record.verdict).equal("unverified");
     });
 
+    it("claims nothing when the request check failed, although it names the line it searched from", async () => {
+        const record = await checkFrom([...readLines(), ...chunkLines(), ackLine(), ...chunkLines(EXCHANGE, "final")], {
+            type: "device-log",
+            verdict: "fail",
+            logLine: 1,
+        });
+
+        expect(record).deep.equal({ type: "device-log", verdict: "unverified" });
+    });
+
     it("fails when the transfer stops on a chunk that announced another", async function () {
         this.timeout(15_000);
 
@@ -521,6 +538,125 @@ describe("expectChunkedTransfer", function () {
     });
 });
 
+// A chip TH prints `TCP:` where it prints `UDP:` once the session runs over TCP. These trace lines are
+// copied from a chip-all-clusters-app TH log of a TCP session, with the exchange made a parameter.
+const tcpReadLine = (exchange = EXCHANGE) =>
+    `[DMG] << from TCP:[fe80::1c9d:1982:6732:a4a7%en0]:65282 | 19414370 | [Interaction Model  (1) / Read Request (0x02) / Session = 33364 / Exchange = ${exchange}]`;
+const tcpReportLine = (exchange = EXCHANGE) =>
+    `[DMG] >> to TCP:[fe80::1c9d:1982:6732:a4a7%en0]:65282 | 120035677 | [Interaction Model  (1) / Report Data (0x05) / Session = 39260 / Exchange = ${exchange}]`;
+const tcpAckLine = (exchange = EXCHANGE) =>
+    `[DMG] << from TCP:[fe80::1c9d:1982:6732:a4a7%en0]:65282 | 19414372 | [Interaction Model  (1) / Status Response (0x01) / Session = 33364 / Exchange = ${exchange}]`;
+
+describe("expectChunkedTransfer over a TCP session", function () {
+    this.timeout(30_000);
+
+    const tcpCheck = (lines: string[]) =>
+        checkFrom(
+            [tcpReadLine(), READ_REQUEST, ...lines],
+            requestCheck(1),
+            "chip-docker",
+            false,
+            OUTLASTS_QUIET_PERIOD,
+        );
+
+    it("passes when every chunk but the last is acked", async () => {
+        const record = await tcpCheck([
+            tcpReportLine(),
+            CHUNK,
+            MORE_CHUNKS,
+            tcpAckLine(),
+            tcpReportLine(),
+            CHUNK,
+            SUPPRESSED,
+        ]);
+
+        expect(record.verdict).equal("pass");
+        expect(record.detail).equal(
+            "2 report chunks, each but the last followed by a StatusResponse, and none after the last",
+        );
+    });
+
+    it("fails a single report (characterization: a step skips a read over TCP before it asks)", async () => {
+        const record = await tcpCheck([tcpReportLine(), CHUNK, SUPPRESSED]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).equal(`1 report chunk on Exchange ${EXCHANGE} — the read did not chunk`);
+    });
+
+    it("does not let a skipped report's flag end this read's transfer", async () => {
+        const record = await tcpCheck([
+            tcpReportLine(),
+            CHUNK,
+            MORE_CHUNKS,
+            tcpAckLine(),
+            tcpReportLine(),
+            CHUNK,
+            tcpReportLine(EXCHANGE + 1),
+            CHUNK,
+            SUPPRESSED,
+        ]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/carries neither MoreChunkedMessages nor SuppressResponse/);
+    });
+});
+
+describe("chunkingNotApplicableOverTcp", () => {
+    // Read requests from the TH logs of the matterjs-server and in-process legs against chip-local and matter.js THs
+    const CHIP_TCP_READ =
+        "[1792051324.681] [2435:22184828:chip] [DMG] << from TCP:[fe80::1c9d:1982:6732:a4a7%en0]:65269 | 68058021 | " +
+        "[Interaction Model  (1) / Read Request (0x02) / Session = 6968 / Exchange = 31732]";
+    const CHIP_UDP_READ =
+        "[1792050467.957] [80876:22096310:chip] [DMG] << from UDP:[fe80::1c9d:1982:6732:a4a7%en0]:54436 | 70751006 | " +
+        "[Interaction Model  (1) / Read Request (0x02) / Session = 5953 / Exchange = 11280]";
+    const CHIP_READ_DUMP = "[1792051324.681] [2435:22184828:chip] [DMG] ReadRequestMessage =";
+    const MATTERJS_TCP_READ =
+        "2026-10-15 10:06:44.008 DEBUG InteractionServer Read « @1:1b669•0686(tcp)⇵fb00 fabricFiltered attributes: " +
+        "*.*.* events: *.*.*";
+    const MATTERJS_UDP_READ =
+        "2026-10-15 10:03:57.094 DEBUG InteractionServer Read « @1:1408badf13c529ac•b839⇵246f fabricFiltered " +
+        "attributes: 1.identify.state.identifyTime events: none";
+
+    const reasonFor = (lines: string[], flavor: LogFlavor, request: CheckRecord) =>
+        withFollower(lines, async follower => chunkingNotApplicableOverTcp(follower, flavor, request), {
+            drain: true,
+        });
+
+    it("names the read request's line where a chip TH received it over TCP", async () => {
+        const reason = await reasonFor([CHIP_TCP_READ, CHIP_READ_DUMP], "chip-local", requestCheck(1));
+
+        expect(reason).equal(
+            "the DUT's session to the TH runs over TCP (read request at TH log line 1), which carries a payload just " +
+                "over one MTU as one message, so the plan's chunking does not apply",
+        );
+    });
+
+    it("lets a chip TH's read over UDP run", async () => {
+        expect(await reasonFor([CHIP_UDP_READ, CHIP_READ_DUMP], "chip-local", requestCheck(1))).undefined;
+    });
+
+    it("names the read request's line where a matter.js TH received it over TCP", async () => {
+        expect(await reasonFor([MATTERJS_TCP_READ], "matterjs", requestCheck(0))).match(
+            /^the DUT's session to the TH runs over TCP \(read request at TH log line 0\)/,
+        );
+    });
+
+    it("lets a matter.js TH's read over UDP run", async () => {
+        expect(await reasonFor([MATTERJS_UDP_READ], "matterjs", requestCheck(0))).undefined;
+    });
+
+    it("decides nothing from a request check that matched no line", async () => {
+        expect(await reasonFor([CHIP_TCP_READ, CHIP_READ_DUMP], "chip-local", requestCheck())).undefined;
+        expect(
+            await reasonFor([CHIP_TCP_READ, CHIP_READ_DUMP], "chip-local", {
+                type: "device-log",
+                verdict: "fail",
+                logLine: 1,
+            }),
+        ).undefined;
+    });
+});
+
 describe("attributePathIBSequence", () => {
     it("has no field line for a fully wildcarded path", () => {
         const sequence = attributePathIBSequence({});
@@ -549,6 +685,88 @@ describe("attributePathIBSequence", () => {
     });
 });
 
+describe("checks of one subscribe request carrying several attribute paths", () => {
+    const PATHS = [
+        { endpoint: 1, cluster: 0x6, attribute: 0x0 },
+        { endpoint: 1, cluster: 0x8, attribute: 0x1 },
+        { endpoint: 1, cluster: 0x3, attribute: 0x0 },
+    ];
+
+    // chip's own rendering (`AttributePathIBs::Parser::PrettyPrint`), as Test_TC_IDM_4_1.yaml captured it
+    const pathIB = (cluster: number, attribute: string) => [
+        "[DMG] \t\tAttributePathIB =",
+        "[DMG] \t\t{",
+        "[DMG] \t\t\tEndpoint = 0x1,",
+        `[DMG] \t\t\tCluster = 0x${cluster.toString(16)},`,
+        `[DMG] \t\t\tAttribute = ${attribute},`,
+        "[DMG] \t\t}",
+        "[DMG] \t\t\t",
+    ];
+    const chipList = (extra: string[] = []) => [
+        "[DMG] \tAttributePathIBs =",
+        "[DMG] \t[",
+        ...pathIB(0x6, "0x0000_0000"),
+        ...pathIB(0x8, "0x0000_0001"),
+        ...pathIB(0x3, "0x0000_0000"),
+        ...extra,
+        "[DMG] \t],",
+    ];
+
+    const countLine = (count: number) =>
+        `2026-10-15 06:17:28.511 INFO InteractionServer Subscribe « @1:1b669•f9f5(tcp)⇵a90b fabricFiltered keepSubscriptions attributePaths: ${count}`;
+    const detailsLine = (paths: string) =>
+        `2026-10-15 06:17:28.512 DEBUG InteractionServer Subscribe request details « @1:1b669•f9f5(tcp)⇵a90b attributes: ${paths}`;
+    const ALL_PATHS = "1.onOff.state.onOff, 1.levelControl.state.remainingTime, 1.identify.state.identifyTime";
+
+    function chip(lines: string[]) {
+        return withFollower(lines, follower =>
+            expectSequence(follower, "chip-local", "paths", { chip: attributePathIBsSequence(PATHS) }, 0, Millis(200)),
+        );
+    }
+
+    function matterjs(lines: string[]) {
+        return withFollower(lines, follower =>
+            expectSequence(
+                follower,
+                "matterjs",
+                "paths",
+                { matterjs: { ordered: matterjsSubscribePaths(PATHS, "keepSubscriptions") } },
+                0,
+                Millis(200),
+            ),
+        );
+    }
+
+    it("matches chip's list of exactly these paths", async () => {
+        expect((await chip(chipList())).verdict).equal("pass");
+    });
+
+    it("fails chip's list when it carries a further path", async () => {
+        expect((await chip(chipList(pathIB(0x6, "0x0000_4000")))).verdict).equal("fail");
+    });
+
+    it("matches matter.js's count and details lines for these paths", async () => {
+        expect((await matterjs([countLine(3), detailsLine(ALL_PATHS)])).verdict).equal("pass");
+    });
+
+    it("fails matter.js's lines when the request counts another number of paths", async () => {
+        expect((await matterjs([countLine(4), detailsLine(`${ALL_PATHS}, 1.onOff.state.onTime`)])).verdict).equal(
+            "fail",
+        );
+    });
+
+    it("fails matter.js's lines when one path is missing from the details", async () => {
+        expect(
+            (await matterjs([countLine(3), detailsLine("1.onOff.state.onOff, 1.identify.state.identifyTime")])).verdict,
+        ).equal("fail");
+    });
+
+    it("fails matter.js's count line without the requested flag", async () => {
+        const withoutFlag = countLine(3).replace(" keepSubscriptions", "");
+        expect((await matterjs([withoutFlag, detailsLine(ALL_PATHS)])).verdict).equal("fail");
+    });
+});
+
 describe("eventPathIBSequence", () => {
     it("has no field line for a fully wildcarded path", () => {
         const sequence = eventPathIBSequence({});
@@ -573,6 +791,100 @@ describe("eventPathIBSequence", () => {
 
         expect(sequence[0].test("[DMG] AttributePathIB =")).equal(false);
         expect(sequence[2].test("[DMG] }")).equal(false);
+    });
+});
+
+describe("expectCommandPayload", () => {
+    const ON_OFF = Matter.clusters.require("OnOff");
+    const OFF = { cluster: ON_OFF, endpoint: 1, command: "off" };
+    const NO_FIELDS = { label: "off carries no parameters", chip: [], matterjs: "(no payload)" };
+
+    // Shapes as a chip all-clusters TH prints an Off request, and as a matter.js TH prints one
+    const chipCommandData = (command: number) => [
+        "[DMG] \t\tCommandDataIB =",
+        "[DMG] \t\t{",
+        "[DMG] \t\t\tCommandPathIB =",
+        "[DMG] \t\t\t{",
+        "[DMG] \t\t\t\tEndpointId = 0x1,",
+        "[DMG] \t\t\t\tClusterId = 0x6,",
+        `[DMG] \t\t\t\tCommandId = 0x${command.toString(16)},`,
+        "[DMG] \t\t\t},",
+        "[DMG] \t\t\t",
+        "[DMG] \t\t\tCommandFields = ",
+        "[DMG] \t\t\t{",
+        "[DMG] \t\t\t},",
+        "[DMG] \t\t},",
+        "[DMG] \t\t",
+    ];
+    const chipRequest = (...commands: number[]) => [
+        "[DMG] \tInvokeRequests =",
+        "[DMG] \t[",
+        ...commands.flatMap(chipCommandData),
+        "[DMG] \t],",
+    ];
+
+    const EXCHANGE = "@1:1c2511c88402bfdf•7eb4⇵c8fe";
+    const summary = (exchange: string, invokes: string) =>
+        `INFO InteractionServer Invoke « ${exchange} invokes: ${invokes}`;
+    const dispatch = (exchange: string) =>
+        `INFO ProtocolService Invoke « th.ep1.onOff.off ${exchange}✉07eb2514 (no payload)`;
+
+    it("passes a chip request carrying only this command", async () => {
+        const record = await withFollower(chipRequest(0x0), follower =>
+            expectCommandPayload(follower, "chip-local", OFF, NO_FIELDS, 0, Millis(200)),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails a chip request carrying a second command", async () => {
+        const record = await withFollower(chipRequest(0x0, 0x1), follower =>
+            expectCommandPayload(follower, "chip-local", OFF, NO_FIELDS, 0, Millis(200)),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("passes a matter.js request whose summary on the same exchange lists only this command", async () => {
+        const record = await withFollower([summary(EXCHANGE, "1.onOff.off"), dispatch(EXCHANGE)], follower =>
+            expectCommandPayload(follower, "matterjs", OFF, NO_FIELDS, 0, Millis(200)),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails a matter.js request whose summary lists a second command", async () => {
+        const record = await withFollower(
+            [summary(EXCHANGE, "1.onOff.off, 1.onOff.on"), dispatch(EXCHANGE)],
+            follower => expectCommandPayload(follower, "matterjs", OFF, NO_FIELDS, 0, Millis(200)),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not take another exchange's single-command summary for this request's", async () => {
+        const record = await withFollower(
+            [
+                summary("@1:1c2511c88402bfdf•7eb4⇵c8fd", "1.onOff.off"),
+                summary(EXCHANGE, "1.onOff.off, 1.onOff.on"),
+                dispatch(EXCHANGE),
+            ],
+            follower => expectCommandPayload(follower, "matterjs", OFF, NO_FIELDS, 0, Millis(200)),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("fails a matter.js dispatch line that carries fields where none are expected", async () => {
+        const record = await withFollower(
+            [
+                summary(EXCHANGE, "1.onOff.off"),
+                `INFO ProtocolService Invoke « th.ep1.onOff.off ${EXCHANGE}✉07eb2514 effectIdentifier: 1`,
+            ],
+            follower => expectCommandPayload(follower, "matterjs", OFF, NO_FIELDS, 0, Millis(200)),
+        );
+
+        expect(record.verdict).equal("fail");
     });
 });
 
@@ -852,12 +1164,12 @@ describe("expectChunkedTransfer against a matter.js TH", function () {
     const mjsAck = (exchange = MATTERJS_EXCHANGE) =>
         `2026-08-22 16:54:44.385 DEBUG MessageExchange Message « for: I/StatusResponse id: @1:f8b164969e6633a1•678b⇵${exchange}✉0fcef3bf type: 0x1/0x1 acked: 02ca1953 reqAck size: 8 payload: 0000000000000000`;
     // matter.js names the exchange on the read line itself, so the request needs no trace line of its own.
-    const mjsRead = (exchange = MATTERJS_EXCHANGE) =>
-        `2026-08-22 16:54:44.301 DEBUG InteractionServer Read « @1:f8b164969e6633a1•678b⇵${exchange} fabricFiltered attributes: *.*.*`;
+    const mjsRead = (exchange = MATTERJS_EXCHANGE, session = "•678b") =>
+        `2026-08-22 16:54:44.301 DEBUG InteractionServer Read « @1:f8b164969e6633a1${session}⇵${exchange} fabricFiltered attributes: *.*.*`;
 
-    async function transfer(lines: string[], endSource = false, budget = Seconds(1)) {
+    async function transfer(lines: string[], endSource = false, budget = Seconds(1), read = mjsRead()) {
         return withFollower(
-            [mjsRead(), ...lines],
+            [read, ...lines],
             follower => expectChunkedTransfer(follower, "matterjs", requestCheck(0), budget),
             { endSource, drain: true },
         );
@@ -927,6 +1239,29 @@ describe("expectChunkedTransfer against a matter.js TH", function () {
 
         expect(record.verdict).equal("fail");
         expect(record.detail).match(/did not chunk/);
+    });
+
+    it("fails a one-chunk read over a TCP session (characterization: a step skips such a read before it asks)", async () => {
+        const overTcp = await transfer(
+            [mjsChunk(MATTERJS_EXCHANGE, "final")],
+            false,
+            Seconds(1),
+            mjsRead(MATTERJS_EXCHANGE, "•c7c3(tcp)"),
+        );
+        expect(overTcp.verdict).equal("fail");
+        expect(overTcp.detail).equal(`1 report chunk on Exchange ${MATTERJS_EXCHANGE} — the read did not chunk`);
+    });
+
+    it("checks a read over a TCP session that did chunk like any other", async () => {
+        const record = await transfer(
+            [mjsChunk(), mjsChunk()],
+            false,
+            Seconds(1),
+            mjsRead(MATTERJS_EXCHANGE, "•c7c3(tcp)"),
+        );
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/chunk 1 of 2 went unacked/);
     });
 
     it("fails when the DUT acked the final chunk as well", async () => {
@@ -1332,6 +1667,206 @@ describe("expectReportAck against a chip TH", () => {
     });
 });
 
+describe("expectSubscriptionId and expectReportAck against a chip TH", () => {
+    // A previous step's subscription (0x384d4ee3, exchange 31373) whose request and response both surface
+    // only after this step's mark, then this step's own request, priming report, ack and response
+    // (0xe9b72b7b, exchange 31374): the order of a real TC-IDM-6.4 device log.
+    const PREVIOUS = 0x384d4ee3;
+    const OURS = 0xe9b72b7b;
+    const OTHER = 0x11111111;
+    const PEER = "UDP:[fe80::1]:5540";
+
+    function requestLines(exchange: number, peer = PEER) {
+        return [
+            `[DMG] << from ${peer} | 1 | [Interaction Model  (1) / Subscribe Request (0x03) / Session = 39030 / Exchange = ${exchange}]`,
+            "[DMG] SubscribeRequestMessage =",
+            "[DMG] {",
+            "[DMG] \tKeepSubscriptions = true, ",
+        ];
+    }
+
+    function responseLines(exchange: number, subscriptionId: number, { traced = true, peer = PEER } = {}) {
+        return [
+            ...(traced
+                ? [
+                      `[DMG] >> to ${peer} | 2 | [Interaction Model  (1) / Subscribe Response (0x04) / Session = 41737 / Exchange = ${exchange}]`,
+                  ]
+                : []),
+            "[DMG] SubscribeResponseMessage =",
+            "[DMG] {",
+            `[DMG] \tSubscriptionId = 0x${subscriptionId.toString(16)},`,
+        ];
+    }
+
+    function primingLines(exchange: number, subscriptionId: number) {
+        return [
+            `[DMG] >> to ${PEER} | 3 | [Interaction Model  (1) / Report Data (0x05) / Session = 41737 / Exchange = ${exchange}]`,
+            "[DMG] ReportDataMessage =",
+            "[DMG] {",
+            `[DMG] \tSubscriptionId = 0x${subscriptionId.toString(16)},`,
+            "[DMG] \tInteractionModelRevision = 12",
+            `[DMG] << from ${PEER} | 4 | [Interaction Model  (1) / Status Response (0x01) / Session = 39030 / Exchange = ${exchange}]`,
+            "[DMG] StatusResponseMessage =",
+            "[DMG] {",
+            "[DMG] \tStatus = 0x00 (SUCCESS),",
+        ];
+    }
+
+    /** The lookup for the request whose KeepSubscriptions line is the last line of `before`. */
+    async function lookupAfter(before: string[], after: string[], timeout = Millis(500)) {
+        return withFollower(
+            [...before, ...after],
+            follower => expectSubscriptionId(follower, "chip-local", requestCheck(before.length - 1), timeout),
+            { drain: true, endSource: true },
+        );
+    }
+
+    it("reads the id of this step's request, not of a previous step's late request and response", async () => {
+        const before = [...requestLines(31373), ...requestLines(31374)];
+        const after = [
+            ...primingLines(31373, PREVIOUS),
+            ...responseLines(31373, PREVIOUS),
+            ...primingLines(31374, OURS),
+            ...responseLines(31374, OURS),
+        ];
+        const { lookup, ackCheck } = await withFollower(
+            [...before, ...after],
+            async follower => {
+                const lookup = await expectSubscriptionId(
+                    follower,
+                    "chip-local",
+                    requestCheck(before.length - 1),
+                    Millis(500),
+                );
+                const ackCheck = await expectReportAck(follower, "chip-local", lookup, before.length, Millis(500), {
+                    carriesData: false,
+                });
+                return { lookup, ackCheck };
+            },
+            { drain: true },
+        );
+
+        expect(lookup.outcome === "found" && lookup.subscriptionId).equal(OURS);
+        expect(ackCheck.verdict).equal("pass");
+    });
+
+    it("passes over another subscription established after this step's request", async () => {
+        const lookup = await lookupAfter(requestLines(31374), [
+            ...requestLines(4000),
+            ...responseLines(4000, OTHER),
+            ...responseLines(31374, OURS),
+        ]);
+
+        expect(lookup.outcome === "found" && lookup.subscriptionId).equal(OURS);
+    });
+
+    it("passes over a response on the same exchange number to another peer", async () => {
+        const lookup = await lookupAfter(requestLines(31374), [
+            ...responseLines(31374, OTHER, { peer: "UDP:[fe80::2]:5540" }),
+            ...responseLines(31374, OURS),
+        ]);
+
+        expect(lookup.outcome === "found" && lookup.subscriptionId).equal(OURS);
+    });
+
+    it("fails naming the passed-over response when only another request's response arrives", async () => {
+        const lookup = await lookupAfter(
+            [...requestLines(31373), ...requestLines(31374)],
+            responseLines(31373, PREVIOUS),
+            Millis(200),
+        );
+
+        expect(lookup.outcome).equal("failed");
+        expect(lookup.check.detail).contains("passed over 1 SubscribeResponse(s)");
+    });
+
+    it("reads the id and its report's ack off a TCP session", async () => {
+        // Copied from a chip-all-clusters-app TH log of a TCP session (TC-IDM-4.1 on the matterjs-server leg)
+        const lines = [
+            "[DMG] << from TCP:[fe80::1c9d:1982:6732:a4a7%en0]:65282 | 19414371 | [Interaction Model  (1) / Subscribe Request (0x03) / Session = 33364 / Exchange = 32761]",
+            "[DMG] SubscribeRequestMessage =",
+            "[DMG] {",
+            "[DMG] \tKeepSubscriptions = true, ",
+            "[DMG] >> to TCP:[fe80::1c9d:1982:6732:a4a7%en0]:65282 | 120035677 | [Interaction Model  (1) / Report Data (0x05) / Session = 39260 / Exchange = 32761]",
+            "[DMG] ReportDataMessage =",
+            "[DMG] {",
+            "[DMG] \tSubscriptionId = 0xe3fa275a,",
+            "[DMG] << from TCP:[fe80::1c9d:1982:6732:a4a7%en0]:65282 | 19414372 | [Interaction Model  (1) / Status Response (0x01) / Session = 33364 / Exchange = 32761]",
+            "[DMG] StatusResponseMessage =",
+            "[DMG] {",
+            "[DMG] \tStatus = 0x00 (SUCCESS),",
+            "[DMG] >> to TCP:[fe80::1c9d:1982:6732:a4a7%en0]:65282 | 120035678 | [Interaction Model  (1) / Subscribe Response (0x04) / Session = 39260 / Exchange = 32761]",
+            "[DMG] SubscribeResponseMessage =",
+            "[DMG] {",
+            "[DMG] \tSubscriptionId = 0xe3fa275a,",
+        ];
+        const { lookup, ackCheck } = await withFollower(
+            lines,
+            async follower => {
+                const lookup = await expectSubscriptionId(follower, "chip-local", requestCheck(3), Millis(500));
+                const ackCheck = await expectReportAck(follower, "chip-local", lookup, 0, Millis(500), {
+                    carriesData: false,
+                });
+                return { lookup, ackCheck };
+            },
+            { drain: true },
+        );
+
+        expect(lookup.outcome === "found" && lookup.subscriptionId).equal(0xe3fa275a);
+        expect(ackCheck.verdict).equal("pass");
+    });
+
+    it("fails a response with no trace line of its own", async () => {
+        const lookup = await lookupAfter(
+            requestLines(31374),
+            responseLines(31374, OURS, { traced: false }),
+            Millis(200),
+        );
+
+        expect(lookup.outcome).equal("failed");
+        expect(lookup.check.detail).contains("No session and exchange for the SubscribeResponse");
+    });
+
+    it("fails a request with no trace line of its own", async () => {
+        const lookup = await lookupAfter(requestLines(31374).slice(1), responseLines(31374, OURS), Millis(200));
+
+        expect(lookup.outcome).equal("failed");
+        expect(lookup.check.detail).contains("No inbound Subscribe Request trace line");
+    });
+
+    it("fails without searching when the request itself was not found", async () => {
+        const lookup = await withFollower(responseLines(31374, OURS), follower =>
+            expectSubscriptionId(
+                follower,
+                "chip-local",
+                { type: "device-log", verdict: "fail", detail: "no SubscribeRequestMessage" },
+                Millis(200),
+            ),
+        );
+
+        expect(lookup.outcome).equal("failed");
+        expect(lookup.check.detail).contains("no SubscribeRequestMessage");
+    });
+
+    it("fails without searching when the request check failed at the step's mark", async () => {
+        // A failed path check names the line it searched from, which is no request line
+        const lookup = await withFollower(
+            [...requestLines(31374), ...responseLines(31374, OURS)],
+            follower =>
+                expectSubscriptionId(
+                    follower,
+                    "chip-local",
+                    { type: "device-log", verdict: "fail", detail: "no SubscribeRequestMessage", logLine: 3 },
+                    Millis(200),
+                ),
+            { drain: true },
+        );
+
+        expect(lookup.outcome).equal("failed");
+        expect(lookup.check.detail).contains("no SubscribeRequestMessage");
+    });
+});
+
 describe("expectSubscriptionId and expectReportAck against a matter.js TH", () => {
     // Lines a matter.js TH writes for one subscription: the response naming the id it minted, the
     // report it then sends on that subscription, and the DUT's answer to that very report — the
@@ -1362,14 +1897,75 @@ describe("expectSubscriptionId and expectReportAck against a matter.js TH", () =
         );
     }
 
-    it("reads the id the TH minted", async () => {
-        const lookup = await withFollower([SUBSCRIBE_RESPONSE], follower =>
-            expectSubscriptionId(follower, "matterjs", 0, Millis(200)),
+    const SUBSCRIBE_REQUEST =
+        "DEBUG InteractionServer Subscribe request details « @1:1b669•2d86⇵7689 events: 0.BasicInformation.events.startUp";
+
+    function responseOn(via: string, subscriptionId: string) {
+        return (
+            `DEBUG MessageChannel Message » for: I/SubscribeResponse sub#: ${subscriptionId} maxInterval: 1m 46s ` +
+            `id: ${via}✉05ab904a type: 0x1/0x4`
         );
+    }
+
+    async function lookupAfter(before: string[], after: string[]) {
+        return withFollower(
+            [...before, ...after],
+            follower => expectSubscriptionId(follower, "matterjs", requestCheck(before.length - 1), Millis(200)),
+            { drain: true, endSource: true },
+        );
+    }
+
+    it("reads the id the TH minted", async () => {
+        const lookup = await lookupAfter([SUBSCRIBE_REQUEST], [SUBSCRIBE_RESPONSE]);
 
         expect(lookup.outcome).equal("found");
         expect(lookup.outcome === "found" && lookup.subscriptionId).equal(0x54c99e7e);
         expect(lookup.check.verdict).equal("pass");
+    });
+
+    it("passes over a previous step's late request and response", async () => {
+        const lookup = await lookupAfter(
+            ["DEBUG InteractionServer Subscribe request details « @1:1b669•2d86⇵7688 events: *", SUBSCRIBE_REQUEST],
+            [responseOn("@1:1b669•2d86⇵7688", "54c99e7d"), SUBSCRIBE_RESPONSE],
+        );
+
+        expect(lookup.outcome === "found" && lookup.subscriptionId).equal(0x54c99e7e);
+    });
+
+    it("passes over another subscription established after this step's request", async () => {
+        const lookup = await lookupAfter(
+            [SUBSCRIBE_REQUEST],
+            [
+                "DEBUG InteractionServer Subscribe request details « @1:1b669•2d86⇵768a attributes: *.*",
+                responseOn("@1:1b669•2d86⇵768a", "54c99e7f"),
+                SUBSCRIBE_RESPONSE,
+            ],
+        );
+
+        expect(lookup.outcome === "found" && lookup.subscriptionId).equal(0x54c99e7e);
+    });
+
+    it("passes over a response on the same exchange number of another session", async () => {
+        const lookup = await lookupAfter(
+            [SUBSCRIBE_REQUEST],
+            [responseOn("@1:1b669•2d87⇵7689", "54c99e7f"), SUBSCRIBE_RESPONSE],
+        );
+
+        expect(lookup.outcome === "found" && lookup.subscriptionId).equal(0x54c99e7e);
+    });
+
+    it("fails naming the passed-over response when only another request's response arrives", async () => {
+        const lookup = await lookupAfter([SUBSCRIBE_REQUEST], [responseOn("@1:1b669•2d86⇵7688", "54c99e7d")]);
+
+        expect(lookup.outcome).equal("failed");
+        expect(lookup.check.detail).contains("passed over 1 SubscribeResponse(s)");
+    });
+
+    it("fails a request line that names no session and exchange", async () => {
+        const lookup = await lookupAfter(["DEBUG InteractionServer Subscribe request details"], [SUBSCRIBE_RESPONSE]);
+
+        expect(lookup.outcome).equal("failed");
+        expect(lookup.check.detail).contains("names no session and exchange");
     });
 
     it("hands a failed lookup's own reason to the ack check, not a bare unverified", async () => {
@@ -1422,6 +2018,43 @@ describe("expectSubscriptionId and expectReportAck against a matter.js TH", () =
         const record = await ack([REPORT, ACK.replace("acked: 05ab904b", "acked: 05ab9999")]);
 
         expect(record.verdict).equal("fail");
+    });
+
+    // Over TCP matter.js uses no MRP, so neither message carries `reqAck` or `acked:`; lines as logged by a
+    // matterjs-server TH
+    const TCP_REPORT =
+        "DEBUG MessageChannel Message » for: I/ReportData sub#: 54c99e7e ev: 1 " +
+        "id: @1:1b669•e025(tcp)⇵d836✉0e110c22 type: 0x1/0x5 size: 55";
+    const TCP_ACK =
+        "DEBUG MessageExchange Message « for: I/StatusResponse id: @1:1b669•e025(tcp)⇵d836✉01b5f152 " +
+        "type: 0x1/0x1 size: 8 payload: 1524000024ff0c18";
+
+    it("passes on the ack over TCP, which names no counter, by its exchange", async () => {
+        const record = await ack([TCP_REPORT, TCP_ACK]);
+
+        expect(record.verdict).equal("pass");
+        expect(record.matched).equal(TCP_ACK);
+    });
+
+    it("does not take another exchange's ack for a report over TCP", async () => {
+        const record = await ack([TCP_REPORT, TCP_ACK.replace("⇵d836", "⇵d837")]);
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not take an ack of another session with the same exchange over TCP", async () => {
+        const record = await ack([TCP_REPORT, TCP_ACK.replace("•e025(tcp)", "•e026(tcp)")]);
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not let a keepalive's ack on its own exchange stand in for a report's", async () => {
+        const keepalive = REPORT.replace("attr: 1", "empty").replace("⇵7689✉05ab904b", "⇵768a✉05ab9052");
+        const keepaliveAck = ACK.replace("⇵7689", "⇵768a").replace("acked: 05ab904b", "acked: 05ab9052");
+
+        expect((await ack([keepalive, keepaliveAck, REPORT])).verdict).equal("fail");
+        expect((await ack([REPORT, keepaliveAck])).verdict).equal("fail");
+        expect((await ack([REPORT, keepaliveAck, ACK])).matched).equal(ACK);
     });
 
     it("fails on a report of another subscription", async () => {
@@ -1565,6 +2198,14 @@ describe("fabric-removal log patterns", () => {
         const fabric20 = MATTERJS_SESSION_ENDED.replace("@2:", "@20:");
 
         expect((await check("matterjs", fabricSessionsEnded(2), [fabric20])).verdict).equal("fail");
+    });
+
+    it("finds the sessions of a fabric index above 9, which matter.js logs in hex, and of a TCP session", async () => {
+        const fabric10 = MATTERJS_SESSION_ENDED.replace("@2:", "@a:");
+        const overTcp = MATTERJS_SESSION_ENDED.replace("•c677", "•c677(tcp)");
+
+        expect((await check("matterjs", fabricSessionsEnded(10), [fabric10])).verdict).equal("pass");
+        expect((await check("matterjs", fabricSessionsEnded(2), [overTcp])).verdict).equal("pass");
     });
 
     it("does not take a PASE session ending for a removed fabric's", async () => {
@@ -1866,11 +2507,16 @@ describe("group message patterns", () => {
 });
 
 describe("attempt", () => {
-    it("lets a controller's refusal through, so the harness can skip the step", async () => {
+    it("lets a controller's refusal through, so the step runner reports it", async () => {
         await expect(
             attempt(
                 async () => {
-                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool", "no per-path status");
+                    throw new UnsupportedByControllerError(
+                        "invokeBatch",
+                        "chip-tool",
+                        "one command per invoke request",
+                        "batch-invoke",
+                    );
                 },
                 () => "",
             ),
@@ -1946,6 +2592,8 @@ describe("invokeCommand", () => {
         return {
             controllers: { dut: controller },
             devices: { th },
+            controllerSelection: resolveControllerSelection(),
+            deviceFlavor: undefined,
             picsMet: () => {
                 throw new InternalError("not used by these tests");
             },
@@ -2246,6 +2894,8 @@ describe("CommissionedRefs", () => {
         return {
             controllers: { dut: controllerFor("dut"), th_cr2: controllerFor("th_cr2") },
             devices: {},
+            controllerSelection: resolveControllerSelection(),
+            deviceFlavor: undefined,
             picsMet: () => {
                 throw new InternalError("not used by these tests");
             },
@@ -2360,6 +3010,29 @@ describe("expectRejection", () => {
 
         expect(Time.timers.size).equal(before);
     });
+
+    it("rejects with a controller refusal rather than passing on it, whatever it accepts", async () => {
+        const refusal = new UnsupportedByControllerError("commission", "matterjs-server", "not offered", "attestation");
+
+        await expect(expectRejection("op", Promise.reject(refusal), BUDGET)).rejectedWith(refusal);
+        await expect(expectRejection("op", Promise.reject(refusal), BUDGET, () => true)).rejectedWith(refusal);
+    });
+});
+
+describe("settleWithin", () => {
+    it("rejects with a controller refusal instead of reporting the operation rejected", async () => {
+        const refusal = new UnsupportedByControllerError("commission", "matterjs-server", "not offered", "attestation");
+        const before = Time.timers.size;
+
+        await expect(settleWithin("op", Promise.reject(refusal), Millis(200))).rejectedWith(refusal);
+        expect(Time.timers.size).equal(before);
+    });
+
+    it("reports any other rejection", async () => {
+        const outcome = await settleWithin("op", Promise.reject(new InternalError("refused")), Millis(200));
+
+        expect(outcome.kind).equal("rejected");
+    });
 });
 
 describe("recordAll", () => {
@@ -2368,6 +3041,8 @@ describe("recordAll", () => {
         const cx = {
             controllers: {},
             devices: {},
+            controllerSelection: resolveControllerSelection(),
+            deviceFlavor: undefined,
             picsMet: () => {
                 throw new InternalError("not used by these tests");
             },
@@ -2583,7 +3258,7 @@ describe("the flavor-branching checks on a flavor of no family (characterization
                     Millis(5_000),
                 )
             ).verdict,
-            (await expectSubscriptionId(follower, FLAVOR, 0, Millis(5_000))).check.verdict,
+            (await expectSubscriptionId(follower, FLAVOR, requestCheck(), Millis(5_000))).check.verdict,
             (
                 await expectReportAck(
                     follower,
@@ -2596,5 +3271,28 @@ describe("the flavor-branching checks on a flavor of no family (characterization
         ]);
 
         expect(verdicts).deep.equal(["unverified", "unverified", "unverified"]);
+    });
+});
+
+describe("dutControllerLogFlavor", () => {
+    // The variable names a controller of the other log family, so only the run's selection gives the right answer
+    it("answers from the run's controller selection", () => {
+        const original = env.MATTER_CERT_CONTROLLER;
+        env.MATTER_CERT_CONTROLLER = "matterjs";
+        try {
+            expect(dutControllerLogFlavor({ controllerSelection: { dut: "chip-tool", helper: "chip-tool" } })).equal(
+                "chip",
+            );
+            env.MATTER_CERT_CONTROLLER = "chip-tool";
+            expect(
+                dutControllerLogFlavor({ controllerSelection: { dut: "matterjs-server", helper: "matterjs" } }),
+            ).equal("matterjs");
+        } finally {
+            if (original === undefined) {
+                delete env.MATTER_CERT_CONTROLLER;
+            } else {
+                env.MATTER_CERT_CONTROLLER = original;
+            }
+        }
     });
 });

@@ -6,17 +6,7 @@
 
 import type { KickOrigin } from "#peer/PeerConnection.js";
 import { PeerTimingParameters } from "#peer/PeerTimingParameters.js";
-import {
-    Abort,
-    AbortedError,
-    Duration,
-    Minutes,
-    Observable,
-    QuietObservable,
-    Seconds,
-    Time,
-    Timestamp,
-} from "@matter/general";
+import { Abort, AbortedError, Minutes, Observable, QuietObservable, Seconds, Time, Timestamp } from "@matter/general";
 
 /**
  * Tests for the MRP kick restart redesign.
@@ -298,37 +288,6 @@ describe("PeerConnection kick redesign", () => {
             expect(handleKick("discover")).equals(true); // 60s reached
 
             expect(restarts).deep.equals(["discover", "discover"]);
-        });
-    });
-
-    describe("kick gate (count + saving)", () => {
-        /**
-         * Models PeerConnection.attemptOnce's kick gate: a kick restarts the exchange only once it has
-         * retransmitted enough times AND a restart would shave off enough of the next retransmit to be worth
-         * the teardown.  Extracted here because PeerConnection itself is integration-heavy.
-         */
-        function gate(timing: PeerTimingParameters, retransmissionCount: number, restartSaving: Duration) {
-            if (retransmissionCount < timing.kickMinRetransmissions) {
-                return false;
-            }
-            if (restartSaving < timing.kickMinRestartSaving) {
-                return false;
-            }
-            return true;
-        }
-
-        const timing = PeerTimingParameters();
-
-        it("suppresses while the exchange has not retransmitted enough", () => {
-            expect(gate(timing, 1, Minutes(2))).equals(false);
-        });
-
-        it("suppresses when a restart would save too little time (e.g. idle/sleepy peer)", () => {
-            expect(gate(timing, 5, Seconds(10))).equals(false);
-        });
-
-        it("restarts once both retransmission count and restart saving clear their thresholds", () => {
-            expect(gate(timing, 2, Seconds(90))).equals(true);
         });
     });
 

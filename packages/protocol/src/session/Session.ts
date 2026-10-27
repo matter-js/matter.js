@@ -27,6 +27,7 @@ import {
     Time,
     Timespan,
     Timestamp,
+    MAX_UDP_MESSAGE_SIZE,
 } from "@matter/general";
 import type { NodeId, TypeFromPartialBitSchema } from "@matter/types";
 import type {
@@ -227,6 +228,17 @@ export abstract class Session {
     }
 
     /**
+     * The largest message the peer accepts over TCP: its announced MAX_TCP_MESSAGE_SIZE, or the spec default when it
+     * announced none.  Only meaningful for a session on a TCP channel.  Never below {@link MAX_UDP_MESSAGE_SIZE}, because every node accepts that size over UDP anyway
+     * and a smaller value would leave no room to send anything.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.13.1
+     */
+    get peerMaxTcpMessageSize() {
+        return Math.max(this.maxTcpMessageSize ?? SessionParameters.fallbacks.maxTcpMessageSize, MAX_UDP_MESSAGE_SIZE);
+    }
+
+    /**
      * Additive MRP retransmission margins for the peer's network medium, or undefined if the medium is unknown.
      *
      * Applies to every exchange on the session, including those the peer initiates.
@@ -310,8 +322,9 @@ export abstract class Session {
     /**
      * Force-close the session.
      *
-     * This terminates (potentially) subscriptions and exchanges without notifying peers.  It places the session in a
-     * closing state so no further exchanges are accepted.
+     * This ends the session's subscriptions for good and closes exchanges without notifying peers.  With
+     * {@link PeerLossContext.keepSubscriptions} the subscriptions end only when the session closes.  It places the
+     * session in a closing state so no further exchanges are accepted.
      *
      * TODO refactor when moving subscriptions away from sessions
      */
@@ -369,7 +382,17 @@ export abstract class Session {
         return !!this.#exchanges.size;
     }
 
+    /** End the session's subscriptions for good.  Returns how many were closed. */
     async closeSubscriptions(_flush = false, _currentExchange?: MessageExchange): Promise<number> {
+        return 0;
+    }
+
+    /**
+     * Flush and close the session's subscriptions because the node shuts down, keeping them eligible for
+     * re-establishment on the next start.  Subscriptions the session closes later are kept the same way.  Returns how
+     * many were closed.
+     */
+    async closeSubscriptionsForShutdown(): Promise<number> {
         return 0;
     }
 

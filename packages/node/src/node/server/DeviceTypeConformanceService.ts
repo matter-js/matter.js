@@ -70,7 +70,8 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
      *
      * With {@link DeviceTypeValidation.ValidateOptions.refuse refuse} on, the default, an endpoint with a new misplaced
      * singleton, or with any new violation in mode `"strict"`, is refused: the error carries its new violations, which
-     * are neither logged nor recorded. Every other endpoint with new violations logs one warning listing them.
+     * are neither logged nor recorded. Every other endpoint with new violations logs one warning listing them. A
+     * violation flagged {@link DeviceTypeViolation.assertedAtRoot} is never refused and logs at debug level.
      *
      * @returns the violations of each judged endpoint
      * @throws {DeviceTypeConformanceError} when an endpoint is refused
@@ -397,13 +398,14 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
             }
 
             const { fresh, current } = judgement;
+            const binding = fresh.filter(({ assertedAtRoot }) => !assertedAtRoot);
             if (
                 refuse &&
-                fresh.length &&
-                (this.#mode === "strict" || fresh.some(({ kind }) => kind === "singletonMisplaced"))
+                binding.length &&
+                (this.#mode === "strict" || binding.some(({ kind }) => kind === "singletonMisplaced"))
             ) {
                 // Left as it was, so the endpoint is refused again until it conforms
-                refused.push({ endpoint, fresh });
+                refused.push({ endpoint, fresh: binding });
             } else {
                 judged.push({ endpoint, fresh, current });
             }
@@ -428,15 +430,14 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
                 }
             }
 
-            if (fresh.length) {
-                this.#logger.warn(
-                    `Endpoint ${endpoint} violates device type requirements:`,
-                    Diagnostic.list(
-                        fresh.map(
-                            ({ kind, deviceType, requirement, detail }) =>
-                                `${kind} ${deviceType} ${requirement}: ${detail}`,
-                        ),
-                    ),
+            const binding = fresh.filter(({ assertedAtRoot }) => !assertedAtRoot);
+            if (binding.length) {
+                this.#logger.warn(`Endpoint ${endpoint} violates device type requirements:`, describe(binding));
+            }
+            if (binding.length < fresh.length) {
+                this.#logger.debug(
+                    `Endpoint ${endpoint} does not meet requirements that device types of its node assert at the Root:`,
+                    describe(fresh.filter(({ assertedAtRoot }) => assertedAtRoot)),
                 );
             }
         }
@@ -472,7 +473,8 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
     }
 
     /**
-     * The violations of {@link endpoint} not reported before, and the keys of all it violates now. Undefined for an
+     * The violations of {@link endpoint} not reported before or reported only as flagged
+     * {@link DeviceTypeViolation.assertedAtRoot}, and the keys of all it violates now. Undefined for an
      * endpoint in no node scope, which is not judged.
      */
     #judge(endpoint: Endpoint, pass: DeviceTypeValidationPass<Endpoint>) {
@@ -484,7 +486,11 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
 
         const current = new Map(violations.map(violation => [DeviceTypeViolation.keyOf(violation), violation]));
         const previous = this.#reported.get(endpoint);
-        const fresh = violations.filter(violation => !previous?.has(DeviceTypeViolation.keyOf(violation)));
+        // A violation that loses its Root-assertion flag now binds, so it is reported again
+        const fresh = violations.filter(violation => {
+            const reported = previous?.get(DeviceTypeViolation.keyOf(violation));
+            return reported === undefined || (reported.assertedAtRoot === true && !violation.assertedAtRoot);
+        });
 
         return { fresh, current };
     }
@@ -739,6 +745,17 @@ function subtreeReachOf(endpoint: Endpoint, pass: DeviceTypeValidationPass<Endpo
 interface Judged {
     endpoint: Endpoint;
     fresh: DeviceTypeViolation[];
+}
+
+/**
+ * {@link violations} as a log list.
+ */
+function describe(violations: DeviceTypeViolation[]) {
+    return Diagnostic.list(
+        violations.map(
+            ({ kind, deviceType, requirement, detail }) => `${kind} ${deviceType} ${requirement}: ${detail}`,
+        ),
+    );
 }
 
 /**

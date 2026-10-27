@@ -8,6 +8,7 @@ import { Bytes, Seconds } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { CertNodeRef, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest } from "@matter/testing";
+import { commissionChecked } from "./tc-dd-support.js";
 import type { CommandFieldValue, InvokedCommand, RecordedCheck } from "./tc-support.js";
 import { attempt, CommissionedRefs, describeValue, invokeCommand, recordAll, withChecks } from "./tc-support.js";
 
@@ -141,16 +142,18 @@ certTest("TC-TBRM-3.1", {
     .step(
         "0",
         "Preconditions: the DUT commissions the TH.",
-        async cx => {
-            const dut = cx.controllers.dut;
-            const th = cx.devices.th;
-
-            const ref = await dut.commission({
-                passcode: th.commissioning.passcode,
-                discriminator: th.commissioning.discriminator,
-            });
-            commissioned.set("dut", ref);
-        },
+        cx =>
+            withChecks(cx, async checks => {
+                const th = cx.devices.th;
+                const ref = await commissionChecked(
+                    cx.controllers.dut,
+                    { passcode: th.commissioning.passcode, discriminator: th.commissioning.discriminator },
+                    th,
+                    "DUT commissions TH",
+                    checks,
+                );
+                commissioned.set("dut", ref);
+            }),
         { expected: "The TH is commissioned onto the DUT's fabric, so the steps below run over CASE." },
     )
     .step(

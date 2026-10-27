@@ -8,7 +8,6 @@ import {
     ClosedError,
     Duration,
     ImplementationError,
-    InternalError,
     isObject,
     MatterError,
     Millis,
@@ -16,12 +15,15 @@ import {
     TimeoutError,
     UnexpectedDataError,
 } from "@matter/general";
-import { CERT_BINS_PLATFORM, prepareChipBins, resolveChipBinsSource } from "@matter/testing";
-import { ChildProcess, spawn } from "node:child_process";
-import { createServer } from "node:net";
+import {
+    CERT_BINS_PLATFORM,
+    ManagedChildProcess,
+    prepareChipBins,
+    probeFreePort,
+    resolveChipBinsSource,
+} from "@matter/testing";
 import { join } from "node:path";
 import { arch as hostArch, env, platform as hostPlatform } from "node:process";
-import type { Readable } from "node:stream";
 import { WebSocket } from "ws";
 import { parseChipJson } from "./json-codec.js";
 
@@ -160,30 +162,6 @@ export async function resolveChipToolBinary(): Promise<string> {
 }
 
 /**
- * A port free at the moment of probing. Nothing holds it until chip-tool binds, so a caller racing
- * another process for ports should pass an explicit one instead.
- */
-async function probeFreePort(): Promise<number> {
-    const server = createServer();
-    try {
-        const port = await new Promise<number>((resolve, reject) => {
-            server.once("error", reject);
-            server.listen(0, "127.0.0.1", () => {
-                const address = server.address();
-                if (address === null || typeof address === "string") {
-                    reject(new InternalError("Port probe socket reported no address"));
-                    return;
-                }
-                resolve(address.port);
-            });
-        });
-        return port;
-    } finally {
-        await new Promise<void>(resolve => server.close(() => resolve()));
-    }
-}
-
-/**
  * Whether chip-tool reads a frame as an async-report arming frame rather than as a command to run.
  *
  * Mirrors `InteractiveServerCommand::OnWebSocketMessageReceived`
@@ -300,7 +278,7 @@ function parseFrame(frame: string): ChipToolResult {
  */
 export class ChipToolClient {
     #options: ChipToolClientOptions;
-    #child?: ChildProcess;
+    #child?: ManagedChildProcess;
     #socket?: WebSocket;
     #exit = deferred<ExitInfo>();
     #exited?: ExitInfo;
@@ -340,7 +318,7 @@ export class ChipToolClient {
         } = this.#options;
         const port = this.#options.port ?? (await probeFreePort());
 
-        const child = spawn(
+        const child = ManagedChildProcess.spawn(
             binaryPath,
             [
                 "interactive",
@@ -352,26 +330,24 @@ export class ChipToolClient {
                 "--commissioner-name",
                 commissionerName,
             ],
-            { stdio: ["ignore", "pipe", "pipe"] },
+            { onLine: line => this.#onLine(line), onExit: exit => this.#onExit(exit) },
         );
         this.#child = child;
 
-        for (const stream of [child.stdout, child.stderr]) {
-            if (stream === null) {
-                throw new InternalError("Spawned chip-tool has no stdout/stderr streams");
+        try {
+            try {
+                await child.started();
+            } catch (cause) {
+                throw new ChipToolStartupError(`chip-tool at ${binaryPath} could not be started`, { cause });
             }
-            this.#pumpLines(stream);
+            await this.#awaitReadiness(startupTimeout);
+            this.#socket = await this.#connect(`ws://127.0.0.1:${port}`);
+        } catch (error) {
+            const failure = error instanceof Error ? error : new ChipToolStartupError(String(error));
+            this.#fail(failure);
+            await child.stop();
+            throw failure;
         }
-
-        child.once("exit", (code, signal) => this.#onExit({ code, signal }));
-        child.once("error", cause => {
-            // spawn() failures (ENOENT, exec format) surface here, not via "exit"
-            this.#options.onLog(`Error running ${binaryPath}: ${cause}`);
-            this.#onExit({ code: null, signal: null });
-        });
-
-        await this.#awaitReadiness(startupTimeout);
-        this.#socket = await this.#connect(`ws://127.0.0.1:${port}`);
         this.#maybePark();
     }
 
@@ -452,20 +428,7 @@ export class ChipToolClient {
     }
 
     async #stopChild() {
-        const child = this.#child;
-        if (child === undefined || this.#exited !== undefined) {
-            return;
-        }
-
-        child.kill("SIGTERM");
-        const outcome = await Promise.race([
-            this.#exit.promise.then(() => "exited" as const),
-            this.#delay(STOP_TIMEOUT),
-        ]);
-        if (outcome !== "exited") {
-            child.kill("SIGKILL");
-            await this.#exit.promise;
-        }
+        await this.#child?.stop();
     }
 
     #delay(duration: Duration): Promise<"timeout"> {
@@ -597,41 +560,20 @@ export class ChipToolClient {
             }
             // The exit handler carries the authoritative reason; a live chip-tool that dropped its
             // socket can no longer serve commands either way.
-            this.#child?.kill("SIGKILL");
+            this.#child?.kill();
         });
         return socket;
     }
 
-    #pumpLines(stream: Readable) {
-        let buffer = "";
-
-        const emit = (line: string) => {
-            this.#recentOutput.push(line);
-            if (this.#recentOutput.length > RECENT_OUTPUT_LINES) {
-                this.#recentOutput.shift();
-            }
-            this.#options.onLog(line);
-            if (line.includes(CHIP_TOOL_READY_MESSAGE)) {
-                this.#readiness.resolve();
-            }
-        };
-
-        stream.setEncoding("utf8");
-        stream.on("data", (chunk: string) => {
-            buffer += chunk;
-            let index = buffer.indexOf("\n");
-            while (index !== -1) {
-                emit(buffer.slice(0, index).replace(/\r$/, ""));
-                buffer = buffer.slice(index + 1);
-                index = buffer.indexOf("\n");
-            }
-        });
-        stream.on("end", () => {
-            if (buffer !== "") {
-                emit(buffer);
-                buffer = "";
-            }
-        });
+    #onLine(line: string) {
+        this.#recentOutput.push(line);
+        if (this.#recentOutput.length > RECENT_OUTPUT_LINES) {
+            this.#recentOutput.shift();
+        }
+        this.#options.onLog(line);
+        if (line.includes(CHIP_TOOL_READY_MESSAGE)) {
+            this.#readiness.resolve();
+        }
     }
 
     #onExit(info: ExitInfo) {

@@ -12,7 +12,7 @@ import { BasicInformationClient } from "#behaviors/basic-information";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Bytes, Crypto, ImplementationError, Seconds } from "@matter/general";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
-import { PaseClient } from "@matter/protocol";
+import { Fabric, FabricManager, PaseClient, TestFabric } from "@matter/protocol";
 import { ManualPairingCodeCodec, QrPairingCodeCodec } from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 
@@ -170,6 +170,40 @@ describe("CommissioningClient commissioning-window helpers", () => {
             const peer = await subscribedPeer(controller, "peer1");
 
             await MockTime.resolve(peer.openBasicCommissioningWindow());
+        });
+    });
+
+    describe("admin fabric removal", () => {
+        async function openWindow(site: MockSite) {
+            const { controller, device } = await site.addCommissionedPair();
+            const peer = await subscribedPeer(controller, "peer1");
+            await MockTime.resolve(peer.openEnhancedCommissioningWindow());
+            const fabrics = device.env.get(FabricManager);
+            const adminFabric = fabrics.fabrics[0];
+            expect(device.stateOf(AdministratorCommissioningServer).adminFabricIndex).equals(adminFabric.fabricIndex);
+            return { device, fabrics, adminFabric };
+        }
+
+        it("clears AdminFabricIndex when the admin fabric is removed after its Fabric object was replaced", async () => {
+            await using site = new MockSite();
+            const { device, fabrics, adminFabric } = await openWindow(site);
+
+            await fabrics.replaceFabric(new Fabric(fabrics.crypto, adminFabric.config));
+            await fabrics.for(adminFabric.fabricIndex).delete();
+
+            const state = device.stateOf(AdministratorCommissioningServer);
+            expect(state.adminFabricIndex).equals(null);
+            expect(state.windowStatus).not.equals(AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen);
+        });
+
+        it("keeps AdminFabricIndex when another fabric is removed", async () => {
+            await using site = new MockSite();
+            const { device, fabrics, adminFabric } = await openWindow(site);
+            const other = await TestFabric({ fabrics });
+
+            await other.delete();
+
+            expect(device.stateOf(AdministratorCommissioningServer).adminFabricIndex).equals(adminFabric.fabricIndex);
         });
     });
 });

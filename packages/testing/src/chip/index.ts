@@ -13,8 +13,11 @@ export type {
     CertAppArgs,
     CertDevice,
     CertDeviceFactory,
+    CertRunSetup,
     CertStepContext,
     CertStepDefinition,
+    CertControllerGroupsSetting,
+    CertStepSetting,
     CertStepWiring,
     CertTestDefinition,
     CheckRecord,
@@ -25,7 +28,7 @@ export type {
     StepRecorder,
     StepVerdict,
 } from "./cert/cert-context.js";
-export { certTest } from "./cert/cert-dsl.js";
+export { certTest, skipOnControllerGap } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Per-device identity assignment for a multi-device run. */
 export { DeviceIdentityExhaustedError, identityFor } from "./cert/cert-dsl.js";
 export type { CertAppVariant, CertStepOptions, CertTestBuilder, CertTestOptions } from "./cert/cert-dsl.js";
@@ -36,10 +39,15 @@ export { deviceRecordsFor } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Selects the device a declared role runs. */
 export { subjectFactoryFor } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. The gate `certTest()` applies before a test's device starts. */
-export { certPicsFile, unmetTestPics } from "./cert/cert-dsl.js";
+export { certPicsFile, unmetControllerCapabilities, unmetTestPics } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Production cert tests go through the `certTest()` DSL, not this class directly. */
 export { CertTest } from "./cert/cert-test.js";
-export { CertStepNotApplicableError, PicsUnansweredError } from "./cert/cert-test.js";
+export {
+    CertControllerGapError,
+    CertFrameworkError,
+    CertStepNotApplicableError,
+    PicsUnansweredError,
+} from "./cert/cert-test.js";
 /** @internal Test seam — not API. The wired test a `certTest()` declaration registered. */
 export { createRegisteredCertTest } from "./cert/cert-test.js";
 export { ChipDockerSubject, ChipLocalSubject } from "./cert/chip-app-subject.js";
@@ -51,14 +59,28 @@ export { certAppPicsOverridesFor, registerCertAppPics } from "./cert/cert-app-pi
 /** @internal Test seam — not API. Registration has no other way to be undone. */
 export { unregisterCertAppPics } from "./cert/cert-app-pics.js";
 export {
+    capabilitiesFor,
+    controllerCapabilityGap,
+    controllerCapabilityGapsFor,
+    controllerCapabilityOutOfScope,
     controllerPicsOverridesFor,
+    helperImplementationFor,
     registerControllerAdapterFactory,
+    resolveControllerSelection,
     UnsupportedByControllerError,
+} from "./cert/controller-adapter.js";
+export type {
+    ControllerAdapterRegistration,
+    ControllerCapabilitiesOutOfScope,
+    ControllerCapability,
+    ControllerCapabilityGaps,
+    ControllerRoleKind,
+    ControllerSelection,
 } from "./cert/controller-adapter.js";
 /** @internal Test seam — not API. Cert-test wiring calls this from `cert-dsl.ts`; direct use is for registry tests. */
 export { createControllerAdapter } from "./cert/controller-adapter.js";
 /** @internal Test seam — not API. */
-export { resetControllerAdapterFactoryForTesting } from "./cert/controller-adapter.js";
+export { replaceControllerAdapterRegistrationForTesting } from "./cert/controller-adapter.js";
 /** @internal Test seam — not API. */
 export { StdinPacer } from "./cert/chip-app-subject.js";
 /** @internal Test seam — not API. */
@@ -73,6 +95,7 @@ export type {
     BatchCommandSpec,
     BdxTransferAccept,
     BdxTransferProposal,
+    CertControllerGroup,
     CertGroupApi,
     CertIcdClientApi,
     CertIcdEvent,
@@ -109,6 +132,7 @@ export type {
     ReadAttributeOptions,
     ReadEventOptions,
     ServeOtaUpdateOptions,
+    SubscribeAttributesOptions,
     SubscribeEventOptions,
     SubscribeOptions,
     TimedInteractionOptions,
@@ -160,6 +184,8 @@ export type { ChipBinsDockerHandle } from "./chip-bins.js";
 export { HarnessBusyError } from "./harness-lock.js";
 /** @internal Test seam — not API. Exported for the Docker-backed lock test in support/chip-testing. */
 export { acquireHarnessLock } from "./harness-lock.js";
+export { ManagedChildProcess, probeFreePort } from "./child-process.js";
+export type { ChildExit, ManagedChildProcessOptions } from "./child-process.js";
 export * from "./chip.js";
 export * from "./command-pipe.js";
 export * from "./pics/index.js";

@@ -4,8 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { BdxTransferAccept, BdxTransferProposal, LogFollower as LogFollowerType } from "@matter/testing";
-import { LineQueue, LogFollower } from "@matter/testing";
+import { InternalError, Seconds } from "@matter/main";
+import type {
+    BdxTransferAccept,
+    BdxTransferProposal,
+    CertDevice,
+    CertStepContext,
+    CheckRecord,
+    ControllerAdapter,
+    DeviceFlavor,
+    LogFollower as LogFollowerType,
+    OtaBdxTransfer,
+    ServeOtaUpdateOptions,
+} from "@matter/testing";
+import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
+import { expect } from "chai";
 import {
     blockAckEofSent,
     blockEofReceived,
@@ -17,8 +30,11 @@ import {
     chipX64,
     receiveAcceptPayload,
     receiveInitPayloadPrefix,
+    serveOtaTransfer,
     unloggedByFlavor,
 } from "../cert/tc-bdx-support.js";
+import { CertCheckFailedError } from "../cert/tc-support.js";
+import { fakeCertNode } from "./fake-cert-node.js";
 
 /**
  * A follower over lines that are all already present.
@@ -118,6 +134,19 @@ describe("tc-bdx-support", () => {
     });
 
     describe("messages a chip TH logged", () => {
+        it("reads a message of a TCP session", async () => {
+            // The trace line prefix copied from a chip-all-clusters-app TH log of a TCP session
+            const log = await follower([
+                `${CHIP_DMG}<< from TCP:[fe80::1c9d:1982:6732:a4a7%en0]:65282 | 19414371 | [Bulk Data Exchange  (2) / Block End Of File (0x12) / Session = 33364 / Exchange = 32761]`,
+                `${CHIP_DMG}Decrypted Payload (107 bytes) =`,
+                `${CHIP_DMG}    BlockCounter = 2`,
+            ]);
+
+            expect(blockEofReceived(log, "chip-local", 0)?.map(({ counter, length }) => [counter, length])).deep.equal([
+                [2, 103],
+            ]);
+        });
+
         it("assembles the end of a transfer from the dump's two directions", async () => {
             const log = await follower([
                 `${CHIP_DMG}<< from UDP:[fe80::1%eth0]:1 | 1 | [Bulk Data Exchange  (2) / Block End Of File (0x12) / Session = 1 / Exchange = 2]`,
@@ -284,5 +313,195 @@ describe("tc-bdx-support", () => {
             expect(chipX64(undefined)).equal("0x0000000000000000");
             expect(chipX64(0x10065)).equal("0x0000000000010065");
         });
+    });
+});
+
+describe("serveOtaTransfer", () => {
+    const CHIP_ACK_EOF = [
+        "[1789855480.294] [4500:4500] [ATM] BlockAckEOF",
+        "[1789855480.294] [4500:4500] [ATM]   Block Counter: 3",
+    ];
+    const CHIP_DOWNLOADED = "[1789855480.301] [4500:4500] [SWU] OTA image downloaded to /tmp/chip_ota_image.bin";
+    const MATTERJS_ACK_EOF =
+        "2026-09-19 11:35:14.017 DEBUG MessageChannel Message » for: BDX/BlockAckEof cnt: 2 ackLen: 103 id: @1:5bfb•bd type: 0x14/0x14";
+
+    function transferWith(overrides: Partial<OtaBdxTransfer> = {}): OtaBdxTransfer {
+        return {
+            providerEndpoint: 0,
+            providerNodeId: "1",
+            softwareVersion: 2,
+            fileSize: 65536,
+            proposal: {
+                version: 0,
+                senderDrive: false,
+                receiverDrive: true,
+                asynchronousTransfer: false,
+                maxBlockSize: 1024,
+                fileDesignator: "ota",
+                fileDesignatorLength: 3,
+            },
+            accept: { version: 0, mode: "receiverDrive", asynchronousTransfer: false, maxBlockSize: 1024 },
+            transferredBytes: 65536,
+            applyAcknowledged: false,
+            observedMs: 0,
+            exchanges: { queryImage: [], applyUpdate: [], notifyUpdateApplied: [] },
+            ...overrides,
+        };
+    }
+
+    /**
+     * Runs the precondition against a receiver that writes `receiverLines` while the sender serves, and returns what
+     * it recorded, what it asked the sender for, and the error it ended with.
+     */
+    async function run(
+        flavor: DeviceFlavor,
+        receiverLines: string[],
+        transfer: OtaBdxTransfer,
+        roles: { expectApply?: boolean; timeoutMs?: number } = {},
+    ) {
+        const source = new LineQueue();
+        const log = new LogFollower(source.follow(), "receiver");
+        const receiver: CertDevice = {
+            id: "receiver",
+            app: "ota-requestor",
+            commissioning: { kind: "on-network", passcode: 20202021, discriminator: 3840, qrPairingCode: "" },
+            pics: new PicsFile([]),
+            async initialize() {},
+            async start() {},
+            async stop() {},
+            async close() {},
+            async snapshot() {
+                return {};
+            },
+            async restore() {},
+            async backchannel() {},
+            flavor,
+            log,
+            exit: new Promise(() => {}),
+        };
+
+        const served = new Array<ServeOtaUpdateOptions>();
+        const sender: ControllerAdapter = {
+            id: "sender",
+            log: new LogFollower(new LineQueue().follow(), "sender"),
+            async start() {},
+            async close() {},
+            async commission() {
+                throw new InternalError("not used by these tests");
+            },
+            async parseQrPayload() {
+                throw new InternalError("not used by these tests");
+            },
+            async parseManualPairingCode(): Promise<never> {
+                throw new InternalError("not used by these tests");
+            },
+            group(): never {
+                throw new InternalError("not used by these tests");
+            },
+            node: () =>
+                fakeCertNode({
+                    async serveOtaUpdate(options) {
+                        served.push(options ?? {});
+                        for (const line of receiverLines) {
+                            source.push(line);
+                        }
+                        source.close();
+                        return transfer;
+                    },
+                }),
+        };
+
+        const checks = new Array<CheckRecord>();
+        const cx: CertStepContext = {
+            controllers: { th: sender },
+            devices: { dut: receiver },
+            recorder: {
+                beginStep() {},
+                check(record) {
+                    checks.push(record);
+                },
+                endStep() {
+                    return [];
+                },
+                async flush() {
+                    return "";
+                },
+            },
+            controllerSelection: { dut: "matterjs", helper: "matterjs" },
+            deviceFlavor: undefined,
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
+        };
+
+        let error: unknown;
+        try {
+            await serveOtaTransfer(cx, "1", { sender: "th", receiver: "dut", ...roles });
+        } catch (e) {
+            error = e;
+        }
+        return { checks, served, error };
+    }
+
+    it("takes a chip receiver's download line as the end of an update it was not asked to apply", async () => {
+        const { checks, served, error } = await run("chip-local", [...CHIP_ACK_EOF, CHIP_DOWNLOADED], transferWith(), {
+            expectApply: false,
+        });
+
+        expect(error).equal(undefined);
+        expect(served.map(options => options.expectApply)).deep.equal([false]);
+        expect(checks.map(check => check.verdict)).deep.equal(["pass", "pass", "pass"]);
+        expect(checks[2]).deep.include({ type: "device-log", pattern: "the DUT ended the update at the download" });
+        expect(checks[2].matched).contain("OTA image downloaded to /tmp/chip_ota_image.bin");
+    });
+
+    it("fails a chip receiver that never wrote its download line", async () => {
+        const { checks, error } = await run("chip-local", CHIP_ACK_EOF, transferWith(), { expectApply: false });
+
+        expect(error).instanceOf(CertCheckFailedError);
+        expect(checks[2]).deep.include({ type: "device-log", verdict: "fail" });
+        expect(String(error)).contain("the DUT finished the OTA exchange the transfer belongs to");
+    });
+
+    it("expects a chip receiver to end at the download, and a matter.js one to ask to apply, unless told otherwise", async () => {
+        const chip = await run("chip-local", [...CHIP_ACK_EOF, CHIP_DOWNLOADED], transferWith());
+        expect(chip.served.map(options => options.expectApply)).deep.equal([false]);
+        expect(chip.error).equal(undefined);
+
+        const matterJs = await run("matterjs", [MATTERJS_ACK_EOF], transferWith({ applyAcknowledged: true }));
+        expect(matterJs.served.map(options => options.expectApply)).deep.equal([true]);
+        expect(matterJs.error).equal(undefined);
+
+        const chipApplying = await run("chip-local", CHIP_ACK_EOF, transferWith({ applyAcknowledged: true }), {
+            expectApply: true,
+        });
+        expect(chipApplying.served.map(options => options.expectApply)).deep.equal([true]);
+    });
+
+    it("passes a receiver that asked to apply and the sender allowed it", async () => {
+        const { checks, error } = await run("matterjs", [MATTERJS_ACK_EOF], transferWith({ applyAcknowledged: true }));
+
+        expect(error).equal(undefined);
+        expect(checks[2]).deep.include({
+            type: "response",
+            verdict: "pass",
+            detail: "the DUT asked to apply the image and the TH allowed it",
+        });
+    });
+
+    it("records, without failing, a receiver that had not asked to apply when the sender stopped waiting", async () => {
+        const { checks, error } = await run("matterjs", [MATTERJS_ACK_EOF], transferWith({ applyAcknowledged: false }));
+
+        expect(error).equal(undefined);
+        expect(checks[2].verdict).equal("unverified");
+        expect(checks[2].accepted).contain("the DUT had not asked to apply the image when the TH stopped waiting");
+    });
+
+    it("hands the sender its budget, the shorter default or the case's own", async () => {
+        const byDefault = await run("matterjs", [MATTERJS_ACK_EOF], transferWith());
+        expect(byDefault.served.map(options => options.timeoutMs)).deep.equal([Seconds(60)]);
+
+        const own = await run("matterjs", [MATTERJS_ACK_EOF], transferWith(), { timeoutMs: 123_000 });
+        expect(own.served.map(options => options.timeoutMs)).deep.equal([123_000]);
     });
 });

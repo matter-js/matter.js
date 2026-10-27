@@ -12,25 +12,29 @@ import { MalformedRequestError } from "#action/request/MalformedRequestError.js"
 import { Read } from "#action/request/Read.js";
 import { resolvePathForSpecifier } from "#action/request/Specifier.js";
 import { Subscribe } from "#action/request/Subscribe.js";
-import { Write } from "#action/request/Write.js";
 import { DecodedInvokeResult, InvokeResult } from "#action/response/InvokeResult.js";
 import { ReadResult } from "#action/response/ReadResult.js";
 import { WriteResult } from "#action/response/WriteResult.js";
 import { BdxMessenger } from "#bdx/BdxMessenger.js";
+import type { Message } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
 import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
 import { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { PeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import { SessionClosedError } from "#protocol/errors.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
 import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import { GroupSession } from "#session/GroupSession.js";
 import type { Session } from "#session/Session.js";
+import { SessionParameters } from "#session/SessionParameters.js";
 import {
     Abort,
     AbortedError,
     asError,
     AsyncIterator,
     BasicSet,
+    causedBy,
     ChannelType,
     ClosedError,
     createPromise,
@@ -56,6 +60,7 @@ import {
 } from "@matter/general";
 import {
     GroupId,
+    ReceivedStatusResponseError,
     Status,
     TlvAttributeReport,
     TlvOfModel,
@@ -124,13 +129,24 @@ export function inferLargeMessage(request: ClientInvoke): boolean {
 interface PendingCommand {
     request: Invoke.ConcreteCommandRequest<any>;
     pathKey: string;
-    network?: string;
-    additionalMrpDelay?: Duration;
-    abort?: AbortSignal;
+
+    /** Aborts when the command's request or its session aborts. */
+    abort: AbortSignal;
     resolve: (entry: InvokeResult.DecodedData | undefined) => void;
     reject: (error: Error) => void;
     aborted?: boolean;
     cleanup?: () => void;
+}
+
+/**
+ * Commands queued for one network.  Each network flushes and sends its batches independently, so a command for a
+ * prioritized network such as an ICD's active window never waits behind another network's batch.
+ */
+interface BatchLane {
+    network?: string;
+    pending: Map<number, PendingCommand>;
+    mutex: Mutex;
+    timer?: Timer;
 }
 
 export type SubscriptionResult<T extends ClientSubscribe = ClientSubscribe> = Promise<
@@ -160,6 +176,44 @@ const DEFAULT_TIMED_REQUEST_TIMEOUT = Seconds(10);
 const DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE = Seconds(30);
 
 /**
+ * Whether a single-command request may join an automatic batch.
+ *
+ * A batch request is rebuilt from the queued commands and carries only what {@link ClientInteraction} reconstructs
+ * for it, so a request that sets anything else is sent on its own.  Each field of {@link ClientInvoke} is classified
+ * here, so a new field does not compile until someone decides whether it blocks batching.
+ */
+function isBatchable(request: ClientInvoke) {
+    const endpointId = request.invokeRequests[0]?.commandPath.endpointId;
+    const blocks: { [K in keyof Required<ClientInvoke>]: boolean } = {
+        commands: false,
+        invokeRequests: request.invokeRequests.length !== 1 || endpointId === undefined || endpointId === 0,
+        skipValidation: false,
+        abort: false,
+        network: false,
+        // Applied by the node before the request reaches the interaction
+        icdAwaitTimeout: false,
+        batchDuration: request.batchDuration === false,
+        interactionModelRevision:
+            request.interactionModelRevision !== undefined &&
+            request.interactionModelRevision !== SessionParameters.fallbacks.interactionModelRevision,
+        suppressResponse: !!request.suppressResponse,
+        timedRequest: !!request.timedRequest,
+        // Only used with timedRequest, which Invoke() sets alongside it
+        timeout: request.timeout !== undefined,
+        delayReportData: request.delayReportData !== undefined,
+        // Large Message Quality commands must not be batched
+        largeMessage: !!request.largeMessage,
+        expectedProcessingTime: request.expectedProcessingTime !== undefined,
+        useExtendedFailSafeMessageResponseTimeout: !!request.useExtendedFailSafeMessageResponseTimeout,
+        additionalMrpDelay: request.additionalMrpDelay !== undefined,
+        addressOverride: request.addressOverride !== undefined,
+        // Server only
+        beforeDispatch: request.beforeDispatch !== undefined,
+    };
+    return !Object.values(blocks).includes(true);
+}
+
+/**
  * Client-side implementation of the Matter protocol.
  */
 export class ClientInteraction<
@@ -168,7 +222,8 @@ export class ClientInteraction<
     readonly #environment: Environment;
     readonly #lifetime: Lifetime;
     readonly #exchangeProvider: ExchangeProvider;
-    readonly #interactions = new BasicSet<Read | Write | Invoke | Subscribe | ClientBdxRequest>();
+    /** One entry per running interaction; retries may reuse request objects. */
+    readonly #interactions = new BasicSet<symbol>();
     #subscriptions?: ClientSubscriptions;
     readonly #abort: Abort;
     readonly #sustainRetries: RetrySchedule;
@@ -176,9 +231,7 @@ export class ClientInteraction<
     readonly #network?: string;
 
     // Command batching state
-    readonly #pendingCommands = new Map<number, PendingCommand>();
-    readonly #batchMutex: Mutex;
-    #batchTimer?: Timer;
+    readonly #batchLanes = new Map<string | undefined, BatchLane>();
     #nextCommandRef = 1;
     #closeReason?: Error;
 
@@ -194,7 +247,6 @@ export class ClientInteraction<
             RetrySchedule.Configuration(SustainedSubscription.DefaultRetrySchedule, sustainRetries),
         );
         this.#address = address;
-        this.#batchMutex = new Mutex(this);
         this.#network = network;
 
         this.#lifetime = environment.join("interactions");
@@ -229,20 +281,20 @@ export class ClientInteraction<
         }
 
         // Close batching
-        this.#batchTimer?.stop();
-        for (const [, pending] of this.#pendingCommands) {
-            pending.cleanup?.();
-            pending.reject(reason);
+        for (const lane of this.#batchLanes.values()) {
+            lane.timer?.stop();
+            for (const [, pending] of lane.pending) {
+                pending.cleanup?.();
+                pending.reject(reason);
+            }
+            lane.pending.clear();
         }
-        this.#pendingCommands.clear();
 
-        // Abort before draining the mutex so an in-flight batch cancels instead of running to completion
+        // Abort before draining the mutexes so an in-flight batch cancels instead of running to completion
         this.#abort(reason);
-        await this.#batchMutex.close();
+        await Promise.all([...this.#batchLanes.values()].map(({ mutex }) => mutex.close()));
 
-        while (this.#interactions.size) {
-            await this.#interactions.deleted;
-        }
+        await this.#interactions.empty;
     }
 
     async [Symbol.asyncDispose]() {
@@ -378,7 +430,7 @@ export class ClientInteraction<
             request,
         );
 
-        const response = await messenger.sendWriteCommand(request, session);
+        const response = await messenger.sendWriteCommand(request, { abort });
         if (request.suppressResponse) {
             return undefined as Awaited<WriteResult<T>>;
         }
@@ -409,7 +461,8 @@ export class ClientInteraction<
                     },
                     status,
                     clusterStatus,
-                };
+                    received: true,
+                } satisfies WriteResult.AttributeStatus;
             },
         ) as Awaited<WriteResult<T>>;
 
@@ -555,6 +608,7 @@ export class ClientInteraction<
                         commandRef,
                         status,
                         clusterStatus,
+                        received: true,
                     });
                 }
             }
@@ -652,7 +706,11 @@ export class ClientInteraction<
      * commands are split across multiple parallel exchanges automatically.
      *
      * Single commands are automatically batched with other commands invoked in the same timer tick
-     * when the device supports multiple invokes per exchange and the target is not endpoint 0.
+     * when the device supports multiple invokes per exchange and the target is not endpoint 0.  A command that sets
+     * per-request options (such as an expected processing time, an address override or timed/suppressResponse
+     * flags) is sent on its own so it keeps them, and batches are formed and sent per network.  A command sent on
+     * its own goes out at once while batched commands wait for the batch timer, and batches of different networks
+     * do not wait for each other, so the order on the wire can differ from the call order.
      */
     async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
         if (request.largeMessage === undefined && inferLargeMessage(request)) {
@@ -662,27 +720,12 @@ export class ClientInteraction<
 
         const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
 
-        // Large Message Quality commands must not be batched (per spec) but still respect the
-        // peer's MaxPathsPerInvoke — splitting propagates largeMessage to each sub-batch, which
-        // in turn forces TCP transport via #begin.
-        if (!request.largeMessage) {
-            // Single command with batching support — auto-batch.  Batching buys nothing when the peer
-            // only accepts one path per invoke, so send directly in that case.  The batch path always
-            // requests responses, so suppressResponse commands go directly too.  A batch message carries the commands
-            // of several callers, so a command with DelayReportData goes directly as well.
-            if (
-                request.invokeRequests.length === 1 &&
-                request.batchDuration !== false &&
-                maxPathsPerInvoke > 1 &&
-                !request.suppressResponse &&
-                request.delayReportData === undefined
-            ) {
-                const endpointId = request.invokeRequests[0].commandPath.endpointId;
-                if (endpointId !== undefined && endpointId !== 0 && !request.timedRequest) {
-                    yield* this.#invokeWithBatching(request, session);
-                    return;
-                }
-            }
+        // Batching buys nothing when the peer only accepts one path per invoke.  A Large Message Quality request is
+        // never batched but may still be split below, which carries largeMessage to each part and so forces TCP in
+        // #begin.
+        if (maxPathsPerInvoke > 1 && isBatchable(request)) {
+            yield* this.#invokeWithBatching(request, session);
+            return;
         }
 
         const commandCount = request.commands.size;
@@ -707,17 +750,21 @@ export class ClientInteraction<
             throw new AbortedError();
         }
 
-        // Validate peer connectivity before queuing — respects connectionTimeout and abort. The
-        // caller's signal has to reach this too: establishing the connection is where a command
-        // addressed to an unreachable peer spends its time.
-        using connectAbort = Abort.any(session?.abort, request.abort);
+        using commandAbort = Abort.any(session?.abort, request.abort);
+
+        // Validate peer connectivity before queuing — respects connectionTimeout and abort. Establishing the
+        // connection is where a command addressed to an unreachable peer spends its time.
         await this.#exchangeProvider.connect({
             connectionTimeout: session?.connectionTimeout,
-            abort: connectAbort.signal,
+            abort: commandAbort.signal,
         });
+        if (this.#closeReason !== undefined) {
+            throw this.#closeReason;
+        }
 
+        const lane = this.#batchLaneFor(request.network ?? this.#network);
         const cmd = [...request.commands.values()][0];
-        const commandRef = this.#allocateCommandRef();
+        const commandRef = this.#allocateCommandRef(lane);
         const { endpointId, clusterId, commandId } = request.invokeRequests[0].commandPath;
         const pathKey = `${endpointId}-${clusterId}-${commandId}`;
         const { promise, resolver, rejecter } = createPromise<InvokeResult.DecodedData | undefined>();
@@ -725,56 +772,44 @@ export class ClientInteraction<
         const pending: PendingCommand = {
             request: { ...cmd, commandRef } as Invoke.ConcreteCommandRequest<any>,
             pathKey,
-            network: request.network,
-            additionalMrpDelay: request.additionalMrpDelay,
-            abort: request.abort,
+            abort: commandAbort.signal,
             resolve: resolver,
             reject: rejecter,
         };
 
-        this.#pendingCommands.set(commandRef, pending);
+        lane.pending.set(commandRef, pending);
 
-        // Register per-command abort listeners. A batch carries commands of several callers, so an
-        // abort belongs to its own command: it rejects that one and leaves the batch to the others.
-        const abortSignals = [session?.abort, request.abort].filter(signal => signal !== undefined);
-        if (abortSignals.length) {
-            if (abortSignals.some(signal => signal.aborted)) {
-                this.#pendingCommands.delete(commandRef);
-                throw new AbortedError();
-            }
-
-            const onAbort = () => {
-                pending.aborted = true;
-                this.#pendingCommands.delete(commandRef);
-                pending.reject(new AbortedError());
-            };
-            for (const signal of abortSignals) {
-                signal.addEventListener("abort", onAbort, { once: true });
-            }
-            pending.cleanup = () => {
-                for (const signal of abortSignals) {
-                    signal.removeEventListener("abort", onAbort);
-                }
-            };
+        // A batch carries commands of several callers, so an abort belongs to its own command: it rejects that one
+        // and leaves the batch to the others.
+        if (commandAbort.aborted) {
+            lane.pending.delete(commandRef);
+            throw new AbortedError();
         }
+        const onAbort = () => {
+            pending.aborted = true;
+            lane.pending.delete(commandRef);
+            pending.reject(new AbortedError());
+        };
+        commandAbort.addEventListener("abort", onAbort, { once: true });
+        pending.cleanup = () => commandAbort.removeEventListener("abort", onAbort);
 
         const duration = request.batchDuration || Instant;
 
-        if (this.#batchTimer?.isRunning) {
+        if (lane.timer?.isRunning) {
             // Restart with a shorter duration if the new command needs a faster flush than the remaining time
-            const remaining = this.#batchTimer.interval - (this.#batchTimer.elapsed?.time ?? 0);
+            const remaining = lane.timer.interval - (lane.timer.elapsed?.time ?? 0);
             if (duration < remaining) {
-                this.#batchTimer.stop();
-                this.#batchTimer.interval = duration;
-                this.#batchTimer.start();
+                lane.timer.stop();
+                lane.timer.interval = duration;
+                lane.timer.start();
             }
         } else {
-            if (!this.#batchTimer) {
-                this.#batchTimer = Time.getTimer("invoke-batch", duration, () => this.#flushBatch());
+            if (!lane.timer) {
+                lane.timer = Time.getTimer("invoke-batch", duration, () => this.#flushBatch(lane));
             } else {
-                this.#batchTimer.interval = duration;
+                lane.timer.interval = duration;
             }
-            this.#batchTimer.start();
+            lane.timer.start();
         }
 
         try {
@@ -787,14 +822,23 @@ export class ClientInteraction<
         }
     }
 
-    #allocateCommandRef(): number {
+    #batchLaneFor(network: string | undefined) {
+        let lane = this.#batchLanes.get(network);
+        if (lane === undefined) {
+            lane = { network, pending: new Map(), mutex: new Mutex(this) };
+            this.#batchLanes.set(network, lane);
+        }
+        return lane;
+    }
+
+    #allocateCommandRef(lane: BatchLane): number {
         const startRef = this.#nextCommandRef;
 
         do {
             const ref = this.#nextCommandRef;
             this.#nextCommandRef = this.#nextCommandRef >= MAX_COMMAND_REF ? 1 : this.#nextCommandRef + 1;
 
-            if (!this.#pendingCommands.has(ref)) {
+            if (!lane.pending.has(ref)) {
                 return ref;
             }
         } while (this.#nextCommandRef !== startRef);
@@ -802,22 +846,22 @@ export class ClientInteraction<
         throw new ImplementationError("No available commandRef values");
     }
 
-    async #flushBatch() {
-        if (this.#pendingCommands.size === 0) {
+    async #flushBatch(lane: BatchLane) {
+        if (lane.pending.size === 0) {
             return;
         }
 
         // Snapshot current commands and clear for next batch
-        const commands = new Map(this.#pendingCommands);
-        this.#pendingCommands.clear();
+        const commands = new Map(lane.pending);
+        lane.pending.clear();
 
         // Partition into sub-batches with unique command paths per batch
         const batches = this.#partitionBatch(commands);
 
         for (const batch of batches) {
             try {
-                await this.#batchMutex.produce(async () => {
-                    await this.#executeBatch(batch);
+                await lane.mutex.produce(async () => {
+                    await this.#executeBatch(batch, lane.network);
                 });
             } catch (error) {
                 // Mutex may be closed during shutdown — reject remaining commands with the close reason
@@ -861,7 +905,7 @@ export class ClientInteraction<
         return batches.map(b => b.commands);
     }
 
-    async #executeBatch(commands: Map<number, PendingCommand>) {
+    async #executeBatch(commands: Map<number, PendingCommand>, network: string | undefined) {
         let releaseAbortListeners: (() => void) | undefined;
         try {
             // Filter out commands aborted between snapshot and send
@@ -880,53 +924,42 @@ export class ClientInteraction<
 
             logger.debug(`Executing ${invokeRequests.length} command(s)`);
 
-            // Preserve the network profile from the queued commands (all commands in a batch share the same
-            // ClientInteraction so they will normally have the same network; pick the first defined value)
-            const batchNetwork = commandList.find(c => c.network !== undefined)?.network;
-            const batchAdditionalMrpDelay = commandList.find(
-                c => c.additionalMrpDelay !== undefined,
-            )?.additionalMrpDelay;
-
             // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
             // Skip validation: already validated on submit. timed=false: only non-timed commands
-            // reach this path (gate in invoke()); prevents Invoke() spec-based auto-promotion.
+            // reach this path (isBatchable); prevents Invoke() spec-based auto-promotion.
             // A batch outlives the caller of any one of its commands, so it stops sending only once
             // every command in it has been abandoned — until then the others still want the peer's
-            // answer. A batch holding even one command without a deadline can never reach that point.
+            // answer.
             const batchAbort = new AbortController();
             const commandSignals = commandList.map(({ abort }) => abort);
-            const abandonable = commandSignals.every(signal => signal !== undefined);
-            if (abandonable) {
-                // Per command, not per signal: two commands may share one signal, and a listener
-                // registered twice with the same callback counts once, which would strand the batch
-                // one abandonment short of stopping.
-                let unabandoned = commandSignals.filter(signal => !signal.aborted).length;
-                const releases = new Array<() => void>();
-                for (const signal of commandSignals) {
-                    if (signal.aborted) {
-                        continue;
+            // Per command, not per signal: two commands may share one signal, and a listener
+            // registered twice with the same callback counts once, which would strand the batch
+            // one abandonment short of stopping.
+            let unabandoned = commandSignals.filter(signal => !signal.aborted).length;
+            const releases = new Array<() => void>();
+            for (const signal of commandSignals) {
+                if (signal.aborted) {
+                    continue;
+                }
+                const onCommandAbort = () => {
+                    if (--unabandoned === 0) {
+                        batchAbort.abort(new AbortedError());
                     }
-                    const onCommandAbort = () => {
-                        if (--unabandoned === 0) {
-                            batchAbort.abort(new AbortedError());
-                        }
-                    };
-                    signal.addEventListener("abort", onCommandAbort, { once: true });
-                    releases.push(() => signal.removeEventListener("abort", onCommandAbort));
-                }
-                releaseAbortListeners = () => releases.forEach(release => release());
+                };
+                signal.addEventListener("abort", onCommandAbort, { once: true });
+                releases.push(() => signal.removeEventListener("abort", onCommandAbort));
+            }
+            releaseAbortListeners = () => releases.forEach(release => release());
 
-                if (unabandoned === 0) {
-                    batchAbort.abort(new AbortedError());
-                }
+            if (unabandoned === 0) {
+                batchAbort.abort(new AbortedError());
             }
 
             const batchRequest = {
                 ...Invoke({ commands: invokeRequests, skipValidation: true, timed: false }),
-                network: batchNetwork,
-                additionalMrpDelay: batchAdditionalMrpDelay,
-                abort: abandonable ? batchAbort.signal : undefined,
-            } as ClientInvoke;
+                network,
+                abort: batchAbort.signal,
+            } satisfies ClientInvoke;
             const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
             const chunks =
                 invokeRequests.length > maxPathsPerInvoke
@@ -1036,19 +1069,33 @@ export class ClientInteraction<
                 request,
             );
 
-            await messenger.sendSubscribeRequest(
-                {
-                    ...request,
-                    minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
-                    maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
-                },
-                { abort },
-            );
+            let responseMessage: Message;
+            try {
+                await messenger.sendSubscribeRequest(
+                    {
+                        ...request,
+                        minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
+                        maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
+                    },
+                    { abort },
+                );
 
-            await this.#handleSubscriptionResponse(request, readChunks(messenger, abort));
-            abort.throwIfAborted();
+                await this.#handleSubscriptionResponse(request, readChunks(messenger, abort));
+                abort.throwIfAborted();
 
-            const responseMessage = await messenger.nextMessage(MessageType.SubscribeResponse, { abort });
+                responseMessage = await messenger.nextMessage(MessageType.SubscribeResponse, { abort });
+            } catch (error) {
+                // The request may have reached the peer even if its send failed; unless the peer or the session ended the
+                // interaction, the peer may hold the subscription and its report may still come
+                const awaitReport = !causedBy(
+                    error,
+                    PeerCommunicationError,
+                    SessionClosedError,
+                    ReceivedStatusResponseError,
+                );
+                context.abandon(closing => messenger.abandonSubscription({ awaitReport, abort: closing }));
+                throw error;
+            }
             const response = TlvSubscribeResponse.decode(responseMessage.payload);
 
             const subscription = new PeerSubscription({
@@ -1139,19 +1186,29 @@ export class ClientInteraction<
         if (this.#abort.aborted) {
             throw new ImplementationError("Client interaction unavailable after close");
         }
-        this.#interactions.add(request);
-
+        // Registered before the exchange exists, so close() waits for a creation in progress, which it aborts
+        const entry = Symbol("bdx");
+        this.#interactions.add(entry);
         const abort = new Abort({ abort: [session?.abort, this.#abort] });
-
-        const messenger = await BdxMessenger.create(this.#exchangeProvider, request.messageTimeout);
+        let messenger: BdxMessenger;
+        try {
+            messenger = await BdxMessenger.create(this.#exchangeProvider, request.messageTimeout, abort.signal);
+        } catch (e) {
+            this.#interactions.delete(entry);
+            abort[Symbol.dispose]();
+            throw e;
+        }
 
         const context: RequestContext<BdxMessenger> = {
             abort,
             messenger,
             [Symbol.asyncDispose]: async () => {
-                await messenger.close();
-                this.#interactions.delete(request);
-                abort[Symbol.dispose]();
+                try {
+                    await messenger.close();
+                } finally {
+                    this.#interactions.delete(entry);
+                    abort[Symbol.dispose]();
+                }
             },
         };
 
@@ -1206,7 +1263,8 @@ export class ClientInteraction<
             throw e;
         }
 
-        this.#interactions.add(request);
+        const entry = Symbol(what);
+        this.#interactions.add(entry);
 
         // Provide via dynamically so is up to date if exchange changes due to retry
         Object.defineProperty(lifetime.details, "via", {
@@ -1215,14 +1273,40 @@ export class ClientInteraction<
             },
         });
 
-        const context: RequestContext = {
+        const dispose = async () => {
+            using _closing = lifetime.closing();
+            try {
+                await messenger.close();
+            } finally {
+                this.#interactions.delete(entry);
+                abort[Symbol.dispose]();
+            }
+        };
+        let state: "active" | "abandoned" | "disposed" = "active";
+        const context: AbandonableRequestContext = {
             abort,
             messenger,
+            abandon: task => {
+                if (state !== "active") {
+                    throw new InternalError(`Cannot abandon ${what} interaction that is already ${state}`);
+                }
+                state = "abandoned";
+                const finish = async () => {
+                    try {
+                        await task(this.#abort.signal);
+                    } finally {
+                        await dispose();
+                    }
+                };
+                finish().catch(error =>
+                    logger.debug(messenger.exchange.via, "Error finishing interaction in the background", error),
+                );
+            },
             [Symbol.asyncDispose]: async () => {
-                using _closing = lifetime.closing();
-                await messenger.close();
-                this.#interactions.delete(request);
-                abort[Symbol.dispose]();
+                if (state === "active") {
+                    state = "disposed";
+                    await dispose();
+                }
             },
         };
 
@@ -1263,6 +1347,21 @@ export interface RequestContext<M extends InteractionClientMessenger | BdxMessen
     messenger: M;
 
     [Symbol.asyncDispose](): Promise<void>;
+}
+
+/**
+ * The context of an interaction whose remainder can outlive the caller's scope.
+ */
+export interface AbandonableRequestContext extends RequestContext<InteractionClientMessenger> {
+    /**
+     * Hands the rest of the interaction to `task`, which runs in the background.  Disposal then waits for the task
+     * instead of the caller's scope, and {@link ClientInteraction.close} waits for it.  Caller and session aborts do not
+     * reach the task; only {@link ClientInteraction.close} stops it, through the signal it gets.  The task must settle
+     * soon after `closing` fires, or close never returns.
+     *
+     * @throws InternalError when the context was already abandoned or disposed
+     */
+    abandon(task: (closing: AbortSignal) => Promise<void>): void;
 }
 
 /**

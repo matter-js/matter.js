@@ -5,10 +5,13 @@
  */
 
 import { Matter } from "@matter/model";
-import type { AttributePathSpec } from "@matter/testing";
+import type { AttributePathSpec, ControllerCapability } from "@matter/testing";
 import { certTest } from "@matter/testing";
+import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
+import { UnitTestingCluster } from "../../src/cert/unit-testing-cluster.js";
 import { MAX_INTERVAL_CEILING_SECONDS, MIN_INTERVAL_FLOOR_SECONDS, subscribeAndModify } from "./tc-idm-4.1-support.js";
 import {
+    attributePathIBsSequence,
     chipSubscribeRequestEnvelope,
     CommissionedRefs,
     expectMessageWithPath,
@@ -17,19 +20,27 @@ import {
     expectSubscriptionId,
     LOG_TIMEOUT,
     matterjsSubscribeFlags,
+    matterjsSubscribePaths,
     matterjsSubscribeTiming,
     record,
     recordAll,
     requireId,
 } from "./tc-support.js";
+import { UNIT_TESTING_ENDPOINT, unitTestingNotApplicable } from "./unit-testing-cluster.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const LEVEL_CONTROL = Matter.clusters.require("LevelControl");
+const IDENTIFY = Matter.clusters.require("Identify");
+const THERMOSTAT = Matter.clusters.require("Thermostat");
+const USER_LABEL = Matter.clusters.require("UserLabel");
 
 const ON_OFF_ID = requireId(ON_OFF.id, "OnOff cluster");
 const BASIC_INFORMATION_ID = requireId(BASIC_INFORMATION.id, "BasicInformation cluster");
 const LEVEL_CONTROL_ID = requireId(LEVEL_CONTROL.id, "LevelControl cluster");
+const IDENTIFY_ID = requireId(IDENTIFY.id, "Identify cluster");
+const THERMOSTAT_ID = requireId(THERMOSTAT.id, "Thermostat cluster");
+const USER_LABEL_ID = requireId(USER_LABEL.id, "UserLabel cluster");
 
 const ON_OFF_ATTRIBUTE = requireId(ON_OFF.attributes.require("onOff").id, "OnOff.onOff");
 const LOCAL_CONFIG_DISABLED = requireId(
@@ -41,6 +52,17 @@ const ON_OFF_TRANSITION_TIME = requireId(
     LEVEL_CONTROL.attributes.require("onOffTransitionTime").id,
     "LevelControl.onOffTransitionTime",
 );
+const REMAINING_TIME = requireId(LEVEL_CONTROL.attributes.require("remainingTime").id, "LevelControl.remainingTime");
+const IDENTIFY_TIME = requireId(IDENTIFY.attributes.require("identifyTime").id, "Identify.identifyTime");
+const LOCAL_TEMPERATURE_CALIBRATION = requireId(
+    THERMOSTAT.attributes.require("localTemperatureCalibration").id,
+    "Thermostat.localTemperatureCalibration",
+);
+const LABEL_LIST = requireId(USER_LABEL.attributes.require("labelList").id, "UserLabel.labelList");
+
+const UNIT_TESTING = registerCertCustomCluster(UnitTestingCluster);
+const UNIT_TESTING_ID = requireId(UNIT_TESTING.id, "UnitTesting cluster");
+const FLOAT_SINGLE = requireId(UNIT_TESTING.attributes.require("floatSingle").id, "UnitTesting.floatSingle");
 
 const ENDPOINT_0 = 0;
 const ENDPOINT_1 = 1;
@@ -57,6 +79,9 @@ const SUBSCRIBE_ENVELOPE_SEQUENCE = [
 // chip's own field label for the spec's AttributeRequests (see Test_TC_IDM_4_1.yaml)
 const SUBSCRIBE_ENVELOPE_LABEL =
     "SubscribeRequestMessage envelope (KeepSubscriptions, MinIntervalFloorSeconds, MaxIntervalCeilingSeconds, AttributePathIBs)";
+
+// Every subscribing step resolves on the priming report, which has to carry the subscribed path
+const COMPLETE_PRIMING: readonly ControllerCapability[] = ["complete-priming"];
 
 const commissioned = new CommissionedRefs();
 
@@ -126,6 +151,7 @@ certTest("TC-IDM-4.1", {
             ]);
         },
         {
+            controllerCapabilities: COMPLETE_PRIMING,
             pics: "MCORE.IDM.C.SubscribeRequest",
             expected:
                 "On the TH verify the subscription message received has KeepSubscriptions (bool), MinIntervalFloor " +
@@ -154,17 +180,14 @@ certTest("TC-IDM-4.1", {
             const requestCheck = await expectMessageWithPath(th.log, th.flavor, "subscribe", path, from, LOG_TIMEOUT);
             record(cx, requestCheck, "SubscribeRequestMessage log");
 
-            // Steps 1 and 2 subscribe to the same path, so only the request line tells their
-            // SubscribeResponses apart (see subscribeAndModify).
-            const established = requestCheck.logLine !== undefined ? requestCheck.logLine + 1 : from;
-
-            const idLookup = await expectSubscriptionId(th.log, th.flavor, established, LOG_TIMEOUT);
+            const idLookup = await expectSubscriptionId(th.log, th.flavor, requestCheck, LOG_TIMEOUT);
             record(cx, idLookup.check, "Subscription-id lookup");
 
-            const logCheck = await expectReportAck(th.log, th.flavor, idLookup, established, LOG_TIMEOUT);
+            const logCheck = await expectReportAck(th.log, th.flavor, idLookup, from, LOG_TIMEOUT);
             record(cx, logCheck, "Priming-report status");
         }),
         {
+            controllerCapabilities: COMPLETE_PRIMING,
             pics: "MCORE.IDM.C.SubscribeRequest",
             expected: 'Verify on the TH that the status response received from the DUT is "Success".',
         },
@@ -183,6 +206,7 @@ certTest("TC-IDM-4.1", {
             return subscribeAndModify(cx, ref, 3, path, [true, false, true]);
         }),
         {
+            controllerCapabilities: COMPLETE_PRIMING,
             pics: "MCORE.IDM.C.SubscribeRequest.Attribute.DataType_Bool",
             expected:
                 'Verify on the TH that the status response received from the DUT for every report data sent is a "Success".',
@@ -202,6 +226,7 @@ certTest("TC-IDM-4.1", {
             return subscribeAndModify(cx, ref, 4, path, ["tc-idm-4-1-a", "tc-idm-4-1-b", "tc-idm-4-1-c"]);
         }),
         {
+            controllerCapabilities: COMPLETE_PRIMING,
             pics: "MCORE.IDM.C.SubscribeRequest.Attribute.DataType_String",
             expected:
                 'Verify on the TH that the status response received from the DUT for every report data sent is a "Success".',
@@ -221,6 +246,7 @@ certTest("TC-IDM-4.1", {
             await subscribeAndModify(cx, ref, 5, path, [1, 2, 3]);
         }),
         {
+            controllerCapabilities: COMPLETE_PRIMING,
             pics: "MCORE.IDM.C.SubscribeRequest.Attribute.DataType_UnsignedInteger",
             expected:
                 'Verify on the TH that the status response received from the DUT for every report data sent is a "Success".',
@@ -231,24 +257,65 @@ certTest("TC-IDM-4.1", {
         "Activate the subscription between the DUT and the TH for an attribute of data type signed integer. " +
             "Modify that attribute on the TH. TH should send the modified data to the DUT. Modify the attribute " +
             "multiple times (3 times).",
-        async () => {},
-        { notApplicable: "CHIP's certification harness names no signed-integer attribute for this step" },
+        commissioned.withRef("dut", (cx, ref) => {
+            const path: AttributePathSpec = {
+                endpoint: ENDPOINT_1,
+                cluster: THERMOSTAT_ID,
+                attribute: LOCAL_TEMPERATURE_CALIBRATION,
+            };
+            return subscribeAndModify(cx, ref, 6, path, [-7, -12, -15]);
+        }),
+        {
+            controllerCapabilities: COMPLETE_PRIMING,
+            pics: "MCORE.IDM.C.SubscribeRequest.Attribute.DataType_Integer",
+            expected:
+                'Verify on the TH that the status response received from the DUT for every report data sent is a "Success".',
+        },
     )
     .step(
         7,
         "Activate the subscription between the DUT and the TH for an attribute of data type Floating Point. " +
             "Modify that attribute on the TH. TH should send the modified data to the DUT. Modify the attribute " +
             "multiple times (3 times).",
-        async () => {},
-        { notApplicable: "CHIP's certification harness names no floating-point attribute for this step" },
+        commissioned.withRef("dut", (cx, ref) => {
+            const path: AttributePathSpec = {
+                endpoint: UNIT_TESTING_ENDPOINT,
+                cluster: UNIT_TESTING_ID,
+                attribute: FLOAT_SINGLE,
+            };
+            // Each value is exact in single precision, so the reported value compares equal to the written one
+            return subscribeAndModify(cx, ref, 7, path, [0.5, -2.25, 3.75]);
+        }),
+        {
+            controllerCapabilities: COMPLETE_PRIMING,
+            pics: "MCORE.IDM.C.SubscribeRequest.Attribute.DataType_FloatingPoint",
+            notApplicable: unitTestingNotApplicable,
+            expected:
+                'Verify on the TH that the status response received from the DUT for every report data sent is a "Success".',
+        },
     )
     .step(
         8,
         "Activate the subscription between the DUT and the TH for an attribute of data type list. Modify that " +
             "attribute on the TH. TH should send the modified data to the DUT. Modify the attribute multiple " +
             "times (3 times).",
-        async () => {},
-        { notApplicable: "CHIP's certification harness names no list attribute for this step" },
+        commissioned.withRef("dut", (cx, ref) => {
+            const path: AttributePathSpec = { endpoint: ENDPOINT_1, cluster: USER_LABEL_ID, attribute: LABEL_LIST };
+            return subscribeAndModify(cx, ref, 8, path, [
+                [{ label: "room", value: "kitchen" }],
+                [
+                    { label: "room", value: "hall" },
+                    { label: "floor", value: "1" },
+                ],
+                [{ label: "floor", value: "2" }],
+            ]);
+        }),
+        {
+            controllerCapabilities: COMPLETE_PRIMING,
+            pics: "MCORE.IDM.C.SubscribeRequest.Attribute.DataType_List",
+            expected:
+                'Verify on the TH that the status response received from the DUT for every report data sent is a "Success".',
+        },
     )
     .step(
         9,
@@ -266,12 +333,69 @@ certTest("TC-IDM-4.1", {
         10,
         "DUT sends a subscription request message to the target node/reference device for multiple attributes " +
             "(>1 attributes).",
-        async () => {},
+        commissioned.withRef("dut", async (cx, ref) => {
+            const th = cx.devices.th;
+            const from = th.log.mark();
+            const paths: AttributePathSpec[] = [
+                { endpoint: ENDPOINT_1, cluster: ON_OFF_ID, attribute: ON_OFF_ATTRIBUTE },
+                { endpoint: ENDPOINT_1, cluster: LEVEL_CONTROL_ID, attribute: REMAINING_TIME },
+                { endpoint: ENDPOINT_1, cluster: IDENTIFY_ID, attribute: IDENTIFY_TIME },
+            ];
+
+            const seed = await cx.controllers.dut.node(ref).subscribeAttributes(paths, {
+                minIntervalFloorSeconds: MIN_INTERVAL_FLOOR_SECONDS,
+                maxIntervalCeilingSeconds: MAX_INTERVAL_CEILING_SECONDS,
+            });
+            const missing = paths.filter(
+                path =>
+                    !seed.some(
+                        entry =>
+                            entry.endpoint === path.endpoint &&
+                            entry.cluster === path.cluster &&
+                            entry.attribute === path.attribute,
+                    ),
+            );
+            record(
+                cx,
+                {
+                    type: "response",
+                    verdict: missing.length === 0 ? "pass" : "fail",
+                    detail:
+                        missing.length === 0
+                            ? `subscribeAttributes() resolved with a priming value for each of ${JSON.stringify(paths)}`
+                            : `the priming report carried no value for ${JSON.stringify(missing)}`,
+                },
+                "Priming report covers every subscribed attribute",
+            );
+
+            const check = await expectSequence(
+                th.log,
+                th.flavor,
+                `${SUBSCRIBE_ENVELOPE_LABEL} carrying ${paths.length} attribute paths`,
+                {
+                    chip: [
+                        ...chipSubscribeRequestEnvelope(MIN_INTERVAL_FLOOR_SECONDS, MAX_INTERVAL_CEILING_SECONDS),
+                        ...attributePathIBsSequence(paths),
+                    ],
+                    matterjs: {
+                        ordered: [
+                            ...matterjsSubscribePaths(paths, "keepSubscriptions"),
+                            matterjsSubscribeTiming(MIN_INTERVAL_FLOOR_SECONDS, MAX_INTERVAL_CEILING_SECONDS),
+                        ],
+                    },
+                },
+                from,
+                LOG_TIMEOUT,
+            );
+            record(cx, check, "SubscribeRequestMessage carrying every path");
+        }),
         {
-            notApplicable:
-                "CertNodeApi.subscribe accepts a single AttributePathSpec and SubscribeOptions.onUpdate has no " +
-                "per-path attribution — one subscription cannot carry the three concrete paths this step needs " +
-                "without an adapter API change (see AGENTS.md)",
+            controllerCapabilities: COMPLETE_PRIMING,
+            pics: "MCORE.IDM.C.SubscribeRequest.MultipleAttributes",
+            expected:
+                "On the TH verify the subscription request message received has KeepSubscriptions (bool), " +
+                "MinIntervalFloor (uint16), MaxIntervalCeiling (uint16) and AttributeRequests (list of attribute " +
+                "paths) containing the paths for the 3 attributes.",
         },
     )
     .finalize(cx => commissioned.decommissionAll(cx));

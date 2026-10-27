@@ -819,6 +819,38 @@ describe("BindingManager", () => {
         await node.close();
     });
 
+    it("kind=group resolves on a key provisioned through the fabric object a replacement superseded", async () => {
+        const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+        const fabric = await node.addFabric();
+        const fabrics = node.env.get(FabricManager);
+        const manager = node.env.get(BindingManager);
+        const server = makeFakeBindingServer();
+        const sourceEp = node.parts.get(1);
+        if (sourceEp === undefined) {
+            expect.fail("The switch has no endpoint 1");
+        }
+        const entry = new Binding.Target({
+            node: undefined,
+            endpoint: undefined,
+            cluster: undefined,
+            group: GroupId(45),
+            fabricIndex: fabric.fabricIndex,
+        });
+
+        await node.peers.forAddress({ fabricIndex: fabric.fabricIndex, nodeId: NodeId.fromGroupId(GroupId(45)) });
+        manager.register(server, sourceEp, entry);
+        await settle(() => false);
+        expect(fakeEmitted(server)).has.length(0);
+
+        // A session established before UpdateNOC still holds the previous Fabric object
+        await fabrics.replaceFabric(new Fabric(fabrics.crypto, fabric.config));
+        await provisionGroupKey(fabric, GroupId(45));
+        await settle(() => fakeEmitted(server).length > 0);
+        expect(fakeEmitted(server)).has.length(1);
+
+        await node.close();
+    });
+
     it("kind=client installs declared client behaviors on the materialized endpoint", async () => {
         const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
         const fabric = await node.addFabric();

@@ -20,6 +20,7 @@ import {
     Seconds,
     ServerAddress,
     UnexpectedDataError,
+    nextEmitOf,
 } from "@matter/general";
 import {
     ChangeNotificationService,
@@ -498,7 +499,9 @@ export class CommissioningController {
                 subscribeMaxIntervalCeilingSeconds:
                     nodeOptions.subscribeMaxIntervalCeilingSeconds ?? this.#options.subscribeMaxIntervalCeilingSeconds,
             });
-            await node.events.initialized;
+            if (!node.initialized) {
+                await nextEmitOf(node.events.initialized);
+            }
         }
 
         return nodeId;
@@ -779,14 +782,19 @@ export class CommissioningController {
         return this.#pairedNodeForNodeId(nodeId);
     }
 
-    /** Returns an array with the NodeIds of all commissioned nodes. */
+    /**
+     * Returns an array with the NodeIds of all commissioned nodes.
+     *
+     * Lists only nodes whose state is readable.  A node that is still initializing, resetting, crashed or being
+     * deleted is left out until its state is readable again.
+     */
     getCommissionedNodes() {
         const controller = this.#assertControllerIsStarted();
 
         return controller.getCommissionedNodes() ?? [];
     }
 
-    /** Returns an array with all commissioned NodeIds and their metadata. */
+    /** Returns the metadata of the nodes {@link getCommissionedNodes} lists. */
     getCommissionedNodesDetails(): PairedNodeDetails[] {
         const controller = this.#assertControllerIsStarted();
 

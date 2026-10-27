@@ -172,6 +172,7 @@ certTest("TC-SU-3.3", {
     plan: "softwareupdate.adoc",
     pics: ["MCORE.OTA.Provider"],
     app: "ota-requestor",
+    controllerCapabilities: ["ota-provider", "ota-provider-script"],
 })
     .step(
         "0",

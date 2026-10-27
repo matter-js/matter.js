@@ -12,6 +12,7 @@ import {
     commissionByQr,
     COMMISSIONING_LOG_TIMEOUT,
     CommissioningRefusals,
+    PARSES_PAYLOAD,
     recordCommissionable,
     recordDiscriminatorHonored,
     recordParse,
@@ -107,7 +108,11 @@ certTest("TC-DD-3.21", {
         async cx => {
             await recordParse(cx, await thQrPayload(cx.devices.th));
         },
-        { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
+        {
+            controllerCapabilities: PARSES_PAYLOAD,
+            pics: "MCORE.DD.SCAN_QR_CODE",
+            expected: "Verify the QR code has been scanned successfully.",
+        },
     )
     .step(
         "2.b",

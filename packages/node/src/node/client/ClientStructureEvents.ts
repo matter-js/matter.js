@@ -9,6 +9,7 @@ import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { DescriptorClient } from "#behaviors/descriptor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
+import type { Node } from "#node/Node.js";
 import { Environment, Environmental, Logger, Observable } from "@matter/general";
 import { DeviceTypeId } from "@matter/types";
 
@@ -29,6 +30,7 @@ export class ClientStructureEvents {
 
     #clusterReplaced?: Observable<[endpoint: Endpoint, type: ClusterBehavior.Type]>;
     #clusterDeleted?: Observable<[endpoint: Endpoint, type: ClusterBehavior.Type]>;
+    #structureApplied?: Observable<[node: Node]>;
 
     static [Environmental.create](env: Environment) {
         const instance = new ClientStructureEvents();
@@ -85,6 +87,17 @@ export class ClientStructureEvents {
         return (this.#clusterDeleted = this.#createEvent("clusterDeleted"));
     }
 
+    /**
+     * Emits after a node's structure has applied a batch of data (an interaction, wire changes or its cache), once every
+     * endpoint and cluster event of that batch has been emitted.
+     */
+    get structureApplied(): Observable<[node: Node]> {
+        if (this.#structureApplied) {
+            return this.#structureApplied;
+        }
+        return (this.#structureApplied = this.#createEvent("structureApplied"));
+    }
+
     emitEndpoint(endpoint: Endpoint) {
         if (this.#endpointEvents && endpoint.behaviors.supported.descriptor) {
             const deviceTypes = endpoint.stateOf(DescriptorClient).deviceTypeList;
@@ -133,6 +146,10 @@ export class ClientStructureEvents {
         }
 
         this.#clusterDeleted.emit(endpoint, type);
+    }
+
+    emitStructureApplied(node: Node) {
+        this.#structureApplied?.emit(node);
     }
 
     #createEvent(kind: string): Observable<any, void> {

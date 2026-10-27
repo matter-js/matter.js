@@ -6,7 +6,7 @@
 
 import type { Message } from "#codec/MessageCodec.js";
 import type { ExchangeManager } from "#protocol/ExchangeManager.js";
-import { MRP } from "#protocol/MRP.js";
+import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
 import { CaseClient } from "#session/case/CaseClient.js";
 import type { NodeSession } from "#session/NodeSession.js";
@@ -39,6 +39,7 @@ import {
     Timestamp,
 } from "@matter/general";
 import { GeneralStatusCode, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
+import { InitialContactSchedule } from "./InitialContactSchedule.js";
 import { NetworkProfile, NetworkProfiles } from "./NetworkProfile.js";
 import type { Peer } from "./Peer.js";
 import { TcpUnsupportedError, TransientPeerCommunicationError } from "./PeerCommunicationError.js";
@@ -80,10 +81,11 @@ export type KickOrigin = "discover" | "connect";
  *
  * - Attempts continue until the address expires or connects successfully
  *
- * - We configure MRP to run indefinitely for each attempt with a configurable max delay between messages
+ * - Each address sends Sigma1 by its {@link InitialContactSchedule}: MRP retransmits one Sigma1 with a configurable
+ *   max delay between messages, and after a while continues with fresh Sigma1 messages on new exchanges
  *
- * - Starting a new attempt does not cancel previously running attempts; we thus rely on the MRP retransmission window
- *   to ensure we are sending a reasonable number of packets
+ * - Starting a new attempt does not cancel previously running attempts; we thus rely on the MRP backoff of each
+ *   schedule to ensure we are sending a reasonable number of packets
  *
  * - Once a session is established, any outstanding attempts abort and the function returns
  *
@@ -483,13 +485,27 @@ export async function PeerConnection(
             attemptingFallback = undefined;
         }
 
+        const schedule = new InitialContactSchedule(timing, () => peer.establishmentUnresponsive.emit());
+
         while (!addressAbort.aborted) {
             try {
-                await attemptOnce(address, addressAbort, connecting, addrNo, attemptNo++);
+                await attemptOnce(address, addressAbort, connecting, schedule, addrNo, attemptNo++);
             } catch (e) {
                 await handleConnectionError(asError(e), address, addressAbort, connecting);
             }
         }
+    }
+
+    function isFallback(address: ServerAddressIp) {
+        return attemptingFallback !== undefined && ServerAddress.isEqual(address, attemptingFallback);
+    }
+
+    /**
+     * Whether an attempt on {@link address} starts at the maximum retry delay: the fallback address once it is not the
+     * first address we try.
+     */
+    function isDelayedFallback(address: ServerAddressIp) {
+        return isFallback(address) && addrsAttempted > 1;
     }
 
     /**
@@ -499,9 +515,12 @@ export async function PeerConnection(
         address: ServerAddressIp,
         addressAbort: Abort,
         attemptLifetime: Lifetime,
+        schedule: InitialContactSchedule,
         addrNo: number,
         attemptNo: number,
     ) {
+        using attempt = schedule.begin(isDelayedFallback(address));
+
         let socket;
         {
             using _opening = attemptLifetime.join("opening socket");
@@ -516,27 +535,19 @@ export async function PeerConnection(
         let socketOwned = true;
 
         try {
-            // When we try the fallback address, and it is not the first one, then we directly use a higher MRP interval
-            const isFallback = attemptingFallback && addrsAttempted > 1;
-
             await using unsecuredSession = context.sessions.createUnsecuredSession({
                 channel: socket,
                 sessionParameters: peer.sessionParameters,
                 isInitiator: true,
             });
 
-            await using exchange = PeerConnection.createExchange(
-                peer,
-                context.exchanges,
-                unsecuredSession,
-                network,
+            await using exchange = PeerConnection.createExchange(peer, context.exchanges, unsecuredSession, network, {
                 peerAdditionalMrpDelay,
-                SECURE_CHANNEL_PROTOCOL_ID,
-                undefined,
-                PeerConnection.establishmentUnresponsiveDetector(() => peer.establishmentUnresponsive.emit()),
-            );
+                observer: attempt,
+            });
 
-            info(
+            const logConnecting = attempt.isRefresh ? debug : info;
+            logConnecting(
                 Diagnostic.via(`${peer.address.toString()}${exchange.via}`),
                 address,
                 "Connecting",
@@ -548,7 +559,7 @@ export async function PeerConnection(
                 }),
                 Diagnostic.asFlags({
                     [network.id]: true,
-                    fallback: attemptingFallback !== undefined && ServerAddress.isEqual(address, attemptingFallback),
+                    fallback: isFallback(address),
                 }),
             );
 
@@ -566,23 +577,23 @@ export async function PeerConnection(
                 using _pairing = attemptLifetime.join("pairing");
 
                 kick = kicker?.use((origin: KickOrigin) => {
-                    if (exchange.retransmissionCount < context.timing.kickMinRetransmissions) {
-                        return;
-                    }
-
-                    if (exchange.retransmissionRestartSaving < context.timing.kickMinRestartSaving) {
+                    const blocker = attempt.kickBlocker(exchange, isDelayedFallback(address));
+                    if (blocker === "saving") {
                         debug(via, address, `Suppressing "${origin}" kick, restart would save too little time`);
+                    }
+                    if (blocker !== undefined) {
                         return;
                     }
 
                     const threshold =
                         origin === "discover"
-                            ? context.timing.kickRestartCooldown.addressChange
-                            : context.timing.kickRestartCooldown.connect;
+                            ? timing.kickRestartCooldown.addressChange
+                            : timing.kickRestartCooldown.connect;
 
                     if (lastRestartAt === undefined || Timestamp.delta(lastRestartAt) >= threshold) {
                         info(via, address, `Restarting exchange on "${origin}" kick`);
                         lastRestartAt = Time.nowMs;
+                        attempt.restart();
                         localAbort();
                     } else {
                         debug(
@@ -598,9 +609,7 @@ export async function PeerConnection(
                     ...options,
                     abort: localAbort,
                     caseAuthenticatedTags: peer.descriptor.caseAuthenticatedTags,
-                    maxInitialRetransmissions: Infinity,
-                    maxInitialRetransmissionTime: timing.maxDelayBetweenInitialContactRetries,
-                    initialRetransmissionTime: isFallback ? timing.maxDelayBetweenInitialContactRetries : undefined,
+                    ...attempt.sendOptions,
                     validateSessionParameters: isTcp
                         ? params => {
                               // Mirror resolveTransports so connect and validation agree: absent tag 8 never denies, and
@@ -626,6 +635,20 @@ export async function PeerConnection(
             } catch (e) {
                 if (AbortedError.is(e)) {
                     return;
+                }
+
+                // An unacknowledged Sigma1 is the schedule moving on, not a failure: retry at once, without handleError
+                switch (attempt.fail(e)) {
+                    case "switched":
+                        info(via, address, `${asError(e).message}, continuing with fresh Sigma1 messages`);
+                        return;
+
+                    case "refreshed":
+                        debug(via, address, "Sigma1 unacknowledged, sending a fresh one");
+                        return;
+
+                    case "restarted":
+                        return;
                 }
 
                 throw e;
@@ -768,9 +791,10 @@ export namespace PeerConnection {
         /**
          * Optional hook to customize error handling during connection attempts.
          *
-         * Invoked for errors that would result in a delay-and-retry (not for Busy or resumption-clearing). If the hook
-         * returns a {@link Duration}, that overrides the default delay. If it returns undefined, the default delay is
-         * used. If it throws, the connection is aborted with the thrown error as a fatal error.
+         * Invoked for errors that would result in a delay-and-retry (not for Busy, resumption-clearing, or a Sigma1 that
+         * is never acknowledged and is replaced by a fresh one). If the hook returns a {@link Duration}, that overrides
+         * the default delay. If it returns undefined, the default delay is used. If it throws, the connection is aborted
+         * with the thrown error as a fatal error.
          */
         handleError?: (error: Error) => Duration | void;
     }
@@ -807,23 +831,18 @@ export namespace PeerConnection {
         handleError?: (error: Error) => Duration | void;
     }
 
-    /**
-     * Observes an establishment exchange's per-(re)transmission count and invokes {@link onUnresponsive} once the
-     * peer has failed to ack within the MRP budget ({@link MRP.MAX_TRANSMISSIONS}).  The latch re-arms whenever the
-     * count returns to zero, so a fresh message cycle or attempt can signal again.
-     */
-    export function establishmentUnresponsiveDetector(
-        onUnresponsive: () => void,
-    ): (retransmissionCount: number) => void {
-        let signaled = false;
-        return retransmissionCount => {
-            if (retransmissionCount === 0) {
-                signaled = false;
-            } else if (retransmissionCount > MRP.MAX_TRANSMISSIONS && !signaled) {
-                signaled = true;
-                onUnresponsive();
-            }
-        };
+    export interface ExchangeOptions {
+        /** MRP backoff addition for the peer's medium. */
+        peerAdditionalMrpDelay?: Duration;
+
+        /** Default: the secure channel protocol. */
+        protocol?: number;
+
+        /** Destination for this exchange's messages instead of the session's address. */
+        addressOverride?: ServerAddressUdp;
+
+        /** Notified of the exchange's messages after the peer's own bookkeeping. */
+        observer?: Pick<MessageExchange.Options, "onSend" | "onReceive">;
     }
 
     export function createExchange(
@@ -831,11 +850,9 @@ export namespace PeerConnection {
         exchanges: ExchangeManager,
         session: Session,
         network: NetworkProfile,
-        peerAdditionalMrpDelay?: Duration,
-        protocol = SECURE_CHANNEL_PROTOCOL_ID,
-        addressOverride?: ServerAddressUdp,
-        onRetransmit?: (retransmissionCount: number) => void,
+        options: ExchangeOptions = {},
     ) {
+        const { peerAdditionalMrpDelay, protocol = SECURE_CHANNEL_PROTOCOL_ID, addressOverride, observer } = options;
         return exchanges.initiateExchangeForSession(session, protocol, {
             onSend,
             onReceive,
@@ -844,18 +861,19 @@ export namespace PeerConnection {
             addressOverride,
         });
 
-        function onSend(_message: Message, retransmission: number) {
+        function onSend(message: Message, retransmission: number) {
             if (retransmission) {
                 // Trigger discovery when we begin retransmitting
                 // TODO - spec specifies this SHOULD happen unequivocally on first retry, but seems like it may be
                 // beneficial to *not* do so when the network is congested
                 peer.service.status.isReachable = false;
             }
-            onRetransmit?.(retransmission);
+            observer?.onSend?.(message, retransmission);
         }
 
-        function onReceive() {
+        function onReceive(message: Message, duplicate: boolean) {
             peer.service.status.lastReceiptAt = Time.nowMs;
+            observer?.onReceive?.(message, duplicate);
         }
     }
 }

@@ -7,6 +7,7 @@
 import { Environment } from "#environment/Environment.js";
 import { Environmental } from "#environment/Environmental.js";
 import { NoProviderError } from "#MatterError.js";
+import { NetworkError } from "#net/Network.js";
 import { Gate } from "#util/Promises.js";
 import type { HttpEndpoint } from "./HttpEndpoint.js";
 
@@ -36,13 +37,19 @@ export class WebSocketClient {
         const ws = new Ctor(url);
         ws.binaryType = "arraybuffer";
 
+        // Listening starts before "open" settles because implementations such as `ws` can emit the first message before
+        // the await continuation runs
+        const readable = createReadable(ws);
+
         await new Promise<void>((resolve, reject) => {
             ws.addEventListener("open", onOpen);
-            ws.addEventListener("error", onError);
+            ws.addEventListener("error", onFailure);
+            ws.addEventListener("close", onFailure);
 
             function off() {
                 ws.removeEventListener("open", onOpen);
-                ws.removeEventListener("error", onError);
+                ws.removeEventListener("error", onFailure);
+                ws.removeEventListener("close", onFailure);
             }
 
             function onOpen() {
@@ -50,13 +57,13 @@ export class WebSocketClient {
                 resolve();
             }
 
-            function onError() {
+            function onFailure() {
                 off();
-                reject(new Error(`WebSocket connection to ${url} failed`));
+                reject(new NetworkError(`WebSocket connection to ${url} failed`));
             }
         });
 
-        return WebSocketClient.streams(ws);
+        return { readable, writable: createWritable(ws) };
     }
 
     static [Environmental.create](env: Environment) {
@@ -152,7 +159,7 @@ function createReadable(ws: WebSocketClient.StandardWebSocket) {
 
     function onError() {
         isClosed = true;
-        queue.push(new Error("WebSocket error"));
+        queue.push(new NetworkError("WebSocket error"));
         ready.open();
     }
 

@@ -25,18 +25,32 @@ import {
     CertDeviceFactory,
     CertStepContext,
     CertStepDefinition,
+    CertStepSetting,
     appArgsFor,
     CertAppArgs,
+    CertControllerGroupsSetting,
     CertStepWiring,
     CertTestDefinition,
     DeviceFlavor,
     SelectableDeviceFlavor,
 } from "./cert-context.js";
-import { CertTest, registerCertTestFactory } from "./cert-test.js";
+import { CertControllerGapError, CertTest, registerCertTestFactory } from "./cert-test.js";
 import { chipImageBase, ChipDockerSubject, ChipLocalSubject, resolveChipLocalAppDir } from "./chip-app-subject.js";
-import type { ControllerTransport } from "./controller-adapter.js";
-import { ControllerAdapter, createControllerAdapter } from "./controller-adapter.js";
-import { ControllerImplementation, resolveControllerImplementation, resolveDeviceFlavor } from "./device-config.js";
+import type {
+    ControllerCapability,
+    ControllerRoleKind,
+    ControllerSelection,
+    ControllerTransport,
+} from "./controller-adapter.js";
+import {
+    capabilitiesFor,
+    ControllerAdapter,
+    controllerCapabilityGap,
+    controllerCapabilityOutOfScope,
+    createControllerAdapter,
+    resolveControllerSelection,
+} from "./controller-adapter.js";
+import { ControllerImplementation, resolveDeviceFlavor } from "./device-config.js";
 import { EvidenceRecorder, type RunDeviceRecord } from "./evidence.js";
 import { matterJsCertSubjectFor } from "./matterjs-subject-registry.js";
 
@@ -83,8 +97,13 @@ export interface CertTestOptions {
      * passes against one and fails against the other, and the source is the only thing that says which.
      */
     chipBinsSources?: ChipBinsSource[];
-    /** Role name → "dut" (device under test) or "helper" (auxiliary controller). Default: `{ dut: "dut" }`. */
-    controllers?: Record<string, "dut" | "helper">;
+    /**
+     * Role name → "dut" (device under test) or "helper" (auxiliary controller). Default: `{ dut: "dut" }`.
+     *
+     * When the selected controller names another implementation for its helpers (`matterjs-server`), every helper
+     * role runs on that one.
+     */
+    controllers?: Record<string, ControllerRoleKind>;
     /**
      * Role name → app name. Default: `{ th: options.app }`.
      *
@@ -116,6 +135,22 @@ export interface CertTestOptions {
      * keeps the transport every other test's evidence and timing were written against.
      */
     transport?: ControllerTransport;
+
+    /**
+     * What the whole test needs of its controllers beyond the {@link ControllerAdapter} interface. Where a
+     * controller filling one of its roles lacks one, the test is skipped before any device starts. Declare it here
+     * rather than per step where later steps rest on what a step needing it sets up, so that none of them runs
+     * without it. `transport: "tcp"` implies `tcp-transport`.
+     */
+    controllerCapabilities?: readonly ControllerCapability[];
+
+    /**
+     * The groups the DUT controller sends on, with their key sets (`ControllerAdapterOptions.groups`). Declare
+     * them for a case that sends a groupcast: a controller that has to know its keys before it starts is provisioned
+     * from this, and the others refuse a key set it does not declare. Only the controllers in a `"dut"` role get them.
+     * A function decides them from what the case was collected for.
+     */
+    controllerGroups?: CertControllerGroupsSetting;
 }
 
 export interface CertStepOptions {
@@ -131,8 +166,23 @@ export interface CertStepOptions {
      * Marks a step the certification harness cannot execute — no attribute of the required data type
      * exists to write, or the plan itself declares the step out of scope. The engine skips it with
      * this text as the reason, so the evidence bundle carries why rather than an unexplained gap.
+     *
+     * A function decides it from what the case was collected for; `undefined` from it runs the step.
      */
-    notApplicable?: string;
+    notApplicable?: CertStepSetting;
+
+    /**
+     * Decides from what only the run can observe whether the plan applies this step, such as the transport of the
+     * DUT's session to the TH. A reason skips the step with it, as a plan condition (`RunRecord.planConditionSkips`);
+     * `undefined` lets the step run.
+     *
+     * The engine calls it inside the step, after its `pics`, controller capability, out-of-scope and long-running
+     * gates, so a step the controller cannot run skips as such without the decision's reads. It may read through the
+     * controllers and the logs, but it may not record a check or make a controller call that may change the device:
+     * either is a framework error. A step that learns the same from its own first read throws
+     * `CertStepNotApplicableError` instead.
+     */
+    notApplicableAtRun?: (cx: CertStepContext) => Promise<string | undefined>;
 
     /**
      * Marks a step whose stimulus costs minutes of real time, and why.
@@ -141,9 +191,17 @@ export interface CertStepOptions {
      * — and nothing about that wait is the DUT's behaviour under test. Such a step runs only where the
      * run asked for it (`MATTER_CERT_LONG_RUNNING=1`), which is how a scheduled run covers it without
      * every push paying for it. A case that can shorten the wait on the running flavor declares
-     * nothing here, so the step runs as usual.
+     * nothing here, so the step runs as usual: a function decides that from what the case was collected for, and
+     * `undefined` from it means the step is not long-running.
      */
-    longRunning?: string;
+    longRunning?: CertStepSetting;
+
+    /**
+     * What this step needs of its controllers beyond the {@link ControllerAdapter} interface. Where a controller
+     * filling one of the test's roles lacks one, the step is skipped before it runs, and counted as a coverage gap of
+     * the controller. A refusal of one this step does not declare, nor its test case, is a framework error.
+     */
+    controllerCapabilities?: readonly ControllerCapability[];
 }
 
 export interface CertTestBuilder {
@@ -260,7 +318,7 @@ export function identityFor(index: number): Subject.Identity {
  * this call returns.
  */
 export function certTest(tc: string, options: CertTestOptions): CertTestBuilder {
-    const controllerRoles = options.controllers ?? { dut: "dut" };
+    const controllerRoles: Record<string, ControllerRoleKind> = options.controllers ?? { dut: "dut" };
     const deviceRoles = options.devices ?? { th: options.app };
 
     // Both of these are pure properties of the declaration, so they are knowable now rather than
@@ -285,6 +343,9 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         flavors: options.flavors,
         chipBinsSources: options.chipBinsSources,
         transport: options.transport,
+        controllers: controllerRoles,
+        controllerCapabilities: options.controllerCapabilities,
+        controllerGroups: options.controllerGroups,
         appArgs: options.appArgs,
         steps: new Array<CertStepDefinition>(),
     };
@@ -298,7 +359,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         pics: options.pics.length ? options.pics.join(" & ") : undefined,
     };
 
-    defineCertTest(descriptor, definition, controllerRoles, deviceRoles);
+    defineCertTest(descriptor, definition, deviceRoles);
 
     const builder: CertTestBuilder = {
         step(number, text, run, opts) {
@@ -311,14 +372,14 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
                 );
             }
 
-            if (opts?.longRunning !== undefined && opts.longRunning.trim() === "") {
+            if (typeof opts?.longRunning === "string" && opts.longRunning.trim() === "") {
                 throw new Error(
                     `certTest "${tc}" step ${number} declares a long-running step with no reason, which would skip ` +
                         "it with nothing recorded to explain why — give the reason, or omit the option",
                 );
             }
 
-            if (opts?.notApplicable !== undefined && opts.notApplicable.trim() === "") {
+            if (typeof opts?.notApplicable === "string" && opts.notApplicable.trim() === "") {
                 throw new Error(
                     `certTest "${tc}" step ${number} declares an empty "notApplicable" reason, which would skip it ` +
                         "with nothing recorded to explain why — give the reason, or omit the option to run the step",
@@ -340,7 +401,9 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
                 expected: opts?.expected,
                 flavors: opts?.flavors,
                 notApplicable: opts?.notApplicable,
+                notApplicableAtRun: opts?.notApplicableAtRun,
                 longRunning: opts?.longRunning,
+                controllerCapabilities: opts?.controllerCapabilities,
             });
             return builder;
         },
@@ -448,11 +511,13 @@ export function subjectFactoryFor(
 function defineCertTest(
     descriptor: TestFileDescriptor,
     definition: CertTestDefinition,
-    controllerRoles: Record<string, "dut" | "helper">,
     deviceRoles: Record<string, string>,
 ) {
     describe(descriptor.name, () => {
+        // Resolved once, at collection: every gate, controller, step and evidence record of this case reads these
+        // values, so a skip reason and the bundle always name the device flavor and controllers the case was judged by
         const flavor = resolveDeviceFlavor();
+        const selection = resolveControllerSelection();
 
         if (definition.flavors !== undefined && !definition.flavors.includes(flavor)) {
             // Before registration, not inside the test: the device cannot start on this flavor at all,
@@ -469,43 +534,71 @@ function defineCertTest(
             }
         }
 
-        // Eager, like `flavor` above: validates MATTER_CERT_CONTROLLER at test-collection time, so
-        // a bad value fails immediately rather than only once this specific test's body runs. The
-        // value a run actually records as evidence is re-resolved at run time in #buildContext,
-        // right beside createControllerAdapter()'s own resolution, rather than captured here — an
-        // env value another test in the same process mutates between collection and run time must
-        // not leave this run's evidence disagreeing with the controller it actually used.
-        resolveControllerImplementation();
+        const notApplicable = controllerNotApplicable(definition, selection);
+        if (notApplicable !== undefined) {
+            it.skip(`${descriptor.name} (${notApplicable})`, () => {});
+            return;
+        }
+
+        const capabilityGap = unmetControllerCapabilities(definition, selection);
+        if (capabilityGap !== undefined) {
+            // A test that runs, so the run records a bundle naming the gap; PICS resolve only once the run started,
+            // and a case its PICS exclude does not apply here, so it records no gap
+            State.install();
+            it(`${descriptor.name} (${capabilityGap})`, async function () {
+                if (unmetTestPics(definition, certPicsFile(definition, selection, flavor)) === undefined) {
+                    await recordSkippedRun(definition, selection, recorder =>
+                        recorder.recordControllerGap(capabilityGap),
+                    );
+                }
+                this.skip();
+            });
+            return;
+        }
+
+        const outOfScope = outOfControllerScope(definition, selection);
+        if (outOfScope !== undefined) {
+            // A test that runs, so the run records a bundle naming why the case does not apply
+            State.install();
+            it(`${descriptor.name} (${outOfScope})`, async function () {
+                if (unmetTestPics(definition, certPicsFile(definition, selection, flavor)) === undefined) {
+                    await recordSkippedRun(definition, selection, recorder => recorder.recordOutOfScope(outOfScope));
+                }
+                this.skip();
+            });
+            return;
+        }
+
         const primaryRole = primaryDeviceRole(deviceRoles, definition.app);
         const factory = subjectFactoryFor(flavor, definition, definition.app);
 
         registerCertTestFactory(
             descriptor,
             () =>
-                new WiredCertTest(
-                    definition,
-                    descriptor,
-                    State.container,
-                    flavor,
-                    primaryRole,
-                    controllerRoles,
-                    deviceRoles,
-                ),
+                new WiredCertTest(definition, descriptor, State.container, selection, flavor, primaryRole, deviceRoles),
         );
 
         State.install();
         const test = chip.testFor(descriptor);
 
-        const mochaTest = it(descriptor.name, function () {
+        const mochaTest = it(descriptor.name, async function () {
             this.timeout(descriptor.timeoutMs ?? chip.defaultTimeoutMs);
-            return State.run(test, [], async () => {});
+            try {
+                await State.run(test, [], async () => {});
+            } catch (e) {
+                if (e instanceof CertControllerGapError) {
+                    console.warn(e.message);
+                    this.skip();
+                }
+                throw e;
+            }
         });
 
         beforeOne(mochaTest, async function (this: Mocha.Context) {
             // PICS resolves only once the container is up, so this gate cannot live beside the flavor
             // gate above. It still precedes activation: a test the PICS excludes must not start a
             // device, and its skip is the run's own record that it never ran.
-            const pics = certPicsFile(definition);
+            const pics = certPicsFile(definition, selection, flavor);
 
             // The report renders a test's PICS against this file rather than the device's alone, so a
             // capability the controller declares reads as met there too.
@@ -549,11 +642,126 @@ export function unmetTestPics(definition: CertTestDefinition, pics = certPicsFil
 }
 
 /**
+ * Why a controller filling one of `definition`'s roles cannot serve the test as a whole, or `undefined` where every
+ * one can: the capabilities it declares, and those its adapter options imply.
+ */
+export function unmetControllerCapabilities(
+    definition: Pick<CertTestDefinition, "controllers" | "controllerCapabilities" | "transport">,
+    selection: ControllerSelection = resolveControllerSelection(),
+): string | undefined {
+    return controllerCapabilityGap(requiredCapabilities(definition), Object.values(definition.controllers), selection);
+}
+
+function requiredCapabilities(definition: Pick<CertTestDefinition, "controllerCapabilities" | "transport">) {
+    return [...(definition.controllerCapabilities ?? []), ...capabilitiesFor({ transport: definition.transport })];
+}
+
+/**
+ * Why `definition` does not apply to `selection` at all, or `undefined` where it does: the DUT is a device, and the
+ * selected implementation can only be the DUT controller (it names another for its helpers).
+ */
+function controllerNotApplicable(
+    definition: Pick<CertTestDefinition, "dutIsDevice">,
+    selection: ControllerSelection,
+): string | undefined {
+    if (definition.dutIsDevice && selection.helper !== selection.dut) {
+        return `DUT is a device; controller "${selection.dut}" serves only the DUT role`;
+    }
+    return undefined;
+}
+
+/**
+ * Why the DUT controller declares a capability the test case needs out of its scope, or `undefined` where it does not
+ * (see {@link controllerCapabilityOutOfScope}).
+ */
+function outOfControllerScope(
+    definition: Pick<CertTestDefinition, "controllers" | "controllerCapabilities" | "transport">,
+    selection: ControllerSelection,
+): string | undefined {
+    return controllerCapabilityOutOfScope(
+        requiredCapabilities(definition),
+        Object.values(definition.controllers),
+        selection,
+    );
+}
+
+/** The controller fields of a run record: the roles, and the implementations that fill them. */
+function controllerProvenance(definition: Pick<CertTestDefinition, "controllers">, selection: ControllerSelection) {
+    const controllerImplementation = selection.dut;
+    const helperImplementation = Object.values(definition.controllers).includes("helper")
+        ? selection.helper
+        : controllerImplementation;
+    return {
+        controller: Object.keys(definition.controllers).join(","),
+        controllerImplementation,
+        ...(helperImplementation !== controllerImplementation
+            ? { helperControllerImplementation: helperImplementation }
+            : {}),
+    };
+}
+
+/**
+ * The controller capability gate of {@link certTest}, for a case that drives its own run outside the DSL. Where a
+ * controller filling one of `run.controllers` lacks one of `required`, it writes the evidence bundle naming the gap and
+ * skips the test through `context`, before the case builds a controller or starts anything. Where there is no gap but
+ * the DUT controller declares a capability of `required` out of its scope, the bundle names that instead.
+ *
+ * Returns the {@link ControllerSelection} it judged by; the case builds its controllers and writes its evidence from
+ * that value, so they name the controller the gate admitted.
+ */
+export async function skipOnControllerGap(
+    context: Pick<Mocha.Context, "skip">,
+    run: Pick<CertTestDefinition, "tc" | "plan" | "controllers">,
+    required: Iterable<ControllerCapability>,
+): Promise<ControllerSelection> {
+    const selection = resolveControllerSelection();
+    const needed = [...required];
+    const kinds = Object.values(run.controllers);
+    const gap = controllerCapabilityGap(needed, kinds, selection);
+    if (gap !== undefined) {
+        await recordSkippedRun(run, selection, recorder => recorder.recordControllerGap(gap));
+        context.skip();
+    }
+    const outOfScope = controllerCapabilityOutOfScope(needed, kinds, selection);
+    if (outOfScope !== undefined) {
+        await recordSkippedRun(run, selection, recorder => recorder.recordOutOfScope(outOfScope));
+        context.skip();
+    }
+    return selection;
+}
+
+/**
+ * Writes the evidence of a run skipped as a whole for the reason `record` states: no device starts and no controller
+ * is built, so the record names the controllers that would have served the run, and no devices.
+ */
+async function recordSkippedRun(
+    definition: Pick<CertTestDefinition, "tc" | "plan" | "controllers">,
+    selection: ControllerSelection,
+    record: (recorder: EvidenceRecorder) => void,
+): Promise<void> {
+    const recorder = new EvidenceRecorder(evidenceOutDir(), {
+        tc: definition.tc,
+        plan: definition.plan,
+        timestamp: new Date().toISOString(),
+        ...controllerProvenance(definition, selection),
+        devices: [],
+        matterJsCommit: await matterJsCommit(),
+    });
+    record(recorder);
+    await recorder.flush();
+    await recorder.concludeRun({ failed: false });
+}
+
+/**
  * The PICS a cert run evaluates against: the device's own file with the controller's declarations
  * overlaid.
  */
-export function certPicsFile(definition: Pick<CertTestDefinition, "app" | "dutIsDevice" | "dutApp">) {
-    return picsWithOverrides(chip.defaultPics, definition);
+export function certPicsFile(
+    definition: Pick<CertTestDefinition, "app" | "dutIsDevice" | "dutApp">,
+    selection: ControllerSelection = resolveControllerSelection(),
+    flavor: DeviceFlavor = resolveDeviceFlavor(),
+) {
+    return picsWithOverrides(chip.defaultPics, definition, selection.dut, flavor);
 }
 
 let matterJsCommitPromise: Promise<string> | undefined;
@@ -711,7 +919,6 @@ function isCertDevice(subject: Subject): subject is CertDevice {
 class WiredCertTest extends CertTest {
     #flavor: SelectableDeviceFlavor;
     #primaryRole: string;
-    #controllerRoles: Record<string, "dut" | "helper">;
     #deviceRoles: Record<string, string>;
     #cx?: CertStepWiring;
     /** Held apart from {@link #cx} so teardown does not depend on how long the context lives. */
@@ -723,15 +930,14 @@ class WiredCertTest extends CertTest {
         definition: CertTestDefinition,
         descriptor: TestFileDescriptor,
         container: Container,
+        selection: ControllerSelection,
         flavor: SelectableDeviceFlavor,
         primaryRole: string,
-        controllerRoles: Record<string, "dut" | "helper">,
         deviceRoles: Record<string, string>,
     ) {
-        super(definition, descriptor, container);
+        super(definition, descriptor, container, selection);
         this.#flavor = flavor;
         this.#primaryRole = primaryRole;
-        this.#controllerRoles = controllerRoles;
         this.#deviceRoles = deviceRoles;
     }
 
@@ -764,6 +970,13 @@ class WiredCertTest extends CertTest {
 
     protected override flavorFor(): SelectableDeviceFlavor {
         return this.#flavor;
+    }
+
+    #controllerGroups() {
+        const groups = this.definition.controllerGroups;
+        return typeof groups === "function"
+            ? groups({ controllerSelection: this.selection, deviceFlavor: this.#flavor })
+            : groups;
     }
 
     protected override contextFor(_subject: Subject): CertStepWiring {
@@ -812,30 +1025,40 @@ class WiredCertTest extends CertTest {
                 devices[role] = device;
             }
 
-            // Resolved here, immediately beside the loop that resolves it again inside
-            // createControllerAdapter(), so the value this run records as evidence can't diverge
-            // from the one that actually picked the controller factory.
-            const controllerImplementation = resolveControllerImplementation();
+            const provenance = controllerProvenance(this.definition, this.selection);
+            let controllerBuild: Record<string, string> | undefined;
 
-            for (const name of Object.keys(this.#controllerRoles)) {
-                const controller = createControllerAdapter(name, { transport: this.definition.transport });
+            for (const name of Object.keys(this.definition.controllers)) {
+                const kind = this.definition.controllers[name];
+                const controller = createControllerAdapter(
+                    name,
+                    {
+                        transport: this.definition.transport,
+                        groups: kind === "dut" ? this.#controllerGroups() : undefined,
+                    },
+                    kind,
+                    this.selection,
+                );
                 controllers[name] = controller;
                 this.#openControllers = controllers;
                 await controller.start();
+                if (kind === "dut") {
+                    controllerBuild ??= controller.build;
+                }
             }
 
             const [matterJsRef, deviceRecords, chipToolRef] = await Promise.all([
                 matterJsCommit(),
                 deviceRecordsFor(this.#flavor, this.#deviceRoles, devices, this.definition.appArgs),
-                chipToolRefFor(controllerImplementation),
+                chipToolRefFor(provenance.controllerImplementation),
             ]);
 
             recorder = new EvidenceRecorder(evidenceOutDir(), {
                 tc: this.definition.tc,
                 plan: this.definition.plan,
                 timestamp: new Date().toISOString(),
-                controller: Object.keys(this.#controllerRoles).join(","),
-                controllerImplementation,
+                ...provenance,
+                ...(controllerBuild === undefined ? {} : { controllerBuild }),
                 devices: deviceRecords,
                 matterJsCommit: matterJsRef,
                 chipToolRef,

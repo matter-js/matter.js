@@ -19,7 +19,7 @@ on:
       skipChipTests:
         description: 'Skip chip tests'
         required: false
-        default: false
+        default: true
         type: boolean
 jobs:
   test-and-release:

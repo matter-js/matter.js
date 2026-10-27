@@ -84,24 +84,8 @@ export class BindingManager {
         this.#cachedNode = node;
         const fabrics = this.#env.get(FabricManager);
         this.#cachedFabrics = fabrics;
-        fabrics.events.replaced.on(this.#fabricReplaced);
         fabrics.events.deleted.on(this.#fabricDeleted);
     }
-
-    /**
-     * A fabric update (UpdateNOC) replaces the Fabric object, and with it the group key maps a watch observes; the event
-     * also fires when a fabric is persisted unchanged.
-     */
-    readonly #fabricReplaced = (fabric: Fabric) => {
-        const release = this.#groupKeyWatches.get(fabric.fabricIndex);
-        if (release === undefined) {
-            return;
-        }
-        release();
-        this.#groupKeyWatches.delete(fabric.fabricIndex);
-        this.#watchGroupKeys(fabric.fabricIndex);
-        this.#scheduleGroupRecheck(fabric.fabricIndex);
-    };
 
     readonly #fabricDeleted = (fabric: Fabric) => {
         this.#groupKeyWatches.get(fabric.fabricIndex)?.();
@@ -692,7 +676,6 @@ export class BindingManager {
             release();
         }
         this.#groupKeyWatches.clear();
-        this.#cachedFabrics?.events.replaced.off(this.#fabricReplaced);
         this.#cachedFabrics?.events.deleted.off(this.#fabricDeleted);
         await this.#multiplex.close();
         this.#serverMap.clear();

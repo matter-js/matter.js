@@ -5,15 +5,94 @@
  */
 
 import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
+import { configureLogFormat } from "#environment/ConsoleLogFormat.js";
 import { getDefaults, loadConfigFile } from "#environment/NodeJsEnvironment.js";
 import { ProcessManager } from "#environment/ProcessManager.js";
 import { NodeJsNetwork } from "#net/NodeJsNetwork.js";
-import { Crypto, Entropy, Environment, Network, StorageService } from "@matter/general";
+import { Crypto, Entropy, Environment, Logger, Network, StorageService } from "@matter/general";
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 describe("NodeJsEnvironment", () => {
+    describe("log format", () => {
+        // The test runner switches the logger to ANSI, so each test starts from the library default
+        let originalFormat: string;
+
+        beforeEach(() => {
+            originalFormat = Logger.format;
+            Logger.format = "plain";
+        });
+
+        afterEach(() => {
+            Logger.format = originalFormat;
+        });
+
+        it("is plain by default in a fresh process", () => {
+            const output = execFileSync(
+                process.execPath,
+                [
+                    "--input-type=module",
+                    "-e",
+                    'import { Logger } from "@matter/general"; process.stdout.write(`\\nformat=${Logger.format}\\n`);',
+                ],
+                { encoding: "utf8" },
+            );
+
+            // Importing may log first, for example crypto detection on Bun
+            expect(/^format=(.*)$/m.exec(output)?.[1]).equal("plain");
+        });
+
+        it("uses ANSI when stdout and stderr are terminals", () => {
+            const env = new Environment("test");
+
+            configureLogFormat(env, { stdout: { isTTY: true }, stderr: { isTTY: true } });
+
+            expect(env.vars.get("log.format")).equal("ansi");
+        });
+
+        it("keeps the plain default when stdout or stderr is not a terminal", () => {
+            const env = new Environment("test");
+
+            configureLogFormat(env, { stdout: { isTTY: false }, stderr: { isTTY: true } });
+            expect(env.vars.has("log.format")).false;
+
+            configureLogFormat(env, { stdout: { isTTY: true }, stderr: { isTTY: false } });
+            expect(env.vars.has("log.format")).false;
+
+            configureLogFormat(env, {});
+            expect(env.vars.has("log.format")).false;
+        });
+
+        it("keeps an explicit format on a terminal", () => {
+            const env = new Environment("test");
+            env.vars.set("log.format", "plain");
+
+            configureLogFormat(env, { stdout: { isTTY: true }, stderr: { isTTY: true } });
+
+            expect(env.vars.get("log.format")).equal("plain");
+        });
+
+        it("keeps an explicit format when stdout is not a terminal", () => {
+            const env = new Environment("test");
+            env.vars.set("log.format", "html");
+
+            configureLogFormat(env, { stdout: { isTTY: false }, stderr: { isTTY: true } });
+
+            expect(env.vars.get("log.format")).equal("html");
+        });
+
+        it("keeps a non-default Logger.format on a terminal", () => {
+            const env = new Environment("test");
+            Logger.format = "html";
+
+            configureLogFormat(env, { stdout: { isTTY: true }, stderr: { isTTY: true } });
+
+            expect(env.vars.has("log.format")).false;
+        });
+    });
+
     describe("factory function", () => {
         it("creates an Environment instance", () => {
             const env = new Environment("test");

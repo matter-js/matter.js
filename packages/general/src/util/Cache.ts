@@ -6,26 +6,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClosedError, MatterAggregateError } from "#MatterError.js";
 import { Duration } from "#time/Duration.js";
 import { Diagnostic } from "../log/Diagnostic.js";
+import { Logger } from "../log/Logger.js";
 import { Time, Timer } from "../time/Time.js";
+import { Lifetime } from "./Lifetime.js";
 
 /** ASCII Unit Separator — unlikely to appear in the interface names, IPs, or booleans current callers pass. */
 const KEY_SEPARATOR = "\x1F";
+
+const logger = Logger.get("Cache");
 
 class GenericCache<T> {
     protected readonly knownKeys = new Set<string>();
     protected readonly values = new Map<string, T>();
     protected readonly timestamps = new Map<string, number>();
     private readonly periodicTimer: Timer;
+    readonly #lifetime: Lifetime;
 
     constructor(
         name: string,
+        lifetime: Lifetime.Owner,
         private readonly expiration: Duration,
         private readonly expireCallback?: (key: string, value: T) => Promise<void>,
     ) {
+        this.#lifetime = lifetime.join(`${name} cache`);
+        const lifetimeName = String(this.#lifetime.name);
         this.periodicTimer = Time.getPeriodicTimer(
-            Diagnostic.upgrade(`${name} cache expiration`, [Diagnostic.strong(name), "cache expiration"]),
+            Diagnostic.upgrade(`${lifetimeName} expiration`, [Diagnostic.strong(lifetimeName), "expiration"]),
             expiration,
             () => this.expire(),
         ).start();
@@ -41,13 +50,20 @@ class GenericCache<T> {
         return Array.from(this.knownKeys.values());
     }
 
+    /**
+     * Expire the value cached under `key`.  The value leaves the cache even when {@link expireCallback} rejects, because
+     * nothing would retry it.
+     */
     async delete(key: string) {
-        // Cached-undefined must still trigger expireCallback.
-        if (this.expireCallback !== undefined && this.values.has(key)) {
-            await this.expireCallback(key, this.values.get(key) as T);
+        try {
+            // Cached-undefined must still trigger expireCallback.
+            if (this.expireCallback !== undefined && this.values.has(key)) {
+                await this.expireCallback(key, this.values.get(key) as T);
+            }
+        } finally {
+            this.values.delete(key);
+            this.timestamps.delete(key);
         }
-        this.values.delete(key);
-        this.timestamps.delete(key);
     }
 
     /** Evict the entry addressed by the same params passed to {@link Cache.get}/{@link AsyncCache.get}. */
@@ -55,40 +71,109 @@ class GenericCache<T> {
         await this.delete(this.keyFor(params));
     }
 
+    /**
+     * Expire all values.
+     *
+     * @throws {MatterAggregateError} with the rejection of each {@link expireCallback} that failed, after every value
+     * was expired
+     */
     async clear() {
-        for (const key of this.values.keys()) {
-            await this.delete(key);
+        const failures = await this.expireAll();
+        if (failures.length) {
+            throw new MatterAggregateError(
+                failures.map(({ error }) => error),
+                `${this.#describe()} failed to expire ${failures.map(({ key }) => key).join(", ")}`,
+            );
         }
-        this.values.clear();
-        this.timestamps.clear();
     }
 
+    /**
+     * Expire all values and refuse further {@link Cache.get}/{@link AsyncCache.get} calls.  Creations already pending
+     * finish and are expired like any other value.  A failed {@link expireCallback} is logged and does not stop
+     * closing.
+     */
     async close() {
-        await this.clear();
-        this.knownKeys.clear();
+        using _closing = this.#lifetime.closing();
         this.periodicTimer.stop();
+        this.#logFailures(await this.expireAll());
+        this.knownKeys.clear();
+    }
+
+    /** Expire every value, including values created while this runs, and return the failures. */
+    protected async expireAll() {
+        return this.#expireWhere(() => true);
+    }
+
+    /**
+     * Iterates the live map, so a value created or refreshed while an earlier callback is awaited is judged by its
+     * current timestamp.
+     */
+    async #expireWhere(expires: (timestamp: number) => boolean) {
+        const failures = new Array<{ key: string; error: unknown }>();
+        for (const [key, timestamp] of this.timestamps) {
+            if (!expires(timestamp)) {
+                continue;
+            }
+            try {
+                await this.delete(key);
+            } catch (error) {
+                failures.push({ key, error });
+            }
+        }
+        return failures;
+    }
+
+    #logFailures(failures: { key: string; error: unknown }[]) {
+        for (const { key, error } of failures) {
+            logger.warn(`${this.#describe()} failed to expire ${key}:`, error);
+        }
+    }
+
+    #describe() {
+        return String(this.#lifetime.name);
+    }
+
+    /**
+     * Set once this cache or any lifetime enclosing it begins closing, so an owner that closes before calling
+     * {@link close} already stops new values.
+     */
+    protected get isClosed() {
+        for (let lifetime: Lifetime | undefined = this.#lifetime; lifetime !== undefined; lifetime = lifetime.owner) {
+            if (lifetime.isClosing) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected closedError() {
+        return new ClosedError(`${this.#describe()} is closed`);
     }
 
     private async expire() {
         const now = Time.nowMs;
-        for (const [key, timestamp] of this.timestamps.entries()) {
-            if (now - timestamp < this.expiration) continue;
-            await this.delete(key);
-        }
+        this.#logFailures(await this.#expireWhere(timestamp => now - timestamp >= this.expiration));
     }
 }
 
 export class Cache<T> extends GenericCache<T> {
     constructor(
         name: string,
+        lifetime: Lifetime.Owner,
         private readonly generator: (...params: any[]) => T,
         expiration: Duration,
         expireCallback?: (key: string, value: T) => Promise<void>,
     ) {
-        super(name, expiration, expireCallback);
+        super(name, lifetime, expiration, expireCallback);
     }
 
+    /**
+     * @throws {ClosedError} if the cache is closed
+     */
     get(...params: any[]) {
+        if (this.isClosed) {
+            throw this.closedError();
+        }
         const key = this.keyFor(params);
         if (!this.values.has(key)) {
             this.values.set(key, this.generator(...params));
@@ -104,14 +189,21 @@ export class AsyncCache<T> extends GenericCache<T> {
 
     constructor(
         name: string,
+        lifetime: Lifetime.Owner,
         private readonly generator: (...params: any[]) => Promise<T>,
         expiration: Duration,
         expireCallback?: (key: string, value: T) => Promise<void>,
     ) {
-        super(name, expiration, expireCallback);
+        super(name, lifetime, expiration, expireCallback);
     }
 
+    /**
+     * Rejects with {@link ClosedError} if the cache is closed.
+     */
     get(...params: any[]): Promise<T> {
+        if (this.isClosed) {
+            return Promise.reject(this.closedError());
+        }
         const key = this.keyFor(params);
         if (this.values.has(key)) {
             this.timestamps.set(key, Time.nowMs);
@@ -149,8 +241,8 @@ export class AsyncCache<T> extends GenericCache<T> {
         await super.delete(key);
     }
 
-    override async clear() {
+    protected override async expireAll() {
         await Promise.allSettled(this.#inflight.values());
-        await super.clear();
+        return super.expireAll();
     }
 }

@@ -14,11 +14,8 @@ import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { AccessControlServer } from "#behaviors/access-control";
 import {
     AsyncObservable,
-    Diagnostic,
     ImplementationError,
     isObject,
-    LogDestination,
-    Logger,
     LogLevel,
     MaybePromise,
     MockCrypto,
@@ -35,9 +32,11 @@ import {
     FieldElement,
     FieldModel,
 } from "@matter/model";
+import { captureLog } from "@matter/node/testing";
 import { AccessControl, Val } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
 import { AccessControl as AccessControlCluster } from "@matter/types/clusters/access-control";
+import { captureWarningsOf } from "../../../endpoint/validation/validation-helpers.js";
 import { rawValuesOf } from "./values/value-utils.js";
 
 class MyState {
@@ -933,7 +932,10 @@ describe("Datasource", () => {
                 initialValues: { plain: 1, __features__: featuresKeyOf(gatedSupervisor()) },
                 version: 1,
                 async set() {},
-                async externalSet() {},
+                async externalSet() {
+                    return {};
+                },
+                async forgetVersion() {},
             };
             createDatasource({ type: GatedState, supervisor: gatedSupervisor("GATE"), primaryKey: "id", store });
 
@@ -1099,29 +1101,18 @@ describe("Datasource", () => {
         });
 
         it("ignores an asynchronous migration and logs its rejection", async () => {
-            const warnings = new Array<string>();
-            Logger.destinations.capture = LogDestination({
-                add(message: Diagnostic.Message) {
-                    if (message.facility === "Datasource" && message.level === LogLevel.WARN) {
-                        warnings.push(String(message.values[0]));
-                    }
-                },
+            using log = captureLog(LogLevel.WARN);
+            const store = createStore({ legacy: "old", foo: "stored" });
+            const ds = createMigrated(store, async values => {
+                moveLegacy(values);
+                throw new StorageError("Broken migration");
             });
-            try {
-                const store = createStore({ legacy: "old", foo: "stored" });
-                const ds = createMigrated(store, async values => {
-                    moveLegacy(values);
-                    throw new StorageError("Broken migration");
-                });
 
-                await withReference(ds, ({ state }) => (state.other = 1));
+            await withReference(ds, ({ state }) => (state.other = 1));
 
-                expect(ds.view.foo).equals("stored");
-                expect(store.sets).deep.equals([{ other: 1 }]);
-                expect(warnings.some(warning => warning.startsWith("Asynchronous migration"))).true;
-            } finally {
-                delete Logger.destinations.capture;
-            }
+            expect(ds.view.foo).equals("stored");
+            expect(store.sets).deep.equals([{ other: 1 }]);
+            expect(log.messages.some(message => message.includes("Asynchronous migration"))).true;
         });
 
         it("does not claim the migrated values for a cycle that stored nothing", async () => {
@@ -1206,7 +1197,10 @@ describe("Datasource", () => {
                 initialValues: { legacy: "old" },
                 version: 1,
                 async set() {},
-                async externalSet() {},
+                async externalSet() {
+                    return {};
+                },
+                async forgetVersion() {},
             };
             createDatasource({
                 type: MigratedState,
@@ -1249,12 +1243,15 @@ describe("Datasource", () => {
 
             async set() {}
 
+            async forgetVersion() {}
+
             async externalSet(values: Val.StructMap) {
                 const version = values.get("__version__");
                 if (typeof version === "number") {
                     this.version = version;
                 }
-                await this.consumer?.integrateExternalChange(values);
+                await this.consumer?.integrate(values)?.();
+                return {};
             }
         }
 
@@ -1324,6 +1321,279 @@ describe("Datasource", () => {
 
             expect(changes).deep.equals([]);
             expect(ds.version).equals(6);
+        });
+    });
+
+    describe("mirror writes", () => {
+        class WriteState {
+            foo? = "bar";
+            other? = "baz";
+            scratch? = "local";
+        }
+
+        const writeSupervisor = BehaviorSupervisor({
+            id: "writeState",
+            State: WriteState,
+
+            schema: new ClusterModel({
+                id: 0xfff1_fc97,
+                name: "WriteState",
+
+                children: [
+                    AttributeElement({ id: 1, name: "Foo", type: "string" }),
+                    AttributeElement({ id: 2, name: "Other", type: "string" }),
+                    FieldElement({ id: 3, name: "Scratch", type: "string" }),
+                ],
+            }),
+        });
+
+        class RecordingMirrorStore implements Datasource.ExternallyMutableStore {
+            initialValues: Val.Struct;
+            version = 1;
+            consumer?: Datasource.ExternallyMutableStore.Consumer;
+            sets = new Array<Val.Struct>();
+
+            constructor(initialValues: Val.Struct) {
+                this.initialValues = initialValues;
+            }
+
+            async set(_transaction: unknown, values: Val.Struct) {
+                this.sets.push({ ...values });
+            }
+
+            async forgetVersion() {}
+
+            async externalSet() {
+                return {};
+            }
+        }
+
+        it("sends an unchanged assignment without a change, a version step or stateChanged", async () => {
+            const store = new RecordingMirrorStore({ 1: "bar", 2: "baz" });
+            const stateChanged = Observable<[context?: ValueSupervisor.Session]>();
+            let stateChanges = 0;
+            stateChanged.on(() => {
+                stateChanges++;
+            });
+            const changes = new Array<string[]>();
+            const ds = createDatasource({
+                type: WriteState,
+                supervisor: writeSupervisor,
+                primaryKey: "id",
+                store,
+                events: { stateChanged },
+                onChange: props => {
+                    changes.push(props);
+                },
+            });
+            const version = ds.version;
+
+            await withReference(ds, ({ state }) => {
+                state.foo = "bar";
+            });
+
+            expect(store.sets).deep.equals([{ 1: "bar" }]);
+            expect(stateChanges).equals(0);
+            expect(changes).deep.equals([]);
+            expect(ds.version).equals(version);
+        });
+
+        it("sends every assigned member and changes nothing locally", async () => {
+            const store = new RecordingMirrorStore({ 1: "bar", 2: "baz", 3: "local" });
+            const changes = new Array<string[]>();
+            const ds = createDatasource({
+                type: WriteState,
+                supervisor: writeSupervisor,
+                primaryKey: "id",
+                store,
+                onChange: props => {
+                    changes.push(props);
+                },
+            });
+
+            await withReference(ds, ({ state }) => {
+                state.foo = "new";
+                state.scratch = "changed";
+            });
+
+            expect(store.sets).deep.equals([{ 1: "new", 3: "changed" }]);
+            expect(ds.view.foo).equals("bar");
+            expect(ds.view.scratch).equals("local");
+            expect(changes).deep.equals([]);
+        });
+
+        it("logs a failing change broadcast and observer and still announces the rest", async () => {
+            const store = new RecordingMirrorStore({ 1: "bar", 2: "baz" });
+            const foo$Changed = Observable<[value: string, oldValue: string, context?: ValueSupervisor.Session]>();
+            foo$Changed.on(() => {
+                throw new Error("observer failure");
+            });
+            const other$Changed = Observable<[value: string, oldValue: string, context?: ValueSupervisor.Session]>();
+            const others = new Array<string>();
+            other$Changed.on(value => {
+                others.push(value);
+            });
+            createDatasource({
+                type: WriteState,
+                supervisor: writeSupervisor,
+                primaryKey: "id",
+                store,
+                events: { foo$Changed, other$Changed },
+                onChange: () => {
+                    throw new Error("broadcast failure");
+                },
+            });
+            const { consumer } = store;
+            if (consumer === undefined) {
+                expect.fail("the datasource did not bind to its store");
+            }
+
+            const announce = consumer.integrate(
+                new Map([
+                    ["1", "new"],
+                    ["2", "qux"],
+                ]),
+            );
+            const warnings = await captureWarningsOf(async () => {
+                await announce?.();
+            });
+
+            expect(others).deep.equals(["qux"]);
+            const logged = warnings.map(({ text }) => text).join("\n");
+            expect(logged).contains("broadcast failure");
+            expect(logged).contains("observer failure");
+        });
+
+        describe("nested writes", () => {
+            class NestedState {
+                compound: { subfield: number } = { subfield: 0 };
+                bits: { flag: boolean } = { flag: false };
+                items: number[] = [];
+            }
+
+            const nestedSupervisor = BehaviorSupervisor({
+                id: "nestedState",
+                State: NestedState,
+
+                schema: new ClusterModel({
+                    id: 0xfff1_fc98,
+                    name: "NestedState",
+
+                    children: [
+                        AttributeElement({
+                            id: 4,
+                            name: "Compound",
+                            type: "struct",
+                            children: [FieldElement({ id: 0, name: "Subfield", type: "int8" })],
+                        }),
+                        AttributeElement({
+                            id: 5,
+                            name: "Bits",
+                            type: "map8",
+                            children: [FieldElement({ name: "Flag", constraint: "0" })],
+                        }),
+                        AttributeElement({
+                            id: 6,
+                            name: "Items",
+                            type: "list",
+                            children: [FieldElement({ name: "entry", type: "uint8" })],
+                        }),
+                    ],
+                }),
+            });
+
+            async function sentBy(mutate: (state: NestedState) => void) {
+                const store = new RecordingMirrorStore({ 4: { subfield: 0 }, 5: { flag: false }, 6: [1, 2] });
+                const ds = createDatasource({
+                    type: NestedState,
+                    supervisor: nestedSupervisor,
+                    primaryKey: "id",
+                    store,
+                });
+                await withReference(ds, ({ state }) => mutate(state));
+                return store.sets.map(set => Object.keys(set));
+            }
+
+            it("sends a struct field's write as its attribute", async () => {
+                expect(
+                    await sentBy(state => {
+                        state.compound.subfield = 7;
+                    }),
+                ).deep.equals([["4"]]);
+            });
+
+            it("sends a bitmap bit's write as its attribute", async () => {
+                expect(
+                    await sentBy(state => {
+                        state.bits.flag = true;
+                    }),
+                ).deep.equals([["5"]]);
+            });
+
+            it("sends a list entry's write as its attribute", async () => {
+                expect(
+                    await sentBy(state => {
+                        state.items[1] = 9;
+                    }),
+                ).deep.equals([["6"]]);
+            });
+        });
+
+        it("does not make a sent attribute the store does not hold local", async () => {
+            const store = new RecordingMirrorStore({ 2: "baz" });
+            const ds = createDatasource({ type: WriteState, supervisor: writeSupervisor, primaryKey: "id", store });
+
+            await withReference(ds, ({ state }) => {
+                state.foo = "new";
+            });
+
+            expect(store.sets).deep.equals([{ 1: "new" }]);
+            expect(ds.view.foo).undefined;
+        });
+
+        it("does not resend an unchanged assignment after a commit within the same act", async () => {
+            const store = new RecordingMirrorStore({ 1: "bar", 2: "baz" });
+            const ds = createDatasource({ type: WriteState, supervisor: writeSupervisor, primaryKey: "id", store });
+
+            await withReference(ds, async ({ context, state }) => {
+                state.foo = "bar";
+                await context.transaction.commit();
+                ds.reference(context).other = "qux";
+            });
+
+            expect(store.sets).deep.equals([{ 1: "bar" }, { 2: "qux" }]);
+        });
+
+        it("does not send a fabric-scoped list whose assignment failed and was caught, also with a later assignment", async () => {
+            const entry = {
+                privilege: AccessControlCluster.AccessControlEntryPrivilege.Administer,
+                authMode: AccessControlCluster.AccessControlEntryAuthMode.Case,
+                subjects: [NodeId(0x1234)],
+                targets: null,
+                fabricIndex: FabricIndex(1),
+            };
+            const store = new RecordingMirrorStore({ 0: [entry] });
+            const ds = createDatasource({
+                type: AccessControlServer.State,
+                supervisor: AccessControlServer.supervisor,
+                primaryKey: "id",
+                store,
+            });
+
+            const invalidPrivilege: number = 0xff;
+            let refusal: unknown;
+            await withReference(ds, ({ state }) => {
+                try {
+                    // The first entry is assigned before the second fails validation
+                    state.acl = [entry, { ...entry, privilege: invalidPrivilege }];
+                } catch (e) {
+                    refusal = e;
+                }
+                state.extension = [];
+            });
+
+            expect(refusal).not.undefined;
+            expect(store.sets.map(set => Object.keys(set))).deep.equals([["1"]]);
         });
     });
 

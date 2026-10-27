@@ -12,16 +12,29 @@ import { Bytes } from "#util/Bytes.js";
  * Implements {@link ReadonlyMap}<string, string> with UTF-8 decoded values. Use {@link raw} for the original byte
  * sequence — required for binary TXT fields such as the Thread MeshCoP `xa`, `xp`, `at`, `pt`, `sb`, and `dd` keys
  * (RFC 6763 §6 — TXT values are opaque binary data; non-UTF-8 bytes mojibake to U+FFFD via the string accessors).
+ *
+ * Keys are case-insensitive: lookups ignore case, and of several entries whose keys differ only in case the first one
+ * wins.  Iteration yields each key as the first entry spelled it.
+ *
+ * @see {@link https://www.rfc-editor.org/rfc/rfc6763#section-6.4 | RFC 6763 §6.4}
  */
 export class DnssdParameters implements ReadonlyMap<string, string> {
-    readonly #raw: ReadonlyMap<string, Bytes>;
+    readonly #entries = new Map<string, { key: string; value: Bytes }>();
 
-    constructor(raw: ReadonlyMap<string, Bytes>) {
-        this.#raw = raw;
+    /**
+     * @param entries key/value pairs in wire order
+     */
+    constructor(entries: Iterable<readonly [key: string, value: Bytes]>) {
+        for (const [key, value] of entries) {
+            const folded = key.toLowerCase();
+            if (!this.#entries.has(folded)) {
+                this.#entries.set(folded, { key, value });
+            }
+        }
     }
 
     get(key: string): string | undefined {
-        const v = this.#raw.get(key);
+        const v = this.raw(key);
         return v === undefined ? undefined : Bytes.toString(v);
     }
 
@@ -29,30 +42,32 @@ export class DnssdParameters implements ReadonlyMap<string, string> {
      * The original bytes for the given key, or `undefined` if absent.
      */
     raw(key: string): Bytes | undefined {
-        return this.#raw.get(key);
+        return this.#entries.get(key.toLowerCase())?.value;
     }
 
     has(key: string): boolean {
-        return this.#raw.has(key);
+        return this.#entries.has(key.toLowerCase());
     }
 
     get size(): number {
-        return this.#raw.size;
+        return this.#entries.size;
     }
 
-    keys(): MapIterator<string> {
-        return this.#raw.keys();
+    *keys(): MapIterator<string> {
+        for (const { key } of this.#entries.values()) {
+            yield key;
+        }
     }
 
     *values(): MapIterator<string> {
-        for (const v of this.#raw.values()) {
-            yield Bytes.toString(v);
+        for (const { value } of this.#entries.values()) {
+            yield Bytes.toString(value);
         }
     }
 
     *entries(): MapIterator<[string, string]> {
-        for (const [k, v] of this.#raw) {
-            yield [k, Bytes.toString(v)];
+        for (const { key, value } of this.#entries.values()) {
+            yield [key, Bytes.toString(value)];
         }
     }
 

@@ -118,6 +118,7 @@ describe("Presets configuration", () => {
 
         {
             await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, {
+                id: "thermostat-node",
                 device: unconfiguredPresetsEndpoint(),
                 environment,
             });
@@ -126,7 +127,7 @@ describe("Presets configuration", () => {
 
         // What a device left behind while the attribute was an ordinary stored value: written with no validation,
         // so it carries no handle and no client can address it
-        const values = storage.store("node0").data;
+        const values = storage.store("thermostat-node").data;
         expect(values[context], "the thermostat's stored values").not.undefined;
         values[context].presets = [newPreset()] as never;
 
@@ -136,6 +137,7 @@ describe("Presets configuration", () => {
         {
             const deviceEp = unconfiguredPresetsEndpoint();
             await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, {
+                id: "thermostat-node",
                 device: deviceEp,
                 environment,
             });

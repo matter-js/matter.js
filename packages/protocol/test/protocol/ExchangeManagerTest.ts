@@ -124,6 +124,7 @@ describe("ExchangeManager", () => {
             async close(_flushViaSession, exchange) {
                 closedWith.push(exchange);
             },
+            async closeForShutdown() {},
         });
 
         // Peer loss ignores sessions created no earlier than the failing exchange
@@ -255,6 +256,7 @@ describe("ExchangeManager", () => {
 
             return {
                 fabric,
+                fabrics,
                 sessions,
                 exchanges,
                 transport,
@@ -338,6 +340,31 @@ describe("ExchangeManager", () => {
             }
 
             expect(messages.map(message => message.receivedFrom)).deep.equals(["fd00::1", "fd00::2"]);
+        });
+
+        it("sends as the current node ID through an exchange opened before the fabric's node ID changed", async () => {
+            await using peer = await groupReceiver();
+            const sent = new Array<Bytes>();
+            peer.transport.channel.send = async (data: Bytes) => {
+                sent.push(data);
+            };
+            const session = await peer.sessions.groupSessionForAddress(
+                peer.fabric.addressOf(NodeId.fromGroupId(GroupId(2))),
+                peer.exchanges,
+            );
+            const exchange = peer.exchanges.initiateExchangeForSession(session, SECURE_CHANNEL_PROTOCOL_ID);
+
+            // As UpdateNOC with a new node ID does
+            await peer.fabrics.replaceFabric(
+                new Fabric(peer.fabric.crypto, { ...peer.fabric.config, nodeId: NodeId(2) }),
+            );
+            await exchange.send(SecureMessageType.IcdCheckInMessage, Bytes.empty);
+            await exchange.close();
+
+            expect(sent).length(1);
+            const decodedPacket = MessageCodec.decodePacket(sent[0]);
+            const aad = Bytes.of(sent[0]).slice(0, sent[0].byteLength - decodedPacket.applicationPayload.byteLength);
+            expect(GroupSession.decode(peer.fabrics, decodedPacket, aad).sourceNodeId).equals(NodeId(2));
         });
     });
 

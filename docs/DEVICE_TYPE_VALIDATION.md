@@ -33,7 +33,10 @@ endpoint lists at least one such device type:
 - **Component device types.** The number of endpoints of each required component device type (one distinct
   endpoint per instance), choice conformance across component requirements that share a choice, and — on the
   component endpoint itself — that it satisfies the nested requirements of at least one instance it can fill. A
-  `Descendant` condition requirement is checked the same way, against how many endpoints it reaches.
+  utility component device type (such as Power Source or Electrical Sensor) that the composing endpoint lists in its
+  own `DeviceTypeList` counts that endpoint as one of its endpoints (Core § 9.2.1), as the Device Library examples
+  show for Heat Pump and Solar Power. A `Descendant` condition requirement is checked the same way, against how many
+  endpoints it reaches.
 - **Singleton placement.** A server cluster that a device type in the node scope declares a singleton
   (Core § 7.7.3) must appear only on an endpoint that declares it, or on an endpoint whose own device types list
   that cluster as a server cluster, with any conformance. So a bridged node may carry the RootNode singletons
@@ -66,14 +69,27 @@ side.
 Each violation is logged once, as a warning listing everything newly found on the endpoint, and recorded while it
 persists. A violation that went away and comes back is logged again.
 
+### Root assertions
+
+Some device types assert a condition at the `Root` location (Core § 9.2.6), such as the time synchronization, TLS and
+Power Source conditions Camera asserts for the Root Node, or the `GroupcastListenerCond` of OnOff Light. A violation
+of the node endpoint that goes away once the conditions only such assertions make true are false carries
+`assertedAtRoot`. It is logged at debug level instead of as a warning, and it never refuses an endpoint, in any mode.
+It is otherwise reported and recorded like any other violation; when it later loses the flag, it is logged and may
+be refused as new. The refusal error of an endpoint lists only its other violations. matter.js does not implement
+every cluster these conditions require, and whether a Bridged Node is a node scope of its own is not settled in the
+specification. A condition the node endpoint states itself in `deviceConditions` is not affected.
+
 ## Validation modes
 
 The `endpoint.validation` variable (environment variable `MATTER_ENDPOINT_VALIDATION`) selects one of three modes.
 The value is read once, when the node's environment is built, so changing it after the node exists has no effect. Any
 other value fails the node's construction with an `ImplementationError` as the cause.
 
-- **`warn`** (default). A violation logs a warning; only a misplaced singleton is refused.
-- **`strict`**. Any new violation that a construction check finds is refused instead of logged. An addition checks
+- **`warn`** (default). A violation logs a warning, at debug level when flagged `assertedAtRoot`; only a misplaced
+  singleton is refused.
+- **`strict`**. Any new violation that a construction check finds is refused instead of logged, except one flagged
+  `assertedAtRoot` (see [Root assertions](#root-assertions)). An addition checks
   more than the added endpoints: their ancestors, siblings whose `Duplicate` condition changes, and in some cases the
   whole node scope, except those other endpoints still being constructed. So a strict refusal can name an endpoint other than the
   one added, such as its parent when the addition breaks the parent's composition. Changes after construction are
@@ -107,7 +123,8 @@ const recorded = validation.violationsOf(light); // what the last recording chec
 - `validate(endpoints, options?)` checks the endpoints in one pass. `validateNodeScope(endpoint, options?)` checks
   every endpoint of the node scope the endpoint belongs to. Both return the current violations of each checked
   endpoint; an endpoint in no node scope is not checked. Both log each violation not reported before.
-- By default an endpoint with a new misplaced singleton, or with any new violation in `strict` mode, is refused: the
+- By default an endpoint with a new misplaced singleton, or with any new violation not flagged `assertedAtRoot` in
+  `strict` mode, is refused: the
   call throws, and the refused endpoint's violations are neither logged nor recorded. `validateNodeScope()` then logs
   and records nothing at all, like a construction check; `validate()` still logs and records the endpoints it does not
   refuse. With `{ refuse: false }` nothing is refused and every violation is logged and recorded.
@@ -118,13 +135,15 @@ const recorded = validation.violationsOf(light); // what the last recording chec
 
 Each `DeviceTypeViolation` names the device type whose requirement is violated (`deviceType`), the requirement's path
 on the endpoint (`requirement`, e.g. `Identify`, `OnOff.LT`, `client:OnOff` or `device:TemperatureControlledCabinet`),
-its `kind` (`missing`, `disallowed`, `instanceCount`, `singletonMisplaced` or `unknownCondition`) and a `detail` text.
+its `kind` (`missing`, `disallowed`, `instanceCount`, `singletonMisplaced` or `unknownCondition`), a `detail` text
+and, where it applies, `assertedAtRoot`.
 `DeviceTypeViolation.keyOf()` gives the key that identifies a violation on its endpoint.
 
 ## Errors
 
 A refusal throws a `DeviceTypeConformanceError`, a `MatterAggregateError`. Its message names the refused endpoints,
-the first refused first. Its `errors` are one `DeviceTypeViolationError` per new violation of a refused endpoint, each
+the first refused first. Its `errors` are one `DeviceTypeViolationError` per new violation of a refused endpoint, except
+those flagged `assertedAtRoot`, each
 an `ImplementationError` carrying its `endpoint` and its `violation`. The singleton check before behaviors initialize
 stops at the first endpoint in tree order that misplaces a singleton, so its error names only that endpoint.
 

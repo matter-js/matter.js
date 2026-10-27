@@ -7,12 +7,7 @@
 import { Duration, Millis, Time } from "@matter/general";
 import { Matter } from "@matter/model";
 import type { CertNodeRef, CertStepContext, CheckRecord, EventReadEntry, PicsValues } from "@matter/testing";
-import {
-    certTest,
-    controllerPicsOverridesFor,
-    PicsUnavailableError,
-    resolveControllerImplementation,
-} from "@matter/testing";
+import { certTest, controllerPicsOverridesFor, PicsUnavailableError } from "@matter/testing";
 import {
     CertCheckFailedError,
     CommissionedRefs,
@@ -131,7 +126,7 @@ const received = new Array<EventReadEntry>();
  * run — the consistency rules are about that declaration.
  */
 function picsOf(cx: CertStepContext): PicsValues {
-    const overlay = controllerPicsOverridesFor(resolveControllerImplementation());
+    const overlay = controllerPicsOverridesFor(cx.controllerSelection.dut);
     try {
         return { ...cx.devices.th.pics.values, ...overlay };
     } catch (e) {

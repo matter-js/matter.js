@@ -9,39 +9,105 @@ import { certTest } from "@matter/testing";
 import {
     aclAdmitsGroupStep,
     addGroupStep,
+    attributeId,
     GROUP,
     GROUP_KEY_MANAGEMENT,
     GROUP_KEY_SET_ID,
+    GROUPCAST,
+    GROUPCAST_ID,
+    GroupcastBranch,
     GROUPS,
     GROUPS_ENDPOINT,
     groupKeyMapStep,
     IPK_KEY_SET_ID,
+    joinGroupStep,
     keepsGroupNames,
     keyMaterialStep,
     keySetWriteStep,
+    listsJoinedGroup,
     ROOT_ENDPOINT,
 } from "./tc-group-support.js";
-import { attempt, CommissionedRefs, describeValue, invokeCommand, recordAll } from "./tc-support.js";
+import {
+    attempt,
+    CommissionedRefs,
+    describeValue,
+    expectAttributePathIB,
+    invokeCommand,
+    LOG_TIMEOUT,
+    record,
+    recordAll,
+    theTh,
+    withChecks,
+} from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
+
+const branch = new GroupcastBranch();
+
+/** The plan's step 7: the DUT reads back the TH's Groupcast membership, which must list what step 6 joined. */
+const membershipReadStep = commissioned.withRef("dut", async (cx, ref) =>
+    withChecks(cx, async checks => {
+        const th = theTh(cx);
+        const from = th.log.mark();
+        const path = {
+            endpoint: ROOT_ENDPOINT,
+            cluster: GROUPCAST_ID,
+            attribute: attributeId(GROUPCAST, "membership"),
+        };
+
+        const read = await attempt(
+            () => cx.controllers.dut.node(ref).readAttribute(path),
+            membership => `Membership reads as ${describeValue(membership)}`,
+        );
+        checks.push({ what: "Groupcast.membership read", check: () => read.check });
+
+        const logged = await expectAttributePathIB(th.log, th.flavor, path, from, LOG_TIMEOUT);
+        checks.push({ what: "ReadRequestMessage log for Groupcast.membership", check: () => logged });
+
+        if (read.ok) {
+            const lists = listsJoinedGroup(read.value);
+            const joined: CheckRecord = {
+                type: "response",
+                verdict: lists ? "pass" : "fail",
+                detail:
+                    `Membership ${lists ? "lists" : "does not list"} group ${GROUP.id} on ` +
+                    `endpoint ${GROUPS_ENDPOINT} with key set ${GROUP_KEY_SET_ID}`,
+            };
+            checks.push({ what: "the membership step 6 joined", check: () => joined });
+        }
+    }),
+);
 
 certTest("TC-SC-6.1", {
     plan: "group_communication.adoc",
     pics: ["MCORE.ROLE.COMMISSIONER", "GRPKEY.C"],
     app: "all-clusters",
 
-    // Binds a group key through GroupKeyMap, which an all-clusters build with Groupcast on refuses once Groups
-    // reaches cluster revision 5.  Only this project's own build offers the variant with Groupcast off; the released
-    // binaries predate the change and run the ordinary app.  A chip-docker image runs its own binary and can offer
-    // neither, so it is left out
+    // The plan's legacy steps run only against a TH without Groupcast on its root, and only this project's own chip
+    // build offers that variant; the released binaries and matter.js's app take the Groupcast steps.  A chip-docker
+    // image runs its own binary and cannot run the variant, so it is left out
     appVariant: { matterjs: "nogroupcast" },
     flavors: ["chip-local", "matterjs"],
 })
-    .step("1a", "TH should have the ACL entry with the AuthMode as Group by DUT", aclAdmitsGroupStep(commissioned), {
-        expected:
-            "The TH's ACL carries an entry whose AuthMode is Group and whose subjects name the group, alongside " +
-            "the administer entry the DUT itself uses.",
-    })
+    .step(
+        "1a",
+        "TH should have the ACL entry with the AuthMode as Group by DUT",
+        async cx => {
+            branch.reset();
+            await aclAdmitsGroupStep(commissioned)(cx);
+            record(
+                cx,
+                await branch.learn(cx.controllers.dut.node(commissioned.require("dut"))),
+                "the TH's root decides the plan's branch",
+            );
+        },
+        {
+            expected:
+                "The TH's ACL carries an entry whose AuthMode is Group and whose subjects name the group, alongside " +
+                "the administer entry the DUT itself uses. The TH's root ServerList says which branch of the plan " +
+                "applies.",
+        },
+    )
     .step(
         "1b",
         "DUT generates a random key and EpochKey0 assigned to GroupKeySetID 1, with " +
@@ -68,6 +134,7 @@ certTest("TC-SC-6.1", {
         groupKeyMapStep(commissioned),
         {
             pics: "GRPKEY.C.A0000",
+            notApplicableAtRun: branch.legacyStepsApply,
             expected: "Test Harness receives the binding of GroupKeySetID 1 with the GroupID 1 from DUT.",
         },
     )
@@ -77,6 +144,7 @@ certTest("TC-SC-6.1", {
         addGroupStep(commissioned),
         {
             pics: "G.C.C00.Tx",
+            notApplicableAtRun: branch.legacyStepsApply,
             expected: "Test Harness receives the AddGroup command from the DUT.",
         },
     )
@@ -126,18 +194,26 @@ certTest("TC-SC-6.1", {
         }),
         {
             pics: "G.C.C01.Tx",
+            notApplicableAtRun: branch.legacyStepsApply,
             expected:
                 "Test Harness receives the ViewGroup command and answers SUCCESS with GroupID 1 and GroupName " +
                 '"GroupOne", or an empty name where it does not support the GroupNames feature.',
         },
     )
-    .step(6, "DUT sends Groupcast JoinGroup command to the TH on EP0", async () => {}, {
-        notApplicable:
-            "The plan skips this where the TH's root endpoint has no Groupcast cluster, and neither TH has " +
-            "one: matter.js's all-clusters device registers none and chip's all-clusters ZAP enables none.",
-    })
-    .step(7, "DUT reads the Groupcast membership attribute on the TH on EP0", async () => {}, {
-        notApplicable: "Reads the cluster step 6 would have joined through, which neither TH has.",
+    .step(
+        6,
+        "DUT sends the Groupcast JoinGroup command to the TH on EP0 with GroupID 1, Endpoints [1] and KeySetID 1",
+        joinGroupStep(commissioned),
+        {
+            notApplicableAtRun: branch.groupcastStepsApply,
+            expected: "The TH accepts the JoinGroup command from the DUT.",
+        },
+    )
+    .step(7, "DUT reads the Groupcast Membership attribute on the TH on EP0", membershipReadStep, {
+        notApplicableAtRun: branch.groupcastStepsApply,
+        expected:
+            "Test Harness receives the Membership attribute read from the DUT. Beyond the plan, the membership must " +
+            "list GroupID 1 on endpoint 1 with KeySetID 1, which shows step 6 took effect.",
     })
     .step(
         8,

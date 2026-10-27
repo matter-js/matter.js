@@ -5,17 +5,27 @@
  */
 
 import { Duration, InternalError, Seconds } from "@matter/main";
-import type { CertStepWiring, CertStepDefinition, PromptHandler, StepVerdict, Subject } from "@matter/testing";
+import type {
+    CertStepWiring,
+    CertStepDefinition,
+    ControllerAdapterOptions,
+    PromptHandler,
+    StepVerdict,
+    Subject,
+} from "@matter/testing";
 import {
+    capabilitiesFor,
     chip,
     createControllerAdapter,
     EvidenceRecorder,
     PromptDrivenPythonTest,
-    resolveControllerImplementation,
+    skipOnControllerGap,
 } from "@matter/testing";
 import { join } from "node:path";
 import { env } from "node:process";
 import { CertCheckFailedError, CertCleanupError, settleWithin, statedInPrompt } from "./tc-support.js";
+
+const RUN = { tc: "TC-DA-1.9", plan: "deviceattestation.adoc", controllers: { dut: "dut" } } as const;
 
 const DESCRIPTOR = {
     kind: "py" as const,
@@ -26,6 +36,21 @@ const DESCRIPTOR = {
 
 /** Where the harness image carries the certificates this case is about. */
 const REVOKED_CERTIFICATES = "/credentials/test/revoked-attestation-certificates";
+
+const REVOCATION_SETS = `${REVOKED_CERTIFICATES}/revocation-sets`;
+
+/**
+ * The revocation set every vector of the script names. A controller that has to know it before it starts is built
+ * with it, so the case reads it before it builds the DUT.
+ */
+const REVOCATION_SET = `${REVOCATION_SETS}/revocation-set.json`;
+
+/** Only a controller that judges attestation itself, against revocation the case installs, can refuse one. */
+const DUT_ATTESTATION: ControllerAdapterOptions = { attestation: true };
+
+async function dutOptions(): Promise<ControllerAdapterOptions> {
+    return { ...DUT_ATTESTATION, revocationSet: await chip.container.read(REVOCATION_SET) };
+}
 
 /**
  * The vectors the script runs, in the order it runs them. Only the last presents certificates that
@@ -249,11 +274,7 @@ describe("TC-DA-1.9", () => {
             this.skip();
         }
 
-        // Only a controller that judges attestation itself can refuse one; chip-tool reads revocation
-        // from a file its process was started with, which a running adapter cannot change.
-        if (resolveControllerImplementation() !== "matterjs") {
-            this.skip();
-        }
+        const selection = await skipOnControllerGap(this, RUN, capabilitiesFor(DUT_ATTESTATION));
 
         // Above the script's own budget, so its verdict is what this reports
         this.timeout(15 * 60_000);
@@ -263,14 +284,14 @@ describe("TC-DA-1.9", () => {
         let flushFailure: unknown;
         let closeFailure: unknown;
         let concludeFailure: unknown;
-        const dut = createControllerAdapter("dut", { attestation: true });
+        const dut = createControllerAdapter("dut", await dutOptions(), "dut", selection);
 
         const recorder = new EvidenceRecorder(evidenceOutDir(), {
-            tc: "TC-DA-1.9",
-            plan: "deviceattestation.adoc",
+            tc: RUN.tc,
+            plan: RUN.plan,
             timestamp: new Date().toISOString(),
             controller: "dut",
-            controllerImplementation: resolveControllerImplementation(),
+            controllerImplementation: selection.dut,
             devices: [{ role: "th", app: appPath, flavor: "python-wrapped" }],
             matterJsCommit: "(not recorded)",
         });
@@ -286,6 +307,7 @@ describe("TC-DA-1.9", () => {
 
         try {
             await dut.start();
+            recorder.recordControllerBuild(dut.build);
 
             await test.invoke(
                 stubSubject(),
@@ -298,7 +320,7 @@ describe("TC-DA-1.9", () => {
                     "--string-arg",
                     `dac_provider_base_path:${REVOKED_CERTIFICATES}/dac-provider-test-vectors`,
                     "--string-arg",
-                    `revocation_set_base_path:${REVOKED_CERTIFICATES}/revocation-sets`,
+                    `revocation_set_base_path:${REVOCATION_SETS}`,
                 ],
                 false,
             );

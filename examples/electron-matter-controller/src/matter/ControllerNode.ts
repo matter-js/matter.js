@@ -3,7 +3,7 @@
 
 // import { NodeJsBle } from "@matter/nodejs-ble";
 
-import { Crypto, Diagnostic, Environment, Logger, StandardCrypto, StorageService } from "@matter/main";
+import { Crypto, Diagnostic, Environment, Logger, StandardCrypto, StorageService, nextEmitOf } from "@matter/main";
 import { BasicInformationCluster, DescriptorCluster, GeneralCommissioning, OnOff } from "@matter/main/clusters";
 // import { Ble, ClusterClientObj } from "@matter/main/protocol";
 import { NodeId } from "@matter/main/types";
@@ -233,7 +233,7 @@ export class ControllerNode {
 
             // Wait for initialization of not yet initialized - this should only happen if we just commissioned it
             if (!node.initialized) {
-                await node.events.initialized;
+                await nextEmitOf(node.events.initialized);
             }
 
             // Or use this to wait for full remote initialization and reconnection.

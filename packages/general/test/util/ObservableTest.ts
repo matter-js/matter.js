@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { AbortedError, MatterError } from "#MatterError.js";
 import {
     AsyncObservable,
     BasicObservable,
+    nextEmitOf,
     Observable,
     ObservableProxy,
     ObservableValue,
@@ -270,6 +272,35 @@ describe("AsyncObservable", () => {
         await observable.emit("asdf");
 
         expect(observedFoos).deep.equals(["asdf", "asdf", "asdf", "asdf", "asdf", "asdf"]);
+    });
+
+    it("continues with the next observer after its error handler took a failure", async () => {
+        class ObserverFailedError extends MatterError {}
+        const handled = new Array<string>();
+        const observable = AsyncObservable<[foo: string]>(error => {
+            handled.push(error.message);
+        });
+        const observed = new Array<string>();
+        observable.on(() => {
+            throw new ObserverFailedError("threw");
+        });
+        observable.on(async () => {
+            throw new ObserverFailedError("rejected");
+        });
+        observable.on(async () => {
+            observed.push("async");
+        });
+        observable.on(async () => {
+            throw new ObserverFailedError("rejected later");
+        });
+        observable.on(foo => {
+            observed.push(foo);
+        });
+
+        await observable.emit("last");
+
+        expect(handled).deep.equals(["threw", "rejected", "rejected later"]);
+        expect(observed).deep.equals(["async", "last"]);
     });
 });
 
@@ -640,5 +671,46 @@ describe("Observable.observed", () => {
             expect(quiet.isObservedBy(observer)).true;
             expect(quiet.isObservedBy(() => {})).false;
         });
+    });
+});
+
+describe("nextEmitOf", () => {
+    it("resolves with an emit that comes right after the call", async () => {
+        const observable = Observable<[number]>();
+
+        const next = nextEmitOf(observable);
+        observable.emit(1);
+
+        const missed = new Promise(resolve => setTimeout(() => resolve("missed"), 10));
+        expect(await Promise.race([next, missed])).equals(1);
+    });
+
+    it("rejects with AbortedError and unsubscribes when aborted first", async () => {
+        const observable = Observable<[number]>();
+        const abort = new AbortController();
+
+        const next = nextEmitOf(observable, abort.signal);
+        abort.abort();
+
+        await expect(next).rejectedWith(AbortedError);
+        expect(observable.isObserved).false;
+    });
+
+    it("rejects with AbortedError without subscribing when already aborted", async () => {
+        const observable = Observable<[number]>();
+        const abort = new AbortController();
+        abort.abort();
+
+        await expect(nextEmitOf(observable, abort.signal)).rejectedWith(AbortedError);
+        expect(observable.isObserved).false;
+    });
+
+    it("resolves through then() with an emit", async () => {
+        const observable = Observable<[number]>();
+
+        const next = observable.then(value => value);
+        observable.emit(2);
+
+        expect(await next).equals(2);
     });
 });

@@ -408,12 +408,26 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
     override async applyUpdateRequest(
         request: OtaSoftwareUpdateProvider.ApplyUpdateRequest,
     ): Promise<OtaSoftwareUpdateProvider.ApplyUpdateResponse> {
-        const { updateToken, newVersion } = request;
+        const { updateToken } = request;
+        let { newVersion } = request;
         assertRemoteActor(this.context);
         const session = this.context.session;
         NodeSession.assert(session);
 
         const progressInfo = this.#inProgressDetailsForPeer(session.peerAddress, updateToken);
+
+        // A known token names the version we offered, so only that version may be applied under it
+        const tokenVersion = progressInfo?.versionToApply;
+
+        // An offered version is always above the requestor's current one, so 0 names no image we provided
+        if (newVersion === 0 && tokenVersion !== undefined) {
+            logger.info(
+                `OTA Update for Requestor`,
+                session.peerAddress,
+                `(${Bytes.toHex(updateToken)}) adjusted version to apply from 0 to ${tokenVersion} for known update token`,
+            );
+            newVersion = tokenVersion;
+        }
 
         const bdxProtocol = this.env.get(BdxProtocol);
         try {
@@ -427,8 +441,21 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             logger.info("Error while closing BDX session for OTA update apply request, continuing anyway:", error);
         }
 
-        if (!this.#hasUpdateConsent(session.peerAddress, newVersion)) {
-            this.#updateInProgressDetails(session.peerAddress, updateToken, OtaUpdateStatus.Cancelled, newVersion);
+        const matchesToken = tokenVersion === undefined || newVersion === tokenVersion;
+        if (!matchesToken) {
+            logger.info(
+                `OTA Update for Requestor`,
+                session.peerAddress,
+                `(${Bytes.toHex(updateToken)}) requests to apply version ${newVersion}, but its update token names version ${tokenVersion}`,
+            );
+        }
+        if (!matchesToken || !(await this.#hasUpdateConsent(session.peerAddress, newVersion))) {
+            this.#updateInProgressDetails(
+                session.peerAddress,
+                updateToken,
+                OtaUpdateStatus.Cancelled,
+                tokenVersion ?? newVersion,
+            );
 
             return {
                 action: OtaSoftwareUpdateProvider.ApplyUpdateAction.Discontinue,
@@ -501,10 +528,12 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         return this.endpoint.act(agent => agent.get(SoftwareUpdateManager).updateExistsFor(peerAddress, request));
     }
 
-    #hasUpdateConsent(peerAddress: PeerAddress, targetSoftwareVersion?: number) {
+    async #hasUpdateConsent(peerAddress: PeerAddress, targetSoftwareVersion?: number) {
         return (
             !!this.#inProgressDetailsForPeer(peerAddress)?.directConsentObtained ||
-            this.endpoint.act(agent => agent.get(SoftwareUpdateManager).hasConsent(peerAddress, targetSoftwareVersion))
+            (await this.endpoint.act(agent =>
+                agent.get(SoftwareUpdateManager).hasConsent(peerAddress, targetSoftwareVersion),
+            ))
         );
     }
 

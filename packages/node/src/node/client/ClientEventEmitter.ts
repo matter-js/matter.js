@@ -5,7 +5,6 @@
  */
 
 import type { ElementEvent, Events } from "#behavior/Events.js";
-import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { Diagnostic, isObject, Logger, Timestamp } from "@matter/general";
@@ -44,14 +43,6 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
     return emitClientEvent;
 
     async function emitClientEvent(occurrence: ReadResult.EventValue) {
-        // A report can still arrive while the node is deleted, also when a leave event triggered the deletion
-        if (node.lifecycle.isGone) {
-            logger.debug(
-                `Ignoring event ${occurrence.path.clusterId}/${occurrence.path.eventId} for ${node} because it is closing, being deleted or crashed`,
-            );
-            return;
-        }
-
         const names = getNames(node.matter, occurrence);
         if (!names) {
             return;
@@ -62,28 +53,21 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
             return;
         }
 
-        await node.act(async agent => {
+        await node.act(agent => {
             // Current ActionContext is not writable, could skip act() but meh, see TODO above
             //agent.context.priority = occurrence.priority;
-            target.event.emit(occurrence.value, agent.context);
-
-            const network = agent.get(NetworkClient);
-            if (occurrence.number > network.state.maxEventNumber) {
-                await agent.context.transaction.addResources(network);
-                await agent.context.transaction.begin();
-                network.state.maxEventNumber = occurrence.number;
-                await agent.context.transaction.commit();
-            }
+            return target.event.emit(occurrence.value, agent.context);
         });
 
         const behavior = target.endpoint.behaviors.supported[names.cluster];
         if (behavior) {
-            const { number, timestamp, priority, value } = occurrence;
+            const { number, timestamp, resolvedTimestamp, priority, value } = occurrence;
             const timestampKind = timestampKindOf(occurrence);
             changes.broadcastEvent(target.endpoint, behavior, target.event.schema as EventModel, {
                 number,
                 timestamp: timestamp as Timestamp,
                 timestampKind,
+                resolvedTimestamp,
                 priority,
                 payload: value as Val.Struct | undefined,
             });
@@ -124,11 +108,14 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
 }
 
 /**
- * Identify which of the four timestamp variants Matter Core §10.7 defines the peer sent.  Absent all of them the
+ * Identify which of the four timestamp variants Matter Core §10.6.9 defines the peer sent.  Absent all of them the
  * occurrence carries {@link ReadResult.EventValue.timestamp} 0, which is a Posix epoch of no useful precision.
  */
 function timestampKindOf(occurrence: ReadResult.EventValue): ChangeNotificationService.TimestampKind {
-    const { systemTimestamp, deltaEpochTimestamp, deltaSystemTimestamp } = occurrence;
+    const { epochTimestamp, systemTimestamp, deltaEpochTimestamp, deltaSystemTimestamp } = occurrence;
+    if (epochTimestamp !== undefined) {
+        return "epoch";
+    }
     if (systemTimestamp !== undefined) {
         return "system";
     }

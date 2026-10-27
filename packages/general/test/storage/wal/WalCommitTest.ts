@@ -5,6 +5,7 @@
  */
 
 import { StorageError } from "#storage/StorageDriver.js";
+import type { SupportedStorageTypes } from "#storage/StringifyTools.js";
 import {
     type WalCommit,
     type WalCommitId,
@@ -13,8 +14,6 @@ import {
     decodeContextKey,
     deserializeCommit,
     encodeContextKey,
-    parseSegmentFilename,
-    segmentFilename,
     serializeCommit,
 } from "#storage/wal/WalCommit.js";
 
@@ -133,24 +132,6 @@ describe("WalCommit", () => {
         });
     });
 
-    describe("segmentFilename / parseSegmentFilename", () => {
-        it("formats segment number", () => {
-            expect(segmentFilename(1)).equal("00000001.jsonl");
-            expect(segmentFilename(255)).equal("000000ff.jsonl");
-            expect(segmentFilename(0xabcdef12)).equal("abcdef12.jsonl");
-        });
-
-        it("parses segment filename", () => {
-            expect(parseSegmentFilename("00000001.jsonl")).equal(1);
-            expect(parseSegmentFilename("000000ff.jsonl")).equal(255);
-        });
-
-        it("returns undefined for invalid filenames", () => {
-            expect(parseSegmentFilename("not-a-segment.txt")).equal(undefined);
-            expect(parseSegmentFilename("001.jsonl")).equal(undefined);
-        });
-    });
-
     describe("commitIdToNumber", () => {
         it("combines segment and offset", () => {
             const id: WalCommitId = { segment: 1, offset: 0 };
@@ -183,5 +164,12 @@ describe("WalCommit", () => {
             expect(compareCommitIds({ segment: 1, offset: 3 }, { segment: 1, offset: 7 })).lessThan(0);
             expect(compareCommitIds({ segment: 1, offset: 7 }, { segment: 1, offset: 3 })).greaterThan(0);
         });
+    });
+
+    it("keeps WalCommitId assignable to stored values", () => {
+        // Fails to compile if WalCommitId becomes an interface, which has no implicit index signature
+        const id: WalCommitId = { segment: 1, offset: 2 };
+        const stored: SupportedStorageTypes = id;
+        expect(stored).deep.equal({ segment: 1, offset: 2 });
     });
 });

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger, Millis, NodeId, Observable } from "@matter/main";
+import { InternalError, Logger, Millis, NodeId, Observable } from "@matter/main";
 import { Status, StatusResponseError, TlvOfModel, TlvUInt32 } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import { NodeNotConnectedError } from "@project-chip/matter.js/device";
@@ -35,6 +35,7 @@ import {
     WriteAttributeByIdRequest,
     WriteAttributeRequest,
 } from "../../src/handler/CommandHandler.js";
+import { waitFor } from "./fake-chip-tool.js";
 
 /**
  * A {@link CommandHandler} that answers from canned data instead of driving a controller, so a test can
@@ -145,9 +146,16 @@ class FakeCommandHandler extends CommandHandler {
         return { values: this.readValues };
     }
 
-    async handleSubscribeAttribute(_data: SubscribeAttributeRequest): Promise<SubscribeAttributeResponse> {
+    /** What a subscription's `updated` observable is, so a test can emit on it or break it. */
+    subscriptionUpdated = Observable<[void]>();
+
+    /** Where a test pushes a report the subscription "received". */
+    reportListener?: (data: AttributeResponseData) => void;
+
+    async handleSubscribeAttribute(data: SubscribeAttributeRequest): Promise<SubscribeAttributeResponse> {
         this.#throwIfFailing();
-        return { values: new Array<AttributeResponseData>(), updated: Observable<[void]>() };
+        this.reportListener = data.changeListener;
+        return { values: new Array<AttributeResponseData>(), updated: this.subscriptionUpdated };
     }
 
     async handleReadEvent(_data: ReadEventRequest): Promise<ReadEventResponse> {
@@ -776,5 +784,91 @@ describe("ChipToolWebSocketHandler over the wire", () => {
 
         expect(reply.results[0].error).match(/^Test harness failure — ImplementationError: Unknown controller: delta/);
         expect(reply.results[1]).deep.equal({ error: "FAILURE" });
+    });
+
+    describe("a wait-for-report frame", () => {
+        const REPORT: AttributeResponseData = {
+            clusterId: 6,
+            attributeId: 0,
+            endpointId: 1,
+            dataVersion: 7,
+            value: true,
+        };
+
+        async function subscribe() {
+            await send(
+                port,
+                jsonFrame({
+                    cluster: "any",
+                    command: "subscribe-by-id",
+                    arguments: {
+                        "destination-id": "0x12344321",
+                        "commissioner-name": "alpha",
+                        "endpoint-ids": "1",
+                        "cluster-ids": "6",
+                        "attribute-ids": "0",
+                        "min-interval": "0",
+                        "max-interval": "60",
+                    },
+                }),
+            );
+        }
+
+        it("answers a failure when the deadline passes with no report", async () => {
+            await subscribe();
+
+            const reply = await send(port, "1");
+
+            expect(reply.results).deep.equal([{ error: "FAILURE" }]);
+        });
+
+        it("answers the report that arrives within the deadline, and then holds none", async () => {
+            await subscribe();
+
+            const waiting = send(port, "5");
+            await waitFor(() => handler.subscriptionUpdated.isObserved, "the wait to register");
+            handler.reportListener?.(REPORT);
+            handler.subscriptionUpdated.emit();
+
+            expect((await waiting).results).deep.equal([REPORT]);
+
+            const again = await send(port, "1");
+            expect(again.results).deep.equal([{ error: "FAILURE" }]);
+        });
+
+        it("answers a report that arrived before the frame without waiting", async () => {
+            await subscribe();
+            handler.reportListener?.(REPORT);
+
+            expect((await send(port, "")).results).deep.equal([REPORT]);
+        });
+
+        it("answers an unbounded wait that wakes without a report as empty, not as a failed deadline", async () => {
+            await subscribe();
+
+            const waiting = send(port, "");
+            await waitFor(() => handler.subscriptionUpdated.isObserved, "the wait to register");
+            handler.subscriptionUpdated.emit();
+
+            expect((await waiting).results).deep.equal([]);
+        });
+
+        it("reports a fault of the wait itself as the shim's own, not as a missing report", async () => {
+            await subscribe();
+            handler.subscriptionUpdated.once = () => {
+                throw new InternalError("observable broke");
+            };
+
+            const reply = await send(port, "1");
+
+            expect(reply.results[0].error).match(/^Test harness failure — InternalError: observable broke/);
+            expect(reply.results[1]).deep.equal({ error: "FAILURE" });
+        });
+
+        it("refuses with no subscription active", async () => {
+            const reply = await send(port, "1");
+
+            expect(reply.results[0].error).match(/ImplementationError: No subscription active/);
+        });
     });
 });

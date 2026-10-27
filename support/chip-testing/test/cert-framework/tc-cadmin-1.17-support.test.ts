@@ -12,6 +12,7 @@ import { LineQueue, LogFollower } from "@matter/testing";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { NoCommissionedPeerError } from "../../src/cert/InProcessControllerAdapter.js";
 import { ChipToolStartupError } from "../../src/chip-tool/chip-tool-client.js";
+import { MatterServerCommandError } from "../../src/matter-server/matter-server-client.js";
 import {
     COMMISSIONING_COMPLETE,
     isPostRemovalRefusal,
@@ -100,6 +101,7 @@ describe("TC-CADMIN-1.17's post-removal refusal predicate", () => {
 
     it("does not accept a controller that could not run or was asked wrongly", () => {
         expect(isPostRemovalRefusal(new ChipToolStartupError("chip-tool did not start"))).equal(false);
+        expect(isPostRemovalRefusal(new MatterServerCommandError("read", 3, "Node is not ready"))).equal(false);
         expect(isPostRemovalRefusal(new ImplementationError("writeAttribute requires a concrete path"))).equal(false);
         expect(isPostRemovalRefusal(new Error("spawn ENOENT"))).equal(false);
         expect(isPostRemovalRefusal(undefined)).equal(false);

@@ -10,7 +10,17 @@ import { MessageExchange } from "#protocol/MessageExchange.js";
 import { MRP } from "#protocol/MRP.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { Bytes, Duration, MatterFlowError, Millis, NetworkError, Seconds, Semaphore } from "@matter/general";
+import {
+    AbortedError,
+    Bytes,
+    createPromise,
+    Duration,
+    MatterFlowError,
+    Millis,
+    NetworkError,
+    Seconds,
+    Semaphore,
+} from "@matter/general";
 import { BDX_PROTOCOL_ID, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
 
 /**
@@ -853,6 +863,110 @@ describe("MessageExchange", () => {
 
             expect(wakefulness.awake.value).equal(false);
             wakefulness.close();
+        });
+    });
+
+    describe("ackWaitAbort", () => {
+        before(() => MockTime.enable());
+
+        function mrpSession() {
+            const channel = new ProtocolMocks.NetworkChannel({ index: 1 });
+            channel.isReliable = false;
+            const session = new ProtocolMocks.NodeSession({ channel });
+            const sent = new Array<Message>();
+            (session.channel as any).send = async (message: Message) => {
+                sent.push(message);
+            };
+            return { session, sent };
+        }
+
+        it("transmits once despite an abort that already fired and does not wait for the ack", async () => {
+            const { session, sent } = mrpSession();
+            const { exchange } = createExchange(session);
+            const abort = new AbortController();
+            abort.abort();
+
+            await exchange.send(1, Bytes.empty, { ackWaitAbort: abort.signal });
+
+            expect(sent.length).equals(1);
+        });
+
+        it("transmits despite an abort that fires while the message counter is allocated", async () => {
+            const { session, sent } = mrpSession();
+            const { exchange } = createExchange(session);
+            const abort = new AbortController();
+            const allocate = session.getIncrementedMessageCounter.bind(session);
+            session.getIncrementedMessageCounter = async () => {
+                abort.abort();
+                return allocate();
+            };
+
+            await exchange.send(1, Bytes.empty, { ackWaitAbort: abort.signal });
+
+            expect(sent.length).equals(1);
+        });
+
+        it("ends the wait for the ack without retransmitting and resolves", async () => {
+            const { session, sent } = mrpSession();
+            const { exchange } = createExchange(session);
+            const abort = new AbortController();
+
+            const sending = exchange.send(1, Bytes.empty, { ackWaitAbort: abort.signal });
+            for (let i = 0; i < 10 && !sent.length; i++) {
+                await MockTime.yield3();
+            }
+            // Let the send reach the wait for the ack
+            for (let i = 0; i < 5; i++) {
+                await MockTime.yield3();
+            }
+            abort.abort();
+            await sending;
+            await MockTime.advance(Seconds(30));
+
+            expect(sent.length).equals(1);
+        });
+
+        it("does not retransmit after the ack wait ended during a retransmission in flight", async () => {
+            const channel = new ProtocolMocks.NetworkChannel({ index: 1 });
+            channel.isReliable = false;
+            const session = new ProtocolMocks.NodeSession({ channel });
+            const sent = new Array<Message>();
+            const retransmitted = createPromise<void>();
+            const released = createPromise<void>();
+            (session.channel as any).send = async (message: Message) => {
+                sent.push(message);
+                if (sent.length === 2) {
+                    retransmitted.resolver();
+                    await released.promise;
+                }
+            };
+            const { exchange } = createExchange(session);
+            const abort = new AbortController();
+
+            const sending = exchange.send(1, Bytes.empty, { ackWaitAbort: abort.signal });
+            await MockTime.resolve(retransmitted.promise);
+            abort.abort();
+            await sending;
+            await exchange.sendStandaloneAckForMessage(fakeInboundMessage({ messageId: 7, requiresAck: true }));
+            released.resolver();
+            for (let i = 0; i < 20; i++) {
+                await MockTime.advance(Seconds(3));
+            }
+
+            const transmissions = sent.filter(({ payloadHeader: { messageType } }) => messageType === 1);
+            expect(transmissions.length).equals(2);
+            expect(sent.length).equals(3);
+        });
+
+        it("does not transmit when an abort that already fired may stop the transmission", async () => {
+            const { session, sent } = mrpSession();
+            const { exchange } = createExchange(session);
+            const abort = new AbortController();
+            abort.abort();
+
+            await expect(exchange.send(1, Bytes.empty, { abort: abort.signal })).rejectedWith(AbortedError);
+
+            expect(sent.length).equals(0);
         });
     });
 });

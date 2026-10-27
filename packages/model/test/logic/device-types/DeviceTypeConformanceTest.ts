@@ -23,7 +23,7 @@ import {
 } from "#index.js";
 import { ConditionAssertions, conditionScopeOf, StructuralCondition } from "#logic/device-types/ConditionAssertions.js";
 import { ImplementationError, InternalError } from "@matter/general";
-import { endpoint, FakeEndpoint, FakeFacts } from "./fake-facts.js";
+import { endpoint, FakeEndpoint, FakeFacts, standardCluster, standardDeviceType } from "./fake-facts.js";
 
 const ROOT_ID = 0x16;
 const LIGHT_ID = 0xfff1_0001;
@@ -557,6 +557,299 @@ describe("DeviceTypeConformance with facts that are not a node", () => {
                 .conditionsOf(light)
                 .has(NodeCondition.CustomNetworkConfig),
         ).true;
+    });
+});
+
+const SUPPLY_ID = 0xfff1_0020;
+const PLANT_ID = 0xfff1_0021;
+const OPTIONAL_PLANT_ID = 0xfff1_0022;
+const LIGHT_PLANT_ID = 0xfff1_0023;
+const HUB_ID = 0xfff1_0024;
+const PAIR_PLANT_ID = 0xfff1_0025;
+
+/**
+ * A model with the utility device type Supply. Plant requires at least two Supplies, PairPlant at most two and OptionalPlant an
+ * optional one, each with the Lighting feature on its OnOff; LightPlant requires a Light. Hub, a node device
+ * type, requires an optional Supply with the Lighting feature too.
+ */
+function utilityComponentFixtureModel() {
+    const featureMap = FeatureMap.clone();
+    featureMap.children = [new FieldModel({ name: "LT", title: "Lighting", constraint: "0" })];
+    const onOff = () =>
+        new RequirementModel({ name: "OnOff", id: ON_OFF_ID, element: "serverCluster", conformance: "M" });
+    const supply = (conformance: string, constraint?: string) =>
+        new RequirementModel(
+            { name: "Supply", id: SUPPLY_ID, element: "deviceType", conformance, constraint },
+            new RequirementModel(
+                { name: "OnOff", id: ON_OFF_ID, element: "serverCluster", conformance: "M" },
+                new RequirementModel({ name: "LT", element: "feature", conformance: "M" }),
+            ),
+        );
+
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel({ name: "RootNode", id: ROOT_ID, classification: "node" }),
+        new DeviceTypeModel({ name: "Hub", id: HUB_ID, classification: "node" }, supply("O")),
+        new DeviceTypeModel({ name: "Supply", id: SUPPLY_ID, classification: "utility" }, onOff()),
+        new DeviceTypeModel({ name: "Light", id: LIGHT_ID, classification: "simple" }, onOff()),
+        new DeviceTypeModel({ name: "Plant", id: PLANT_ID, classification: "simple" }, supply("M", "min 2")),
+        new DeviceTypeModel({ name: "PairPlant", id: PAIR_PLANT_ID, classification: "simple" }, supply("M", "max 2")),
+        new DeviceTypeModel({ name: "OptionalPlant", id: OPTIONAL_PLANT_ID, classification: "simple" }, supply("O")),
+        new DeviceTypeModel(
+            { name: "LightPlant", id: LIGHT_PLANT_ID, classification: "simple" },
+            new RequirementModel({ name: "Light", id: LIGHT_ID, element: "deviceType", conformance: "M" }),
+        ),
+        new ClusterModel({ name: "OnOff", id: ON_OFF_ID, children: [featureMap] }),
+    );
+    model.finalize();
+    return model;
+}
+
+describe("DeviceTypeConformance with a utility component on the composing endpoint", () => {
+    it("counts the composing endpoint when its own device type list declares the utility component", () => {
+        const model = utilityComponentFixtureModel();
+        const pass = new DeviceTypeValidationPass(new FakeFacts(), model);
+        const root = endpoint("root", ROOT_ID);
+
+        const alone = endpoint("alone", [PLANT_ID, SUPPLY_ID], {
+            parent: root,
+            servers: [onOffOf(model, { lighting: true })],
+        });
+        const found = DeviceTypeConformance.check(alone, pass);
+        expect(kindsOf(found)).deep.equals([["instanceCount", "device:Supply"]]);
+        expect(found[0].detail).equals(
+            "Component device type Supply requires min 2 endpoint(s) in the composition; found 1",
+        );
+
+        const split = endpoint("split", [PLANT_ID, SUPPLY_ID], {
+            parent: root,
+            servers: [onOffOf(model, { lighting: true })],
+        });
+        endpoint("supply", SUPPLY_ID, { parent: split, servers: [onOffOf(model, { lighting: true })] });
+        expect(DeviceTypeConformance.check(split, pass)).deep.equals([]);
+
+        const crowded = endpoint("crowded", [PAIR_PLANT_ID, SUPPLY_ID], {
+            parent: root,
+            servers: [onOffOf(model, { lighting: true })],
+        });
+        for (const name of ["supply1", "supply2"]) {
+            endpoint(name, SUPPLY_ID, { parent: crowded, servers: [onOffOf(model, { lighting: true })] });
+        }
+        expect(DeviceTypeConformance.check(crowded, pass).map(({ detail }) => detail)).deep.equals([
+            "Component device type Supply requires max 2 endpoint(s) in the composition; found 3",
+        ]);
+    });
+
+    it("judges the composing endpoint by the nested requirements of a utility component it declares", () => {
+        const model = utilityComponentFixtureModel();
+        const pass = new DeviceTypeValidationPass(new FakeFacts(), model);
+        const root = endpoint("root", ROOT_ID);
+
+        const plant = endpoint("plant", [OPTIONAL_PLANT_ID, SUPPLY_ID], { parent: root, servers: [onOffOf(model)] });
+        const found = DeviceTypeConformance.check(plant, pass);
+        expect(kindsOf(found)).deep.equals([["missing", "device:OptionalPlant/Supply"]]);
+        expect(found[0].detail).equals("Endpoint is component Supply of OptionalPlant plant but fails OnOff.LT");
+
+        const lit = endpoint("lit", [OPTIONAL_PLANT_ID, SUPPLY_ID], {
+            parent: root,
+            servers: [onOffOf(model, { lighting: true })],
+        });
+        expect(DeviceTypeConformance.check(lit, pass)).deep.equals([]);
+    });
+
+    it("judges a node endpoint by the nested requirements of a utility component it declares", () => {
+        const model = utilityComponentFixtureModel();
+        const hub = endpoint("hub", [HUB_ID, SUPPLY_ID], { servers: [onOffOf(model)] });
+
+        const found = DeviceTypeConformance.check(hub, new DeviceTypeValidationPass(new FakeFacts(), model));
+        expect(kindsOf(found)).deep.equals([["missing", "device:Hub/Supply"]]);
+    });
+
+    it("does not count the composing endpoint for a component that is not a utility device type", () => {
+        const model = utilityComponentFixtureModel();
+        const plant = endpoint("plant", [LIGHT_PLANT_ID, LIGHT_ID], {
+            parent: endpoint("root", ROOT_ID),
+            servers: [onOffOf(model)],
+        });
+
+        const found = DeviceTypeConformance.check(plant, new DeviceTypeValidationPass(new FakeFacts(), model));
+        expect(found.map(({ detail }) => detail)).deep.equals([
+            "Component device type Light requires min 1 endpoint(s) in the composition; found 0",
+        ]);
+    });
+
+    it("finds the component counts of the Device Library examples met", () => {
+        const [rootNode, powerSource, electricalSensor, energyManagement] = [
+            "RootNode",
+            "PowerSource",
+            "ElectricalSensor",
+            "DeviceEnergyManagement",
+        ].map(standardDeviceType);
+        const utilities = [powerSource, electricalSensor, energyManagement];
+        const root = endpoint("root", rootNode);
+
+        const heatPump = endpoint("heatPump", [standardDeviceType("HeatPump"), ...utilities], { parent: root });
+        endpoint("flow", standardDeviceType("TemperatureSensor"), { parent: heatPump });
+        endpoint("upstairs", standardDeviceType("Thermostat"), { parent: heatPump });
+        const solarPower = endpoint("solarPower", [standardDeviceType("SolarPower"), ...utilities], { parent: root });
+        const batteryStorage = endpoint("batteryStorage", [standardDeviceType("BatteryStorage"), ...utilities], {
+            parent: root,
+        });
+        endpoint("battery", [powerSource, electricalSensor], { parent: batteryStorage });
+        const meter = endpoint(
+            "meter",
+            [standardDeviceType("ElectricalMeter"), standardDeviceType("ElectricalEnergyTariff"), electricalSensor],
+            { parent: root },
+        );
+
+        const pass = new DeviceTypeValidationPass(new FakeFacts(), Matter);
+        for (const composing of [heatPump, solarPower, batteryStorage, meter]) {
+            const counts = DeviceTypeConformance.check(composing, pass)
+                .map(({ detail }) => detail)
+                .filter(detail => detail.startsWith("Component device type"));
+            expect(counts, composing.name).deep.equals([]);
+        }
+    });
+});
+
+const FED_HUB_ID = 0xfff1_0030;
+const FEED_ID = 0xfff1_0031;
+const FEEDER_ID = 0xfff1_0032;
+const STRICT_ID = 0xfff1_0033;
+
+/**
+ * A model whose node device type Hub requires at most one Feed with the Lighting feature on its OnOff, mandatory under
+ * its condition Fed, which Feeder asserts at the Root, and optional otherwise. Strict requires the same Feed whatever
+ * holds.
+ * Hub forbids the Lighting feature on its own optional OnOff.
+ */
+function rootAssertionFixtureModel() {
+    const featureMap = FeatureMap.clone();
+    featureMap.children = [new FieldModel({ name: "LT", title: "Lighting", constraint: "0" })];
+
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel(
+            { name: "Hub", id: FED_HUB_ID, classification: "node" },
+            new ConditionModel({ name: "Fed" }),
+            new RequirementModel(
+                { name: "OnOff", id: ON_OFF_ID, element: "serverCluster", conformance: "O" },
+                new RequirementModel({ name: "LT", element: "feature", conformance: "X" }),
+            ),
+            new RequirementModel(
+                { name: "Feed", id: FEED_ID, element: "deviceType", conformance: "Fed, O", constraint: "max 1" },
+                new RequirementModel(
+                    { name: "OnOff", id: ON_OFF_ID, element: "serverCluster", conformance: "M" },
+                    new RequirementModel({ name: "LT", element: "feature", conformance: "M" }),
+                ),
+            ),
+        ),
+        new DeviceTypeModel({ name: "Feed", id: FEED_ID, classification: "utility" }),
+        new DeviceTypeModel(
+            { name: "Strict", id: STRICT_ID, classification: "simple" },
+            new RequirementModel(
+                { name: "Feed", id: FEED_ID, element: "deviceType", conformance: "M" },
+                new RequirementModel(
+                    { name: "OnOff", id: ON_OFF_ID, element: "serverCluster", conformance: "M" },
+                    new RequirementModel({ name: "LT", element: "feature", conformance: "M" }),
+                ),
+            ),
+        ),
+        new DeviceTypeModel(
+            { name: "Feeder", id: FEEDER_ID, classification: "simple" },
+            new RequirementModel({
+                name: "Fed",
+                type: "Hub.Fed",
+                element: "condition",
+                conformance: "M",
+                location: "Root",
+            }),
+        ),
+        new ClusterModel({ name: "OnOff", id: ON_OFF_ID, children: [featureMap] }),
+    );
+    model.finalize();
+    return model;
+}
+
+describe("DeviceTypeConformance with conditions asserted at the Root", () => {
+    it("keeps a disallowed element unflagged, as no condition disallows", () => {
+        const model = rootAssertionFixtureModel();
+        const hub = endpoint("hub", FED_HUB_ID, { servers: [onOffOf(model, { lighting: true })] });
+        endpoint("feeder", FEEDER_ID, { parent: hub });
+
+        const found = DeviceTypeConformance.check(hub, new DeviceTypeValidationPass(new FakeFacts(), model));
+        const disallowed = found.find(({ kind }) => kind === "disallowed");
+        expect(disallowed?.requirement).equals("OnOff.LT");
+        expect(disallowed?.assertedAtRoot).undefined;
+    });
+
+    it("flags an unfilled component instance that only a Root assertion makes mandatory", () => {
+        const model = rootAssertionFixtureModel();
+        const hub = endpoint("hub", FED_HUB_ID);
+        endpoint("feed", FEED_ID, { parent: hub, servers: [onOffOf(model)] });
+        endpoint("feeder", FEEDER_ID, { parent: hub });
+
+        const found = DeviceTypeConformance.check(hub, new DeviceTypeValidationPass(new FakeFacts(), model));
+        expect(found.map(({ kind, requirement, assertedAtRoot }) => [kind, requirement, assertedAtRoot])).deep.equals([
+            ["instanceCount", "device:Feed#1", true],
+        ]);
+    });
+
+    it("does not flag a count the requirement violates also when optional", () => {
+        const model = rootAssertionFixtureModel();
+        const hub = endpoint("hub", FED_HUB_ID);
+        endpoint("feed1", FEED_ID, { parent: hub, servers: [onOffOf(model, { lighting: true })] });
+        endpoint("feed2", FEED_ID, { parent: hub, servers: [onOffOf(model, { lighting: true })] });
+        endpoint("feeder", FEEDER_ID, { parent: hub });
+
+        const found = DeviceTypeConformance.check(hub, new DeviceTypeValidationPass(new FakeFacts(), model));
+        expect(found.map(({ kind, requirement, assertedAtRoot }) => [kind, requirement, assertedAtRoot])).deep.equals([
+            ["instanceCount", "device:Feed", undefined],
+        ]);
+    });
+
+    it("does not flag a violation another device type of the endpoint requires whatever holds", () => {
+        const model = rootAssertionFixtureModel();
+        const hub = endpoint("hub", [FED_HUB_ID, STRICT_ID]);
+        endpoint("feed", FEED_ID, { parent: hub, servers: [onOffOf(model)] });
+        endpoint("feeder", FEEDER_ID, { parent: hub });
+
+        const found = DeviceTypeConformance.check(hub, new DeviceTypeValidationPass(new FakeFacts(), model));
+        expect(
+            found
+                .filter(({ requirement }) => requirement === "device:Feed#1")
+                .map(({ deviceType, assertedAtRoot }) => [deviceType, assertedAtRoot]),
+        ).deep.equals([["Hub", undefined]]);
+    });
+
+    it("flags the node endpoint's violations that only a Root assertion makes mandatory", () => {
+        const root = endpoint("root", standardDeviceType("RootNode"), {
+            servers: [standardCluster("TimeSynchronization", {})],
+        });
+        endpoint("camera", standardDeviceType("Camera"), { parent: root });
+
+        const found = DeviceTypeConformance.check(root, new DeviceTypeValidationPass(new FakeFacts(), Matter));
+        const flagged = found.filter(({ assertedAtRoot }) => assertedAtRoot).map(({ requirement }) => requirement);
+        expect(flagged).deep.equals([
+            "TimeSynchronization.TSC",
+            "TimeSynchronization.NTPC",
+            "TimeSynchronization.TZ",
+            "client:TimeSynchronization",
+            "TlsCertificateManagement",
+            "TlsClientManagement",
+            "device:PowerSource",
+        ]);
+        expect(found.find(({ requirement }) => requirement === "BasicInformation")?.assertedAtRoot).undefined;
+    });
+
+    it("does not flag a requirement the node endpoint states the condition for itself", () => {
+        const root = endpoint("root", standardDeviceType("RootNode"), { stated: ["PowerSourceCond"] });
+        endpoint("camera", standardDeviceType("Camera"), { parent: root });
+
+        const found = DeviceTypeConformance.check(root, new DeviceTypeValidationPass(new FakeFacts(), Matter));
+        const powerSource = found.find(({ requirement }) => requirement === "device:PowerSource");
+        expect(powerSource?.kind).equals("instanceCount");
+        expect(powerSource?.assertedAtRoot).undefined;
     });
 });
 

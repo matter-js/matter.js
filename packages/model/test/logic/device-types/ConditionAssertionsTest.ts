@@ -144,6 +144,21 @@ describe("ConditionAssertions", () => {
             expect(collection.descendantAssertionsOf(camera)).deep.equals([]);
         });
 
+        it("names the conditions true for the node endpoint only by a Root assertion", () => {
+            const root = rootNode();
+            const camera = endpoint("camera", standardDeviceType("Camera"), { parent: root });
+
+            const collection = collect(root);
+            expect(collection.rootAssertedOf(root).has("PowerSourceCond")).true;
+            expect(collection.rootAssertedOf(camera).size).equals(0);
+
+            const stating = endpoint("root", ROOT_NODE, { stated: ["PowerSourceCond"] });
+            endpoint("camera", standardDeviceType("Camera"), { parent: stating });
+            const stated = collect(stating);
+            expect(stated.conditionsOf(stating).has("PowerSourceCond")).true;
+            expect(stated.rootAssertedOf(stating).has("PowerSourceCond")).false;
+        });
+
         it("does not assert an optional condition requirement", () => {
             const root = rootNode();
             endpoint("lock", standardDeviceType("DoorLock"), { parent: root });

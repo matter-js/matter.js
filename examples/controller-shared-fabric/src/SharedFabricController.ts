@@ -17,7 +17,7 @@
  *   npm run matter-shared-fabric read - Read OnOff state
  */
 
-import { Bytes, Crypto, Environment, Logger, LogLevel, StorageService, Time } from "@matter/main";
+import { Bytes, Crypto, Environment, Logger, LogLevel, StorageService, Time, nextEmitOf } from "@matter/main";
 import { OnOff } from "@matter/main/clusters";
 import { CertificateAuthority, FabricBuilder, Rcac } from "@matter/main/protocol";
 import { EndpointNumber, FabricId, FabricIndex, NodeId, VendorId } from "@matter/main/types";
@@ -206,7 +206,7 @@ async function main() {
         node.connect();
 
         if (!node.initialized) {
-            await node.events.initialized;
+            await nextEmitOf(node.events.initialized);
         }
 
         // Get OnOff cluster client using low-level API

@@ -148,9 +148,7 @@ export async function serveOtaTransfer(
             observeAfterMs,
         });
     } catch (e) {
-        // Before the check, not after: the runner turns this into a skipped step only while the step has
-        // recorded no check and made no call that may change the device, so recording first would fail the run on a
-        // controller that cannot serve at all.
+        // A refusal is a framework error the step runner reports, not an outcome of the device
         if (e instanceof UnsupportedByControllerError) {
             throw e;
         }
@@ -186,12 +184,22 @@ export async function serveOtaTransfer(
                 ),
         },
         {
-            // Recorded, never failed: the apply is how the OTA exchange ends, and this precondition
-            // waits for it so a case's teardown cannot strand the receiver mid-exchange. What the
-            // cases themselves are about is the transfer, which is complete either way, and failing
-            // here would take every later step's evidence with it.
+            // A missing apply is recorded, never failed: this precondition waits for it so a case's
+            // teardown cannot strand the receiver mid-exchange. What the cases themselves are about is
+            // the transfer, which is complete either way. A chip receiver that was not asked to apply
+            // ends the exchange at its own download line, which does fail the step when missing.
             what: `the ${receiverName} finished the OTA exchange the transfer belongs to`,
             check: () => {
+                if (!expectApply) {
+                    return expectSequence(
+                        device.log,
+                        device.flavor,
+                        `the ${receiverName} ended the update at the download`,
+                        { chip: [IMAGE_DOWNLOADED] },
+                        from,
+                        LOG_TIMEOUT,
+                    );
+                }
                 if (transfer.applyAcknowledged) {
                     return {
                         type: "response",
@@ -202,12 +210,9 @@ export async function serveOtaTransfer(
                 return {
                     type: "response",
                     verdict: "unverified",
-                    accepted: expectApply
-                        ? `the ${receiverName} had not asked to apply the image when the ${senderName} ` +
-                          "stopped waiting; the transfer this case reads was complete before that"
-                        : "chip's ota-requestor-app ends the update at the download unless started with " +
-                          "--autoApplyImage, which chip's own Test_TC_SU_3_3 does not pass either, so no " +
-                          "ApplyUpdateRequest follows the transfer this case reads",
+                    accepted:
+                        `the ${receiverName} had not asked to apply the image when the ${senderName} ` +
+                        "stopped waiting; the transfer this case reads was complete before that",
                 };
             },
         },
@@ -380,7 +385,7 @@ function messagesIn(
     }
 
     const header = new RegExp(
-        `\\[DMG\\] ${dmg.inbound ? "<< from" : ">> to"} UDP.*\\[Bulk Data Exchange[^\\]]*\\(0x${dmg.opcode
+        `\\[DMG\\] ${dmg.inbound ? "<< from" : ">> to"} (?:UDP|TCP):.*\\[Bulk Data Exchange[^\\]]*\\(0x${dmg.opcode
             .toString(16)
             .padStart(2, "0")}\\)`,
     );
@@ -471,6 +476,12 @@ export function blockEofReceived(log: LogFollower, flavor: LogFlavor, from: numb
 export function blockQueriesSent(log: LogFollower, flavor: LogFlavor, from: number) {
     return messagesIn(log, flavor, BLOCK_QUERY_SENT, from);
 }
+
+/**
+ * chip's requestor finalizing the image it stored. Without `--autoApplyImage` the update ends here: chip's
+ * ota-requestor-app resets to idle instead of asking to apply, as chip's own Test_TC_SU_3_3 runs it.
+ */
+const IMAGE_DOWNLOADED = /\[SWU\] OTA image downloaded to /;
 
 /**
  * What each flavor's TH writes for the last message of a transfer, derived from the same declaration

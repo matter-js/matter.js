@@ -265,6 +265,15 @@ export function captureLog(actor: () => void) {
 }
 
 /**
+ * Every line logged while {@link actor} runs, at any level.
+ */
+export function captureAllLog(actor: () => void) {
+    using capture = capturing();
+    actor();
+    return capture.all();
+}
+
+/**
  * The device type conformance warnings logged until {@link actor} settles.
  */
 export async function captureLogOf(actor: () => Promise<unknown>) {
@@ -301,6 +310,8 @@ function capturing() {
     });
 
     return {
+        all: () => messages,
+
         conformanceWarnings: () => messages.filter(({ text }) => text.includes("violates device type requirements")),
 
         warnings: () => messages.filter(({ level }) => level >= LogLevel.WARN),

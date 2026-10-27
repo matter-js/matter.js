@@ -30,7 +30,8 @@ const logger = Logger.get("WebRtcTransportRequestorServer");
  *
  * To use it:
  * * Register a session with {@link upsertSession} when you initiate a stream, so the peer's subsequent commands for that
- *   session id are accepted; commands for an unknown session or a mismatched fabric/peer are rejected with NotFound.
+ *   session are accepted; commands naming a session id this cluster does not track for the peer's fabric and node are
+ *   rejected with NotFound.
  * * Subscribe to the `offer` / `answer` / `iceCandidates` / `end` events to feed your WebRTC stack. A session is removed
  *   from tracking automatically when the peer sends End.
  * * Call {@link removeSession} when you tear a stream down locally.
@@ -94,8 +95,8 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
 
     /**
      * Register or update a WebRTC session you have initiated with a peer. A session must be registered before the peer's
-     * signaling commands for the matching session id are accepted, and registration populates the `currentSessions`
-     * attribute. Re-registering an existing id replaces the entry.
+     * signaling commands for it are accepted, and registration populates the `currentSessions` attribute. Re-registering
+     * a session with the same {@link WebRtcTransportRequestorServer.SessionKey} replaces the entry.
      */
     upsertSession(session: WebRtcSession): void {
         const enriched: WebRtcSession = {
@@ -104,7 +105,7 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
             audioStreamId: session.audioStreams?.[0] ?? null,
         };
         const sessions = this.state.currentSessions;
-        const idx = sessions.findIndex(s => s.id === session.id);
+        const idx = sessions.findIndex(s => isSameSession(s, session));
         if (idx === -1) {
             this.state.currentSessions = [...sessions, enriched];
         } else {
@@ -112,11 +113,11 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
         }
     }
 
-    /** Stop tracking a session, e.g. after you tear down the stream locally. No-op if the id is unknown. */
-    removeSession(id: number): void {
+    /** Stop tracking a session, e.g. after you tear down the stream locally. No-op if no session matches the key. */
+    removeSession(key: WebRtcTransportRequestorServer.SessionKey): void {
         const sessions = this.state.currentSessions;
-        if (sessions.some(s => s.id === id)) {
-            this.state.currentSessions = sessions.filter(s => s.id !== id);
+        if (sessions.some(s => isSameSession(s, key))) {
+            this.state.currentSessions = sessions.filter(s => !isSameSession(s, key));
         }
     }
 
@@ -162,7 +163,7 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
     override async end(request: WebRtcTransportRequestor.EndRequest): Promise<void> {
         logger.debug(`incoming End webRtcSessionId=${request.webRtcSessionId} reason=${request.reason}`);
         const session = this.#findSessionStrict("end", request.webRtcSessionId);
-        this.removeSession(request.webRtcSessionId);
+        this.removeSession(session);
         this.events.end.emit(session, request.reason);
     }
 
@@ -170,8 +171,10 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
         assertRemoteActor(this.context);
         NodeSession.assert(this.context.session);
         const peer = this.context.session.peerAddress;
-        const session = this.state.currentSessions.find(s => s.id === id);
-        if (session === undefined || session.fabricIndex !== peer.fabricIndex || session.peerNodeId !== peer.nodeId) {
+        const session = this.state.currentSessions.find(s =>
+            isSameSession(s, { id, fabricIndex: peer.fabricIndex, peerNodeId: peer.nodeId }),
+        );
+        if (session === undefined) {
             this.events.refused.emit(signal, id, peer);
             throw new StatusResponseError(`WebRTC session ${id} not found`, Status.NotFound);
         }
@@ -179,7 +182,19 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
     }
 }
 
+function isSameSession(a: WebRtcTransportRequestorServer.SessionKey, b: WebRtcTransportRequestorServer.SessionKey) {
+    return a.id === b.id && a.fabricIndex === b.fabricIndex && a.peerNodeId === b.peerNodeId;
+}
+
 export namespace WebRtcTransportRequestorServer {
+    /**
+     * Identifies a tracked session. The session id alone is not unique because each provider node allocates its own, so
+     * two peers, or one peer on two fabrics, may use the same id at the same time.
+     *
+     * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.1, § 11.6.5.1
+     */
+    export type SessionKey = Pick<WebRtcSession, "id" | "fabricIndex" | "peerNodeId">;
+
     /** Transport-signaling events the peer triggers; subscribe to these to drive your WebRTC peer connection. */
     export class Events extends WebRtcTransportRequestorBehavior.Events {
         /** Peer sent an SDP offer for a tracked session; apply it to your peer connection. */

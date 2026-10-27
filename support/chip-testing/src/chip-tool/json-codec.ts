@@ -7,7 +7,7 @@
 import { ImplementationError, UnexpectedDataError } from "@matter/general";
 import { Bytes, camelize, isObject } from "@matter/main";
 import { MATTER_EPOCH_OFFSET_S, MATTER_EPOCH_OFFSET_US } from "@matter/main/types";
-import { ClusterModel, FieldModel, FieldValue, SchemaImplementationError, ValueModel } from "@matter/model";
+import { ClusterModel, FieldModel, FieldValue, Metatype, SchemaImplementationError, ValueModel } from "@matter/model";
 
 /** Octet-string prefix: chip-tool's own results always carry `base64:`; `CustomArgument` input accepts `hex:`. */
 export type OctetEncoding = "hex" | "base64";
@@ -33,7 +33,8 @@ function classifyModel(model: ValueModel): ConvKind {
     let kind = modelKindCache.get(model);
     if (kind !== undefined) return kind;
 
-    if (model.type === "list") {
+    // A list may state no type of its own and be one through its base: `listOf()`, or a derived cluster's override
+    if (model.type === "list" || model.effectiveMetatype === Metatype.array) {
         kind = ConvKind.List;
     } else if (model.metabase?.name === "struct") {
         kind = ConvKind.Struct;

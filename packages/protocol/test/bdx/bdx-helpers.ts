@@ -109,10 +109,13 @@ export async function bdxTransfer(params: {
 
     /** Called with the responder's session as it starts, which is before it negotiates the transfer. */
     observeResponder?: (session: BdxSession) => void;
+
+    /** Payload size of both channels, 1024 bytes by default. */
+    maxPayloadSize?: number;
 }) {
     // Create two exchanges, one for sending and one for receiving.
-    const sendingExchange = createExchange(1);
-    const receivingExchange = createExchange(1);
+    const sendingExchange = createExchange(1, params.maxPayloadSize);
+    const receivingExchange = createExchange(1, params.maxPayloadSize);
     const clientExchangeData = new Array<MessageRecords>();
     const serverExchangeData = new Array<MessageRecords>();
 
@@ -231,11 +234,11 @@ class RecordingExchange extends ProtocolMocks.Exchange {
     }
 }
 
-function createExchange(index: number) {
+function createExchange(index: number, maxPayloadSize = 1024) {
     return new RecordingExchange({
         index,
         fabricIndex: index,
-        maxPayloadSize: 1024,
+        maxPayloadSize,
         protocolId: BDX_PROTOCOL_ID,
     });
 }

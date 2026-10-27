@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { SubscriptionsServer } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { Crypto, Entropy, Environment, MockCrypto } from "@matter/general";
+import { Crypto, Entropy, Environment, Millis, MockCrypto } from "@matter/general";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
+import { ClientSubscribe, SessionManager, Subscribe } from "@matter/protocol";
 import { commission } from "../../../node/icd-helpers.js";
 
 function activeSubscriptionsOf(node: ServerNode) {
@@ -89,4 +91,89 @@ describe("SubscriptionsServer", () => {
         expect(activeSubscriptionsOf(device)).equals(1);
         expect(device.stateOf(SubscriptionsServer).subscriptions.length).equals(1);
     });
+
+    it("drops the stored subscription when the peer closes its session while the node keeps running", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        const [{ subscriptionId }] = device.stateOf(SubscriptionsServer).subscriptions;
+
+        const peerAddress = peer1.stateOf(CommissioningClient).peerAddress!;
+        for (const session of controller.env.get(SessionManager).sessionsFor(peerAddress)) {
+            await MockTime.resolve(session.initiateClose());
+        }
+        await MockTime.resolve(MockTime.sleep("close handled", Millis(100)));
+
+        expect(storedIdsOf(device)).not.includes(subscriptionId);
+    });
+
+    it("drops every stored subscription of a session the peer closes", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        const request: ClientSubscribe = { ...Subscribe({ attributes: [{}] }), sustain: false };
+        await MockTime.resolve(peer1.interaction.subscribe(request));
+        const created = storedIdsOf(device);
+        expect(created).length(2);
+
+        const peerAddress = peer1.stateOf(CommissioningClient).peerAddress!;
+        for (const session of controller.env.get(SessionManager).sessionsFor(peerAddress)) {
+            await MockTime.resolve(session.initiateClose());
+        }
+        await MockTime.resolve(MockTime.sleep("close handled", Millis(100)));
+
+        expect(storedIdsOf(device).filter(id => created.includes(id))).deep.equals([]);
+    });
+
+    it("drops the stored subscription when the node closes the session while it keeps running", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        await subscribedPeer(controller, "peer1");
+        const [{ subscriptionId }] = device.stateOf(SubscriptionsServer).subscriptions;
+
+        for (const session of [...device.env.get(SessionManager).sessions]) {
+            await MockTime.resolve(session.initiateClose());
+        }
+        await MockTime.resolve(MockTime.sleep("close handled", Millis(100)));
+
+        expect(storedIdsOf(device)).not.includes(subscriptionId);
+    });
+
+    it("re-establishes the newest stored subscription of a peer first", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        await subscribedPeer(controller, "peer1");
+        const [live] = device.stateOf(SubscriptionsServer).subscriptions;
+
+        // An older entry the controller no longer knows, as left by a restart before the node noticed it was gone
+        const stale = { ...live, subscriptionId: live.subscriptionId ^ 1 };
+        await device.setStateOf(SubscriptionsServer, { subscriptions: [stale, live] });
+
+        await MockTime.resolve(device.stop());
+        await MockTime.resolve(device.start());
+
+        expect(activeSubscriptionsOf(device)).equals(1);
+        expect(storedIdsOf(device)).deep.equals([live.subscriptionId]);
+    });
+    it("keeps the stored subscriptions of a peer in creation order across restarts", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        const request: ClientSubscribe = { ...Subscribe({ attributes: [{}] }), sustain: false };
+        await MockTime.resolve(peer1.interaction.subscribe(request));
+        const created = storedIdsOf(device);
+        expect(created).length(2);
+
+        for (let run = 0; run < 2; run++) {
+            await MockTime.resolve(device.stop());
+            await MockTime.resolve(device.start());
+
+            expect(activeSubscriptionsOf(device)).equals(2);
+            expect(storedIdsOf(device)).deep.equals(created);
+        }
+    });
 });
+
+function storedIdsOf(node: ServerNode) {
+    return node.stateOf(SubscriptionsServer).subscriptions.map(({ subscriptionId }) => subscriptionId);
+}

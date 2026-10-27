@@ -49,6 +49,14 @@ export interface DeviceTypeViolation {
      * A description of the departure for a developer.
      */
     detail: string;
+
+    /**
+     * Set on a violation of the node endpoint that goes away once the conditions only a device type in the node scope
+     * asserts at the `Root` location are false, such as Camera's `TimeSyncWithNtpcCond` for the Root Node.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
+     */
+    assertedAtRoot?: true;
 }
 
 export namespace DeviceTypeViolation {

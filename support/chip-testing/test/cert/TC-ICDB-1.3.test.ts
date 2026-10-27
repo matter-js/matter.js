@@ -6,8 +6,15 @@
 
 import { Bytes, InternalError, Seconds } from "@matter/main";
 import { Matter } from "@matter/model";
-import type { CertIcdEvent, CertIcdRegistration, CertNodeRef, CertStepContext } from "@matter/testing";
+import type {
+    AttributePathSpec,
+    CertIcdEvent,
+    CertIcdRegistration,
+    CertNodeRef,
+    CertStepContext,
+} from "@matter/testing";
 import { certTest } from "@matter/testing";
+import { commissionChecked } from "./tc-dd-support.js";
 import type { RecordedCheck } from "./tc-support.js";
 import {
     attempt,
@@ -19,6 +26,7 @@ import {
     LOG_TIMEOUT,
     recordAll,
     requireId,
+    withChecks,
 } from "./tc-support.js";
 
 const ICD_MANAGEMENT = Matter.clusters.require("IcdManagement");
@@ -28,6 +36,13 @@ const REGISTERED_CLIENTS_ID = requireId(
     ICD_MANAGEMENT.attributes.require("registeredClients").id,
     "IcdManagement.registeredClients",
 );
+
+const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
+const NODE_LABEL: AttributePathSpec = {
+    endpoint: 0,
+    cluster: requireId(BASIC_INFORMATION.id, "BasicInformation cluster"),
+    attribute: requireId(BASIC_INFORMATION.attributes.require("nodeLabel").id, "BasicInformation.nodeLabel"),
+};
 
 const GENERAL_DIAGNOSTICS = Matter.clusters.require("GeneralDiagnostics");
 const GENERAL_DIAGNOSTICS_ID = requireId(GENERAL_DIAGNOSTICS.id, "GeneralDiagnostics cluster");
@@ -132,41 +147,50 @@ certTest("TC-ICDB-1.3", {
     pics: ["ICDB.C"],
     app: "lit-icd",
     controllers: { dut: "dut", th2: "helper" },
+    controllerCapabilities: ["icd-client"],
     appArgs: { th: TH_ARGS },
 
-    // A TH that persists subscriptions sends no Check-In to a client with a persisted one, and the DUT holds a
-    // subscription before it registers. Only this project's own image carries the chip variant without persistence,
-    // and chip-docker runs no variant
+    // This project's image carries only the lit-icd variant without subscription persistence; cert-bins runs the
+    // stock app. chip-docker runs no variant
     appVariant: { matterjs: "nopersist" },
-    chipBinsSources: ["matterjs"],
     flavors: ["chip-local", "matterjs"],
 })
     .step(
         "0",
         "Preconditions: commission TH1 to the DUT, and to TH2 through a window the DUT opens.",
-        async cx => {
-            const dut = cx.controllers.dut;
-            const th = cx.devices.th;
+        cx =>
+            withChecks(cx, async checks => {
+                const dut = cx.controllers.dut;
+                const th = cx.devices.th;
 
-            const dutRef = await dut.commission({
-                passcode: th.commissioning.passcode,
-                discriminator: th.commissioning.discriminator,
-            });
-            commissioned.set("dut", dutRef);
+                const dutRef = await commissionChecked(
+                    dut,
+                    { passcode: th.commissioning.passcode, discriminator: th.commissioning.discriminator },
+                    th,
+                    "DUT commissions TH1",
+                    checks,
+                );
+                commissioned.set("dut", dutRef);
 
-            const { manualPairingCode } = await dut
-                .node(dutRef)
-                .openCommissioningWindow({ timeout: 180, enhanced: true });
-            if (manualPairingCode === undefined) {
-                throw new InternalError("openCommissioningWindow({enhanced: true}) returned no manualPairingCode");
-            }
-            const th2Ref = await cx.controllers.th2.commission({ manualPairingCode });
-            commissioned.set("th2", th2Ref);
+                const { manualPairingCode } = await dut
+                    .node(dutRef)
+                    .openCommissioningWindow({ timeout: 180, enhanced: true });
+                if (manualPairingCode === undefined) {
+                    throw new InternalError("openCommissioningWindow({enhanced: true}) returned no manualPairingCode");
+                }
+                const th2Ref = await commissionChecked(
+                    cx.controllers.th2,
+                    { manualPairingCode },
+                    th,
+                    "TH2 commissions TH1 through the DUT's window",
+                    checks,
+                );
+                commissioned.set("th2", th2Ref);
 
-            // TH2 only sends test event triggers. Unsubscribed while TH1 is still SIT, it never registers itself once
-            // TH1 turns LIT, so TH1's only Check-In client is the DUT
-            await cx.controllers.th2.node(th2Ref).icdClient().stopSubscription();
-        },
+                // TH2 only sends test event triggers. Unsubscribed while TH1 is still SIT, it never registers itself
+                // once TH1 turns LIT, so TH1's only Check-In client is the DUT
+                await cx.controllers.th2.node(th2Ref).icdClient().stopSubscription();
+            }),
         {
             pics: "ICDB.C",
             expected:
@@ -210,6 +234,13 @@ certTest("TC-ICDB-1.3", {
             const checkIn = await attempt(
                 async () => {
                     await icd.stopSubscription();
+
+                    // Makes the TH send a report at once, which the DUT answers with INVALID_SUBSCRIPTION. That ends
+                    // the subscription, and a CHIP TH also deletes its persisted entry, which would block Check-Ins
+                    await cx.controllers.th2
+                        .node(commissioned.require("th2"))
+                        .writeAttribute(NODE_LABEL, "TC-ICDB-1.3");
+
                     return (await icd.waitFor("checkIn", 0, CHECK_IN_TIMEOUT)).event;
                 },
                 ({ counter }) => `DUT accepted a Check-In, counter ${counter}, offset ${offsetOf(counter, icdCounter)}`,

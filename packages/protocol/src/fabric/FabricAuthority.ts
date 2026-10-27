@@ -129,6 +129,8 @@ export class FabricAuthority {
 
     /**
      * Create new fabric under our control.
+     *
+     * When persisting fails, this rejects and the fabric stays in memory; it is not rolled back.
      */
     async createFabric(config: FabricAuthorityConfiguration) {
         const rootNodeId = config.adminNodeId ?? NodeId.randomOperationalNodeId(this.#fabrics.crypto);
@@ -168,7 +170,7 @@ export class FabricAuthority {
         const fabric = await fabricBuilder.build(index);
         this.#fabrics.addFabric(fabric);
 
-        fabric.persist();
+        await fabric.persist(false);
 
         logger.debug(`Created new controller fabric ${index}`);
         await this.#fabricAdded.emit(fabric);
@@ -183,14 +185,14 @@ export class FabricAuthority {
         }
 
         const builder = await FabricBuilder.create(this.#fabrics.crypto);
-        builder.initializeFromFabricForUpdate(fabric);
         const {
             subject: { nodeId, fabricId, caseAuthenticatedTags },
         } = Noc.fromTlv(fabric.operationalCert).cert;
         if (nodeId !== fabric.nodeId) {
             throw new ImplementationError(`Cannot rotate NOC for fabric ${fabric.fabricIndex} because node ID changed`);
         }
-        await builder.setOperationalCert(
+        await builder.updateOperationalCert(
+            fabric,
             await this.#ca.generateNoc(builder.publicKey, fabricId, nodeId, caseAuthenticatedTags),
             fabric.intermediateCACert,
         );

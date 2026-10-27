@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, Millis, Seconds } from "@matter/main";
+import { InternalError, Millis, Minutes, Seconds } from "@matter/main";
 import { ImplementationError } from "@matter/main";
 import type {
     CertDevice,
@@ -16,7 +16,7 @@ import type {
     DeviceFlavor,
     Subject,
 } from "@matter/testing";
-import { LineQueue, LogFollower, PicsFile } from "@matter/testing";
+import { LineQueue, LogFollower, PicsFile, resolveControllerSelection } from "@matter/testing";
 import { env } from "node:process";
 import type { SubscribeAndModifyTimeouts } from "../cert/tc-idm-4.1-support.js";
 import { subscribeAndModify } from "../cert/tc-idm-4.1-support.js";
@@ -40,9 +40,13 @@ const TIMEOUTS: SubscribeAndModifyTimeouts = { establish: Seconds(5), report: Se
 // enough that the failure lands inside a normal mocha timeout.
 const IMPATIENT: SubscribeAndModifyTimeouts = { establish: Seconds(5), report: Millis(400) };
 
+// Clear of the exchanges the fixture numbers its reports with from 1 upwards.
+const SUBSCRIBE_EXCHANGE = 9000;
+
 function subscribeRequestLines(path: { endpoint: number; cluster: number; attribute: number }): string[] {
     const attribute = path.attribute.toString(16).toUpperCase().padStart(8, "0");
     return [
+        `[DMG] << from UDP:[fe80::1%en0]:5540 | 1 | [Interaction Model  (1) / Subscribe Request (0x03) / Session = 1 / Exchange = ${SUBSCRIBE_EXCHANGE}]`,
         "[DMG] SubscribeRequestMessage =",
         "[DMG] {",
         "[DMG] AttributePathIB =",
@@ -55,7 +59,12 @@ function subscribeRequestLines(path: { endpoint: number; cluster: number; attrib
 }
 
 function subscribeResponseLines(subscriptionId: number): string[] {
-    return ["[DMG] SubscribeResponseMessage =", "[DMG] {", `[DMG] SubscriptionId = 0x${subscriptionId.toString(16)},`];
+    return [
+        `[DMG] >> to UDP:[fe80::1%en0]:5540 | 2 | [Interaction Model  (1) / Subscribe Response (0x04) / Session = 1 / Exchange = ${SUBSCRIBE_EXCHANGE}]`,
+        "[DMG] SubscribeResponseMessage =",
+        "[DMG] {",
+        `[DMG] SubscriptionId = 0x${subscriptionId.toString(16)},`,
+    ];
 }
 
 function stubSubject(): Subject {
@@ -86,6 +95,7 @@ class Fixture {
     readonly #source = new LineQueue();
     readonly #log: LogFollower;
     #onUpdate: ((value: unknown) => void) | undefined;
+    #onEnded: ((cause: Error) => void) | undefined;
     #writes = 0;
     #exchange = 0;
 
@@ -99,6 +109,7 @@ class Fixture {
         const node: CertNodeApi = fakeCertNode({
             subscribe: async (_path, opts) => {
                 this.#onUpdate = opts.onUpdate;
+                this.#onEnded = opts.onEnded;
                 this.push(...subscribeRequestLines(PATH), ...subscribeResponseLines(SUBSCRIPTION_ID));
                 if (this.primingCarriesData) {
                     this.pushReport(SUBSCRIPTION_ID);
@@ -146,6 +157,8 @@ class Fixture {
         this.cx = {
             devices: { th: device },
             controllers: { dut: controller },
+            controllerSelection: resolveControllerSelection(),
+            deviceFlavor: undefined,
             picsMet: () => {
                 throw new InternalError("not used by these tests");
             },
@@ -212,6 +225,11 @@ class Fixture {
         this.#onUpdate?.(value);
     }
 
+    /** Ends the subscription as a controller that learned of the end does. */
+    end(cause: Error): void {
+        this.#onEnded?.(cause);
+    }
+
     run(values: unknown[] = VALUES, timeouts: SubscribeAndModifyTimeouts = TIMEOUTS): Promise<void> {
         return subscribeAndModify(this.cx, "ref", 3, PATH, values, timeouts);
     }
@@ -275,6 +293,22 @@ describe("subscribeAndModify", () => {
             const summary = f.passes[f.passes.length - 1];
             expect(summary.detail).match(/each confirmed by its own report on subscription 0x2a/);
             expect(summary.detail).match(/onUpdate delivered 6 reports, 3\/3 of the written values in order/);
+        });
+    });
+
+    it("fails on the end of the subscription rather than waiting out the report budget", async () => {
+        const fixture = new Fixture("chip-local", (f, index) => {
+            f.pushReport(SUBSCRIPTION_ID);
+            if (index === VALUES.length - 1) {
+                f.end(new InternalError("matterjs-server ended subscription 42"));
+            }
+        });
+
+        await withFixture(fixture, async f => {
+            await expect(f.run(VALUES, { ...TIMEOUTS, report: Minutes(5) })).rejectedWith(
+                CertCheckFailedError,
+                /the subscription ended before it reported every written value: .*ended subscription 42/,
+            );
         });
     });
 
@@ -374,12 +408,14 @@ describe("subscribeAndModify", () => {
 
     it("accepts the shortfall under chip-tool, whose server drops all but the first result of a batch", async () => {
         const originalController = env.MATTER_CERT_CONTROLLER;
-        env.MATTER_CERT_CONTROLLER = "chip-tool";
+        // The variable names another controller, so only the run's selection can make the shortfall chip-tool's
+        env.MATTER_CERT_CONTROLLER = "matterjs";
         try {
             const fixture = new Fixture("chip-local", (f, _index) => {
                 f.pushReport(SUBSCRIPTION_ID);
                 f.report(true);
             });
+            fixture.cx.controllerSelection = { dut: "chip-tool", helper: "chip-tool" };
 
             await withFixture(fixture, async f => {
                 await f.run(VALUES, IMPATIENT);
@@ -399,12 +435,13 @@ describe("subscribeAndModify", () => {
 
     it("leaves the shortfall a gap to close on any other controller", async () => {
         const originalController = env.MATTER_CERT_CONTROLLER;
-        env.MATTER_CERT_CONTROLLER = "matterjs";
+        env.MATTER_CERT_CONTROLLER = "chip-tool";
         try {
             const fixture = new Fixture("chip-local", (f, _index) => {
                 f.pushReport(SUBSCRIPTION_ID);
                 f.report(true);
             });
+            fixture.cx.controllerSelection = { dut: "matterjs", helper: "matterjs" };
 
             await withFixture(fixture, async f => {
                 await f.run(VALUES, IMPATIENT);
@@ -438,6 +475,23 @@ describe("subscribeAndModify", () => {
             expect(failure.type).equal("response");
             expect(failure.detail).match(/report 2 carried 42/);
             expect(failure.detail).match(/\[true,false,true\]/);
+        });
+    });
+
+    it("matches a reported list by content, as a controller decodes each report into a fresh value", async () => {
+        const lists = [[{ label: "a", value: "1" }], [{ label: "b", value: "2" }], [{ label: "c", value: "3" }]];
+        const fixture = new Fixture("chip-local", (f, _index, value) => {
+            f.pushReport(SUBSCRIPTION_ID);
+            f.report(structuredClone(value));
+            f.report(structuredClone(value));
+        });
+
+        await withFixture(fixture, async f => {
+            await f.run(lists);
+
+            expect(f.failures).deep.equal([]);
+            const summary = f.passes[f.passes.length - 1];
+            expect(summary.detail).match(/onUpdate delivered 6 reports, 3\/3 of the written values in order/);
         });
     });
 

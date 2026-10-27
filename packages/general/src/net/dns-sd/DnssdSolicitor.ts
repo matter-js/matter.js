@@ -8,7 +8,8 @@ import { DnsMessageType, DnsQuery, DnsRecord, DnsRecordClass, DnsRecordType } fr
 import { Logger } from "#log/Logger.js";
 import { RetrySchedule } from "#net/RetrySchedule.js";
 import { Time } from "#time/Time.js";
-import { Hours, Seconds } from "#time/TimeUnit.js";
+import type { Timestamp } from "#time/Timestamp.js";
+import { Hours, Millis, Seconds } from "#time/TimeUnit.js";
 import { Abort } from "#util/Abort.js";
 import { BasicMultiplex } from "#util/Multiplex.js";
 import { ObservableValue } from "#util/Observable.js";
@@ -231,17 +232,18 @@ export class QueryMulticaster implements DnssdSolicitor {
             // Create sets for queries and known answers
             const queries = Array<DnsQuery>();
             const answers = Array<DnsRecord>();
+            const now = Time.nowMs;
 
             for (const { name, recordTypes, associatedNames } of entries) {
                 for (const recordType of recordTypes) {
                     queries.push({ name: name.qname, recordClass: DnsRecordClass.IN, recordType });
                 }
 
-                answers.push(...knownAnswersOf(name));
+                answers.push(...knownAnswersOf(name, now));
 
                 for (const iterable of associatedNames) {
                     for (const assocName of iterable) {
-                        answers.push(...knownAnswersOf(assocName));
+                        answers.push(...knownAnswersOf(assocName, now));
                     }
                 }
             }
@@ -267,10 +269,24 @@ export class QueryMulticaster implements DnssdSolicitor {
 }
 
 /**
- * A name's records as a query's known answers, without the cache-flush bit, which means nothing outside a response.
+ * A name's records as a query's known answers.  Each carries its remaining TTL, and a record past half its TTL is left
+ * out so the responder refreshes it before it expires (RFC 6762 §7.1).
  *
+ * The cache-flush bit is cleared because it means nothing outside a response (RFC 6762 §18.12).
+ *
+ * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-7.1} RFC 6762 §7.1
  * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-18.12} RFC 6762 §18.12
  */
-function knownAnswersOf(name: DnssdName) {
-    return [...name.records].map(record => (record.flushCache ? { ...record, flushCache: false } : record));
+function knownAnswersOf(name: DnssdName, now: Timestamp) {
+    const answers = new Array<DnsRecord>();
+    for (const record of name.records) {
+        const remaining = Millis(record.installedAt + record.ttl - now);
+        if (remaining * 2 < record.ttl) {
+            continue;
+        }
+
+        // Round up so a remaining TTL under one second is not sent as zero, which would read as a goodbye
+        answers.push({ ...record, ttl: Seconds.ceil(remaining), flushCache: false });
+    }
+    return answers;
 }

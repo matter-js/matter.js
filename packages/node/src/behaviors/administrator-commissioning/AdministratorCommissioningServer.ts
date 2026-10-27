@@ -10,6 +10,7 @@ import {
     assertRemoteActor,
     DeviceCommissioner,
     Fabric,
+    FabricManager,
     FailsafeContext,
     PaseServer,
     SessionManager,
@@ -179,13 +180,9 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         this.state.adminFabricIndex = adminFabric.fabricIndex;
         this.state.adminVendorId = adminFabric.rootVendorId;
 
-        const onAdminFabricDeleting = (this.internal.onAdminFabricDeleting ??= this.callback(
-            this.#fabricRemovedCallback,
-        ));
-        this.internal.stopMonitoringFabricForRemoval = () => {
-            adminFabric.deleting.off(onAdminFabricDeleting);
-        };
-        adminFabric.deleting.on(onAdminFabricDeleting);
+        // By fabric index through FabricManager, because UpdateNOC replaces the Fabric object of the admin fabric.
+        // Registering again on a later window is a no-op.
+        this.reactTo(this.env.get(FabricManager).events.deleting, this.#fabricRemoved);
     }
 
     /**
@@ -220,8 +217,6 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
      */
     #windowClosed() {
         logger.debug("Commissioning window closed");
-        this.internal.stopMonitoringFabricForRemoval?.();
-        this.internal.stopMonitoringFabricForRemoval = undefined;
 
         this.state.windowStatus = AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen;
         this.state.adminFabricIndex = null;
@@ -237,20 +232,21 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
     }
 
     /**
-     * Invoked when fabric is removed.
+     * Invoked when a fabric is removed.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.19.7.2
      */
-    #fabricRemovedCallback() {
+    #fabricRemoved(fabric: Fabric) {
+        if (fabric.fabricIndex !== this.state.adminFabricIndex) {
+            return;
+        }
         this.state.adminFabricIndex = null;
-        this.internal.stopMonitoringFabricForRemoval?.();
-        this.internal.stopMonitoringFabricForRemoval = undefined;
     }
 }
 
 export namespace AdministratorCommissioningServer {
     export class Internal {
-        stopMonitoringFabricForRemoval?: () => void;
         onWindowClosed?: () => void;
-        onAdminFabricDeleting?: () => void;
 
         /**
          * Mandated by spec; should only be modified in testing.

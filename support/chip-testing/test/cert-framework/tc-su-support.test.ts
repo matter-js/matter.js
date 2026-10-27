@@ -34,6 +34,7 @@ import {
     singleQueryImage,
     singleQueryImageCheck,
     unsupportedByDut,
+    userConsentCheck,
 } from "../cert/tc-su-support.js";
 import { CertCheckFailedError } from "../cert/tc-support.js";
 import { fakeCertNode } from "./fake-cert-node.js";
@@ -178,6 +179,51 @@ describe("singleQueryImageCheck", () => {
     });
 });
 
+describe("userConsentCheck", () => {
+    function exchange(requestorCanConsent: boolean | undefined, userConsentNeeded: boolean | undefined) {
+        return {
+            request: { vendorId: 1, productId: 1, softwareVersion: 1, protocolsSupported: [0], requestorCanConsent },
+            response: { status: 0, userConsentNeeded },
+            receivedAtMs: 0,
+        } satisfies OtaQueryImageExchange;
+    }
+
+    it("passes where the DUT states it obtained consent itself", () => {
+        for (const canConsent of [true, false, undefined]) {
+            expect(userConsentCheck(exchange(canConsent, undefined))).deep.include({ verdict: "pass" });
+            expect(userConsentCheck(exchange(canConsent, false))).deep.include({ verdict: "pass" });
+            expect(userConsentCheck(exchange(canConsent, undefined)).detail).contain(
+                "SHALL assume that the OTA Provider already obtained sufficient user consent",
+            );
+        }
+    });
+
+    it("words an absent UserConsentNeeded differently from an explicit False", () => {
+        const absent = userConsentCheck(exchange(true, undefined)).detail;
+        const explicit = userConsentCheck(exchange(true, false)).detail;
+
+        expect(absent).contain("the DUT answered without UserConsentNeeded, so");
+        expect(explicit).contain("the DUT answered UserConsentNeeded False, so");
+        expect(explicit).not.contain("without");
+    });
+
+    it("accepts delegation to a requestor that offered to consent, quoting the rule", () => {
+        const check = userConsentCheck(exchange(true, true));
+        expect(check.verdict).equal("unverified");
+        expect(check.accepted).contain("SHALL include the UserConsentNeeded field, with a value set to True");
+    });
+
+    it("fails delegation to a requestor that did not offer to consent", () => {
+        const refused = userConsentCheck(exchange(false, true));
+        expect(refused.verdict).equal("fail");
+        expect(refused.detail).contain("RequestorCanConsent false");
+        const absent = userConsentCheck(exchange(undefined, true));
+        expect(absent.verdict).equal("fail");
+        expect(absent.detail).contain("RequestorCanConsent absent");
+        expect(refused.detail).contain("SHALL only be interpreted if the OTA Requestor had previously indicated");
+    });
+});
+
 describe("blockSizeConforms", () => {
     // The plan's two rules, and the boundary between them
     it("requires the exact proposal between 16 and 128 bytes", () => {
@@ -272,14 +318,57 @@ describe("queryImageResponseLines", () => {
         );
     });
 
-    // matter.js's requestor logs no line for a QueryImageResponse at all. A pattern matching what it
-    // does next would match what the precondition already required, so the step would record a pass
-    // it cannot fail
-    it("states no matterjs pattern, whatever the response carried", () => {
-        expect(queryImageResponseLines({ status: 2 }).matterjs).equal(undefined);
-        expect(queryImageResponseLines({ status: 0, softwareVersion: 2, imageUri: CONFORMING }).matterjs).equal(
-            undefined,
-        );
+    describe("matter.js's line for the response", () => {
+        // As a matter.js requestor logged it in a CI run
+        const LINE =
+            "2026-10-15 21:00:09.333 INFO ClientInteraction Invoke « @1:1b669•cfc7(tcp)⇵8b2e " +
+            "1.otaSoftwareUpdateProvider.queryImage status: 0 imageUri: bdx://000000000001B669/ota/fff1.8001.local.2 " +
+            "softwareVersion: 2 softwareVersionString: matterjs-ota-test-server-1 " +
+            "updateToken: 687bb919dec1b1ade0102bb2ec7f8e06922ee6e63b147d533c37cb237e86fec6";
+        const RESPONSE = {
+            status: 0,
+            imageUri: "bdx://000000000001B669/ota/fff1.8001.local.2",
+            softwareVersion: 2,
+            softwareVersionString: "matterjs-ota-test-server-1",
+            updateToken: "687bb919dec1b1ade0102bb2ec7f8e06922ee6e63b147d533c37cb237e86fec6",
+        };
+
+        function matches(response: typeof RESPONSE | { status: number }, line = LINE) {
+            const patterns = queryImageResponseLines(response).matterjs;
+            return patterns.length === 1 && patterns[0].test(line);
+        }
+
+        it("matches the line of the response the DUT recorded sending", () => {
+            expect(matches(RESPONSE)).equal(true);
+        });
+
+        // The DUT's record keeps a token in whatever case the controller's API reported it, and matter.js logs lowercase
+        it("matches a token recorded in uppercase against the lowercase the log carries", () => {
+            expect(matches({ ...RESPONSE, updateToken: RESPONSE.updateToken.toUpperCase() })).equal(true);
+        });
+
+        it("refuses the line of a response that carried another update token", () => {
+            expect(matches({ ...RESPONSE, updateToken: "00".repeat(32) })).equal(false);
+        });
+
+        // A token is a prefix of a longer one in its own hex form
+        it("refuses a line whose token only starts with the recorded one", () => {
+            expect(matches({ ...RESPONSE, updateToken: RESPONSE.updateToken.slice(0, 32) })).equal(false);
+        });
+
+        it("refuses the line of a response that named another image", () => {
+            expect(matches({ ...RESPONSE, imageUri: "bdx://000000000001B669/ota/fff1.8001.local.3" })).equal(false);
+            expect(matches({ ...RESPONSE, softwareVersion: 3 })).equal(false);
+            expect(matches({ ...RESPONSE, softwareVersionString: "matterjs-ota-test-server-2" })).equal(false);
+        });
+
+        it("refuses the line of a response with another status", () => {
+            expect(matches({ status: 1 })).equal(false);
+        });
+
+        it("refuses another command's response carrying the same fields", () => {
+            expect(matches(RESPONSE, LINE.replace("queryImage", "applyUpdateRequest"))).equal(false);
+        });
     });
 });
 
@@ -304,49 +393,53 @@ describe("singleApplyUpdate", () => {
 });
 
 describe("delayedActionTime", () => {
+    const matterJs = { deviceFlavor: "matterjs" } as const;
+    const chipLocal = { deviceFlavor: "chip-local" } as const;
+
     function withFastRetry<T>(enabled: boolean, body: () => T): T {
         const previous = process.env.MATTER_CERT_OTA_FAST_RETRY;
-        const previousDevice = process.env.MATTER_CERT_DEVICE;
         if (enabled) {
             process.env.MATTER_CERT_OTA_FAST_RETRY = "1";
-            process.env.MATTER_CERT_DEVICE = "matterjs";
         } else {
             delete process.env.MATTER_CERT_OTA_FAST_RETRY;
         }
         try {
             return body();
         } finally {
-            // Captured and put back rather than deleted: either may have been set before this ran
-            restore("MATTER_CERT_OTA_FAST_RETRY", previous);
-            restore("MATTER_CERT_DEVICE", previousDevice);
-        }
-    }
-
-    function restore(name: string, value: string | undefined) {
-        if (value === undefined) {
-            delete process.env[name];
-        } else {
-            process.env[name] = value;
+            // Captured and put back rather than deleted: it may have been set before this ran
+            if (previous === undefined) {
+                delete process.env.MATTER_CERT_OTA_FAST_RETRY;
+            } else {
+                process.env.MATTER_CERT_OTA_FAST_RETRY = previous;
+            }
         }
     }
 
     // The plan's own number, which the daily run sends so its evidence is what the plan asks for
     it("names the plan's three minutes where the wait cannot be shortened", () => {
         withFastRetry(false, () => {
-            expect(delayedActionTime()).equal(180);
-            expect(longRunningReason("the wait")).contains("180s of real time");
+            expect(delayedActionTime(matterJs)).equal(180);
+            expect(longRunningReason("the wait")(matterJs)).contains("180s of real time");
 
-            expect(delayedActionTimeCheck(180).verdict).equal("pass");
-            expect(delayedActionTimeCheck(1).verdict).equal("fail");
-            expect(planDelayCoverageCheck().verdict).equal("pass");
+            expect(delayedActionTimeCheck(matterJs, 180).verdict).equal("pass");
+            expect(delayedActionTimeCheck(matterJs, 1).verdict).equal("fail");
+            expect(planDelayCoverageCheck(matterJs).verdict).equal("pass");
+        });
+    });
+
+    // chip's requestor floors the wait at compile time, whatever the run asked for
+    it("names the plan's three minutes on a chip TH even where the run asked to shorten", () => {
+        withFastRetry(true, () => {
+            expect(delayedActionTime(chipLocal)).equal(180);
+            expect(longRunningReason("the wait")(chipLocal)).contains("180s of real time");
         });
     });
 
     // Above zero, so the answer still carries the field the step is about
     it("names a short stand-in where it can", () => {
         withFastRetry(true, () => {
-            expect(delayedActionTime()).equal(1);
-            expect(longRunningReason("the wait")).equal(undefined);
+            expect(delayedActionTime(matterJs)).equal(1);
+            expect(longRunningReason("the wait")(matterJs)).equal(undefined);
         });
     });
 
@@ -355,7 +448,7 @@ describe("delayedActionTime", () => {
     // the other
     it("states that a shortened run did not script the plan's own value", () => {
         withFastRetry(true, () => {
-            const check = planDelayCoverageCheck();
+            const check = planDelayCoverageCheck(matterJs);
             expect(check.verdict).equal("unverified");
             expect(check.accepted).contains("the plan's 180s");
         });
@@ -365,9 +458,9 @@ describe("delayedActionTime", () => {
     // what the run shortened
     it("fails a value the DUT did not echo, shortened or not", () => {
         withFastRetry(true, () => {
-            expect(delayedActionTimeCheck(1).verdict).equal("pass");
-            expect(delayedActionTimeCheck(180).verdict).equal("fail");
-            expect(delayedActionTimeCheck(undefined).verdict).equal("fail");
+            expect(delayedActionTimeCheck(matterJs, 1).verdict).equal("pass");
+            expect(delayedActionTimeCheck(matterJs, 180).verdict).equal("fail");
+            expect(delayedActionTimeCheck(matterJs, undefined).verdict).equal("fail");
         });
     });
 });
@@ -451,6 +544,8 @@ describe("recordRequestorIdle", () => {
                     return "";
                 },
             },
+            controllerSelection: { dut: "matterjs", helper: "matterjs" },
+            deviceFlavor: undefined,
             picsMet: () => {
                 throw new InternalError("not used by these tests");
             },

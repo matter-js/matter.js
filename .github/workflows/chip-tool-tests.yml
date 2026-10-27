@@ -484,6 +484,7 @@ jobs:
         run: |
           echo -n "" >/tmp/test_env.yaml
           echo "ALL_CLUSTERS_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
+          echo "ALL_DEVICES_APP: ../support/chip-testing/dist/esm/AllDevicesTestApp.js" >> /tmp/test_env.yaml
           echo "CHIP_LOCK_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
           echo "ENERGY_MANAGEMENT_APP: ../support/chip-testing/dist/esm/AllClustersTestApp.js" >> /tmp/test_env.yaml
           echo "LIT_ICD_APP: ../support/chip-testing/dist/esm/IcdTestApp.js" >> /tmp/test_env.yaml

@@ -8,12 +8,14 @@ import { CommissioningClient } from "#behavior/system/commissioning/Commissionin
 import { OnOffClient } from "#behaviors/on-off";
 import { NetworkClient, ServerNode } from "#index.js";
 import {
+    Bytes,
     causedBy,
     Crypto,
     Forever,
     LogDestination,
     Logger,
     LogLevel,
+    Millis,
     Minutes,
     MockCrypto,
     MockNetwork,
@@ -26,11 +28,15 @@ import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import {
     ClientSubscribe,
     ClientSubscription,
+    MessageCodec,
+    MRP,
     Peer,
+    PeerTimingParameters,
     PeerUnreachableError,
     Subscribe,
     SustainedSubscription,
 } from "@matter/protocol";
+import { SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
 
 describe("ClientConnectivityTest", () => {
     before(() => {
@@ -322,6 +328,84 @@ describe("ClientConnectivityTest", () => {
         expect(ServerAddress.isIp(addresses![0])).true;
         const ip = (addresses![0] as { ip: string }).ip;
         expect(ip === "abcd::3" || ip === "10.10.10.3").true;
+    });
+
+    it("refreshes a Sigma1 that is never acknowledged", async () => {
+        // *** SETUP ***
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+        const ep1 = peer1.parts.get("ep1")!;
+        await MockTime.resolve(device.stop());
+
+        (ep1.env.get(Crypto) as MockCrypto).entropic = true;
+
+        // The controller detects the device as offline, which ends the session we had
+        await expectUnreachable(ep1.commandsOf(OnOffClient).toggle());
+
+        // Every Sigma1 is lost for the first 20 minutes.  The IPv4 address is unreachable, so all attempts go to the
+        // same IPv6 address.
+        const start = Time.nowUs;
+        const lossEndsAfter = Minutes(20);
+        const sigma1 = new Array<{ payload: Bytes; firstSeenAfter: number; transmissions: number[] }>();
+        const deviceNetwork = device.env.get(Network) as MockNetwork;
+        deviceNetwork.simulator.router.intercept((packet, route) => {
+            if (packet.destAddress === "10.10.10.2") {
+                return;
+            }
+            if (packet.kind === "udp" && packet.destPort === 5540) {
+                const decoded = MessageCodec.decodePacket(packet.payload);
+                if (decoded.header.sessionId === 0) {
+                    const { payloadHeader, payload } = MessageCodec.decodePayload(decoded);
+                    if (
+                        payloadHeader.protocolId === SECURE_CHANNEL_PROTOCOL_ID &&
+                        payloadHeader.messageType === SecureMessageType.Sigma1
+                    ) {
+                        const elapsed = Time.nowUs - start;
+                        let entry = sigma1.find(entry => Bytes.areEqual(entry.payload, payload));
+                        if (entry === undefined) {
+                            entry = { payload, firstSeenAfter: elapsed, transmissions: [] };
+                            sigma1.push(entry);
+                        }
+                        entry.transmissions.push(elapsed);
+                        if (elapsed < lossEndsAfter) {
+                            return;
+                        }
+                    }
+                }
+            }
+            route(packet);
+        });
+
+        // *** INVOKE ***
+
+        await MockTime.resolve(device.start());
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(undefined, { connectionTimeout: Minutes(30) }));
+
+        // *** VERIFY ***
+
+        // The first Sigma1 of each address attempt is retransmitted for at least the MRP budget
+        const { delayBeforeNextAddress, maxDelayBetweenInitialContactRetries } = PeerTimingParameters.defaults;
+        const attemptsStarted = Millis(delayBeforeNextAddress + Seconds(15));
+        const identical = sigma1.filter(entry => entry.firstSeenAfter < attemptsStarted);
+        expect(identical.length).greaterThan(0);
+        for (const { transmissions } of identical) {
+            expect(transmissions.length).greaterThanOrEqual(MRP.MAX_TRANSMISSIONS);
+        }
+
+        // Then each fresh Sigma1 goes out three times, continuing the backoff instead of starting at its base interval;
+        // a restart of the identical phase would send it more often.  Only Sigma1 messages whose three transmissions
+        // and final wait fit into the loss window count.
+        const refreshCycle = Millis(4 * maxDelayBetweenInitialContactRetries);
+        const refreshed = sigma1.filter(
+            entry => entry.firstSeenAfter >= attemptsStarted && entry.firstSeenAfter < lossEndsAfter - refreshCycle,
+        );
+        expect(refreshed.length).greaterThan(0);
+        for (const { transmissions } of refreshed) {
+            expect(transmissions.length).equals(3);
+            expect(transmissions[1] - transmissions[0]).greaterThan(Seconds(2));
+        }
     });
 
     it("tracks peer online status with session lifecycle", async () => {

@@ -985,4 +985,20 @@ describe("DeviceTypeConformance", () => {
 
         await node.close();
     });
+
+    it("keeps the refused endpoint out of a violation error's own enumerable properties", async () => {
+        const node = await createUnjudgedNode();
+        const light = await node.add(lightWithoutIdentify, { id: "light" });
+        const error = new DeviceTypeViolationError(light, {
+            deviceType: "OnOffLight",
+            requirement: "Identify",
+            kind: "missing",
+            detail: "Mandatory server cluster Identify is missing",
+        });
+
+        expect(Object.keys(error)).not.include("endpoint");
+        expect(error.endpoint).equals(light);
+
+        await node.close();
+    });
 });

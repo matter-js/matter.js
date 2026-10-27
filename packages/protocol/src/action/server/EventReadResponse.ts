@@ -417,6 +417,7 @@ export class EventReadResponse<
             number,
             priority,
             timestamp,
+            resolvedTimestamp: timestamp,
             value,
             tlv,
         };

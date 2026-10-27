@@ -39,6 +39,8 @@ const PresetsAndSchedulesThermostat = ThermostatDevice.with(PresetsAndSchedulesS
 const PRESETS_ATTRIBUTE = Thermostat.attributes.presets.id;
 const SCHEDULES_ATTRIBUTE = Thermostat.attributes.schedules.id;
 const NON_ATOMIC_ATTRIBUTE = Thermostat.attributes.occupiedHeatingSetpoint.id;
+const UNSUPPORTED_ATTRIBUTE = 0xfff0;
+const ATTRIBUTE_LIST_ATTRIBUTE = 0xfffb;
 // Non-atomic and write-protected at Manage level, so an Operate-only peer is denied write access to it
 const NON_ATOMIC_MANAGE_ATTRIBUTE = Thermostat.attributes.systemMode.id;
 
@@ -48,7 +50,11 @@ if (atomicResponseModel === undefined) {
 }
 const atomicResponseSchema = TlvOfModel(atomicResponseModel);
 
-function beginWrite(endpoint: Endpoint, attributeRequests: number[]) {
+function beginWrite(
+    endpoint: Endpoint,
+    attributeRequests: number[],
+    { timeout }: { timeout?: number } = { timeout: 5000 },
+) {
     return Invoke(
         Invoke.ConcreteCommandRequest({
             endpoint,
@@ -57,10 +63,22 @@ function beginWrite(endpoint: Endpoint, attributeRequests: number[]) {
             fields: {
                 requestType: Thermostat.RequestType.BeginWrite,
                 attributeRequests,
-                timeout: 5000,
+                timeout,
             },
         }),
     );
+}
+
+function atomicRequestStatus(status: Status) {
+    return [
+        {
+            kind: "cmd-status",
+            path: { clusterId: Thermostat.id, commandId: Thermostat.commands.atomicRequest.id, endpointId: 1 },
+            status,
+            clusterStatus: undefined,
+            commandRef: undefined,
+        },
+    ];
 }
 
 function commitWrite(endpoint: Endpoint, attributeRequests: number[]) {
@@ -290,6 +308,64 @@ describe("AtomicWriteHandler", () => {
         });
 
         await node.close();
+    });
+
+    describe("checks the whole request before the per-attribute statuses of a BeginWrite (§7.15.6.4)", () => {
+        it("returns INVALID_COMMAND for an attribute the server does not support", async () => {
+            const { node, fabric, device } = await createNode();
+
+            const chunks = await invokeAs(node, fabric, beginWrite(device, [PRESETS_ATTRIBUTE, UNSUPPORTED_ATTRIBUTE]));
+
+            expect(chunks).deep.equals(atomicRequestStatus(Status.InvalidCommand));
+
+            await node.close();
+        });
+
+        it("returns INVALID_COMMAND for a missing timeout while another peer holds the attribute", async () => {
+            const { node, fabric, device } = await createNode();
+            await invokeAs(node, fabric, beginWrite(device, [PRESETS_ATTRIBUTE]), NodeId(1));
+
+            const chunks = await invokeAs(node, fabric, beginWrite(device, [PRESETS_ATTRIBUTE], {}), NodeId(2));
+
+            expect(chunks).deep.equals(atomicRequestStatus(Status.InvalidCommand));
+
+            await node.close();
+        });
+
+        it("returns INVALID_COMMAND for a PASE session, whose Atomic Writer ID is invalid, while another peer holds the attribute", async () => {
+            const { node, fabric, device } = await createNode();
+            await invokeAs(node, fabric, beginWrite(device, [PRESETS_ATTRIBUTE]), NodeId(1));
+
+            const chunks = await invokeAs(node, fabric, beginWrite(device, [PRESETS_ATTRIBUTE]), NodeId(0));
+
+            expect(chunks).deep.equals(atomicRequestStatus(Status.InvalidCommand));
+
+            await node.close();
+        });
+
+        it("returns INVALID_COMMAND ahead of INVALID_IN_STATE for an unsupported attribute from a peer holding a write", async () => {
+            const { node, fabric, device } = await createNode();
+            await invokeAs(node, fabric, beginWrite(device, [PRESETS_ATTRIBUTE]));
+
+            const chunks = await invokeAs(node, fabric, beginWrite(device, [UNSUPPORTED_ATTRIBUTE]));
+
+            expect(chunks).deep.equals(atomicRequestStatus(Status.InvalidCommand));
+
+            await node.close();
+        });
+
+        it("reports a global attribute as supported but not atomic", async () => {
+            const { node, fabric, device } = await createNode();
+
+            const chunks = await invokeAs(node, fabric, beginWrite(device, [ATTRIBUTE_LIST_ATTRIBUTE]));
+
+            expect(decodeAtomicResponse(chunks)).deep.equals({
+                statusCode: Status.Failure,
+                attributeStatus: [{ attributeId: ATTRIBUTE_LIST_ATTRIBUTE, statusCode: Status.InvalidCommand }],
+            });
+
+            await node.close();
+        });
     });
 
     // §7.15.3 mandates INVALID_IN_STATE, but CHIP and TC_TSTAT_4_2 step 15 expect BUSY when another peer holds the

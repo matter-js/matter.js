@@ -8,6 +8,7 @@ import {
     asError,
     AsyncCache,
     Bytes,
+    ClosedError,
     Construction,
     Crypto,
     Days,
@@ -324,12 +325,6 @@ export class DclCertificateService {
             }),
         );
 
-        this.#revocationCache = new AsyncCache(
-            "CRL revocation",
-            (akid: string) => this.#fetchAndValidateRevocation(akid),
-            Hours(1),
-        );
-
         if (options.revocations !== undefined) {
             this.installRevocations(options.revocations);
         }
@@ -355,6 +350,13 @@ export class DclCertificateService {
                 ).start();
             }
         });
+
+        this.#revocationCache = new AsyncCache(
+            "CRL revocation",
+            this.#construction,
+            (akid: string) => this.#fetchAndValidateRevocation(akid),
+            Hours(1),
+        );
     }
 
     get construction() {
@@ -693,12 +695,18 @@ export class DclCertificateService {
      *
      * Returns true if the certificate is revoked, false otherwise.
      * If revocation data is not available for the given authority, returns false.
+     *
+     * @throws {ClosedError} if the service is closing or closed
      */
     async isRevoked(
         authorityKeyIdentifier: Bytes | string,
         serialNumber: Bytes | string,
         issuerDnDerHex?: string,
     ): Promise<boolean> {
+        // A closing service must not answer "not revoked" for a lookup it never ran
+        if (this.#closed) {
+            throw new ClosedError("DCL certificate service is closed");
+        }
         this.construction.assert();
 
         const akid = this.#normalizeSubjectKeyId(authorityKeyIdentifier);
@@ -719,7 +727,7 @@ export class DclCertificateService {
         try {
             lookup = await this.#revocationCache.get(akid);
         } catch {
-            // Underlying fetch already logged the cause; treat unreachable CRL as not-revoked
+            // A failed fetch already logged its cause; an unreachable CRL counts as not revoked
             return false;
         }
 

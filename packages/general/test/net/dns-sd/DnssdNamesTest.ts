@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DnsMessageType, type DnsRecord, DnsRecordClass, DnsRecordType } from "#codec/DnsCodec.js";
+import { type DnsMessage, DnsMessageType, type DnsRecord, DnsRecordClass, DnsRecordType } from "#codec/DnsCodec.js";
 import { Hours, Millis, Minutes, Seconds } from "#index.js";
+import type { Duration } from "#time/Duration.js";
 import { Time } from "#time/Time.js";
 import { Abort } from "#util/Abort.js";
 import { Bytes } from "#util/Bytes.js";
@@ -942,7 +943,7 @@ describe("DnssdNames", () => {
             expect(parameters.get("SII")).equal("5000");
         });
 
-        it("first-wins on duplicate keys per RFC 6763 §6.4", async () => {
+        it("first-wins on duplicate keys, ignoring case, per RFC 6763 §6.4", async () => {
             await using site = new MockSite();
             const { client, server } = await site.addPair();
 
@@ -973,14 +974,20 @@ describe("DnssdNames", () => {
                         recordType: DnsRecordType.TXT,
                         recordClass: DnsRecordClass.IN,
                         ttl: Hours(1),
-                        value: [Bytes.fromString("foo=first"), Bytes.fromString("foo=second")],
+                        value: [
+                            Bytes.fromString("foo=first"),
+                            Bytes.fromString("FOO=second"),
+                            Bytes.fromString("foo=third"),
+                        ],
                     },
                 ],
                 additionalRecords: [],
             });
             await MockTime.resolve(discovered);
 
-            expect(client.names.get(qname).parameters.get("foo")).equal("first");
+            const { parameters } = client.names.get(qname);
+            expect(parameters.get("FOO")).equal("first");
+            expect([...parameters.keys()]).deep.equals(["foo"]);
         });
 
         it("ignores TXT entries with empty keys per RFC 6763 §6.4", async () => {
@@ -1237,6 +1244,20 @@ describe("DnssdNames", () => {
                 ["b", "2"],
                 ["a", "1"],
             ]);
+        });
+
+        it("lets the newer record's key win over an older one that differs only in case", async () => {
+            await using site = new MockSite();
+            const { client, server } = await discoverName(site);
+
+            const qname = qnameOf(1);
+
+            await MockTime.advance(Minutes(1));
+            await server.mdns.send(txtPacket(qname, ["A=2"], false));
+            await MockTime.advance(Seconds(1));
+            await MockTime.advance(10);
+
+            expect([...client.names.get(qname).parameters]).deep.equals([["A", "2"]]);
         });
 
         it("keeps every record of a type that arrives in the flushing packet", async () => {
@@ -1550,6 +1571,68 @@ describe("DnssdNames", () => {
             await MockTime.advance(10);
 
             expect(ptrCount()).equals(2);
+        });
+    });
+
+    describe("known answers", () => {
+        const ttl = Seconds(4500);
+
+        async function queryAfter(site: MockSite, age: Duration) {
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    { name: qname, recordType: DnsRecordType.TXT, recordClass: DnsRecordClass.IN, ttl, value: ["a=1"] },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.resolve(discovered);
+            await MockTime.advance(age);
+
+            const queries = new Array<DnsMessage>();
+            server.mdns.receipt.on(message => {
+                if (message.queries.length > 0) {
+                    queries.push(message);
+                }
+            });
+
+            client.names.solicitor.solicit({ name: client.names.get(qname), recordTypes: [DnsRecordType.TXT] });
+            await MockTime.resolve(Time.sleep("wait for query", Seconds(1)));
+
+            // The query goes out once per interface
+            expect(queries.length).greaterThan(0);
+            return queries;
+        }
+
+        it("carry their remaining TTL", async () => {
+            await using site = new MockSite();
+
+            for (const query of await queryAfter(site, Minutes(10))) {
+                expect(query.answers.length).equals(1);
+                expect(query.answers[0].ttl).closeTo(ttl - Minutes(10), Seconds(1));
+            }
+        });
+
+        it("round a partial second of remaining TTL up", async () => {
+            await using site = new MockSite();
+
+            for (const query of await queryAfter(site, Millis(Minutes(10) - 500))) {
+                expect(query.answers.length).equals(1);
+                expect(query.answers[0].ttl).equals(Millis(ttl - Minutes(10) + Seconds(1)));
+            }
+        });
+
+        it("leave out a record past half its TTL so the responder refreshes it", async () => {
+            await using site = new MockSite();
+
+            for (const query of await queryAfter(site, Millis(ttl / 2 + Minutes(1)))) {
+                expect(query.answers).deep.equals([]);
+            }
         });
     });
 

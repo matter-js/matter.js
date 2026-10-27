@@ -6,12 +6,12 @@
 
 import { ReadResult } from "#action/response/ReadResult.js";
 import { IncomingInteractionClientMessenger } from "#interaction/InteractionMessenger.js";
-import { Subscription, SubscriptionId } from "#interaction/Subscription.js";
+import { Subscription } from "#interaction/Subscription.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
 import { SecureSession } from "#session/SecureSession.js";
 import { AbortedError, causedBy, Diagnostic, InternalError, Logger } from "@matter/general";
-import { DataReport, INTERACTION_PROTOCOL_ID, Status, TlvAttributeReport, TypeFromSchema } from "@matter/types";
+import { DataReport, INTERACTION_PROTOCOL_ID, TlvAttributeReport, TypeFromSchema } from "@matter/types";
 import { InputChunk } from "../InputChunk.js";
 import { ClientSubscriptions } from "./ClientSubscriptions.js";
 
@@ -35,7 +35,7 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
         if (this.#subscriptions.isBlocked) {
             const messenger = new IncomingInteractionClientMessenger(exchange);
             try {
-                await sendInvalid(messenger);
+                await messenger.sendInvalidSubscription();
             } finally {
                 await messenger.close();
             }
@@ -78,7 +78,7 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
         if (subscriptionId === undefined) {
             logger.debug(exchange.via, "Ignoring unsolicited data report with no subscription ID");
             try {
-                await sendInvalid(messenger);
+                await messenger.sendInvalidSubscription();
             } finally {
                 await messenger.close();
             }
@@ -96,7 +96,7 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
                 Diagnostic.strong(Subscription.idStrOf(subscriptionId)),
             );
             try {
-                await sendInvalid(messenger, subscriptionId);
+                await messenger.sendInvalidSubscription(subscriptionId);
             } finally {
                 await messenger.close();
             }
@@ -147,14 +147,6 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
     async close() {}
 }
 
-/** Sends an InvalidSubscription status report. */
-async function sendInvalid(messenger: IncomingInteractionClientMessenger, subscriptionId?: SubscriptionId) {
-    await messenger.sendStatus(Status.InvalidSubscription, {
-        multipleMessageInteraction: true,
-        logContext: Subscription.diagnosticOf(subscriptionId),
-    });
-}
-
 /**
  * Convert incoming data reports into a {@link ReadResult}.
  *
@@ -175,7 +167,7 @@ async function* processReports(
         const { subscriptionId: reportSubscriptionId } = report;
         if (reportSubscriptionId === undefined) {
             logger.debug(messenger.exchange.via, "Ignoring data report with missing subscription id");
-            await sendInvalid(messenger, reportSubscriptionId);
+            await messenger.sendInvalidSubscription(reportSubscriptionId);
             return;
         }
 
@@ -187,7 +179,7 @@ async function* processReports(
                 "expected",
                 Subscription.idStrOf(subscriptionId),
             );
-            await sendInvalid(messenger, reportSubscriptionId);
+            await messenger.sendInvalidSubscription(reportSubscriptionId);
             return;
         }
 

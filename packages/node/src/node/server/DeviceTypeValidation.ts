@@ -52,7 +52,8 @@ export namespace DeviceTypeValidation {
      * How the node judges the device types of its endpoints: `"off"` judges nothing on its own, `"warn"` logs each
      * violation and `"strict"` refuses the construction of an endpoint with any new violation, and of a cluster server
      * with an unimplemented mandatory command. A misplaced singleton is refused at construction in every mode; in
-     * `"off"` only when a device type above the endpoint declares it.
+     * `"off"` only when a device type above the endpoint declares it. A violation flagged
+     * {@link DeviceTypeViolation.assertedAtRoot} is never refused and logs at debug level.
      */
     export type Mode = "off" | "warn" | "strict";
 
@@ -62,6 +63,7 @@ export namespace DeviceTypeValidation {
     export interface ValidateOptions {
         /**
          * Whether an endpoint with a new misplaced singleton, or with any new violation in mode `"strict"`, throws.
+         * A violation flagged {@link DeviceTypeViolation.assertedAtRoot} never throws.
          * Defaults to true. Off, those violations log and are recorded like any other, a misplaced singleton included.
          * The node judges changes after construction with it off.
          *

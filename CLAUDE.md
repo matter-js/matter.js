@@ -41,14 +41,29 @@ Claims of "done", "fixed" or "passing" need the command output behind them.
 
 WHY, not WHAT. Add a WHAT comment only when the logic is genuinely non-obvious. Before writing
 any comment, ask: would a reader who sees only the final code — not the diff — need it? If the
-identifiers and JSDoc already say it, delete the comment.
+identifiers and JSDoc of the code at this location already say it, delete the comment. (A
+callee's JSDoc does not count here; see the call-site note below.)
+
+Fix the code before writing the comment. An inline comment is a sign that the code is not clear
+on its own. The longer the comment, the stronger the sign. Before writing one, try a better name,
+an extracted function, a named constant or a type. Only what is still unclear after these changes
+gets a comment. An inline comment is one line, at most three for a specification constraint.
+Anything longer goes into API JSDoc or becomes a code change. Most comments belong in API JSDoc,
+not inline.
 
 Acceptable, and rare:
 
 - An invariant a future refactor could innocently break (one line, forward-looking)
 - A non-obvious specification constraint the code depends on
 - A documented tradeoff ("we accept X because Y is worse")
-- Cross-file coupling the type system cannot express
+- Cross-file coupling the type system cannot express — only when the comment names a documented
+  contract of the other module (JSDoc, or a test that pins the behavior). If the code relies on
+  another module's internals ("safe because `foo()` internally does X"), make that behavior part
+  of the contract of `foo()` or remove the dependency. A comment does not make an internal detail
+  safe to rely on.
+- A one-line note at a call site about a non-obvious contract of the callee ("resolves before the
+  session closes"), so the reader does not have to open the callee. The callee's JSDoc is the
+  source of truth; the note must match that JSDoc.
 
 Always wrong:
 
@@ -63,6 +78,18 @@ Never put GitHub issue or pull request numbers or URLs in code or test comments.
 case; references belong in the commit message or pull request body.
 
 Public APIs get JSDoc, including `@see` references to the relevant Matter specification section.
+JSDoc covers what a caller cannot see from the signature: units, lifetime and ownership, whether
+it may be called again while it runs, from which transaction or context it may be called, error
+behavior, and why the API exists. Describe a state
+machine or an event matrix with a small table or ASCII diagram, not paragraphs.
+
+Write comments and documentation in plain, literal words. Many readers are not native English
+speakers. Name the actual action, not a metaphor: "start the timer", not "arm" it; "set the
+flag", not "latch" it; "clear the state", not "burn" or "spend" it; "use X", not "leverage X" or
+"key off X"; "which case fails", not "where it bites". Existing identifiers stay as they are. Name
+the subject in each sentence; use "it" or "this" only when the noun directly before is the
+referent. One idea per sentence; keep sentences short. No hype or self-praise ("robust",
+"seamless", "zero overhead"); name a tradeoff only with its concrete cost.
 
 ## TypeScript
 
@@ -123,9 +150,12 @@ situation, not how alarming the error looks:
 - Generated files (`/*** THIS FILE IS GENERATED, DO NOT EDIT ***/`) are never edited by hand.
   Change the generator in `support/codegen` or the model overrides in `support/models/src/local`.
 
-## Changelog and working documents
+## Changelog, pull request text and working documents
 
 - User-visible changes get a `CHANGELOG.md` entry under the `## __WORK IN PROGRESS__` heading:
   state the change, keep it short, skip the rationale. That heading is matched literally by the
   release workflow — do not reformat it.
 - Plans, analyses and other working documents stay uncommitted.
+- Pull request descriptions explain why the change is needed and why this design was chosen. State
+  what changed only as far as that explanation needs; do not list files or mechanical edits,
+  because the diff shows them.

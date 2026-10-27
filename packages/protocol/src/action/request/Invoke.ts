@@ -34,7 +34,7 @@ export interface Invoke extends InvokeRequest {
     /** Expected processing time of the command on the server side to calculated response timeout */
     expectedProcessingTime?: Duration;
 
-    /** Whether to use extended timeout for fail-safe messages.  Overwrites the expectedProcessingTime if both are set */
+    /** Whether to use extended timeout for fail-safe messages.  Ignored when expectedProcessingTime is set */
     useExtendedFailSafeMessageResponseTimeout?: boolean;
 
     /**
@@ -43,6 +43,9 @@ export interface Invoke extends InvokeRequest {
      * - `undefined` — batch with zero delay (commands in the same timer tick are combined)
      * - `Duration` — batch with the specified collection window
      * - `false` — disable batching; execute immediately
+     *
+     * A request that sets other per-request options, such as {@link expectedProcessingTime}, is never batched and
+     * executes immediately.  Batches only combine commands for the same network.
      */
     batchDuration?: false | Duration;
 
@@ -188,7 +191,7 @@ export namespace Invoke {
         /** Processing time of the command of the server assumed for this invoke. If not set a default is used */
         expectedProcessingTime?: Duration;
 
-        /** Whether to use extended timeout for fail-safe messages.  Overwrites the expectedProcessingTime if both are set */
+        /** Whether to use extended timeout for fail-safe messages.  Ignored when expectedProcessingTime is set */
         useExtendedFailSafeMessageResponseTimeout?: boolean;
 
         /** Whether to skip validation of command fields against schema */

@@ -34,9 +34,11 @@ export class ServerInteraction<
     SessionT extends InteractionSession = InteractionSession,
 > implements Interactable<SessionT> {
     #node: NodeProtocol;
+    #writeOptions?: AttributeWriteResponse.Options<SessionT>;
 
-    constructor(node: NodeProtocol) {
+    constructor(node: NodeProtocol, writeOptions?: AttributeWriteResponse.Options<SessionT>) {
         this.#node = node;
+        this.#writeOptions = writeOptions;
     }
 
     async *read(request: Read, session: SessionT): ReadResult {
@@ -68,7 +70,7 @@ export class ServerInteraction<
     async write<T extends Write>(request: T, session: SessionT): WriteResult<T> {
         // TODO - validate request
 
-        const writer = new AttributeWriteResponse(this.#node, session);
+        const writer = new AttributeWriteResponse(this.#node, session, this.#writeOptions);
         return (await writer.process(request)) as Awaited<WriteResult<T>>;
     }
 

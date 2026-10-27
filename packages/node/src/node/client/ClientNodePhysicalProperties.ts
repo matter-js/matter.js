@@ -4,12 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { ClientNode } from "#node/ClientNode.js";
 import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
 import { deepCopy } from "@matter/general";
 import { PhysicalDeviceProperties } from "@matter/protocol";
-import { ClientEndpointInitializer } from "./ClientEndpointInitializer.js";
+import { ClientStructure } from "./ClientStructure.js";
 
 const cache = new WeakMap<ClientNode, PhysicalDeviceProperties>();
 
@@ -97,7 +96,7 @@ export function ClientNodePhysicalProperties(node: ClientNode) {
 
     cache.set(node, result);
 
-    const structure = (node.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+    const structure = node.env.get(ClientStructure);
     structure.changed.on(() => {
         if (frozen) return;
         properties = undefined;

@@ -19,6 +19,7 @@ import {
     AsyncObservable,
     BinaryKeyPair,
     Bytes,
+    CertificateError,
     Crypto,
     DataWriter,
     Diagnostic,
@@ -73,9 +74,9 @@ export class Fabric {
     readonly operationalCert: Bytes;
     readonly #keyPair: Key;
     readonly #sessions = new Set<SecureSession>();
-    readonly #groups: FabricGroups;
+    #groups: FabricGroups;
     #icd?: FabricIcd;
-    readonly #accessControl: FabricAccessControl;
+    #accessControl: FabricAccessControl;
 
     readonly #leaving = AsyncObservable<[]>();
     readonly #deleting = AsyncObservable<[]>();
@@ -278,8 +279,31 @@ export class Fabric {
     }
 
     /**
+     * Take over the runtime state of {@link previous}, the object this one replaces for the same fabric: groups, access
+     * control, ICD state and the storage context.  Both objects then share the same instances, so sessions still bound
+     * to {@link previous} see every change.  The derived group keys depend on the root, fabric ID and IPK, so these
+     * must be unchanged.
+     */
+    takeOverRuntimeStateOf(previous: Fabric) {
+        if (
+            this.globalId !== previous.globalId ||
+            !Bytes.areEqual(this.identityProtectionKey, previous.identityProtectionKey)
+        ) {
+            throw new ImplementationError(
+                `Fabric ${this.fabricIndex} can only be replaced by new operational credentials under the same root, fabric ID and IPK`,
+            );
+        }
+        this.#groups = previous.#groups;
+        this.#accessControl = previous.#accessControl;
+        this.#icd = previous.icd;
+        this.#storage = previous.#storage;
+    }
+
+    /**
      * Release in-memory resources that must not outlive the fabric — currently the ICD wakefulness timers, which would
      * otherwise keep firing and delay node shutdown.  Does not delete or unpersist the fabric.
+     *
+     * The instances are shared with replaced objects of the same fabric, so only `FabricManager` disposes.
      */
     [Symbol.dispose](): void {
         this.#icd?.close();
@@ -395,7 +419,7 @@ export class Fabric {
         }
     }
 
-    set persistCallback(callback: (isUpdate?: boolean) => MaybePromise<void>) {
+    set persistCallback(callback: ((isUpdate?: boolean) => MaybePromise<void>) | undefined) {
         // TODO Remove "isUpdate" parameter as soon as the fabric scoped data are removed from here/legacy API gets removed
         this.#persistCallback = callback;
     }
@@ -454,7 +478,6 @@ export class Fabric {
     async #delete(currentExchange?: MessageExchange) {
         await this.#deleting.emit();
         await this.#closeSessions(currentExchange);
-        this[Symbol.dispose]();
         await this.#deleted.emit();
     }
 
@@ -539,6 +562,40 @@ export class FabricBuilder {
     }
 
     async setOperationalCert(operationalCert: Bytes, intermediateCACert?: Bytes) {
+        if (this.#rootCert === undefined) {
+            throw new MatterFlowError("Root certificate needs to be set first");
+        }
+        const verified = await this.#verifyOperationalCert(this.#rootCert, operationalCert, intermediateCACert);
+        this.#installOperationalCert(operationalCert, verified);
+        return this;
+    }
+
+    /**
+     * Take over the data of {@link fabric} and install a new NOC for it, as UpdateNOC and NOC rotation do.  The NOC
+     * must chain to the fabric's root and carry its fabric ID.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.6.9.1
+     */
+    async updateOperationalCert(fabric: Fabric, operationalCert: Bytes, intermediateCACert?: Bytes) {
+        const verified = await this.#verifyOperationalCert(fabric.rootCert, operationalCert, intermediateCACert);
+        if (verified.fabricId !== fabric.fabricId) {
+            throw new CertificateError(
+                `Operational certificate is for fabric ID ${verified.fabricId}, but fabric ${fabric.fabricIndex} has fabric ID ${fabric.fabricId}`,
+            );
+        }
+
+        this.#rootVendorId = fabric.rootVendorId;
+        this.#rootNodeId = fabric.rootNodeId;
+        this.#identityProtectionKey = fabric.identityProtectionKey;
+        this.#rootCert = fabric.rootCert;
+        this.#vidVerificationStatement = fabric.vidVerificationStatement;
+        this.#vvsc = fabric.vvsc;
+        this.#label = fabric.label;
+        this.#installOperationalCert(operationalCert, verified);
+        return this;
+    }
+
+    async #verifyOperationalCert(rootCertBytes: Bytes, operationalCert: Bytes, intermediateCACert?: Bytes) {
         if (intermediateCACert !== undefined && intermediateCACert.byteLength === 0) {
             intermediateCACert = undefined;
         }
@@ -558,11 +615,7 @@ export class FabricBuilder {
             throw new PublicKeyError("Operational certificate does not match public key");
         }
 
-        if (this.#rootCert === undefined) {
-            throw new MatterFlowError("Root certificate needs to be set first");
-        }
-
-        const rootCert = Rcac.fromTlv(this.#rootCert);
+        const rootCert = Rcac.fromTlv(rootCertBytes);
         const nocCert = Noc.fromTlv(operationalCert);
         const icaCert = intermediateCACert !== undefined ? Icac.fromTlv(intermediateCACert) : undefined;
         if (icaCert !== undefined) {
@@ -570,12 +623,17 @@ export class FabricBuilder {
         }
         await nocCert.verify(this.#crypto, rootCert, icaCert);
 
-        this.#operationalCert = operationalCert;
-        this.#intermediateCACert = intermediateCACert;
-        this.#fabricId = FabricId(fabricId);
-        this.#nodeId = nodeId;
+        return { fabricId: FabricId(fabricId), nodeId, intermediateCACert };
+    }
 
-        return this;
+    #installOperationalCert(
+        operationalCert: Bytes,
+        verified: { fabricId: FabricId; nodeId: NodeId; intermediateCACert?: Bytes },
+    ) {
+        this.#operationalCert = operationalCert;
+        this.#intermediateCACert = verified.intermediateCACert;
+        this.#fabricId = verified.fabricId;
+        this.#nodeId = verified.nodeId;
     }
 
     setRootVendorId(rootVendorId: VendorId) {
@@ -599,16 +657,6 @@ export class FabricBuilder {
         }
         this.#label = label;
         return this;
-    }
-
-    initializeFromFabricForUpdate(fabric: Fabric) {
-        this.#rootVendorId = fabric.rootVendorId;
-        this.#rootNodeId = fabric.rootNodeId;
-        this.#identityProtectionKey = fabric.identityProtectionKey;
-        this.#rootCert = fabric.rootCert;
-        this.#vidVerificationStatement = fabric.vidVerificationStatement;
-        this.#vvsc = fabric.vvsc;
-        this.#label = fabric.label;
     }
 
     get globalId() {

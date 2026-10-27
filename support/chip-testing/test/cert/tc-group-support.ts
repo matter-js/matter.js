@@ -315,6 +315,152 @@ export function addGroupStep(commissioned: CommissionedRefs) {
     });
 }
 
+export const GROUPCAST = Matter.clusters.require("Groupcast");
+export const GROUPCAST_ID = requireId(GROUPCAST.id, "Groupcast cluster");
+const DESCRIPTOR = Matter.clusters.require("Descriptor");
+
+/** `Groupcast.Feature.Listener` (Matter Core § 11.27.4). */
+const GROUPCAST_LISTENER = 1 << 0;
+
+/** What the TH's root endpoint says about Groupcast. */
+export interface RootGroupcast {
+    groupcast: boolean;
+
+    /** Whether the TH can join a group with endpoints, which JoinGroup refuses without Listener. */
+    listener: boolean;
+}
+
+/**
+ * Reads the TH's root `ServerList` and, where it names Groupcast, that cluster's `FeatureMap`. The feature map is
+ * accepted as the raw number or as the object of named bits the adapters decode a bitmap into.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 11.27.4
+ */
+export async function readRootGroupcast(node: CertNodeApi): Promise<RootGroupcast> {
+    const serverList = await node.readAttribute({
+        endpoint: ROOT_ENDPOINT,
+        cluster: requireId(DESCRIPTOR.id, "Descriptor cluster"),
+        attribute: attributeId(DESCRIPTOR, "serverList"),
+    });
+    if (!Array.isArray(serverList)) {
+        throw new CertCheckFailedError(`TH answered its root ServerList with ${describeValue(serverList)}`);
+    }
+    if (!serverList.some(id => Number(id) === GROUPCAST_ID)) {
+        return { groupcast: false, listener: false };
+    }
+
+    const featureMap = await node.readAttribute({
+        endpoint: ROOT_ENDPOINT,
+        cluster: GROUPCAST_ID,
+        attribute: attributeId(GROUPCAST, "featureMap"),
+    });
+    if (typeof featureMap === "number") {
+        return { groupcast: true, listener: (featureMap & GROUPCAST_LISTENER) !== 0 };
+    }
+    if (typeof featureMap === "object" && featureMap !== null && "listener" in featureMap) {
+        return { groupcast: true, listener: Boolean(featureMap.listener) };
+    }
+    throw new CertCheckFailedError(`TH answered its Groupcast FeatureMap with ${describeValue(featureMap)}`);
+}
+
+/**
+ * The group communication plan branches on the TH's root: without Groupcast its GroupKeyMap and Groups steps run,
+ * with it the steps that have the TH join the group through Groupcast. The plan words the condition for the TH, and
+ * JoinGroup goes to the TH, so step 1a reads the TH's root once and the steps of both branches decide on it.
+ */
+export class GroupcastBranch {
+    #root?: RootGroupcast;
+
+    get #learned() {
+        if (this.#root === undefined) {
+            throw new CertCheckFailedError("step 1a did not read whether the TH's root has the Groupcast cluster");
+        }
+        return this.#root;
+    }
+
+    reset() {
+        this.#root = undefined;
+    }
+
+    /**
+     * Reads the TH's root and returns the check stating it. `expected` is the branch a case committed to before the
+     * run, which fails the check where the TH disagrees.
+     */
+    async learn(node: CertNodeApi, expected?: boolean): Promise<CheckRecord> {
+        const root = await readRootGroupcast(node);
+        this.#root = root;
+        const names = `the TH's root ServerList ${root.groupcast ? "names" : "does not name"} Groupcast`;
+        if (expected !== undefined) {
+            return {
+                type: "response",
+                verdict: root.groupcast === expected ? "pass" : "fail",
+                detail: `${names}; the controller was provisioned for a TH ${expected ? "with" : "without"} it`,
+            };
+        }
+        return {
+            type: "response",
+            verdict: "pass",
+            detail: root.groupcast
+                ? `${names}, and its FeatureMap ${root.listener ? "names" : "lacks"} Listener`
+                : names,
+        };
+    }
+
+    /** For a step of the branch the plan takes when the TH's root has no Groupcast cluster. */
+    readonly legacyStepsApply = async () =>
+        this.#learned.groupcast
+            ? "The TH's root ServerList names the Groupcast cluster, so the plan skips to step 6."
+            : undefined;
+
+    /** For a step of the branch the plan takes when the TH's root has the Groupcast cluster. */
+    readonly groupcastStepsApply = async () => {
+        const { groupcast, listener } = this.#learned;
+        if (!groupcast) {
+            return "The TH's root ServerList does not name the Groupcast cluster, so the plan skips its Groupcast steps.";
+        }
+        return listener
+            ? undefined
+            : "The TH's root Groupcast FeatureMap lacks the Listener feature, so the TH cannot join the group with an " +
+                  "endpoint and the plan's Groupcast steps cannot run.";
+    };
+}
+
+/** The plan's JoinGroup step: the DUT has the TH join group 1 on the endpoint `Groups` lives on, with key set 1. */
+export function joinGroupStep(commissioned: CommissionedRefs) {
+    return commissioned.withRef("dut", async (cx: CertStepContext, ref: CertNodeRef) => {
+        const { checks } = await invokeCommand(cx, ref, {
+            cluster: GROUPCAST,
+            endpoint: ROOT_ENDPOINT,
+            command: "joinGroup",
+            args: { groupId: GROUP.id, endpoints: [GROUPS_ENDPOINT], keySetId: GROUP_KEY_SET_ID },
+            fields: [
+                { id: 0, value: GROUP.id },
+                { id: 2, value: GROUP_KEY_SET_ID },
+            ],
+        });
+        await recordAll(cx, checks);
+    });
+}
+
+/** Whether a Groupcast `Membership` read lists the group the JoinGroup step joined, on its endpoint and key set. */
+export function listsJoinedGroup(membership: unknown): boolean {
+    return (
+        Array.isArray(membership) &&
+        membership.some(
+            entry =>
+                typeof entry === "object" &&
+                entry !== null &&
+                "groupId" in entry &&
+                "keySetId" in entry &&
+                "endpoints" in entry &&
+                Number(entry.groupId) === GROUP.id &&
+                Number(entry.keySetId) === GROUP_KEY_SET_ID &&
+                Array.isArray(entry.endpoints) &&
+                entry.endpoints.some((endpoint: unknown) => Number(endpoint) === GROUPS_ENDPOINT),
+        )
+    );
+}
+
 /**
  * The multicast address a fabric uses for a group: `FF35:0040:FD<fabric id>00:<group id>`, sixteen
  * bytes with the fabric's own id in the middle.

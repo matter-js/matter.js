@@ -14,7 +14,7 @@ import type {
     CheckRecord,
     SelectableDeviceFlavor,
 } from "@matter/testing";
-import { certTest } from "@matter/testing";
+import { certTest, controllerCapabilityGap } from "@matter/testing";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
 import { ChipFault, FAULT_TYPE_CHIP, FaultInjectionCluster } from "./fault-injection.js";
 import { COMMISSIONING_LOG_TIMEOUT } from "./tc-dd-support.js";
@@ -86,7 +86,9 @@ interface AnswerCheck {
 /**
  * Sends the step's batch and records the device's answers, the request the TH received and `answer`.
  * Arrival order is part of the response claim: three of the steps differ from one another in nothing
- * else.
+ * else. A controller that reports only request order still sends every step's batch, because each
+ * armed fault fires on the next batch and a skipped step would leave it for the next one; its
+ * answers are compared in request order, and the order claim rests on `answer`'s TH log check.
  */
 async function invokeBatchAndCheck(
     cx: CertStepContext,
@@ -97,13 +99,20 @@ async function invokeBatchAndCheck(
     const dut = cx.controllers.dut.node(commissioned.require("dut"));
     const from = th.log.mark();
 
+    const inArrivalOrder =
+        controllerCapabilityGap(["batch-arrival-order"], ["dut"], cx.controllerSelection) === undefined;
+    const ordered = <T extends { index: number }>(entries: T[]) =>
+        inArrivalOrder ? entries : [...entries].sort((a, b) => a.index - b.index);
     const arrived = (results: BatchCommandResult[]) =>
-        JSON.stringify(results.map(({ index, status }) => ({ index, status })));
+        JSON.stringify(ordered(results).map(({ index, status }) => ({ index, status })));
+    const wanted = JSON.stringify(ordered(expected));
     const response = await attempt(
         () => dut.invokeBatch(BATCH),
-        results => `invoke responses arrived as ${arrived(results)}, expected ${JSON.stringify(expected)}`,
+        results =>
+            `invoke responses ${inArrivalOrder ? "arrived" : "in request order"} as ${arrived(results)}, ` +
+            `expected ${wanted}`,
     );
-    const mismatched = response.ok && arrived(response.value) !== JSON.stringify(expected);
+    const mismatched = response.ok && arrived(response.value) !== wanted;
 
     await recordAll(cx, [
         {
@@ -118,6 +127,7 @@ async function invokeBatchAndCheck(
 certTest("TC-IDM-1.3", {
     plan: "interactiondatamodel.adoc",
     pics: ["MCORE.IDM.C.InvokeRequest.BatchCommands"],
+    controllerCapabilities: ["batch-invoke"],
     app: "all-clusters",
     appVariant: "nlfaultinject",
     flavors: FLAVORS,
@@ -162,8 +172,8 @@ certTest("TC-IDM-1.3", {
             const { dut, th_client } = cx.controllers;
             const th = cx.devices.th;
 
-            // The controller's own PICS gates this whole TC, so a controller without batch invoke never
-            // gets here; this proves the capability against the device before anything is armed, so a
+            // The controller's own PICS and the batch-invoke declaration gate this whole TC, so a
+            // controller without batch invoke never gets here; this proves the capability against the device before anything is armed, so a
             // controller whose declaration outran its implementation leaves no fault primed. An unarmed
             // fault decrements no counter, so the invoke does not disturb the arming arithmetic below.
             await dut.node(commissioned.require("dut")).invokeBatch(BATCH);

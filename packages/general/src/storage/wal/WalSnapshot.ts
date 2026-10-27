@@ -4,159 +4,87 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Directory } from "../../fs/Directory.js";
-import { Gzip } from "../../util/Gzip.js";
+import { StorageError } from "../StorageDriver.js";
 import { type SupportedStorageTypes, fromJson, toJson } from "../StringifyTools.js";
-import type { StoreData, WalCommitId } from "./WalCommit.js";
+import { MAX_SEGMENT, MAX_SEGMENT_LINES, type StoreData, type WalCommitId } from "./WalCommit.js";
 
 /**
- * An immutable snapshot of WAL storage state at a specific point in history.
- *
- * Provides synchronous query methods for programmatic access and persistence methods for disk I/O.
+ * The WAL storage state as of a specific commit.  `WalSnapshotStore` writes and reads it as a file.
  */
 export class WalSnapshot {
     readonly commitId: WalCommitId;
     readonly ts: number;
     readonly data: StoreData;
 
-    constructor(commitId: WalCommitId, ts: number, data: StoreData) {
+    /**
+     * Commit of the snapshot this one replaced, which the store keeps as the backup.
+     */
+    readonly backupCommitId?: WalCommitId;
+
+    constructor(commitId: WalCommitId, ts: number, data: StoreData, backupCommitId?: WalCommitId) {
         this.commitId = commitId;
         this.ts = ts;
         this.data = data;
-    }
-
-    // --- Programmatic access (synchronous — data is in memory) ---
-
-    /**
-     * Get a single value.
-     */
-    get(contexts: string[], key: string): SupportedStorageTypes | undefined {
-        const contextKey = contexts.join(".");
-        return this.data[contextKey]?.[key];
+        this.backupCommitId = backupCommitId;
     }
 
     /**
-     * Get all keys in a context.
+     * Serialize to JSON.  Runs synchronously, so the caller may change {@link data} right after it returns.
      */
-    keys(contexts: string[]): string[] {
-        const contextKey = contexts.join(".");
-        return Object.keys(this.data[contextKey] ?? {});
-    }
-
-    /**
-     * Get all values in a context.
-     */
-    values(contexts: string[]): Record<string, SupportedStorageTypes> {
-        const contextKey = contexts.join(".");
-        return { ...(this.data[contextKey] ?? {}) };
-    }
-
-    /**
-     * Get sub-contexts under the given context prefix.
-     */
-    contexts(contexts: string[]): string[] {
-        const contextKey = contexts.length ? contexts.join(".") : "";
-        const prefix = contextKey.length ? `${contextKey}.` : "";
-        const found = new Set<string>();
-        for (const key of Object.keys(this.data)) {
-            if (key.startsWith(prefix)) {
-                const sub = key.substring(prefix.length).split(".");
-                if (sub.length >= 1 && sub[0].length > 0) {
-                    found.add(sub[0]);
-                }
-            }
-        }
-        return [...found];
-    }
-
-    // --- Persistence ---
-
-    /**
-     * Write this snapshot to disk (atomic via write+rename).
-     */
-    async save(dir: Directory, options?: { compress?: boolean; basename?: string }): Promise<void> {
-        const compress = options?.compress ?? true;
-        const basename = options?.basename ?? "snapshot";
-
-        const snapshot = {
+    serialize(): string {
+        const snapshot: SupportedStorageTypes = {
             commitId: this.commitId,
             ts: this.ts,
             data: this.data,
+            ...(this.backupCommitId ? { backupCommitId: this.backupCommitId } : {}),
         };
-
-        const json = toJson(snapshot as unknown as SupportedStorageTypes, 2);
-
-        if (compress) {
-            const encoded = new TextEncoder().encode(json);
-
-            const tmpFile = dir.file(`${basename}.tmp.json.gz`);
-            await tmpFile.write(Gzip.compress([encoded]));
-            await tmpFile.rename(`${basename}.json.gz`);
-
-            // Clean up uncompressed file if it exists
-            const jsonFile = dir.file(`${basename}.json`);
-            if (await jsonFile.exists()) {
-                await jsonFile.delete();
-            }
-        } else {
-            const tmpFile = dir.file(`${basename}.tmp.json`);
-            await tmpFile.write(json);
-            await tmpFile.rename(`${basename}.json`);
-
-            // Clean up compressed file if it exists
-            const gzFile = dir.file(`${basename}.json.gz`);
-            if (await gzFile.exists()) {
-                await gzFile.delete();
-            }
-        }
+        return toJson(snapshot, 2);
     }
 
     /**
-     * Load an existing snapshot from disk, auto-detecting the format.
+     * Parse the JSON {@link serialize} writes.  Throws a {@link StorageError} naming {@link source} if the text is not
+     * JSON or does not have the snapshot structure.
      */
-    static async load(dir: Directory, options?: { basename?: string }): Promise<WalSnapshot | undefined> {
-        const basename = options?.basename ?? "snapshot";
-
-        const gzFile = dir.file(`${basename}.json.gz`);
-        const jsonFile = dir.file(`${basename}.json`);
-
-        const gzExists = await gzFile.exists();
-        const jsonExists = await jsonFile.exists();
-
-        if (!gzExists && !jsonExists) {
-            return undefined;
+    static parse(text: string, source: string): WalSnapshot {
+        let parsed: unknown;
+        try {
+            parsed = fromJson(text);
+        } catch (cause) {
+            throw new StorageError(`Snapshot ${source} is unreadable`, { cause });
         }
-
-        let text: string;
-
-        let useGz: boolean;
-        if (gzExists && jsonExists) {
-            const gzMtime = (await gzFile.stat()).mtime;
-            const jsonMtime = (await jsonFile.stat()).mtime;
-            useGz = gzMtime >= jsonMtime;
-        } else {
-            useGz = gzExists;
+        if (!isPlainRecord(parsed)) {
+            throw new StorageError(`Snapshot ${source} is not an object`);
         }
-
-        if (useGz) {
-            const chunks = Array<Uint8Array>();
-            for await (const chunk of Gzip.decompress(gzFile.readBytes())) {
-                chunks.push(chunk);
-            }
-            const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
-            const combined = new Uint8Array(totalLength);
-            let offset = 0;
-            for (const chunk of chunks) {
-                combined.set(chunk, offset);
-                offset += chunk.length;
-            }
-            text = new TextDecoder().decode(combined);
-        } else {
-            text = await jsonFile.readAllText();
+        const { commitId, ts, data, backupCommitId } = parsed;
+        if (!isCommitId(commitId)) {
+            throw new StorageError(`Snapshot ${source} has no valid commitId`);
         }
-
-        const parsed = fromJson(text) as unknown as { commitId: WalCommitId; ts?: number; data: StoreData };
-
-        return new WalSnapshot(parsed.commitId, parsed.ts ?? 0, parsed.data);
+        if (!isStoreData(data)) {
+            throw new StorageError(`Snapshot ${source} data is not an object of contexts`);
+        }
+        if (backupCommitId !== undefined && !isCommitId(backupCommitId)) {
+            throw new StorageError(`Snapshot ${source} has an invalid backupCommitId`);
+        }
+        return new WalSnapshot(commitId, typeof ts === "number" ? ts : 0, data, backupCommitId);
     }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isStoreData(value: unknown): value is StoreData {
+    return isPlainRecord(value) && Object.values(value).every(isPlainRecord);
+}
+
+function isCommitId(value: unknown): value is WalCommitId {
+    return (
+        isPlainRecord(value) &&
+        isIntegerInRange(value.segment, MAX_SEGMENT) &&
+        isIntegerInRange(value.offset, MAX_SEGMENT_LINES)
+    );
+}
+
+function isIntegerInRange(value: unknown, max: number): boolean {
+    return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= max;
 }

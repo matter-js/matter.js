@@ -7,7 +7,7 @@
 import { InternalError, Seconds } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { CertDevice, CertNodeApi, CertStepContext, CheckRecord } from "@matter/testing";
-import { COMMISSIONED, COMMISSIONING_LOG_TIMEOUT } from "./tc-dd-support.js";
+import { commissionChecked, COMMISSIONING_LOG_TIMEOUT } from "./tc-dd-support.js";
 import {
     ACCESS_CONTROL,
     ACCESS_CONTROL_ID,
@@ -186,30 +186,16 @@ export class BindRun<Role extends string> {
     commissionStep(role: Role, name: string) {
         return async (cx: CertStepContext) => {
             const device = cx.devices[role];
-            const from = await device.log.markSettled();
 
             await withChecks(cx, async checks => {
-                const commissioned = await attempt(
-                    () =>
-                        cx.controllers.th1.commission({
-                            passcode: device.commissioning.passcode,
-                            discriminator: device.commissioning.discriminator,
-                        }),
-                    ref => `TH1 commissioned ${name} as node ${ref}`,
+                const ref = await commissionChecked(
+                    cx.controllers.th1,
+                    { passcode: device.commissioning.passcode, discriminator: device.commissioning.discriminator },
+                    device,
+                    `TH1 commissions ${name}`,
+                    checks,
                 );
-                if (commissioned.ok) {
-                    this.#refsOf(role).set("th1", commissioned.value);
-                }
-                checks.push({ what: `TH1 commissions ${name}`, check: () => commissioned.check });
-
-                const logged = await expectDeviceLog(
-                    device.log,
-                    device.flavor,
-                    COMMISSIONED,
-                    from,
-                    COMMISSIONING_LOG_TIMEOUT,
-                );
-                checks.push({ what: `${name} logged the commissioning completing`, check: () => logged.check });
+                this.#refsOf(role).set("th1", ref);
             });
         };
     }

@@ -12,8 +12,20 @@ import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { GroupSession, GroupSessionNoKeyError } from "#session/GroupSession.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { GroupMessageEventInfo, SessionManager } from "#session/SessionManager.js";
-import { SessionParameters } from "#session/SessionParameters.js";
-import { b$, Bytes, Key, MemoryStorageDriver, PrivateKey, StandardCrypto, StorageContext } from "@matter/general";
+import { MIN_TCP_SPEC_VERSION, SessionParameters } from "#session/SessionParameters.js";
+import {
+    b$,
+    Bytes,
+    Diagnostic,
+    Key,
+    LogFormat,
+    Logger,
+    LogLevel,
+    MemoryStorageDriver,
+    PrivateKey,
+    StandardCrypto,
+    StorageContext,
+} from "@matter/general";
 import { FabricId, FabricIndex, GlobalFabricId, GroupId, NodeId, VendorId } from "@matter/types";
 import { Groupcast } from "@matter/types/clusters/groupcast";
 
@@ -86,6 +98,47 @@ describe("SecureSession", () => {
 
             expect(session.parameters.maxPathsPerInvoke).equals(1);
         });
+
+        describe("MAX_TCP_MESSAGE_SIZE", () => {
+            function tcpSession(maxTcpMessageSize?: number) {
+                const sessionParameters = {
+                    specificationVersion: MIN_TCP_SPEC_VERSION,
+                    supportedTransports: { tcpServer: true },
+                    maxTcpMessageSize,
+                };
+                return captureLogs(
+                    () =>
+                        new NodeSession({
+                            crypto,
+                            id: 1,
+                            fabric: undefined,
+                            peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
+                            peerSessionId: 0x8d4b,
+                            decryptKey: DECRYPT_KEY,
+                            encryptKey: ENCRYPT_KEY,
+                            attestationKey: new Uint8Array(),
+                            isInitiator: true,
+                            sessionParameters,
+                            reportedSessionParameters: sessionParameters,
+                        }),
+                );
+            }
+
+            it("logs and uses the default when the peer announces zero", () => {
+                const { result: session, logs } = tcpSession(0);
+
+                expect(session.parameters.maxTcpMessageSize).equals(64000);
+                const notices = logs.filter(({ message }) => message.includes("MAX_TCP_MESSAGE_SIZE of 0"));
+                expect(notices.map(({ level }) => level)).deep.equals([LogLevel.INFO]);
+            });
+
+            it("uses the default silently when the peer announces no size", () => {
+                const { result: session, logs } = tcpSession(undefined);
+
+                expect(session.parameters.maxTcpMessageSize).equals(64000);
+                expect(logs.filter(({ message }) => message.includes("MAX_TCP_MESSAGE_SIZE"))).length(0);
+            });
+        });
     });
 
     describe("peer loss", () => {
@@ -101,6 +154,7 @@ describe("SecureSession", () => {
                 async close(_flushViaSession, exchange) {
                     received.push(exchange);
                 },
+                async closeForShutdown() {},
             });
 
             await session.handlePeerLoss({ cause: new Error("unresponsive"), currentExchange });
@@ -176,6 +230,109 @@ describe("SecureSession", () => {
 
             return { fabric, fabricManager };
         }
+
+        it("sends a cached group session's messages as the node ID of the current fabric object", async () => {
+            const { fabric, fabricManager } = await groupFabric();
+            const sessionStorage = new MemoryStorageDriver();
+            sessionStorage.initialize();
+            const sessions = new SessionManager({
+                fabrics: fabricManager,
+                storage: new StorageContext(sessionStorage, ["sessions"]),
+            });
+            await sessions.construction.ready;
+            const current = fabric.groups.keySets.currentKeyForId(1);
+            const groupId = 2;
+            const session = new GroupSession({
+                manager: sessions,
+                id: current.sessionId ?? 0,
+                fabric,
+                keySetId: 1,
+                operationalGroupKey: current.key,
+                operationalPrivacyKey: current.privacyKey,
+                peerNodeId: NodeId(0xffffffffffff0000n | BigInt(groupId)),
+                multicastAddress: fabric.groups.multicastAddressFor(GroupId(groupId)),
+                messageCounter: new MessageCounter(fabric.crypto),
+            });
+
+            // As UpdateNOC with a new node ID does
+            await fabricManager.replaceFabric(new Fabric(crypto, { ...fabric.config, nodeId: NodeId(2) }));
+
+            expect(session.nodeId).equals(NodeId(2));
+            const packet = session.encode({
+                packetHeader: {
+                    sessionId: current.sessionId ?? 0,
+                    sessionType: SessionType.Group,
+                    messageId: 0x12345679,
+                    destGroupId: groupId,
+                    sourceNodeId: NodeId(2),
+                    hasPrivacyEnhancements: true,
+                    isControlMessage: false,
+                    hasMessageExtensions: false,
+                },
+                payloadHeader: {
+                    isInitiatorMessage: true,
+                    requiresAck: false,
+                    messageType: 0x05,
+                    exchangeId: 0x1234,
+                    protocolId: 0x0001,
+                    ackedMessageId: undefined,
+                    hasSecuredExtension: false,
+                },
+                payload: b$`00112233`,
+            });
+            const wire = MessageCodec.encodePacket(packet);
+            const decodedPacket = MessageCodec.decodePacket(wire);
+            const aad = Bytes.of(wire).slice(0, wire.byteLength - decodedPacket.applicationPayload.byteLength);
+
+            const result = GroupSession.decode(fabricManager, decodedPacket, aad);
+
+            expect(result.sourceNodeId).equals(NodeId(2));
+            expect(Bytes.toHex(result.message.payload)).equals("00112233");
+            await sessions.close();
+        });
+
+        it("derives the nonce from the source node ID in the header", async () => {
+            const { fabric, fabricManager } = await groupFabric();
+            const current = fabric.groups.keySets.currentKeyForId(1);
+            const session = new GroupSession({
+                id: current.sessionId ?? 0,
+                fabric,
+                keySetId: 1,
+                operationalGroupKey: current.key,
+                operationalPrivacyKey: current.privacyKey,
+                peerNodeId: NodeId(0xffffffffffff0002n),
+                multicastAddress: fabric.groups.multicastAddressFor(GroupId(2)),
+                messageCounter: new MessageCounter(fabric.crypto),
+            });
+            const message = (sourceNodeId: NodeId): Message => ({
+                packetHeader: {
+                    sessionId: current.sessionId ?? 0,
+                    sessionType: SessionType.Group,
+                    messageId: 0x12345679,
+                    destGroupId: 2,
+                    sourceNodeId,
+                    hasPrivacyEnhancements: true,
+                    isControlMessage: false,
+                    hasMessageExtensions: false,
+                },
+                payloadHeader: {
+                    isInitiatorMessage: true,
+                    requiresAck: false,
+                    messageType: 0x05,
+                    exchangeId: 0x1234,
+                    protocolId: 0x0001,
+                    ackedMessageId: undefined,
+                    hasSecuredExtension: false,
+                },
+                payload: b$`00112233`,
+            });
+
+            const wire = MessageCodec.encodePacket(session.encode(message(NodeId(7))));
+            const decodedPacket = MessageCodec.decodePacket(wire);
+            const aad = Bytes.of(wire).slice(0, wire.byteLength - decodedPacket.applicationPayload.byteLength);
+
+            expect(GroupSession.decode(fabricManager, decodedPacket, aad).sourceNodeId).equals(NodeId(7));
+        });
 
         it("round-trips a group message with privacy enabled", async () => {
             const { fabric, fabricManager } = await groupFabric();
@@ -389,3 +546,19 @@ describe("SecureSession", () => {
         });
     });
 });
+
+function captureLogs<T>(fn: () => T) {
+    const dest = Logger.destinations.default;
+    const { format, write } = dest;
+    const logs = new Array<{ level: LogLevel; message: string }>();
+    try {
+        dest.format = LogFormat.formats.plain;
+        dest.write = (message: string, { level }: Diagnostic.Message) => {
+            logs.push({ level, message });
+        };
+        return { result: fn(), logs };
+    } finally {
+        dest.format = format;
+        dest.write = write;
+    }
+}

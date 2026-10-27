@@ -9,6 +9,7 @@ import { Invoke } from "#action/request/Invoke.js";
 import { MalformedRequestError } from "#action/request/MalformedRequestError.js";
 import { Read } from "#action/request/Read.js";
 import { InvokeResult } from "#action/response/InvokeResult.js";
+import { ResultStatus } from "#action/response/ResultStatus.js";
 import { MessageType } from "#interaction/InteractionMessenger.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
@@ -30,9 +31,13 @@ import {
     EndpointNumber,
     InvokeRequest,
     InvokeResponse,
+    ReceivedStatusResponse,
+    ReceivedStatusResponseError,
     Status,
+    StatusResponse,
     TlvInvokeRequest,
     TlvInvokeResponse,
+    TlvStatusResponse,
 } from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { WebRtcTransportProvider } from "@matter/types/clusters/web-rtc-transport-provider";
@@ -125,6 +130,7 @@ describe("ClientInteraction invoke response reconciliation", () => {
                 commandRef: 1,
                 status: Status.Success,
                 clusterStatus: undefined,
+                received: true,
             },
             {
                 kind: "cmd-status",
@@ -158,6 +164,7 @@ describe("ClientInteraction invoke response reconciliation", () => {
                 commandRef: 1,
                 status: Status.Success,
                 clusterStatus: undefined,
+                received: true,
             },
             {
                 kind: "cmd-status",
@@ -165,6 +172,7 @@ describe("ClientInteraction invoke response reconciliation", () => {
                 commandRef: 2,
                 status: Status.Success,
                 clusterStatus: undefined,
+                received: true,
             },
         ]);
     });
@@ -183,6 +191,7 @@ describe("ClientInteraction invoke response reconciliation", () => {
                 commandRef: 1,
                 status: Status.Success,
                 clusterStatus: undefined,
+                received: true,
             },
             {
                 kind: "cmd-status",
@@ -190,6 +199,7 @@ describe("ClientInteraction invoke response reconciliation", () => {
                 commandRef: 2,
                 status: Status.Success,
                 clusterStatus: undefined,
+                received: true,
             },
             {
                 kind: "cmd-status",
@@ -197,6 +207,7 @@ describe("ClientInteraction invoke response reconciliation", () => {
                 commandRef: 99,
                 status: Status.Success,
                 clusterStatus: undefined,
+                received: true,
             },
         ]);
     });
@@ -335,6 +346,7 @@ describe("ClientInteraction invoke commandRef wire handling", () => {
                 commandRef: 5,
                 status: Status.Success,
                 clusterStatus: undefined,
+                received: true,
             },
         ]);
     });
@@ -368,6 +380,7 @@ describe("ClientInteraction invoke commandRef wire handling", () => {
                 commandRef: 1,
                 status: Status.Success,
                 clusterStatus: undefined,
+                received: true,
             },
             {
                 kind: "cmd-status",
@@ -375,6 +388,7 @@ describe("ClientInteraction invoke commandRef wire handling", () => {
                 commandRef: 2,
                 status: Status.Success,
                 clusterStatus: undefined,
+                received: true,
             },
         ]);
     });
@@ -712,6 +726,7 @@ describe("ClientInteraction invoke commandRef wire handling", () => {
                     commandRef: undefined,
                     status: Status.Success,
                     clusterStatus: undefined,
+                    received: true,
                 },
             ]);
             expect(second).deep.equals([
@@ -721,6 +736,7 @@ describe("ClientInteraction invoke commandRef wire handling", () => {
                     commandRef: undefined,
                     status: Status.Success,
                     clusterStatus: undefined,
+                    received: true,
                 },
             ]);
         } finally {
@@ -819,3 +835,68 @@ describe("ClientInteraction invoke response without InteractionModelRevision", (
         expect(entries[0]).deep.include({ kind: "cmd-status", commandRef: 1, status: Status.Success });
     });
 });
+
+describe("ClientInteraction invoke status origin", () => {
+    it("turns a status the peer sent into a received error", async () => {
+        const entries = await invokeWithCraftedResponse(twoOnOffCommands(), [
+            {
+                status: {
+                    commandPath: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: ON_OFF_CLUSTER_ID,
+                        commandId: CommandId(ON_COMMAND_ID),
+                    },
+                    status: { status: Status.Failure },
+                    commandRef: 1,
+                },
+            },
+        ]);
+
+        const error = ResultStatus.errorOf(entryFor(entries, 1));
+        expect(error).instanceOf(ReceivedStatusResponse.FailureError);
+    });
+
+    it("turns a synthesized NoCommandResponse into a local error", async () => {
+        const entries = await invokeWithCraftedResponse(twoOnOffCommands(), [successStatus(ON_COMMAND_ID, 1)]);
+
+        const error = ResultStatus.errorOf(entryFor(entries, 2));
+        expect(error).instanceOf(StatusResponse.NoCommandResponseError);
+        expect(error).not.instanceOf(ReceivedStatusResponseError);
+    });
+
+    it("throws a received error when the peer answers with a StatusResponse message", async () => {
+        const exchange = await createDummyMessageExchange(false, false, messageType => {
+            if (messageType === MessageType.InvokeRequest) {
+                return {
+                    messageType: MessageType.StatusResponse,
+                    payload: TlvStatusResponse.encode({
+                        status: Status.UnsupportedAccess,
+                        interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+                    }),
+                };
+            }
+        });
+        const client = new ClientInteraction({
+            environment: Environment.default,
+            exchangeProvider: new FakeExchangeProvider(exchange),
+        });
+
+        try {
+            await expect(
+                (async () => {
+                    for await (const _chunk of client.invoke(twoOnOffCommands()));
+                })(),
+            ).rejectedWith(ReceivedStatusResponse.UnsupportedAccessError);
+        } finally {
+            await client.close();
+        }
+    });
+});
+
+function entryFor(entries: InvokeResult.Data[], commandRef: number) {
+    const entry = entries.find(entry => entry.commandRef === commandRef);
+    if (entry?.kind !== "cmd-status") {
+        expect.fail(`no status entry for commandRef ${commandRef}`);
+    }
+    return entry;
+}

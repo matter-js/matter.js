@@ -7,12 +7,35 @@
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { IcdMultiAdminError } from "#behavior/system/icd/IcdMultiAdminError.js";
+import { IcdPeerAsleepError } from "#behavior/system/icd/IcdPeerAsleepError.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { IcdManagementClient, IcdManagementServer } from "#behaviors/icd-management";
+import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
-import { Bytes, Hours, ImplementationError, Millis, Minutes, Seconds, ServerAddressIp, Time } from "@matter/general";
-import { MockSite, seedPeerCache, settled, subscribedPeer } from "@matter/node/testing";
+import {
+    AbortedError,
+    Bytes,
+    createPromise,
+    Crypto,
+    Hours,
+    ImplementationError,
+    InternalError,
+    LogLevel,
+    MaybePromise,
+    MemoryStorageDriver,
+    Millis,
+    Minutes,
+    MockNetwork,
+    MockRouter,
+    Network,
+    Seconds,
+    ServerAddressIp,
+    StorageError,
+    SupportedStorageTypes,
+    Time,
+} from "@matter/general";
+import { captureLog, MockSite, seedPeerCache, settled, subscribedPeer } from "@matter/node/testing";
 import {
     ClientSubscribe,
     ClientSubscriptions,
@@ -22,9 +45,10 @@ import {
     PeerAddress,
     Subscribe,
     SustainedSubscription,
+    CheckInMessage,
     TestFabric,
 } from "@matter/protocol";
-import { FabricId, NodeId, SubjectId, VendorId } from "@matter/types";
+import { FabricId, NodeId, StatusResponse, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { commission, deviceLink, LIT_CONFIG, wakeDevice, wakefulnessOf } from "../../../node/icd-helpers.js";
 
@@ -84,6 +108,269 @@ async function simulateAddressChange(protopeer: Peer, remove: ServerAddressIp[],
     await protopeer.service.changed.emit();
 }
 
+/**
+ * Holds the next write of the ICD client's registration once armed, as file storage does while a commit is stored.
+ */
+class GatedIcdStorage extends MemoryStorageDriver {
+    static readonly gate = { armed: false, writing: createPromise<void>(), release: createPromise<void>() };
+
+    /** Fail the next write that stores a pending key; with {@link holdFailure}, only once the gate is released. */
+    static failPendingKeyWrite = false;
+    static holdFailure = false;
+
+    static arm() {
+        this.gate.armed = true;
+        this.gate.writing = createPromise<void>();
+        this.gate.release = createPromise<void>();
+    }
+
+    /** Hold the next write that stores a pending key at the gate, then fail it. */
+    static holdFailingPendingKeyWrite() {
+        this.failPendingKeyWrite = true;
+        this.holdFailure = true;
+        this.gate.writing = createPromise<void>();
+        this.gate.release = createPromise<void>();
+    }
+
+    override set(
+        contexts: string[],
+        keyOrValues: string | Record<string, SupportedStorageTypes>,
+        value?: SupportedStorageTypes,
+    ) {
+        const { gate } = GatedIcdStorage;
+        if (GatedIcdStorage.failPendingKeyWrite && typeof keyOrValues === "object" && "pendingKey" in keyOrValues) {
+            GatedIcdStorage.failPendingKeyWrite = false;
+            if (GatedIcdStorage.holdFailure) {
+                GatedIcdStorage.holdFailure = false;
+                gate.writing.resolver();
+                return gate.release.promise.then(() => {
+                    throw new StorageError("Simulated storage failure");
+                });
+            }
+            throw new StorageError("Simulated storage failure");
+        }
+        if (
+            gate.armed &&
+            typeof keyOrValues === "object" &&
+            ("lastOffset" in keyOrValues || "registered" in keyOrValues)
+        ) {
+            gate.armed = false;
+            gate.writing.resolver();
+            return gate.release.promise.then(() => super.set(contexts, keyOrValues, value));
+        }
+        return super.set(contexts, keyOrValues, value);
+    }
+}
+
+/** Register for real Check-Ins under a subject the subscription does not cover. */
+async function checkInPair(site: MockSite) {
+    const { controller, device } = await site.addCommissionedPair({
+        device: { type: RootWithIcd },
+    });
+    const peer1 = await subscribedPeer(controller, "peer1");
+    await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+    return { controller, device, peer1 };
+}
+
+function fedPeerOf(controller: ServerNode, peer: ClientNode) {
+    const { fabricIndex, nodeId } = peer.stateOf(CommissioningClient).peerAddress!;
+    const entry = controller.env.get(FabricManager).for(fabricIndex).icd.peerFor(nodeId);
+    if (entry === undefined) {
+        throw new InternalError("ICD peer not fed");
+    }
+    return entry;
+}
+
+/**
+ * Pull the baseline back by 2³¹ so the next device Check-In requests a key refresh, the state a deployment reaches after
+ * 2³¹ Check-Ins.
+ */
+async function requestRefreshOnNextCheckIn(controller: ServerNode, peer: ClientNode) {
+    const entry = fedPeerOf(controller, peer);
+    entry.counterStart = (entry.counterStart - 0x80000000) >>> 0;
+    await peer.act(agent => {
+        agent.get(IcdClient).state.counterStart = entry.counterStart;
+    });
+}
+
+/**
+ * Make the controller's next key differ from its current one.  Mock crypto repeats one byte per index, so without
+ * this a refreshed key equals the old one and a client on the wrong key still decrypts.
+ */
+function mintDistinctKeys(controller: ServerNode) {
+    const crypto = controller.env.get(Crypto);
+    if (!("index" in crypto) || typeof crypto.index !== "number") {
+        throw new InternalError("Controller crypto is not mock crypto");
+    }
+    crypto.index = crypto.index + 0x40;
+}
+
+/** The key the device holds for the controller. */
+function deviceKeyOf(device: ServerNode) {
+    const fabric = device.env.get(FabricManager).fabrics[0];
+    return fabric.icd.registrations[0]?.key;
+}
+
+async function until(condition: () => boolean) {
+    await MockTime.resolve(
+        (async () => {
+            while (!condition()) {
+                await MockTime.macrotask;
+            }
+        })(),
+        { macrotasks: true },
+    );
+}
+
+/** Drop the device's traffic while a condition holds, evaluated as each packet is routed. */
+function deviceTraffic(device: ServerNode) {
+    const network = device.env.get(Network);
+    if (!(network instanceof MockNetwork)) {
+        throw new InternalError("Device traffic control requires a mock network");
+    }
+    const control = {
+        dropFromDevice: (_packet: MockRouter.Packet) => false,
+        dropToDevice: (_packet: MockRouter.Packet) => false,
+    };
+    network.simulator.router.intercept((packet, route) => {
+        if (network.shouldReceive(packet.sourceAddress) && control.dropFromDevice(packet)) {
+            return;
+        }
+        if (network.shouldReceive(packet.destAddress) && control.dropToDevice(packet)) {
+            return;
+        }
+        route(packet);
+    });
+    return control;
+}
+
+/** Whether a packet carries a secured message; Check-Ins are unsecured (session ID 0). */
+function isSecured({ payload }: MockRouter.Packet) {
+    const bytes = Bytes.of(payload);
+    return bytes[1] !== 0 || bytes[2] !== 0;
+}
+
+/** Tracks whether a promise has settled. */
+function tracked(work: MaybePromise<unknown>) {
+    const promise = Promise.resolve(work);
+    const state = { settled: false, promise };
+    promise.then(
+        () => (state.settled = true),
+        () => (state.settled = true),
+    );
+    return state;
+}
+
+/** Refuses RegisterClient with FAILURE while {@link refusing} is set, as a device does for a mismatched key. */
+class RefusingIcdServer extends IcdManagementServer {
+    static refusing = false;
+
+    override registerClient(request: IcdManagement.RegisterClientRequest) {
+        if (RefusingIcdServer.refusing) {
+            throw new StatusResponse.FailureError("Refusing registration");
+        }
+        return super.registerClient(request);
+    }
+}
+
+/** Make the device send a Check-In without waiting for the device to settle, which a dropped exchange prevents. */
+async function triggerCheckIn(device: ServerNode) {
+    await device.act(agent => agent.get(IcdManagementServer).enterIdleMode());
+    await device.act(agent => agent.get(IcdManagementServer).requestActiveMode());
+}
+
+/** Hold the peer's ICD state in a transaction of its own until the returned release is called. */
+async function holdIcdState(peer: ClientNode) {
+    const locked = createPromise<void>();
+    const release = createPromise<void>();
+    const holder = peer.act("holder", async agent => {
+        await agent.context.transaction.lock(agent.get(IcdClient));
+        locked.resolver();
+        await release.promise;
+    });
+    await MockTime.resolve(locked.promise, { macrotasks: true });
+    return async () => {
+        release.resolver();
+        await MockTime.resolve(holder, { macrotasks: true });
+    };
+}
+
+/** Counts the registration commands the device receives. */
+class CountingIcdServer extends DslsIcdServer {
+    static registrations = 0;
+    static unregistrations = 0;
+
+    override registerClient(request: IcdManagement.RegisterClientRequest) {
+        CountingIcdServer.registrations++;
+        return super.registerClient(request);
+    }
+
+    override unregisterClient(request: IcdManagement.UnregisterClientRequest) {
+        CountingIcdServer.unregistrations++;
+        return super.unregisterClient(request);
+    }
+}
+
+/**
+ * A LIT peer registered under a subject the subscription does not cover, idle (interactions with it park until it
+ * wakes) and silenced, so no traffic wakes it until the test restores the link.
+ */
+async function sleepingLitPeer(site: MockSite) {
+    const { controller, device } = await site.addUncommissionedPair({
+        device: { type: ServerNode.RootEndpoint.with(CountingIcdServer), icdManagement: LIT_CONFIG },
+    });
+    await device.act(agent => agent.get(CountingIcdServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
+    await commission(controller, device);
+    const peer1 = await subscribedPeer(controller, "peer1");
+    await settleAutoRegistration(peer1);
+    await reRegisterWithSubject(peer1, SubjectId(NodeId(0xabcdn)));
+    const link = deviceLink(device);
+    link.silence();
+    // Past the awake window register() seeded
+    await MockTime.advance(Seconds(6));
+    await MockTime.macrotask;
+    CountingIcdServer.registrations = CountingIcdServer.unregistrations = 0;
+    return { controller, device, peer1, link };
+}
+
+/** A key refresh of a sleeping LIT peer, parked until the peer wakes. */
+async function parkedRefresh(site: MockSite) {
+    const pair = await sleepingLitPeer(site);
+    const { controller, device, peer1, link } = pair;
+    await requestRefreshOnNextCheckIn(controller, peer1);
+
+    // The Check-In that requests the refresh wakes the peer; hold its reaction until the awake window lapsed
+    const release = await holdIcdState(peer1);
+    link.restore();
+    await triggerCheckIn(device);
+    await until(() => CheckInMessage.refreshNeededAt(fedPeerOf(controller, peer1).lastOffset));
+    link.silence();
+    await MockTime.advance(Seconds(6));
+    await MockTime.macrotask;
+    await release();
+
+    await until(() => peer1.stateOf(IcdClient).pendingKey !== undefined);
+    expect(wakefulnessOf(controller, peer1)!.awake.value).false;
+    expect(CountingIcdServer.registrations).equals(0);
+    return pair;
+}
+
+/** Let the peer wake and send a Check-In, and give a parked interaction time to go out. */
+async function wakeSleepingPeer(device: ServerNode, link: { restore(): void }) {
+    link.restore();
+    await triggerCheckIn(device);
+    for (let i = 0; i < 20; i++) {
+        await MockTime.macrotask;
+    }
+    await MockTime.advance(Seconds(1));
+}
+
+function nextCheckIn(peer: ClientNode) {
+    return new Promise<{ counter: number; activeModeThreshold: number }>(resolve =>
+        peer.eventsOf(IcdClient).checkedIn.once(resolve),
+    );
+}
+
 /** Past the deadline of the next report (subscription liveness timeout of about an hour) of a peer that sends nothing. */
 const SILENT_PAST_WINDOW = Minutes(70);
 
@@ -139,7 +426,7 @@ describe("IcdClient", () => {
 
             const state = peer1.stateOf(IcdClient);
             expect(state.registered).true;
-            expect(state.counterStart).not.undefined;
+            expect(state.counterStart).equals(device.stateOf(IcdManagementServer).icdCounter);
             expect(state.lastOffset).equals(0);
             expect(state.key).not.undefined;
 
@@ -441,15 +728,13 @@ describe("IcdClient", () => {
             await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
 
             const originalCounterStart = peer1.stateOf(IcdClient).counterStart!;
+            const originalKey = peer1.stateOf(IcdClient).key!;
+            mintDistinctKeys(controller);
 
-            // Pull the running peer's rolling baseline back by 2^31 so the next real device Check-In (counter near the
-            // original baseline) lands at offset >= KEY_REFRESH_OFFSET and reports refreshNeeded — the state a real
-            // deployment reaches organically after 2^31 check-ins. The real RX path then drives #onCheckIn → #refreshKey.
             const fabricIndex = peer1.stateOf(CommissioningClient).peerAddress!.fabricIndex;
             const fabric = controller.env.get(FabricManager).for(fabricIndex);
             const peerNodeId = peer1.stateOf(CommissioningClient).peerAddress!.nodeId;
-            const peerEntry = fabric.icd.peerFor(peerNodeId)!;
-            peerEntry.counterStart = (originalCounterStart - 0x80000000) >>> 0;
+            await requestRefreshOnNextCheckIn(controller, peer1);
 
             // The wakefulness must survive a re-key in place: a parked subscription holds this instance.
             const wakefulnessBefore = fabric.icd.wakefulnessFor(peerNodeId);
@@ -460,12 +745,9 @@ describe("IcdClient", () => {
 
             await wakeDevice(device);
             await MockTime.resolve(refreshed, { macrotasks: true });
-            // keyRefreshed emits inside the refresh transaction; let it commit before reading state.
-            await settled(controller, peer1);
 
             const state = peer1.stateOf(IcdClient);
-            // counterStart advancing proves the re-key registerClient round-trip ran (MockCrypto.randomBytes is
-            // deterministic, so the key bytes themselves cannot be asserted to differ).
+            expect(Bytes.areEqual(state.key!, originalKey)).false;
             expect(state.lastOffset).equals(0);
             expect(state.counterStart).not.equals(originalCounterStart);
 
@@ -494,26 +776,1227 @@ describe("IcdClient", () => {
             const peer1 = await subscribedPeer(controller, "peer1");
             await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
             const originalCounterStart = peer1.stateOf(IcdClient).counterStart!;
+            mintDistinctKeys(controller);
 
-            const fabricIndex = peer1.stateOf(CommissioningClient).peerAddress!.fabricIndex;
-            const fabric = controller.env.get(FabricManager).for(fabricIndex);
-            const peerNodeId = peer1.stateOf(CommissioningClient).peerAddress!.nodeId;
-            fabric.icd.peerFor(peerNodeId)!.counterStart = (originalCounterStart - 0x80000000) >>> 0;
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const pulledBack = peer1.stateOf(IcdClient).counterStart;
 
+            const events = new Array<string>();
+            peer1.eventsOf(IcdClient).keyRefreshed.on(() => {
+                events.push("keyRefreshed");
+            });
             const changed = new Promise<{ value?: number; previous?: number; committed?: number }>(resolve =>
-                peer1
-                    .eventsOf(IcdClient)
-                    .counterStart$Changed.once((value, previous) =>
-                        resolve({ value, previous, committed: peer1.stateOf(IcdClient).counterStart }),
-                    ),
+                peer1.eventsOf(IcdClient).counterStart$Changed.on((value, previous) => {
+                    events.push("counterStart");
+                    resolve({ value, previous, committed: peer1.stateOf(IcdClient).counterStart });
+                }),
             );
 
             await wakeDevice(device);
             const { value, previous, committed } = await MockTime.resolve(changed, { macrotasks: true });
+            await settled(controller, peer1);
 
-            expect(previous).equals(originalCounterStart);
+            expect(previous).equals(pulledBack);
+            expect(value).not.equals(pulledBack);
             expect(value).not.equals(originalCounterStart);
             expect(committed).equals(value);
+            expect(events).deep.equals(["keyRefreshed", "counterStart"]);
+        });
+
+        it("offers no key and keeps the receive path on the committed state when storing the offered key fails", async () => {
+            await using site = new MockSite({ createStorageDriver: store => new GatedIcdStorage(store) });
+            const { controller, device, peer1 } = await checkInPair(site);
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const storedKey = peer1.stateOf(IcdClient).key!;
+
+            using log = captureLog(LogLevel.WARN);
+            GatedIcdStorage.failPendingKeyWrite = true;
+            await triggerCheckIn(device);
+            await until(() => log.messages.some(message => message.includes("will retry on next check-in")));
+
+            // The store fails in commit phase two, so the offered key stays committed in memory
+            const { pendingKey } = peer1.stateOf(IcdClient);
+            expect(pendingKey).not.undefined;
+            expect(Bytes.areEqual(fedPeerOf(controller, peer1).pendingKey!, pendingKey!)).true;
+            expect(Bytes.areEqual(fedPeerOf(controller, peer1).key, storedKey)).true;
+            expect(Bytes.areEqual(deviceKeyOf(device)!, storedKey)).true;
+        });
+
+        it("rejects a replay of a Check-In accepted while storing the offered key failed", async () => {
+            await using site = new MockSite({ createStorageDriver: store => new GatedIcdStorage(store) });
+            const { controller, device, peer1 } = await checkInPair(site);
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const oldKey = peer1.stateOf(IcdClient).key!;
+            const { fabricIndex } = peer1.stateOf(CommissioningClient).peerAddress!;
+            const fabricIcd = controller.env.get(FabricManager).for(fabricIndex).icd;
+            let checkIns = 0;
+            peer1.eventsOf(IcdClient).checkedIn.on(() => {
+                checkIns++;
+            });
+
+            using log = captureLog(LogLevel.WARN);
+            GatedIcdStorage.holdFailingPendingKeyWrite();
+            await triggerCheckIn(device);
+            await MockTime.resolve(GatedIcdStorage.gate.writing.promise, { macrotasks: true });
+
+            // Accepted while the refresh holds the state with its failing commit
+            const entry = fedPeerOf(controller, peer1);
+            const counter = (entry.counterStart + entry.lastOffset + 1) >>> 0;
+            const checkIn = await CheckInMessage.encodeIcd(controller.env.get(Crypto), oldKey, counter, 5000);
+            await fabricIcd.processCheckIn(checkIn);
+            expect(checkIns).equals(1);
+
+            GatedIcdStorage.gate.release.resolver();
+            await until(() => log.messages.some(message => message.includes("will retry on next check-in")));
+            await fabricIcd.processCheckIn(checkIn);
+            for (let i = 0; i < 10; i++) {
+                await MockTime.macrotask;
+            }
+
+            expect(checkIns).equals(2);
+        });
+
+        it("refreshes the key while the Check-In that requested it still commits", async () => {
+            await using site = new MockSite({ createStorageDriver: store => new GatedIcdStorage(store) });
+            const { controller, device, peer1 } = await checkInPair(site);
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const oldKey = deviceKeyOf(device)!;
+
+            using log = captureLog(LogLevel.WARN);
+            GatedIcdStorage.arm();
+            await wakeDevice(device);
+            await MockTime.resolve(GatedIcdStorage.gate.writing.promise, { macrotasks: true });
+            for (let i = 0; i < 10; i++) {
+                await MockTime.macrotask;
+            }
+            // The refresh waits for the Check-In reaction's commit before it offers a key
+            expect(Bytes.areEqual(deviceKeyOf(device)!, oldKey)).true;
+            expect(peer1.stateOf(IcdClient).pendingKey).undefined;
+            GatedIcdStorage.gate.release.resolver();
+
+            await until(() => !Bytes.areEqual(deviceKeyOf(device)!, oldKey));
+            await until(() => Bytes.areEqual(peer1.stateOf(IcdClient).key!, deviceKeyOf(device)!));
+            expect(peer1.stateOf(IcdClient).pendingKey).undefined;
+            expect(log.messages.filter(message => message.includes("key refresh"))).deep.equals([]);
+
+            const checkedIn = nextCheckIn(peer1);
+            await wakeDevice(device);
+            await MockTime.resolve(checkedIn, { macrotasks: true });
+        });
+
+        it("stores the confirmed key when another transaction holds the ICD state at the response", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer1 } = await checkInPair(site);
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const oldKey = deviceKeyOf(device)!;
+
+            using log = captureLog(LogLevel.WARN);
+            await triggerCheckIn(device);
+            await until(() => !Bytes.areEqual(deviceKeyOf(device)!, oldKey));
+
+            const release = await holdIcdState(peer1);
+            for (let i = 0; i < 10; i++) {
+                await MockTime.macrotask;
+            }
+            expect(Bytes.areEqual(peer1.stateOf(IcdClient).key!, oldKey)).true;
+            expect(peer1.stateOf(IcdClient).pendingKey).not.undefined;
+            await release();
+
+            await until(() => Bytes.areEqual(peer1.stateOf(IcdClient).key!, deviceKeyOf(device)!));
+            expect(peer1.stateOf(IcdClient).pendingKey).undefined;
+            expect(log.messages.filter(message => message.includes("key refresh"))).deep.equals([]);
+        });
+    });
+
+    describe("key refresh outcome", () => {
+        it("takes the new key from the first Check-In when the response was lost", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer1 } = await checkInPair(site);
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const oldKey = deviceKeyOf(device)!;
+            const traffic = deviceTraffic(device);
+            traffic.dropFromDevice = () => !Bytes.areEqual(deviceKeyOf(device)!, oldKey);
+
+            using log = captureLog(LogLevel.WARN);
+            const checkIn = nextCheckIn(peer1);
+            await triggerCheckIn(device);
+            const lastOldCounter = (await MockTime.resolve(checkIn, { macrotasks: true })).counter;
+            await until(() => log.messages.some(message => message.includes("ICD key refresh")));
+
+            const { key, pendingKey } = peer1.stateOf(IcdClient);
+            expect(Bytes.areEqual(key!, oldKey)).true;
+            expect(Bytes.areEqual(pendingKey!, deviceKeyOf(device)!)).true;
+
+            traffic.dropFromDevice = () => false;
+            const refreshed = new Promise<void>(resolve =>
+                peer1.eventsOf(IcdClient).keyRefreshed.once(() => resolve()),
+            );
+            const checkedIn = nextCheckIn(peer1);
+            await triggerCheckIn(device);
+            const { counter } = await MockTime.resolve(checkedIn, { macrotasks: true });
+            await MockTime.resolve(refreshed, { macrotasks: true });
+            await until(() => peer1.stateOf(IcdClient).pendingKey === undefined);
+
+            const state = peer1.stateOf(IcdClient);
+            expect(Bytes.areEqual(state.key!, deviceKeyOf(device)!)).true;
+            expect(state.pendingKey).undefined;
+            expect(state.counterStart).equals(lastOldCounter);
+            expect(state.lastOffset).equals(counter - lastOldCounter);
+        });
+
+        it("offers the same pending key again after the request was lost", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer1 } = await checkInPair(site);
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const oldKey = deviceKeyOf(device)!;
+            const traffic = deviceTraffic(device);
+            traffic.dropToDevice = () => peer1.stateOf(IcdClient).pendingKey !== undefined;
+
+            using log = captureLog(LogLevel.WARN);
+            await triggerCheckIn(device);
+            await until(() => log.messages.some(message => message.includes("ICD key refresh")));
+            const pendingKey = peer1.stateOf(IcdClient).pendingKey!;
+            expect(Bytes.areEqual(deviceKeyOf(device)!, oldKey)).true;
+
+            // A further refresh would mint another key from here
+            mintDistinctKeys(controller);
+            traffic.dropToDevice = () => false;
+            const refreshed = new Promise<void>(resolve =>
+                peer1.eventsOf(IcdClient).keyRefreshed.once(() => resolve()),
+            );
+            await triggerCheckIn(device);
+            await MockTime.resolve(refreshed, { macrotasks: true });
+            await until(() => peer1.stateOf(IcdClient).pendingKey === undefined);
+
+            expect(Bytes.areEqual(deviceKeyOf(device)!, pendingKey)).true;
+            expect(Bytes.areEqual(peer1.stateOf(IcdClient).key!, pendingKey)).true;
+            expect(peer1.stateOf(IcdClient).pendingKey).undefined;
+        });
+
+        it("keeps the pending key when the device refuses the refresh, and offers it again", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: ServerNode.RootEndpoint.with(RefusingIcdServer) },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const oldKey = deviceKeyOf(device)!;
+
+            using log = captureLog(LogLevel.WARN);
+            RefusingIcdServer.refusing = true;
+            try {
+                await triggerCheckIn(device);
+                await until(() => log.messages.some(message => message.includes("ICD key refresh")));
+            } finally {
+                RefusingIcdServer.refusing = false;
+            }
+
+            const { key, pendingKey } = peer1.stateOf(IcdClient);
+            expect(Bytes.areEqual(deviceKeyOf(device)!, oldKey)).true;
+            expect(Bytes.areEqual(key!, oldKey)).true;
+            expect(pendingKey).not.undefined;
+            expect(Bytes.areEqual(fedPeerOf(controller, peer1).pendingKey!, pendingKey!)).true;
+
+            mintDistinctKeys(controller);
+            const refreshed = new Promise<void>(resolve =>
+                peer1.eventsOf(IcdClient).keyRefreshed.once(() => resolve()),
+            );
+            await triggerCheckIn(device);
+            await MockTime.resolve(refreshed, { macrotasks: true });
+            await until(() => peer1.stateOf(IcdClient).pendingKey === undefined);
+
+            expect(Bytes.areEqual(deviceKeyOf(device)!, pendingKey!)).true;
+            expect(Bytes.areEqual(peer1.stateOf(IcdClient).key!, pendingKey!)).true;
+        });
+
+        it("decrypts Check-Ins under the pending key after a controller restart", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer1 } = await checkInPair(site);
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const oldKey = deviceKeyOf(device)!;
+            const traffic = deviceTraffic(device);
+            traffic.dropFromDevice = () => !Bytes.areEqual(deviceKeyOf(device)!, oldKey);
+
+            using log = captureLog(LogLevel.WARN);
+            await triggerCheckIn(device);
+            await until(() => log.messages.some(message => message.includes("ICD key refresh")));
+            expect(peer1.stateOf(IcdClient).pendingKey).not.undefined;
+
+            const controllerId = controller.id;
+            await controller.close();
+            traffic.dropFromDevice = () => false;
+            const controllerB = await site.addNode(undefined, { id: controllerId, index: 1 });
+            const peer1b = controllerB.peers.get("peer1")!;
+            expect(Bytes.areEqual(fedPeerOf(controllerB, peer1b).pendingKey!, deviceKeyOf(device)!)).true;
+            await subscribedPeer(controllerB, "peer1");
+
+            const checkedIn = nextCheckIn(peer1b);
+            // The device's Check-In back-off skips one wake after its unanswered Check-Ins
+            await triggerCheckIn(device);
+            await triggerCheckIn(device);
+            await MockTime.resolve(checkedIn, { macrotasks: true });
+            await until(() => peer1b.stateOf(IcdClient).pendingKey === undefined);
+
+            expect(Bytes.areEqual(peer1b.stateOf(IcdClient).key!, deviceKeyOf(device)!)).true;
+            expect(peer1b.stateOf(IcdClient).pendingKey).undefined;
+        });
+    });
+
+    describe("ICD state held by another transaction", () => {
+        it("registers once the state is free", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const release = await holdIcdState(peer1);
+            const registering = tracked(peer1.act(agent => agent.get(IcdClient).register()));
+            await until(() => device.stateOf(IcdManagementServer).registeredClients.length === 1);
+            for (let i = 0; i < 10; i++) {
+                await MockTime.macrotask;
+            }
+            expect(registering.settled).false;
+            expect(peer1.stateOf(IcdClient).registered).false;
+            await release();
+            await MockTime.resolve(registering.promise, { macrotasks: true });
+
+            expect(peer1.stateOf(IcdClient).registered).true;
+            expect(Bytes.areEqual(peer1.stateOf(IcdClient).key!, deviceKeyOf(device)!)).true;
+        });
+
+        it("waits for the state in forget()", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register());
+
+            const release = await holdIcdState(peer1);
+            const ending = tracked(peer1.act(agent => agent.get(IcdClient).forget()));
+            for (let i = 0; i < 10; i++) {
+                await MockTime.macrotask;
+            }
+            expect(ending.settled).false;
+            expect(peer1.stateOf(IcdClient).registered).true;
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(1);
+            await release();
+            await MockTime.resolve(ending.promise, { macrotasks: true });
+
+            expect(peer1.stateOf(IcdClient).registered).false;
+            expect(peer1.stateOf(IcdClient).key).undefined;
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(1);
+        });
+
+        it("clears the registration once when a decommission waits behind unregister() for the state", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register());
+            const { fabricIndex, nodeId } = peer1.stateOf(CommissioningClient).peerAddress!;
+            const fabricIcd = controller.env.get(FabricManager).for(fabricIndex).icd;
+            let unregistered = 0;
+            peer1.eventsOf(IcdClient).unregistered.on(() => {
+                unregistered++;
+            });
+
+            const release = await holdIcdState(peer1);
+            const ending = tracked(peer1.act(agent => agent.get(IcdClient).unregister()));
+            await MockTime.macrotask;
+            expect(ending.settled).false;
+            expect(peer1.stateOf(IcdClient).key).not.undefined;
+            const decommissioning = tracked(peer1.act(agent => agent.get(CommissioningClient).decommission()));
+            await MockTime.macrotask;
+            await release();
+            await MockTime.resolve(Promise.allSettled([ending.promise, decommissioning.promise]), {
+                macrotasks: true,
+            });
+            await until(() => !peer1.stateOf(IcdClient).registered);
+            await settled(controller, device);
+
+            expect(unregistered).equals(1);
+            expect(peer1.stateOf(IcdClient).key).undefined;
+            expect(fabricIcd.peerFor(nodeId)).undefined;
+        });
+
+        it("measures from the response's starting counter when a Check-In confirmed the key first", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer1 } = await checkInPair(site);
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const oldKey = deviceKeyOf(device)!;
+            const events = new Array<string>();
+            peer1.eventsOf(IcdClient).keyRefreshed.on(() => {
+                events.push("keyRefreshed");
+            });
+            peer1.eventsOf(IcdClient).counterStart$Changed.on(value => {
+                events.push(`counterStart ${value}`);
+            });
+
+            const oldCheckIn = nextCheckIn(peer1);
+            await triggerCheckIn(device);
+            const lastOldCounter = (await MockTime.resolve(oldCheckIn, { macrotasks: true })).counter;
+            await until(() => !Bytes.areEqual(deviceKeyOf(device)!, oldKey));
+            const release = await holdIcdState(peer1);
+            // As if earlier Check-Ins under the old key were lost: the baseline a Check-In confirms from lies lower
+            fedPeerOf(controller, peer1).lastOffset -= 5;
+
+            const newCheckIn = nextCheckIn(peer1);
+            await triggerCheckIn(device);
+            await until(() => fedPeerOf(controller, peer1).pendingKey === undefined);
+            expect(fedPeerOf(controller, peer1).counterStart).equals(lastOldCounter - 5);
+            await release();
+            const { counter } = await MockTime.resolve(newCheckIn, { macrotasks: true });
+            await until(() => peer1.stateOf(IcdClient).pendingKey === undefined);
+            await settled(controller, peer1);
+
+            const state = peer1.stateOf(IcdClient);
+            expect(Bytes.areEqual(state.key!, deviceKeyOf(device)!)).true;
+            expect(state.counterStart).equals(lastOldCounter);
+            expect(state.lastOffset).equals(counter - lastOldCounter);
+            expect(events).deep.equals(["keyRefreshed", `counterStart ${lastOldCounter}`]);
+        });
+
+        it("rejects a replay after a restart between a Check-In that confirmed the key and the lost response", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: ServerNode.RootEndpoint.with(CountingIcdServer), icdManagement: LIT_CONFIG },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const oldKey = deviceKeyOf(device)!;
+            CountingIcdServer.registrations = 0;
+            // Every secured reply after the device handled the RegisterClient is lost, so the response never arrives
+            const traffic = deviceTraffic(device);
+            traffic.dropFromDevice = packet => isSecured(packet) && CountingIcdServer.registrations > 0;
+            const events = new Array<string>();
+            peer1.eventsOf(IcdClient).keyRefreshed.on(() => {
+                events.push("keyRefreshed");
+            });
+            peer1.eventsOf(IcdClient).counterStart$Changed.on(value => {
+                events.push(`counterStart ${value}`);
+            });
+
+            using log = captureLog(LogLevel.WARN);
+            const oldCheckIn = nextCheckIn(peer1);
+            await triggerCheckIn(device);
+            const lastOldCounter = (await MockTime.resolve(oldCheckIn, { macrotasks: true })).counter;
+            await until(() => !Bytes.areEqual(deviceKeyOf(device)!, oldKey));
+            const newKey = deviceKeyOf(device)!;
+
+            const newCheckIn = nextCheckIn(peer1);
+            await triggerCheckIn(device);
+            const { counter, activeModeThreshold } = await MockTime.resolve(newCheckIn, { macrotasks: true });
+            for (let i = 0; i < 10; i++) {
+                await MockTime.macrotask;
+            }
+            const stored = { ...peer1.stateOf(IcdClient) };
+            const eventsBeforeRestart = [...events];
+            expect(log.messages.filter(message => message.includes("key refresh"))).deep.equals([]);
+
+            // A crash while the refresh still waits for its response: storage keeps what was written up to now
+            const storage = site.storageFor(controller);
+            const atCrash = structuredClone(storage);
+            await MockTime.resolve(controller.close());
+            for (const key of Object.keys(storage)) {
+                delete storage[key];
+            }
+            Object.assign(storage, atCrash);
+            const controllerB = await site.addNode(undefined, { id: controller.id, index: 1 });
+            const peer1b = controllerB.peers.get("peer1")!;
+            let checkIns = 0;
+            peer1b.eventsOf(IcdClient).checkedIn.on(() => {
+                checkIns++;
+            });
+            const fabricIcd = controllerB.env
+                .get(FabricManager)
+                .for(peer1b.stateOf(CommissioningClient).peerAddress!.fabricIndex).icd;
+            const replay = await CheckInMessage.encodeIcd(
+                controllerB.env.get(Crypto),
+                newKey,
+                counter,
+                activeModeThreshold,
+            );
+            await fabricIcd.processCheckIn(replay);
+            for (let i = 0; i < 10; i++) {
+                await MockTime.macrotask;
+            }
+
+            expect(checkIns).equals(0);
+            // The Check-In stored the key it confirmed at once
+            expect(Bytes.areEqual(stored.key!, newKey)).true;
+            expect(stored).deep.include({ counterStart: lastOldCounter, pendingKey: undefined });
+            expect(eventsBeforeRestart).deep.equals(["keyRefreshed", `counterStart ${lastOldCounter}`]);
+        });
+
+        it("rejects a replay after a restart when shutdown abandoned a teardown that accepted the Check-In", async () => {
+            await using site = new MockSite();
+            const { controller, peer1 } = await sleepingLitPeer(site);
+            const { fabricIndex } = peer1.stateOf(CommissioningClient).peerAddress!;
+            const fabricIcd = controller.env.get(FabricManager).for(fabricIndex).icd;
+            const { key } = peer1.stateOf(IcdClient);
+            const entry = fedPeerOf(controller, peer1);
+            const counter = (entry.counterStart + entry.lastOffset + 1) >>> 0;
+            const checkIn = await CheckInMessage.encodeIcd(controller.env.get(Crypto), key!, counter, 5000);
+
+            // unregister() waits for the sleeping peer; its Check-In is accepted while the state is held
+            const release = await holdIcdState(peer1);
+            const ending = tracked(peer1.act(agent => agent.get(IcdClient).unregister()));
+            await MockTime.macrotask;
+            await fabricIcd.processCheckIn(checkIn);
+            // Shutdown abandons the teardown before its clear
+            peer1.lifecycle.change(EndpointLifecycle.Change.Destroying);
+            await release();
+            await MockTime.resolve(
+                ending.promise.then(undefined, () => {}),
+                { macrotasks: true },
+            );
+            expect(peer1.stateOf(IcdClient).registered).true;
+
+            await MockTime.resolve(controller.close());
+            const controllerB = await site.addNode(undefined, { id: controller.id, index: 1 });
+            const peer1b = controllerB.peers.get("peer1")!;
+            let checkIns = 0;
+            peer1b.eventsOf(IcdClient).checkedIn.on(() => {
+                checkIns++;
+            });
+            await controllerB.env.get(FabricManager).for(fabricIndex).icd.processCheckIn(checkIn);
+            for (let i = 0; i < 10; i++) {
+                await MockTime.macrotask;
+            }
+
+            expect(checkIns).equals(0);
+        });
+
+        it("starts no refresh after a checkedIn listener began forget()", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer1 } = await checkInPair(site);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+
+            using log = captureLog(LogLevel.WARN);
+            let forgetting: ReturnType<typeof tracked> | undefined;
+            peer1.eventsOf(IcdClient).checkedIn.once(() => {
+                forgetting = tracked(peer1.act(agent => agent.get(IcdClient).forget()));
+            });
+            await triggerCheckIn(device);
+            await until(() => forgetting !== undefined);
+            await MockTime.resolve(forgetting!.promise, { macrotasks: true });
+            await settled(controller);
+
+            expect(peer1.stateOf(IcdClient).registered).false;
+            expect(
+                log.messages.filter(message => message.includes("IcdClient") || message.includes(".icd.")),
+            ).deep.equals([]);
+        });
+
+        it("keeps the registration when a registered listener throws, and unregisters it later", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({ device: { type: RootWithIcd } });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            let storedInListener: boolean | undefined;
+            let nextListenerCalled = false;
+            peer1.eventsOf(IcdClient).registered.once(() => {
+                storedInListener = peer1.stateOf(IcdClient).key !== undefined;
+                throw new InternalError("listener failure");
+            });
+            peer1.eventsOf(IcdClient).registered.once(() => {
+                nextListenerCalled = true;
+            });
+
+            using log = captureLog(LogLevel.WARN);
+            await peer1.act(agent => agent.get(IcdClient).register());
+
+            expect(storedInListener).true;
+            expect(nextListenerCalled).true;
+            expect(peer1.stateOf(IcdClient).registered).true;
+            expect(log.messages.some(message => message.includes("ICD client registered listener"))).true;
+            await peer1.act(agent => agent.get(IcdClient).unregister());
+            expect(peer1.stateOf(IcdClient).registered).false;
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(0);
+        });
+
+        it("keeps the clear when an unregistered listener throws, and registers again later", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({ device: { type: RootWithIcd } });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register());
+            let clearedInListener: boolean | undefined;
+            let nextListenerCalled = false;
+            peer1.eventsOf(IcdClient).unregistered.once(() => {
+                clearedInListener = peer1.stateOf(IcdClient).key === undefined;
+                throw new InternalError("listener failure");
+            });
+            peer1.eventsOf(IcdClient).unregistered.once(() => {
+                nextListenerCalled = true;
+            });
+
+            using log = captureLog(LogLevel.WARN);
+            await peer1.act(agent => agent.get(IcdClient).unregister());
+
+            expect(clearedInListener).true;
+            expect(nextListenerCalled).true;
+            expect(peer1.stateOf(IcdClient).registered).false;
+            expect(log.messages.some(message => message.includes("ICD client unregistered listener"))).true;
+            await peer1.act(agent => agent.get(IcdClient).register());
+            expect(peer1.stateOf(IcdClient).registered).true;
+        });
+
+        it("ends a retry when a Check-In under the pending key confirms it while the retry waits for the state", async () => {
+            await using site = new MockSite({ createStorageDriver: store => new GatedIcdStorage(store) });
+            const { controller, device, peer1 } = await checkInPair(site);
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const oldKey = deviceKeyOf(device)!;
+            const traffic = deviceTraffic(device);
+            traffic.dropFromDevice = packet => isSecured(packet) && !Bytes.areEqual(deviceKeyOf(device)!, oldKey);
+            let refreshes = 0;
+            peer1.eventsOf(IcdClient).keyRefreshed.on(() => {
+                refreshes++;
+            });
+
+            // The device takes the new key, the response is lost, and the refresh gives up with the key pending
+            using log = captureLog(LogLevel.WARN);
+            await triggerCheckIn(device);
+            await until(() => log.messages.some(message => message.includes("key refresh")));
+            const newKey = deviceKeyOf(device)!;
+            expect(Bytes.areEqual(peer1.stateOf(IcdClient).pendingKey!, newKey)).true;
+
+            // A late Check-In under the old key starts a retry, which waits behind that Check-In's commit
+            const entry = fedPeerOf(controller, peer1);
+            const lastOldCounter = (entry.counterStart + entry.lastOffset) >>> 0;
+            const crypto = controller.env.get(Crypto);
+            GatedIcdStorage.arm();
+            const { fabricIndex } = peer1.stateOf(CommissioningClient).peerAddress!;
+            const fabricIcd = controller.env.get(FabricManager).for(fabricIndex).icd;
+            await fabricIcd.processCheckIn(
+                await CheckInMessage.encodeIcd(crypto, oldKey, (lastOldCounter + 1) >>> 0, 5000),
+            );
+            await MockTime.resolve(GatedIcdStorage.gate.writing.promise, { macrotasks: true });
+
+            // Meanwhile a Check-In under the new key confirms it
+            await fabricIcd.processCheckIn(
+                await CheckInMessage.encodeIcd(crypto, newKey, (lastOldCounter + 2) >>> 0, 5000),
+            );
+            expect(fedPeerOf(controller, peer1).pendingKey).undefined;
+            GatedIcdStorage.gate.release.resolver();
+            await until(() => peer1.stateOf(IcdClient).pendingKey === undefined);
+            await settled(controller);
+
+            expect(Bytes.areEqual(peer1.stateOf(IcdClient).key!, newKey)).true;
+            expect(fedPeerOf(controller, peer1).pendingKey).undefined;
+            expect(refreshes).equals(1);
+        });
+
+        it("unregister() abandons a key refresh that waits for its response", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer1 } = await checkInPair(site);
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const oldKey = deviceKeyOf(device)!;
+            const traffic = deviceTraffic(device);
+            traffic.dropFromDevice = () => !Bytes.areEqual(deviceKeyOf(device)!, oldKey);
+
+            using log = captureLog(LogLevel.DEBUG);
+            await triggerCheckIn(device);
+            await until(() => !Bytes.areEqual(deviceKeyOf(device)!, oldKey));
+            const ending = tracked(peer1.act(agent => agent.get(IcdClient).unregister()));
+            await until(() =>
+                log.messages.some(message => message.includes("ICD key refresh") && message.includes("abandoned")),
+            );
+            traffic.dropFromDevice = () => false;
+            await MockTime.resolve(ending.promise, { macrotasks: true });
+
+            const state = peer1.stateOf(IcdClient);
+            expect(state.registered).false;
+            expect(state.pendingKey).undefined;
+            expect(state.key).undefined;
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(0);
+            expect(log.messages.filter(message => message.includes("failed; will retry"))).deep.equals([]);
+        });
+    });
+
+    describe("registration operations", () => {
+        it("joins a registration in flight with the same options and refuses other options", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({ device: { type: RootWithIcd } });
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const first = tracked(peer1.act(agent => agent.get(IcdClient).register()));
+            const joined = tracked(
+                peer1.act(agent =>
+                    agent.get(IcdClient).register({
+                        allowMultiAdmin: false,
+                        clientType: IcdManagement.ClientType.Permanent,
+                        ignoredVendors: [...IcdMultiAdminError.TRUSTED_ECOSYSTEM_VENDORS].reverse(),
+                    }),
+                ),
+            );
+            await expect(
+                MockTime.resolve(
+                    peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) })),
+                ),
+            ).rejectedWith(ImplementationError, /other options/);
+            await MockTime.resolve(Promise.all([first.promise, joined.promise]), { macrotasks: true });
+
+            expect(peer1.stateOf(IcdClient).registered).true;
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(1);
+        });
+
+        it("unregister() during a registration abandons it and removes it from the device", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({ device: { type: RootWithIcd } });
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const registering = tracked(peer1.act(agent => agent.get(IcdClient).register()));
+            await until(() => device.stateOf(IcdManagementServer).registeredClients.length === 1);
+            await MockTime.resolve(
+                peer1.act(agent => agent.get(IcdClient).unregister()),
+                { macrotasks: true },
+            );
+            await expect(registering.promise).rejectedWith(AbortedError);
+
+            expect(peer1.stateOf(IcdClient).registered).false;
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(0);
+        });
+
+        it("forget() during a registration abandons it", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({ device: { type: RootWithIcd } });
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            let unregistered = 0;
+            peer1.eventsOf(IcdClient).unregistered.on(() => {
+                unregistered++;
+            });
+
+            const registering = tracked(peer1.act(agent => agent.get(IcdClient).register()));
+            await MockTime.resolve(peer1.act(agent => agent.get(IcdClient).forget()));
+            await expect(registering.promise).rejectedWith(AbortedError);
+
+            expect(peer1.stateOf(IcdClient).registered).false;
+            expect(unregistered).equals(0);
+        });
+
+        it("refuses register() while a key refresh runs", async () => {
+            await using site = new MockSite();
+            const { peer1 } = await parkedRefresh(site);
+
+            await expect(MockTime.resolve(peer1.act(agent => agent.get(IcdClient).register()))).rejectedWith(
+                ImplementationError,
+                /while refreshing/,
+            );
+        });
+
+        it("refuses register() and does not auto-register while unregister() waits for a sleeping peer", async () => {
+            await using site = new MockSite();
+            const { device, peer1, link } = await sleepingLitPeer(site);
+
+            const ending = tracked(peer1.act(agent => agent.get(IcdClient).unregister()));
+            // After the teardown a returning subscription legitimately registers the LIT peer again
+            const registrationsDuringTeardown = ending.promise.then(() => CountingIcdServer.registrations);
+            await MockTime.macrotask;
+            await expect(MockTime.resolve(peer1.act(agent => agent.get(IcdClient).register()))).rejectedWith(
+                ImplementationError,
+                /while unregistering/,
+            );
+
+            // A returning subscription would auto-register a LIT peer
+            await peer1.eventsOf(NetworkClient).subscriptionStatusChanged.emit(true);
+            await MockTime.macrotask;
+            expect(ending.settled).false;
+
+            await wakeSleepingPeer(device, link);
+            await MockTime.resolve(ending.promise, { macrotasks: true });
+
+            expect(await registrationsDuringTeardown).equals(0);
+            expect(CountingIcdServer.unregistrations).equals(1);
+        });
+
+        it("keeps the registration when unregister() gives up on a peer that does not wake", async () => {
+            await using site = new MockSite();
+            const { device, peer1 } = await sleepingLitPeer(site);
+
+            const ending = tracked(peer1.act(agent => agent.get(IcdClient).unregister()));
+            await MockTime.advance(Hours(2));
+            await expect(MockTime.resolve(ending.promise)).rejectedWith(IcdPeerAsleepError);
+
+            expect(peer1.stateOf(IcdClient).registered).true;
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(1);
+            await expect(MockTime.resolve(peer1.act(agent => agent.get(IcdClient).register()))).rejectedWith(
+                ImplementationError,
+                /already registered/,
+            );
+        });
+
+        it("forget() abandons a key refresh parked on a sleeping peer", async () => {
+            await using site = new MockSite();
+            const { device, peer1, link } = await parkedRefresh(site);
+
+            await MockTime.resolve(peer1.act(agent => agent.get(IcdClient).forget()));
+            expect(peer1.stateOf(IcdClient).registered).false;
+            expect(peer1.stateOf(IcdClient).pendingKey).undefined;
+
+            await wakeSleepingPeer(device, link);
+            expect(CountingIcdServer.registrations).equals(0);
+        });
+
+        it("unregister() abandons a key refresh parked on a sleeping peer and unregisters once it wakes", async () => {
+            await using site = new MockSite();
+            const { device, peer1, link } = await parkedRefresh(site);
+
+            const ending = tracked(peer1.act(agent => agent.get(IcdClient).unregister()));
+            await MockTime.macrotask;
+            expect(ending.settled).false;
+
+            await wakeSleepingPeer(device, link);
+            await MockTime.resolve(ending.promise, { macrotasks: true });
+
+            expect(CountingIcdServer.registrations).equals(0);
+            expect(CountingIcdServer.unregistrations).equals(1);
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(0);
+        });
+
+        it("closes without waiting for a key refresh parked on a sleeping peer", async () => {
+            await using site = new MockSite();
+            const { controller, device, link } = await parkedRefresh(site);
+
+            const before = Time.nowMs;
+            await MockTime.resolve(controller.close());
+            expect(Time.nowMs - before).lessThan(Seconds(60));
+
+            await wakeSleepingPeer(device, link);
+            expect(CountingIcdServer.registrations).equals(0);
+        });
+
+        it("keeps the stored registration when closing abandons an unregister() parked on a sleeping peer", async () => {
+            await using site = new MockSite();
+            const { controller, peer1 } = await sleepingLitPeer(site);
+            const { key } = peer1.stateOf(IcdClient);
+
+            const ending = tracked(peer1.act(agent => agent.get(IcdClient).unregister()));
+            await MockTime.macrotask;
+            await MockTime.resolve(controller.close());
+            await MockTime.resolve(ending.promise.then(undefined, () => {}));
+
+            const controllerB = await site.addNode(undefined, { id: controller.id, index: 1, online: false });
+            const restored = controllerB.peers.get("peer1")!.stateOf(IcdClient);
+            expect(restored.registered).true;
+            expect(Bytes.areEqual(restored.key!, key!)).true;
+        });
+
+        it("logs an error when the stored registration cannot be refreshed", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer1 } = await checkInPair(site);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            await peer1.act(agent => {
+                agent.get(IcdClient).state.clientType = undefined;
+            });
+
+            using log = captureLog(LogLevel.ERROR);
+            await triggerCheckIn(device);
+            await until(() => log.messages.some(message => message.includes("ICD key refresh")));
+
+            expect(log.messages.some(message => message.includes("failed unexpectedly"))).true;
+        });
+
+        it("stores nothing for a registration that closing abandoned after the device answered", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({ device: { type: RootWithIcd } });
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const release = await holdIcdState(peer1);
+            const registering = tracked(peer1.act(agent => agent.get(IcdClient).register()));
+            await until(() => device.stateOf(IcdManagementServer).registeredClients.length === 1);
+            const closing = controller.close();
+            await MockTime.macrotask;
+            await release();
+            await MockTime.resolve(closing);
+            await expect(registering.promise).rejected;
+
+            const controllerB = await site.addNode(undefined, { id: controller.id, index: 1, online: false });
+            const restored = controllerB.peers.get("peer1")!.stateOf(IcdClient);
+            expect(restored.registered).false;
+            expect(restored.key).undefined;
+        });
+
+        it("forget() ends an unregister() parked on a sleeping peer", async () => {
+            await using site = new MockSite();
+            const { device, peer1, link } = await sleepingLitPeer(site);
+
+            const unregistering = tracked(peer1.act(agent => agent.get(IcdClient).unregister()));
+            await MockTime.macrotask;
+            await MockTime.resolve(peer1.act(agent => agent.get(IcdClient).forget()));
+            await expect(unregistering.promise).rejectedWith(AbortedError);
+            expect(peer1.stateOf(IcdClient).registered).false;
+
+            await wakeSleepingPeer(device, link);
+            expect(CountingIcdServer.unregistrations).equals(0);
+        });
+
+        it("ignores a Check-In whose reaction runs after forget() cleared the registration", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer1 } = await checkInPair(site);
+            let checkIns = 0;
+            peer1.eventsOf(IcdClient).checkedIn.on(() => {
+                checkIns++;
+            });
+
+            const { fabricIndex, nodeId } = peer1.stateOf(CommissioningClient).peerAddress!;
+            const fabricIcd = controller.env.get(FabricManager).for(fabricIndex).icd;
+            const lastOffset = fabricIcd.peerFor(nodeId)!.lastOffset;
+
+            const release = await holdIcdState(peer1);
+            const forgetting = tracked(peer1.act(agent => agent.get(IcdClient).forget()));
+            await triggerCheckIn(device);
+            // The Check-In reaction is queued behind forget()
+            await until(() => fabricIcd.peerFor(nodeId)!.lastOffset !== lastOffset);
+            await release();
+            await MockTime.resolve(forgetting.promise, { macrotasks: true });
+            for (let i = 0; i < 10; i++) {
+                await MockTime.macrotask;
+            }
+
+            expect(checkIns).equals(0);
+            expect(peer1.stateOf(IcdClient).lastCheckInReceivedAt).undefined;
+        });
+
+        it("clears the registration when closing abandons an unregister() whose request went out", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({ device: { type: RootWithIcd } });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register());
+            const traffic = deviceTraffic(device);
+            traffic.dropFromDevice = () => true;
+
+            const ending = tracked(peer1.act(agent => agent.get(IcdClient).unregister()));
+            await until(() => device.stateOf(IcdManagementServer).registeredClients.length === 0);
+            await MockTime.resolve(controller.close());
+            await MockTime.resolve(ending.promise.then(undefined, () => {}));
+
+            const controllerB = await site.addNode(undefined, { id: controller.id, index: 1, online: false });
+            const restored = controllerB.peers.get("peer1")!.stateOf(IcdClient);
+            expect(restored.registered).false;
+            expect(restored.key).undefined;
+        });
+
+        it("rejects forget() that shutdown abandons before it cleared, and keeps the registration", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({ device: { type: RootWithIcd } });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register());
+
+            const release = await holdIcdState(peer1);
+            const forgetting = tracked(peer1.act(agent => agent.get(IcdClient).forget()));
+            await MockTime.macrotask;
+            // The first step of closing the peer, while its state is still open
+            peer1.lifecycle.change(EndpointLifecycle.Change.Destroying);
+            await release();
+
+            await expect(MockTime.resolve(forgetting.promise)).rejectedWith(AbortedError);
+            expect(peer1.stateOf(IcdClient).registered).true;
+        });
+
+        it("ends with no registration when a decommission lands while the registration commits", async () => {
+            await using site = new MockSite({ createStorageDriver: store => new GatedIcdStorage(store) });
+            const { controller, device } = await site.addCommissionedPair({ device: { type: RootWithIcd } });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const { fabricIndex, nodeId } = peer1.stateOf(CommissioningClient).peerAddress!;
+            const fabricIcd = controller.env.get(FabricManager).for(fabricIndex).icd;
+
+            GatedIcdStorage.arm();
+            const registering = tracked(peer1.act(agent => agent.get(IcdClient).register()));
+            await MockTime.resolve(GatedIcdStorage.gate.writing.promise, { macrotasks: true });
+            const decommissioning = tracked(peer1.act(agent => agent.get(CommissioningClient).decommission()));
+            await until(() => device.stateOf(IcdManagementServer).registeredClients.length === 0);
+            GatedIcdStorage.gate.release.resolver();
+            await MockTime.resolve(Promise.allSettled([registering.promise, decommissioning.promise]), {
+                macrotasks: true,
+            });
+            await until(() => !peer1.stateOf(IcdClient).registered);
+            await settled(controller);
+
+            expect(peer1.stateOf(IcdClient).key).undefined;
+            expect(fabricIcd.peerFor(nodeId)).undefined;
+            await expect(registering.promise).not.rejectedWith(InternalError);
+        });
+
+        it("announces the clear once when a decommission waits behind an unregister() commit", async () => {
+            await using site = new MockSite({ createStorageDriver: store => new GatedIcdStorage(store) });
+            const { controller } = await site.addCommissionedPair({ device: { type: RootWithIcd } });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register());
+            const { fabricIndex, nodeId } = peer1.stateOf(CommissioningClient).peerAddress!;
+            const fabricIcd = controller.env.get(FabricManager).for(fabricIndex).icd;
+            let unregistered = 0;
+            peer1.eventsOf(IcdClient).unregistered.on(() => {
+                unregistered++;
+            });
+
+            GatedIcdStorage.arm();
+            const ending = tracked(peer1.act(agent => agent.get(IcdClient).unregister()));
+            await MockTime.resolve(GatedIcdStorage.gate.writing.promise, { macrotasks: true });
+            const decommissioning = tracked(peer1.act(agent => agent.get(CommissioningClient).decommission()));
+            // Its reaction now waits for the ICD state the unregister commit holds
+            await until(() => decommissioning.settled);
+            for (let i = 0; i < 10; i++) {
+                await MockTime.macrotask;
+            }
+            GatedIcdStorage.gate.release.resolver();
+            await until(() => !peer1.stateOf(IcdClient).registered);
+            for (let i = 0; i < 10; i++) {
+                await MockTime.macrotask;
+            }
+
+            // The UnregisterClient cannot reach a peer that left the fabric; only the local clear counts here
+            await MockTime.resolve(ending.promise.then(undefined, () => {}));
+            expect(unregistered).equals(1);
+            expect(fabricIcd.peerFor(nodeId)).undefined;
+            expect(peer1.stateOf(IcdClient).available).false;
+        });
+
+        it("announces registered, then unregistered, when a decommission waits behind the register commit", async () => {
+            await using site = new MockSite({ createStorageDriver: store => new GatedIcdStorage(store) });
+            const { controller } = await site.addCommissionedPair({ device: { type: RootWithIcd } });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const events = new Array<string>();
+            peer1.eventsOf(IcdClient).registered.on(() => {
+                events.push("registered");
+            });
+            peer1.eventsOf(IcdClient).unregistered.on(() => {
+                events.push("unregistered");
+            });
+
+            GatedIcdStorage.arm();
+            const registering = tracked(peer1.act(agent => agent.get(IcdClient).register()));
+            await MockTime.resolve(GatedIcdStorage.gate.writing.promise, { macrotasks: true });
+            const decommissioning = tracked(peer1.act(agent => agent.get(CommissioningClient).decommission()));
+            // Its reaction now waits for the ICD state the register commit holds
+            await until(() => decommissioning.settled);
+            for (let i = 0; i < 10; i++) {
+                await MockTime.macrotask;
+            }
+            GatedIcdStorage.gate.release.resolver();
+            await MockTime.resolve(Promise.allSettled([registering.promise, decommissioning.promise]), {
+                macrotasks: true,
+            });
+            await until(() => !peer1.stateOf(IcdClient).registered);
+
+            await registering.promise;
+            expect(events).deep.equals(["registered", "unregistered"]);
+            expect(peer1.stateOf(IcdClient).registered).false;
+        });
+
+        it("forget() after unregister() cleared locally leaves its UnregisterClient running", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({ device: { type: RootWithIcd } });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register());
+            const traffic = deviceTraffic(device);
+            traffic.dropFromDevice = () => true;
+
+            const ending = tracked(peer1.act(agent => agent.get(IcdClient).unregister()));
+            await until(() => peer1.stateOf(IcdClient).key === undefined);
+            await MockTime.resolve(peer1.act(agent => agent.get(IcdClient).forget()));
+            traffic.dropFromDevice = () => false;
+            await MockTime.resolve(ending.promise, { macrotasks: true });
+
+            expect(device.stateOf(IcdManagementServer).registeredClients).length(0);
+        });
+
+        it("refuses unregister() while forget() runs", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({ device: { type: RootWithIcd } });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register());
+
+            const release = await holdIcdState(peer1);
+            const forgetting = tracked(peer1.act(agent => agent.get(IcdClient).forget()));
+            await MockTime.macrotask;
+            await expect(MockTime.resolve(peer1.act(agent => agent.get(IcdClient).unregister()))).rejectedWith(
+                ImplementationError,
+                /while forgetting/,
+            );
+            await release();
+            await MockTime.resolve(forgetting.promise);
+            expect(peer1.stateOf(IcdClient).registered).false;
+        });
+
+        it("clears the time of the last Check-In with the registration", async () => {
+            for (const action of ["unregister", "forget"] as const) {
+                await using site = new MockSite();
+                const { device, peer1 } = await checkInPair(site);
+                const checkedIn = nextCheckIn(peer1);
+                await wakeDevice(device);
+                await MockTime.resolve(checkedIn, { macrotasks: true });
+                expect(peer1.stateOf(IcdClient).lastCheckInReceivedAt).not.undefined;
+
+                await MockTime.resolve(
+                    peer1.act(agent => agent.get(IcdClient)[action]()),
+                    { macrotasks: true },
+                );
+
+                expect(peer1.stateOf(IcdClient).lastCheckInReceivedAt).undefined;
+            }
+        });
+
+        it("joins a second unregister() of a sleeping peer and sends one UnregisterClient", async () => {
+            await using site = new MockSite();
+            const { device, peer1, link } = await sleepingLitPeer(site);
+
+            const first = tracked(peer1.act(agent => agent.get(IcdClient).unregister()));
+            const second = tracked(peer1.act(agent => agent.get(IcdClient).unregister()));
+            await MockTime.macrotask;
+            expect(first.settled || second.settled).false;
+
+            await wakeSleepingPeer(device, link);
+            await MockTime.resolve(Promise.all([first.promise, second.promise]), { macrotasks: true });
+
+            // A LIT peer registers again automatically once the teardown is done
+            expect(CountingIcdServer.unregistrations).equals(1);
+        });
+
+        it("stores the offset of an old-key Check-In that arrives while a refresh waits", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer1 } = await checkInPair(site);
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const traffic = deviceTraffic(device);
+            traffic.dropToDevice = () => peer1.stateOf(IcdClient).pendingKey !== undefined;
+
+            using log = captureLog(LogLevel.WARN);
+            await triggerCheckIn(device);
+            await until(() => peer1.stateOf(IcdClient).pendingKey !== undefined);
+            const before = peer1.stateOf(IcdClient).lastOffset!;
+
+            await triggerCheckIn(device);
+            await until(() => fedPeerOf(controller, peer1).lastOffset !== before);
+            await until(() => peer1.stateOf(IcdClient).lastOffset !== before);
+
+            // Stored by the Check-In reaction, not by the refresh giving up
+            expect(log.messages.filter(message => message.includes("key refresh"))).deep.equals([]);
+            expect(peer1.stateOf(IcdClient).lastOffset).equals(fedPeerOf(controller, peer1).lastOffset);
+            expect(peer1.stateOf(IcdClient).pendingKey).not.undefined;
+        });
+
+        it("registers without the pending key of a refresh that a forget() ended", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer1 } = await checkInPair(site);
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const traffic = deviceTraffic(device);
+            traffic.dropToDevice = () => peer1.stateOf(IcdClient).pendingKey !== undefined;
+
+            using log = captureLog(LogLevel.WARN);
+            await triggerCheckIn(device);
+            await until(() => log.messages.some(message => message.includes("ICD key refresh")));
+            expect(peer1.stateOf(IcdClient).pendingKey).not.undefined;
+            traffic.dropToDevice = () => false;
+
+            await peer1.act(agent => agent.get(IcdClient).forget());
+            expect(peer1.stateOf(IcdClient).pendingKey).undefined;
+            await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+
+            expect(peer1.stateOf(IcdClient).pendingKey).undefined;
+            expect(fedPeerOf(controller, peer1).pendingKey).undefined;
+            expect(Bytes.areEqual(peer1.stateOf(IcdClient).key!, deviceKeyOf(device)!)).true;
+        });
+
+        it("starts no second refresh for a Check-In handled while a refresh runs", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: ServerNode.RootEndpoint.with(CountingIcdServer), icdManagement: LIT_CONFIG },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            CountingIcdServer.registrations = 0;
+            let refreshes = 0;
+            peer1.eventsOf(IcdClient).keyRefreshed.on(() => {
+                refreshes++;
+            });
+
+            using log = captureLog(LogLevel.WARN);
+            const release = await holdIcdState(peer1);
+            await triggerCheckIn(device);
+            await until(() => CheckInMessage.refreshNeededAt(fedPeerOf(controller, peer1).lastOffset));
+            const first = fedPeerOf(controller, peer1).lastOffset;
+            await triggerCheckIn(device);
+            await until(() => fedPeerOf(controller, peer1).lastOffset !== first);
+            await release();
+            await until(() => refreshes === 1);
+            await settled(controller, peer1);
+
+            expect(refreshes).equals(1);
+            expect(CountingIcdServer.registrations).equals(1);
+            expect(
+                log.messages.filter(message => message.includes("IcdClient") || message.includes(".icd.")),
+            ).deep.equals([]);
+        });
+
+        it("starts no second refresh for an old-key Check-In while the refresh waits for its response", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: ServerNode.RootEndpoint.with(CountingIcdServer), icdManagement: LIT_CONFIG },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+            mintDistinctKeys(controller);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+            const oldKey = deviceKeyOf(device)!;
+            CountingIcdServer.registrations = 0;
+            const traffic = deviceTraffic(device);
+            traffic.dropFromDevice = packet => isSecured(packet) && CountingIcdServer.registrations > 0;
+
+            await triggerCheckIn(device);
+            await until(() => CountingIcdServer.registrations === 1);
+            const entry = fedPeerOf(controller, peer1);
+            const counter = (entry.counterStart + entry.lastOffset + 1) >>> 0;
+            const { fabricIndex } = peer1.stateOf(CommissioningClient).peerAddress!;
+            await controller.env
+                .get(FabricManager)
+                .for(fabricIndex)
+                .icd.processCheckIn(await CheckInMessage.encodeIcd(controller.env.get(Crypto), oldKey, counter, 5000));
+            for (let i = 0; i < 10; i++) {
+                await MockTime.macrotask;
+            }
+
+            expect(CountingIcdServer.registrations).equals(1);
+        });
+
+        it("ends a key refresh quietly when the peer is decommissioned", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer1 } = await checkInPair(site);
+            await requestRefreshOnNextCheckIn(controller, peer1);
+
+            using log = captureLog(LogLevel.WARN);
+            const release = await holdIcdState(peer1);
+            await triggerCheckIn(device);
+            await until(() => CheckInMessage.refreshNeededAt(fedPeerOf(controller, peer1).lastOffset));
+            const decommissioning = tracked(peer1.act(agent => agent.get(CommissioningClient).decommission()));
+            await release();
+            await MockTime.resolve(decommissioning.promise, { macrotasks: true });
+            await until(() => !peer1.stateOf(IcdClient).registered);
+            await settled(controller);
+
+            expect(peer1.stateOf(IcdClient).key).undefined;
+            expect(peer1.stateOf(IcdClient).pendingKey).undefined;
+            expect(log.messages.filter(message => message.includes("IcdClient"))).deep.equals([]);
         });
     });
 
@@ -547,6 +2030,29 @@ describe("IcdClient", () => {
 
             expect(device.stateOf(IcdManagementServer).registeredClients).length(0);
             expect(fabric.icd.hasPeers).false;
+        });
+
+        it("clears the stored registration when the peer cannot be reached", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register());
+            const traffic = deviceTraffic(device);
+            traffic.dropToDevice = () => true;
+
+            await expect(
+                MockTime.resolve(
+                    peer1.act(agent => agent.get(IcdClient).unregister()),
+                    { macrotasks: true },
+                ),
+            ).rejected;
+
+            const state = peer1.stateOf(IcdClient);
+            expect(state.registered).false;
+            expect(state.key).undefined;
+            expect(state.counterStart).undefined;
         });
 
         it("is a no-op when not registered", async () => {

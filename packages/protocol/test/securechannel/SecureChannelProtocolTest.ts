@@ -70,9 +70,7 @@ describe("SecureChannelProtocol — ICD Check-In routing", () => {
 
         await protocol.onNewExchange(exchange, message);
 
-        expect(received).deep.equal([
-            { peerNodeId: NodeId(11), counter: 12, offset: 2, activeModeThreshold: 5000, refreshNeeded: false },
-        ]);
+        expect(received).deep.equal([{ peerNodeId: NodeId(11), counter: 12, activeModeThreshold: 5000 }]);
         expect(sendCalled).false;
         expect(exchange.closed.value).true;
     });

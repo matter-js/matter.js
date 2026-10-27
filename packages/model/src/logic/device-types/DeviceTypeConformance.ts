@@ -61,18 +61,23 @@ export namespace DeviceTypeConformance {
             });
         }
 
-        const deviceTypes = [...facts.deviceTypes];
-        if (deviceTypes.length) {
-            // Every device type derives from Base, so its requirements apply once per endpoint rather than once per
-            // device type
-            deviceTypes.push(...lookupsFor(model).baseDeviceTypes);
-        }
-
-        for (const deviceType of deviceTypes) {
-            const waived = deviceType.classification === DeviceClassification.Base ? baseWaiversOf(facts, pass) : NONE;
-            const context = { violations, facts, deviceType, conditions, pass, waived };
-            checkClusters(context, lookupsFor(model).requirementsOf(deviceType));
-            checkComposition(context, collection);
+        const judged = checkDeviceTypes(facts, conditions, collection, pass, true);
+        const rootAsserted = collection.rootAssertedOf(endpoint);
+        if (rootAsserted.size) {
+            // A requirement only Root assertions make mandatory is one whose violation goes away without them
+            const unasserted = new Set([...conditions].filter(name => !rootAsserted.has(name)));
+            const binding = new Set(
+                checkDeviceTypes(facts, unasserted, collection, pass, false).map(DeviceTypeViolation.keyOf),
+            );
+            for (const violation of judged) {
+                violations.push(
+                    binding.has(DeviceTypeViolation.keyOf(violation))
+                        ? violation
+                        : { ...violation, assertedAtRoot: true },
+                );
+            }
+        } else {
+            violations.push(...judged);
         }
 
         checkComponentOf(violations, facts, collection, pass);
@@ -239,6 +244,41 @@ export namespace DeviceTypeConformance {
             ResolvedEndpoint.of(endpoint, pass).deviceTypes.some(deviceType => components.has(deviceType.id))
         );
     }
+}
+
+/**
+ * The violations of the cluster and component requirements of the device types of the endpoint {@link facts}
+ * describe, and of Base, judged with {@link conditions} true.
+ *
+ * @param memoize whether {@link conditions} are the endpoint's own, so the component requirements judged with them
+ * may be shared with other checks of the pass
+ */
+function checkDeviceTypes<E>(
+    facts: ResolvedEndpoint<E>,
+    conditions: Set<string>,
+    collection: ConditionAssertions.Collection<E>,
+    pass: DeviceTypeValidationPass<E>,
+    memoize: boolean,
+) {
+    const lookups = lookupsFor(pass.model);
+    const violations = new Array<DeviceTypeViolation>();
+    const deviceTypes = [...facts.deviceTypes];
+    if (deviceTypes.length) {
+        // Every device type derives from Base, so its requirements apply once per endpoint rather than once per
+        // device type
+        deviceTypes.push(...lookups.baseDeviceTypes);
+    }
+
+    for (const deviceType of deviceTypes) {
+        const waived = deviceType.classification === DeviceClassification.Base ? baseWaiversOf(facts, pass) : NONE;
+        const context = { violations, facts, deviceType, conditions, pass, waived };
+        checkClusters(context, lookups.requirementsOf(deviceType));
+        const components = memoize
+            ? componentsOf(facts.endpoint, deviceType, conditions, pass)
+            : groupComponents(deviceType, conditions, pass);
+        checkComposition(context, components, collection);
+    }
+    return violations;
 }
 
 /**
@@ -504,10 +544,22 @@ function componentsOf<E>(
 ): Component[] {
     const byDeviceType = pass.components.get(composing, () => new Map());
     let found = byDeviceType.get(deviceType);
-    if (found !== undefined) {
-        return found;
+    if (found === undefined) {
+        found = groupComponents(deviceType, conditions, pass);
+        byDeviceType.set(deviceType, found);
     }
+    return found;
+}
 
+/**
+ * The component requirements of {@link deviceType} grouped by component device type, each with its applicability
+ * under {@link conditions}.
+ */
+function groupComponents<E>(
+    deviceType: DeviceTypeModel,
+    conditions: Set<string>,
+    pass: DeviceTypeValidationPass<E>,
+): Component[] {
     const lookups = lookupsFor(pass.model);
     const byId = new Map<number, Component>();
     for (const requirement of lookups.requirementsOf(deviceType)) {
@@ -528,19 +580,39 @@ function componentsOf<E>(
         }
     }
 
-    found = [...byId.values()];
-    byDeviceType.set(deviceType, found);
-    return found;
+    return [...byId.values()];
 }
 
 /**
  * The endpoints that may fill {@link component}: those of the composing endpoint's composition scope that list the
- * component device type.
+ * component device type, preceded by the composing endpoint itself when the component is a utility device type it
+ * lists.
  *
  * The device type ID must match exactly, so an endpoint of a device type that derives from the component is not a
  * candidate.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 9.2.1
  */
 function candidatesOf<E>(facts: ResolvedEndpoint<E>, component: Component, pass: DeviceTypeValidationPass<E>) {
+    const below = candidatesBelow(facts, component, pass);
+    return listsUtility(facts, component) ? [facts, ...below] : below;
+}
+
+/**
+ * Whether {@link facts}'s endpoint lists {@link component} and the component is a utility device type, which an
+ * endpoint may carry beside its application device type.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 9.2.1
+ */
+function listsUtility<E>(facts: ResolvedEndpoint<E>, component: Component) {
+    const { deviceType } = component;
+    return (
+        deviceType.classification === DeviceClassification.Utility &&
+        facts.deviceTypes.some(({ id }) => id === deviceType.id)
+    );
+}
+
+function candidatesBelow<E>(facts: ResolvedEndpoint<E>, component: Component, pass: DeviceTypeValidationPass<E>) {
     const { index } = pass;
     const nodeEndpoint =
         index && facts.composesFullFamily ? ConditionAssertions.nodeEndpointOf(facts.endpoint, pass) : undefined;
@@ -610,9 +682,12 @@ function failuresOf<E>(
  *
  * @see {@link MatterSpecification.v161.Core} § 9.2.3
  */
-function checkComposition<E>(context: Context<E>, collection: ConditionAssertions.Collection<E>) {
-    const { violations, facts, deviceType, conditions, pass } = context;
-    const components = componentsOf(facts.endpoint, deviceType, conditions, pass);
+function checkComposition<E>(
+    context: Context<E>,
+    components: Component[],
+    collection: ConditionAssertions.Collection<E>,
+) {
+    const { violations, facts, deviceType, pass } = context;
     const candidates = new Map<Component, ResolvedEndpoint<E>[]>();
 
     for (const component of components) {
@@ -840,11 +915,12 @@ interface ChoiceMember {
 }
 
 /**
- * Report {@link facts}'s endpoint where it fills a component requirement of an endpoint that composes it but
- * satisfies the nested requirements of none of its instances. A tolerated instance the endpoint satisfies is enough,
- * but only an applying instance makes the endpoint a component to judge. The violation names the instance it comes
- * closest to and carries the composing device type.
+ * Report {@link facts}'s endpoint where it fills a component requirement of an endpoint that composes it, or of its
+ * own device type for a utility device type it lists, but satisfies the nested requirements of none of its instances.
+ * A tolerated instance the endpoint satisfies is enough, but only an applying instance makes the endpoint a component
+ * to judge. The violation names the instance it comes closest to and carries the composing device type.
  *
+ * @see {@link MatterSpecification.v161.Core} § 9.2.1
  * @see {@link MatterSpecification.v161.Core} § 9.2.3
  */
 function checkComponentOf<E>(
@@ -854,21 +930,20 @@ function checkComponentOf<E>(
     pass: DeviceTypeValidationPass<E>,
 ) {
     const own = new Set(facts.deviceTypes.map(deviceType => deviceType.id));
-    if (!own.size || facts.isNodeEndpoint) {
+    if (!own.size) {
         return;
     }
 
-    for (
-        let composer = pass.facts.parentOf(facts.endpoint);
-        composer !== undefined;
-        composer = pass.facts.parentOf(composer)
-    ) {
-        const composerFacts = ResolvedEndpoint.of(composer, pass);
+    for (let current: E | undefined = facts.endpoint; current !== undefined; current = pass.facts.parentOf(current)) {
+        const composer = current;
+        const isSelf = composer === facts.endpoint;
+        const composerFacts = isSelf ? facts : ResolvedEndpoint.of(composer, pass);
         const conditions = collection.conditionsOf(composer);
 
         const filled = composerFacts.deviceTypes.flatMap(deviceType =>
             componentsOf(composer, deviceType, conditions, pass).flatMap(component => {
-                const instances = own.has(component.deviceType.id)
+                const fills = isSelf ? listsUtility(facts, component) : own.has(component.deviceType.id);
+                const instances = fills
                     ? component.instances.filter(instance => applies(instance) || isTolerated(instance))
                     : [];
                 return instances.some(applies) ? [{ deviceType, component, instances }] : [];
@@ -876,7 +951,7 @@ function checkComponentOf<E>(
         );
 
         // Checked before the scope walk, so the many children of an aggregator do not each walk its whole family
-        if (filled.length && composerFacts.composes(facts.endpoint)) {
+        if (filled.length && (isSelf || composerFacts.composes(facts.endpoint))) {
             for (const { deviceType, component, instances } of filled) {
                 const failures = instances.map(({ requirement }) =>
                     failuresOf(facts, requirement, deviceType, collection, pass),

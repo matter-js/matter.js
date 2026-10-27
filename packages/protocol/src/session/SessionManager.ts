@@ -259,6 +259,9 @@ export class SessionManager {
         if (context.parameters?.maxPathsPerInvoke !== undefined) {
             assertMaxPathsPerInvoke(context.parameters.maxPathsPerInvoke);
         }
+        if (context.parameters?.maxTcpMessageSize !== undefined) {
+            SessionParameters.assertMaxTcpMessageSize(context.parameters.maxTcpMessageSize);
+        }
         this.#sessionParameters = SessionParameters({ ...SessionParameters.defaults, ...context.parameters });
         assertActiveThreshold(this.#sessionParameters.activeThreshold);
         this.#nextSessionId = (crypto.randomUint16 % ID_SPACE_UPPER_BOUND) + 1;
@@ -372,6 +375,9 @@ export class SessionManager {
         if (parameters.maxPathsPerInvoke !== undefined) {
             assertMaxPathsPerInvoke(parameters.maxPathsPerInvoke);
         }
+        if (parameters.maxTcpMessageSize !== undefined) {
+            SessionParameters.assertMaxTcpMessageSize(parameters.maxTcpMessageSize);
+        }
         for (const [key, value] of Object.entries(parameters)) {
             if (value !== undefined) {
                 (this.#sessionParameters as Record<string, unknown>)[key] = value;
@@ -406,6 +412,11 @@ export class SessionManager {
      */
     fabricFor(address: FabricIndex | PeerAddress) {
         return this.#context.fabrics.for(address);
+    }
+
+    /** The fabric of {@link fabricIndex}, or undefined while it does not exist or is being removed. */
+    maybeFabricFor(fabricIndex: FabricIndex) {
+        return this.#context.fabrics.maybeFor(fabricIndex);
     }
 
     /**
@@ -615,8 +626,9 @@ export class SessionManager {
     }
 
     /**
-     * Removes all Peer sessions but keeps subscriptions intact because they could be refreshed on restart when the
-     * device supports persistent subscriptions.
+     * Removes all Peer sessions without first closing the subscriptions the peer holds on them; those end when the
+     * sessions close.  Our own subscriptions to the peer belong to the peer, not to a session, so a peer that persists
+     * subscriptions can refresh them after its restart.
      *
      * @param asOf sessions created at or after this instant are kept; on the clock of {@link Time.nowUs} like
      * {@link Session.createdAt}, not a wall-clock time.  Defaults to now.
@@ -1060,7 +1072,7 @@ export class SessionManager {
         const context: PeerLossContext = { cause: new ShutdownError("Session closed by node shutdown") };
 
         const closePromises = this.#sessions.map(async session => {
-            await session.closeSubscriptions(true);
+            await session.closeSubscriptionsForShutdown();
 
             // TODO - some CHIP tests (CASERecovery for one) expect us to exit without closing the session and will fail
             // if we end gracefully.  Not clear why this behavior would be desirable as it leads to a timeout when the

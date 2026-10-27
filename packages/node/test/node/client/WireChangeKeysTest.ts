@@ -14,19 +14,27 @@ import { EndpointNumber } from "@matter/types";
 function recordingStructure(node: MockServerNode) {
     const stores = new Map<string, Val.Struct>();
 
-    const structure = new ClientStructure(node, (_endpoint, behaviorId) => {
-        const values = {} as Val.Struct;
-        stores.set(behaviorId, values);
-        return {
-            initialValues: values,
-            version: 0,
-            externalSet: async (incoming: Val.StructMap) => {
-                for (const [key, value] of incoming) {
-                    values[String(key)] = value;
-                }
-            },
-        } as unknown as Datasource.ExternallyMutableStore;
-    });
+    const structure = new ClientStructure(
+        node,
+        (_endpoint, behaviorId) => {
+            const values: Val.Struct = {};
+            stores.set(behaviorId, values);
+            const store: Datasource.ExternallyMutableStore = {
+                initialValues: values,
+                version: 0,
+                set: async () => {},
+                externalSet: async (incoming: Val.StructMap) => {
+                    for (const [key, value] of incoming) {
+                        values[String(key)] = value;
+                    }
+                    return {};
+                },
+                forgetVersion: async () => {},
+            };
+            return store;
+        },
+        { cacheRecord: { recordCacheFabricFiltered: async () => {} } },
+    );
 
     return { structure, stores };
 }

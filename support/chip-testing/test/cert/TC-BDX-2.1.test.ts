@@ -208,6 +208,7 @@ certTest("TC-BDX-2.1", {
     plan: "bdx.adoc",
     pics: ["MCORE.BDX.SynchronousSender"],
     app: "ota-requestor",
+    controllerCapabilities: ["ota-provider"],
 })
     .step(
         "0",

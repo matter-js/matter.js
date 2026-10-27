@@ -8,6 +8,8 @@ import { ImplementationError, UnexpectedDataError } from "@matter/general";
 import { Bytes } from "@matter/main";
 import { AttributeModel, ClusterModel, FieldModel, Matter } from "@matter/model";
 import { expect } from "chai";
+import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
+import { UnitTestingCluster } from "../../src/cert/unit-testing-cluster.js";
 import {
     chipJsonToMatter,
     matterToChipJson,
@@ -75,6 +77,35 @@ const TIME_SYNCHRONIZATION = Matter.clusters.require("TimeSynchronization");
 const UTC_TIME_ATTRIBUTE = TIME_SYNCHRONIZATION.attributes.require("utcTime");
 
 describe("chip-tool json codec", () => {
+    describe("a list stating no type of its own", () => {
+        const unitTesting = registerCertCustomCluster(UnitTestingCluster);
+        const listLongOctetString = unitTesting.attributes.require("listLongOctetString");
+
+        it("encodes each octet-string entry as an octet string", () => {
+            expect(
+                matterToChipJson([Bytes.fromHex("0102"), Bytes.fromHex("ff")], listLongOctetString, unitTesting, "hex"),
+            ).deep.equal(["hex:0102", "hex:ff"]);
+        });
+
+        it("converts the entries of a list a derived cluster inherits", () => {
+            const rvcRunMode = Matter.clusters.require("RvcRunMode");
+            const supportedModes = rvcRunMode.attributes.require("supportedModes");
+            expect(
+                matterToChipJson(
+                    [{ label: "idle", mode: 0, modeTags: [{ value: 0x4000 }] }],
+                    supportedModes,
+                    rvcRunMode,
+                    "hex",
+                ),
+            ).deep.equal([{ "0": "idle", "1": 0, "2": [{ "1": 0x4000 }] }]);
+        });
+
+        it("decodes each octet-string entry to bytes", () => {
+            const decoded = chipJsonToMatter(["base64:AQI="], listLongOctetString, unitTesting);
+            expect(decoded).deep.equal([Bytes.fromHex("0102")]);
+        });
+    });
+
     it("round-trips a uint16 attribute as a plain number", () => {
         expect(chipJsonToMatter(0xfff1, VENDOR_ID_ATTRIBUTE, BASIC_INFORMATION)).to.equal(0xfff1);
         expect(matterToChipJson(0xfff1, VENDOR_ID_ATTRIBUTE, BASIC_INFORMATION, "hex")).to.equal(0xfff1);

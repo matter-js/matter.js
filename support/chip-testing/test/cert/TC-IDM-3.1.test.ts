@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "@matter/main";
+import { Schema } from "@matter/main/model";
 import { Status } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import type {
@@ -12,9 +14,13 @@ import type {
     CertNodeApi,
     CertNodeRef,
     CertStepContext,
+    CheckRecord,
     SelectableDeviceFlavor,
 } from "@matter/testing";
 import { certTest } from "@matter/testing";
+import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
+import { SimpleStruct, UnitTestingCluster } from "../../src/cert/unit-testing-cluster.js";
+import { chunkedWriteNotApplicable, expectChunkedWrite } from "./tc-idm-3.1-support.js";
 import type { RecordedCheck } from "./tc-support.js";
 import {
     attempt,
@@ -25,12 +31,15 @@ import {
     requireId,
     withChecks,
 } from "./tc-support.js";
+import { LONG_OCTET_STRING_ENTRY, UNIT_TESTING_ENDPOINT, unitTestingNotApplicable } from "./unit-testing-cluster.js";
 
 const LEVEL_CONTROL = Matter.clusters.require("LevelControl");
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const THERMOSTAT_USER_INTERFACE_CONFIGURATION = Matter.clusters.require("ThermostatUserInterfaceConfiguration");
 const COLOR_CONTROL = Matter.clusters.require("ColorControl");
 const IDENTIFY = Matter.clusters.require("Identify");
+const THERMOSTAT = Matter.clusters.require("Thermostat");
+const USER_LABEL = Matter.clusters.require("UserLabel");
 
 const LEVEL_CONTROL_ID = requireId(LEVEL_CONTROL.id, "LevelControl cluster");
 const BASIC_INFORMATION_ID = requireId(BASIC_INFORMATION.id, "BasicInformation cluster");
@@ -40,6 +49,8 @@ const THERMOSTAT_USER_INTERFACE_CONFIGURATION_ID = requireId(
 );
 const COLOR_CONTROL_ID = requireId(COLOR_CONTROL.id, "ColorControl cluster");
 const IDENTIFY_ID = requireId(IDENTIFY.id, "Identify cluster");
+const THERMOSTAT_ID = requireId(THERMOSTAT.id, "Thermostat cluster");
+const USER_LABEL_ID = requireId(USER_LABEL.id, "UserLabel cluster");
 
 const ON_LEVEL = LEVEL_CONTROL.attributes.require("onLevel");
 const ON_OFF_TRANSITION_TIME = LEVEL_CONTROL.attributes.require("onOffTransitionTime");
@@ -48,6 +59,54 @@ const NODE_LABEL = BASIC_INFORMATION.attributes.require("nodeLabel");
 const TEMPERATURE_DISPLAY_MODE = THERMOSTAT_USER_INTERFACE_CONFIGURATION.attributes.require("temperatureDisplayMode");
 const OPTIONS = COLOR_CONTROL.attributes.require("options");
 const IDENTIFY_TIME = IDENTIFY.attributes.require("identifyTime");
+const LOCAL_TEMPERATURE_CALIBRATION = THERMOSTAT.attributes.require("localTemperatureCalibration");
+const LABEL_LIST = USER_LABEL.attributes.require("labelList");
+
+const UNIT_TESTING = registerCertCustomCluster(UnitTestingCluster);
+const UNIT_TESTING_ID = requireId(UNIT_TESTING.id, "UnitTesting cluster");
+
+function unitTestingPath(name: string): AttributePathSpec {
+    return {
+        endpoint: UNIT_TESTING_ENDPOINT,
+        cluster: UNIT_TESTING_ID,
+        attribute: requireId(UNIT_TESTING.attributes.require(name).id, `UnitTesting.${name}`),
+    };
+}
+
+const FLOAT_VALUE = 1.5;
+const OCTET_STRING_VALUE = Bytes.fromHex("0102a55aff");
+const STRUCT_VALUE = { a: 7, b: true, c: 2, d: Bytes.fromHex("dead"), e: "", f: 5, g: 1.5, h: -0.25 };
+
+/** Three entries of 512 bytes: more than one MTU, and fewer than the four the TH starts with. */
+const LONG_LIST_VALUE = [LONG_OCTET_STRING_ENTRY, LONG_OCTET_STRING_ENTRY, LONG_OCTET_STRING_ENTRY];
+
+const SIMPLE_STRUCT_FIELDS = Schema.Required(SimpleStruct).children.map(({ id, name }) => ({ id, name }));
+
+function sameField(expected: unknown, actual: unknown) {
+    return Bytes.isBytes(expected) ? Bytes.isBytes(actual) && Bytes.areEqual(expected, actual) : expected === actual;
+}
+
+/**
+ * Whether `read` holds every field of {@link STRUCT_VALUE}. The in-process controller decodes a cluster outside the
+ * Matter model generically, keyed by field id, where chip-tool decodes it through the declared names.
+ */
+function isStructValue(read: unknown) {
+    if (typeof read !== "object" || read === null) {
+        return false;
+    }
+    return SIMPLE_STRUCT_FIELDS.every(({ id, name }) => {
+        const actual = name in read ? Reflect.get(read, name) : Reflect.get(read, String(id));
+        return sameField(Reflect.get(STRUCT_VALUE, name), actual);
+    });
+}
+
+function isLongListValue(read: unknown) {
+    return (
+        Array.isArray(read) &&
+        read.length === LONG_LIST_VALUE.length &&
+        read.every(entry => sameField(LONG_OCTET_STRING_ENTRY, entry))
+    );
+}
 
 /** Seconds the step-2 wildcard write puts into Identify.identifyTime on every endpoint that has it. */
 const IDENTIFY_TIME_VALUE = 5;
@@ -72,18 +131,57 @@ async function writeAndCheck(
     path: AttributePathSpec,
     value: unknown,
     checks: RecordedCheck[],
-): Promise<void> {
+): Promise<CheckRecord> {
     const th = cx.devices.th;
     const from = th.log.mark();
 
     const response = await attempt(
         () => cx.controllers.dut.node(ref).writeAttribute(path, value),
-        () => `wrote ${JSON.stringify(value)} to ${JSON.stringify(path)}`,
+        () => `wrote ${describeWritten(value)} to ${JSON.stringify(path)}`,
     );
     checks.push({ what: `Write response for step ${label}`, check: () => response.check });
 
     const logCheck = await expectMessageWithPath(th.log, th.flavor, "write", path, from, LOG_TIMEOUT);
     checks.push({ what: `WriteRequestMessage log for step ${label}`, check: () => logCheck });
+    return logCheck;
+}
+
+/** `value` for the evidence, with each octet string as its hex rather than as an object of its bytes. */
+function describeWritten(value: unknown) {
+    // The replacer reads the member from its holder because JSON.stringify has already applied a Buffer's toJSON
+    return JSON.stringify(value, function (this: Record<string, unknown>, key: string, member: unknown) {
+        const original = this[key];
+        return Bytes.isBytes(original) ? `hex:${Bytes.toHex(original)}` : member;
+    });
+}
+
+/**
+ * {@link writeAndCheck}, then a read of `path` that `isWritten` must accept: the TH logging the request shows its
+ * path, and only the value it then holds shows the request carried the value of the step's data type.
+ */
+async function writeAndReadBack(
+    cx: CertStepContext,
+    ref: CertNodeRef,
+    label: string,
+    path: AttributePathSpec,
+    value: unknown,
+    isWritten: (read: unknown) => boolean,
+    checks: RecordedCheck[],
+): Promise<CheckRecord> {
+    const request = await writeAndCheck(cx, ref, label, path, value, checks);
+
+    const read = await attempt(
+        () => cx.controllers.dut.node(ref).readAttribute(path),
+        value => `read back ${describeWritten(value)}`,
+    );
+    checks.push({
+        what: `Read-back for step ${label}`,
+        check: () =>
+            read.ok && !isWritten(read.value)
+                ? { ...read.check, verdict: "fail", detail: `${read.check.detail}, expected ${describeWritten(value)}` }
+                : read.check,
+    });
+    return request;
 }
 
 /**
@@ -92,7 +190,7 @@ async function writeAndCheck(
  * interaction.
  */
 async function clusterVersions(node: CertNodeApi, paths: AttributePathSpec[]): Promise<number[]> {
-    const entries = await node.readAttributes(paths);
+    const entries = await node.readAttributes(paths, { dataVersions: true });
     return paths.map(({ endpoint, cluster }) => {
         const version = entries.find(
             entry => entry.endpoint === endpoint && entry.cluster === cluster && entry.version !== undefined,
@@ -236,27 +334,97 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         6,
         "DUT sends the WriteRequestMessage to the TH to write an attribute of data type signed integer.",
-        async () => {},
-        { notApplicable: "CHIP's certification harness names no signed-integer attribute for this step" },
+        commissioned.withRef("dut", async (cx, ref) => {
+            const path: AttributePathSpec = {
+                endpoint: ENDPOINT_1,
+                cluster: THERMOSTAT_ID,
+                attribute: requireId(LOCAL_TEMPERATURE_CALIBRATION.id, "Thermostat.localTemperatureCalibration"),
+            };
+            return withChecks(cx, checks => writeAndCheck(cx, ref, "6", path, -5, checks));
+        }),
+        {
+            pics: "MCORE.IDM.C.WriteRequest.Attribute.DataType_SignedInteger",
+            expected: "Verify on the TH that the correct WriteRequestMessage has been received.",
+        },
     )
     .step(
         7,
         "DUT sends the WriteRequestMessage to the TH to write an attribute of data type floating point.",
-        async () => {},
-        { notApplicable: "CHIP's certification harness names no floating-point attribute for this step" },
+        commissioned.withRef("dut", (cx, ref) =>
+            withChecks(cx, checks =>
+                writeAndReadBack(
+                    cx,
+                    ref,
+                    "7",
+                    unitTestingPath("floatSingle"),
+                    FLOAT_VALUE,
+                    read => read === FLOAT_VALUE,
+                    checks,
+                ),
+            ),
+        ),
+        {
+            pics: "MCORE.IDM.C.WriteRequest.Attribute.DataType_FloatingPoint",
+            notApplicable: unitTestingNotApplicable,
+            expected: "Verify on the TH that the correct WriteRequestMessage has been received.",
+        },
     )
     .step(
         8,
         "DUT sends the WriteRequestMessage to the TH to write an attribute of data type Octet String.",
-        async () => {},
-        { notApplicable: "CHIP's certification harness names no octet-string attribute for this step" },
+        commissioned.withRef("dut", (cx, ref) =>
+            withChecks(cx, checks =>
+                writeAndReadBack(
+                    cx,
+                    ref,
+                    "8",
+                    unitTestingPath("octetString"),
+                    OCTET_STRING_VALUE,
+                    read => sameField(OCTET_STRING_VALUE, read),
+                    checks,
+                ),
+            ),
+        ),
+        {
+            pics: "MCORE.IDM.C.WriteRequest.Attribute.DataType_OctetString",
+            notApplicable: unitTestingNotApplicable,
+            expected: "Verify on the TH that the correct WriteRequestMessage has been received.",
+        },
     )
-    .step(9, "DUT sends the WriteRequestMessage to the TH to write an attribute of data type Struct.", async () => {}, {
-        notApplicable: "CHIP's certification harness names no struct attribute for this step",
-    })
-    .step(10, "DUT sends the WriteRequestMessage to the TH to write an attribute of data type List.", async () => {}, {
-        notApplicable: "CHIP's certification harness names no list attribute for this step",
-    })
+    .step(
+        9,
+        "DUT sends the WriteRequestMessage to the TH to write an attribute of data type Struct.",
+        commissioned.withRef("dut", (cx, ref) =>
+            withChecks(cx, checks =>
+                writeAndReadBack(cx, ref, "9", unitTestingPath("structAttr"), STRUCT_VALUE, isStructValue, checks),
+            ),
+        ),
+        {
+            pics: "MCORE.IDM.C.WriteRequest.Attribute.DataType_Struct",
+            notApplicable: unitTestingNotApplicable,
+            expected: "Verify on the TH that the correct WriteRequestMessage has been received.",
+        },
+    )
+    .step(
+        10,
+        "DUT sends the WriteRequestMessage to the TH to write an attribute of data type List.",
+        commissioned.withRef("dut", async (cx, ref) => {
+            const path: AttributePathSpec = {
+                endpoint: ENDPOINT_1,
+                cluster: USER_LABEL_ID,
+                attribute: requireId(LABEL_LIST.id, "UserLabel.labelList"),
+            };
+            const labels = [
+                { label: "room", value: "kitchen" },
+                { label: "floor", value: "1" },
+            ];
+            return withChecks(cx, checks => writeAndCheck(cx, ref, "10", path, labels, checks));
+        }),
+        {
+            pics: "MCORE.IDM.C.WriteRequest.Attribute.DataType_List",
+            expected: "Verify on the TH that the correct WriteRequestMessage has been received.",
+        },
+    )
     .step(
         11,
         "DUT sends the WriteRequestMessage to the TH to write an attribute of data type enum.",
@@ -296,10 +464,29 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
         13,
         "DUT sends a WriteRequestMessage to the TH with a large list of attribute data, which is larger than 1 " +
             "MTU(1280 bytes), that has to be sent in multiple messages.",
-        async () => {},
+        commissioned.withRef("dut", (cx, ref) => {
+            const th = cx.devices.th;
+            const path = unitTestingPath("listLongOctetString");
+            return withChecks(cx, async checks => {
+                const request = await writeAndReadBack(cx, ref, "13", path, LONG_LIST_VALUE, isLongListValue, checks);
+
+                const chunked = await expectChunkedWrite(th.log, th.flavor, request, LOG_TIMEOUT);
+                checks.push({ what: "Chunked WriteRequestMessages for step 13", check: () => chunked });
+            });
+        }),
         {
-            notApplicable:
-                "CHIP's certification harness shows only a 32-character NodeLabel write, which cannot exceed one MTU",
+            notApplicable: unitTestingNotApplicable,
+            notApplicableAtRun: cx =>
+                chunkedWriteNotApplicable(
+                    cx,
+                    commissioned.require("dut", "Step 13 ran before the DUT was commissioned"),
+                    unitTestingPath("listLongOctetString"),
+                ),
+            controllerCapabilities: ["chunked-write"],
+            expected:
+                "Verify on the TH that the correct WriteRequestMessage has been received and MoreChunkedMessages is " +
+                "set to True. Verify that the DUT waits for the WriteResponse action from the TH before sending the " +
+                "next WriteRequestMessage.",
         },
     )
     .step(
@@ -414,6 +601,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             });
         }),
         {
+            controllerCapabilities: ["data-versions", "multi-path-write"],
             expected:
                 "Verify that the TH sends a Write Response message with a success back to the DUT. Verify by " +
                 "sending a ReadRequest that the Write Action on TH was successful.",

@@ -16,7 +16,7 @@ import type {
     OtaQueryImageExchange,
     OtaQueryImageResponseRecord,
 } from "@matter/testing";
-import { flavorFamily, resolveDeviceFlavor } from "@matter/testing";
+import { type CertRunSetup, flavorFamily } from "@matter/testing";
 import { otaFastRetryEnabled } from "../../src/OtaRequestorTestInstance.js";
 import { CertCheckFailedError, record, requireId } from "./tc-support.js";
 
@@ -104,6 +104,55 @@ function only<T>(exchanges: T[], what: string): T {
     return exchanges[0];
 }
 
+/**
+ * Whether a provider's `UserConsentNeeded` answer is one the specification lets it give the requestor
+ * that asked.
+ *
+ * True delegates consent to the requestor, which the provider may do only for a requestor that offered
+ * it; otherwise the provider states it obtained consent itself.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 11.20.3.4.1
+ * @see {@link MatterSpecification.v161.Core} § 11.20.6.5.2.7
+ */
+export function userConsentCheck({
+    request,
+    response,
+}: Pick<OtaQueryImageExchange, "request" | "response">): CheckRecord {
+    if (response.userConsentNeeded !== true) {
+        return {
+            type: "response",
+            verdict: "pass",
+            detail:
+                `the DUT answered ${response.userConsentNeeded === undefined ? "without UserConsentNeeded" : "UserConsentNeeded False"}, ` +
+                'so by Core § 11.20.3.4.1 "the OTA Requestor SHALL assume that the OTA Provider already obtained ' +
+                'sufficient user consent during the querying phase"',
+        };
+    }
+
+    if (request.requestorCanConsent !== true) {
+        return {
+            type: "response",
+            verdict: "fail",
+            detail:
+                `the DUT answered UserConsentNeeded True to a QueryImage with RequestorCanConsent ` +
+                `${request.requestorCanConsent ?? "absent"}: True states "user consent was not previously obtained" ` +
+                '(Core § 11.20.3.4.1), yet the field "SHALL only be interpreted if the OTA Requestor had previously ' +
+                'indicated a value of True in the RequestorCanConsent field of the QueryImageRequest" ' +
+                "(Core § 11.20.6.5.2.7), so this requestor goes ahead without anyone's consent",
+        };
+    }
+
+    return {
+        type: "response",
+        verdict: "unverified",
+        detail: "the DUT answered UserConsentNeeded True to a QueryImage with RequestorCanConsent True",
+        accepted:
+            'the DUT delegated consent to the requestor, which Core § 11.20.3.4.1 allows: "The OTA Provider, if it ' +
+            "determines that the best way to obtain user consent is to delegate to the OTA Requestor Node, SHALL " +
+            'include the UserConsentNeeded field, with a value set to True"',
+    };
+}
+
 /** Byte length of a hex-rendered field, which is what the plan's size rules are about. */
 export function hexByteLength(hex: string) {
     return hex.length / 2;
@@ -114,10 +163,8 @@ export function hexByteLength(hex: string) {
  *
  * chip's `DefaultOTARequestor` prints the response field by field under `[SWU]`
  * (`LogQueryImageResponse`), including the update token's *length* rather than its value. matter.js's
- * requestor logs no line for the response itself, so its own account is the download it then ran.
- *
- * Ordered rather than adjacent on both: chip interleaves the fields with nothing, but matter.js puts
- * its own work between the lines it writes.
+ * client prints every invoke response it decoded on one line, naming the command's path and each field
+ * the response carried, the update token as its lowercase hex value.
  */
 export function queryImageResponseLines(response: OtaQueryImageResponseRecord) {
     const chip = [/\[SWU\] QueryImageResponse:\s*$/, new RegExp(`\\[SWU\\]\\s+status: ${response.status}\\s*$`)];
@@ -137,13 +184,24 @@ export function queryImageResponseLines(response: OtaQueryImageResponseRecord) {
         chip.push(new RegExp(`\\[SWU\\]\\s+updateToken: ${hexByteLength(response.updateToken)}\\s*$`));
     }
 
+    // One lookahead per field, over the one line matter.js prints the decoded response on
+    const fields = [`\\.otaSoftwareUpdateProvider\\.queryImage status: ${response.status}(?: |$)`];
+    if (response.imageUri !== undefined) {
+        fields.push(` imageUri: ${escapeForPattern(response.imageUri)}(?: |$)`);
+    }
+    if (response.softwareVersion !== undefined) {
+        fields.push(` softwareVersion: ${response.softwareVersion}(?: |$)`);
+    }
+    if (response.softwareVersionString !== undefined) {
+        fields.push(` softwareVersionString: ${escapeForPattern(response.softwareVersionString)}(?: |$)`);
+    }
+    if (response.updateToken !== undefined) {
+        fields.push(` updateToken: ${response.updateToken.toLowerCase()}(?: |$)`);
+    }
+
     return {
         chip: { ordered: chip },
-
-        // No matterjs pattern, and none is possible: its requestor writes no line for a
-        // QueryImageResponse at all. A pattern matching what it does next would be matching what the
-        // precondition already required, so the step would record a pass it cannot fail.
-        matterjs: undefined,
+        matterjs: [new RegExp(`ClientInteraction Invoke « ${fields.map(field => `(?=.*${field})`).join("")}`)],
     };
 }
 
@@ -344,13 +402,13 @@ export function unsupportedByDut(capability: string) {
  * lower its two-minute floors, so where it is the TH and the run asked for it, such a step costs no
  * real time. chip's requestor floors the wait at compile time, so there it costs what the plan costs.
  */
-export function otaDelaysShortened() {
-    return otaFastRetryEnabled() && flavorFamily(resolveDeviceFlavor()) === "matterjs";
+export function otaDelaysShortened(setup: Pick<CertRunSetup, "deviceFlavor">) {
+    return otaFastRetryEnabled() && flavorFamily(setup.deviceFlavor) === "matterjs";
 }
 
 /** The plan's own `DelayedActionTime`, in seconds, or the short stand-in a shortened run uses. */
-export function delayedActionTime() {
-    return otaDelaysShortened() ? SHORT_DELAYED_ACTION_TIME : PLAN_DELAYED_ACTION_TIME;
+export function delayedActionTime(setup: Pick<CertRunSetup, "deviceFlavor">) {
+    return otaDelaysShortened(setup) ? SHORT_DELAYED_ACTION_TIME : PLAN_DELAYED_ACTION_TIME;
 }
 
 /** What the plans name wherever they ask a provider to defer: three minutes. */
@@ -371,8 +429,11 @@ const SHORT_DELAYED_ACTION_TIME = 1;
  * DUT on any run. What changes with the shortening is *which* value was scripted, and that is
  * {@link planDelayCoverageCheck}'s claim rather than this one's.
  */
-export function delayedActionTimeCheck(sent: number | undefined): CheckRecord {
-    const asked = delayedActionTime();
+export function delayedActionTimeCheck(
+    setup: Pick<CertRunSetup, "deviceFlavor">,
+    sent: number | undefined,
+): CheckRecord {
+    const asked = delayedActionTime(setup);
     return {
         type: "response",
         verdict: sent === asked ? "pass" : "fail",
@@ -387,8 +448,8 @@ export function delayedActionTimeCheck(sent: number | undefined): CheckRecord {
  * so the TH's wait is short, which leaves that outcome untested — stated here rather than folded into
  * the check above, where a verdict that changed with an environment variable could not fail at all.
  */
-export function planDelayCoverageCheck(): CheckRecord {
-    if (!otaDelaysShortened()) {
+export function planDelayCoverageCheck(setup: Pick<CertRunSetup, "deviceFlavor">): CheckRecord {
+    if (!otaDelaysShortened(setup)) {
         return {
             type: "response",
             verdict: "pass",
@@ -406,11 +467,12 @@ export function planDelayCoverageCheck(): CheckRecord {
     };
 }
 
-/** The reason a step carries when this run cannot shorten the wait it costs. */
+/** The `longRunning` option of a step whose wait a run can shorten only on some flavors. */
 export function longRunningReason(what: string) {
-    return otaDelaysShortened()
-        ? undefined
-        : `${what} costs the plan's ${PLAN_DELAYED_ACTION_TIME}s of real time on this flavor`;
+    return (setup: Pick<CertRunSetup, "deviceFlavor">) =>
+        otaDelaysShortened(setup)
+            ? undefined
+            : `${what} costs the plan's ${PLAN_DELAYED_ACTION_TIME}s of real time on this flavor`;
 }
 
 const OTA_REQUESTOR = Matter.clusters.require("OtaSoftwareUpdateRequestor");

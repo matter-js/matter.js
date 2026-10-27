@@ -8,6 +8,7 @@ import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { CertIcdClientApi, CertIcdRegistration, CertNodeRef, CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
+import { commissionChecked } from "./tc-dd-support.js";
 import type { CommandFieldValue, RecordedCheck } from "./tc-support.js";
 import {
     attempt,
@@ -17,6 +18,7 @@ import {
     LOG_TIMEOUT,
     recordAll,
     requireId,
+    withChecks,
 } from "./tc-support.js";
 
 const ICD_MANAGEMENT = Matter.clusters.require("IcdManagement");
@@ -78,26 +80,28 @@ certTest("TC-ICDM-6.1", {
     plan: "icdmanagement.adoc",
     pics: ["ICDM.C"],
     app: "lit-icd",
+    controllerCapabilities: ["icd-client"],
 
-    // The variant TC-ICDB-1.3 needs is the only lit-icd binary this project's image carries; this case does not
-    // depend on how it handles subscriptions
+    // This project's image carries only the variant TC-ICDB-1.3 needs, and chip-cert-bins only the stock app. The
+    // case uses no Check-In, so how the TH persists subscriptions does not matter to it
     appVariant: { matterjs: "nopersist" },
-    chipBinsSources: ["matterjs"],
     flavors: ["chip-local", "matterjs"],
 })
     .step(
         "0",
         "Commission TH to DUT.",
-        async cx => {
-            const th = cx.devices.th;
-            commissioned.set(
-                "dut",
-                await cx.controllers.dut.commission({
-                    passcode: th.commissioning.passcode,
-                    discriminator: th.commissioning.discriminator,
-                }),
-            );
-        },
+        cx =>
+            withChecks(cx, async checks => {
+                const th = cx.devices.th;
+                const ref = await commissionChecked(
+                    cx.controllers.dut,
+                    { passcode: th.commissioning.passcode, discriminator: th.commissioning.discriminator },
+                    th,
+                    "DUT commissions TH",
+                    checks,
+                );
+                commissioned.set("dut", ref);
+            }),
         { pics: "ICDM.C", expected: "TH is on the DUT's fabric." },
     )
     .step(

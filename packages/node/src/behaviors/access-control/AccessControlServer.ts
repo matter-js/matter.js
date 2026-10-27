@@ -106,7 +106,6 @@ export class AccessControlServer extends AccessControlBase {
         }
 
         // TODO handle delete fabric more generically later to remove fabric scoped data
-        this.reactTo(fabrics.events.replaced, this.#updateFabricAcls);
         this.reactTo(fabrics.events.added, this.#updateFabricAcls);
 
         this.reactTo(this.events.interactionBegin, this.#handleInteractionBegin);
@@ -449,7 +448,7 @@ export class AccessControlServer extends AccessControlBase {
         return true;
     }
 
-    /** A fabric was added or updated, so we need to initialize the ACL for this fabric */
+    /** A fabric was added, so we need to initialize the ACL for this fabric */
     #updateFabricAcls(fabric: Fabric) {
         const fabricIndex = fabric.fabricIndex;
         fabric.accessControl.extensionEntryAccessCheck = this.extensionEntryAccessCheck.bind(this);

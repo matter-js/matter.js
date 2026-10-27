@@ -293,11 +293,15 @@ export namespace Datasource {
      */
     export interface ExternallyMutableStore extends Store {
         /**
-         * Apply changes from an external source.
+         * Apply values the peer reported.
          *
-         * Uses the same semantics as {@link set}.
+         * Uses the same patch semantics as {@link set}, but the values are the peer's own and take effect at once.  On a
+         * mirror, {@link set} instead proposes values to the peer and leaves the local values unchanged until the peer
+         * accepts them, so never route a report through {@link set}.  Resolves once the values are applied, also when
+         * storing them locally failed; the result then carries that failure for the caller to report.  Their change
+         * notifications may follow later, when notifications of an earlier change are still held; do not await them.
          */
-        externalSet(values: Val.StructMap): Promise<void>;
+        externalSet(values: Val.StructMap): Promise<ExternallyMutableStore.Applied>;
 
         /**
          * The datasource consuming this store's data.  Installed by the datasource when it binds to the store.
@@ -321,6 +325,11 @@ export namespace Datasource {
         invalidateVersion?(): void;
 
         /**
+         * Forget the version in memory and in storage.  Resolves once storage holds the unknown version.
+         */
+        forgetVersion(): Promise<void>;
+
+        /**
          * Reclaim values from the datasource so a rebuilt datasource re-seeds from live data rather than defaults.
          */
         reclaimValues?(): void;
@@ -332,6 +341,17 @@ export namespace Datasource {
     }
 
     export namespace ExternallyMutableStore {
+        /**
+         * The result of {@link ExternallyMutableStore.externalSet}.
+         */
+        export interface Applied {
+            /**
+             * The error that kept the values from being stored locally, if any.  A failure thrown as `undefined` is
+             * not reported.
+             */
+            persistFailure?: unknown;
+        }
+
         export function is(store?: Store | ExternallyMutableStore): store is ExternallyMutableStore {
             return store !== undefined && "externalSet" in store;
         }
@@ -341,9 +361,12 @@ export namespace Datasource {
          */
         export interface Consumer {
             /**
-             * Integrate externally-sourced changes into the datasource's managed state.
+             * Apply externally-sourced values to the datasource's managed state now.
+             *
+             * Returns the function that announces the changes, or undefined if nothing changed.  It logs a failing
+             * {@link Datasource.Options.onChange} or event emit and goes on; it never throws.
              */
-            integrateExternalChange(values: Val.StructMap): Promise<void>;
+            integrate(values: Val.StructMap): undefined | (() => MaybePromise<void>);
 
             /**
              * Read current values for the specified keys.
@@ -384,7 +407,6 @@ interface SessionContext {
  * Changes that are applied during a commit (computed post-commit).
  */
 interface CommitChanges {
-    stored?: Val.Struct;
     notifications: Array<{
         event: Observable<any[], MaybePromise>;
         params: Parameters<Datasource.ValueObserver> | [context?: ValueSupervisor.Session];
@@ -428,6 +450,9 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
      */
     migratedStoreKeys?: Set<string>;
 
+    /**
+     * Keys of the members a persisted store keeps.  A mirror sends what a session assigned instead.
+     */
     storeFields: Set<string>;
     supervisionConfig?: GlobalConfig;
 
@@ -435,9 +460,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
      * True when {@link store} is a {@link Datasource.ExternallyMutableStore}, i.e. the values mirror a remote node and
      * {@link Datasource.ExternallyMutableStore.set} conveys changes to that node rather than to local persistence.
      */
-    get mirrorsRemote() {
-        return Datasource.ExternallyMutableStore.is(this.store);
-    }
+    readonly mirrorsRemote: boolean;
 
     observedInteractions?: Set<
         | NonNullable<ValueSupervisor.RemoteActorSession["interactionComplete"]>
@@ -454,6 +477,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         this.location = options.location;
         this.entropy = options.entropy;
         this.store = options.store;
+        this.mirrorsRemote = Datasource.ExternallyMutableStore.is(options.store);
         this.owner = options.owner;
         this.onChange = options.onChange;
         this.primaryKey = options.primaryKey === "id" ? "id" : "name";
@@ -572,11 +596,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
 
         this.version = options.entropy.randomUint32;
         this.manageVersion = true;
-        // A mirror's store is the conduit to the remote node, not a persistence filter: every attribute the caller
-        // mutates must reach the peer, or an unwritable attribute would silently become a local fiction
-        this.storeFields = this.mirrorsRemote
-            ? options.supervisor.attributeKeys(this.primaryKey)
-            : options.supervisor.persistentKeys(this.primaryKey);
+        this.storeFields = options.supervisor.persistentKeys(this.primaryKey);
 
         this.#configureExternalChanges();
 
@@ -787,7 +807,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
 
     // -- Datasource.ExternallyMutableStore.Consumer --
 
-    async integrateExternalChange(potentialChanges: Val.StructMap) {
+    integrate(potentialChanges: Val.StructMap) {
         const { values, store } = this;
         if (!Datasource.ExternallyMutableStore.is(store)) {
             throw new InternalError(`${this} integrated an external change without an externally mutable store`);
@@ -827,36 +847,53 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
 
         const changedProps = Array.from(changes.keys());
 
-        const onChangePromise = this.onChange?.(changedProps);
-
-        const iterator = changedProps[Symbol.iterator]();
-        const self = this;
-
-        if (onChangePromise) {
-            return onChangePromise.then(emitChanged);
-        }
-
-        return emitChanged();
-
-        function emitChanged(): MaybePromise<void> {
-            while (true) {
-                const n = iterator.next();
-                if (n.done) {
-                    return;
-                }
-
-                const name = n.value;
-                const event = self.changedEventFor(name);
+        const announceRest = (from: number): MaybePromise<void> => {
+            for (let i = from; i < changedProps.length; i++) {
+                const name = changedProps[i];
+                const event = this.changedEventFor(name);
                 if (!event?.isObserved) {
                     continue;
                 }
-
-                const result = event.emit(changes!.get(name), oldValues!.get(name));
-                if (MaybePromise.is(result)) {
-                    return Promise.resolve(result).then(emitChanged);
+                const failed = (e: unknown) => {
+                    logger.warn(`Error announcing a change of ${this.location.path}.${name}:`, e);
+                };
+                try {
+                    const result = event.emit(changes.get(name), oldValues!.get(name));
+                    if (MaybePromise.is(result)) {
+                        return Promise.resolve(result).then(
+                            () => announceRest(i + 1),
+                            e => {
+                                failed(e);
+                                return announceRest(i + 1);
+                            },
+                        );
+                    }
+                } catch (e) {
+                    failed(e);
                 }
             }
-        }
+        };
+
+        return (): MaybePromise<void> => {
+            const broadcastFailed = (e: unknown) => {
+                logger.warn(`Error broadcasting changes of ${this.location.path}:`, e);
+            };
+            try {
+                const result = this.onChange?.(changedProps);
+                if (MaybePromise.is(result)) {
+                    return Promise.resolve(result).then(
+                        () => announceRest(0),
+                        e => {
+                            broadcastFailed(e);
+                            return announceRest(0);
+                        },
+                    );
+                }
+            } catch (e) {
+                broadcastFailed(e);
+            }
+            return announceRest(0);
+        };
     }
 
     readValues(keys: Set<string>) {
@@ -893,11 +930,27 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     supervisionConfig?: Supervision.Config;
 
     #values: Val.Struct;
-    #baseValues: Val.Struct | undefined;
     #stagedFeaturesKey = false;
     #stagedMigration = false;
     #precommitValues: Val.Struct | undefined;
     #changes: CommitChanges | undefined;
+
+    /**
+     * Keys of the members this session assigned since its last commit or rollback, whether or not the value differs.
+     */
+    #assigned: Set<string> | undefined;
+
+    /**
+     * Members assigned within the outermost {@link change} still running.  They join {@link #assigned} only when that
+     * call succeeds, as a failing assignment undoes the nested ones it made first.
+     */
+    #pendingAssigned: Set<string> | undefined;
+
+    /**
+     * Whether the outermost {@link change} is running, so a nested one only notes its member as pending.
+     */
+    #mutating = false;
+
     #expired = false;
     #internals: DatasourceImpl;
     #session: ValueSupervisor.Session;
@@ -971,7 +1024,6 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             try {
                 this.#internals.sessions?.delete(this.#session);
                 this.#expired = true;
-                this.#refreshSubrefs();
             } catch (e) {
                 logger.warn(
                     `Error detaching reference to ${this.#internals.location.path} from closed transaction ${transaction.via}:`,
@@ -1000,10 +1052,6 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         return this.#values;
     }
 
-    set value(_value) {
-        throw new InternalError(`Cannot set root reference for ${this.#internals.supervisor.schema.name}`);
-    }
-
     get expired() {
         return this.#expired;
     }
@@ -1020,7 +1068,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         return this.#internals.owner;
     }
 
-    change(mutator: () => void) {
+    change(mutator: () => void, member: string | number) {
         if (this.#expired) {
             throw new ExpiredReferenceError(this.location);
         }
@@ -1034,10 +1082,6 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         // Clone values if we haven't already
         if (this.#values === this.#internals.values) {
             const old = this.#values;
-
-            // An external change does not refresh an existing clone, so the commit needs this baseline to tell a value
-            // this session wrote from one that only diverges because the peer reported it while we held the clone
-            this.#baseValues = old;
 
             let keys: Iterable<string>;
             if (this.primaryKey === "id") {
@@ -1070,11 +1114,49 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             this.#refreshSubrefs();
         }
 
-        // Perform the mutation
-        mutator();
+        // A mutator that throws may already have changed or restored values
+        try {
+            if (this.#internals.mirrorsRemote) {
+                this.#mutateRecording(mutator, member);
+            } else {
+                mutator();
+            }
+        } finally {
+            this.#refreshSubrefs();
+        }
+    }
 
-        // Refresh subrefs referencing any mutated values
-        this.#refreshSubrefs();
+    /**
+     * Run {@link mutator} and record {@link member} as assigned, for a mirror, which sends what was assigned rather
+     * than what changed.
+     */
+    #mutateRecording(mutator: () => void, member: string | number) {
+        if (this.#mutating) {
+            mutator();
+            (this.#pendingAssigned ??= new Set()).add(String(member));
+            return;
+        }
+
+        this.#mutating = true;
+        try {
+            mutator();
+        } catch (e) {
+            // A failing assignment undoes the nested ones it made first
+            this.#pendingAssigned = undefined;
+            throw e;
+        } finally {
+            this.#mutating = false;
+        }
+
+        const assigned = (this.#assigned ??= new Set());
+        assigned.add(String(member));
+        const pending = this.#pendingAssigned;
+        if (pending !== undefined) {
+            this.#pendingAssigned = undefined;
+            for (const key of pending) {
+                assigned.add(key);
+            }
+        }
     }
 
     refresh() {
@@ -1136,9 +1218,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         this.#stagedFeaturesKey = false;
         this.#stagedMigration = false;
 
-        this.#computePostCommitChanges();
-
-        const stored = this.#changes?.stored;
+        const stored = this.#computePostCommitChanges();
         if (!stored) {
             return;
         }
@@ -1174,38 +1254,13 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
      * For commit phase two we make the working values canonical and notify listeners.
      */
     commit2() {
+        this.#assigned = undefined;
+
         if (!this.#changes) {
             return;
         }
 
-        this.#adoptConcurrentChanges();
-
         this.#internals.values = this.#values;
-    }
-
-    /**
-     * Take over values that changed externally while this session held its clone.  Our clone is only authoritative for
-     * what this session wrote; making it canonical wholesale would discard a peer report that arrived meanwhile.
-     *
-     * Values are copied into the clone rather than merged into a new object so the state class instance, and with it
-     * any {@link Val.properties} implementation, survives.
-     */
-    #adoptConcurrentChanges() {
-        const base = this.#baseValues;
-        const canonical = this.#internals.values;
-
-        // Only an externally mutable store mutates values outside a transaction, so for every other datasource
-        // canonical is still the object we cloned from and there is nothing to adopt
-        if (base === undefined || canonical === base) {
-            return;
-        }
-
-        for (const name in canonical) {
-            const value = canonical[name];
-            if (this.#values[name] !== value && !this.#wasWrittenHere(name, this.#values[name])) {
-                this.#values[name] = value;
-            }
-        }
     }
 
     /**
@@ -1258,7 +1313,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
      */
     rollback() {
         this.#values = this.#internals.values;
-        this.#baseValues = undefined;
+        this.#assigned = undefined;
 
         // A rolled back value was never adopted, so it must not stand as the baseline the next announcement diffs
         // against
@@ -1345,20 +1400,12 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     }
 
     /**
-     * Whether {@link name} holds a value this session assigned, as opposed to one that diverges from canonical only
-     * because an external change landed while we held our clone.  Only the former may go to the store — for a mirror
-     * the store is the peer, and writing back a value the peer just reported would ask the device to accept its own
-     * (now stale) data.
+     * Compute the local changes of this commit and return the values that go to the store.
+     *
+     * For a mirror the peer is the only writer of its values, so nothing changes locally.  Every member this session
+     * assigned goes to the store as a proposal, also an unchanged one: the device decides, not our copy of its state.
+     * The store settles what the device accepts.
      */
-    #wasWrittenHere(name: string, newval: Val) {
-        const base = this.#baseValues;
-        if (base === undefined) {
-            return true;
-        }
-        const baseval = base[name];
-        return baseval !== newval && !isDeepEqual(newval, baseval);
-    }
-
     #computePostCommitChanges() {
         this.#changes = undefined;
 
@@ -1366,42 +1413,67 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             return;
         }
 
+        if (this.#internals.mirrorsRemote) {
+            let proposed: Val.Struct | undefined;
+            for (const name of this.#assigned ?? []) {
+                (proposed ??= {})[name] = this.#values[name];
+            }
+            return proposed;
+        }
+
+        const { storeFields } = this.#internals;
+        let changes: CommitChanges | undefined;
+        let stored: Val.Struct | undefined;
+
         for (const name in this.#values) {
-            const newval = this.#values[name];
-            const oldval = this.#internals.values[name];
-            if (oldval !== newval && !isDeepEqual(newval, oldval)) {
-                if (!this.#changes) {
-                    this.#changes = { notifications: [], changeList: new Set() };
-                }
-                this.#changes.changeList.add(name);
-
-                if (this.#internals.storeFields.has(name) && this.#wasWrittenHere(name, newval)) {
-                    if (this.#changes.stored === undefined) {
-                        this.#changes.stored = {};
-                    }
-                    this.#changes.stored[name] = this.#values[name];
-                }
-
-                const event = this.#internals.changedEventFor(name);
-                if (event?.isObserved) {
-                    this.#changes.notifications.push({
-                        event,
-                        params: [this.#values[name], this.#internals.values[name], this.#session],
-                    });
+            const noted = this.#noteIfChanged(name, changes);
+            if (noted !== undefined) {
+                changes = noted;
+                if (storeFields.has(name)) {
+                    (stored ??= {})[name] = this.#values[name];
                 }
             }
         }
 
-        if (this.#changes) {
+        if (changes) {
             this.#internals.advanceVersion();
 
             if (this.#internals.events.stateChanged?.isObserved) {
-                this.#changes.notifications.push({
+                changes.notifications.push({
                     event: this.#internals.events.stateChanged,
                     params: [this.#session],
                 });
             }
+
+            this.#changes = changes;
         }
+
+        return stored;
+    }
+
+    /**
+     * Note {@link name} in {@link changes}, created on the first change, if its value changed.  Returns the changes
+     * then, otherwise undefined.
+     */
+    #noteIfChanged(name: string, changes: CommitChanges | undefined) {
+        const newval = this.#values[name];
+        const oldval = this.#internals.values[name];
+        if (oldval === newval || isDeepEqual(newval, oldval)) {
+            return;
+        }
+
+        changes ??= { notifications: [], changeList: new Set() };
+        changes.changeList.add(name);
+
+        const event = this.#internals.changedEventFor(name);
+        if (event?.isObserved) {
+            changes.notifications.push({
+                event,
+                params: [newval, oldval, this.#session],
+            });
+        }
+
+        return changes;
     }
 }
 

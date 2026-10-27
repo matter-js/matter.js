@@ -368,6 +368,10 @@ export function InstrumentedOtaProviderServer(
          * answer the provider gives only in a state the flow does not otherwise pass through.
          */
         beforeApplyUpdateRequest?: (agent: Agent) => MaybePromise<void>;
+        /** Replaces the request the requestor sent, standing in for a requestor that sends other fields. */
+        rewriteApplyUpdateRequest?: (
+            request: OtaSoftwareUpdateProvider.ApplyUpdateRequest,
+        ) => OtaSoftwareUpdateProvider.ApplyUpdateRequest;
     } = {},
 ): {
     queryImagePromise: Promise<void>;
@@ -436,7 +440,7 @@ export function InstrumentedOtaProviderServer(
                 }
                 applyUpdateRequestResolver();
                 await hooks.beforeApplyUpdateRequest?.(this.agent);
-                const response = await super.applyUpdateRequest(request);
+                const response = await super.applyUpdateRequest(hooks.rewriteApplyUpdateRequest?.(request) ?? request);
                 applyUpdateResponses.push(response);
                 return response;
             } catch (error) {
