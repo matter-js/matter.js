@@ -1256,6 +1256,37 @@ export async function chipToolDiscoveryGaveUp(log: LogFollower, from: number): P
     return timedOut.check;
 }
 
+const CHIP_TOOL_ATTEMPT_ENDED = /\[CTL\] Discovery timed out|Pairing Failure: /;
+
+/**
+ * chip-tool's own log showing that an attempt from `from` on ended without a commissioning: either its discovery
+ * found nothing ({@link chipToolDiscoveryGaveUp}), or it found the device, started PASE and the PASE failed
+ * (`PairingCommand::OnPairingComplete` logs `Pairing Failure`).  The first of the two lines decides.  For a step
+ * whose plan accepts a device that still advertises but refuses PASE; the caller checks on the device that no PASE
+ * was accepted.
+ */
+export async function chipToolGaveUpOrPaseFailed(log: LogFollower, from: number): Promise<CheckRecord> {
+    const ended = await expectDeviceLog(log, "chip", { chip: CHIP_TOOL_ATTEMPT_ENDED }, from, LOG_TIMEOUT);
+    const until = ended.check.logLine;
+    if (ended.check.verdict !== "pass" || until === undefined) {
+        return ended.check;
+    }
+    if (CHIP_TOOL_DISCOVERY_TIMED_OUT.test(ended.check.matched ?? "")) {
+        return chipToolDiscoveryGaveUp(log, from);
+    }
+    const pase = log.lines.find(
+        line => line.index >= from && line.index < until && CHIP_TOOL_PASE_ATTEMPT.test(line.text),
+    );
+    if (pase === undefined) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            detail: `chip-tool reported a pairing failure without a PASE attempt before it: ${ended.check.matched}`,
+        };
+    }
+    return ended.check;
+}
+
 /**
  * Whether `error` is a commissioner giving up on a code it read successfully, which is what the
  * negative vendor and product plans mean by "the DUT terminates the commissioning process".

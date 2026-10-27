@@ -4071,10 +4071,11 @@ commissioning window. `tc-cadmin-support.ts` holds both as `fabricRemovalCase` (
   window-open line and its window-closed line (`LogLine.receivedAt`, monotonic), and must lie within the plan's
   clock allowance (1 %, at least 100 ms).
 - **The negative steps record the controller's refusal and the TH's side together.** Step 11 (PASE after the
-  revoke) accepts a give-up (`isCommissioningGiveUp`), and requires the plan's either-or: no `_matterc._udp` record
-  for the window's discriminator, or no accepted PASE session in the TH log (`eitherNoRecordOrNoPase`). An enhanced
-  window's discriminator comes from the QR code the controller returned. On chip-tool, chip-tool's own log has to show
-  that its discovery gave up (`chipToolDiscoveryGaveUp`). Step 16 accepts `DeviceAlreadyCommissionedToThisFabricError`
+  revoke) accepts a give-up (`isCommissioningGiveUp`) or the matterjs-server's `MatterServerCommissioningError`, whose
+  reason only the server log names, and requires the plan's either-or: no `_matterc._udp` record for the window's
+  discriminator, or no accepted PASE session in the TH log (`eitherNoRecordOrNoPase`). An enhanced window's
+  discriminator comes from the QR code the controller returned. On chip-tool, chip-tool's own log has to show that its
+  discovery gave up or that its PASE failed (`chipToolGaveUpOrPaseFailed`). Step 16 accepts `DeviceAlreadyCommissionedToThisFabricError`
   or chip-tool's command error and requires the TH's own FabricConflict line (`ADD_NOC_FABRIC_CONFLICT`).
   `CommissioningRefusals` tracks both attempts under the role that made them, so the finalizer removes a fabric that
   a wrongly successful attempt left.

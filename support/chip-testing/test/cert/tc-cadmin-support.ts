@@ -30,11 +30,12 @@ import type {
 import { certTest, flavorFamily } from "@matter/testing";
 import { ControllerCommandError } from "../../src/cert/controller-command-error.js";
 import { NoCommissionedPeerError } from "../../src/cert/InProcessControllerAdapter.js";
+import { MatterServerCommissioningError } from "../../src/cert/MatterServerControllerAdapter.js";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import {
     ABSENT_DEVICE_GIVE_UP,
     ABSENT_DEVICE_WAIT,
-    chipToolDiscoveryGaveUp,
+    chipToolGaveUpOrPaseFailed,
     CommissioningRefusals,
     isCommissioningGiveUp,
     PARSES_PAYLOAD,
@@ -271,6 +272,15 @@ export function eitherNoRecordOrNoPase(noRecord: CheckRecord | undefined, noPase
         matched: noPase.matched,
         logLine: noPase.logLine,
     };
+}
+
+/**
+ * A controller error that step 11 accepts: a give-up ({@link isCommissioningGiveUp}), which covers a refused PASE on
+ * the in-process controller and on chip-tool, or a commissioning the matterjs-server reports as failed, which names
+ * its reason only in the server's log.  The TH's own log decides whether a PASE was accepted.
+ */
+function isGiveUpOrRefusedPase(error: unknown) {
+    return isCommissioningGiveUp(error) || error instanceof MatterServerCommissioningError;
 }
 
 async function noRecordOrNoPase(th: CertDevice, discriminator: number | undefined, from: number) {
@@ -1298,7 +1308,7 @@ export function administratorBehaviorCase(tc: string, method: CommissioningMetho
                     `TH_CR3 commissioning through the revoked window`,
                     commissioning,
                     ABSENT_DEVICE_WAIT,
-                    isCommissioningGiveUp,
+                    isGiveUpOrRefusedPase,
                 );
                 const checks: RecordedCheck[] = [
                     { what: "TH_CR3 could not commission", check: () => refused },
@@ -1309,8 +1319,8 @@ export function administratorBehaviorCase(tc: string, method: CommissioningMetho
                 ];
                 if (chipTool) {
                     checks.push({
-                        what: "chip-tool gave up on discovery",
-                        check: () => chipToolDiscoveryGaveUp(th_cr3.log, cr3From),
+                        what: "chip-tool gave up on discovery, or its PASE failed",
+                        check: () => chipToolGaveUpOrPaseFailed(th_cr3.log, cr3From),
                     });
                 }
                 await recordAll(cx, checks);
