@@ -80,6 +80,15 @@ class TestNetwork extends Network {
     }
 }
 
+let nameRegistrations = 0;
+
+class RegistrationCountingSocket extends MdnsSocket {
+    override registerRelevantNames(owner: string, names: Iterable<string> | "all") {
+        nameRegistrations++;
+        super.registerRelevantNames(owner, names);
+    }
+}
+
 interface Sent {
     netInterface?: string;
     message: DnsMessage;
@@ -118,7 +127,7 @@ describe("MdnsServer interface address changes", () => {
                 return network;
             },
         } as UdpMulticastServer;
-        server = new MdnsServer(new MdnsSocket(udp));
+        server = new MdnsServer(new RegistrationCountingSocket(udp));
     }
 
     async function settle() {
@@ -447,22 +456,25 @@ describe("MdnsServer interface address changes", () => {
         expect(network.reads).deep.equals(["eth1"]);
     });
 
-    it("sends nothing when the server closes during a change", async () => {
+    it("leaves nothing behind when the server closes during a change", async () => {
         // Reads: the network check, the host name choice, then the rebuild of the records
         let release: (() => void) | undefined;
         network.holdRead = { at: network.reads.length + 3, hold: resume => (release = resume) };
-        network.interfaces.eth0.ipV6 = ["2001:db8:2::10", "fe80::10"];
+        // A new MAC moves the host name, so the rebuilt records carry names not registered yet
+        network.interfaces.eth0 = { ...network.interfaces.eth0, mac: "aa:bb:cc:dd:ee:05" };
         sent.length = 0;
         const checking = network.checkInterfaces();
         await settle();
         expect(release).not.undefined;
 
         await server.close();
+        nameRegistrations = 0;
         release?.();
         await checking;
         await MockTime.advance(1_000);
 
         expect(sent).deep.equals([]);
+        expect(nameRegistrations).equals(0);
     });
 
     it("sends nothing when the records did not change", async () => {

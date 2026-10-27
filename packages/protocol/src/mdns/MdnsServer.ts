@@ -404,6 +404,9 @@ export class MdnsServer {
         const byService = new Map<string, DnsRecord<any>[]>();
         const ownedNames = new Set<string>();
         const addrs = await this.network.getIpMac(netInterface);
+        if (this.#lifetime.isClosing) {
+            throw new ClosedError("The mDNS server closed while reading the interface details");
+        }
         if (addrs === undefined) {
             return { byService, ownedNames };
         }
@@ -442,7 +445,11 @@ export class MdnsServer {
         } catch (error) {
             // The next use builds the records again from the current interface details
             this.#records.clear();
-            logger.warn("Cannot update the mDNS records after an interface change", error);
+            if (this.#lifetime.isClosing) {
+                logger.debug("Stopped updating the mDNS records because the server closed", error);
+            } else {
+                logger.warn("Cannot update the mDNS records after an interface change", error);
+            }
         }
     }
 
