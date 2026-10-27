@@ -57,6 +57,7 @@ export class CertificateAuthority {
     #construction: Construction<CertificateAuthority>;
     #icacProps?: IcacProps;
     #storage?: StorageContext;
+    #issuer?: CertificateAuthority.Issuer;
 
     get crypto() {
         return this.#crypto;
@@ -83,6 +84,7 @@ export class CertificateAuthority {
                 () => this.#construction.close(),
 
                 () => {
+                    this.#issuer = undefined;
                     this.#rootKeyPair = undefined;
                     this.#rootKeyIdentifier = undefined;
                     this.#rootCertBytes = undefined;
@@ -100,6 +102,17 @@ export class CertificateAuthority {
      */
     static eraseFor(env: Environment) {
         return env.get(StorageManager).createContext(CERTIFICATES_CONTEXT).clearAll();
+    }
+
+    /**
+     * Creates a CertificateAuthority whose NOCs are issued by {@link issuer}, for example a remote CA service.
+     *
+     * The authority holds no private key of the root or of an intermediate, and stores nothing.  {@link config} is
+     * not available on it.  The root certificate is read from {@link CertificateAuthority.Issuer.rootCert} once,
+     * during construction.
+     */
+    static external(crypto: Crypto, issuer: CertificateAuthority.Issuer) {
+        return new CertificateAuthority(crypto, { issuer });
     }
 
     /**
@@ -136,10 +149,26 @@ export class CertificateAuthority {
 
     constructor(
         crypto: Crypto,
-        options?: StorageContext | CertificateAuthority.Configuration | boolean,
+        options?:
+            | StorageContext
+            | CertificateAuthority.Configuration
+            | { issuer: CertificateAuthority.Issuer }
+            | boolean,
         generateIntermediateCert?: boolean,
     ) {
         this.#crypto = crypto;
+
+        if (typeof options === "object" && "issuer" in options) {
+            const { issuer } = options;
+            this.#issuer = issuer;
+            this.#construction = Construction(this, () => {
+                const { cert } = Rcac.fromTlv(issuer.rootCert);
+                this.#rootCertId = BigInt(cert.subject.rcacId ?? 0);
+                this.#rootKeyIdentifier = cert.extensions.subjectKeyIdentifier;
+                this.#rootCertBytes = issuer.rootCert;
+            });
+            return;
+        }
 
         // Not deferred to the initializer below: erase() must find the context even mid-construction
         if (options instanceof StorageContext) {
@@ -196,6 +225,9 @@ export class CertificateAuthority {
     }
 
     get icacCert(): Bytes | undefined {
+        if (this.#issuer) {
+            return this.#issuer.icacCert;
+        }
         if (!this.#icacProps) {
             return undefined;
         }
@@ -203,6 +235,9 @@ export class CertificateAuthority {
     }
 
     get config(): CertificateAuthority.Configuration {
+        if (this.#issuer) {
+            throw new ImplementationError("An external certificate authority holds no key material to export");
+        }
         return {
             rootCertId: this.#rootCertId,
             rootKeyIdentifier: this.construction.assert("root key identifier", this.#rootKeyIdentifier),
@@ -290,6 +325,10 @@ export class CertificateAuthority {
         nodeId: NodeId,
         caseAuthenticatedTags?: CaseAuthenticatedTag[],
     ) {
+        if (this.#issuer) {
+            return await this.#issuer.issueNoc({ publicKey, fabricId, nodeId, caseAuthenticatedTags });
+        }
+
         const now = Time.now;
         const certId = this.#nextCertificateId++;
 
@@ -444,6 +483,40 @@ interface IcacProps {
 }
 
 export namespace CertificateAuthority {
+    /**
+     * Issues NOCs on behalf of a {@link CertificateAuthority} that holds no private key, for example by forwarding to
+     * a remote CA.  All certificates are in Matter TLV form.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.5
+     */
+    export interface Issuer {
+        /** The RCAC every issued NOC chains to. */
+        readonly rootCert: Bytes;
+
+        /** The ICAC that signs issued NOCs.  Undefined when the RCAC signs them directly. */
+        readonly icacCert?: Bytes;
+
+        /**
+         * Issue a NOC for {@link publicKey}.
+         *
+         * The controller calls this for its own fabric and once per device during commissioning, while the device's
+         * fail-safe timer runs.  Keep the call well below the fail-safe length.  To make the commissioner end the
+         * fail-safe on the device at once, throw a `CommissioningError`.  Any other error leaves the device
+         * in commissioning mode with this controller until the fail-safe expires.
+         */
+        issueNoc(request: Issuer.NocRequest): Promise<Bytes>;
+    }
+
+    export namespace Issuer {
+        /** The subject and public key of a NOC to issue. */
+        export interface NocRequest {
+            publicKey: Bytes;
+            fabricId: FabricId;
+            nodeId: NodeId;
+            caseAuthenticatedTags?: CaseAuthenticatedTag[];
+        }
+    }
+
     /** Base configuration fields shared by both 2-tier and 3-tier PKI */
     type ConfigurationBase = {
         rootCertId: bigint;

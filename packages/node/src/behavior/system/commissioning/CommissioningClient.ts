@@ -297,6 +297,7 @@ export class CommissioningClient extends Behavior {
             threadNetwork: options.threadNetwork,
             regulatoryLocation: options.regulatoryLocation,
             regulatoryCountryCode: options.regulatoryCountryCode,
+            caseAdminSubject: options.caseAdminSubject,
             timeout: options.timeout,
             caseConnectionTiming: options.caseConnectionTiming ?? defaultCaseConnectionTiming,
             caseConnectionTimeout: options.caseConnectionTimeout,
@@ -1258,6 +1259,12 @@ export namespace CommissioningClient {
          * Defaults to "XX" (unspecified).
          */
         regulatoryCountryCode?: ControllerCommissioningFlowOptions["regulatoryCountryCode"];
+
+        /**
+         * The subject of the device's first Administer ACL entry.  Defaults to this controller's node ID.  A CASE
+         * Authenticated Tag subject gives administrative access to every controller holding that tag instead.
+         */
+        caseAdminSubject?: ControllerCommissioningFlowOptions["caseAdminSubject"];
 
         /**
          * Override the final operational step of commissioning.

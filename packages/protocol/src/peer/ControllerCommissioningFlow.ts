@@ -98,6 +98,18 @@ export type ControllerCommissioningFlowOptions = {
     adminVendorId?: VendorId;
 
     /**
+     * The CASE admin subject sent in AddNOC.  The device writes it as the subject of its first Administer ACL entry.
+     *
+     * Defaults to the commissioner's node ID.  Use a CASE Authenticated Tag subject
+     * ({@link NodeId.fromCaseAuthenticatedTag}) to give administrative access to every controller whose NOC carries
+     * that tag.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.6.8
+     * @see {@link MatterSpecification.v161.Core} § 6.6.2.1.2
+     */
+    caseAdminSubject?: NodeId;
+
+    /**
      * Required credentials if the device is to connect to a wifi network provide the credentials here.
      */
     wifiNetwork?: {
@@ -1463,7 +1475,7 @@ export class ControllerCommissioningFlow {
                     icacValue: this.ca.icacCert ?? new Uint8Array(0),
                     ipkValue: this.fabric.identityProtectionKey,
                     adminVendorId: this.fabric.rootVendorId,
-                    caseAdminSubject: this.fabric.rootNodeId,
+                    caseAdminSubject: this.commissioningOptions.caseAdminSubject ?? this.fabric.rootNodeId,
                 },
             },
             {
