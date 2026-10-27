@@ -150,6 +150,13 @@ describe("Crypto interop (StandardCrypto <-> NodeJsCrypto)", () => {
     });
 
     describe("AES-CCM input limits", () => {
+        // Some runtimes emulate Node.js without an aes-128-ccm cipher, so these cannot run there
+        before(function () {
+            if (NodeJsCrypto.defect !== undefined) {
+                this.skip();
+            }
+        });
+
         // Literals, not the constants, so a wrong constant fails here
         const MAX_PLAINTEXT_13 = 0xffff;
         const MAX_CIPHERTEXT_13 = 0x1000f;
