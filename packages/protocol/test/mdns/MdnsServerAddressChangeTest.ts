@@ -39,6 +39,7 @@ class TestNetwork extends Network {
     readsAsync = false;
     heldReads?: Array<{ name: string; release(): void }>;
     holdRead?: { at: number; hold(release: () => void): void };
+    failNextReadOf?: string;
 
     listings = 0;
     failListingsFrom?: number;
@@ -53,6 +54,10 @@ class TestNetwork extends Network {
 
     getIpMac(name: string) {
         this.reads.push(name);
+        if (this.failNextReadOf === name) {
+            this.failNextReadOf = undefined;
+            throw new NetworkError(`Interface ${name} cannot be read`);
+        }
         const details = this.interfaces[name];
         const holdRead = this.holdRead;
         if (holdRead?.at === this.reads.length) {
@@ -384,11 +389,21 @@ describe("MdnsServer interface address changes", () => {
             }
         }
         await checking;
+        sent.length = 0;
         olderRead.release();
         network.heldReads = undefined;
         await settle();
 
+        expect(addressValues(sent.flatMap(({ message }) => message.answers))).deep.equals(["10.1.0.3"]);
         expect(await queryAddresses("eth1")).deep.equals(["10.1.0.3"]);
+    });
+
+    it("reads the details again after a failed first read", async () => {
+        network.interfaces.eth1 = { mac: "aa:bb:cc:dd:ee:02", ipV4: ["10.1.0.2"], ipV6: [] };
+        network.failNextReadOf = "eth1";
+
+        expect(await queryAddresses("eth1")).deep.equals([]);
+        expect(await queryAddresses("eth1")).deep.equals(["10.1.0.2"]);
     });
 
     it("sends nothing on a served interface that lost its details", async () => {

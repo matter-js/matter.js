@@ -377,14 +377,24 @@ export class MdnsServer {
         }
         let building = this.#building.get(netInterface);
         if (building === undefined) {
-            building = this.#buildRecords(netInterface).then(records => {
-                // A reset or an interface change during the build replaced this build
-                if (this.#building.get(netInterface) === building) {
+            const isCurrent = () => this.#building.get(netInterface) === building;
+            building = this.#buildRecords(netInterface).then(
+                records => {
+                    // A reset or an interface change during the build replaced it, so its records may be outdated
+                    if (!isCurrent()) {
+                        return this.#recordsFor(netInterface);
+                    }
                     this.#building.delete(netInterface);
                     this.#records.set(netInterface, records);
-                }
-                return records;
-            });
+                    return records;
+                },
+                error => {
+                    if (isCurrent()) {
+                        this.#building.delete(netInterface);
+                    }
+                    throw error;
+                },
+            );
             this.#building.set(netInterface, building);
         }
         return building;
