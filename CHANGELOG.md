@@ -18,6 +18,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: WAL storage loads its data when it opens, so a write during the first reads after opening is no longer lost
     - Fix: WAL storage starts a new log segment on every open, so a write after a crash that cut off the last log line is no longer lost
     - Fix: WAL storage snapshots right after an open that replayed its log, and refuses to open when its log is incomplete instead of opening with partial data
+    - Fix: The Node.js implementation (`NodeJsStyleCrypto`) refuses AES-CCM nonces of 7 to 11 bytes, which Node.js accepted
+    - Fix: The Node.js implementation (`NodeJsStyleCrypto`) refuses AES-CCM AAD over 65535 bytes, which Node.js accepted
+    - Fix: Both crypto implementations throw `CryptoInputError` for AES-CCM input outside the limits in `CryptoConstants`, where the Node.js implementation threw `RangeError` or `TypeError`
+    - Fix: `StandardCrypto` encrypts and decrypts AES-CCM plaintext of 65521 to 65535 bytes, which Matter messages reach only with `network.tcp.maxMessageSize` raised above its 64000-byte default
+    - Fix: `StandardCrypto` computes the correct AES-CCM tag for AAD of 65280 bytes or more
 
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
