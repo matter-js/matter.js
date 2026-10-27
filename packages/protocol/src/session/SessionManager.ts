@@ -12,12 +12,11 @@ import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { PeerShutdownError } from "#peer/PeerCommunicationError.js";
 import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
-import { GroupSession, GroupSessionDecodeError, GroupSessionNoKeyError } from "#session/GroupSession.js";
+import { GroupMessageRejection, GroupSession, GroupSessionDecodeError } from "#session/GroupSession.js";
 import {
     Diagnostic,
     BasicSet,
     Bytes,
-    causedBy,
     Channel,
     ClosedError,
     Construction,
@@ -25,6 +24,7 @@ import {
     Duration,
     Environment,
     Environmental,
+    hex,
     ImplementationError,
     InternalError,
     Lifecycle,
@@ -49,7 +49,7 @@ import type { ExposedFabricInformation, Fabric } from "../fabric/Fabric.js";
 import { MessageCounter, PersistedMessageCounter } from "../protocol/MessageCounter.js";
 import { NodeSession } from "./NodeSession.js";
 import { SecureSession } from "./SecureSession.js";
-import type { Session } from "./Session.js";
+import { Session } from "./Session.js";
 import { SessionIntervals } from "./SessionIntervals.js";
 import { SessionParameters } from "./SessionParameters.js";
 import { UnsecuredSession } from "./UnsecuredSession.js";
@@ -128,24 +128,18 @@ export interface ActiveSessionInformation {
     numberOfActiveSubscriptions: number;
 }
 
-/**
- * Metadata about a received group message, emitted via {@link SessionManager.onGroupMessage} for Groupcast testing.
- * Uses {@link Groupcast.GroupcastTestResult} directly so consumers can forward the value without mapping.
- */
-export interface GroupMessageEventInfo {
-    result: Groupcast.GroupcastTestResult;
-    fabric?: Fabric;
-
-    /** Authenticated group id.  Only set when the message decoded successfully for a known fabric. */
-    groupId?: GroupId;
-
-    /**
-     * Group id taken from the unauthenticated wire header of a message that failed decode.  Suitable to derive the
-     * multicast destination address for reporting, but must not be reported as the authenticated GroupID.
-     */
-    headerGroupId?: GroupId;
-
+interface GroupMessageEventBase {
     sourceIp?: string;
+}
+
+/** A received group message that a key of {@link fabric} authenticated. */
+export interface GroupMessageAuthenticatedInfo extends GroupMessageEventBase {
+    kind: "authenticated";
+
+    /** FailedAuth here means GroupKeyMap or the key set changed between decode and dispatch. */
+    result: Groupcast.GroupcastTestResult;
+    fabric: Fabric;
+    groupId?: GroupId;
     endpointId?: EndpointNumber;
     clusterId?: ClusterId;
     elementId?: number;
@@ -153,6 +147,17 @@ export interface GroupMessageEventInfo {
     /** Whether the ACL granted access for the dispatched command (only set for Success). */
     accessAllowed?: boolean;
 }
+
+/** A received group message for which no candidate key passed, see {@link GroupMessageRejection}. */
+export interface GroupMessageUnauthenticatedInfo extends GroupMessageEventBase, GroupMessageRejection {
+    kind: "unauthenticated";
+}
+
+/**
+ * Metadata about a received group message, emitted via {@link SessionManager.onGroupMessage} for Groupcast testing.
+ * An unauthenticated message names no fabric to report on; {@link GroupMessageRejection.resultFor} gives its result.
+ */
+export type GroupMessageEventInfo = GroupMessageAuthenticatedInfo | GroupMessageUnauthenticatedInfo;
 
 /**
  * Interfaces {@link SessionManager} with other components.
@@ -400,7 +405,10 @@ export class SessionManager {
     }
 
     /**
-     * Emits for each received group message (success or failure).  Observers remain inactive until at least one
+     * Emits for a received group message whose keys are tried: when no candidate key passes, when the message is a
+     * replay, and when the Interaction Model processes a group invoke request.  A datagram the codec refuses and a
+     * message with the R or A flag emit nothing.  Any other message, such as a group write or a message for an
+     * unsupported protocol, emits only MessageReplay for a replayed copy.  Observers remain inactive until at least one
      * listener attaches, so fabrics not under test incur no emission overhead.
      */
     get onGroupMessage() {
@@ -756,9 +764,11 @@ export class SessionManager {
     }
 
     /**
-     * Obtain a Group session for an incoming packet.
+     * Obtain a Group session for an incoming packet, with the decoded message and the facts decode established.
      *
-     * The session ID is determined by decrypting the packet with possible keys.
+     * The session ID is determined by decrypting the packet with possible keys.  Returns `undefined` when no candidate
+     * key passes; the message is then reported via {@link onGroupMessage} and must be dropped.  Also returns
+     * `undefined`, without a report, for a group data message with the R or A flag.
      *
      * Note that the resulting session is non-operational in the sense that attempting outbound communication will
      * result in an error.
@@ -767,43 +777,30 @@ export class SessionManager {
         this.#construction.assert();
         let decoded;
         try {
-            decoded = GroupSession.decode(this.#context.fabrics, packet, aad);
+            decoded = GroupSession.decodeWithCandidateKeys(this.#context.fabrics, packet, aad);
         } catch (error) {
-            // Per the Groupcast spec a failed decode reports only the result, never a group id.  The header group id is passed
-            // separately so the listener can derive the multicast address: from the plain wire header, or — when
-            // privacy obfuscates the header — from a key set that authenticated the message but is not mapped to any
-            // group, which also names that key set's fabric.
-            const headerGroupId =
-                !packet.header.hasPrivacyEnhancements && packet.header.destGroupId !== undefined
-                    ? GroupId(packet.header.destGroupId)
-                    : undefined;
-            if (causedBy(error, GroupSessionNoKeyError)) {
-                const noKey = error instanceof GroupSessionNoKeyError ? error : undefined;
-                this.#onGroupMessage.emit({
-                    result: Groupcast.GroupcastTestResult.NoAvailableKey,
-                    fabric: noKey?.fabric,
-                    headerGroupId: headerGroupId ?? noKey?.groupId,
-                    sourceIp,
-                });
-            } else if (causedBy(error, GroupSessionDecodeError)) {
-                this.#onGroupMessage.emit({
-                    result: Groupcast.GroupcastTestResult.FailedAuth,
-                    headerGroupId,
-                    sourceIp,
-                });
-            }
-            throw error;
+            GroupSessionDecodeError.accept(error);
+            const { candidateFabrics, group } = error;
+            this.#logger.debug(
+                `Dropping group message for session ${Session.idStrOf(packet)} from ${sourceIp ?? "unknown address"}:`,
+                error.message,
+                Diagnostic.dict({ candidateFabrics: candidateFabrics.size }),
+            );
+            this.#onGroupMessage.emit({ kind: "unauthenticated", candidateFabrics, group, sourceIp });
+            return undefined;
         }
 
-        const { message, key, privacyKey, sessionId, sourceNodeId, keySetId, fabric } = decoded;
+        const { message, key, privacyKey, sessionId, sourceNodeId, groupId, keySetId, fabric } = decoded;
 
-        // The group id is only authoritative after decode, since privacy obfuscates it in the wire header.
-        const rawGroupId = message.packetHeader.destGroupId;
-        if (rawGroupId === undefined) {
-            throw new UnexpectedDataError("Group ID is required for GroupSession fromPacket.");
+        // Spec 4.12.5.2 step 1: drop a group data message with the R or A flag; the codec refuses control messages.
+        // As CHIP does for the R flag, this runs before counter processing, though spec 4.7.2 orders the counter first
+        const { requiresAck, ackedMessageId } = message.payloadHeader;
+        if (requiresAck || ackedMessageId !== undefined) {
+            this.#logger.debug(
+                `Dropping group message ${hex.fixed(message.packetHeader.messageId, 8)} for session ${Session.idStrOf(packet)} with the ${requiresAck ? "R" : "A"} flag`,
+            );
+            return undefined;
         }
-        const groupId = GroupId(rawGroupId);
-        GroupId.assertGroupId(groupId);
 
         let session = this.#groupSessions.get(sourceNodeId)?.find(s => s.matches(fabric.fabricIndex, sessionId, key));
         if (session === undefined) {
@@ -820,11 +817,11 @@ export class SessionManager {
             });
         }
 
-        return { session, message, key };
+        return { session, message, key, sourceNodeId, groupId };
     }
 
-    /** Report a group message event (used by ExchangeManager for replay and InteractionServer for dispatch). */
-    emitGroupMessage(info: GroupMessageEventInfo) {
+    /** Report an authenticated group message (used by ExchangeManager for replay and InteractionServer for dispatch). */
+    emitGroupMessage(info: GroupMessageAuthenticatedInfo) {
         this.#onGroupMessage.emit(info);
     }
 

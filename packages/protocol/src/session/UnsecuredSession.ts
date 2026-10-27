@@ -8,14 +8,20 @@ import { Mark } from "#common/Mark.js";
 import { NoAssociatedFabricError } from "#protocol/errors.js";
 import { Bytes, ChannelType, Crypto, Diagnostic, MatterFlowError } from "@matter/general";
 import { NodeId } from "@matter/types";
-import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "../codec/MessageCodec.js";
+import {
+    DecodedMessage,
+    DecodedPacket,
+    Message,
+    MessageCodec,
+    Packet,
+    SessionType,
+    UNICAST_UNSECURE_SESSION_ID,
+} from "../codec/MessageCodec.js";
 import type { Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
 import { MessageReceptionStateUnencryptedWithRollover } from "../protocol/MessageReceptionState.js";
 import { Session } from "./Session.js";
 import { SessionParameters } from "./SessionParameters.js";
-
-export const UNICAST_UNSECURE_SESSION_ID = 0x0000;
 
 export class UnsecuredSession extends Session {
     readonly #initiatorNodeId: NodeId;

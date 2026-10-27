@@ -27,6 +27,7 @@ import {
     Fabric,
     FabricManager,
     GroupMessageEventInfo,
+    GroupMessageRejection,
     IANA_GROUPCAST_MULTICAST_ADDRESS,
     SessionManager,
 } from "@matter/protocol";
@@ -459,48 +460,63 @@ export class GroupcastServer extends GroupcastBase {
             return;
         }
 
-        // Messages that name a fabric (authenticated, or authenticated by an unmapped key set) report only for the
-        // fabric under test.  Other decode failures are unauthenticated and are reported on the fabric under test per
-        // the GroupcastTesting spec.
-        if (info.fabric !== undefined && info.fabric.fabricIndex !== fabricUnderTest) {
+        if (info.kind === "authenticated") {
+            if (info.fabric.fabricIndex !== fabricUnderTest) {
+                return;
+            }
+            const { result, groupId, endpointId, clusterId, elementId, accessAllowed, sourceIp } = info;
+            this.#emitGroupcastTesting(fabricUnderTest, sourceIp, this.#arrivalAddress(fabricUnderTest, groupId), {
+                groupcastTestResult: result,
+                groupId,
+                endpointId,
+                clusterId,
+                elementId,
+                accessAllowed,
+            });
             return;
         }
 
-        // The datagram destination is not available from the socket, so derive the multicast group address the
-        // message was received on from the group id (the header group id for unauthenticated failures).  An unknown
-        // group's datagram can only have arrived via the shared IANA address, since per-group addresses are joined
-        // per known group.
-        let destIp: string | undefined;
-        const groupIdForAddress = info.groupId ?? info.headerGroupId;
-        if (groupIdForAddress !== undefined) {
-            const known = this.state.membership.some(
-                m => m.fabricIndex === fabricUnderTest && m.groupId === groupIdForAddress,
-            );
-            const fabrics = this.env.get(FabricManager);
-            if (known && fabrics.has(fabricUnderTest)) {
-                destIp = fabrics.for(fabricUnderTest).groups.multicastAddressFor(groupIdForAddress);
-            } else {
-                destIp = IANA_GROUPCAST_MULTICAST_ADDRESS;
-            }
-        }
-        // Without any group knowledge (privacy-obfuscated header and no authenticating key set) the IANA address
-        // remains the only plausible arrival address
-        destIp ??= IANA_GROUPCAST_MULTICAST_ADDRESS;
+        // As in the CHIP SDK, a message for which no candidate key passed is reported on the fabric under test, without
+        // its group id
+        const { group, sourceIp } = info;
+        this.#emitGroupcastTesting(
+            fabricUnderTest,
+            sourceIp,
+            this.#arrivalAddress(group?.fabricIndex ?? fabricUnderTest, group?.groupId),
+            { groupcastTestResult: GroupMessageRejection.resultFor(info, fabricUnderTest) },
+        );
+    }
 
+    #emitGroupcastTesting(
+        fabricIndex: FabricIndex,
+        sourceIp: string | undefined,
+        destinationIp: string,
+        details: Omit<Groupcast.GroupcastTestingEvent, "sourceIpAddress" | "destinationIpAddress" | "fabricIndex">,
+    ) {
         this.events.groupcastTesting?.emit(
             {
-                sourceIpAddress: toIpv6EventAddress(info.sourceIp),
-                destinationIpAddress: toIpv6EventAddress(destIp),
-                groupId: info.groupId,
-                endpointId: info.endpointId,
-                clusterId: info.clusterId,
-                elementId: info.elementId,
-                accessAllowed: info.accessAllowed,
-                groupcastTestResult: info.result,
-                fabricIndex: fabricUnderTest,
+                ...details,
+                sourceIpAddress: toIpv6EventAddress(sourceIp),
+                destinationIpAddress: toIpv6EventAddress(destinationIp),
+                fabricIndex,
             },
             this.context,
         );
+    }
+
+    /**
+     * The multicast address a message for the group of the owning fabric most likely arrived on.  The datagram
+     * destination is not available from the socket, so it is derived.  {@link ServerGroupNetworking} joins
+     * {@link FabricGroups.multicastAddressFor} of each group with an entry in {@link FabricGroups.endpoints}, so a
+     * message for any other group, for an unknown group or for a fabric that is gone, most likely arrived on the
+     * shared IANA address.
+     */
+    #arrivalAddress(owner: FabricIndex, groupId: GroupId | undefined) {
+        const groups = this.env.get(FabricManager).maybeFor(owner)?.groups;
+        if (groupId === undefined || groups === undefined || !groups.endpoints.has(groupId)) {
+            return IANA_GROUPCAST_MULTICAST_ADDRESS;
+        }
+        return groups.multicastAddressFor(groupId);
     }
 
     #handleFabricDeleted(fabric: Fabric) {

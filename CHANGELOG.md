@@ -29,6 +29,38 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
     - Fix: A local write that removes the last GroupKeyMap entry of a fabric also clears the fabric's operational group key map
+    - Fix: Groupcast testing reports NoAvailableKey to the fabric under test when only an unmapped key set of another fabric authenticated a group message, instead of reporting nothing
+    - Fix: Groupcast testing derives DestinationIpAddress from the fabric that owns the group id and the groups the node joins
+
+- @matter/protocol
+    - Fix: `GroupSession.decodeWithCandidateKeys()` replaces `decode()`
+    - Fix: `GroupSessionDecodeError`, whose constructor takes a `GroupMessageRejection`, replaces `GroupSessionNoKeyError`
+    - Fix: `GroupMessageEventInfo` is a union of authenticated and unauthenticated messages
+    - Fix: `SessionManager.emitGroupMessage()` takes only authenticated messages
+    - Fix: `SessionManager.groupSessionFromPacket()` returns `undefined` for a message it drops
+    - Fix: `MessageCodec.decodePacket()` refuses an unsupported version or a control message with `UnexpectedDataError` instead of `NotImplementedError`
+    - Fix: `MessageCodec.decodePacket()` refuses a group message to a destination node and an unsecured message with both or neither node id
+    - Fix: `MessageCodec.decodePacket()` decodes a privacy message with message extensions instead of refusing it
+    - Fix: `MessageCodec.decodePacket()` refuses a unicast message with the privacy flag
+    - Fix: `MessageCodec.decodePayload()` no longer refuses group messages with the R or A flag
+    - Fix: `DecodedPacketHeader` has the new required field `messageFlags`
+    - Fix: `MessageCodec.decodeObfuscatedHeaderFields()` no longer returns `destNodeId`
+    - Fix: `ExchangeManager.deleteExchange()` is removed
+    - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
+    - Fix: A group message whose key set GroupKeyMap does not map to its destination group fails authentication instead of reaching access control
+    - Fix: A group message whose payload is too short, too long or does not parse fails every candidate key and is reported to Groupcast testing as FailedAuth or NoAvailableKey
+    - Fix: Received datagrams with a malformed header are logged at debug level instead of error
+    - Fix: Received messages whose payload does not decrypt or does not parse are logged at debug level instead of error
+    - Fix: A unicast message with the privacy flag is logged at debug level instead of info
+    - Fix: Group data messages with the R or A flag and messages for an unsupported protocol are logged at debug level instead of error
+    - Fix: Messages for an unknown session and oversized UDP datagrams are logged at debug level instead of warn
+    - Fix: Messages that no exchange expects and exchanges closed for the exchange limit are logged at debug level instead of info
+    - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
+    - Fix: Groupcast testing reports a group message for which only another fabric had a candidate key as NoAvailableKey instead of FailedAuth
+    - Fix: Starting an exchange skips exchange ids that are still open on the session, instead of reusing one after the 16-bit counter wraps
+    - Fix: An exchange is identified by its session, so a message on another session with the same exchange id no longer reaches or replaces it, nor counts toward its session's exchange limit
+    - Fix: A privacy group message with message extensions is decoded with the extensions in the additional authenticated data, as specified in section 4.8.2, instead of refused
+    - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
