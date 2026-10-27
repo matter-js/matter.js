@@ -284,12 +284,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             fabricMaps.set(fabricIndex, fabricMap);
         }
         for (const fabric of fabrics) {
-            const fabricIndex = fabric.fabricIndex;
-            const map = fabricMaps.get(fabricIndex);
-            if (map === undefined) {
-                continue;
-            }
-            fabric.groups.groupKeyIdMap = map;
+            fabric.groups.groupKeyIdMap = fabricMaps.get(fabric.fabricIndex) ?? new Map<GroupId, number>();
         }
     }
 
