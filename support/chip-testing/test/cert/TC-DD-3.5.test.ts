@@ -7,8 +7,15 @@
 import { InternalError } from "@matter/main";
 import type { CertStepContext, LogExpectPatterns } from "@matter/testing";
 import { certTest } from "@matter/testing";
+import { expectMdns } from "../../src/cert/mdns-check.js";
 import { PASE_ESTABLISHED } from "./tc-cadmin-support.js";
-import { commissionThStep, COMMISSIONED, COMMISSIONING_LOG_TIMEOUT, recordCommissionable } from "./tc-dd-support.js";
+import {
+    commissionThStep,
+    COMMISSIONED,
+    COMMISSIONING_LOG_TIMEOUT,
+    MDNS_TIMEOUT,
+    recordCommissionable,
+} from "./tc-dd-support.js";
 import { CommissionedRefs, expectDeviceLog, LOG_TIMEOUT, record, runCleanups, theTh } from "./tc-support.js";
 
 /**
@@ -158,13 +165,22 @@ certTest("TC-DD-3.5", { plan: "devicediscovery.adoc", pics: ["MCORE.ROLE.COMMISS
         async () => {},
         { notApplicable: ON_ETHERNET, expected: "TH successfully connect to operational network" },
     )
-    .step(12, "Commissioner starts discovery of TH using Operational Discovery", async cx => {
-        cx.recorder.check({
-            type: "response",
-            verdict: "unverified",
-            detail: "The TH does not log the DUT's operational discovery; step 13 checks the CASE session it leads to",
-        });
-    })
+    .step(
+        12,
+        "Commissioner starts discovery of TH using Operational Discovery",
+        commissioned.withRef("dut", async (cx, ref) => {
+            const instance = await cx.controllers.dut.node(ref).operationalMdnsInstanceName();
+            record(
+                cx,
+                await expectMdns(
+                    theTh(cx),
+                    { operationalRecords: 1 },
+                    { operationalInstanceName: instance, timeoutMs: MDNS_TIMEOUT },
+                ),
+                `the TH advertises ${instance}, the operational instance the DUT names for it`,
+            );
+        }),
+    )
     .step(
         13,
         "Commissioner opens a CASE session with TH over operational network",
