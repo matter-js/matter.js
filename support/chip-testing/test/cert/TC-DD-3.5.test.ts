@@ -117,24 +117,31 @@ const stageStep = (stage: Stage, what: string) => (cx: CertStepContext) => recor
  * Commissioning cluster ... with either the WI ... or TH ... feature flags set". A commissioner may skip it otherwise.
  */
 async function regulatoryNotRequired(cx: CertStepContext): Promise<string | undefined> {
-    const value = await cx.controllers.dut.node(commissioned.require("dut")).readAttribute({
-        endpoint: 0,
-        cluster: NETWORK_COMMISSIONING_ID,
-        attribute: NETWORK_COMMISSIONING_FEATURE_MAP,
-    });
-    const radio =
-        typeof value === "number"
-            ? (value & (WIFI_FEATURE | THREAD_FEATURE)) !== 0
-            : typeof value === "object" &&
-              value !== null &&
-              Object.entries(value).some(
-                  ([name, set]) =>
-                      set === true && (name === "wiFiNetworkInterface" || name === "threadNetworkInterface"),
-              );
-    return radio
-        ? undefined
-        : `The TH's Network Commissioning FeatureMap ${describeValue(value)} has neither Wi-Fi nor Thread, so the ` +
-              "Commissioner need not configure regulatory information (Core § 5.5 step 8)";
+    const entries = await cx.controllers.dut
+        .node(commissioned.require("dut"))
+        .readAttributes([{ cluster: NETWORK_COMMISSIONING_ID, attribute: NETWORK_COMMISSIONING_FEATURE_MAP }]);
+    if (entries.some(({ value }) => hasRadio(value))) {
+        return undefined;
+    }
+    const featureMaps = entries.map(({ endpoint, value }) => `endpoint ${endpoint}: ${describeValue(value)}`);
+    return (
+        `No Network Commissioning instance of the TH has Wi-Fi or Thread (${featureMaps.join("; ")}), so the ` +
+        "Commissioner need not configure regulatory information (Core § 5.5 step 8)"
+    );
+}
+
+/** Whether a Network Commissioning FeatureMap, raw or decoded, has the Wi-Fi or Thread feature. */
+function hasRadio(featureMap: unknown) {
+    if (typeof featureMap === "number") {
+        return (featureMap & (WIFI_FEATURE | THREAD_FEATURE)) !== 0;
+    }
+    return (
+        typeof featureMap === "object" &&
+        featureMap !== null &&
+        Object.entries(featureMap).some(
+            ([name, set]) => set === true && (name === "wiFiNetworkInterface" || name === "threadNetworkInterface"),
+        )
+    );
 }
 
 /** A plan condition that the THs of these runs, connected over Ethernet, never meet. */
