@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { delay } from "../../util/async.js";
+import { delay, MAX_TIMEOUT_MS } from "../../util/async.js";
 import { deansify } from "../../util/text.js";
 import type { DeviceFlavor, LogSource } from "./cert-context.js";
 
@@ -160,15 +160,12 @@ export class LogFollower implements LogSource {
     #closed = false;
     #closeError?: Error;
     #waiters = new Array<() => void>();
-    #resolveCloseSignal!: () => void;
-    #closeSignal: Promise<void>;
+    #isClosing = false;
+    #stopConsuming?: () => void;
     #pump: Promise<void>;
 
     constructor(source: AsyncIterable<string>, name: string) {
         this.name = name;
-        this.#closeSignal = new Promise<void>(resolve => {
-            this.#resolveCloseSignal = resolve;
-        });
         this.#pump = this.#consume(source);
     }
 
@@ -351,14 +348,23 @@ export class LogFollower implements LogSource {
     async expectPattern(original: RegExp, options: Omit<LogExpectOptions, "flavor">): Promise<LogLine> {
         const pattern = matchableCopy(original);
         const from = options.from ?? this.#lastMark;
-        const timeout = delay(options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+        let timedOut = false;
+        const timer = setTimeout(
+            () => {
+                timedOut = true;
+                this.#wake();
+            },
+            Math.min(options.timeoutMs ?? DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS),
+        );
+        let next = from;
 
         try {
             for (;;) {
-                const matched = this.#firstMatchFrom(pattern, from);
+                const matched = this.#firstMatchFrom(pattern, next);
                 if (matched) {
                     return matched;
                 }
+                next = Math.max(next, this.#lines.length);
 
                 if (this.#closeError) {
                     throw this.#closeError;
@@ -367,13 +373,13 @@ export class LogFollower implements LogSource {
                     throw new CertLogClosedError(this.name);
                 }
 
-                const outcome = await Promise.race([this.#waitForWake(), timeout.promise]);
-                if (outcome === "timeout") {
+                if (timedOut) {
                     throw new CertLogTimeoutError(String(original), from, this.#lines.slice(from));
                 }
+                await this.#waitForWake();
             }
         } finally {
-            timeout.cancel();
+            clearTimeout(timer);
         }
     }
 
@@ -382,7 +388,8 @@ export class LogFollower implements LogSource {
     }
 
     async close(): Promise<void> {
-        this.#resolveCloseSignal();
+        this.#isClosing = true;
+        this.#stopConsuming?.();
         await this.#pump;
     }
 
@@ -434,20 +441,22 @@ export class LogFollower implements LogSource {
         }
     }
 
-    // #closeSignal is a single reused promise, so close() ends the loop immediately without
-    // forcing the source's iterator closed (which could hang on a source parked mid-await).
+    // close() ends the wait for the next line at once, without forcing the source's iterator closed (which
+    // could hang on a source parked mid-await). Nothing attached per line may outlive that line.
     // Never rethrows: failures land on #closeError for expect() to surface, so #pump always
     // resolves and close() has nothing to catch.
     async #consume(source: AsyncIterable<string>): Promise<void> {
         const iterator = source[Symbol.asyncIterator]();
         try {
-            for (;;) {
-                const outcome = await Promise.race([
-                    iterator.next().then(result => ({ closed: false as const, result })),
-                    this.#closeSignal.then(() => ({ closed: true as const })),
-                ]);
+            while (!this.#isClosing) {
+                const next = iterator.next();
+                const result = await new Promise<IteratorResult<string> | undefined>((resolve, reject) => {
+                    this.#stopConsuming = () => resolve(undefined);
+                    next.then(resolve, reject);
+                });
+                this.#stopConsuming = undefined;
 
-                if (outcome.closed || outcome.result.done) {
+                if (result === undefined || result.done) {
                     return;
                 }
 
@@ -457,7 +466,7 @@ export class LogFollower implements LogSource {
                     index: this.#lines.length,
                     at: new Date(),
                     receivedAt: performance.now(),
-                    text: deansify(outcome.result.value),
+                    text: deansify(result.value),
                 });
                 this.#wake();
             }
