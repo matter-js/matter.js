@@ -158,13 +158,14 @@ export const MATTERJS_SERVER_CONTROLLER_PICS: PicsValues = {
 
     // The AdministratorCommissioning client of the TC-CADMIN cases: `open_commissioning_window`, and
     // RevokeCommissioning through `device_command`. `open_commissioning_window` ignores its `option` and always
-    // opens an enhanced window. The DUT is the WebSocket controller, which has no display a user enters a code into;
-    // the dashboard is a client that hands the code to `commission_with_code` as typed.
+    // opens an enhanced window. The DUT is the WebSocket controller, which has no display a user enters a code into
+    // and no voice prompt; the dashboard is a client that hands the code to `commission_with_code` as typed.
     "CADMIN.C": 1,
     "CADMIN.C.C00.Tx": 1,
     "CADMIN.C.C01.Tx": 0,
     "CADMIN.C.C02.Tx": 1,
     "CADMIN.M.UserInterfaceDisplay": 0,
+    "CADMIN.M.AudioInterface": 0,
 
     // matter.js commissioning sends no SetTCAcknowledgements.
     "CGEN.C.F00": 0,

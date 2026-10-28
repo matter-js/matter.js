@@ -1383,14 +1383,18 @@ describe("ControllerAdapter registry", () => {
         }
     });
 
-    it("declares that no controller has a user interface display", () => {
-        // The CHIP PICS file answers 1, which would have TC-CADMIN-1.1 step 3.b enter a code into a display
-        const asDevice = new PicsFile(["CADMIN.M.UserInterfaceDisplay=1"]);
+    it("declares that no controller has a user interface display or an audio interface", () => {
+        // The CHIP PICS file answers 1 for both, which would have TC-CADMIN-1.1 step 3.b enter a code into a display
+        // and run TC-CADMIN-1.7/1.8 steps 3.a-3.c, which only a person can check
+        const keys = ["CADMIN.M.UserInterfaceDisplay", "CADMIN.M.AudioInterface"];
+        const asDevice = new PicsFile(keys.map(key => `${key}=1`));
 
         for (const implementation of IMPLEMENTATIONS) {
             const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
 
-            expect(new PicsExpression("CADMIN.M.UserInterfaceDisplay").evaluate(forRun), implementation).equal(false);
+            for (const key of keys) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(false);
+            }
         }
     });
 

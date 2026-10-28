@@ -266,14 +266,15 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "DGWIFI.C": 1,
     "DGWIFI.C.C00.Tx": 1,
 
-    // The AdministratorCommissioning client of the TC-CADMIN cases. Only the user interface key needs the
-    // overlay: the CHIP PICS file answers 1 for it, and this controller is a library with no display a user
-    // enters a code into. The other keys state the controller's client surface for these cases.
+    // The AdministratorCommissioning client of the TC-CADMIN cases. Only the display and audio keys need the
+    // overlay: the CHIP PICS file answers 1 for both, and this controller is a library with no display a user
+    // enters a code into and no voice prompt. The other keys state the controller's client surface for these cases.
     "CADMIN.C": 1,
     "CADMIN.C.C00.Tx": 1,
     "CADMIN.C.C01.Tx": 1,
     "CADMIN.C.C02.Tx": 1,
     "CADMIN.M.UserInterfaceDisplay": 0,
+    "CADMIN.M.AudioInterface": 0,
 
     // Every ThreadBorderRouterManagement client command TC-TBRM-3.1 sends. The CHIP PICS file answers
     // only the server side, because it describes a device; here the client is the controller.
