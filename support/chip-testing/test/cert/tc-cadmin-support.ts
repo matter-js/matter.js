@@ -105,7 +105,10 @@ export const WINDOW_OPEN: LogExpectPatterns = {
     matterjs: /AdministratorCommissioningServer Commissioning window opened for/,
 };
 
-/** A commissioning window closing, whatever closed it: a revoke, its timeout or a commissioning. */
+/**
+ * A commissioning window closing by a revoke or its timeout. On chip a completed commissioning closes the window
+ * without this line.
+ */
 export const WINDOW_CLOSED: LogExpectPatterns = {
     chip: /Closing pairing window/,
     matterjs: /AdministratorCommissioningServer Commissioning window closed/,
