@@ -1077,12 +1077,13 @@ export function answersWithStatus(cluster: ClusterModel, commandName: string): b
 /**
  * One `CommandFields` entry: a field id and its value. chip prints the TLV type after the value, so a
  * string is matched as `0x<id> = "<value>" (<n> chars),` — where `n` counts the string's UTF-8 bytes,
- * not its code points — and a number as `0x<id> = <value> (unsigned),`. Every numeric field any TC
- * checks so far is unsigned; chip prints a signed one as `(signed)`, which no shape here matches.
+ * not its code points — and a number as `0x<id> = <value> (unsigned),`, or `(signed)` for a field of a
+ * signed integer type.
  */
 export interface CommandFieldValue {
     id: number;
     value: number | bigint | string | Bytes;
+    signed?: boolean;
 }
 
 /** `fields` as evidence text, with byte values as hex. */
@@ -1112,11 +1113,19 @@ export function literally(value: string): string {
  * The trailing type name is load-bearing: without it `0x0 = 2,` also matches the first two digits of
  * `0x0 = 20,`.
  */
-export function chipCommandField({ id, value }: { id: number; value: number | bigint | string }): RegExp {
+export function chipCommandField({
+    id,
+    value,
+    signed = false,
+}: {
+    id: number;
+    value: number | bigint | string;
+    signed?: boolean;
+}): RegExp {
     const rendered =
         typeof value === "string"
             ? `"${literally(value)}" \\(${new TextEncoder().encode(value).length} chars\\)`
-            : `${value} \\(unsigned\\)`;
+            : `${value} \\(${signed ? "signed" : "unsigned"}\\)`;
     return new RegExp(`0x${id.toString(16)} = ${rendered},\\s*$`);
 }
 
