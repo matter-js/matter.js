@@ -725,14 +725,17 @@ export function recordGeneratedPayload(
 export const PARSES_PAYLOAD: readonly ControllerCapability[] = ["onboarding-payload-parse"];
 
 /**
- * The commissioning attempts a TC has told the DUT to refuse.
+ * The commissioning attempts a TC expects to fail: one the DUT has to refuse, or one a TH controller makes that
+ * the TH has to refuse.
+ *
+ * `Role` names the case's controller roles that make such attempts besides the DUT (`dut`).
  *
  * A TC's `finalize` must {@link settle} this. An attempt outlives the check that judged it —
  * {@link expectRejection} stops waiting at its budget but the commissioning carries on — so a
  * fabric this class asked for can land after every other cleanup has run.
  */
-export class CommissioningRefusals {
-    #attempts = new Array<Promise<CertNodeRef | undefined>>();
+export class CommissioningRefusals<Role extends string = "dut"> {
+    #attempts = new Array<Promise<{ role: Role | "dut"; ref: CertNodeRef } | undefined>>();
     #refusalTimeout: Duration;
     #settleTimeout: Duration;
 
@@ -753,11 +756,14 @@ export class CommissioningRefusals {
      * remove. An attempt whose outcome the step *did* see is owned by the step, and handing that one
      * over as well would have its fabric removed twice. Kept as a settled outcome so an attempt nobody
      * awaits again cannot surface as an unhandled rejection.
+     *
+     * `role` names the controller that made the attempt, which is the one {@link settle} removes the
+     * fabric with.
      */
-    track(attempt: Promise<CertNodeRef>): void {
+    track(attempt: Promise<CertNodeRef>, role: Role | "dut"): void {
         this.#attempts.push(
             attempt.then(
-                ref => ref,
+                ref => ({ role, ref }),
                 () => undefined,
             ),
         );
@@ -773,7 +779,7 @@ export class CommissioningRefusals {
      */
     async requireRefusal(cx: CertStepContext, target: CommissioningTarget, what: string): Promise<void> {
         const attempt = cx.controllers.dut.commission(target);
-        this.track(attempt);
+        this.track(attempt, "dut");
 
         record(
             cx,
@@ -844,7 +850,7 @@ export class CommissioningRefusals {
 
         const label = `commissioning from ${describeTarget(target)}`;
         const attempt = dut.commission(target);
-        this.track(attempt);
+        this.track(attempt, "dut");
 
         const outcome = await expectRejection(label, attempt, timeout, isCommissioningGiveUp);
         const checks: RecordedCheck[] = [
@@ -880,20 +886,21 @@ export class CommissioningRefusals {
 
         if (refs === undefined) {
             throw new CertCleanupError(
-                `${attempts.length} commissioning attempt(s) the DUT was asked to refuse are still running after ` +
+                `${attempts.length} commissioning attempt(s) expected to fail are still running after ` +
                     `${Duration.format(this.#settleTimeout)}; one that succeeds now cannot be cleaned up`,
             );
         }
 
         const failures = new Array<string>();
-        for (const ref of refs) {
-            if (ref === undefined) {
+        for (const onboarded of refs) {
+            if (onboarded === undefined) {
                 continue;
             }
+            const { role, ref } = onboarded;
             try {
-                await cx.controllers.dut.node(ref).decommission();
+                await cx.controllers[role].node(ref).decommission();
             } catch (e) {
-                failures.push(`${ref}: ${e instanceof Error ? e.message : String(e)}`);
+                failures.push(`${role} ${ref}: ${e instanceof Error ? e.message : String(e)}`);
             }
         }
         if (failures.length) {
@@ -1249,6 +1256,55 @@ export async function chipToolDiscoveryGaveUp(log: LogFollower, from: number): P
     return timedOut.check;
 }
 
+const CHIP_TOOL_PAIRING_ENDED = /\[TOO\] Secure Pairing (Failed|Success)/;
+const CHIP_TOOL_PASE_FAILED = /Failed during PASE session setup|PASESession timed out while waiting for a response/;
+const CHIP_TOOL_PASE_SUCCEEDED = /PASE establishment successful|Secure Pairing Success/;
+
+/**
+ * chip-tool's own log showing that an attempt from `from` on ended without a commissioning: every PASE it started
+ * failed (`PASESession` logs `Failed during PASE session setup`, or that it timed out waiting for the device), none
+ * succeeded, and without a PASE attempt its discovery timed out.  chip-tool tries every device it discovers and keeps
+ * discovering after a refused PASE.  Its discovery timeout does not end a PASE still running, so the attempt ends only
+ * where chip-tool reports `Secure Pairing Failed`, once per command.  For a step whose plan accepts a device that
+ * still advertises but refuses PASE; the caller checks on the device that no PASE was accepted.
+ */
+export async function chipToolGaveUpOrPaseFailed(log: LogFollower, from: number): Promise<CheckRecord> {
+    const ended = await expectDeviceLog(log, "chip", { chip: CHIP_TOOL_PAIRING_ENDED }, from, LOG_TIMEOUT);
+    const until = ended.check.logLine;
+    if (ended.check.verdict !== "pass" || until === undefined) {
+        return ended.check;
+    }
+    const lines = log.lines.filter(line => line.index >= from && line.index <= until);
+    const succeeded = lines.find(line => CHIP_TOOL_PASE_SUCCEEDED.test(line.text));
+    if (succeeded !== undefined) {
+        return { type: "device-log", verdict: "fail", detail: `chip-tool established PASE: ${succeeded.text}` };
+    }
+    const attempts = lines.filter(line => CHIP_TOOL_PASE_ATTEMPT.test(line.text)).length;
+    const failures = lines.filter(line => CHIP_TOOL_PASE_FAILED.test(line.text)).length;
+    if (attempts === 0) {
+        const timedOut = lines.find(line => CHIP_TOOL_DISCOVERY_TIMED_OUT.test(line.text));
+        if (timedOut === undefined) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                detail: `chip-tool's pairing failed without a PASE attempt or a discovery timeout: ${ended.check.matched}`,
+            };
+        }
+        return { ...ended.check, detail: `chip-tool's discovery timed out: ${timedOut.text}` };
+    }
+    if (failures < attempts) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            detail: `chip-tool started ${attempts} PASE attempt(s) and logged ${failures} failed before: ${ended.check.matched}`,
+        };
+    }
+    return {
+        ...ended.check,
+        detail: `chip-tool's ${attempts} PASE attempt(s) all failed before: ${ended.check.matched}`,
+    };
+}
+
 /**
  * Whether `error` is a commissioner giving up on a code it read successfully, which is what the
  * negative vendor and product plans mean by "the DUT terminates the commissioning process".
@@ -1374,7 +1430,7 @@ export async function recordVendorOutcome(
             // Only now does cleanup own the attempt: an outcome this step saw is already owned, by
             // `commissioned` for one that onboarded, and handing it over as well would have the fabric
             // removed twice.
-            refusals.track(attempt);
+            refusals.track(attempt, "dut");
             record(
                 cx,
                 {

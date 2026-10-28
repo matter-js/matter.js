@@ -33,7 +33,8 @@ another TC:
   itself calls out of scope" and "Promoting the command-path log check" below.
 - **`TC-CADMIN-1.17`** (all-clusters) — multiple controllers against one device, pairing-code
   (rather than passcode/discriminator) commissioning, non-fabric-filtered reads, and a bounded
-  "this must fail" check. See "Multi-controller wiring" and "Bounded negative checks" below.
+  "this must fail" check; its steps live in `tc-cadmin-support.ts` with TC-CADMIN-1.1, 1.2 and 1.18. See
+  "Multi-controller wiring" and "Bounded negative checks" below.
 - **`TC-SC-3.5`** (python-wrapped) — a script that drives its own scenario
   and only needs a human-in-the-loop (here, an automated `PromptHandler`) to react to prompts; not
   built on `certTest()` at all. See "Python-wrapped mode" below. Read this one last — it is the
@@ -1051,7 +1052,7 @@ exists on the device, and only a multi-controller TC like `TC-CADMIN-1.17` expos
 
 `CertNodeApi` therefore has no dedicated fabrics helper: read fabrics via
 `readAttribute({endpoint: 0, cluster: <OperationalCredentials>, attribute: <fabrics>}, { fabricFiltered: false })`
-(see `TC-CADMIN-1.17.test.ts`'s `readFabrics` helper) — the spec-correct behavior `chip-tool`'s own
+(see `readFabrics` in `tc-cadmin-support.ts`) — the spec-correct behavior `chip-tool`'s own
 `--fabric-filtered 0` flag (used in this TC's YAML capture) exists to select. Removing a fabric is the
 plain generic command: `invoke("OperationalCredentials", "removeFabric", { fabricIndex })`.
 
@@ -1083,7 +1084,7 @@ removed) cannot just `await` the call inside a `try`/`catch` — if the implemen
 resolves *or* rejects it (e.g. an implementation that doesn't detect the lost session and just retries
 transport-level acks forever), the step hangs until the whole test's mocha timeout, which is unhelpful as
 either evidence or a fast local failure. This TC's `expectRejection` races the call's own
-settlement against a fixed timeout (`Time.sleep`, 25s) and reports `"fail"` for either an unexpected
+settlement against a fixed timeout (`POST_REMOVAL_TIMEOUT`, 60 s, which outlasts chip-tool's own give-up) and reports `"fail"` for either an unexpected
 success *or* a timeout, `"pass"` only for an actual rejection, with the elapsed time in the evidence
 detail either way. In every run captured here (both flavors), matter.js's own controller detected the
 lost session and rejected within ~0ms. The plan's own wording assumes a slower, network-observable
@@ -1636,7 +1637,7 @@ Step 3 (the device withholds its answer to the timed request) is `notApplicable`
 `CERT_PEER_CONNECTION_TIMEOUT` (15s, `InProcessControllerAdapter.ts`) bounds how long a cert step's
 own connect attempt can stay pending before `PeerTimingParameters.defaults.defaultConnectionTimeout`
 (90s, right for a real user's session) would otherwise still be running — a cert step's own check
-(e.g. `TC-CADMIN-1.17` step 8's 25s `expectRejection`) gives up well before 90s, so an attempt that
+(e.g. `TC-CADMIN-1.17` step 8's 60 s `expectRejection`) gives up well before 90s, so an attempt that
 can't succeed needs to fail inside that budget, not after it. This is a test-ergonomics bound, not a
 fix for a specific protocol defect: it is set on the cert controller's own `PeerSet.timing`
 (packages/protocol/src/peer/PeerSet.ts) right after `start()`, scoped to each cert controller's own
@@ -1647,7 +1648,7 @@ That timeout is also why `TC-CADMIN-1.17` step 8's own recorded evidence
 bounded wait* elapsed, not that the controller promptly recognized the fabric removal — TH_CE's
 own `NoSharedTrustRoots` rejection lands in the log within milliseconds of the write, well before
 the 15s mark. Don't read that check as evidence the controller handles fabric removal promptly;
-it only proves the cert run's own timeout is short enough to stay inside the step's 25s budget.
+it only proves the cert run's own timeout is short enough to stay inside the step's 60 s budget.
 
 ## A cert test's PICS is the controller's, overlaid on the device's
 
@@ -4028,3 +4029,86 @@ without fields, and `TC-DGTHREAD-3.4` step 3 reads OverrunCount. Two points:
   `flavors` instead.
 - **PICS:** CHIP's file answers `DGTHREAD.C` and `DGWIFI.C.C00.Tx` 0. Without the controller overlay the first leaves
   `TC-DGTHREAD-3.4` pending and the second skips `TC-DGWIFI-3.2`'s only command step.
+
+## The multiple-fabrics block (`TC-CADMIN-1.1`, `1.2`, `1.17`, `1.18`)
+
+The four DUT_Commissioner cases are two procedures, each run once with an enhanced and once with a basic
+commissioning window. `tc-cadmin-support.ts` holds both as `fabricRemovalCase` (1.17 ECM, 1.18 BCM) and
+`administratorBehaviorCase` (1.1 ECM, 1.2 BCM); the `TC-*.test.ts` files only call them. A BCM case declares
+`basic-commissioning-window` at test level.
+
+- **A basic window is joined with the device's own onboarding payload** (`thQrPayload`), not with its bare
+  passcode and discriminator. chip-tool bounds its discovery only for a code (`pairing code`, 30 s); with
+  `pairing onnetwork-long` it was still looking after 90 s, so the step that expects the join to fail (1.2 step 11)
+  could not end.
+- **In 1.1/1.2 the DUT is the second commissioner.** TH_CR1 commissions first; the steps read each controller's
+  fabric index rather than assume one.
+- **"Turn off TH_CR1" (step 8) keeps TH_CR1 usable for step 16**, where the TH must refuse it as a fabric it
+  already holds (AddNOC `FabricConflict`). No adapter can stop a controller and start it again with its fabric, so
+  TH_CR1 is commissioned with `withoutSubscription` and sends the TH nothing between commands. Step 8 checks that
+  on the TH: no message on TH_CR1's fabric index for 10 s (`messageReceivedOnFabric`). That proves TH_CR1 idle, not
+  off. Without a subscription the in-process controller cannot open a window from its empty copy of the node
+  (`Unsupported behavior`), so step 2 reads the TH's root endpoint first. A controller adapter that can stop a role
+  and start it again with its storage would let step 8 turn TH_CR1 off for real.
+- **An absence check has a positive control earlier in the same run.** Step 6 requires `messageReceivedOnFabric` to
+  match TH_CR1's own write, and step 4.a requires `PASE_ESTABLISHED` to match the DUT's commissioning, so steps 8 and
+  11 look for lines this TH writes at this log level. `expectNoDeviceLog` fails when the log ended during its
+  window. On matter.js the fabric pattern also takes the `Ignore «` line an existing exchange writes for a message it
+  drops; a message dropped before any exchange took it is logged with its transport address only
+  (`ExchangeManager`), so it cannot be attributed to a fabric.
+- **Step 3.b is gated on `CADMIN.M.UserInterfaceDisplay`.** The CHIP PICS file answers 1. All three overlays answer
+  0: none of the controllers has a display a user enters a code into. The matterjs-server's dashboard is a client of
+  the WebSocket controller and hands the typed code to `commission_with_code`. Where the step runs, the DUT parses the
+  code with dashes and spaces and step 4.a commissions with that code. chip's `ManualSetupPayloadParser` removes only
+  `-`, matter.js's codec every non-digit.
+- **Steps 3.a and 5 compare each Fabrics entry with what its controller knows**: the fabric index it reads as
+  `CurrentFabricIndex`, and the operational instance name it reports, which the entry's root public key, fabric id and
+  node id must produce. chip-tool derives its own name from a fabric-filtered Fabrics read, so on that leg the second
+  half compares two reads of the same device. VendorID and Label are recorded, not compared.
+- **Step 14 waits out the whole 180 s window**, and the case is not `longRunning`: a skipped step 14 would leave
+  step 13's window open, and step 15's OpenCommissioningWindow then fails with `Busy` on a DUT that does not revoke
+  a stale window first (chip-tool). The window's lifetime is the time between the follower taking in the TH's
+  window-open line and its window-closed line (`LogLine.receivedAt`, monotonic), and must lie within the plan's
+  clock allowance (1 %, at least 100 ms).
+- **The negative steps record the controller's refusal and the TH's side together.** Step 11 (PASE after the
+  revoke) accepts a give-up (`isCommissioningGiveUp`) or the matterjs-server's `MatterServerCommissioningError`, whose
+  reason only the server log names, and requires the plan's either-or: no `_matterc._udp` record for the window's
+  discriminator, or no accepted PASE session in the TH log (`eitherNoRecordOrNoPase`). An enhanced window's
+  discriminator comes from the QR code the controller returned. On chip-tool, chip-tool's own log has to show that its
+  discovery gave up or that its PASE failed (`chipToolGaveUpOrPaseFailed`). Step 16 accepts `DeviceAlreadyCommissionedToThisFabricError`
+  or chip-tool's command error and requires the TH's own FabricConflict line (`ADD_NOC_FABRIC_CONFLICT`).
+  `CommissioningRefusals` tracks both attempts under the role that made them, so the finalizer removes a fabric that
+  a wrongly successful attempt left.
+- **matterjs-server skips the BCM cases at collection**: its overlay answers `CADMIN.C.C01.Tx` 0.
+- **Locally on macOS, 1.17 and 1.18 fail at step 10 on chip-local**: the removed fabric's operational record stays
+  observable. origin/main's 1.17 fails the same way on the same host; "Commission, unpair, re-commission" above
+  says what is and is not known about it.
+
+## The window-handling cases (`TC-CADMIN-1.7`, `1.8`)
+
+`windowHandlingCase` in `tc-cadmin-window-support.ts` holds both: the DUT opens windows on the TH, lets one time out
+(step 4), revokes one (step 6) and revokes again with none open (step 8). TH_CR2 may join only through the last
+window, and TH_CR3 not after it. 1.7 opens enhanced windows, 1.8 basic ones. The module uses the shared steps of
+`tc-cadmin-support.ts`.
+
+- **Three refused commissionings and one refused revoke.** In steps 4, 7 and 12 a TH commissioner has to give up or have its PASE refused
+  (`isGiveUpOrRefusedPase`), and the TH has to show the plan's outcome: no `_matterc._udp` record for the window's
+  discriminator, or no PASE session it accepted (`noRecordOrNoPase`). On chip-tool, chip-tool's own log has to show
+  the discovery give-up or the failed PASE (`chipToolGaveUpOrPaseFailed`). Step 8
+  requires the `WindowNotOpen` cluster status (`isWindowNotOpenRefusal`), the TH's own line for it
+  (`REVOKE_WINDOW_NOT_OPEN`), and no window-open or window-closed line for 5 s after the revoke.
+- **Every absence has a positive control in the same run.** Steps 1 and 11 match `PASE_ESTABLISHED`. Each
+  window-opening step finds the window's commissionable record with the same mDNS probe. Steps 5 and 6 match the two
+  window patterns that step 8 looks for.
+- **Step 4 waits out the whole window, and is not `longRunning`**, for the same reason as TC-CADMIN-1.1 step 14:
+  skipped, it would leave step 2's window open for step 5. The window's lifetime is the time between the follower
+  taking in the TH's window-open and window-closed lines (`LogLine.receivedAt`, monotonic), within the plan's clock
+  allowance. TH_CR2 starts at least 190 s after the window-open line, on the same clock. Each case takes about four
+  and a half minutes.
+- **Steps 3.a-3.c are gated on the controller's display and audio interface.** CHIP's PICS file answers 1 for both
+  `CADMIN.M.UserInterfaceDisplay` and `CADMIN.M.AudioInterface`; all three controller overlays answer 0. A controller
+  that answers 1 leaves these steps `unverified`: a consent screen, a displayed code and a voice prompt need a person
+  in front of the DUT.
+- **Step 12 first has DUT_CR1 read WindowStatus**, which must be `WindowNotOpen` after TH_CR2's commissioning: the
+  plan gives the closed window as the reason for the refusal. A log line cannot show it on chip, which writes its
+  window-closed line (`WINDOW_CLOSED`) for a timeout or a revoke, not when a commissioning completes.

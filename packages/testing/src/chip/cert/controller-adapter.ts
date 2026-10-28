@@ -65,6 +65,7 @@ export interface CommissioningTarget {
      * `writeAttribute`, `subscribe` and `decommission`. The controller's copy of the peer starts empty and holds
      * only what direct calls read, so the calls that answer from it — `clientEndpoints`, `clientAttribute`, event
      * observation, `openCommissioningWindow`, the ICD and OTA helpers — answer wrongly or fail.
+     * `openCommissioningWindow` works once the caller has read the node's root endpoint (endpoint 0, every cluster).
      *
      * Advisory. An adapter whose controller holds no such subscription has nothing to do.
      */

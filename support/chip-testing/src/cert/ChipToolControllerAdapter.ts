@@ -190,6 +190,17 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "DGWIFI.C": 1,
     "DGWIFI.C.C00.Tx": 1,
 
+    // The AdministratorCommissioning client of the TC-CADMIN cases (`pairing open-commissioning-window`,
+    // RevokeCommissioning by id). Only the display and audio keys need the overlay: the CHIP PICS file answers
+    // 1 for both, and chip-tool takes a code as a command line argument and prints it, with no display a user
+    // enters a code into and no voice prompt. The other keys state the controller's client surface for these cases.
+    "CADMIN.C": 1,
+    "CADMIN.C.C00.Tx": 1,
+    "CADMIN.C.C01.Tx": 1,
+    "CADMIN.C.C02.Tx": 1,
+    "CADMIN.M.UserInterfaceDisplay": 0,
+    "CADMIN.M.AudioInterface": 0,
+
     // Every ThreadBorderRouterManagement client command TC-TBRM-3.1 sends. The CHIP PICS file answers
     // only the server side, because it describes a device; here the client is the controller.
     "TBRM.C": 1,

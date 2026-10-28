@@ -42,6 +42,7 @@ import type { ManualPairingCodeParts, TransitionMark } from "../cert/tc-dd-suppo
 import {
     checkGeneratedManualCode,
     chipToolDiscoveryGaveUp,
+    chipToolGaveUpOrPaseFailed,
     checkGeneratedPayload,
     commissionByManualCode,
     commissionChecked,
@@ -427,6 +428,34 @@ describe("CommissioningRefusals", () => {
         );
 
         await expect(refusals.settle(cx)).rejectedWith(CertCleanupError, /stray-ref: node is unreachable/);
+    });
+
+    it("removes a fabric with the controller that made the attempt", async () => {
+        const removedByDut = new Array<CertNodeRef>();
+        const cx = contextWith(
+            () => Promise.reject(new InternalError("not used by this test")),
+            async ref => {
+                removedByDut.push(ref);
+            },
+        );
+        const removedByHelper = new Array<CertNodeRef>();
+        cx.controllers.th_cr3 = {
+            ...cx.controllers.dut,
+            id: "th_cr3",
+            node: ref =>
+                fakeCertNode({
+                    decommission: async () => {
+                        removedByHelper.push(ref);
+                    },
+                }),
+        };
+        const refusals = new CommissioningRefusals<"th_cr3">(BUDGETS);
+
+        refusals.track(Promise.resolve("helper-ref"), "th_cr3");
+        await refusals.settle(cx);
+
+        expect(removedByHelper).deep.equal(["helper-ref"]);
+        expect(removedByDut).deep.equal([]);
     });
 
     it("gives up on an attempt that never settles rather than holding the run open", async () => {
@@ -1944,6 +1973,78 @@ describe("chipToolDiscoveryGaveUp", () => {
 
     it("fails when discovery never timed out", async () => {
         expect(await verdictFor(COMMAND, BROWSING, PASE)).equal("fail");
+    });
+});
+
+describe("chipToolGaveUpOrPaseFailed", () => {
+    // From TC-CADMIN-1.7 step 7 runs on CI: the TH refused PASE, chip-tool kept discovering and timed out
+    const COMMAND = "[1791234767.118] [14468:64976200:main] [TOO] Command: pairing code 4099 33331712336";
+    const PASE =
+        "[1793152306.889] [5101:5103] [CTL] Attempting PASE connection to UDP:[fe80::4c3:86ff:fe4a:e9a%veth4f892bc]:5540";
+    const PASE_FAILED =
+        "[1793152306.899] [5101:5103] [SC] Failed during PASE session setup: src/protocols/secure_channel/PASESession.cpp:866: CHIP Error 0x00000038: Invalid PASE parameter";
+    const PASE_TIMED_OUT =
+        "[1793155358.155] [5002:5004] [SC] PASESession timed out while waiting for a response from the peer. Expected message type was 33";
+    const PASE_SUCCEEDED = "[1793152307.120] [5101:5103] [TOO] PASE establishment successful";
+    const PAIRING_FAILED = "[1793155358.155] [5002:5004] [TOO] Secure Pairing Failed";
+    const PAIRING_SUCCEEDED = "[1793152307.120] [5101:5103] [TOO] Secure Pairing Success";
+    const PAIRING_FAILURE =
+        "[1793155358.155] [5002:5004] [TOO] Pairing Failure: src/protocols/secure_channel/PASESession.cpp:312: CHIP Error 0x00000032: Timeout";
+    const TIMED_OUT = "[1793152336.885] [5101:5103] [CTL] Discovery timed out";
+
+    async function verdictFor(...lines: string[]) {
+        const source = new LineQueue();
+        const log = new LogFollower(source, "th_cr2");
+        for (const line of lines) {
+            source.push(line);
+        }
+        source.close();
+        return (await chipToolGaveUpOrPaseFailed(log, 0)).verdict;
+    }
+
+    it("passes when discovery timed out without a PASE attempt", async () => {
+        expect(await verdictFor(COMMAND, TIMED_OUT, PAIRING_FAILED)).equal("pass");
+    });
+
+    it("passes when every PASE attempt was refused and discovery then timed out", async () => {
+        expect(await verdictFor(COMMAND, PASE, PASE_FAILED, PASE, PASE_FAILED, TIMED_OUT, PAIRING_FAILED)).equal(
+            "pass",
+        );
+    });
+
+    it("passes when a PASE still running at the discovery timeout fails afterwards", async () => {
+        expect(
+            await verdictFor(
+                COMMAND,
+                PASE,
+                PASE_TIMED_OUT,
+                PASE,
+                PASE_TIMED_OUT,
+                PASE,
+                TIMED_OUT,
+                PASE_TIMED_OUT,
+                PAIRING_FAILED,
+                PAIRING_FAILURE,
+            ),
+        ).equal("pass");
+    });
+
+    it("fails when a PASE attempt did not fail", async () => {
+        expect(await verdictFor(COMMAND, PASE, TIMED_OUT, PAIRING_FAILED)).equal("fail");
+        expect(await verdictFor(COMMAND, PASE, PASE_FAILED, PASE, TIMED_OUT, PAIRING_FAILED)).equal("fail");
+    });
+
+    it("fails when chip-tool established PASE", async () => {
+        expect(await verdictFor(COMMAND, PASE, PASE_SUCCEEDED, PAIRING_SUCCEEDED)).equal("fail");
+        expect(await verdictFor(COMMAND, PASE, PASE_SUCCEEDED, PASE, PASE_FAILED, PAIRING_FAILED)).equal("fail");
+    });
+
+    it("fails when the pairing failed without a PASE attempt or a discovery timeout", async () => {
+        expect(await verdictFor(COMMAND, PAIRING_FAILED, PAIRING_FAILURE)).equal("fail");
+    });
+
+    it("fails when the attempt never ended", async () => {
+        expect(await verdictFor(COMMAND, PASE, PASE_FAILED, TIMED_OUT)).equal("fail");
     });
 });
 
