@@ -190,8 +190,8 @@ export class MdnsServer {
      * Announce the named services, or all registered services if none are named, on every multicast interface.
      * Requests made before the event loop turns are sent together, in one message per interface, split into
      * datagrams by size, that also says goodbye to records that left; so advertisements that announce in the same
-     * turn share one announcement with each shared record once.  A record multicast less than a second ago is
-     * deferred (RFC 6762 §6).
+     * turn share one announcement with each shared record once.  An announcement is never held by the one-second rule
+     * of RFC 6762 §6.
      *
      * Logs and does not throw on failure.
      */

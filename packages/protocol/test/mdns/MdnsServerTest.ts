@@ -1224,6 +1224,121 @@ describe("MdnsServer", () => {
         });
     });
 
+    describe("Last multicast answer (RFC 6762 §5.4 and §6, as CHIP counts it)", () => {
+        const responses = new Array<{ message: DnsMessage; isUnicast: boolean; at: number }>();
+
+        beforeEach(() => {
+            responses.length = 0;
+            onResponse = async (message: Bytes, _netInterface?: string, unicastTarget?: string) => {
+                const decoded = DnsCodec.decode(message);
+                if (decoded !== undefined) {
+                    responses.push({ message: decoded, isUnicast: unicastTarget !== undefined, at: Time.nowMs });
+                }
+            };
+        });
+
+        function query(uniCastResponse: boolean, ...recordTypes: DnsRecordType[]) {
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: recordTypes.map(recordType => ({
+                        name: recordType === DnsRecordType.A ? "abcd.local" : DUMMY_QNAME,
+                        recordClass: DnsRecordClass.IN,
+                        recordType,
+                        uniCastResponse,
+                    })),
+                }),
+                CLIENT_IPv4,
+                INTERFACE_NAME,
+            );
+        }
+
+        function multicastSince(since: number, recordType: DnsRecordType) {
+            return responses.filter(
+                ({ message, isUnicast, at }) =>
+                    !isUnicast &&
+                    at >= since &&
+                    message.answers.some(record => record.recordType === recordType && record.ttl > 0),
+            );
+        }
+
+        it("answers a QU query by multicast right after an announcement", async () => {
+            await MockTime.resolve(mdnsServer.broadcast());
+            await waitFor(Millis(300));
+            const queriedAt = Time.nowMs;
+
+            query(true, DnsRecordType.PTR);
+            await waitFor(Millis(150));
+
+            expect(multicastSince(queriedAt, DnsRecordType.PTR)).length(1);
+        });
+
+        it("answers a QM query at once after an announcement and after an answer that carried it as additional", async () => {
+            await MockTime.resolve(mdnsServer.broadcast());
+            await waitFor(Millis(300));
+            query(false, DnsRecordType.PTR);
+            await waitFor(Millis(150));
+            const queriedAt = Time.nowMs;
+
+            query(false, DnsRecordType.SRV, DnsRecordType.TXT, DnsRecordType.A);
+            await waitFor(Millis(150));
+
+            expect(multicastSince(queriedAt, DnsRecordType.SRV)).length(1);
+        });
+
+        it("answers a lookup started 1.4 s after an announcement before a withdrawal 0.4 s later", async () => {
+            // The CHIP python TH's commissionable lookup in TC-CADMIN-1.5 against a 5 s window
+            await MockTime.resolve(mdnsServer.broadcast());
+            await waitFor(Millis(330));
+            query(true, DnsRecordType.PTR);
+            await waitFor(Millis(1000));
+            query(false, DnsRecordType.PTR);
+            await waitFor(Millis(60));
+            const lookupAt = Time.nowMs;
+            query(true, DnsRecordType.SRV, DnsRecordType.TXT, DnsRecordType.A);
+            query(false, DnsRecordType.SRV, DnsRecordType.TXT, DnsRecordType.A);
+            await waitFor(Millis(370));
+            await MockTime.resolve(fooRegistration.withdraw());
+
+            expect(multicastSince(lookupAt, DnsRecordType.SRV).length).greaterThan(0);
+        });
+
+        it("announces at once right after a multicast answer", async () => {
+            query(false, DnsRecordType.SRV);
+            await waitFor(Millis(150));
+            const announcedAt = Time.nowMs;
+
+            await MockTime.resolve(mdnsServer.broadcast());
+            await waitFor(Millis(10));
+
+            expect(multicastSince(announcedAt, DnsRecordType.SRV)).length(1);
+        });
+
+        it("counts a deferred additional record sent alone as an answer", async () => {
+            query(false, DnsRecordType.A);
+            await waitFor(Millis(300));
+            query(false, DnsRecordType.SRV);
+            await waitFor(Millis(1150));
+            const repeatedAt = Time.nowMs;
+
+            query(false, DnsRecordType.A);
+            await waitFor(Millis(500));
+
+            expect(multicastSince(repeatedAt - 500, DnsRecordType.A)).length(1);
+        });
+
+        it("still holds back a record answered by multicast less than a second ago", async () => {
+            query(false, DnsRecordType.SRV);
+            await waitFor(Millis(150));
+            const repeatedAt = Time.nowMs;
+
+            query(false, DnsRecordType.SRV);
+            await waitFor(Millis(500));
+
+            expect(multicastSince(repeatedAt, DnsRecordType.SRV)).length(0);
+        });
+    });
+
     describe("Unknown-name query rejection", () => {
         it("does not respond to queries for names we do not serve", async () => {
             const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
@@ -1816,17 +1931,6 @@ describe("MdnsServer", () => {
             expect(sent[0].answers.filter(isHostRecord)).length(1);
         });
 
-        it("defers a record multicast less than a second ago from an announcement", async () => {
-            query({ name: HOST, recordType: DnsRecordType.A });
-            await MockTime.resolve(sentAtLeast(1));
-
-            await MockTime.resolve(mdnsServer.broadcast("window"));
-
-            expect(sent).length(2);
-            expect(sent[1].answers.filter(isHostRecord)).deep.equal([]);
-            await waitFor(Seconds(1));
-            expect(sent.slice(2).map(({ answers }) => summarize(answers))).deep.equal([[`A ${HOST} ttl=${FULL_TTL}`]]);
-        });
         it("keeps a service registered again under the same name while the goodbye runs", async () => {
             const expiring = withdraw("window");
             await register("window", () => serviceRecords(NEXT_WINDOW_QNAME));
@@ -1929,24 +2033,6 @@ describe("MdnsServer", () => {
                 .flatMap(({ answers }) => answers)
                 .filter(({ name, recordType }) => name === WINDOW_QNAME && recordType === DnsRecordType.SRV);
             expect(windowSrv).length(1);
-        });
-
-        it("answers within a second of an announcement once the second has passed", async () => {
-            let announcedAt = 0;
-            afterSend = () => (announcedAt = Time.nowUs);
-            await MockTime.resolve(mdnsServer.broadcast("window"));
-            afterSend = undefined;
-            sent.length = 0;
-            await MockTime.advance(Millis(100));
-
-            query({ name: WINDOW_QNAME, recordType: DnsRecordType.SRV });
-            await waitFor(Millis(500));
-            expect(sent).deep.equal([]);
-
-            await MockTime.resolve(sentAtLeast(1));
-            expect(Time.nowUs - announcedAt).least(Seconds(1));
-            await waitFor(Seconds(2));
-            expect(answerSummary()).deep.equal([`SRV ${WINDOW_QNAME} ttl=${FULL_TTL}`]);
         });
 
         it("answers a pointer query with the pointer of every service of the type", async () => {
@@ -2466,7 +2552,8 @@ describe("MdnsServer", () => {
         });
 
         it("sends only the held record in the deferred answer", async () => {
-            await MockTime.resolve(mdnsServer.broadcast("window"));
+            query({ name: WINDOW_QNAME, recordType: DnsRecordType.SRV });
+            await MockTime.resolve(sentAtLeast(1));
             sent.length = 0;
             await MockTime.advance(Millis(100));
 
@@ -2481,7 +2568,7 @@ describe("MdnsServer", () => {
                 [`SRV ${WINDOW_QNAME} ttl=${FULL_TTL}`],
             ]);
             expect(sent.map(({ additionalRecords }) => summarize(additionalRecords))).deep.equal([
-                [],
+                [`A ${HOST} ttl=${FULL_TTL}`],
                 [`A ${HOST} ttl=${FULL_TTL}`],
             ]);
         });
@@ -2512,7 +2599,7 @@ describe("MdnsServer", () => {
             expect(sent.map(({ answers }) => answers.every(({ ttl }) => ttl === 0))).deep.equal([false, true]);
         });
 
-        it("defers the announcement of a record registered again within a second of its goodbye", async () => {
+        it("announces a record registered again at once after its goodbye", async () => {
             let goodbyeAt = 0;
             afterSend = message => {
                 if (message.answers.some(({ ttl }) => ttl === 0)) {
@@ -2534,7 +2621,7 @@ describe("MdnsServer", () => {
                 ),
             );
             expect(windowSrv).least(0);
-            expect(times[windowSrv] - goodbyeAt).least(Seconds(1));
+            expect(times[windowSrv] - goodbyeAt).below(Millis(100));
         });
 
         it("combines the announcements of the same turn into one message", async () => {
@@ -2563,29 +2650,6 @@ describe("MdnsServer", () => {
             expect(sent).deep.equal([]);
         });
 
-        it("clears the cache-flush bit of a record set the announcement carries only in part", async () => {
-            await register("dual", () => [
-                SrvRecord("dual.b.c.d", { priority: 0, weight: 0, port: 1, target: HOST }, FULL_TTL, true),
-                SrvRecord("dual.b.c.d", { priority: 0, weight: 0, port: 2, target: HOST }, FULL_TTL, true),
-            ]);
-            send(
-                DnsCodec.encode({
-                    messageType: DnsMessageType.Query,
-                    queries: [{ name: "dual.b.c.d", recordType: DnsRecordType.SRV, recordClass: DnsRecordClass.IN }],
-                    answers: [SrvRecord("dual.b.c.d", { priority: 0, weight: 0, port: 2, target: HOST }, FULL_TTL)],
-                }),
-                CLIENT_IPv4,
-                INTERFACE_NAME,
-            );
-            await MockTime.resolve(sentAtLeast(1));
-            sent.length = 0;
-
-            await MockTime.resolve(mdnsServer.broadcast("dual"));
-
-            expect(sent[0].answers.map(({ value, flushCache }) => `${value.port} ${flushCache}`)).deep.equal([
-                "2 false",
-            ]);
-        });
         it("multicasts the reply to a query that mixes QU and QM questions", async () => {
             query({ name: WINDOW_QNAME, recordType: DnsRecordType.SRV });
             await MockTime.resolve(sentAtLeast(1));
@@ -2719,20 +2783,6 @@ describe("MdnsServer", () => {
             expect(sent).length(1);
         });
 
-        it("holds a record sent as an additional record like an answer", async () => {
-            query({ name: "operational.b.c.d", recordType: DnsRecordType.SRV });
-            await MockTime.resolve(sentAtLeast(1));
-            expect(sent[0].additionalRecords.filter(isHostRecord)).length(1);
-            await MockTime.advance(Millis(500));
-
-            query({ name: HOST, recordType: DnsRecordType.A });
-            await waitFor(Millis(300));
-            expect(sent).length(1);
-
-            await waitFor(Seconds(1));
-            expect(summarize(sent[1].answers)).deep.equal([`A ${HOST} ttl=${FULL_TTL}`]);
-        });
-
         it("waits 20 to 120 ms between the packets of one answer", async () => {
             const times = new Array<number>();
             afterSend = () => times.push(Time.nowUs);
@@ -2864,7 +2914,8 @@ describe("MdnsServer", () => {
         });
 
         it("sends a record deferred as answer and as additional record in the answer section", async () => {
-            await MockTime.resolve(mdnsServer.broadcast("window"));
+            query({ name: HOST, recordType: DnsRecordType.A });
+            await MockTime.resolve(sentAtLeast(1));
             sent.length = 0;
             await MockTime.advance(Millis(100));
 
@@ -2882,7 +2933,8 @@ describe("MdnsServer", () => {
         });
 
         it("sends a deferred additional record alone in the answer section", async () => {
-            await MockTime.resolve(mdnsServer.broadcast("window"));
+            query({ name: HOST, recordType: DnsRecordType.A });
+            await MockTime.resolve(sentAtLeast(1));
             sent.length = 0;
             await MockTime.advance(Millis(100));
 

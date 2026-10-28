@@ -50,23 +50,27 @@ const GOODBYE_RETRY_MAXIMUM_INTERVAL = Minutes(1);
  * The mDNS responder state of one network interface, and the only path by which {@link MdnsServer} sends on it.
  *
  * The state is a record of what peer caches on this interface may hold: each record sent here, with the time its
- * TTL ends and the time it was last multicast, a goodbye included.  Every decision reads it, and every send writes
+ * TTL ends and the time of its last multicast answer or goodbye.  Every decision reads it, and every send writes
  * it as far as the message reached, see {@link #transmit}:
  *
  * | Decision                       | Reads                                                                         |
  * |--------------------------------|-------------------------------------------------------------------------------|
  * | goodbye content                | cached records that the current records of the registrations no longer hold   |
- * | RFC 6762 §6 one-second rule    | last multicast of each record; a held record is deferred, not dropped         |
- * | RFC 6762 §5.4 quarter-TTL rule | last multicast of each answer that peers still cache                          |
+ * | RFC 6762 §6 one-second rule    | last multicast answer of each record; a held record is deferred, not dropped  |
+ * | RFC 6762 §5.4 quarter-TTL rule | last multicast answer of each record that peers still cache                   |
  * | end of the interface state     | nothing cached or deferred, no goodbye retry waits, unused for 15 minutes     |
  *
- * The one-second rule applies to every multicast except goodbyes: answers, additional records and announcements.  A
- * goodbye counts as the last multicast of its record, but is itself never held.  A record the rule holds back is
+ * The last multicast of a record is the last multicast that answered a query with it, or its goodbye.  As in CHIP,
+ * announcements and additional records do not count, and announcements are never held: a querier that clears its
+ * cache before it asks, as python-zeroconf does, gets its answer at once after an announcement.  RFC 6762 §5.4 and
+ * §6 count every multicast; this deviation follows CHIP.  Unlike CHIP, a goodbye counts, and an announcement does
+ * not end the hold of an earlier answer.  Answers and additional records are held by the one-second rule; a goodbye
+ * is never held.  A record the rule holds back is
  * deferred to the moment its second has passed; all records due then go out in one deferred message under the same
  * rule, so a record held again is deferred again.  The address records of one name are held together (RFC 6762
- * §6.2).  A held record is not sent when the querier already has it: a multicast that carried the record, not its
- * goodbye, left at or after the query arrived or the record was deferred.  A known answer of the querier is not sent
- * either, and a deferred record that its service no longer publishes is dropped.  RFC 6762 §6 would also accept
+ * §6.2).  A held record is not sent when the querier already has it: a multicast answer that carried the record
+ * left at or after the query arrived or the record was deferred.  A known answer of the querier is not sent either,
+ * and a deferred record that its service no longer publishes is dropped.  RFC 6762 §6 would also accept
  * dropping a held record, because "a querier that did not receive and cache the previous transmission will retry its
  * request"; deferring costs one more message and spares the querier that retry.
  *
@@ -264,8 +268,8 @@ export class InterfaceResponder {
      * unique (SRV, TXT, A, AAAA) and the current records hold nothing of its name, type and class (RFC 6762 §10.2);
      * otherwise it carries no bit, so it removes only the old record.
      *
-     * Goodbyes are never held by the one-second rule, as in CHIP and matter.js 0.18; RFC 6762 §6 has no such
-     * exception.  An announced record that the one-second rule holds back is deferred.  Settles once sent.  A failed
+     * Goodbyes and announcements are never held by the one-second rule, as in CHIP and matter.js 0.18; RFC 6762 §6
+     * has no such exception.  Settles once sent.  A failed
      * send is logged like a failed answer; only the goodbyes are tried again, see {@link #retryGoodbyes}.  Once
      * {@link close} started, rejects with {@link ClosedError}.
      *
@@ -355,6 +359,7 @@ export class InterfaceResponder {
                     additionalRecords: sendable(sentAdditional, portRecords, isUnicast),
                 },
                 isUnicast ? sourceIp : undefined,
+                sentAnswers,
             ).then(
                 () => more,
                 error => {
@@ -370,7 +375,7 @@ export class InterfaceResponder {
     /**
      * {@link records} without those the one-second rule holds back.  The address records of one name form one set
      * (RFC 6762 §6.2): when one of them is held, all of them wait for the latest one's second.  A held record is
-     * deferred unless a multicast that carried it left at or after its {@link sinceOf} time.  A deferred answer
+     * deferred unless a multicast answer that carried it left at or after its {@link sinceOf} time.  A deferred answer
      * remembers its {@link additionalOf} records, so the deferred packet carries what this packet would have carried.
      */
     #holdBack(
@@ -424,7 +429,7 @@ export class InterfaceResponder {
                 }
             }
         }
-        const announced = this.#holdBack(uniqueRecords(complete), now, () => now, "answer", noRecords);
+        const announced = uniqueRecords(complete);
 
         if (!goodbye.length && !announced.length) {
             this.#stopGoodbyeRetry();
@@ -502,8 +507,8 @@ export class InterfaceResponder {
 
     /**
      * Send the deferred records whose second has passed, as one packet, under the same {@link #holdBack} decision as
-     * the packet that deferred them: a record held again is deferred again, and a record a multicast carried at or
-     * after its deferral's {@link Deferral.since} time is not sent.  A record its service no longer publishes is
+     * the packet that deferred them: a record held again is deferred again, and a record a multicast answer carried at
+     * or after its deferral's {@link Deferral.since} time is not sent.  A record its service no longer publishes is
      * dropped.  A deferred answer brings the additional records its query would have carried.
      */
     #sendDeferred() {
@@ -559,11 +564,16 @@ export class InterfaceResponder {
             return Promise.resolve();
         }
         const complete = [...published.values()];
-        return this.#transmit({
-            messageType: DnsMessageType.Response,
-            answers: sendable(sentAnswers.length ? sentAnswers : sentAdditional, complete, false),
-            additionalRecords: sentAnswers.length ? sendable(sentAdditional, complete, false) : [],
-        }).catch(error => this.#sendFailed(error));
+        const answerSection = sentAnswers.length ? sentAnswers : sentAdditional;
+        return this.#transmit(
+            {
+                messageType: DnsMessageType.Response,
+                answers: sendable(answerSection, complete, false),
+                additionalRecords: sentAnswers.length ? sendable(sentAdditional, complete, false) : [],
+            },
+            undefined,
+            answerSection,
+        ).catch(error => this.#sendFailed(error));
     }
 
     /** When the RFC 6762 §6 rule stops holding {@link record} back; a goodbye counts as a multicast. */
@@ -571,13 +581,13 @@ export class InterfaceResponder {
         return (this.#peerCache.get(recordKeyOf(record))?.lastMulticastAt ?? -Infinity) + MULTICAST_INTERVAL;
     }
 
-    /** Whether a multicast that carried {@link record}, not its goodbye, left at or after {@link since}. */
+    /** Whether a multicast answer that carried {@link record}, not its goodbye, left at or after {@link since}. */
     #isDeliveredSince(record: DnsRecord, since: number) {
         const entry = this.#peerCache.get(recordKeyOf(record));
         return entry !== undefined && !entry.lastMulticastIsGoodbye && (entry.lastMulticastAt ?? -Infinity) >= since;
     }
 
-    /** Time since the last multicast that carried {@link record}, or infinity when peers may not cache it. */
+    /** Time since the last multicast answer that carried {@link record}, or infinity when peers may not cache it. */
     #sinceCachedMulticast(record: DnsRecord, now: number) {
         const entry = this.#peerCache.get(recordKeyOf(record));
         if (
@@ -677,12 +687,17 @@ export class InterfaceResponder {
      * {@link #settleGoodbyes}.
      *
      * A record peers may cache is cached until its TTL after the time the send was called, which is earlier than the
-     * wire time by the send latency.  Each record of a multicast, in any section, counts as multicast: RFC 6762 §6
-     * limits "a record", whatever section carries it.
+     * wire time by the send latency.  Of a multicast, only goodbyes and the records in {@link answered}, the answers to
+     * a query, count as the last multicast of their record, see the class description.
      */
-    #transmit(message: Partial<DnsMessage> & { messageType: DnsMessageType }, unicastTarget?: string) {
+    #transmit(
+        message: Partial<DnsMessage> & { messageType: DnsMessageType },
+        unicastTarget?: string,
+        answered: DnsRecord[] = [],
+    ) {
         const sentAt = Time.nowUs;
         const isMulticast = unicastTarget === undefined;
+        const answeredKeys = new Set(answered.map(record => recordKeyOf(record)));
         return this.#owner.socket.send(message, this.name, unicastTarget).then(reach => {
             if (reach === undefined || reach.kind === "none") {
                 return reach;
@@ -697,11 +712,12 @@ export class InterfaceResponder {
                     }
                     continue;
                 }
+                const isCounted = isMulticast && (record.ttl === 0 || answeredKeys.has(key));
                 this.#peerCache.set(key, {
                     record,
                     cachedUntil: sentAt + record.ttl,
-                    lastMulticastAt: isMulticast ? sentAt : entry?.lastMulticastAt,
-                    lastMulticastIsGoodbye: isMulticast ? record.ttl === 0 : entry?.lastMulticastIsGoodbye,
+                    lastMulticastAt: isCounted ? sentAt : entry?.lastMulticastAt,
+                    lastMulticastIsGoodbye: isCounted ? record.ttl === 0 : entry?.lastMulticastIsGoodbye,
                 });
             }
             if (!isMulticast) {

@@ -234,6 +234,9 @@ describe("MdnsServer on the UDP transport", () => {
     }
 
     it("notices a failing multicast answer once even when a unicast answer succeeds in between", async () => {
+        await query(OPERATIONAL);
+        await elapse(Seconds(2));
+        received.length = 0;
         network.failsMulticast = true;
         await query(OPERATIONAL);
         expect(notices).deep.equals([CANNOT_SEND]);
@@ -247,15 +250,15 @@ describe("MdnsServer on the UDP transport", () => {
     });
 
     it("notices a failing deferred answer", async () => {
-        await MockTime.resolve(server.broadcast("operational"));
-        const announcedAt = network.multicastAt[network.multicastAt.length - 1];
+        await query(OPERATIONAL);
+        const answeredAt = network.multicastAt[network.multicastAt.length - 1];
         network.failsMulticast = true;
 
         await query(OPERATIONAL);
         await elapse(Seconds(2));
 
         expect(network.failedAt.length).equals(1);
-        expect(network.failedAt[0] - announcedAt).least(1000);
+        expect(network.failedAt[0] - answeredAt).least(1000);
         expect(notices).deep.equals([CANNOT_SEND]);
     });
 
@@ -309,7 +312,7 @@ describe("MdnsServer on the UDP transport", () => {
             TxtRecord("big.b.c.d", [`key${index}=${"x".repeat(40)}`], FULL_TTL),
         );
         await MockTime.resolve(server.register("big", () => [...serviceRecords("big.b.c.d"), ...many]));
-        await MockTime.resolve(server.broadcast("big"));
+        await query("big.b.c.d", false, DnsRecordType.TXT);
         await elapse(Seconds(2));
         received.length = 0;
         network.failingUnicasts.add(1);
