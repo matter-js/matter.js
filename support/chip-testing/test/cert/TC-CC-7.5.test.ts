@@ -10,7 +10,7 @@ import { CommissionedRefs } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
 
-certTest("TC-CC-7.5", { plan: "colorcontrol.adoc", pics: ["CC.C"], app: "all-clusters" })
+certTest("TC-CC-7.5", { plan: "colorcontrol.adoc", pics: ["CC.C", "CC.C.F01"], app: "all-clusters" })
     .step(
         "0",
         "Test setup: commission TH to DUT and set TH OnOff to On; the TH supports EnhancedHue (CC.C.F01).",

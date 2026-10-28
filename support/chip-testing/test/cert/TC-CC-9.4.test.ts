@@ -30,7 +30,7 @@ const COLOR_LOOP = {
     startHue: 0,
 };
 
-certTest("TC-CC-9.4", { plan: "colorcontrol.adoc", pics: ["CC.C"], app: "all-clusters" })
+certTest("TC-CC-9.4", { plan: "colorcontrol.adoc", pics: ["CC.C", "CC.C.F02", "CC.C.F01"], app: "all-clusters" })
     .step(
         "0",
         "Test setup: commission TH to DUT and set TH OnOff to On; the TH supports ColorLoop (CC.C.F02) and " +

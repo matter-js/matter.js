@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/main";
 import { certTest } from "@matter/testing";
 import {
     colorControlPreconditions,
@@ -12,7 +11,7 @@ import {
     readsColorAttributes,
     sendsColorCommand,
 } from "./tc-cc-support.js";
-import { CommissionedRefs, describeValue, recordAll } from "./tc-support.js";
+import { CertCheckFailedError, CommissionedRefs, describeValue, recordAll } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
 
@@ -25,7 +24,7 @@ let physical: { min: number; max: number } | undefined;
 
 function range() {
     if (physical === undefined) {
-        throw new InternalError("A step ran before step 1 read the TH's colour temperature range");
+        throw new CertCheckFailedError("Step 1 recorded no colour temperature range of the TH to move within");
     }
     return physical;
 }
@@ -35,7 +34,7 @@ const rangeArgs = () => ({
     colorTemperatureMaximumMireds: range().max,
 });
 
-certTest("TC-CC-6.4", { plan: "colorcontrol.adoc", pics: ["CC.C"], app: "all-clusters" })
+certTest("TC-CC-6.4", { plan: "colorcontrol.adoc", pics: ["CC.C", "CC.C.F04"], app: "all-clusters" })
     .step(
         "0",
         "Test setup: commission TH to DUT and set TH OnOff to On; the TH supports ColorTemperature (CC.C.F04).",

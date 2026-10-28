@@ -75,7 +75,10 @@ function payloadOf(command: string, args: ColorCommandArgs): { args: ColorComman
         const name = camelize(field.name);
         const value = args[name];
         if (field.effectiveMetatype === "bitmap") {
-            const set = typeof value === "object" ? value : {};
+            if (typeof value === "number") {
+                throw new InternalError(`ColorControl.${command} takes ${name} as an object of set bits, not a number`);
+            }
+            const set = value ?? {};
             const bits = bitsOf(field);
             sent[name] = set;
             chip.push(

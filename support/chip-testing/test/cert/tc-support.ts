@@ -1241,7 +1241,7 @@ export async function expectCommandInvoke(
         last = block.last;
         cursor = block.last.index + 1;
 
-        for (const { id, value } of fields) {
+        for (const { id, value, signed } of fields) {
             if (typeof value === "object") {
                 const bytes = await expectAdjacentLines(
                     log,
@@ -1258,7 +1258,7 @@ export async function expectCommandInvoke(
                 continue;
             }
             const result = await log.expect(
-                { chip: chipCommandField({ id, value }) },
+                { chip: chipCommandField({ id, value, signed }) },
                 { flavor, timeoutMs: remaining(), from: cursor },
             );
             if (result.verdict === "unverified") {

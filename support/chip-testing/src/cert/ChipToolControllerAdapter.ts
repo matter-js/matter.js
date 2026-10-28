@@ -178,8 +178,8 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "WNCV.C.C08.Tx": 1,
 
     // The ColorControl client commands, features and attributes that TC-CC-3.4, TC-CC-4.5, TC-CC-5.4, TC-CC-6.4,
-    // TC-CC-7.5 and TC-CC-9.4 send or read. CHIP's PICS file answers the features 0, because it describes a device;
-    // the other keys state the controller's full client surface for these cases.
+    // TC-CC-7.5 and TC-CC-9.4 send, read or name as the DUT's precondition. CHIP's PICS file answers the features 0,
+    // because it describes a device; the other keys state the controller's full client surface for these cases.
     "CC.C": 1,
     "CC.C.F00": 1,
     "CC.C.F01": 1,

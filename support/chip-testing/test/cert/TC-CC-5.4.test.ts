@@ -10,7 +10,7 @@ import { CommissionedRefs } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
 
-certTest("TC-CC-5.4", { plan: "colorcontrol.adoc", pics: ["CC.C"], app: "all-clusters" })
+certTest("TC-CC-5.4", { plan: "colorcontrol.adoc", pics: ["CC.C", "CC.C.F03"], app: "all-clusters" })
     .step(
         "0",
         "Test setup: commission TH to DUT and set TH OnOff to On; the TH supports XY (CC.C.F03).",
