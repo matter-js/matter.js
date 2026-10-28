@@ -290,6 +290,11 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "CC.C.A4004": 1,
     "CC.C.A4005": 1,
 
+    // The Thermostat client command TC-TSTAT-3.2 sends. CHIP's PICS file answers `TSTAT.C` 0, because it describes a
+    // device; `TSTAT.C.C00.Tx` states the controller's client surface for this case.
+    "TSTAT.C": 1,
+    "TSTAT.C.C00.Tx": 1,
+
     // The diagnostics client commands, and the one attribute, that TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and
     // TC-DGWIFI-3.2 send or read. Only `DGTHREAD.C` and `DGWIFI.C.C00.Tx` need the overlay, because CHIP's file
     // answers them 0; the other keys state the controller's full client surface for these cases.
