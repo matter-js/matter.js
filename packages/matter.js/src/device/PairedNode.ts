@@ -614,7 +614,9 @@ export class PairedNode {
         }
         // Toggle autoSubscribe to tear down and re-create the sustained subscription
         await this.#clientNode.set({ network: { autoSubscribe: false } });
-        this.#activateSubscription();
+        if (!this.#closing && this.#options.autoSubscribe !== false) {
+            await this.#clientNode.set({ network: { autoSubscribe: true } });
+        }
     }
 
     async #initializeFromStoredData() {
