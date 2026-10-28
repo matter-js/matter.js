@@ -8,12 +8,14 @@ import { InternalError } from "@matter/main";
 import type { CertDevice, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest, flavorFamily } from "@matter/testing";
 import { commissionByQr, COMMISSIONING_LOG_TIMEOUT, restoreCommissioningMode, thQrPayload } from "./tc-dd-support.js";
+import type { RecordedCheck } from "./tc-support.js";
 import {
     CertCheckFailedError,
     CommissionedRefs,
     expectDeviceLog,
     LOG_TIMEOUT,
     record,
+    recordAll,
     runCleanups,
     theTh,
     withChecks,
@@ -23,12 +25,12 @@ import {
 const NONCE_LENGTH = 32;
 
 /**
- * The TH's line for a received AttestationRequest. matter.js prints the whole nonce on it; chip prints it in the
- * decoded request a few lines before, see {@link chipNonce}.
+ * The TH's line for a received AttestationRequest. matter.js prints the nonce on it; chip prints it in the decoded
+ * request a few lines before, see {@link chipNonce}.
  */
 const ATTESTATION_REQUEST = {
     chip: /OpCreds: Received an AttestationRequest command/,
-    matterjs: /ProtocolService Invoke « .*operationalCredentials\.attestationRequest .*attestationNonce: ([0-9a-f]+)/,
+    matterjs: /ProtocolService Invoke « .*operationalCredentials\.attestationRequest .*attestationNonce: ([0-9a-f]*)/,
 };
 
 /** The TH's line for the AttestationResponse it sent. */
@@ -44,11 +46,7 @@ const CHIP_FIELD_END = /\]\s+\((\d+) bytes\)/;
 /** How far before chip's request line its decoded nonce field may start. */
 const CHIP_DECODE_LINES = 40;
 
-/**
- * The nonce a TH logged: as many leading bytes as it printed, as hex, and the length it gives. chip prints the first
- * 20 bytes of a byte field only, so two nonces whose printed bytes differ are different, and two whose 20 random
- * leading bytes agree are taken as the same nonce.
- */
+/** The nonce a TH logged, as hex, with the length the TH gives for it. */
 interface LoggedNonce {
     hex: string;
     length: number;
@@ -110,19 +108,22 @@ async function readRequest(cx: CertStepContext, from: number): Promise<ReceivedR
         const hex = ATTESTATION_REQUEST.matterjs.exec(th.log.at(requestLine)?.text ?? "")?.[1];
         return { received, nonce: hex === undefined ? undefined : { hex, length: hex.length / 2, line: requestLine } };
     }
-    const nonce = chipNonce(th, requestLine);
-    return { received, nonce: nonce?.hex === "" ? undefined : nonce };
+    return { received, nonce: chipNonce(th, requestLine) };
 }
 
 const commissioned = new CommissionedRefs();
 const marks = new Map<Commissioning, number>();
+const completions = new Map<Commissioning, RecordedCheck[]>();
 const requests = new Map<Commissioning, ReceivedRequest>();
 
 async function commissionTh(cx: CertStepContext, which: Commissioning) {
     const th = theTh(cx);
     const payload = await thQrPayload(th);
     marks.set(which, await th.log.markSettled());
-    await withChecks(cx, checks => commissionByQr(cx, payload, commissioned, checks));
+    await withChecks(cx, async checks => {
+        await commissionByQr(cx, payload, commissioned, checks);
+        completions.set(which, [...checks]);
+    });
 }
 
 function requestOf(which: Commissioning) {
@@ -205,16 +206,11 @@ certTest("TC-DA-1.3", {
         6,
         "Verify that DUT Completes the commissioning process successfully",
         async cx => {
-            const node = commissioned.get("dut");
-            record(
-                cx,
-                {
-                    type: "response",
-                    verdict: node === undefined ? "fail" : "pass",
-                    detail: `Step 1 commissioned TH1 as node ${node}`,
-                },
-                "Commissioning completed",
-            );
+            const checks = completions.get("first");
+            if (checks === undefined) {
+                throw new InternalError("Step 1 recorded no commissioning");
+            }
+            await recordAll(cx, checks);
         },
         { expected: "Verify that DUT Completes the commissioning process successfully" },
     )

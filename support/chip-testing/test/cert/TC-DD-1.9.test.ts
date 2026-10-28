@@ -6,9 +6,12 @@
 
 import { certTest } from "@matter/testing";
 import {
+    ABSENT_DEVICE_GIVE_UP,
+    ABSENT_DEVICE_WAIT,
     commissionByManualCode,
     CommissioningRefusals,
-    recordDiscriminatorHonored,
+    DISCRIMINATOR_MSB,
+    thManualPairingCode,
     thPrintedManualCode,
 } from "./tc-dd-support.js";
 import { CommissionedRefs, runCleanups, theTh, withChecks } from "./tc-support.js";
@@ -23,12 +26,23 @@ certTest("TC-DD-1.9", {
 })
     .step(
         "0",
-        "Precondition: the DUT is a commissioner that uses the discriminator its onboarding code names.",
-        cx => recordDiscriminatorHonored(cx, refusals),
+        "Precondition: the DUT is a commissioner that uses the discriminator a Manual Pairing Code names.",
+        async cx => {
+            const code = await thManualPairingCode(cx, {
+                vidPidPresent: false,
+                discriminator: theTh(cx).commissioning.discriminator ^ DISCRIMINATOR_MSB,
+            });
+            await refusals.requireGiveUp(
+                cx,
+                { manualPairingCode: code, giveUpAfterMs: ABSENT_DEVICE_GIVE_UP },
+                "No device commissioned from a manual code naming a discriminator no device advertises",
+                ABSENT_DEVICE_WAIT,
+            );
+        },
         {
             expected:
-                "DUT does not commission the TH from a code naming a discriminator no device advertises. " +
-                "Step 1's commissioning rests on this.",
+                "DUT does not commission the TH from the TH's Manual Pairing Code with a short discriminator no " +
+                "device advertises. Step 1's commissioning rests on this.",
         },
     )
     .step(
