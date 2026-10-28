@@ -2976,6 +2976,33 @@ describe("MdnsServer", () => {
             ]);
         });
 
+        it("holds the address records of one name together across answers and additional records", async () => {
+            await register("ds", () => [
+                SrvRecord("ds.b.c.d", { priority: 0, weight: 0, port: 1, target: "ds.local" }, FULL_TTL),
+                ARecord("ds.local", "10.5.5.5", FULL_TTL, true),
+                AAAARecord("ds.local", "fd00::5", FULL_TTL, true),
+            ]);
+            query({ name: "ds.local", recordType: DnsRecordType.AAAA });
+            await MockTime.resolve(sentAtLeast(1));
+            sent.length = 0;
+            await waitFor(Millis(500));
+
+            query(
+                { name: "ds.local", recordType: DnsRecordType.A },
+                { name: "ds.b.c.d", recordType: DnsRecordType.SRV },
+            );
+            await waitFor(Millis(1500));
+
+            const addressesPerPacket = sent.map(({ answers, additionalRecords }) =>
+                [...answers, ...additionalRecords]
+                    .filter(({ recordType }) => recordType === DnsRecordType.A || recordType === DnsRecordType.AAAA)
+                    .map(({ recordType }) => DnsRecordType[recordType])
+                    .sort()
+                    .join(" "),
+            );
+            expect(addressesPerPacket).deep.equal(["", "A AAAA"]);
+        });
+
         it("carries a record asked for twice in one query once and clears the bit of its incomplete set", async () => {
             await register("dual", () => [
                 SrvRecord("dual.b.c.d", { priority: 0, weight: 0, port: 1, target: HOST }, FULL_TTL, true),
@@ -3328,6 +3355,25 @@ describe("MdnsServer", () => {
                 { netInterface: "eth0", target: "AABBCCDDEE030000.local" },
                 { netInterface: "docker0", target: "AABBCCDDEE030000.local" },
             ]);
+        });
+
+        it("announces every service once the host name changed", async () => {
+            const bar = await server.register("bar", (_intf, addrs, hostname) => [
+                SrvRecord("bar.b.c.d", { priority: 0, weight: 0, port: 1235, target: hostname }),
+                ...addrs.ipV4.map(ip => ARecord(hostname, ip)),
+            ]);
+            await MockTime.resolve(server.broadcast("bar"));
+            interfaces.eth0 = { mac: "aa:bb:cc:dd:ee:03", ipV4: ["10.0.0.2"], ipV6: [] };
+
+            await announcedTargets();
+
+            const barTargets = sent.flatMap(({ message }) =>
+                (message?.answers ?? [])
+                    .filter(record => record.name === "bar.b.c.d" && record.ttl > 0)
+                    .map(record => record.value.target),
+            );
+            expect(new Set(barTargets)).deep.equal(new Set(["AABBCCDDEE030000.local"]));
+            await bar.withdraw();
         });
 
         it("skips an interface whose details cannot be read", async () => {

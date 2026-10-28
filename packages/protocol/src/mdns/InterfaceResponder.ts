@@ -339,14 +339,23 @@ export class InterfaceResponder {
             let sentAnswers = answers;
             let sentAdditional = additionalRecords;
             if (!isUnicast) {
+                const packet = [...answers, ...additionalRecords];
                 sentAnswers = this.#holdBack(
                     answers,
                     now,
                     () => receivedAt,
                     "answer",
                     () => additionalRecords,
+                    packet,
                 );
-                sentAdditional = this.#holdBack(additionalRecords, now, () => receivedAt, "additional", noRecords);
+                sentAdditional = this.#holdBack(
+                    additionalRecords,
+                    now,
+                    () => receivedAt,
+                    "additional",
+                    noRecords,
+                    packet,
+                );
                 if (sentAnswers.length === 0) continue;
             }
 
@@ -374,7 +383,8 @@ export class InterfaceResponder {
 
     /**
      * {@link records} without those the one-second rule holds back.  The address records of one name form one set
-     * (RFC 6762 §6.2): when one of them is held, all of them wait for the latest one's second.  A held record is
+     * (RFC 6762 §6.2) across {@link packet}, the records that may go in the same packet in either section: when one of
+     * them is held, all of them wait for the latest one's second.  A held record is
      * deferred unless a multicast answer that carried it left at or after its {@link sinceOf} time.  A deferred answer
      * remembers its {@link additionalOf} records, so the deferred packet carries what this packet would have carried.
      */
@@ -384,6 +394,7 @@ export class InterfaceResponder {
         sinceOf: (record: DnsRecord) => number,
         section: Deferral["section"],
         additionalOf: (record: DnsRecord) => DnsRecord[],
+        packet: DnsRecord[],
     ) {
         const heldUntil = new Map<DnsRecord, number>();
         for (const record of records) {
@@ -392,11 +403,13 @@ export class InterfaceResponder {
                 heldUntil.set(record, until);
             }
         }
-        for (const addressSet of addressSetsOf(records)) {
-            if (addressSet.some(record => heldUntil.has(record))) {
-                const until = Math.max(...addressSet.map(record => this.#heldUntil(record)));
+        for (const addressSet of addressSetsOf(packet)) {
+            const until = Math.max(...addressSet.map(record => this.#heldUntil(record)));
+            if (now < until) {
                 for (const record of addressSet) {
-                    heldUntil.set(record, until);
+                    if (records.includes(record)) {
+                        heldUntil.set(record, until);
+                    }
                 }
             }
         }
@@ -541,7 +554,15 @@ export class InterfaceResponder {
         }
 
         const timeOf = (record: DnsRecord) => sinceOf.get(record) ?? now;
-        const sentAnswers = this.#holdBack(answers, now, timeOf, "answer", record => additionalOf.get(record) ?? []);
+        const packet = uniqueRecords([...answers, ...additionalRecords, ...[...additionalOf.values()].flat()]);
+        const sentAnswers = this.#holdBack(
+            answers,
+            now,
+            timeOf,
+            "answer",
+            record => additionalOf.get(record) ?? [],
+            packet,
+        );
         const answerKeys = new Set(sentAnswers.map(record => recordKeyOf(record)));
         for (const answer of sentAnswers) {
             for (const additional of additionalOf.get(answer) ?? []) {
@@ -557,6 +578,7 @@ export class InterfaceResponder {
             timeOf,
             "additional",
             noRecords,
+            uniqueRecords([...sentAnswers, ...additionalRecords]),
         );
         this.#scheduleDeferred();
 
