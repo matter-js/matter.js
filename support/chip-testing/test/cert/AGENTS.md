@@ -4083,3 +4083,32 @@ commissioning window. `tc-cadmin-support.ts` holds both as `fabricRemovalCase` (
 - **Locally on macOS, 1.17 and 1.18 fail at step 10 on chip-local**: the removed fabric's operational record stays
   observable. origin/main's 1.17 fails the same way on the same host; "Commission, unpair, re-commission" above
   says what is and is not known about it.
+
+## The window-handling cases (`TC-CADMIN-1.7`, `1.8`)
+
+`windowHandlingCase` in `tc-cadmin-window-support.ts` holds both: the DUT opens windows on the TH, lets one time out
+(step 4), revokes one (step 6) and revokes again with none open (step 8). TH_CR2 may join only through the last
+window, and TH_CR3 not after it. 1.7 opens enhanced windows, 1.8 basic ones. The module uses the shared steps of
+`tc-cadmin-support.ts`.
+
+- **Three refused commissionings and one refused revoke.** In steps 4, 7 and 12 a TH commissioner has to give up or have its PASE refused
+  (`isGiveUpOrRefusedPase`), and the TH has to show the plan's outcome: no `_matterc._udp` record for the window's
+  discriminator, or no PASE session it accepted (`noRecordOrNoPase`). On chip-tool, chip-tool's own log has to show
+  the discovery give-up or the failed PASE (`chipToolGaveUpOrPaseFailed`). Step 8
+  requires the `WindowNotOpen` cluster status (`isWindowNotOpenRefusal`), the TH's own line for it
+  (`REVOKE_WINDOW_NOT_OPEN`), and no window-open or window-closed line for 5 s after the revoke.
+- **Every absence has a positive control in the same run.** Steps 1 and 11 match `PASE_ESTABLISHED`. Each
+  window-opening step finds the window's commissionable record with the same mDNS probe. Steps 5 and 6 match the two
+  window patterns that step 8 looks for.
+- **Step 4 waits out the whole window, and is not `longRunning`**, for the same reason as TC-CADMIN-1.1 step 14:
+  skipped, it would leave step 2's window open for step 5. The window's lifetime is the time between the follower
+  taking in the TH's window-open and window-closed lines (`LogLine.receivedAt`, monotonic), within the plan's clock
+  allowance. TH_CR2 starts at least 190 s after the window-open line, on the same clock. Each case takes about four
+  and a half minutes.
+- **Steps 3.a-3.c are gated on the controller's display and audio interface.** CHIP's PICS file answers 1 for both
+  `CADMIN.M.UserInterfaceDisplay` and `CADMIN.M.AudioInterface`; all three controller overlays answer 0. A controller
+  that answers 1 leaves these steps `unverified`: a consent screen, a displayed code and a voice prompt need a person
+  in front of the DUT.
+- **Step 12 first has DUT_CR1 read WindowStatus**, which must be `WindowNotOpen` after TH_CR2's commissioning: the
+  plan gives the closed window as the reason for the refusal. A log line cannot show it on chip, which writes its
+  window-closed line (`WINDOW_CLOSED`) for a timeout or a revoke, not when a commissioning completes.

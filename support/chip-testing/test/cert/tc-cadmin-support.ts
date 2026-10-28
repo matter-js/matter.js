@@ -85,13 +85,13 @@ export const CW_DURATION_SECONDS = 180;
  * The plan's clock allowance for a commissioning window timeout: 1 % of the window, at least 100 ms
  * (multiplefabrics.adoc, "Clock allowances for commissioning test cases").
  */
-const CW_CLOCK_ALLOWANCE = Millis(Math.max(100, Seconds(CW_DURATION_SECONDS) / 100));
+export const CW_CLOCK_ALLOWANCE = Millis(Math.max(100, Seconds(CW_DURATION_SECONDS) / 100));
 
 /** `WindowNotOpen` of `CommissioningWindowStatusEnum` (Matter Core § 11.19.5.1). */
 const WINDOW_NOT_OPEN = 0;
 
 /** RevokeCommissioning requires a timed invoke (Matter Core § 11.19.8, command table). */
-const REVOKE_TIMED_INTERACTION_MS = 10_000;
+export const REVOKE_TIMED_INTERACTION_MS = 10_000;
 
 /** A completed commissioning: chip announces it, matter.js names the fabric it completed for. */
 export const COMMISSIONING_COMPLETE: LogExpectPatterns = {
@@ -278,15 +278,16 @@ export function eitherNoRecordOrNoPase(noRecord: CheckRecord | undefined, noPase
 }
 
 /**
- * A controller error that step 11 accepts: a give-up ({@link isCommissioningGiveUp}), which covers a refused PASE on
+ * A controller error that an attempt through a closed or revoked window may end with: a give-up ({@link isCommissioningGiveUp}), which covers a refused PASE on
  * the in-process controller and on chip-tool, or a commissioning the matterjs-server reports as failed, which names
  * its reason only in the server's log.  The TH's own log decides whether a PASE was accepted.
  */
-function isGiveUpOrRefusedPase(error: unknown) {
+export function isGiveUpOrRefusedPase(error: unknown) {
     return isCommissioningGiveUp(error) || error instanceof MatterServerCommissioningError;
 }
 
-async function noRecordOrNoPase(th: CertDevice, discriminator: number | undefined, from: number) {
+/** {@link eitherNoRecordOrNoPase} over an mDNS probe for `discriminator` and the TH log from `from` on. */
+export async function noRecordOrNoPase(th: CertDevice, discriminator: number | undefined, from: number) {
     const [noRecord, noPase] = await Promise.all([
         discriminator === undefined
             ? undefined
@@ -302,7 +303,7 @@ async function noRecordOrNoPase(th: CertDevice, discriminator: number | undefine
  */
 export type CommissioningMethod = "enhanced" | "basic";
 
-const METHODS = {
+export const METHODS = {
     enhanced: { abbreviation: "ECM", name: "Enhanced Commissioning Method", pics: "CADMIN.C.C00.Tx", capabilities: [] },
     basic: {
         abbreviation: "BCM",
@@ -567,7 +568,7 @@ async function checkFabricList(
  * Has `who` write `label` to the TH's NodeLabel and read it back, recording the TH receiving both
  * requests and the value read.
  */
-async function writeAndReadNodeLabel(
+export async function writeAndReadNodeLabel(
     cx: CertStepContext,
     node: CertNodeApi,
     who: string,
@@ -624,7 +625,7 @@ async function readNodeLabelChecked(
 }
 
 /** Has `who` read WindowStatus and records that the TH reports no open window. */
-async function checkWindowNotOpen(cx: CertStepContext, node: CertNodeApi, who: string): Promise<void> {
+export async function checkWindowNotOpen(cx: CertStepContext, node: CertNodeApi, who: string): Promise<void> {
     const status = await node.readAttribute(WINDOW_STATUS_PATH);
     record(
         cx,
