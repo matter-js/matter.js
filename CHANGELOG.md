@@ -30,6 +30,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
 
+- @project-chip/matter.js
+    - Fix: `PairedNode.reconnect()` waits for concurrent network state updates when re-enabling the subscription, so a lock conflict no longer leaves the node unsubscribed
+
 ## 0.18.0 (2026-10-20)
 
 - Breaking: Matter 1.6.1 brings specification changes that may require code adjustments
