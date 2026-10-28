@@ -337,6 +337,10 @@ export class ControllerCommissioningFlow {
     #commissioningExpiryTime: Timestamp | undefined;
     #currentFailSafeEndTime: Timestamp | undefined;
     #dacPublicKey?: ReturnType<typeof PublicKey>;
+    #attestationEvidence?: Pick<
+        CertificateAuthority.Issuer.CommissioningEvidence,
+        "dac" | "pai" | "attestationElements" | "attestationSignature" | "attestationNonce"
+    >;
     protected lastBreadcrumb = 1;
     protected collectedCommissioningData: CollectedCommissioningData = {};
     #defaultFailSafeTime = DEFAULT_FAILSAFE_TIME;
@@ -1357,6 +1361,13 @@ export class ControllerCommissioningFlow {
             }
         }
         this.#dacPublicKey = dacPublicKey;
+        this.#attestationEvidence = {
+            dac: deviceAttestation,
+            pai: productAttestation,
+            attestationElements,
+            attestationSignature,
+            attestationNonce,
+        };
 
         return {
             code: CommissioningStepResultCode.Success,
@@ -1413,12 +1424,13 @@ export class ControllerCommissioningFlow {
      *     DCL contains the name and other information of the Commissioner’s manufacturer.
      */
     async #certificates() {
+        const csrNonce = this.fabric.crypto.randomBytes(32);
         const { nocsrElements, attestationSignature: csrSignature } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
                 cluster: OperationalCredentials,
                 command: "csrRequest",
-                fields: { csrNonce: this.fabric.crypto.randomBytes(32) },
+                fields: { csrNonce },
             },
             {
                 useExtendedFailSafeMessageResponseTimeout: true,
@@ -1463,6 +1475,14 @@ export class ControllerCommissioningFlow {
             operationalPublicKey,
             this.fabric.fabricId,
             this.interaction.address.nodeId,
+            undefined,
+            this.#attestationEvidence && {
+                ...this.#attestationEvidence,
+                attestationChallenge: this.commissioningOptions.attestation.challengeKey,
+                nocsrElements,
+                nocsrSignature: csrSignature,
+                csrNonce,
+            },
         );
 
         const addNocResponse = await this.#invokeCommand(

@@ -361,7 +361,31 @@ describe("CertificateAuthority", () => {
             expect(requests.length).equal(1);
             expect(requests[0].nodeId).equal(NodeId(100n));
             expect(requests[0].caseAuthenticatedTags).deep.equal(cats);
+            expect(requests[0].commissioning).undefined;
             await Noc.fromTlv(noc).verify(crypto, Rcac.fromTlv(signer.rootCert));
+        });
+
+        it("forwards the device's attestation and CSR responses to the issuer", async () => {
+            const { issuer, requests } = await createIssuer();
+            const ca = CertificateAuthority.external(crypto, issuer);
+            await ca.construction;
+
+            const evidence: CertificateAuthority.Issuer.CommissioningEvidence = {
+                dac: Bytes.fromHex("01"),
+                pai: Bytes.fromHex("02"),
+                attestationElements: Bytes.fromHex("03"),
+                attestationSignature: Bytes.fromHex("04"),
+                attestationNonce: Bytes.fromHex("05"),
+                attestationChallenge: Bytes.fromHex("06"),
+                nocsrElements: Bytes.fromHex("07"),
+                nocsrSignature: Bytes.fromHex("08"),
+                csrNonce: Bytes.fromHex("09"),
+            };
+            const keyPair = await crypto.createKeyPair();
+            await ca.generateNoc(keyPair.publicKey, FabricId(1n), NodeId(100n), undefined, evidence);
+
+            expect(requests.length).equal(1);
+            expect(requests[0].commissioning).deep.equal(evidence);
         });
 
         it("has no configuration to export", async () => {

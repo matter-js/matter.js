@@ -324,9 +324,10 @@ export class CertificateAuthority {
         fabricId: FabricId,
         nodeId: NodeId,
         caseAuthenticatedTags?: CaseAuthenticatedTag[],
+        commissioning?: CertificateAuthority.Issuer.CommissioningEvidence,
     ) {
         if (this.#issuer) {
-            return await this.#issuer.issueNoc({ publicKey, fabricId, nodeId, caseAuthenticatedTags });
+            return await this.#issuer.issueNoc({ publicKey, fabricId, nodeId, caseAuthenticatedTags, commissioning });
         }
 
         const now = Time.now;
@@ -514,6 +515,47 @@ export namespace CertificateAuthority {
             fabricId: FabricId;
             nodeId: NodeId;
             caseAuthenticatedTags?: CaseAuthenticatedTag[];
+
+            /**
+             * What the device returned during commissioning, when the NOC is for a device being commissioned.
+             * Undefined for the controller's own NOC.  A remote CA can use it to verify the device's attestation and
+             * the binding of {@link publicKey} to the DAC itself, rather than trusting the controller's check.
+             */
+            commissioning?: CommissioningEvidence;
+        }
+
+        /**
+         * The device's attestation and operational CSR responses, as received.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 6.2.3 and § 11.18.6.5
+         */
+        export interface CommissioningEvidence {
+            /** The DAC, X.509 DER, from CertificateChainRequest. */
+            dac: Bytes;
+
+            /** The PAI, X.509 DER, from CertificateChainRequest. */
+            pai: Bytes;
+
+            /** AttestationResponse.attestationElements, which carry the certification declaration. */
+            attestationElements: Bytes;
+
+            /** AttestationResponse.attestationSignature, over the elements and {@link attestationChallenge}. */
+            attestationSignature: Bytes;
+
+            /** The nonce sent in AttestationRequest. */
+            attestationNonce: Bytes;
+
+            /** The attestation challenge of the PASE session the device was commissioned over. */
+            attestationChallenge: Bytes;
+
+            /** CSRResponse.nocsrElements, which carry the PKCS#10 request for {@link NocRequest.publicKey}. */
+            nocsrElements: Bytes;
+
+            /** CSRResponse.attestationSignature, over the elements and {@link attestationChallenge}. */
+            nocsrSignature: Bytes;
+
+            /** The nonce sent in CSRRequest. */
+            csrNonce: Bytes;
         }
     }
 

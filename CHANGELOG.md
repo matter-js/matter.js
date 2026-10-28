@@ -32,6 +32,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Enhancement: `CertificateAuthority.external()` creates a certificate authority whose NOCs come from an `Issuer`, for example a remote CA service, so the controller holds no root or intermediate private key
     - Enhancement: `ControllerCommissioningFlowOptions.caseAdminSubject` sets the CASE admin subject sent in AddNOC instead of the commissioner's node ID
+    - Enhancement: During commissioning, the NOC request to an external `Issuer` carries the device's attestation and CSR responses in `commissioning`, so a remote CA can verify them itself
 
 ## 0.18.0 (2026-10-20)
 

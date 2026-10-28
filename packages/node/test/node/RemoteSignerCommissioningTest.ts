@@ -5,9 +5,17 @@
  */
 
 import { ServerNode } from "#node/ServerNode.js";
-import { Crypto, MockCrypto, Seconds } from "@matter/general";
+import { Bytes, Crypto, EcdsaSignature, MockCrypto, PublicKey, Seconds } from "@matter/general";
 import { MockSite } from "@matter/node/testing";
-import { CertificateAuthority, FabricManager, Noc } from "@matter/protocol";
+import {
+    Certificate,
+    CertificateAuthority,
+    Dac,
+    FabricManager,
+    Noc,
+    TlvAttestation,
+    TlvCertSigningRequest,
+} from "@matter/protocol";
 import { CaseAuthenticatedTag, NodeId } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 
@@ -76,6 +84,44 @@ describe("Commissioning with a remote signer", () => {
 
         const deviceNodeId = Noc.fromTlv(deviceFabric.operationalCert).cert.subject.nodeId;
         expect(requests.map(({ nodeId }) => nodeId)).contains(deviceNodeId);
+    });
+
+    it("passes the device's attestation and CSR responses to the external issuer", async () => {
+        const { controller, device, requests } = await addPairWithExternalCa();
+
+        await commission(controller, device);
+
+        const [deviceFabric] = device.env.get(FabricManager).fabrics;
+        const deviceNodeId = Noc.fromTlv(deviceFabric.operationalCert).cert.subject.nodeId;
+        const deviceRequest = requests.find(({ nodeId }) => nodeId === deviceNodeId);
+        if (deviceRequest?.commissioning === undefined) {
+            throw new Error("The device's NOC request carries no commissioning evidence");
+        }
+        const { publicKey, commissioning: evidence } = deviceRequest;
+
+        const crypto = controller.env.get(Crypto);
+        const dacKey = PublicKey(Dac.fromAsn1(evidence.dac).cert.ellipticCurvePublicKey);
+        await crypto.verifyEcdsa(
+            dacKey,
+            Bytes.concat(evidence.attestationElements, evidence.attestationChallenge),
+            new EcdsaSignature(evidence.attestationSignature),
+        );
+        await crypto.verifyEcdsa(
+            dacKey,
+            Bytes.concat(evidence.nocsrElements, evidence.attestationChallenge),
+            new EcdsaSignature(evidence.nocsrSignature),
+        );
+
+        const attestation = TlvAttestation.decode(evidence.attestationElements);
+        expect(Bytes.toHex(attestation.attestationNonce)).equal(Bytes.toHex(evidence.attestationNonce));
+
+        const nocsr = TlvCertSigningRequest.decode(evidence.nocsrElements);
+        expect(Bytes.toHex(nocsr.csrNonce)).equal(Bytes.toHex(evidence.csrNonce));
+        const csrPublicKey = await Certificate.getPublicKeyFromCsr(crypto, nocsr.certSigningRequest);
+        expect(Bytes.toHex(csrPublicKey)).equal(Bytes.toHex(publicKey));
+
+        const controllerRequests = requests.filter(({ nodeId }) => nodeId !== deviceNodeId);
+        expect(controllerRequests.every(({ commissioning }) => commissioning === undefined)).true;
     });
 
     it("sends caseAdminSubject in AddNOC", async () => {
