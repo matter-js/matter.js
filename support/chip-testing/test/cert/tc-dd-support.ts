@@ -1256,25 +1256,25 @@ export async function chipToolDiscoveryGaveUp(log: LogFollower, from: number): P
     return timedOut.check;
 }
 
-const CHIP_TOOL_ATTEMPT_ENDED = /\[CTL\] Discovery timed out|Pairing Failure: /;
+const CHIP_TOOL_PAIRING_ENDED = /\[TOO\] Secure Pairing (Failed|Success)/;
 const CHIP_TOOL_PASE_FAILED = /Failed during PASE session setup|PASESession timed out while waiting for a response/;
 const CHIP_TOOL_PASE_SUCCEEDED = /PASE establishment successful|Secure Pairing Success/;
 
 /**
- * chip-tool's own log showing that an attempt from `from` on ended without a commissioning: its discovery timed out
- * or its pairing failed, every PASE it started before that failed (`PASESession` logs `Failed during PASE session
- * setup`, or that it timed out waiting for the device), and none succeeded.  chip-tool tries every device it
- * discovered and keeps discovering after a refused PASE, so a refused PASE ends with the discovery timeout too.
- * For a step whose plan accepts a device that still advertises but refuses PASE; the caller checks on the device
- * that no PASE was accepted.
+ * chip-tool's own log showing that an attempt from `from` on ended without a commissioning: every PASE it started
+ * failed (`PASESession` logs `Failed during PASE session setup`, or that it timed out waiting for the device), none
+ * succeeded, and without a PASE attempt its discovery timed out.  chip-tool tries every device it discovers and keeps
+ * discovering after a refused PASE.  Its discovery timeout does not end a PASE still running, so the attempt ends only
+ * where chip-tool reports `Secure Pairing Failed`, once per command.  For a step whose plan accepts a device that
+ * still advertises but refuses PASE; the caller checks on the device that no PASE was accepted.
  */
 export async function chipToolGaveUpOrPaseFailed(log: LogFollower, from: number): Promise<CheckRecord> {
-    const ended = await expectDeviceLog(log, "chip", { chip: CHIP_TOOL_ATTEMPT_ENDED }, from, LOG_TIMEOUT);
+    const ended = await expectDeviceLog(log, "chip", { chip: CHIP_TOOL_PAIRING_ENDED }, from, LOG_TIMEOUT);
     const until = ended.check.logLine;
     if (ended.check.verdict !== "pass" || until === undefined) {
         return ended.check;
     }
-    const lines = log.lines.filter(line => line.index >= from && line.index < until);
+    const lines = log.lines.filter(line => line.index >= from && line.index <= until);
     const succeeded = lines.find(line => CHIP_TOOL_PASE_SUCCEEDED.test(line.text));
     if (succeeded !== undefined) {
         return { type: "device-log", verdict: "fail", detail: `chip-tool established PASE: ${succeeded.text}` };
@@ -1282,14 +1282,15 @@ export async function chipToolGaveUpOrPaseFailed(log: LogFollower, from: number)
     const attempts = lines.filter(line => CHIP_TOOL_PASE_ATTEMPT.test(line.text)).length;
     const failures = lines.filter(line => CHIP_TOOL_PASE_FAILED.test(line.text)).length;
     if (attempts === 0) {
-        if (CHIP_TOOL_DISCOVERY_TIMED_OUT.test(ended.check.matched ?? "")) {
-            return ended.check;
+        const timedOut = lines.find(line => CHIP_TOOL_DISCOVERY_TIMED_OUT.test(line.text));
+        if (timedOut === undefined) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                detail: `chip-tool's pairing failed without a PASE attempt or a discovery timeout: ${ended.check.matched}`,
+            };
         }
-        return {
-            type: "device-log",
-            verdict: "fail",
-            detail: `chip-tool reported a pairing failure without a PASE attempt before it: ${ended.check.matched}`,
-        };
+        return { ...ended.check, detail: `chip-tool's discovery timed out: ${timedOut.text}` };
     }
     if (failures < attempts) {
         return {
