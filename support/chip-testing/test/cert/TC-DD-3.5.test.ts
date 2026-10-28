@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/main";
+import { Matter } from "@matter/model";
 import type { CertStepContext, LogExpectPatterns } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
@@ -16,11 +16,23 @@ import {
     MDNS_TIMEOUT,
     recordCommissionable,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, expectDeviceLog, LOG_TIMEOUT, record, runCleanups, theTh } from "./tc-support.js";
+import {
+    CertCheckFailedError,
+    CommissionedRefs,
+    describeValue,
+    expectDeviceLog,
+    LOG_TIMEOUT,
+    record,
+    requireId,
+    runCleanups,
+    theTh,
+} from "./tc-support.js";
 
 /**
  * What each TH prints for one stage of a commissioning, in the order § 5.5 runs them. chip prints a line per stage it
- * handled; matter.js prints the response it sent to most commands, which carries the outcome.
+ * handled; matter.js prints the response it sent to most commands, which carries the outcome. Two lines name the
+ * request only: chip logs no outcome for ArmFailSafe, and matter.js logs no response to AddTrustedRootCertificate. A
+ * refusal of either still fails the run, at the next stage that needs it.
  */
 const STAGES = {
     discovered: {
@@ -64,6 +76,17 @@ const STAGES = {
 
 type Stage = keyof typeof STAGES;
 
+const NETWORK_COMMISSIONING = Matter.clusters.require("NetworkCommissioning");
+const NETWORK_COMMISSIONING_ID = requireId(NETWORK_COMMISSIONING.id, "NetworkCommissioning cluster");
+const NETWORK_COMMISSIONING_FEATURE_MAP = requireId(
+    NETWORK_COMMISSIONING.attributes.require("featureMap").id,
+    "NetworkCommissioning.featureMap",
+);
+
+/** Network Commissioning feature bits WI (0) and TH (1). */
+const WIFI_FEATURE = 1 << 0;
+const THREAD_FEATURE = 1 << 1;
+
 const commissioned = new CommissionedRefs();
 const commission = commissionThStep(commissioned);
 
@@ -76,7 +99,7 @@ let cursor: number | undefined;
 /** Records that the TH logged `stage` after the stage the previous step checked. */
 async function recordStage(cx: CertStepContext, stage: Stage, what: string) {
     if (cursor === undefined) {
-        throw new InternalError("No commissioning ran before this stage's check");
+        throw new CertCheckFailedError("Step 2's commissioning did not start, so this stage cannot be checked");
     }
     const th = theTh(cx);
     const { check } = await expectDeviceLog(th.log, th.flavor, STAGES[stage], cursor, LOG_TIMEOUT);
@@ -87,6 +110,32 @@ async function recordStage(cx: CertStepContext, stage: Stage, what: string) {
 }
 
 const stageStep = (stage: Stage, what: string) => (cx: CertStepContext) => recordStage(cx, stage, what);
+
+/**
+ * Core § 5.5 step 8 requires the regulatory configuration only from a Commissionee with a Network Commissioning
+ * instance that has the Wi-Fi or Thread feature: "If the Commissionee has at least one instance of the Network
+ * Commissioning cluster ... with either the WI ... or TH ... feature flags set". A commissioner may skip it otherwise.
+ */
+async function regulatoryNotRequired(cx: CertStepContext): Promise<string | undefined> {
+    const value = await cx.controllers.dut.node(commissioned.require("dut")).readAttribute({
+        endpoint: 0,
+        cluster: NETWORK_COMMISSIONING_ID,
+        attribute: NETWORK_COMMISSIONING_FEATURE_MAP,
+    });
+    const radio =
+        typeof value === "number"
+            ? (value & (WIFI_FEATURE | THREAD_FEATURE)) !== 0
+            : typeof value === "object" &&
+              value !== null &&
+              Object.entries(value).some(
+                  ([name, set]) =>
+                      set === true && (name === "wiFiNetworkInterface" || name === "threadNetworkInterface"),
+              );
+    return radio
+        ? undefined
+        : `The TH's Network Commissioning FeatureMap ${describeValue(value)} has neither Wi-Fi nor Thread, so the ` +
+              "Commissioner need not configure regulatory information (Core § 5.5 step 8)";
+}
 
 /** A plan condition that the THs of these runs, connected over Ethernet, never meet. */
 const ON_ETHERNET =
@@ -135,7 +184,10 @@ certTest("TC-DD-3.5", { plan: "devicediscovery.adoc", pics: ["MCORE.ROLE.COMMISS
         5,
         "Commissioner SHALL configure regulatory information in the Commissionee.",
         stageStep("regulatory", "the TH set the regulatory configuration"),
-        { expected: "TH set the values configured by the Commissioner" },
+        {
+            expected: "TH set the values configured by the Commissioner",
+            notApplicableAtRun: regulatoryNotRequired,
+        },
     )
     .step(
         6,
@@ -177,7 +229,7 @@ certTest("TC-DD-3.5", { plan: "devicediscovery.adoc", pics: ["MCORE.ROLE.COMMISS
                     { operationalRecords: 1 },
                     { operationalInstanceName: instance, timeoutMs: MDNS_TIMEOUT },
                 ),
-                `the TH advertises ${instance}, the operational instance the DUT names for it`,
+                `the TH advertises ${instance}, the operational instance the DUT's discovery looks for`,
             );
         }),
     )
@@ -193,7 +245,7 @@ certTest("TC-DD-3.5", { plan: "devicediscovery.adoc", pics: ["MCORE.ROLE.COMMISS
         async cx => {
             await recordStage(cx, "commissioningComplete", "the TH received CommissioningComplete");
             if (commissionedFrom === undefined) {
-                throw new InternalError("No commissioning ran before CommissioningComplete");
+                throw new CertCheckFailedError("Step 2's commissioning did not start");
             }
             // matter.js logs the completed commissioning before its response, so this check starts with the commissioning
             const th = theTh(cx);
