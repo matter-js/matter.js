@@ -116,7 +116,7 @@ export function isWindowNotOpenRefusal(error: unknown): boolean {
 
 /** `Duration.format` drops the milliseconds above a minute, which hides a miss of the 1.8 s clock allowance. */
 function exactly(duration: Duration) {
-    return `${Duration.format(duration)} (${Math.round(duration)} ms)`;
+    return `${Duration.format(duration)} (${duration.toFixed(1)} ms)`;
 }
 
 /**
@@ -153,6 +153,16 @@ export function lateStartCheck(openLine: LogLine, startedAt: number): CheckRecor
             `the plan asks for ${exactly(LATE_START)}`,
         logLine: openLine.index,
     };
+}
+
+/**
+ * Sleeps until `performance.now()` reaches `deadline`.  A timer may fire up to a millisecond before its delay has
+ * passed on this clock, so the wait repeats until the deadline is reached.
+ */
+async function sleepUntil(what: string, deadline: number) {
+    for (let remaining = deadline - performance.now(); remaining > 0; remaining = deadline - performance.now()) {
+        await Time.sleep(what, Millis(Math.ceil(remaining)));
+    }
 }
 
 /** DUT_CR1's read of WindowStatus as a check that the TH reports no open window, for a step that records later. */
@@ -374,10 +384,7 @@ export function windowHandlingCase(tc: string, method: CommissioningMethod): voi
                 }
 
                 const timedOut = await windowTimeoutChecks(th, openLine);
-                await Time.sleep(
-                    "commissioning window timeout plus 10 s",
-                    Millis(Math.max(0, openLine.receivedAt + LATE_START - performance.now())),
-                );
+                await sleepUntil("commissioning window timeout plus 10 s", openLine.receivedAt + LATE_START);
                 const started = lateStartCheck(openLine, performance.now());
                 await requireRefused(cx, "th_cr2", "TH_CR2", window, [
                     ...timedOut,
