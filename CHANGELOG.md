@@ -12,6 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/general
+    - Feature: `Network.interfacesChanged` reports interface and address changes, checked every 60 seconds while observed
     - Enhancement: WAL storage logs at notice level when an open restores entries from its log and when it has saved the restored state, with the time each took
     - Adjustment: Removed the unused WAL storage history API (`WalStorageDriver.snapshotAtTime()`/`snapshotAtCommit()`, the `headSnapshot` and `cleanInterval` options) and the `WalSnapshot` export
     - Fix: WAL storage deletes old log segments after each periodic snapshot instead of only on close, and restores from the previous snapshot when the current one is unreadable
@@ -22,6 +23,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
+    - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
     - Fix: A list or struct assigned to state is stored as a copy, so a later nested write no longer changes the value it came from
@@ -48,6 +50,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The mDNS responder sends a failed goodbye again until it leaves or peers drop the records
     - Fix: The mDNS responder sends a goodbye for every record a refresh removes or replaces, such as the vendor pointer when a commissioning window becomes privacy masked
     - Fix: The mDNS responder announces a service in the same message as the goodbye for a record that one of its records replaces, such as after a host name change
+    - Fix: The mDNS responder follows interface address changes: it withdraws the addresses an interface lost and announces the current ones
 
 ## 0.18.0 (2026-10-20)
 

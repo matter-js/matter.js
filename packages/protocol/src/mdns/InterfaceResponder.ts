@@ -160,6 +160,15 @@ export class InterfaceResponder {
     }
 
     /**
+     * Read the details again at the next {@link readDetails}, also within {@link INTERFACE_LIFETIME} or a retry wait,
+     * because the network reported that they changed.
+     */
+    detailsChanged() {
+        this.#detailsExpireAt = 0;
+        this.#retryReadAt = 0;
+    }
+
+    /**
      * Read the addresses and MAC of this interface; synchronous if the network reports them synchronously.
      * Concurrent reads share one lookup.
      *

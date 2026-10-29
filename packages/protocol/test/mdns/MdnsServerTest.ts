@@ -3205,6 +3205,11 @@ describe("MdnsServer", () => {
         }
 
         class MultiInterfaceNetwork extends MockNetwork {
+            // These tests cover the server's own interface reads; following changes is tested separately
+            override checkInterfaces() {
+                return Promise.resolve();
+            }
+
             override getNetInterfaces() {
                 if (failListingOnce) {
                     failListingOnce = false;
@@ -3229,6 +3234,10 @@ describe("MdnsServer", () => {
         class AsyncNetwork extends Network {
             constructor(private readonly inner: MultiInterfaceNetwork) {
                 super();
+            }
+
+            override checkInterfaces() {
+                return Promise.resolve();
             }
 
             getNetInterfaces() {
