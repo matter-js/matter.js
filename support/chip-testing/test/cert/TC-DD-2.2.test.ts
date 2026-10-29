@@ -77,8 +77,8 @@ certTest("TC-DD-2.2", {
         "6",
         "With DUT and TH connected to the same network over IP, DUT performs service discovery using DNS-SD",
         async cx => {
-            await recordCommissionable(cx);
             await recordDiscoveredTh(cx);
+            await recordCommissionable(cx);
         },
         {
             controllerCapabilities: DISCOVERS_COMMISSIONABLE,

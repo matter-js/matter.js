@@ -526,6 +526,21 @@ describe("recordDiscoveredTh", () => {
         expect(check.detail).contains("5E6B9D0C1A2F3B4C (D=3840 vendorId=65521 productId=32769 CM=1)");
     });
 
+    it("searches for the discriminator of the TH's payload, not of its configuration", async () => {
+        const filters = new Array<unknown>();
+        const cx = contextDiscovering(async filter => {
+            filters.push(filter);
+            return [TH_NODE];
+        });
+        const th = thOf(TH_PAYLOAD);
+        th.commissioning = { ...th.commissioning, discriminator: 1234 };
+
+        await recordDiscoveredTh(cx, th);
+
+        expect(filters).deep.equal([{ longDiscriminator: 3840 }]);
+        expect(checksOf(cx)[0].verdict).equal("pass");
+    });
+
     for (const [what, reported] of [
         ["another discriminator", { longDiscriminator: 3841 }],
         ["another vendor", { vendorId: 0xfff2 }],

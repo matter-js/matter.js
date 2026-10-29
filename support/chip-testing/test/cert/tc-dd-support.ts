@@ -1221,8 +1221,7 @@ export async function recordDiscoveredTh(cx: CertStepContext, th = theTh(cx)): P
         );
     }
 
-    const { vendorId, productId } = qrPayloadFields(await thQrPayload(th));
-    const longDiscriminator = th.commissioning.discriminator;
+    const { vendorId, productId, discriminator: longDiscriminator } = qrPayloadFields(await thQrPayload(th));
 
     let nodes: DiscoveredCommissionableNode[];
     try {
