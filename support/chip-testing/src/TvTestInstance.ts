@@ -13,8 +13,13 @@ import { WakeOnLanServer } from "@matter/main/behaviors/wake-on-lan";
 import { AdministratorCommissioning, ApplicationBasic, BasicInformation } from "@matter/main/clusters";
 import { DimmableLightDevice } from "@matter/main/devices/dimmable-light";
 import { DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
+import { TestKeypadInputServer } from "./cluster/TestKeypadInputServer.js";
 import { TestLowPowerServer } from "./cluster/TestLowPowerServer.js";
+import { TestTargetNavigatorServer } from "./cluster/TestTargetNavigatorServer.js";
 import { NodeTestInstance } from "./NodeTestInstance.js";
+
+/** @see {@link MatterSpecification.v161.Cluster} § 6.11.5.2 */
+const NO_CURRENT_TARGET = 0xff;
 
 export class TvTestInstance extends NodeTestInstance {
     static override id = "bingeford-6100";
@@ -75,10 +80,12 @@ export class TvTestInstance extends NodeTestInstance {
                 ApplicationBasicServer,
                 WakeOnLanServer,
                 TestLowPowerServer,
+                TestKeypadInputServer,
+                TestTargetNavigatorServer,
             ),
             {
                 number: EndpointNumber(1),
-                id: "app1",
+                id: "ep1",
                 descriptor: { tagList: [CommonNumberTag.One] },
                 applicationBasic: {
                     vendorName: "TestVendor",
@@ -96,6 +103,16 @@ export class TvTestInstance extends NodeTestInstance {
                     macAddress: "000000000000",
                     linkLocalAddress: Bytes.fromHex("00000000000000000000000000000000"),
                 },
+
+                // chip's tv-app seeds these targets (TargetNavigatorManager's default constructor), so a client case
+                // can navigate to the same identifier on both THs
+                targetNavigator: {
+                    targetList: [
+                        { identifier: 1, name: "exampleName" },
+                        { identifier: 2, name: "exampleName" },
+                    ],
+                    currentTarget: NO_CURRENT_TARGET,
+                },
             },
         );
         await serverNode.add(endpoint1);
@@ -104,7 +121,7 @@ export class TvTestInstance extends NodeTestInstance {
             DimmableLightDevice.with(DescriptorServer.with("TagList"), ApplicationBasicServer),
             {
                 number: EndpointNumber(3),
-                id: "app3",
+                id: "ep3",
                 descriptor: { tagList: [CommonNumberTag.Three] },
                 applicationBasic: {
                     vendorName: "TestVendor",

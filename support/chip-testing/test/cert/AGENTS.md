@@ -56,7 +56,7 @@ to an app this way:
 | ---------------------------------- | ------------ | -------------------------- | --------------------------- |
 | `IDM`, `CADMIN`, most generic/core  | `all-clusters` | `chip-all-clusters-app`   | yes (`AllClustersTestInstance`) |
 | `ACT`, `BR`                         | `bridge`     | `chip-bridge-app`          | yes (`BridgeTestInstance`) |
-| Media Playback/App-cluster TCs      | `tv`         | `chip-tv-app`               | no — `TvTestInstance` exists but isn't wired into `registerMatterJsCertSubject` yet |
+| `KEYPADINPUT`, `TGTNAV`, other media client TCs | `tv` | `chip-tv-app` | yes (`TvTestInstance`) |
 | `DRLK`                              | `lock`       | `chip-lock-app`             | no — no matterjs lock `TestInstance` exists in this package yet |
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
@@ -4021,7 +4021,7 @@ all-clusters app, except `TC-MOD-2.2` step 1, which reads SupportedModes. What t
   (unsigned),` on chip and `onOffControl: { acceptOnlyWhenOn: true }` on matter.js. Send a set bit; a cleared one
   cannot tell a lost bitmap from a correct one.
 - **`TC-LOWPOWER-2.2` runs on the chip flavors only.** matter.js's all-clusters test device has no LowPower cluster;
-  `TvTestInstance` has one but is not a cert subject.
+  `TvTestInstance` has one and is the `tv` cert subject, but the case still names `all-clusters`.
 - **The WindowCovering preconditions read the TH's FeatureMap** (`tc-wncv-support.ts`). `TC-WNCV-7.1` requires both
   position-aware features, which is stricter than the plan's "and/or": for a TH with only one position-aware axis,
   the plan defines no outcome for the other axis's command. Both THs have all four features.
@@ -4128,3 +4128,27 @@ window, and TH_CR3 not after it. 1.7 opens enhanced windows, 1.8 basic ones. The
 - **Step 12 first has DUT_CR1 read WindowStatus**, which must be `WindowNotOpen` after TH_CR2's commissioning: the
   plan gives the closed window as the reason for the refusal. A log line cannot show it on chip, which writes its
   window-closed line (`WINDOW_CLOSED`) for a timeout or a revoke, not when a commissioning completes.
+
+## The media client block (`TC-KEYPADINPUT-3.1`, `TC-TGTNAV-8.2`)
+
+The first cases on the `tv` app: the DUT sends one media command to the TH's video player endpoint, and the TH's log
+shows its payload. Steps go through `sendsTvCommand` (`tc-tv-client-support.ts`), which builds both flavors' payload
+from the command's model, the way `tc-cc-support.ts` does for ColorControl. The later media client cases (Channel,
+ContentLauncher, MediaInput, ApplicationLauncher, AudioOutput, MediaPlayback, AccountLogin) are meant to reuse it.
+
+- **Endpoint 1 on both THs.** chip's tv-app puts every video player cluster on endpoint 1 (`tv-app.matter`) and the
+  content app clusters, AccountLogin among them, on endpoint 3. `TvTestInstance` adds the clusters a case sends to on
+  endpoint 1 of its own. A case for an endpoint 3 cluster needs its own endpoint constant.
+- **The matter.js TH matches chip's seed data rather than the case reading it first.** chip's
+  `TargetNavigatorManager` default constructor seeds two targets, identifiers 1 and 2, both named `exampleName`, and
+  answers `TargetNotFound` for 0 or anything above the list size. `TvTestInstance` seeds the same list, so a fixed
+  identifier is valid on both THs and the plan's single step stays a single step. CurrentTarget differs: chip starts
+  at 0 (its own "no current target"), matter.js at 0xFF, which § 6.11.5.2 defines as "no target is in the foreground".
+- **The response status is a claim.** SendKey and NavigateTarget answer with a status in their payload, which
+  `sendCommand` checks. chip's `KeypadInputManager` accepts the navigation and number keys and answers
+  `UnsupportedKey` for the rest; matter.js's `TestKeypadInputServer` accepts every key. Send a key both accept.
+- **`tvCommandPayload` renders integer, enum and string fields only.** It refuses any other field type, and an argument
+  the command has no field for, with `InternalError` inside the step rather than at file load. A case that needs a
+  struct, list, boolean or bigint value extends it.
+- **PICS:** CHIP's file answers `TGTNAV.C` 0, so without the controller overlay `TC-TGTNAV-8.2` is pending. All three
+  overlays declare both cases' client keys.

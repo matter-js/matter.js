@@ -314,6 +314,14 @@ export const MATTERJS_SERVER_CONTROLLER_PICS: PicsValues = {
     "TSTAT.C": 1,
     "TSTAT.C.C00.Tx": 1,
 
+    // The KeypadInput and TargetNavigator client commands TC-KEYPADINPUT-3.1 and TC-TGTNAV-8.2 send. CHIP's PICS file
+    // answers `TGTNAV.C` 0, because it describes a device; the other keys state the server's client surface for these
+    // cases.
+    "KEYPADINPUT.C": 1,
+    "KEYPADINPUT.C.C00.Tx": 1,
+    "TGTNAV.C": 1,
+    "TGTNAV.C.C00.Tx": 1,
+
     // The diagnostics client commands, and the one attribute, that TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and
     // TC-DGWIFI-3.2 send or read. Only `DGTHREAD.C` and `DGWIFI.C.C00.Tx` need the overlay, because CHIP's file
     // answers them 0; the other keys state the server's full client surface for these cases.

@@ -2841,3 +2841,15 @@ export async function sleepUntil(what: string, deadline: number) {
         await Time.sleep(what, Millis(Math.ceil(remaining)));
     }
 }
+
+/** The integer types chip prints as `(signed)` in a decoded command field, see {@link chipCommandField}. */
+export const SIGNED_TYPES: ReadonlySet<string> = new Set([
+    "int8",
+    "int16",
+    "int24",
+    "int32",
+    "int40",
+    "int48",
+    "int56",
+    "int64",
+]);
