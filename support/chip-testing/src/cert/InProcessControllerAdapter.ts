@@ -119,10 +119,12 @@ import type {
     CertSessionInfo,
     ClientAttributePath,
     ClientEndpointEntry,
+    CommissionableNodeFilter,
     CommissioningTarget,
     ControllerAdapter,
     ControllerAdapterOptions,
     ControllerTransport,
+    DiscoveredCommissionableNode,
     EventPathSpec,
     EventReadEntry,
     GroupKeySetSpec,
@@ -253,6 +255,48 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "WNCV.C.C05.Tx": 1,
     "WNCV.C.C08.Tx": 1,
 
+    // The ColorControl client commands, features and attributes that TC-CC-3.4, TC-CC-4.5, TC-CC-5.4, TC-CC-6.4,
+    // TC-CC-7.5 and TC-CC-9.4 send, read or name as the DUT's precondition. CHIP's PICS file answers the features 0,
+    // because it describes a device; the other keys state the controller's full client surface for these cases.
+    "CC.C": 1,
+    "CC.C.F00": 1,
+    "CC.C.F01": 1,
+    "CC.C.F02": 1,
+    "CC.C.F03": 1,
+    "CC.C.F04": 1,
+    "CC.C.C00.Tx": 1,
+    "CC.C.C01.Tx": 1,
+    "CC.C.C02.Tx": 1,
+    "CC.C.C03.Tx": 1,
+    "CC.C.C04.Tx": 1,
+    "CC.C.C05.Tx": 1,
+    "CC.C.C06.Tx": 1,
+    "CC.C.C07.Tx": 1,
+    "CC.C.C08.Tx": 1,
+    "CC.C.C09.Tx": 1,
+    "CC.C.C0a.Tx": 1,
+    "CC.C.C40.Tx": 1,
+    "CC.C.C41.Tx": 1,
+    "CC.C.C42.Tx": 1,
+    "CC.C.C43.Tx": 1,
+    "CC.C.C44.Tx": 1,
+    "CC.C.C47.Tx": 1,
+    "CC.C.C4b.Tx": 1,
+    "CC.C.C4c.Tx": 1,
+    "CC.C.A0000": 1,
+    "CC.C.A0001": 1,
+    "CC.C.A0007": 1,
+    "CC.C.A4000": 1,
+    "CC.C.A4002": 1,
+    "CC.C.A4003": 1,
+    "CC.C.A4004": 1,
+    "CC.C.A4005": 1,
+
+    // The Thermostat client command TC-TSTAT-3.2 sends. CHIP's PICS file answers `TSTAT.C` 0, because it describes a
+    // device; `TSTAT.C.C00.Tx` states the controller's client surface for this case.
+    "TSTAT.C": 1,
+    "TSTAT.C.C00.Tx": 1,
+
     // The diagnostics client commands, and the one attribute, that TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and
     // TC-DGWIFI-3.2 send or read. Only `DGTHREAD.C` and `DGWIFI.C.C00.Tx` need the overlay, because CHIP's file
     // answers them 0; the other keys state the controller's full client surface for these cases.
@@ -265,6 +309,16 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "DGTHREAD.C.A0006": 1,
     "DGWIFI.C": 1,
     "DGWIFI.C.C00.Tx": 1,
+
+    // The AdministratorCommissioning client of the TC-CADMIN cases. Only the display and audio keys need the
+    // overlay: the CHIP PICS file answers 1 for both, and this controller is a library with no display a user
+    // enters a code into and no voice prompt. The other keys state the controller's client surface for these cases.
+    "CADMIN.C": 1,
+    "CADMIN.C.C00.Tx": 1,
+    "CADMIN.C.C01.Tx": 1,
+    "CADMIN.C.C02.Tx": 1,
+    "CADMIN.M.UserInterfaceDisplay": 0,
+    "CADMIN.M.AudioInterface": 0,
 
     // Every ThreadBorderRouterManagement client command TC-TBRM-3.1 sends. The CHIP PICS file answers
     // only the server side, because it describes a device; here the client is the controller.
@@ -2351,6 +2405,12 @@ class InProcessCertNodeApi implements CertNodeApi {
 const CERT_PEER_CONNECTION_TIMEOUT = Seconds(15);
 
 /**
+ * How long {@link InProcessControllerAdapter.discoverCommissionableNodes} collects advertisements. A node already
+ * advertising answers the first query within a second; the rest covers a slow multicast path.
+ */
+const COMMISSIONABLE_DISCOVERY_WINDOW = Seconds(5);
+
+/**
  * How long to wait for a peer to hold a subscription before continuing without one.
  *
  * Longer than the interaction's own wait for the peer, so a peer that stops answering reports why
@@ -2765,6 +2825,34 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             throw new InternalError(`Manual pairing code ${code} decoded to no short discriminator`);
         }
         return { shortDiscriminator, passcode, vendorId, productId };
+    }
+
+    /** Discovers over DNS-SD only, for {@link COMMISSIONABLE_DISCOVERY_WINDOW}. */
+    discoverCommissionableNodes(filter?: CommissionableNodeFilter): Promise<DiscoveredCommissionableNode[]> {
+        return runTagged(this.id, async () => {
+            const nodes = await this.#startedController.peers.discover({
+                ...(filter?.longDiscriminator === undefined ? {} : { longDiscriminator: filter.longDiscriminator }),
+                timeout: COMMISSIONABLE_DISCOVERY_WINDOW,
+                discoveryCapabilities: { onIpNetwork: true },
+            });
+            // Discovery reports a node again on each new advertisement
+            // A node whose advertisement lacks an instance name or discriminator is not one a caller can select
+            return [...new Set(nodes)].flatMap(node => {
+                const { deviceIdentifier, discriminator, vendorId, productId, commissioningMode } =
+                    node.state.commissioning;
+                if (deviceIdentifier === undefined || discriminator === undefined) {
+                    return [];
+                }
+                return {
+                    instanceName: deviceIdentifier,
+                    longDiscriminator: discriminator,
+                    vendorId,
+                    productId,
+                    // § 4.3.1.7: an absent CM key means 0
+                    commissioningMode: commissioningMode ?? 0,
+                };
+            });
+        });
     }
 
     commission(target: CommissioningTarget): Promise<CertNodeRef> {

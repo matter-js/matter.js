@@ -23,6 +23,7 @@ import type {
     CommissioningTarget,
     ControllerAdapter,
     DeviceExitInfo,
+    DiscoveredCommissionableNode,
     DeviceFlavor,
 } from "@matter/testing";
 import {
@@ -42,6 +43,7 @@ import type { ManualPairingCodeParts, TransitionMark } from "../cert/tc-dd-suppo
 import {
     checkGeneratedManualCode,
     chipToolDiscoveryGaveUp,
+    chipToolGaveUpOrPaseFailed,
     checkGeneratedPayload,
     commissionByManualCode,
     commissionChecked,
@@ -57,6 +59,7 @@ import {
     qrPayloadFields,
     qrPayloadWith,
     qrPayloadWithPrefix,
+    recordDiscoveredTh,
     recordDiscoveryCapabilityAbsent,
     ABSENT_DEVICE_GIVE_UP,
     recordDiscriminatorHonored,
@@ -70,6 +73,7 @@ import {
     recordUserIntentCommissioningStart,
     recordUnpair,
     thCodeParts,
+    thCommissionableInstanceNames,
     recordVendorOutcome,
     STANDARD_FLOW,
     thElevenDigitCodeParts,
@@ -429,6 +433,34 @@ describe("CommissioningRefusals", () => {
         await expect(refusals.settle(cx)).rejectedWith(CertCleanupError, /stray-ref: node is unreachable/);
     });
 
+    it("removes a fabric with the controller that made the attempt", async () => {
+        const removedByDut = new Array<CertNodeRef>();
+        const cx = contextWith(
+            () => Promise.reject(new InternalError("not used by this test")),
+            async ref => {
+                removedByDut.push(ref);
+            },
+        );
+        const removedByHelper = new Array<CertNodeRef>();
+        cx.controllers.th_cr3 = {
+            ...cx.controllers.dut,
+            id: "th_cr3",
+            node: ref =>
+                fakeCertNode({
+                    decommission: async () => {
+                        removedByHelper.push(ref);
+                    },
+                }),
+        };
+        const refusals = new CommissioningRefusals<"th_cr3">(BUDGETS);
+
+        refusals.track(Promise.resolve("helper-ref"), "th_cr3");
+        await refusals.settle(cx);
+
+        expect(removedByHelper).deep.equal(["helper-ref"]);
+        expect(removedByDut).deep.equal([]);
+    });
+
     it("gives up on an attempt that never settles rather than holding the run open", async () => {
         const cx = contextWith(() => new Promise<CertNodeRef>(() => {}));
         const refusals = new CommissioningRefusals(BUDGETS);
@@ -436,6 +468,213 @@ describe("CommissioningRefusals", () => {
         await expect(refusals.requireRefusal(cx, { qrPairingCode: "MT:whatever" }, "must be refused")).rejected;
 
         await expect(refusals.settle(cx)).rejectedWith(CertCleanupError, /still running/);
+    });
+});
+
+/** A TH whose own setup code is the one `payload` carries. */
+function thOf(payload: string, logLines = new Array<string>(), flavor: DeviceFlavor = "matterjs"): CertDevice {
+    const { discriminator, passcode } = qrPayloadFields(payload);
+    const log = new LineQueue();
+    for (const line of logLines) {
+        log.push(line);
+    }
+    return {
+        id: "th",
+        app: "all-clusters",
+        commissioning: { kind: "on-network", passcode, discriminator, qrPairingCode: payload },
+        pics: new PicsFile([]),
+        async initialize() {},
+        async start() {},
+        async stop() {},
+        async close() {},
+        async snapshot() {
+            return {};
+        },
+        async restore() {},
+        backchannel: async () => {},
+        flavor,
+        log: new LogFollower(log.follow(), "th"),
+        exit: new Promise<DeviceExitInfo>(() => {}),
+    };
+}
+
+/** matter.js's publish line for a commissionable instance. */
+function matterjsPublished(instanceName: string) {
+    return `INFO MdnsAdvertisement Publishing kind: commissionable service: mdns:${instanceName}._matterc._udp.local`;
+}
+
+describe("thCommissionableInstanceNames", () => {
+    const PAYLOAD = "MT:-24J042C00KA0648G00";
+    const CHIP_DECIDED = "[1793233453.130] [5634:5634] [DIS] Updating services using commissioning mode 1";
+
+    it("reads every instance a matter.js TH published", async () => {
+        const th = thOf(PAYLOAD, [matterjsPublished("1111111111111111"), matterjsPublished("2222222222222222")]);
+
+        expect(await thCommissionableInstanceNames(th)).deep.equal(["1111111111111111", "2222222222222222"]);
+    });
+
+    it("ignores the harness's own annotations, which may quote another TH's publish line", async () => {
+        const th = thOf(PAYLOAD, [matterjsPublished("1111111111111111")]);
+        await th.log.settled();
+        th.log.annotate(`pass: matched=${matterjsPublished("2222222222222222")}`);
+
+        expect(await thCommissionableInstanceNames(th)).deep.equal(["1111111111111111"]);
+    });
+
+    it("reads only the instances published from the given line on", async () => {
+        const th = thOf(PAYLOAD, [matterjsPublished("1111111111111111"), matterjsPublished("2222222222222222")]);
+
+        expect(await thCommissionableInstanceNames(th, 1)).deep.equal(["2222222222222222"]);
+    });
+
+    it("reads the instance chip's minimal mDNS lists", async () => {
+        const th = thOf(
+            PAYLOAD,
+            [CHIP_DECIDED, "[1793233453.135] [5634:5634] [DIS] Responding with 5263DE7B38DC48B4._matterc._udp.local"],
+            "chip-local",
+        );
+
+        expect(await thCommissionableInstanceNames(th)).deep.equal(["5263DE7B38DC48B4"]);
+    });
+
+    it("reads the instance a chip platform build publishes", async () => {
+        const th = thOf(
+            PAYLOAD,
+            [CHIP_DECIDED, "[DIS] mDNS service published: _matterc._udp; instance name: 5263DE7B38DC48B4"],
+            "chip-local",
+        );
+
+        expect(await thCommissionableInstanceNames(th)).deep.equal(["5263DE7B38DC48B4"]);
+    });
+
+    it("waits for the instance chip lists after deciding to advertise", async () => {
+        const log = new LineQueue();
+        const th = { ...thOf(PAYLOAD, [], "chip-local"), log: new LogFollower(log.follow(), "th") };
+        log.push(CHIP_DECIDED);
+
+        const names = thCommissionableInstanceNames(th);
+        setTimeout(() => log.push("[DIS] Responding with 5263DE7B38DC48B4._matterc._udp.local"), 20);
+
+        expect(await names).deep.equal(["5263DE7B38DC48B4"]);
+    });
+
+    it("names none when the TH decided without naming an instance", async () => {
+        const th = thOf(PAYLOAD, [CHIP_DECIDED], "chip-local");
+
+        expect(await thCommissionableInstanceNames(th)).deep.equal([]);
+    });
+});
+
+describe("recordDiscoveredTh", () => {
+    // chip-all-clusters-app's own payload: discriminator 3840, vendor 0xFFF1, product 0x8001
+    const TH_PAYLOAD = "MT:-24J042C00KA0648G00";
+    const TH_NODE: DiscoveredCommissionableNode = {
+        instanceName: "5E6B9D0C1A2F3B4C",
+        longDiscriminator: 3840,
+        vendorId: 0xfff1,
+        productId: 0x8001,
+        commissioningMode: 1,
+    };
+
+    function contextDiscovering(discover: ControllerAdapter["discoverCommissionableNodes"]) {
+        const cx = contextWith(() => Promise.reject(new InternalError("not used by these tests")));
+        cx.controllers.dut.discoverCommissionableNodes = discover;
+        return cx;
+    }
+
+    it("passes when one reported node carries the TH's discriminator, vendor and product", async () => {
+        const filters = new Array<unknown>();
+        const other = { ...TH_NODE, instanceName: "OTHER", longDiscriminator: 1234 };
+        const cx = contextDiscovering(async filter => {
+            filters.push(filter);
+            return [other, TH_NODE];
+        });
+
+        await recordDiscoveredTh(cx, thOf(TH_PAYLOAD, [matterjsPublished(TH_NODE.instanceName)]));
+
+        expect(filters).deep.equal([{ longDiscriminator: 3840 }]);
+        const [check] = checksOf(cx);
+        expect(check.verdict).equal("pass");
+        expect(check.detail).contains("5E6B9D0C1A2F3B4C (D=3840 vendorId=65521 productId=32769 CM=1)");
+    });
+
+    it("searches for the discriminator of the TH's payload, not of its configuration", async () => {
+        const filters = new Array<unknown>();
+        const cx = contextDiscovering(async filter => {
+            filters.push(filter);
+            return [TH_NODE];
+        });
+        const th = thOf(TH_PAYLOAD, [matterjsPublished(TH_NODE.instanceName)]);
+        th.commissioning = { ...th.commissioning, discriminator: 1234 };
+
+        await recordDiscoveredTh(cx, th);
+
+        expect(filters).deep.equal([{ longDiscriminator: 3840 }]);
+        expect(checksOf(cx)[0].verdict).equal("pass");
+    });
+
+    for (const [what, reported] of [
+        ["another instance", { instanceName: "OTHER" }],
+        ["another discriminator", { longDiscriminator: 3841 }],
+        ["another vendor", { vendorId: 0xfff2 }],
+        ["another product", { productId: 0x8002 }],
+        ["no vendor and product", { vendorId: undefined, productId: undefined }],
+    ] as const) {
+        it(`fails when the DUT reports the TH with ${what}`, async () => {
+            const cx = contextDiscovering(async () => [{ ...TH_NODE, ...reported }]);
+
+            await expect(
+                recordDiscoveredTh(cx, thOf(TH_PAYLOAD, [matterjsPublished(TH_NODE.instanceName)])),
+            ).rejectedWith(CertCheckFailedError);
+            expect(checksOf(cx).map(({ verdict }) => verdict)).deep.equal(["fail"]);
+        });
+    }
+
+    it("fails, naming it, when the DUT reports no node", async () => {
+        const cx = contextDiscovering(async () => []);
+
+        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD, [matterjsPublished(TH_NODE.instanceName)]))).rejectedWith(
+            CertCheckFailedError,
+        );
+        expect(checksOf(cx)[0]?.detail).contains("DUT reported no commissionable node");
+    });
+
+    it("records a failed discovery as the DUT's failure", async () => {
+        const failure = new ChipToolCommandError("chip-tool discovery failed");
+        const cx = contextDiscovering(async () => {
+            throw failure;
+        });
+
+        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD, [matterjsPublished(TH_NODE.instanceName)]))).rejectedWith(
+            failure,
+        );
+        expect(checksOf(cx).map(({ verdict }) => verdict)).deep.equal(["fail"]);
+    });
+
+    it("hands a controller refusal on without recording it as the DUT's failure", async () => {
+        const refusal = new UnsupportedByControllerError(
+            "discoverCommissionableNodes",
+            "test",
+            "not offered",
+            "commissionable-discovery",
+        );
+        const cx = contextDiscovering(async () => {
+            throw refusal;
+        });
+
+        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD, [matterjsPublished(TH_NODE.instanceName)]))).rejectedWith(
+            refusal,
+        );
+        expect(checksOf(cx)).deep.equal([]);
+    });
+
+    it("hands a controller without the capability on as a missing declaration, recording nothing", async () => {
+        const cx = contextDiscovering(undefined);
+
+        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD, [matterjsPublished(TH_NODE.instanceName)]))).rejectedWith(
+            UnsupportedByControllerError,
+        );
+        expect(checksOf(cx)).deep.equal([]);
     });
 });
 
@@ -448,29 +687,6 @@ describe("recordParse", () => {
             return { version, vendorId, productId, flowType, discoveryCapabilities, discriminator, passcode };
         };
         return cx;
-    }
-
-    /** A TH whose own setup code is the one `payload` carries. */
-    function thOf(payload: string): CertDevice {
-        const { discriminator, passcode } = qrPayloadFields(payload);
-        return {
-            id: "th",
-            app: "all-clusters",
-            commissioning: { kind: "on-network", passcode, discriminator, qrPairingCode: payload },
-            pics: new PicsFile([]),
-            async initialize() {},
-            async start() {},
-            async stop() {},
-            async close() {},
-            async snapshot() {
-                return {};
-            },
-            async restore() {},
-            backchannel: async () => {},
-            flavor: "matterjs",
-            log: new LogFollower(new LineQueue().follow(), "th"),
-            exit: new Promise<DeviceExitInfo>(() => {}),
-        };
     }
 
     // chip-all-clusters-app's own payload: standard flow, BLE alone
@@ -1944,6 +2160,78 @@ describe("chipToolDiscoveryGaveUp", () => {
 
     it("fails when discovery never timed out", async () => {
         expect(await verdictFor(COMMAND, BROWSING, PASE)).equal("fail");
+    });
+});
+
+describe("chipToolGaveUpOrPaseFailed", () => {
+    // From TC-CADMIN-1.7 step 7 runs on CI: the TH refused PASE, chip-tool kept discovering and timed out
+    const COMMAND = "[1791234767.118] [14468:64976200:main] [TOO] Command: pairing code 4099 33331712336";
+    const PASE =
+        "[1793152306.889] [5101:5103] [CTL] Attempting PASE connection to UDP:[fe80::4c3:86ff:fe4a:e9a%veth4f892bc]:5540";
+    const PASE_FAILED =
+        "[1793152306.899] [5101:5103] [SC] Failed during PASE session setup: src/protocols/secure_channel/PASESession.cpp:866: CHIP Error 0x00000038: Invalid PASE parameter";
+    const PASE_TIMED_OUT =
+        "[1793155358.155] [5002:5004] [SC] PASESession timed out while waiting for a response from the peer. Expected message type was 33";
+    const PASE_SUCCEEDED = "[1793152307.120] [5101:5103] [TOO] PASE establishment successful";
+    const PAIRING_FAILED = "[1793155358.155] [5002:5004] [TOO] Secure Pairing Failed";
+    const PAIRING_SUCCEEDED = "[1793152307.120] [5101:5103] [TOO] Secure Pairing Success";
+    const PAIRING_FAILURE =
+        "[1793155358.155] [5002:5004] [TOO] Pairing Failure: src/protocols/secure_channel/PASESession.cpp:312: CHIP Error 0x00000032: Timeout";
+    const TIMED_OUT = "[1793152336.885] [5101:5103] [CTL] Discovery timed out";
+
+    async function verdictFor(...lines: string[]) {
+        const source = new LineQueue();
+        const log = new LogFollower(source, "th_cr2");
+        for (const line of lines) {
+            source.push(line);
+        }
+        source.close();
+        return (await chipToolGaveUpOrPaseFailed(log, 0)).verdict;
+    }
+
+    it("passes when discovery timed out without a PASE attempt", async () => {
+        expect(await verdictFor(COMMAND, TIMED_OUT, PAIRING_FAILED)).equal("pass");
+    });
+
+    it("passes when every PASE attempt was refused and discovery then timed out", async () => {
+        expect(await verdictFor(COMMAND, PASE, PASE_FAILED, PASE, PASE_FAILED, TIMED_OUT, PAIRING_FAILED)).equal(
+            "pass",
+        );
+    });
+
+    it("passes when a PASE still running at the discovery timeout fails afterwards", async () => {
+        expect(
+            await verdictFor(
+                COMMAND,
+                PASE,
+                PASE_TIMED_OUT,
+                PASE,
+                PASE_TIMED_OUT,
+                PASE,
+                TIMED_OUT,
+                PASE_TIMED_OUT,
+                PAIRING_FAILED,
+                PAIRING_FAILURE,
+            ),
+        ).equal("pass");
+    });
+
+    it("fails when a PASE attempt did not fail", async () => {
+        expect(await verdictFor(COMMAND, PASE, TIMED_OUT, PAIRING_FAILED)).equal("fail");
+        expect(await verdictFor(COMMAND, PASE, PASE_FAILED, PASE, TIMED_OUT, PAIRING_FAILED)).equal("fail");
+    });
+
+    it("fails when chip-tool established PASE", async () => {
+        expect(await verdictFor(COMMAND, PASE, PASE_SUCCEEDED, PAIRING_SUCCEEDED)).equal("fail");
+        expect(await verdictFor(COMMAND, PASE, PASE_SUCCEEDED, PASE, PASE_FAILED, PAIRING_FAILED)).equal("fail");
+    });
+
+    it("fails when the pairing failed without a PASE attempt or a discovery timeout", async () => {
+        expect(await verdictFor(COMMAND, PAIRING_FAILED, PAIRING_FAILURE)).equal("fail");
+    });
+
+    it("fails when the attempt never ended", async () => {
+        expect(await verdictFor(COMMAND, PASE, PASE_FAILED, TIMED_OUT)).equal("fail");
     });
 });
 
