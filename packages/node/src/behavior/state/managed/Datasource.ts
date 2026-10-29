@@ -1270,6 +1270,9 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         // The clones become canonical, so the next write must clone them again
         this.#owned = new WeakSet();
 
+        // The next announcement diffs against the canonical value, which another transaction may change meanwhile
+        this.#precommitValues = undefined;
+
         if (!this.#changes) {
             return;
         }

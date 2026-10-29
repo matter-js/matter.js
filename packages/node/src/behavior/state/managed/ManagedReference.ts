@@ -127,8 +127,13 @@ export class ManagedReference implements ValReference {
         this.#location = loc;
     }
 
+    /**
+     * A container a `Val.properties` provider serves, and every container below it, is never owned, even when the
+     * provider serves a container the transaction cloned for another member.  The provider keeps the value its setter
+     * accepted, so a later change must clone it again instead of changing it in place.
+     */
     owns(container: Val) {
-        return this.parent.owns(container);
+        return this.#dynamicContainer === undefined && this.parent.owns(container);
     }
 
     adopt(container: Val) {

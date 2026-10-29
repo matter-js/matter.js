@@ -30,6 +30,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Iterating a fabric-filtered state list yields managed entries, so a change to an entry is tracked and rolled back
     - Fix: A state list write that would leave a gap, an `undefined` entry, an invalid length or an index above 65535 throws `WriteError`
     - Fix: Deleting from a fabric-filtered state list, or setting the length of any state list, requires write access
+    - Fix: Thermostat accepts a preset write that sends an existing built-in preset with a null `BuiltIn`
+    - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp

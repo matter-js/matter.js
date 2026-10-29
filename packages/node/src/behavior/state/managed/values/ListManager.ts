@@ -335,7 +335,10 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
         if (result === edited) {
             return receiver;
         }
-        return Array.isArray(result) ? result.map(viewOf) : viewOf(result);
+        if (method === Array.prototype.splice && Array.isArray(result)) {
+            return result.map(viewOf);
+        }
+        return viewOf(result);
     }
 
     /**

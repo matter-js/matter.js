@@ -1094,6 +1094,22 @@ describe("ListManager", () => {
             ]);
         });
 
+        it("returns a removed entry that is a list as a read-only view", async () => {
+            const struct = TestStruct(
+                { list: listOf(listOf(structOf({ value: "uint8" }))) },
+                { list: [[{ value: 1 }], [{ value: 2 }]] },
+            );
+
+            await LocalActorContext.act("test", cx => {
+                const list = struct.reference(cx).list as { value: number }[][];
+                const removed = list.pop()!;
+                expect(removed[0].value).equals(2);
+                expect(() => (removed[0].value = 7)).throws(ExpiredReferenceError);
+            });
+
+            struct.expect({ list: [[{ value: 1 }]] });
+        });
+
         it("returns removed entries as read-only views", async () => {
             const struct = TestStruct(
                 { list: listOf(structOf({ value: "uint8" })) },
