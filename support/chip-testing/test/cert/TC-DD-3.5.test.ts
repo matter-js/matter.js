@@ -158,6 +158,7 @@ certTest("TC-DD-3.5", { plan: "devicediscovery.adoc", pics: ["MCORE.ROLE.COMMISS
                 type: "response",
                 verdict: "unverified",
                 detail: "The date, time and timezone on the DUT need a person in front of the DUT; no adapter reads them",
+                accepted: "The test plan checks this step on the DUT itself, so a person verifies it manually",
             });
         },
         { expected: "Check time, date and timezone on DUT" },
