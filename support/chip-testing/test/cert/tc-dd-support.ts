@@ -1169,7 +1169,7 @@ const COMMISSIONABLE_INSTANCE = {
 const INSTANCE_NAME_DELAY = Seconds(2);
 
 /**
- * The instance names `th`'s log says it advertises as commissionable under, so far. A TH draws each name at random, so
+ * The instance names `th`'s log says it advertises as commissionable under, from log line `from` on. A TH draws each name at random, so
  * a record that another device or an earlier TH left for the same discriminator carries another one. A matter.js TH
  * draws a new name each time it advertises again, and peers may still cache the earlier ones, so every name counts.
  *
@@ -1177,7 +1177,7 @@ const INSTANCE_NAME_DELAY = Seconds(2);
  * then up to {@link INSTANCE_NAME_DELAY} for a name. Empty when the log names none by then, as a chip platform build on
  * Darwin may not at boot; the caller then matches by discriminator.
  */
-export async function thCommissionableInstanceNames(th: CertDevice): Promise<string[]> {
+export async function thCommissionableInstanceNames(th: CertDevice, from = 0): Promise<string[]> {
     const pattern = forFlavor(COMMISSIONABLE_INSTANCE, th.flavor);
     if (pattern === undefined) {
         return [];
@@ -1185,7 +1185,7 @@ export async function thCommissionableInstanceNames(th: CertDevice): Promise<str
     try {
         const decided = await th.log.expect(ADVERTISING_DECIDED, {
             flavor: th.flavor,
-            from: 0,
+            from,
             timeoutMs: COMMISSIONING_LOG_TIMEOUT,
         });
         if (decided.verdict === "pass") {
@@ -1198,7 +1198,7 @@ export async function thCommissionableInstanceNames(th: CertDevice): Promise<str
     }
     await th.log.settled();
     const instanceNames = new Set<string>();
-    for (const { text } of th.log.lines) {
+    for (const { text } of th.log.lines.slice(from)) {
         const match = pattern.exec(text);
         const instanceName = match?.[1] ?? match?.[2];
         if (instanceName !== undefined) {

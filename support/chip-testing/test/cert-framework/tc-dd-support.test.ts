@@ -513,6 +513,12 @@ describe("thCommissionableInstanceNames", () => {
         expect(await thCommissionableInstanceNames(th)).deep.equal(["1111111111111111", "2222222222222222"]);
     });
 
+    it("reads only the instances published from the given line on", async () => {
+        const th = thOf(PAYLOAD, [matterjsPublished("1111111111111111"), matterjsPublished("2222222222222222")]);
+
+        expect(await thCommissionableInstanceNames(th, 1)).deep.equal(["2222222222222222"]);
+    });
+
     it("reads the instance chip's minimal mDNS lists", async () => {
         const th = thOf(
             PAYLOAD,
