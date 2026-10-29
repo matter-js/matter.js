@@ -263,7 +263,7 @@ export class GroupcastServer extends GroupcastBase {
             const existing = gkm.state.groupTable.find(g => g.fabricIndex === fabricIndex && g.groupId === groupId);
             // Snapshot: removeEndpoint mutates the live groupTable endpoints array, which would corrupt this loop.
             const existingEndpoints = [...(existing?.endpoints ?? [])];
-            const groupName = existing?.groupName ?? "";
+            const groupName = existing?.groupName;
             const target = replaceEndpoints ? endpoints : [...new Set([...existingEndpoints, ...endpoints])];
             keepsSenderOnly = target.length === 0 && existingEndpoints.length > 0;
             for (const ep of existingEndpoints) {

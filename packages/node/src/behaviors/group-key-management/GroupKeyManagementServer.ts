@@ -457,7 +457,15 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         };
     }
 
-    addEndpointForGroup(fabric: Fabric, groupId: GroupId, endpointId: EndpointNumber, groupName: string): void {
+    /**
+     * Add {@link endpointId} to the group table entry of {@link groupId}, creating the entry if needed.
+     *
+     * {@link groupName} is the last name written for the group via the Groups cluster; leave it out for a group that has
+     * none, such as one that Groupcast JoinGroup created.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.2.5.5.3
+     */
+    addEndpointForGroup(fabric: Fabric, groupId: GroupId, endpointId: EndpointNumber, groupName?: string): void {
         const fabricIndex = fabric.fabricIndex;
         // Add the group to the group table
         const existingGroupIndex = this.state.groupTable.findIndex(
@@ -491,7 +499,8 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             fabric.groups.endpoints.set(groupId, [endpointId]);
         }
         logger.info(
-            `Added endpoint ${endpointId} to group ${groupId} on fabric ${fabricIndex} with name "${groupName}"`,
+            `Added endpoint ${endpointId} to group ${groupId} on fabric ${fabricIndex}`,
+            ...(groupName === undefined ? [] : [`with name "${groupName}"`]),
         );
     }
 

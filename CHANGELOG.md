@@ -31,6 +31,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A local write that removes the last GroupKeyMap entry of a fabric also clears the fabric's operational group key map
     - Fix: Groupcast testing reports NoAvailableKey to the fabric under test when only an unmapped key set of another fabric authenticated a group message, instead of reporting nothing
     - Fix: Groupcast testing derives DestinationIpAddress from the fabric that owns the group id and the groups the node joins
+    - Fix: A group that Groupcast JoinGroup creates has no GroupName in the GroupKeyManagement GroupTable, instead of an empty name
 
 - @matter/protocol
     - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info

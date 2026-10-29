@@ -710,6 +710,21 @@ describe("GroupcastServer", () => {
                 "Legacy",
             );
             expect(realFabric.groups.endpoints.has(GroupId(0x0300))).equal(true);
+
+            // Replacing every endpoint removes and recreates the entry, which must still keep the name
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0300),
+                    endpoints: [EndpointNumber(3)],
+                    keySetId: 1,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                    replaceEndpoints: true,
+                }),
+            );
+            await MockTime.yield3();
+            const replaced = node.stateOf(GroupKeyManagementServer).groupTable.find(e => e.groupId === 0x0300);
+            expect(replaced?.endpoints).deep.equal([3]);
+            expect(replaced?.groupName).equal("Legacy");
         });
 
         it("shrinks Membership and auxiliary ACLs when groups are removed via the GKM group table", async () => {
@@ -915,6 +930,26 @@ describe("GroupcastServer", () => {
 
             const realFabric = node.env.get(FabricManager).for(fi);
             expect(realFabric.groups.endpoints.get(GroupId(0x0103))).deep.equal([1, 2]);
+        });
+
+        it("creates the GKM groupTable entry without a GroupName", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+
+            await node.online({ exchange: fabricExchange(fi), command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0103),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            const entry = node.stateOf(GroupKeyManagementServer).groupTable.find(e => e.groupId === 0x0103);
+            expect(entry?.endpoints).deep.equal([1]);
+            expect(entry?.groupName).equal(undefined);
         });
 
         it("removes endpoints from GKM groupTable and FabricGroups when group is left", async () => {
