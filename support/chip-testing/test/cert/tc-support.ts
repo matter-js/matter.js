@@ -1108,7 +1108,8 @@ export function literally(value: string): string {
 }
 
 /**
- * The line chip prints for one decoded `CommandFields` entry.
+ * The line chip prints for one decoded `CommandFields` entry. A boolean prints as `true` or `false`, with no type
+ * name.
  *
  * The trailing type name is load-bearing: without it `0x0 = 2,` also matches the first two digits of
  * `0x0 = 20,`.
@@ -1119,13 +1120,17 @@ export function chipCommandField({
     signed = false,
 }: {
     id: number;
-    value: number | bigint | string;
+    value: number | bigint | string | boolean;
     signed?: boolean;
 }): RegExp {
-    const rendered =
-        typeof value === "string"
-            ? `"${literally(value)}" \\(${new TextEncoder().encode(value).length} chars\\)`
-            : `${value} \\(${signed ? "signed" : "unsigned"}\\)`;
+    let rendered: string;
+    if (typeof value === "string") {
+        rendered = `"${literally(value)}" \\(${new TextEncoder().encode(value).length} chars\\)`;
+    } else if (typeof value === "boolean") {
+        rendered = `${value}`;
+    } else {
+        rendered = `${value} \\(${signed ? "signed" : "unsigned"}\\)`;
+    }
     return new RegExp(`0x${id.toString(16)} = ${rendered},\\s*$`);
 }
 
@@ -1662,8 +1667,8 @@ export interface CommandPayload {
     label: string;
 
     /**
-     * Every line inside chip's `CommandFields` block, in order ({@link chipCommandField} for a number or a string);
-     * none for a command without fields.
+     * Every line inside chip's `CommandFields` block, in order: {@link chipCommandField} for a number, a string or a
+     * boolean, several lines for a struct or a list. None for a command without fields.
      */
     chip: RegExp[];
 

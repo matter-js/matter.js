@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "@matter/main";
+import { InternalError, Millis } from "@matter/main";
 import { Matter } from "@matter/model";
+import type { LogFlavor } from "@matter/testing";
+import { LogFollower } from "@matter/testing";
 import { expect } from "chai";
-import { MATTERJS_NO_PAYLOAD } from "../cert/tc-support.js";
+import { expectCommandPayload, MATTERJS_NO_PAYLOAD } from "../cert/tc-support.js";
 import { tvCommandPayload } from "../cert/tc-tv-client-support.js";
 
 const KEYPAD_INPUT = Matter.clusters.require("KeypadInput");
@@ -15,6 +17,13 @@ const TARGET_NAVIGATOR = Matter.clusters.require("TargetNavigator");
 const CHANNEL = Matter.clusters.require("Channel");
 const CONTENT_LAUNCHER = Matter.clusters.require("ContentLauncher");
 const MEDIA_PLAYBACK = Matter.clusters.require("MediaPlayback");
+const APPLICATION_LAUNCHER = Matter.clusters.require("ApplicationLauncher");
+const SCENES = Matter.clusters.require("ScenesManagement");
+
+const STRUCT_OPEN = "\\{\\s*$";
+const STRUCT_CLOSE = "\\},\\s*$";
+const LIST_GAP = "\\[DMG\\]\\s*$";
+const LIST_CLOSE = "\\],\\s*$";
 
 function sources(patterns: RegExp[]) {
     return patterns.map(({ source }) => source);
@@ -65,27 +74,250 @@ describe("tvCommandPayload", () => {
     it("refuses a value of the wrong type", () => {
         expect(() => tvCommandPayload(TARGET_NAVIGATOR, "navigateTarget", { target: "2" })).throws(
             InternalError,
-            "needs a number for target",
+            "TargetNavigator.NavigateTarget.target needs a number",
         );
         expect(() => tvCommandPayload(TARGET_NAVIGATOR, "navigateTarget", { target: 2, data: 5 })).throws(
             InternalError,
-            "needs a string for data",
+            "TargetNavigator.NavigateTarget.data needs a string",
         );
     });
 
-    it("refuses a string matter.js cannot print as a matchable value", () => {
-        for (const data of ["", "two\nlines"]) {
-            expect(() => tvCommandPayload(TARGET_NAVIGATOR, "navigateTarget", { target: 2, data })).throws(
+    it("refuses an empty top-level string", () => {
+        expect(() => tvCommandPayload(TARGET_NAVIGATOR, "navigateTarget", { target: 2, data: "" })).throws(
+            InternalError,
+            "empty top-level string TargetNavigator.NavigateTarget.data",
+        );
+    });
+
+    it("refuses a string with a line break at any depth", () => {
+        expect(() => tvCommandPayload(TARGET_NAVIGATOR, "navigateTarget", { target: 2, data: "two\nlines" })).throws(
+            InternalError,
+            "has a line break",
+        );
+        expect(() =>
+            tvCommandPayload(APPLICATION_LAUNCHER, "launchApp", {
+                application: { catalogVendorId: 1, applicationId: "two\rlines" },
+            }),
+        ).throws(InternalError, "application.applicationId");
+    });
+
+    it("renders an empty string inside a struct", () => {
+        const payload = tvCommandPayload(APPLICATION_LAUNCHER, "launchApp", {
+            application: { catalogVendorId: 1, applicationId: "" },
+        });
+
+        expect(sources(payload.chip)).include('0x1 = "" \\(0 chars\\),\\s*$');
+        expect(payload.matterjs).equal('application: { catalogVendorId: 1, applicationId: "" }');
+    });
+
+    it("refuses a field id chip-tool sends out of model order", () => {
+        expect(() =>
+            tvCommandPayload(Matter.clusters.require("CameraAvStreamManagement"), "videoStreamAllocate", {
+                osdEnabled: true,
+            }),
+        ).throws(InternalError, "has field id 10, which chip-tool sends out of model order");
+    });
+
+    it("renders a boolean field without a type", () => {
+        const payload = tvCommandPayload(CONTENT_LAUNCHER, "launchContent", { autoPlay: false });
+
+        expect(sources(payload.chip)).deep.equal(["0x1 = false,\\s*$"]);
+        expect(payload.matterjs).equal("autoPlay: false");
+    });
+
+    it("renders a struct field over several lines on chip and in braces on matter.js", () => {
+        const payload = tvCommandPayload(APPLICATION_LAUNCHER, "launchApp", {
+            application: { applicationId: 'say "größe"', catalogVendorId: 123 },
+        });
+
+        expect(sources(payload.chip)).deep.equal([
+            "0x0 = \\s*$",
+            STRUCT_OPEN,
+            "0x0 = 123 \\(unsigned\\),\\s*$",
+            '0x1 = "say "größe"" \\(13 chars\\),\\s*$',
+            STRUCT_CLOSE,
+        ]);
+        expect(payload.matterjs).equal('application: { catalogVendorId: 123, applicationId: "say \\"größe\\"" }');
+    });
+
+    it("renders a list of structs inside a struct, with its line without text and unnamed entries", () => {
+        const payload = tvCommandPayload(CONTENT_LAUNCHER, "launchContent", {
+            search: {
+                parameterList: [
+                    { type: 1, value: "PBS", externalIdList: [{ name: "n", value: "v" }] },
+                    { type: 0, value: "A" },
+                ],
+            },
+            autoPlay: true,
+        });
+
+        expect(sources(payload.chip)).deep.equal([
+            "0x0 = \\s*$",
+            STRUCT_OPEN,
+            "0x0 = \\[\\s*$",
+            LIST_GAP,
+            STRUCT_OPEN,
+            "0x0 = 1 \\(unsigned\\),\\s*$",
+            '0x1 = "PBS" \\(3 chars\\),\\s*$',
+            "0x2 = \\[\\s*$",
+            LIST_GAP,
+            STRUCT_OPEN,
+            '0x0 = "n" \\(1 chars\\),\\s*$',
+            '0x1 = "v" \\(1 chars\\),\\s*$',
+            STRUCT_CLOSE,
+            LIST_CLOSE,
+            STRUCT_CLOSE,
+            STRUCT_OPEN,
+            "0x0 = 0 \\(unsigned\\),\\s*$",
+            '0x1 = "A" \\(1 chars\\),\\s*$',
+            STRUCT_CLOSE,
+            LIST_CLOSE,
+            STRUCT_CLOSE,
+            "0x1 = true,\\s*$",
+        ]);
+        expect(payload.matterjs).equal(
+            'search: { parameterList: [ { type: 1, value: "PBS", externalIdList: [ { name: "n", value: "v" } ] }, ' +
+                '{ type: 0, value: "A" } ] } autoPlay: true',
+        );
+    });
+
+    it("renders an empty list and an empty struct", () => {
+        expect(tvCommandPayload(CONTENT_LAUNCHER, "launchContent", { search: { parameterList: [] } })).deep.include({
+            matterjs: "search: { parameterList: [] }",
+        });
+        expect(
+            sources(tvCommandPayload(CONTENT_LAUNCHER, "launchContent", { search: { parameterList: [] } }).chip),
+        ).deep.equal(["0x0 = \\s*$", STRUCT_OPEN, "0x0 = \\[\\s*$", LIST_GAP, LIST_CLOSE, STRUCT_CLOSE]);
+
+        const empty = tvCommandPayload(CONTENT_LAUNCHER, "launchUrl", { brandingInformation: {} });
+        expect(sources(empty.chip)).deep.equal(["0x2 = \\s*$", STRUCT_OPEN, STRUCT_CLOSE]);
+        expect(empty.matterjs).equal("brandingInformation: {}");
+    });
+
+    it("refuses an argument a nested struct has no field for", () => {
+        expect(() =>
+            tvCommandPayload(APPLICATION_LAUNCHER, "launchApp", {
+                application: { catalogVendorId: 123, applicationId: "x", endpoint: 1 },
+            }),
+        ).throws(InternalError, "ApplicationLauncher.LaunchApp.application has no field endpoint");
+    });
+
+    it("refuses a value of the wrong type for a boolean, a struct or a list", () => {
+        expect(() => tvCommandPayload(CONTENT_LAUNCHER, "launchContent", { autoPlay: 1 })).throws(
+            InternalError,
+            "autoPlay needs a boolean",
+        );
+        for (const search of ["PBS", [{ parameterList: [] }]]) {
+            expect(() => tvCommandPayload(CONTENT_LAUNCHER, "launchContent", { search })).throws(
                 InternalError,
-                "as a matchable value",
+                "search needs a struct",
             );
         }
+        expect(() => tvCommandPayload(CONTENT_LAUNCHER, "launchContent", { search: { parameterList: {} } })).throws(
+            InternalError,
+            "parameterList needs a list",
+        );
+        expect(() =>
+            tvCommandPayload(CONTENT_LAUNCHER, "launchContent", { search: { parameterList: ["PBS"] } }),
+        ).throws(InternalError, "parameterList[0] needs a struct");
+    });
+
+    it("refuses a top-level list", () => {
+        expect(() => tvCommandPayload(SCENES, "addScene", { extensionFieldSetStructs: [] })).throws(
+            InternalError,
+            "does not print the top-level list ScenesManagement.AddScene.extensionFieldSetStructs",
+        );
+    });
+
+    it("refuses a list whose entries are not structs", () => {
+        expect(() =>
+            tvCommandPayload(CONTENT_LAUNCHER, "launchContent", {
+                playbackPreferences: { textTrack: { languageCode: "en", characteristics: [1] } },
+            }),
+        ).throws(InternalError, "characteristics is a list of enum entries");
     });
 
     it("refuses a field of a type it does not render", () => {
-        expect(() => tvCommandPayload(CONTENT_LAUNCHER, "launchContent", { autoPlay: 1 })).throws(
+        expect(() => tvCommandPayload(APPLICATION_LAUNCHER, "launchApp", { data: 1 })).throws(
             InternalError,
-            "is a boolean field",
+            "ApplicationLauncher.LaunchApp.data is a bytes field",
         );
+        expect(() =>
+            tvCommandPayload(CONTENT_LAUNCHER, "launchUrl", {
+                brandingInformation: { providerName: "p", logo: { size: { width: 1 } } },
+            }),
+        ).throws(InternalError, "brandingInformation.logo.size.width is a float field");
+    });
+});
+
+describe("tvCommandPayload in the payload check", () => {
+    const LAUNCH_CONTENT = { cluster: CONTENT_LAUNCHER, endpoint: 1, command: "launchContent" };
+    const ARGS = { search: { parameterList: [{ type: 1, value: "PBS" }] }, autoPlay: true };
+
+    // The lines CHIP's `CheckIMPayload` prints for a LaunchContent request carrying ARGS
+    const CHIP_REQUEST = [
+        "[DMG] \tInvokeRequests =",
+        "[DMG] \t[",
+        "[DMG] \t\tCommandDataIB =",
+        "[DMG] \t\t{",
+        "[DMG] \t\t\tCommandPathIB =",
+        "[DMG] \t\t\t{",
+        "[DMG] \t\t\t\tEndpointId = 0x1,",
+        "[DMG] \t\t\t\tClusterId = 0x50a,",
+        "[DMG] \t\t\t\tCommandId = 0x0,",
+        "[DMG] \t\t\t},",
+        "[DMG] \t\t\t",
+        "[DMG] \t\t\tCommandFields = ",
+        "[DMG] \t\t\t{",
+        "[DMG] \t\t\t\t0x0 = ",
+        "[DMG] \t\t\t\t{",
+        "[DMG] \t\t\t\t\t0x0 = [",
+        "[DMG] \t\t\t\t\t\t\t",
+        "[DMG] \t\t\t\t\t\t{",
+        "[DMG] \t\t\t\t\t\t\t0x0 = 1 (unsigned), ",
+        '[DMG] \t\t\t\t\t\t\t0x1 = "PBS" (3 chars), ',
+        "[DMG] \t\t\t\t\t\t},",
+        "[DMG] \t\t\t\t\t],",
+        "[DMG] \t\t\t\t},",
+        "[DMG] \t\t\t\t0x1 = true, ",
+        "[DMG] \t\t\t},",
+        "[DMG] \t\t},",
+        "[DMG] \t\t",
+        "[DMG] \t],",
+    ];
+
+    // The lines a matter.js TH prints for the same request, as `LogFormat` "plain" renders its `Diagnostic.dict`
+    const EXCHANGE = "@1:1c2511c88402bfdf•7eb4⇵c8fe";
+    const MATTERJS_REQUEST = [
+        `INFO InteractionServer Invoke « ${EXCHANGE} invokes: 1.contentLauncher.launchContent`,
+        `INFO ProtocolService Invoke « th.ep1.contentLauncher.launchContent ${EXCHANGE}✉07eb2514 ` +
+            'search: { parameterList: [ { type: 1, value: "PBS" } ] } autoPlay: true',
+    ];
+
+    async function verdict(lines: string[], flavor: LogFlavor, args: typeof ARGS) {
+        const follower = new LogFollower(
+            (async function* () {
+                yield* lines;
+            })(),
+            "th",
+        );
+        try {
+            const payload = tvCommandPayload(CONTENT_LAUNCHER, "launchContent", args);
+            return (await expectCommandPayload(follower, flavor, LAUNCH_CONTENT, payload, 0, Millis(200))).verdict;
+        } finally {
+            await follower.close();
+        }
+    }
+
+    it("passes the request on both flavors", async () => {
+        expect(await verdict(CHIP_REQUEST, "chip-local", ARGS)).equal("pass");
+        expect(await verdict(MATTERJS_REQUEST, "matterjs", ARGS)).equal("pass");
+    });
+
+    it("fails a request whose nested value differs", async () => {
+        const other = { ...ARGS, search: { parameterList: [{ type: 1, value: "ABC" }] } };
+
+        expect(await verdict(CHIP_REQUEST, "chip-local", other)).equal("fail");
+        expect(await verdict(MATTERJS_REQUEST, "matterjs", other)).equal("fail");
     });
 });

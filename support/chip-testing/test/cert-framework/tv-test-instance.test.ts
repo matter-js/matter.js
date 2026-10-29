@@ -6,15 +6,17 @@
 
 import type { Endpoint } from "@matter/main";
 import { InternalError } from "@matter/main";
-import { Channel, KeypadInput, TargetNavigator } from "@matter/main/clusters";
+import { ApplicationLauncher, Channel, ContentLauncher, KeypadInput, TargetNavigator } from "@matter/main/clusters";
 import { StatusResponse } from "@matter/main/types";
 import { expect } from "chai";
+import { TestApplicationLauncherServer } from "../../src/cluster/TestApplicationLauncherServer.js";
 import { TestChannelServer } from "../../src/cluster/TestChannelServer.js";
+import { TestContentLauncherServer } from "../../src/cluster/TestContentLauncherServer.js";
 import { TestKeypadInputServer } from "../../src/cluster/TestKeypadInputServer.js";
 import { TestMediaInputServer } from "../../src/cluster/TestMediaInputServer.js";
 import { TestTargetNavigatorServer } from "../../src/cluster/TestTargetNavigatorServer.js";
 import { TvTestInstance } from "../../src/TvTestInstance.js";
-import { TV_VIDEO_PLAYER_ENDPOINT } from "../cert/tc-tv-client-support.js";
+import { TV_KNOWN_APPLICATION, TV_VIDEO_PLAYER_ENDPOINT } from "../cert/tc-tv-client-support.js";
 
 function videoPlayer(instance: TvTestInstance): Endpoint {
     let found: Endpoint | undefined;
@@ -205,6 +207,55 @@ describe("TvTestInstance", () => {
         await endpoint.act(agent => agent.get(TestMediaInputServer).showInputStatus());
         await endpoint.act(agent => agent.get(TestMediaInputServer).hideInputStatus());
     });
+
+    it("answers Success to LaunchContent for a search with no seeded match", async () => {
+        expect(
+            await endpoint.act(agent =>
+                agent.get(TestContentLauncherServer).launchContent({
+                    search: { parameterList: [{ type: ContentLauncher.Parameter.Channel, value: "NBC" }] },
+                    autoPlay: false,
+                }),
+            ),
+        ).deep.equal({ status: ContentLauncher.Status.Success });
+    });
+
+    it("answers Success to LaunchURL for an https URL, in any case, and URLNotAvailable for http", async () => {
+        const launch = (contentUrl: string) =>
+            endpoint.act(agent => agent.get(TestContentLauncherServer).launchUrl({ contentUrl }));
+
+        expect(await launch("HTTPS://csa-iot.org/content")).deep.equal({ status: ContentLauncher.Status.Success });
+        expect(await launch("http://csa-iot.org/content")).deep.equal({
+            status: ContentLauncher.Status.UrlNotAvailable,
+        });
+    });
+
+    it("lists the catalogs chip's tv-app lists", () => {
+        expect(endpoint.stateOf(TestApplicationLauncherServer).catalogList).deep.equal([123, 456]);
+    });
+
+    for (const command of ["launchApp", "stopApp", "hideApp"] as const) {
+        describe(command, () => {
+            const send = (application?: ApplicationLauncher.Application) =>
+                endpoint.act(async agent => agent.get(TestApplicationLauncherServer)[command]({ application }));
+
+            it("answers Success for the application the cert cases send", async () => {
+                expect(await send(TV_KNOWN_APPLICATION)).deep.equal({ status: ApplicationLauncher.Status.Success });
+            });
+
+            it("answers AppNotAvailable for an unknown ID or a catalog not in CatalogList", async () => {
+                for (const application of [
+                    { catalogVendorId: 456, applicationId: "unknown" },
+                    { catalogVendorId: 789, applicationId: "exampleid" },
+                ]) {
+                    expect(await send(application)).deep.equal({ status: ApplicationLauncher.Status.AppNotAvailable });
+                }
+            });
+
+            it("refuses a request without an application", async () => {
+                await expect(send()).rejectedWith(StatusResponse.InvalidCommandError, "requires an Application");
+            });
+        });
+    }
 
     it("names the video player endpoint ep1, the segment the cert log checks match", () => {
         expect(endpoint.id).equal(`ep${TV_VIDEO_PLAYER_ENDPOINT}`);

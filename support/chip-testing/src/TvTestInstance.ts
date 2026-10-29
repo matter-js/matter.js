@@ -19,7 +19,9 @@ import {
 } from "@matter/main/clusters";
 import { DimmableLightDevice } from "@matter/main/devices/dimmable-light";
 import { DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
+import { TestApplicationLauncherServer } from "./cluster/TestApplicationLauncherServer.js";
 import { TestChannelServer } from "./cluster/TestChannelServer.js";
+import { TestContentLauncherServer } from "./cluster/TestContentLauncherServer.js";
 import { TestKeypadInputServer } from "./cluster/TestKeypadInputServer.js";
 import { TestLowPowerServer } from "./cluster/TestLowPowerServer.js";
 import { TestMediaInputServer } from "./cluster/TestMediaInputServer.js";
@@ -108,6 +110,8 @@ export class TvTestInstance extends NodeTestInstance {
                 TestTargetNavigatorServer,
                 TestChannelServer,
                 TestMediaInputServer,
+                TestContentLauncherServer,
+                TestApplicationLauncherServer,
             ),
             {
                 number: EndpointNumber(1),
@@ -155,6 +159,11 @@ export class TvTestInstance extends NodeTestInstance {
                 mediaInput: {
                     inputList: CHIP_TV_INPUTS,
                     currentInput: 1,
+                },
+
+                // chip's tv-app lists these catalogs (ApplicationLauncherManager::HandleGetCatalogList)
+                applicationLauncher: {
+                    catalogList: [123, 456],
                 },
             },
         );

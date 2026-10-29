@@ -4129,12 +4129,12 @@ window, and TH_CR3 not after it. 1.7 opens enhanced windows, 1.8 basic ones. The
   plan gives the closed window as the reason for the refusal. A log line cannot show it on chip, which writes its
   window-closed line (`WINDOW_CLOSED`) for a timeout or a revoke, not when a commissioning completes.
 
-## The media client block (`TC-KEYPADINPUT-3.1`, `TC-TGTNAV-8.2`, `TC-CHANNEL-5.4`–`5.6`, `TC-MEDIAINPUT-3.14`–`3.17`)
+## The media client block (`TC-KEYPADINPUT-3.1`, `TC-TGTNAV-8.2`, `TC-CHANNEL-5.4`–`5.6`, `TC-MEDIAINPUT-3.14`–`3.17`, `TC-CONTENTLAUNCHER-10.4`, `10.6`, `TC-APPLAUNCHER-3.7.1`–`3.9.1`)
 
 The first cases on the `tv` app: the DUT sends one media command to the TH's video player endpoint, and the TH's log
 shows its payload. Steps go through `sendsTvCommand` (`tc-tv-client-support.ts`), which builds both flavors' payload
 from the command's model, the way `tc-cc-support.ts` does for ColorControl. The later media client cases
-(ContentLauncher, ApplicationLauncher, AudioOutput, MediaPlayback, AccountLogin) are meant to reuse it.
+(AudioOutput, MediaPlayback, AccountLogin) are meant to reuse it.
 
 - **Endpoint 1 on both THs.** chip's tv-app puts every video player cluster on endpoint 1 (`tv-app.matter`) and the
   content app clusters, AccountLogin among them, on endpoint 3. `TvTestInstance` adds the clusters a case sends to on
@@ -4155,12 +4155,32 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl. The 
     § 6.6.7.3 does not ask for that, and `TestChannelServer` succeeds. Send a channel other than 6.0.
 - **ShowInputStatus and HideInputStatus carry no fields**, so their payload check is the empty `CommandFields` block
   on chip and `(no payload)` on matter.js, as for `TC-DGETH-3.2`.
-- **The response status is a claim.** SendKey, NavigateTarget and ChangeChannel answer with a status in their
-  payload, which `sendCommand` checks. chip's `KeypadInputManager` accepts the navigation and number keys and answers
-  `UnsupportedKey` for the rest; matter.js's `TestKeypadInputServer` accepts every key. Send a key both accept.
-- **`tvCommandPayload` renders integer, enum and string fields only.** It refuses any other field type, and an argument
-  the command has no field for, with `InternalError` inside the step rather than at file load. A case that needs a
-  struct, list, boolean or bigint value extends it.
+- **The response status is a claim.** SendKey, NavigateTarget, ChangeChannel, LaunchContent, LaunchURL, LaunchApp,
+  StopApp and HideApp answer with a status in their payload, which `sendCommand` checks. chip's `KeypadInputManager`
+  accepts the navigation and number keys and answers `UnsupportedKey` for the rest; matter.js's
+  `TestKeypadInputServer` accepts every key. Send a key both accept.
+- **ContentLauncher and ApplicationLauncher answer success for the arguments the cases send.** chip's
+  `ContentLauncherManager` answers Success for any LaunchContent and for any LaunchURL but `https://badurl` and
+  `https://csa-iot.org/badauth`. It makes no check for `https`, which § 6.7.7.2 requires without naming a status for a
+  failed check; `TestContentLauncherServer` makes it and answers URLNotAvailable. chip's ApplicationLauncher on
+  endpoint 1 has the ApplicationPlatform feature, so LaunchApp, StopApp and HideApp go to the content app platform: an
+  application not installed answers `AppNotAvailable`, and HideApp finds only an app that is already loaded. chip
+  never checks CatalogList. For any catalog but its platform catalog 0xFFF1, which it matches without mapping, it maps
+  `exampleid` to the content app installed and loaded at startup for vendor 1 (`AppTv.cpp`, `main.cpp`). Only the
+  matter.js TH needs the catalog in its CatalogList, so `TV_KNOWN_APPLICATION` uses 123, which both list. chip checks
+  a LaunchURL `ContentType` (not in the 1.6.1 model) against AcceptHeader.
+- **`tvCommandPayload` renders integer, enum, string and boolean fields, and structs and lists of them.** chip prints
+  a struct as its `0x<id> = ` line, `{`, its members and `},`; a list as `0x<id> = [`, a line without text, its
+  entries and `],`, each struct entry without an id (`CheckIMPayload` in `MessageDefHelper.cpp`). A boolean has no
+  type name. matter.js prints a top-level string unquoted but a nested one JSON-quoted, and a struct as
+  `{ a: 1, b: "x" }` (`serialize`). Refused with `InternalError` inside the step:
+  - a top-level list, which matter.js prints as its bare entries, and list entries that are not structs, which chip
+    prints on one line;
+  - an empty top-level string, which matter.js prints as nothing (a nested one prints as `""` and `"" (0 chars)`), and
+    a line break at any depth;
+  - a field id of 10 or more: chip-tool's `command-by-id` writes members in the text order of their ids (`10` before
+    `2`), so its wire order would differ from model order;
+  - any other field type, and an argument no field takes.
 - **PICS:** CHIP's file answers `TGTNAV.C` 0, so without the controller overlay `TC-TGTNAV-8.2` is pending. All three
-  overlays declare the client keys of `TC-KEYPADINPUT-3.1` and `TC-TGTNAV-8.2`. CHIP's file answers every `CHANNEL.C` and `MEDIAINPUT.C` key the Channel
-  and MediaInput cases use with 1, so those need no overlay.
+  overlays declare the client keys of `TC-KEYPADINPUT-3.1` and `TC-TGTNAV-8.2`. CHIP's file answers every `CHANNEL.C`,
+  `MEDIAINPUT.C`, `CONTENTLAUNCHER.C` and `APPLAUNCHER.C` key these cases use with 1, so those need no overlay.
