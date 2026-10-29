@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { certTest } from "@matter/testing";
+import { certTest, UnsupportedByControllerError } from "@matter/testing";
 import { DISCOVERS_COMMISSIONABLE, recordCommissionable, recordDiscoveredTh } from "./tc-dd-support.js";
 
 /**
@@ -77,8 +77,19 @@ certTest("TC-DD-2.2", {
         "6",
         "With DUT and TH connected to the same network over IP, DUT performs service discovery using DNS-SD",
         async cx => {
-            await recordDiscoveredTh(cx);
+            let discoveryFailure: unknown;
+            try {
+                await recordDiscoveredTh(cx);
+            } catch (error) {
+                if (error instanceof UnsupportedByControllerError) {
+                    throw error;
+                }
+                discoveryFailure = error;
+            }
             await recordCommissionable(cx);
+            if (discoveryFailure !== undefined) {
+                throw discoveryFailure;
+            }
         },
         {
             controllerCapabilities: DISCOVERS_COMMISSIONABLE,
