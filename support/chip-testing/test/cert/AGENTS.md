@@ -4129,12 +4129,12 @@ window, and TH_CR3 not after it. 1.7 opens enhanced windows, 1.8 basic ones. The
   plan gives the closed window as the reason for the refusal. A log line cannot show it on chip, which writes its
   window-closed line (`WINDOW_CLOSED`) for a timeout or a revoke, not when a commissioning completes.
 
-## The media client block (`TC-KEYPADINPUT-3.1`, `TC-TGTNAV-8.2`)
+## The media client block (`TC-KEYPADINPUT-3.1`, `TC-TGTNAV-8.2`, `TC-CHANNEL-5.4`–`5.6`, `TC-MEDIAINPUT-3.14`–`3.17`)
 
 The first cases on the `tv` app: the DUT sends one media command to the TH's video player endpoint, and the TH's log
 shows its payload. Steps go through `sendsTvCommand` (`tc-tv-client-support.ts`), which builds both flavors' payload
-from the command's model, the way `tc-cc-support.ts` does for ColorControl. The later media client cases (Channel,
-ContentLauncher, MediaInput, ApplicationLauncher, AudioOutput, MediaPlayback, AccountLogin) are meant to reuse it.
+from the command's model, the way `tc-cc-support.ts` does for ColorControl. The later media client cases
+(ContentLauncher, ApplicationLauncher, AudioOutput, MediaPlayback, AccountLogin) are meant to reuse it.
 
 - **Endpoint 1 on both THs.** chip's tv-app puts every video player cluster on endpoint 1 (`tv-app.matter`) and the
   content app clusters, AccountLogin among them, on endpoint 3. `TvTestInstance` adds the clusters a case sends to on
@@ -4144,11 +4144,23 @@ ContentLauncher, MediaInput, ApplicationLauncher, AudioOutput, MediaPlayback, Ac
   answers `TargetNotFound` for 0 or anything above the list size. `TvTestInstance` seeds the same list, so a fixed
   identifier is valid on both THs and the plan's single step stays a single step. CurrentTarget differs: chip starts
   at 0 (its own "no current target"), matter.js at 0xFF, which § 6.11.5.2 defines as "no target is in the foreground".
-- **The response status is a claim.** SendKey and NavigateTarget answer with a status in their payload, which
-  `sendCommand` checks. chip's `KeypadInputManager` accepts the navigation and number keys and answers
+- **Channel and MediaInput are seeded like chip's tv-app too.** `ChannelManager` seeds 6.0 ABC, 9.1 PBS, 9.2 PBS
+  Kids and 9.3 World Channel and starts on 6.0; `MediaInputManager` seeds two HDMI inputs, indexes 1 and 2, and starts
+  on 1. Both declare the features the plan steps need (Channel CL|LI, MediaInput NU). chip's answers differ from the
+  spec in two places, so pick arguments both THs accept rather than relying on either rule:
+  - ChangeChannel compares every key at once and case-sensitively, and ignores Identifier. § 6.6.7.1 asks for a
+    case-insensitive match in priority order, which `TestChannelServer` implements. A name that no other key of any
+    seeded channel equals (`PBS`) gives the same channel on both.
+  - ChangeChannelByNumber to the channel already current answers FAILURE (the delegate reports "not changed");
+    § 6.6.7.3 does not ask for that, and `TestChannelServer` succeeds. Send a channel other than 6.0.
+- **ShowInputStatus and HideInputStatus carry no fields**, so their payload check is the empty `CommandFields` block
+  on chip and `(no payload)` on matter.js, as for `TC-DGETH-3.2`.
+- **The response status is a claim.** SendKey, NavigateTarget and ChangeChannel answer with a status in their
+  payload, which `sendCommand` checks. chip's `KeypadInputManager` accepts the navigation and number keys and answers
   `UnsupportedKey` for the rest; matter.js's `TestKeypadInputServer` accepts every key. Send a key both accept.
 - **`tvCommandPayload` renders integer, enum and string fields only.** It refuses any other field type, and an argument
   the command has no field for, with `InternalError` inside the step rather than at file load. A case that needs a
   struct, list, boolean or bigint value extends it.
 - **PICS:** CHIP's file answers `TGTNAV.C` 0, so without the controller overlay `TC-TGTNAV-8.2` is pending. All three
-  overlays declare both cases' client keys.
+  overlays declare the client keys of `TC-KEYPADINPUT-3.1` and `TC-TGTNAV-8.2`. CHIP's file answers every `CHANNEL.C` and `MEDIAINPUT.C` key the Channel
+  and MediaInput cases use with 1, so those need no overlay.

@@ -10,16 +10,40 @@ import { AdministratorCommissioningServer } from "@matter/main/behaviors/adminis
 import { ApplicationBasicServer } from "@matter/main/behaviors/application-basic";
 import { DescriptorServer } from "@matter/main/behaviors/descriptor";
 import { WakeOnLanServer } from "@matter/main/behaviors/wake-on-lan";
-import { AdministratorCommissioning, ApplicationBasic, BasicInformation } from "@matter/main/clusters";
+import {
+    AdministratorCommissioning,
+    ApplicationBasic,
+    BasicInformation,
+    Channel,
+    MediaInput,
+} from "@matter/main/clusters";
 import { DimmableLightDevice } from "@matter/main/devices/dimmable-light";
 import { DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
+import { TestChannelServer } from "./cluster/TestChannelServer.js";
 import { TestKeypadInputServer } from "./cluster/TestKeypadInputServer.js";
 import { TestLowPowerServer } from "./cluster/TestLowPowerServer.js";
+import { TestMediaInputServer } from "./cluster/TestMediaInputServer.js";
 import { TestTargetNavigatorServer } from "./cluster/TestTargetNavigatorServer.js";
 import { NodeTestInstance } from "./NodeTestInstance.js";
 
 /** @see {@link MatterSpecification.v161.Cluster} § 6.11.5.2 */
 const NO_CURRENT_TARGET = 0xff;
+
+/** The channels chip's tv-app seeds (ChannelManager's default constructor); it starts on the first. */
+const CHIP_TV_CHANNELS: Channel.ChannelInfo[] = [
+    { majorNumber: 6, minorNumber: 0, name: "ABC", callSign: "KAAL-TV", affiliateCallSign: "KAAL" },
+    { majorNumber: 9, minorNumber: 1, name: "PBS", callSign: "KCTS-TV", affiliateCallSign: "KCTS" },
+    { majorNumber: 9, minorNumber: 2, name: "PBS Kids", callSign: "KCTS-TV", affiliateCallSign: "KCTS" },
+    { majorNumber: 9, minorNumber: 3, name: "World Channel", callSign: "KCTS-TV", affiliateCallSign: "KCTS" },
+];
+
+/** The inputs chip's tv-app seeds (MediaInputManager's default constructor); it starts on index 1. */
+const CHIP_TV_INPUTS: MediaInput.InputInfo[] = [1, 2].map(index => ({
+    index,
+    inputType: MediaInput.InputType.Hdmi,
+    name: "HDMI",
+    description: "High-Definition Multimedia Interface",
+}));
 
 export class TvTestInstance extends NodeTestInstance {
     static override id = "bingeford-6100";
@@ -82,6 +106,8 @@ export class TvTestInstance extends NodeTestInstance {
                 TestLowPowerServer,
                 TestKeypadInputServer,
                 TestTargetNavigatorServer,
+                TestChannelServer,
+                TestMediaInputServer,
             ),
             {
                 number: EndpointNumber(1),
@@ -112,6 +138,23 @@ export class TvTestInstance extends NodeTestInstance {
                         { identifier: 2, name: "exampleName" },
                     ],
                     currentTarget: NO_CURRENT_TARGET,
+                },
+
+                // chip's tv-app seeds this data (ChannelManager, MediaInputManager), so a client case can name the same
+                // channel or input on both THs
+                channel: {
+                    channelList: CHIP_TV_CHANNELS,
+                    lineup: {
+                        operatorName: "Comcast",
+                        lineupName: "Comcast King County",
+                        postalCode: "98052",
+                        lineupInfoType: Channel.LineupInfoType.Mso,
+                    },
+                    currentChannel: CHIP_TV_CHANNELS[0],
+                },
+                mediaInput: {
+                    inputList: CHIP_TV_INPUTS,
+                    currentInput: 1,
                 },
             },
         );
