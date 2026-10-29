@@ -2107,6 +2107,22 @@ about the artifact, not about the TH. Note the plan's own example payload, `MT:-
 decodes to `flowType` 2: it is copy-pasted into 3.11, 3.12 and 3.14 from 3.13, the one case whose flow
 value it actually matches.
 
+## Discovery without commissioning (`TC-DD-2.2`)
+
+Only step 6 (DNS-SD) runs; the BLE and Wi-Fi PAF legs carry `notApplicable` and no `pics`, for the
+reason the `TC-DD-3.11` section gives. Step 6 uses `ControllerAdapter.discoverCommissionableNodes` (capability
+`commissionable-discovery`), and the three controllers report differently:
+
+- **chip-tool reports at most one node.** `discover find-commissionable-by-long-discriminator` stops at
+  the first match (`--discover-once` defaults to true), so the search is narrowed to the TH's
+  discriminator: an unfiltered `discover commissionables` on a busy LAN reports whichever node answers
+  first. A search that finds nothing ends in chip-tool's fixed 30-second command timeout and rejects.
+- **matterjs-server ignores the filter.** `discover_commissionable_nodes` takes no arguments and
+  reports every node it found in its own 3-second window, with -1 for a vendor or product left out.
+- **The check selects.** `discoveredThCheck` passes on one reported node with the TH's long
+  discriminator and the vendor and product of the TH's own QR payload; the detail lists every node the
+  DUT reported.
+
 ## Commission, unpair, re-commission (`TC-DD-3.20`)
 
 The plan drives the same device onto the fabric twice, with an explicit unpair between the attempts,

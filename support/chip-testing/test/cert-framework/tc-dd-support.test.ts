@@ -23,6 +23,7 @@ import type {
     CommissioningTarget,
     ControllerAdapter,
     DeviceExitInfo,
+    DiscoveredCommissionableNode,
     DeviceFlavor,
 } from "@matter/testing";
 import {
@@ -58,6 +59,7 @@ import {
     qrPayloadFields,
     qrPayloadWith,
     qrPayloadWithPrefix,
+    recordDiscoveredTh,
     recordDiscoveryCapabilityAbsent,
     ABSENT_DEVICE_GIVE_UP,
     recordDiscriminatorHonored,
@@ -468,6 +470,131 @@ describe("CommissioningRefusals", () => {
     });
 });
 
+/** A TH whose own setup code is the one `payload` carries. */
+function thOf(payload: string): CertDevice {
+    const { discriminator, passcode } = qrPayloadFields(payload);
+    return {
+        id: "th",
+        app: "all-clusters",
+        commissioning: { kind: "on-network", passcode, discriminator, qrPairingCode: payload },
+        pics: new PicsFile([]),
+        async initialize() {},
+        async start() {},
+        async stop() {},
+        async close() {},
+        async snapshot() {
+            return {};
+        },
+        async restore() {},
+        backchannel: async () => {},
+        flavor: "matterjs",
+        log: new LogFollower(new LineQueue().follow(), "th"),
+        exit: new Promise<DeviceExitInfo>(() => {}),
+    };
+}
+
+describe("recordDiscoveredTh", () => {
+    // chip-all-clusters-app's own payload: discriminator 3840, vendor 0xFFF1, product 0x8001
+    const TH_PAYLOAD = "MT:-24J042C00KA0648G00";
+    const TH_NODE: DiscoveredCommissionableNode = {
+        instanceName: "5E6B9D0C1A2F3B4C",
+        longDiscriminator: 3840,
+        vendorId: 0xfff1,
+        productId: 0x8001,
+        commissioningMode: 1,
+    };
+
+    function contextDiscovering(discover: ControllerAdapter["discoverCommissionableNodes"]) {
+        const cx = contextWith(() => Promise.reject(new InternalError("not used by these tests")));
+        cx.controllers.dut.discoverCommissionableNodes = discover;
+        return cx;
+    }
+
+    it("passes when one reported node carries the TH's discriminator, vendor and product", async () => {
+        const filters = new Array<unknown>();
+        const other = { ...TH_NODE, instanceName: "OTHER", longDiscriminator: 1234 };
+        const cx = contextDiscovering(async filter => {
+            filters.push(filter);
+            return [other, TH_NODE];
+        });
+
+        await recordDiscoveredTh(cx, thOf(TH_PAYLOAD));
+
+        expect(filters).deep.equal([{ longDiscriminator: 3840 }]);
+        const [check] = checksOf(cx);
+        expect(check.verdict).equal("pass");
+        expect(check.detail).contains("5E6B9D0C1A2F3B4C (D=3840 vendorId=65521 productId=32769 CM=1)");
+    });
+
+    it("searches for the discriminator of the TH's payload, not of its configuration", async () => {
+        const filters = new Array<unknown>();
+        const cx = contextDiscovering(async filter => {
+            filters.push(filter);
+            return [TH_NODE];
+        });
+        const th = thOf(TH_PAYLOAD);
+        th.commissioning = { ...th.commissioning, discriminator: 1234 };
+
+        await recordDiscoveredTh(cx, th);
+
+        expect(filters).deep.equal([{ longDiscriminator: 3840 }]);
+        expect(checksOf(cx)[0].verdict).equal("pass");
+    });
+
+    for (const [what, reported] of [
+        ["another discriminator", { longDiscriminator: 3841 }],
+        ["another vendor", { vendorId: 0xfff2 }],
+        ["another product", { productId: 0x8002 }],
+        ["no vendor and product", { vendorId: undefined, productId: undefined }],
+    ] as const) {
+        it(`fails when the DUT reports the TH with ${what}`, async () => {
+            const cx = contextDiscovering(async () => [{ ...TH_NODE, ...reported }]);
+
+            await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD))).rejectedWith(CertCheckFailedError);
+            expect(checksOf(cx).map(({ verdict }) => verdict)).deep.equal(["fail"]);
+        });
+    }
+
+    it("fails, naming it, when the DUT reports no node", async () => {
+        const cx = contextDiscovering(async () => []);
+
+        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD))).rejectedWith(CertCheckFailedError);
+        expect(checksOf(cx)[0]?.detail).contains("DUT reported no commissionable node");
+    });
+
+    it("records a failed discovery as the DUT's failure", async () => {
+        const failure = new ChipToolCommandError("chip-tool discovery failed");
+        const cx = contextDiscovering(async () => {
+            throw failure;
+        });
+
+        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD))).rejectedWith(failure);
+        expect(checksOf(cx).map(({ verdict }) => verdict)).deep.equal(["fail"]);
+    });
+
+    it("hands a controller refusal on without recording it as the DUT's failure", async () => {
+        const refusal = new UnsupportedByControllerError(
+            "discoverCommissionableNodes",
+            "test",
+            "not offered",
+            "commissionable-discovery",
+        );
+        const cx = contextDiscovering(async () => {
+            throw refusal;
+        });
+
+        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD))).rejectedWith(refusal);
+        expect(checksOf(cx)).deep.equal([]);
+    });
+
+    it("hands a controller without the capability on as a missing declaration, recording nothing", async () => {
+        const cx = contextDiscovering(undefined);
+
+        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD))).rejectedWith(UnsupportedByControllerError);
+        expect(checksOf(cx)).deep.equal([]);
+    });
+});
+
 describe("recordParse", () => {
     function contextWithParser(): CertStepContext {
         const cx = contextWith(() => Promise.reject(new InternalError("not used by these tests")));
@@ -477,29 +604,6 @@ describe("recordParse", () => {
             return { version, vendorId, productId, flowType, discoveryCapabilities, discriminator, passcode };
         };
         return cx;
-    }
-
-    /** A TH whose own setup code is the one `payload` carries. */
-    function thOf(payload: string): CertDevice {
-        const { discriminator, passcode } = qrPayloadFields(payload);
-        return {
-            id: "th",
-            app: "all-clusters",
-            commissioning: { kind: "on-network", passcode, discriminator, qrPairingCode: payload },
-            pics: new PicsFile([]),
-            async initialize() {},
-            async start() {},
-            async stop() {},
-            async close() {},
-            async snapshot() {
-                return {};
-            },
-            async restore() {},
-            backchannel: async () => {},
-            flavor: "matterjs",
-            log: new LogFollower(new LineQueue().follow(), "th"),
-            exit: new Promise<DeviceExitInfo>(() => {}),
-        };
     }
 
     // chip-all-clusters-app's own payload: standard flow, BLE alone

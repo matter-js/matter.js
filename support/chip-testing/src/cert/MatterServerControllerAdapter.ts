@@ -43,12 +43,14 @@ import type {
     CertNodeApi,
     CertNodeRef,
     ClientEndpointEntry,
+    CommissionableNodeFilter,
     CommissioningTarget,
     ControllerAdapter,
     ControllerAdapterOptions,
     ControllerCapabilitiesOutOfScope,
     ControllerCapability,
     ControllerCapabilityGaps,
+    DiscoveredCommissionableNode,
     EventPathSpec,
     EventReadEntry,
     GroupKeySetSpec,
@@ -723,6 +725,20 @@ export class MatterServerControllerAdapter implements ControllerAdapter {
             );
         }
         return parsed;
+    }
+
+    /**
+     * `discover_commissionable_nodes` takes no filter, so this reports every node the server found, whatever
+     * `filter` asks for. The server searches over IP only, for a window of its own.
+     */
+    async discoverCommissionableNodes(_filter?: CommissionableNodeFilter): Promise<DiscoveredCommissionableNode[]> {
+        const nodes = await this.#started.client.command("discover_commissionable_nodes", {});
+        if (!Array.isArray(nodes)) {
+            throw new UnexpectedDataError(
+                `matterjs-server answered discover_commissionable_nodes with ${Diagnostic.json(nodes)}`,
+            );
+        }
+        return nodes.map(discoveredNodeOf);
     }
 
     node(ref: CertNodeRef): MatterServerCertNodeApi {
@@ -1641,6 +1657,42 @@ function parsedIdentifier(parsed: Record<string, unknown>, name: string, code: s
         throw new UnexpectedDataError(`matterjs-server parsed ${name} of ${code} as 0 instead of leaving it out`);
     }
     return value;
+}
+
+/**
+ * One `CommissionableNodeData` entry of a `discover_commissionable_nodes` answer. The server reports a vendor or
+ * product the advertisement leaves out as -1.
+ */
+function discoveredNodeOf(entry: unknown): DiscoveredCommissionableNode {
+    const malformed = (field: string) =>
+        new UnexpectedDataError(
+            `matterjs-server reported a discovered node without ${field}: ${Diagnostic.json(entry)}`,
+        );
+    if (!isObject(entry)) {
+        throw malformed("any field");
+    }
+    const integer = (field: string) => {
+        const value = entry[field];
+        if (typeof value !== "number" || !Number.isInteger(value)) {
+            throw malformed(field);
+        }
+        return value;
+    };
+    const identifier = (field: string) => {
+        const value = integer(field);
+        return value === -1 ? undefined : value;
+    };
+    const { instance_name } = entry;
+    if (typeof instance_name !== "string") {
+        throw malformed("instance_name");
+    }
+    return {
+        instanceName: instance_name,
+        longDiscriminator: integer("long_discriminator"),
+        vendorId: identifier("vendor_id"),
+        productId: identifier("product_id"),
+        commissioningMode: integer("commissioning_mode"),
+    };
 }
 
 /** The `timed_request_timeout_ms` field of a `device_command`, `batched_device_commands` or `write_attribute`. */

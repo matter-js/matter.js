@@ -119,10 +119,12 @@ import type {
     CertSessionInfo,
     ClientAttributePath,
     ClientEndpointEntry,
+    CommissionableNodeFilter,
     CommissioningTarget,
     ControllerAdapter,
     ControllerAdapterOptions,
     ControllerTransport,
+    DiscoveredCommissionableNode,
     EventPathSpec,
     EventReadEntry,
     GroupKeySetSpec,
@@ -2403,6 +2405,12 @@ class InProcessCertNodeApi implements CertNodeApi {
 const CERT_PEER_CONNECTION_TIMEOUT = Seconds(15);
 
 /**
+ * How long {@link InProcessControllerAdapter.discoverCommissionableNodes} collects advertisements. A node already
+ * advertising answers the first query within a second; the rest covers a slow multicast path.
+ */
+const COMMISSIONABLE_DISCOVERY_WINDOW = Seconds(5);
+
+/**
  * How long to wait for a peer to hold a subscription before continuing without one.
  *
  * Longer than the interaction's own wait for the peer, so a peer that stops answering reports why
@@ -2817,6 +2825,34 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             throw new InternalError(`Manual pairing code ${code} decoded to no short discriminator`);
         }
         return { shortDiscriminator, passcode, vendorId, productId };
+    }
+
+    /** Discovers over DNS-SD only, for {@link COMMISSIONABLE_DISCOVERY_WINDOW}. */
+    discoverCommissionableNodes(filter?: CommissionableNodeFilter): Promise<DiscoveredCommissionableNode[]> {
+        return runTagged(this.id, async () => {
+            const nodes = await this.#startedController.peers.discover({
+                ...(filter?.longDiscriminator === undefined ? {} : { longDiscriminator: filter.longDiscriminator }),
+                timeout: COMMISSIONABLE_DISCOVERY_WINDOW,
+                discoveryCapabilities: { onIpNetwork: true },
+            });
+            // Discovery reports a node again on each new advertisement
+            // A node whose advertisement lacks an instance name or discriminator is not one a caller can select
+            return [...new Set(nodes)].flatMap(node => {
+                const { deviceIdentifier, discriminator, vendorId, productId, commissioningMode } =
+                    node.state.commissioning;
+                if (deviceIdentifier === undefined || discriminator === undefined) {
+                    return [];
+                }
+                return {
+                    instanceName: deviceIdentifier,
+                    longDiscriminator: discriminator,
+                    vendorId,
+                    productId,
+                    // § 4.3.1.7: an absent CM key means 0
+                    commissioningMode: commissioningMode ?? 0,
+                };
+            });
+        });
     }
 
     commission(target: CommissioningTarget): Promise<CertNodeRef> {

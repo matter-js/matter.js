@@ -37,8 +37,10 @@ import type {
     CertNodeRef,
     ClientAttributePath,
     ClientEndpointEntry,
+    CommissionableNodeFilter,
     CommissioningTarget,
     ControllerAdapter,
+    DiscoveredCommissionableNode,
     EventPathSpec,
     EventReadEntry,
     GroupKeySetSpec,
@@ -1725,6 +1727,49 @@ function payloadField(logs: string[], code: string, pattern: RegExp, radix = 10)
     return Number.parseInt(value, radix);
 }
 
+/**
+ * The nodes a `discover` command's results report. chip-tool records each node it discovers as one entry
+ * `{"value": {"instanceName", "longDiscriminator", "vendorId", "productId", "commissioningMode", …}}`
+ * (`RemoteDataModelLogger::LogDiscoveredNodeData`), with 0 for a vendor or product the advertisement leaves out
+ * (the defaults of `Dnssd::CommissionNodeData`). An entry naming a cluster is a subscription report that arrived
+ * while the command ran.
+ */
+export function discoveredCommissionableNodesOf(results: unknown[]): DiscoveredCommissionableNode[] {
+    const nodes = new Array<DiscoveredCommissionableNode>();
+    for (const result of results) {
+        if (!isObject(result) || "clusterId" in result || !isObject(result.value)) {
+            continue;
+        }
+        const node = result.value;
+        if (!("longDiscriminator" in node)) {
+            continue;
+        }
+        const malformed = (field: string) =>
+            new UnexpectedDataError(
+                `chip-tool reported a discovered node without ${field}: ${JSON.stringify(result.value)}`,
+            );
+        const integer = (field: string) => {
+            const value = numberOf(node, field);
+            if (value === undefined || !Number.isInteger(value)) {
+                throw malformed(field);
+            }
+            return value;
+        };
+        const { instanceName } = node;
+        if (typeof instanceName !== "string") {
+            throw malformed("instanceName");
+        }
+        nodes.push({
+            instanceName,
+            longDiscriminator: integer("longDiscriminator"),
+            vendorId: statedIdentifier(integer("vendorId")),
+            productId: statedIdentifier(integer("productId")),
+            commissioningMode: integer("commissioningMode"),
+        });
+    }
+    return nodes;
+}
+
 function matchLog(logs: string[], pattern: RegExp) {
     for (const line of logs) {
         const match = pattern.exec(line);
@@ -1899,6 +1944,24 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             vendorId: carriesIdentity ? payloadField(logs, code, /VendorID:\s+(\d+)/) : undefined,
             productId: carriesIdentity ? payloadField(logs, code, /ProductID:\s+(\d+)/) : undefined,
         };
+    }
+
+    /**
+     * Reports one node at most: chip-tool's `discover` commands stop at the first node that matches
+     * (`--discover-once` defaults to true). A search that finds nothing ends in chip-tool's 30-second command
+     * timeout, which chip-tool reports like any other failure, so it rejects with {@link ChipToolCommandError}.
+     */
+    async discoverCommissionableNodes(filter?: CommissionableNodeFilter): Promise<DiscoveredCommissionableNode[]> {
+        const command =
+            filter?.longDiscriminator === undefined
+                ? "discover commissionables"
+                : `discover find-commissionable-by-long-discriminator ${filter.longDiscriminator}`;
+        const { reply, results } = await this.executeWithLogs(command);
+        const nodes = discoveredCommissionableNodesOf(results);
+        if (nodes.length === 0) {
+            assertCommandSucceeded(reply, `discovery of commissionable nodes (${command})`);
+        }
+        return nodes;
     }
 
     async commission(target: CommissioningTarget): Promise<CertNodeRef> {
@@ -2080,13 +2143,19 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         return (await this.executeWithLogs(command, requested)).reply;
     }
 
-    /** As {@link execute}, plus the reply's own decoded log lines for a command that answers only in logs. */
-    async executeWithLogs(command: string, requested?: RequestedPaths): Promise<{ reply: ChipReply; logs: string[] }> {
+    /**
+     * As {@link execute}, plus the reply's own decoded log lines for a command that answers only in logs, and its
+     * raw results for a command whose entries name no path.
+     */
+    async executeWithLogs(
+        command: string,
+        requested?: RequestedPaths,
+    ): Promise<{ reply: ChipReply; logs: string[]; results: unknown[] }> {
         const result = await this.#requireClient().execute(command);
         const reply = interpretReply(result.results, path => this.#isOwnPath(path, requested));
         this.#dispatchReports(reply.values);
         this.#dispatchEventReports(reply.events);
-        return { reply, logs: result.logs };
+        return { reply, logs: result.logs, results: result.results };
     }
 
     /**
