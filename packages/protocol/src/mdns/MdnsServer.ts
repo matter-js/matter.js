@@ -47,11 +47,6 @@ export class MdnsServer {
     #closing?: Promise<void>;
     #pendingAnnouncement?: PendingAnnouncement;
     #hostname?: string;
-    /** Whether the next announcement covers every service, because the host name changed */
-    #announcesAll = false;
-
-    /** The last host name chosen; unlike {@link #hostname} it stays while no interface offers one */
-    #namedHost?: string;
     readonly #truncatedQueryCache = new Map<string, { message: MdnsSocket.Message; timer: Timer }>();
 
     readonly #socket: MdnsSocket;
@@ -108,9 +103,10 @@ export class MdnsServer {
 
     /**
      * Register the records that {@link generator} produces for {@link service}, replacing the registration under that
-     * name.  The server answers queries for them from now on, but announces nothing until a {@link broadcast}, which
-     * may be one for another service after the host name changed.  The
-     * registration is in place before the first await; resolves once the host name is chosen again.
+     * name.  The server answers queries for them from now on, but announces nothing until a {@link broadcast}.  A
+     * broadcast or withdrawal of another service, or a goodbye retry, announces it too when its records replace
+     * records peers cache, see {@link InterfaceResponder.publish}.  The registration is in place before the first
+     * await; resolves once the host name is chosen again.
      *
      * Use the returned handle to call the generator again or to withdraw the service.  A replaced registration's
      * handle does nothing.  Once {@link close} started, also while this runs, the handle is inert and nothing stays
@@ -197,7 +193,8 @@ export class MdnsServer {
      * Requests made before the event loop turns are sent together, in one message per interface, split into
      * datagrams by size, that also says goodbye to records that left; so advertisements that announce in the same
      * turn share one announcement with each shared record once.  An announcement is never held by the one-second rule
-     * of RFC 6762 §6.  The first announcement after the host name changed covers every service.
+     * of RFC 6762 §6.  A service whose records replace records that get a goodbye is announced too, as after a change
+     * of the host name, see {@link InterfaceResponder.publish}.
      *
      * Logs and does not throw on failure.
      */
@@ -211,20 +208,7 @@ export class MdnsServer {
      * advertisements that start together register and broadcast within one event-loop turn, because the interface
      * lookups behind registration are synchronous on Node.js, and a longer window would delay every announcement.
      */
-    /** Make the pending announcement, or else the next one, cover every service. */
-    #announceAll() {
-        if (this.#pendingAnnouncement !== undefined) {
-            this.#pendingAnnouncement.all = true;
-        } else {
-            this.#announcesAll = true;
-        }
-    }
-
     #announce(services: string[] | "all") {
-        if (this.#announcesAll) {
-            this.#announcesAll = false;
-            services = "all";
-        }
         const pending = (this.#pendingAnnouncement ??= this.#startAnnouncement());
         if (services === "all") {
             pending.all = true;
@@ -401,13 +385,6 @@ export class MdnsServer {
             }
             if (this.#hostname === undefined || !candidates.includes(this.#hostname)) {
                 this.#hostname = candidates[0];
-            }
-            if (this.#hostname !== undefined) {
-                // A new host name replaces the SRV and address records of every service
-                if (this.#namedHost !== undefined && this.#namedHost !== this.#hostname) {
-                    this.#announceAll();
-                }
-                this.#namedHost = this.#hostname;
             }
         } catch (error) {
             if (error instanceof ClosedError) {

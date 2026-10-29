@@ -261,7 +261,13 @@ export class InterfaceResponder {
 
     /**
      * In one message, say goodbye to the records that peers may cache here but that the current records of the
-     * registrations no longer hold, and announce the named services, or all registered services for "all".
+     * registrations no longer hold, and announce the named services, or all registered services for "all".  A service
+     * is announced as well when one of its records replaces a record that gets a goodbye: a unique record (SRV, TXT,
+     * A, AAAA) of the same name, type and class, as after a change of the host name, a TXT value or an address.  This
+     * holds for every publication, a goodbye retry included, while the interface is listed; an interface no longer
+     * listed gets only goodbyes.  While such a goodbye does not reach every address family, each publication on the
+     * interface carries the replacing services again, until peers dropped the old record at the end of its TTL; we
+     * accept these repeats because a peer on the failed family would otherwise keep no record of the service.
      *
      * The goodbye goes out only while the current records are known: without valid interface details nothing is
      * sent.  Every record that left gets a goodbye with TTL 0.  It carries the cache-flush bit only when its type is
@@ -270,7 +276,8 @@ export class InterfaceResponder {
      *
      * Goodbyes and announcements are never held by the one-second rule, as in CHIP and matter.js 0.18; RFC 6762 §6
      * has no such exception.  Settles once sent.  A failed
-     * send is logged like a failed answer; only the goodbyes are tried again, see {@link #retryGoodbyes}.  Once
+     * send is logged like a failed answer; the goodbyes, with the services that replace them, are tried again, see
+     * {@link #retryGoodbyes}.  Once
      * {@link close} started, rejects with {@link ClosedError}.
      *
      * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-8.3} RFC 6762 §8.3
@@ -434,10 +441,21 @@ export class InterfaceResponder {
         const now = Time.nowUs;
         const goodbye = this.#goodbyesFor(view, now);
 
+        const replaced = new Set(
+            this.#isListed
+                ? goodbye
+                      .filter(record => DnsRecordType.isUnique(record.recordType) && view.setKeys.has(setKeyOf(record)))
+                      .map(setKeyOf)
+                : [],
+        );
         const complete = new Array<DnsRecord>();
         if (!this.#isClosing) {
             for (const [service, records] of view.byService) {
-                if (services === "all" || services.includes(service)) {
+                if (
+                    services === "all" ||
+                    services.includes(service) ||
+                    records.some(record => replaced.has(setKeyOf(record)))
+                ) {
                     complete.push(...records);
                 }
             }
@@ -483,7 +501,8 @@ export class InterfaceResponder {
     }
 
     /**
-     * Send the goodbyes again that peers may still need here, with no other publication needed: first a second later,
+     * Send the goodbyes again that peers may still need here, with the services that replace them, see
+     * {@link publish}, and with no other publication needed: first a second later,
      * then at twice the interval up to {@link GOODBYE_RETRY_MAXIMUM_INTERVAL}.  A retry that waits keeps its schedule.
      * {@link #settleGoodbyes} ends the retry, and the next one starts at a second again, once no goodbye is needed.
      * Stops on {@link close}.

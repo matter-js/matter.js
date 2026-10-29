@@ -40,6 +40,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The mDNS responder sends a failed goodbye again until it leaves or peers drop the records
     - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Fix: The mDNS responder sends a goodbye for every record a refresh removes or replaces, such as the vendor pointer when a commissioning window becomes privacy masked
+    - Fix: The mDNS responder announces a service in the same message as the goodbye for a record that one of its records replaces, such as after a host name change
 
 ## 0.18.0 (2026-10-20)
 

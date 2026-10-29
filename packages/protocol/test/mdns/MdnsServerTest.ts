@@ -3376,6 +3376,70 @@ describe("MdnsServer", () => {
             await bar.withdraw();
         });
 
+        describe("announcing the services whose records replace records that get a goodbye", () => {
+            const barGenerator: MdnsServer.RecordGenerator = (_intf, addrs, hostname) => [
+                SrvRecord("bar.b.c.d", { priority: 0, weight: 0, port: 1235, target: hostname }),
+                ...addrs.ipV4.map(ip => ARecord(hostname, ip)),
+            ];
+
+            function announcedBarTargets() {
+                return sent.flatMap(({ message }) =>
+                    (message?.answers ?? [])
+                        .filter(record => record.name === "bar.b.c.d" && record.ttl > 0)
+                        .map(record => record.value.target),
+                );
+            }
+
+            it("announces another service in a withdrawal after the host name changed", async () => {
+                const bar = await server.register("bar", barGenerator);
+                await MockTime.resolve(server.broadcast("bar"));
+                interfaces.eth0 = { mac: "aa:bb:cc:dd:ee:03", ipV4: ["10.0.0.2"], ipV6: [] };
+                foo = await server.register("foo", generator);
+                sent.length = 0;
+
+                await foo.withdraw();
+
+                expect(new Set(announcedBarTargets())).deep.equal(new Set(["AABBCCDDEE030000.local"]));
+                await bar.withdraw();
+            });
+
+            it("announces another service only on listed interfaces", async () => {
+                const bar = await server.register("bar", barGenerator);
+                await MockTime.resolve(server.broadcast("bar"));
+                const { eth0: _unlisted, ...listed } = interfaces;
+                interfaces = listed;
+                foo = await server.register("foo", generator);
+                sent.length = 0;
+
+                await foo.withdraw();
+
+                const announcedOn = sent
+                    .filter(({ message }) =>
+                        (message?.answers ?? []).some(record => record.name === "bar.b.c.d" && record.ttl > 0),
+                    )
+                    .map(({ netInterface }) => netInterface);
+                expect(announcedOn).deep.equal(["lo", "docker0"]);
+                await bar.withdraw();
+            });
+
+            it("announces no other service in a withdrawal that replaces nothing", async () => {
+                const servicePtr = (instance: string) => PtrRecord("_srv._tcp.local", instance);
+                const bar = await server.register("bar", (...args) => [
+                    servicePtr("bar.b.c.d"),
+                    ...barGenerator(...args),
+                ]);
+                foo = await server.register("foo", (...args) => [servicePtr(DUMMY_QNAME), ...generator(...args)]);
+                await MockTime.resolve(server.broadcast());
+                sent.length = 0;
+
+                await foo.withdraw();
+
+                expect(sent.length).greaterThan(0);
+                expect(announcedBarTargets()).deep.equal([]);
+                await bar.withdraw();
+            });
+        });
+
         it("skips an interface whose details cannot be read", async () => {
             interfaces = { gone: "throws", ...interfaces };
 
