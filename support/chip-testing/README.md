@@ -315,7 +315,7 @@ output — a step's own `log.expect()` never matches one, even against a catch-a
 
 See `test/cert/AGENTS.md` — source-lookup flow for translating a plan document, the DSL, the app
 mapping table, PICS/flavor policy, and evidence expectations, with the four existing pilots
-(`TC-IDM-2.1`, `TC-ACT-3.2`, `TC-CADMIN-1.17`, `TC-SC-3.5`) as worked examples. Report any test-plan
+(`TC-IDM-2.1`, `TC-ACT-3.2`, `TC-CADMIN-1.17` in `tc-cadmin-support.ts`, `TC-SC-3.5`) as worked examples. Report any test-plan
 document discrepancy found along the way to the maintainer (todo/issue flow) rather than logging it
 in-repo.
 
