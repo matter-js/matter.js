@@ -258,7 +258,7 @@ export function describeError(e: unknown): string {
  * Tracks commissioned node refs by role for one cert-test run. Each controller's own
  * `decommission()` only removes *that controller's* fabric via its own CASE session, so cleanup has
  * to visit every role independently. Shared by `TC-IDM-2.1.test.ts`/`TC-ACT-3.2.test.ts`/
- * `TC-IDM-1.1.test.ts` (single "dut" role) and `TC-CADMIN-1.17.test.ts` (multiple controller roles).
+ * `TC-IDM-1.1.test.ts` (single "dut" role) and the TC-CADMIN cases in `tc-cadmin-support.ts` (multiple controller roles).
  *
  * {@link decommissionAll} belongs in a TC's `certTest(...).finalize(...)` callback, which the engine
  * runs however the steps ended. So does anything else that keeps this map true to the TH: a
@@ -1077,12 +1077,13 @@ export function answersWithStatus(cluster: ClusterModel, commandName: string): b
 /**
  * One `CommandFields` entry: a field id and its value. chip prints the TLV type after the value, so a
  * string is matched as `0x<id> = "<value>" (<n> chars),` — where `n` counts the string's UTF-8 bytes,
- * not its code points — and a number as `0x<id> = <value> (unsigned),`. Every numeric field any TC
- * checks so far is unsigned; chip prints a signed one as `(signed)`, which no shape here matches.
+ * not its code points — and a number as `0x<id> = <value> (unsigned),`, or `(signed)` for a field of a
+ * signed integer type.
  */
 export interface CommandFieldValue {
     id: number;
     value: number | bigint | string | Bytes;
+    signed?: boolean;
 }
 
 /** `fields` as evidence text, with byte values as hex. */
@@ -1112,11 +1113,19 @@ export function literally(value: string): string {
  * The trailing type name is load-bearing: without it `0x0 = 2,` also matches the first two digits of
  * `0x0 = 20,`.
  */
-export function chipCommandField({ id, value }: { id: number; value: number | bigint | string }): RegExp {
+export function chipCommandField({
+    id,
+    value,
+    signed = false,
+}: {
+    id: number;
+    value: number | bigint | string;
+    signed?: boolean;
+}): RegExp {
     const rendered =
         typeof value === "string"
             ? `"${literally(value)}" \\(${new TextEncoder().encode(value).length} chars\\)`
-            : `${value} \\(unsigned\\)`;
+            : `${value} \\(${signed ? "signed" : "unsigned"}\\)`;
     return new RegExp(`0x${id.toString(16)} = ${rendered},\\s*$`);
 }
 
@@ -1232,7 +1241,7 @@ export async function expectCommandInvoke(
         last = block.last;
         cursor = block.last.index + 1;
 
-        for (const { id, value } of fields) {
+        for (const { id, value, signed } of fields) {
             if (typeof value === "object") {
                 const bytes = await expectAdjacentLines(
                     log,
@@ -1249,7 +1258,7 @@ export async function expectCommandInvoke(
                 continue;
             }
             const result = await log.expect(
-                { chip: chipCommandField({ id, value }) },
+                { chip: chipCommandField({ id, value, signed }) },
                 { flavor, timeoutMs: remaining(), from: cursor },
             );
             if (result.verdict === "unverified") {
@@ -2824,23 +2833,11 @@ export async function expectRejection(
 }
 
 /**
- * A one-shot pairing code slot: {@link require} clears it on read so a commissioning attempt that
- * throws can't leave a stale code behind for a later run to pair against an expired window instead
- * of failing "the window-opening step must run first".
+ * Sleeps until `performance.now()` reaches `deadline`.  A timer may fire up to a millisecond before its delay has
+ * passed on this clock, so the wait repeats until the deadline is reached.
  */
-export class PendingPairingCode {
-    #code: string | undefined;
-
-    set(code: string): void {
-        this.#code = code;
-    }
-
-    require(): string {
-        if (this.#code === undefined) {
-            throw new InternalError("No pending manual pairing code; a commissioning-window step must run first");
-        }
-        const code = this.#code;
-        this.#code = undefined;
-        return code;
+export async function sleepUntil(what: string, deadline: number) {
+    for (let remaining = deadline - performance.now(); remaining > 0; remaining = deadline - performance.now()) {
+        await Time.sleep(what, Millis(Math.ceil(remaining)));
     }
 }

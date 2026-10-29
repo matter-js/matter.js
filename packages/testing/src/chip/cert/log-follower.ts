@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { delay } from "../../util/async.js";
+import { delay, MAX_TIMEOUT_MS } from "../../util/async.js";
 import { deansify } from "../../util/text.js";
 import type { DeviceFlavor, LogSource } from "./cert-context.js";
 
@@ -16,6 +16,13 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 export interface LogLine {
     index: number;
     at: Date;
+
+    /**
+     * When the follower took the line in, on the monotonic clock (`performance.now()`, milliseconds). Use it for the
+     * time between two lines; {@link at} follows wall-clock steps.
+     */
+    receivedAt: number;
+
     text: string;
     /** Set on a line added via {@link LogFollower.annotate} — never matched by {@link LogFollower.expect}. */
     synthetic?: true;
@@ -153,15 +160,12 @@ export class LogFollower implements LogSource {
     #closed = false;
     #closeError?: Error;
     #waiters = new Array<() => void>();
-    #resolveCloseSignal!: () => void;
-    #closeSignal: Promise<void>;
+    #isClosing = false;
+    #stopConsuming?: () => void;
     #pump: Promise<void>;
 
     constructor(source: AsyncIterable<string>, name: string) {
         this.name = name;
-        this.#closeSignal = new Promise<void>(resolve => {
-            this.#resolveCloseSignal = resolve;
-        });
         this.#pump = this.#consume(source);
     }
 
@@ -172,7 +176,13 @@ export class LogFollower implements LogSource {
      * satisfying a step's own pattern.
      */
     annotate(text: string): void {
-        this.#lines.push({ index: this.#lines.length, at: new Date(), text, synthetic: true });
+        this.#lines.push({
+            index: this.#lines.length,
+            at: new Date(),
+            receivedAt: performance.now(),
+            text,
+            synthetic: true,
+        });
         this.#wake();
     }
 
@@ -224,6 +234,14 @@ export class LogFollower implements LogSource {
         // continuation append what it read.
         await delay(0).promise;
         await delay(0).promise;
+    }
+
+    /**
+     * Whether the source has ended, by {@link close} or because the process behind it stopped writing. Lines
+     * already taken in stay readable; no further line arrives.
+     */
+    get closed(): boolean {
+        return this.#closed;
     }
 
     /**
@@ -330,14 +348,23 @@ export class LogFollower implements LogSource {
     async expectPattern(original: RegExp, options: Omit<LogExpectOptions, "flavor">): Promise<LogLine> {
         const pattern = matchableCopy(original);
         const from = options.from ?? this.#lastMark;
-        const timeout = delay(options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+        let timedOut = false;
+        const timer = setTimeout(
+            () => {
+                timedOut = true;
+                this.#wake();
+            },
+            Math.min(options.timeoutMs ?? DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS),
+        );
+        let next = from;
 
         try {
             for (;;) {
-                const matched = this.#firstMatchFrom(pattern, from);
+                const matched = this.#firstMatchFrom(pattern, next);
                 if (matched) {
                     return matched;
                 }
+                next = Math.max(next, this.#lines.length);
 
                 if (this.#closeError) {
                     throw this.#closeError;
@@ -346,13 +373,13 @@ export class LogFollower implements LogSource {
                     throw new CertLogClosedError(this.name);
                 }
 
-                const outcome = await Promise.race([this.#waitForWake(), timeout.promise]);
-                if (outcome === "timeout") {
+                if (timedOut) {
                     throw new CertLogTimeoutError(String(original), from, this.#lines.slice(from));
                 }
+                await this.#waitForWake();
             }
         } finally {
-            timeout.cancel();
+            clearTimeout(timer);
         }
     }
 
@@ -361,7 +388,8 @@ export class LogFollower implements LogSource {
     }
 
     async close(): Promise<void> {
-        this.#resolveCloseSignal();
+        this.#isClosing = true;
+        this.#stopConsuming?.();
         await this.#pump;
     }
 
@@ -413,26 +441,33 @@ export class LogFollower implements LogSource {
         }
     }
 
-    // #closeSignal is a single reused promise, so close() ends the loop immediately without
-    // forcing the source's iterator closed (which could hang on a source parked mid-await).
+    // close() ends the wait for the next line at once, without forcing the source's iterator closed (which
+    // could hang on a source parked mid-await). Nothing attached per line may outlive that line.
     // Never rethrows: failures land on #closeError for expect() to surface, so #pump always
     // resolves and close() has nothing to catch.
     async #consume(source: AsyncIterable<string>): Promise<void> {
         const iterator = source[Symbol.asyncIterator]();
         try {
-            for (;;) {
-                const outcome = await Promise.race([
-                    iterator.next().then(result => ({ closed: false as const, result })),
-                    this.#closeSignal.then(() => ({ closed: true as const })),
-                ]);
+            while (!this.#isClosing) {
+                const next = iterator.next();
+                const result = await new Promise<IteratorResult<string> | undefined>((resolve, reject) => {
+                    this.#stopConsuming = () => resolve(undefined);
+                    next.then(resolve, reject);
+                });
+                this.#stopConsuming = undefined;
 
-                if (outcome.closed || outcome.result.done) {
+                if (result === undefined || result.done) {
                     return;
                 }
 
                 // chip binaries colorize log output even when stdout isn't a TTY; a trailing ANSI reset
                 // sequence after the visible text breaks any pattern anchored on end-of-line ($).
-                this.#lines.push({ index: this.#lines.length, at: new Date(), text: deansify(outcome.result.value) });
+                this.#lines.push({
+                    index: this.#lines.length,
+                    at: new Date(),
+                    receivedAt: performance.now(),
+                    text: deansify(result.value),
+                });
                 this.#wake();
             }
         } catch (e) {

@@ -41,7 +41,7 @@ platform's image directly, at the cost of extra tags accumulating in the registr
 `install` stage, wrong GN roots) *and* orphaned: nothing in `.github/workflows/` ever referenced
 `ghcr.io/matter-js/chip-<app>`. The per-app binaries that name-checked those apps
 (`chip-lock-app`, `chip-tv-app`, etc.) are actually built by
-`.github/actions/prepare-chip-testing/action.yml` via connectedhomeip's own
+`.github/actions/prepare-chip-testing/action.yml` (the image builds `chip-tv-app` too, for the cert legs) via connectedhomeip's own
 `build_examples.py --target linux-x64-<name>-<variant>` convention, entirely independent of this
 Dockerfile/bake file. If per-app matter-js/chip-* images are wanted again, they need a fresh design,
 not a resurrection of the removed stages.
