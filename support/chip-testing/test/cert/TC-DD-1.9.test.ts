@@ -11,7 +11,8 @@ import {
     commissionByManualCode,
     CommissioningRefusals,
     DISCRIMINATOR_MSB,
-    thManualPairingCode,
+    manualPairingCode,
+    thElevenDigitCodeParts,
     thPrintedManualCode,
 } from "./tc-dd-support.js";
 import { CommissionedRefs, runCleanups, theTh, withChecks } from "./tc-support.js";
@@ -28,10 +29,8 @@ certTest("TC-DD-1.9", {
         "0",
         "Precondition: the DUT is a commissioner that uses the discriminator a Manual Pairing Code names.",
         async cx => {
-            const code = await thManualPairingCode(cx, {
-                vidPidPresent: false,
-                discriminator: theTh(cx).commissioning.discriminator ^ DISCRIMINATOR_MSB,
-            });
+            const parts = thElevenDigitCodeParts(cx);
+            const code = manualPairingCode({ ...parts, discriminator: parts.discriminator ^ DISCRIMINATOR_MSB });
             await refusals.requireGiveUp(
                 cx,
                 { manualPairingCode: code, giveUpAfterMs: ABSENT_DEVICE_GIVE_UP },
