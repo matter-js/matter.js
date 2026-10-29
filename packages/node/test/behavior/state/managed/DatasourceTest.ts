@@ -686,6 +686,172 @@ describe("Datasource", () => {
         });
     });
 
+    it("passes a dynamic list to its setter after each nested change", async () => {
+        const committed = [1];
+        let stored = committed;
+        const written = new Array<number[]>();
+        const received = new Array<number[]>();
+        const dynamic = {
+            get list() {
+                return stored;
+            },
+            set list(value: number[]) {
+                written.push([...value]);
+                received.push(value);
+                stored = value;
+            },
+        };
+        class State {
+            list = new Array<number>();
+
+            [Val.properties](_endpoint: any, _session: ValueSupervisor.Session) {
+                return dynamic;
+            }
+        }
+
+        const supervisor = BehaviorSupervisor({
+            id: "test",
+            State,
+            schema: new DatatypeModel({
+                name: "MyState",
+                type: "struct",
+                children: [
+                    FieldElement({
+                        name: "list",
+                        type: "list",
+                        children: [FieldElement({ name: "entry", type: "uint8" })],
+                    }),
+                ],
+            }),
+        });
+
+        await withDatasourceAndReference({ type: State, supervisor }, ({ state }) => {
+            state.list.push(2);
+            state.list[0] = 3;
+        });
+
+        expect(written).deep.equals([
+            [1, 2],
+            [3, 2],
+        ]);
+
+        expect(received[0]).not.equals(committed);
+        expect(received[1]).not.equals(received[0]);
+        expect(received[0]).deep.equals([1, 2]);
+        expect(committed).deep.equals([1]);
+    });
+
+    describe("dynamic setter that rejects a change", () => {
+        function rejectingProvider<T>(
+            initial: T[],
+            reject: (value: T[]) => boolean,
+            entry: ReturnType<typeof FieldElement>,
+        ) {
+            const provider = {
+                stored: initial,
+                get list() {
+                    return provider.stored;
+                },
+                set list(value: T[]) {
+                    if (reject(value)) {
+                        throw new ImplementationError("Rejected by provider");
+                    }
+                    provider.stored = value;
+                },
+            };
+            class State {
+                list = new Array<T>();
+
+                [Val.properties](_endpoint: any, _session: ValueSupervisor.Session) {
+                    return provider;
+                }
+            }
+            const supervisor = BehaviorSupervisor({
+                id: "test",
+                State,
+                schema: new DatatypeModel({
+                    name: "MyState",
+                    type: "struct",
+                    children: [FieldElement({ name: "list", type: "list", children: [entry] })],
+                }),
+            });
+            return { provider, State, supervisor };
+        }
+
+        it("keeps the accepted list when a later push is rejected", async () => {
+            const { provider, State, supervisor } = rejectingProvider<number>(
+                [1],
+                value => value.length > 2,
+                FieldElement({ name: "entry", type: "uint8" }),
+            );
+
+            await withDatasourceAndReference({ type: State, supervisor }, ({ state }) => {
+                state.list.push(2);
+                expect(() => state.list.push(3)).throws("Rejected by provider");
+            });
+
+            expect(provider.stored).deep.equals([1, 2]);
+        });
+
+        it("keeps a list the provider serves from another member when its setter rejects a change", async () => {
+            class State {
+                backing = [1];
+                list = new Array<number>();
+
+                [Val.properties](_endpoint: any, _session: ValueSupervisor.Session) {
+                    const state = this;
+                    return {
+                        get list() {
+                            return state.backing;
+                        },
+                        set list(value: number[]) {
+                            if (value.length > 2) {
+                                throw new ImplementationError("Rejected by provider");
+                            }
+                            state.backing = value;
+                        },
+                    };
+                }
+            }
+            const listOfNumbers = (name: string) =>
+                FieldElement({ name, type: "list", children: [FieldElement({ name: "entry", type: "uint8" })] });
+            const supervisor = BehaviorSupervisor({
+                id: "test",
+                State,
+                schema: new DatatypeModel({
+                    name: "MyState",
+                    type: "struct",
+                    children: [listOfNumbers("backing"), listOfNumbers("list")],
+                }),
+            });
+
+            await withDatasourceAndReference({ type: State, supervisor }, ({ state }) => {
+                state.backing[0] = 5;
+                expect(() => state.list.push(6, 7)).throws("Rejected by provider");
+                expect(state.backing).deep.equals([5]);
+            });
+        });
+
+        it("keeps the accepted entry when a later entry write is rejected", async () => {
+            const { provider, State, supervisor } = rejectingProvider<{ value: number }>(
+                [{ value: 1 }],
+                value => value[0].value > 50,
+                FieldElement({
+                    name: "entry",
+                    type: "struct",
+                    children: [FieldElement({ name: "value", type: "uint8" })],
+                }),
+            );
+
+            await withDatasourceAndReference({ type: State, supervisor }, ({ state }) => {
+                state.list[0].value = 2;
+                expect(() => (state.list[0].value = 99)).throws("Rejected by provider");
+            });
+
+            expect(provider.stored).deep.equals([{ value: 2 }]);
+        });
+    });
+
     it("persists the features key with the values it belongs to", async () => {
         const store = createStore();
         await withDatasourceAndReference({ store, supervisor: featuredSupervisor }, ({ state }) => (state.foo = "rab"));
@@ -1651,6 +1817,29 @@ describe("Datasource", () => {
 
             expect(announced).deep.equals(["!bar", "!bar"]);
             expect(ds.view.foo).equals("bar");
+        });
+
+        it("announce the stored value as old after another transaction committed in between", async () => {
+            const events = { foo$Changing: Observable<any>() };
+            const ds = createDatasource({ events });
+
+            const oldValues = new Array<unknown>();
+            events.foo$Changing.on((_newValue, oldValue) => void oldValues.push(oldValue));
+
+            await LocalActorContext.act("test-datasource", async context => {
+                const state = ds.reference(context);
+
+                state.foo = "a";
+                await context.transaction.commit();
+
+                await withReference(ds, ({ state }) => (state.foo = "b"));
+
+                state.foo = "c";
+                await context.transaction.commit();
+            });
+
+            expect(oldValues).deep.equals(["bar", "a", "b"]);
+            expect(ds.view.foo).equals("c");
         });
 
         it("handles mixed sync/async observers sequentially", async () => {
