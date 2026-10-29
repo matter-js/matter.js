@@ -513,6 +513,14 @@ describe("thCommissionableInstanceNames", () => {
         expect(await thCommissionableInstanceNames(th)).deep.equal(["1111111111111111", "2222222222222222"]);
     });
 
+    it("ignores the harness's own annotations, which may quote another TH's publish line", async () => {
+        const th = thOf(PAYLOAD, [matterjsPublished("1111111111111111")]);
+        await th.log.settled();
+        th.log.annotate(`pass: matched=${matterjsPublished("2222222222222222")}`);
+
+        expect(await thCommissionableInstanceNames(th)).deep.equal(["1111111111111111"]);
+    });
+
     it("reads only the instances published from the given line on", async () => {
         const th = thOf(PAYLOAD, [matterjsPublished("1111111111111111"), matterjsPublished("2222222222222222")]);
 

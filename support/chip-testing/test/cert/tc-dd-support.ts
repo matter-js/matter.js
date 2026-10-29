@@ -1198,7 +1198,10 @@ export async function thCommissionableInstanceNames(th: CertDevice, from = 0): P
     }
     await th.log.settled();
     const instanceNames = new Set<string>();
-    for (const { text } of th.log.lines.slice(from)) {
+    for (const { text, synthetic } of th.log.lines.slice(from)) {
+        if (synthetic) {
+            continue;
+        }
         const match = pattern.exec(text);
         const instanceName = match?.[1] ?? match?.[2];
         if (instanceName !== undefined) {
