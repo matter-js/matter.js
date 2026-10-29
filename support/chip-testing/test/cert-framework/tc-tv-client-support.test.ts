@@ -57,6 +57,22 @@ describe("tvCommandPayload", () => {
         expect(sources(payload.chip)).deep.equal(["0x0 = -3 \\(signed\\),\\s*$"]);
     });
 
+    it("renders a uint64 field and a nullable uint8 field as unsigned numbers (characterization)", () => {
+        const skip = tvCommandPayload(MEDIA_PLAYBACK, "skipForward", { deltaPositionMilliseconds: 10_000 });
+        expect(sources(skip.chip)).deep.equal(["0x0 = 10000 \\(unsigned\\),\\s*$"]);
+        expect(skip.matterjs).equal("deltaPositionMilliseconds: 10000");
+
+        const track = tvCommandPayload(MEDIA_PLAYBACK, "activateAudioTrack", {
+            audioOutputIndex: 1,
+            trackId: "activeAudioTrackId_1",
+        });
+        expect(sources(track.chip)).deep.equal([
+            '0x0 = "activeAudioTrackId_1" \\(20 chars\\),\\s*$',
+            "0x1 = 1 \\(unsigned\\),\\s*$",
+        ]);
+        expect(track.matterjs).equal("trackId: activeAudioTrackId_1 audioOutputIndex: 1");
+    });
+
     it("renders a command without fields as no payload", () => {
         const payload = tvCommandPayload(MEDIA_PLAYBACK, "play", {});
 

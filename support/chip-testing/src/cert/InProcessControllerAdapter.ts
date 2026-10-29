@@ -305,6 +305,25 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "TGTNAV.C": 1,
     "TGTNAV.C.C00.Tx": 1,
 
+    // The AudioOutput and MediaPlayback client commands TC-AUDIOOUTPUT-7.3, 7.4 and TC-MEDIAPLAYBACK-6.5, 6.7, 6.10 send.
+    // CHIP's PICS file has no `MEDIAPLAYBACK.C.C0c.Tx`, `C0d.Tx` or `C0e.Tx`; the other keys state the controller's client
+    // surface for these cases.
+    "AUDIOOUTPUT.C": 1,
+    "AUDIOOUTPUT.C.C00.Tx": 1,
+    "AUDIOOUTPUT.C.C01.Tx": 1,
+    "MEDIAPLAYBACK.C": 1,
+    "MEDIAPLAYBACK.C.C00.Tx": 1,
+    "MEDIAPLAYBACK.C.C01.Tx": 1,
+    "MEDIAPLAYBACK.C.C02.Tx": 1,
+    "MEDIAPLAYBACK.C.C03.Tx": 1,
+    "MEDIAPLAYBACK.C.C04.Tx": 1,
+    "MEDIAPLAYBACK.C.C05.Tx": 1,
+    "MEDIAPLAYBACK.C.C08.Tx": 1,
+    "MEDIAPLAYBACK.C.C09.Tx": 1,
+    "MEDIAPLAYBACK.C.C0c.Tx": 1,
+    "MEDIAPLAYBACK.C.C0d.Tx": 1,
+    "MEDIAPLAYBACK.C.C0e.Tx": 1,
+
     // The diagnostics client commands, and the one attribute, that TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and
     // TC-DGWIFI-3.2 send or read. Only `DGTHREAD.C` and `DGWIFI.C.C00.Tx` need the overlay, because CHIP's file
     // answers them 0; the other keys state the controller's full client surface for these cases.

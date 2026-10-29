@@ -6,14 +6,23 @@
 
 import type { Endpoint } from "@matter/main";
 import { InternalError } from "@matter/main";
-import { ApplicationLauncher, Channel, ContentLauncher, KeypadInput, TargetNavigator } from "@matter/main/clusters";
+import {
+    ApplicationLauncher,
+    Channel,
+    ContentLauncher,
+    KeypadInput,
+    MediaPlayback,
+    TargetNavigator,
+} from "@matter/main/clusters";
 import { StatusResponse } from "@matter/main/types";
 import { expect } from "chai";
 import { TestApplicationLauncherServer } from "../../src/cluster/TestApplicationLauncherServer.js";
+import { TestAudioOutputServer } from "../../src/cluster/TestAudioOutputServer.js";
 import { TestChannelServer } from "../../src/cluster/TestChannelServer.js";
 import { TestContentLauncherServer } from "../../src/cluster/TestContentLauncherServer.js";
 import { TestKeypadInputServer } from "../../src/cluster/TestKeypadInputServer.js";
 import { TestMediaInputServer } from "../../src/cluster/TestMediaInputServer.js";
+import { TestMediaPlaybackServer } from "../../src/cluster/TestMediaPlaybackServer.js";
 import { TestTargetNavigatorServer } from "../../src/cluster/TestTargetNavigatorServer.js";
 import { TvTestInstance } from "../../src/TvTestInstance.js";
 import { TV_KNOWN_APPLICATION, TV_VIDEO_PLAYER_ENDPOINT } from "../cert/tc-tv-client-support.js";
@@ -256,6 +265,135 @@ describe("TvTestInstance", () => {
             });
         });
     }
+
+    function outputs() {
+        return endpoint.stateOf(TestAudioOutputServer).outputList.map(({ index, name }) => `${index}:${name}`);
+    }
+
+    function playback() {
+        const { currentState, activeAudioTrack, activeTextTrack } = endpoint.stateOf(TestMediaPlaybackServer);
+        return {
+            state: MediaPlayback.PlaybackState[currentState],
+            audio: activeAudioTrack?.id ?? null,
+            text: activeTextTrack?.id ?? null,
+        };
+    }
+
+    it("seeds the outputs chip's tv-app seeds, on index 1", () => {
+        expect(outputs()).deep.equal(["1:HDMI", "2:HDMI", "3:HDMI"]);
+        expect(endpoint.stateOf(TestAudioOutputServer).currentOutput).equal(1);
+    });
+
+    it("selects an output of the OutputList and refuses any other index", async () => {
+        const select = (index: number) =>
+            endpoint.act(async agent => agent.get(TestAudioOutputServer).selectOutput({ index }));
+
+        await select(2);
+        expect(endpoint.stateOf(TestAudioOutputServer).currentOutput).equal(2);
+
+        await expect(select(4)).rejectedWith(StatusResponse.FailureError, "no output with index 4");
+        expect(endpoint.stateOf(TestAudioOutputServer).currentOutput).equal(2);
+    });
+
+    it("renames one output of the OutputList and refuses any other index", async () => {
+        const rename = (index: number, name: string) =>
+            endpoint.act(async agent => agent.get(TestAudioOutputServer).renameOutput({ index, name }));
+
+        await rename(1, "Kitchen Speakers");
+        expect(outputs()).deep.equal(["1:Kitchen Speakers", "2:HDMI", "3:HDMI"]);
+
+        await expect(rename(0, "None")).rejectedWith(StatusResponse.FailureError, "no output with index 0");
+        expect(outputs()).deep.equal(["1:Kitchen Speakers", "2:HDMI", "3:HDMI"]);
+    });
+
+    it("seeds the tracks chip's tv-app seeds, playing its first audio track and no text track", () => {
+        const state = endpoint.stateOf(TestMediaPlaybackServer);
+
+        expect(state.availableAudioTracks?.map(({ id }) => id)).deep.equal([
+            "activeAudioTrackId_0",
+            "activeAudioTrackId_1",
+        ]);
+        expect(
+            state.availableTextTracks?.map(({ id, trackAttributes }) => `${id} ${trackAttributes.languageCode}`),
+        ).deep.equal(["activeTextTrackId_0 languageCode1", "activeTextTrackId_1 languageCode2"]);
+        expect(playback()).deep.equal({ state: "Playing", audio: "activeAudioTrackId_0", text: null });
+    });
+
+    it("sets CurrentState for Play, Pause and Stop and answers Success", async () => {
+        for (const [command, state] of [
+            ["pause", "Paused"],
+            ["stop", "NotPlaying"],
+            ["play", "Playing"],
+        ] as const) {
+            expect(await endpoint.act(agent => agent.get(TestMediaPlaybackServer)[command]())).deep.equal({
+                status: MediaPlayback.Status.Success,
+            });
+            expect(playback().state).equal(state);
+        }
+    });
+
+    for (const command of ["next", "previous"] as const) {
+        it(`sets CurrentState to Playing for ${command} and answers Success`, async () => {
+            await endpoint.act(agent => agent.get(TestMediaPlaybackServer).pause());
+
+            expect(await endpoint.act(agent => agent.get(TestMediaPlaybackServer)[command]())).deep.equal({
+                status: MediaPlayback.Status.Success,
+            });
+            expect(playback().state).equal("Playing");
+        });
+    }
+
+    it("answers Success to StartOver, SkipForward and SkipBackward without changing CurrentState", async () => {
+        await endpoint.act(agent => agent.get(TestMediaPlaybackServer).pause());
+        const deltaPositionMilliseconds = 10_000;
+
+        for (const send of [
+            (server: TestMediaPlaybackServer) => server.startOver(),
+            (server: TestMediaPlaybackServer) => server.skipForward({ deltaPositionMilliseconds }),
+            (server: TestMediaPlaybackServer) => server.skipBackward({ deltaPositionMilliseconds }),
+        ]) {
+            expect(await endpoint.act(agent => send(agent.get(TestMediaPlaybackServer)))).deep.equal({
+                status: MediaPlayback.Status.Success,
+            });
+        }
+        expect(playback().state).equal("Paused");
+    });
+
+    it("activates an available audio track and refuses any other with INVALID_IN_STATE", async () => {
+        const activate = (trackId: string) =>
+            endpoint.act(async agent =>
+                agent.get(TestMediaPlaybackServer).activateAudioTrack({ trackId, audioOutputIndex: 1 }),
+            );
+
+        await activate("activeAudioTrackId_1");
+        expect(playback().audio).equal("activeAudioTrackId_1");
+
+        await expect(activate("activeTextTrackId_0")).rejectedWith(
+            StatusResponse.InvalidInStateError,
+            'No available audio track has ID "activeTextTrackId_0"',
+        );
+        expect(playback().audio).equal("activeAudioTrackId_1");
+    });
+
+    it("activates an available text track, refuses any other with INVALID_IN_STATE and deactivates", async () => {
+        const activate = (trackId: string) =>
+            endpoint.act(async agent => agent.get(TestMediaPlaybackServer).activateTextTrack({ trackId }));
+        const deactivate = () => endpoint.act(async agent => agent.get(TestMediaPlaybackServer).deactivateTextTrack());
+
+        await activate("activeTextTrackId_1");
+        expect(playback().text).equal("activeTextTrackId_1");
+
+        await expect(activate("activeAudioTrackId_0")).rejectedWith(
+            StatusResponse.InvalidInStateError,
+            'No available text track has ID "activeAudioTrackId_0"',
+        );
+        expect(playback().text).equal("activeTextTrackId_1");
+
+        await deactivate();
+        expect(playback().text).equal(null);
+        await deactivate();
+        expect(playback().text).equal(null);
+    });
 
     it("names the video player endpoint ep1, the segment the cert log checks match", () => {
         expect(endpoint.id).equal(`ep${TV_VIDEO_PLAYER_ENDPOINT}`);

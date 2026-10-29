@@ -13,18 +13,22 @@ import { WakeOnLanServer } from "@matter/main/behaviors/wake-on-lan";
 import {
     AdministratorCommissioning,
     ApplicationBasic,
+    AudioOutput,
     BasicInformation,
     Channel,
     MediaInput,
+    MediaPlayback,
 } from "@matter/main/clusters";
 import { DimmableLightDevice } from "@matter/main/devices/dimmable-light";
 import { DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
 import { TestApplicationLauncherServer } from "./cluster/TestApplicationLauncherServer.js";
+import { TestAudioOutputServer } from "./cluster/TestAudioOutputServer.js";
 import { TestChannelServer } from "./cluster/TestChannelServer.js";
 import { TestContentLauncherServer } from "./cluster/TestContentLauncherServer.js";
 import { TestKeypadInputServer } from "./cluster/TestKeypadInputServer.js";
 import { TestLowPowerServer } from "./cluster/TestLowPowerServer.js";
 import { TestMediaInputServer } from "./cluster/TestMediaInputServer.js";
+import { TestMediaPlaybackServer } from "./cluster/TestMediaPlaybackServer.js";
 import { TestTargetNavigatorServer } from "./cluster/TestTargetNavigatorServer.js";
 import { NodeTestInstance } from "./NodeTestInstance.js";
 
@@ -46,6 +50,27 @@ const CHIP_TV_INPUTS: MediaInput.InputInfo[] = [1, 2].map(index => ({
     name: "HDMI",
     description: "High-Definition Multimedia Interface",
 }));
+
+/** The outputs chip's tv-app seeds (AudioOutputManager's default constructor); it starts on index 1. */
+const CHIP_TV_OUTPUTS: AudioOutput.OutputInfo[] = [1, 2, 3].map(index => ({
+    index,
+    outputType: AudioOutput.OutputType.Hdmi,
+    name: "HDMI",
+}));
+
+/** A track as chip's tv-app seeds it (MediaPlaybackManager.h): ID `<prefix>_<n>`, attributes numbered from 1. */
+function chipTvTrack(prefix: string, n: number): MediaPlayback.Track {
+    return {
+        id: `${prefix}_${n}`,
+        trackAttributes: { languageCode: `languageCode${n + 1}`, displayName: `displayName${n + 1}` },
+    };
+}
+
+/** The audio tracks chip's tv-app seeds; the first is active. */
+const CHIP_TV_AUDIO_TRACKS = [0, 1].map(n => chipTvTrack("activeAudioTrackId", n));
+
+/** The text tracks chip's tv-app seeds. None is active: chip reports an empty track, the matter.js TH null. */
+const CHIP_TV_TEXT_TRACKS = [0, 1].map(n => chipTvTrack("activeTextTrackId", n));
 
 export class TvTestInstance extends NodeTestInstance {
     static override id = "bingeford-6100";
@@ -112,6 +137,8 @@ export class TvTestInstance extends NodeTestInstance {
                 TestMediaInputServer,
                 TestContentLauncherServer,
                 TestApplicationLauncherServer,
+                TestAudioOutputServer,
+                TestMediaPlaybackServer,
             ),
             {
                 number: EndpointNumber(1),
@@ -164,6 +191,20 @@ export class TvTestInstance extends NodeTestInstance {
                 // chip's tv-app lists these catalogs (ApplicationLauncherManager::HandleGetCatalogList)
                 applicationLauncher: {
                     catalogList: [123, 456],
+                },
+
+                // chip's tv-app seeds this data (AudioOutputManager, MediaPlaybackManager), so a client case can name
+                // the same output or track on both THs
+                audioOutput: {
+                    outputList: CHIP_TV_OUTPUTS,
+                    currentOutput: 1,
+                },
+                mediaPlayback: {
+                    currentState: MediaPlayback.PlaybackState.Playing,
+                    availableAudioTracks: CHIP_TV_AUDIO_TRACKS,
+                    activeAudioTrack: CHIP_TV_AUDIO_TRACKS[0],
+                    availableTextTracks: CHIP_TV_TEXT_TRACKS,
+                    activeTextTrack: null,
                 },
             },
         );
