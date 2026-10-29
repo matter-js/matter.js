@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, InternalError, Millis, Seconds, Time } from "@matter/main";
+import { Duration, InternalError, Millis, Seconds } from "@matter/main";
 import { AdministratorCommissioning } from "@matter/main/clusters";
 import { Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
@@ -56,6 +56,7 @@ import {
     RecordedCheck,
     requireId,
     runCleanups,
+    sleepUntil,
     withChecks,
 } from "./tc-support.js";
 
@@ -153,16 +154,6 @@ export function lateStartCheck(openLine: LogLine, startedAt: number): CheckRecor
             `the plan asks for ${exactly(LATE_START)}`,
         logLine: openLine.index,
     };
-}
-
-/**
- * Sleeps until `performance.now()` reaches `deadline`.  A timer may fire up to a millisecond before its delay has
- * passed on this clock, so the wait repeats until the deadline is reached.
- */
-async function sleepUntil(what: string, deadline: number) {
-    for (let remaining = deadline - performance.now(); remaining > 0; remaining = deadline - performance.now()) {
-        await Time.sleep(what, Millis(Math.ceil(remaining)));
-    }
 }
 
 /** DUT_CR1's read of WindowStatus as a check that the TH reports no open window, for a step that records later. */

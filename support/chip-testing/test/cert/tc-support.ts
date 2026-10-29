@@ -1077,12 +1077,13 @@ export function answersWithStatus(cluster: ClusterModel, commandName: string): b
 /**
  * One `CommandFields` entry: a field id and its value. chip prints the TLV type after the value, so a
  * string is matched as `0x<id> = "<value>" (<n> chars),` — where `n` counts the string's UTF-8 bytes,
- * not its code points — and a number as `0x<id> = <value> (unsigned),`. Every numeric field any TC
- * checks so far is unsigned; chip prints a signed one as `(signed)`, which no shape here matches.
+ * not its code points — and a number as `0x<id> = <value> (unsigned),`, or `(signed)` for a field of a
+ * signed integer type.
  */
 export interface CommandFieldValue {
     id: number;
     value: number | bigint | string | Bytes;
+    signed?: boolean;
 }
 
 /** `fields` as evidence text, with byte values as hex. */
@@ -1112,11 +1113,19 @@ export function literally(value: string): string {
  * The trailing type name is load-bearing: without it `0x0 = 2,` also matches the first two digits of
  * `0x0 = 20,`.
  */
-export function chipCommandField({ id, value }: { id: number; value: number | bigint | string }): RegExp {
+export function chipCommandField({
+    id,
+    value,
+    signed = false,
+}: {
+    id: number;
+    value: number | bigint | string;
+    signed?: boolean;
+}): RegExp {
     const rendered =
         typeof value === "string"
             ? `"${literally(value)}" \\(${new TextEncoder().encode(value).length} chars\\)`
-            : `${value} \\(unsigned\\)`;
+            : `${value} \\(${signed ? "signed" : "unsigned"}\\)`;
     return new RegExp(`0x${id.toString(16)} = ${rendered},\\s*$`);
 }
 
@@ -1232,7 +1241,7 @@ export async function expectCommandInvoke(
         last = block.last;
         cursor = block.last.index + 1;
 
-        for (const { id, value } of fields) {
+        for (const { id, value, signed } of fields) {
             if (typeof value === "object") {
                 const bytes = await expectAdjacentLines(
                     log,
@@ -1249,7 +1258,7 @@ export async function expectCommandInvoke(
                 continue;
             }
             const result = await log.expect(
-                { chip: chipCommandField({ id, value }) },
+                { chip: chipCommandField({ id, value, signed }) },
                 { flavor, timeoutMs: remaining(), from: cursor },
             );
             if (result.verdict === "unverified") {
@@ -2820,5 +2829,15 @@ export async function expectRejection(
             }
             return { type: "response", verdict: "pass", detail: `${label} rejected after ${elapsed}: ${message}` };
         }
+    }
+}
+
+/**
+ * Sleeps until `performance.now()` reaches `deadline`.  A timer may fire up to a millisecond before its delay has
+ * passed on this clock, so the wait repeats until the deadline is reached.
+ */
+export async function sleepUntil(what: string, deadline: number) {
+    for (let remaining = deadline - performance.now(); remaining > 0; remaining = deadline - performance.now()) {
+        await Time.sleep(what, Millis(Math.ceil(remaining)));
     }
 }
