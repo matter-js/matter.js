@@ -30,15 +30,13 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
-    - Adjustment: `MdnsServer.register()` replaces `setRecordsGenerator()` and `expireAnnouncements()` and returns an `MdnsServer.Registration` to refresh or withdraw the service
-    - Adjustment: `QUESTION_SUPPRESSION_WINDOW`, `MdnsServer.buildDnsRecordKey()` and `MdnsServer.InterfaceRecords` are removed
+    - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Fix: The mDNS responder no longer sends a goodbye for host addresses or shared pointers that another of its services still publishes
     - Fix: The mDNS responder answers a multicast pointer query with the pointer of every service of that type
     - Fix: The mDNS responder multicasts an answer at most once per second and interface, and sends a held-back answer when the second has passed
     - Fix: Advertisements that announce in the same event-loop turn share one mDNS announcement
     - Fix: `MdnsServer.close()` still sends goodbyes that are already waiting
     - Fix: The mDNS responder sends a failed goodbye again until it leaves or peers drop the records
-    - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Fix: The mDNS responder sends a goodbye for every record a refresh removes or replaces, such as the vendor pointer when a commissioning window becomes privacy masked
     - Fix: The mDNS responder announces a service in the same message as the goodbye for a record that one of its records replaces, such as after a host name change
 
