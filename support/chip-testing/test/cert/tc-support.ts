@@ -2831,3 +2831,13 @@ export async function expectRejection(
         }
     }
 }
+
+/**
+ * Sleeps until `performance.now()` reaches `deadline`.  A timer may fire up to a millisecond before its delay has
+ * passed on this clock, so the wait repeats until the deadline is reached.
+ */
+export async function sleepUntil(what: string, deadline: number) {
+    for (let remaining = deadline - performance.now(); remaining > 0; remaining = deadline - performance.now()) {
+        await Time.sleep(what, Millis(Math.ceil(remaining)));
+    }
+}

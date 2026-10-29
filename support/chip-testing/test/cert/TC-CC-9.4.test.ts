@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Seconds, Time } from "@matter/main";
+import { Seconds } from "@matter/main";
 import { certTest } from "@matter/testing";
 import {
     colorControlPreconditions,
@@ -13,7 +13,7 @@ import {
     sendsColorCommand,
 } from "./tc-cc-support.js";
 import type { RecordedCheck } from "./tc-support.js";
-import { CommissionedRefs, recordAll } from "./tc-support.js";
+import { CommissionedRefs, recordAll, sleepUntil } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
 
@@ -72,8 +72,9 @@ certTest("TC-CC-9.4", { plan: "colorcontrol.adoc", pics: ["CC.C", "CC.C.F02", "C
         "Over next 30 seconds, at 5 seconds interval, DUT read EnhancedCurrentHue attribute from TH.",
         commissioned.withRef("dut", async (cx, ref) => {
             const checks = new Array<RecordedCheck>();
-            for (let read = 0; read < HUE_READS; read++) {
-                await Time.sleep("EnhancedCurrentHue read interval", HUE_READ_INTERVAL);
+            const start = performance.now();
+            for (let read = 1; read <= HUE_READS; read++) {
+                await sleepUntil("EnhancedCurrentHue read interval", start + read * HUE_READ_INTERVAL);
                 checks.push(...(await readColorAttribute(cx, ref, "enhancedCurrentHue")).checks);
             }
             await recordAll(cx, checks);
