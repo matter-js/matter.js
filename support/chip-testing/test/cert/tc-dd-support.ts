@@ -25,6 +25,7 @@ import type {
     CommissioningTarget,
     ControllerAdapter,
     ControllerCapability,
+    DiscoveredCommissionableNode,
     LogFollower,
     OnboardingPayloadFields,
 } from "@matter/testing";
@@ -1159,6 +1160,82 @@ export async function recordCommissionable(
     th = theTh(cx),
 ): Promise<void> {
     record(cx, await expectMdns(th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT }), what);
+}
+
+/** What a step that has the DUT discover commissionable nodes needs of it: {@link recordDiscoveredTh}. */
+export const DISCOVERS_COMMISSIONABLE: readonly ControllerCapability[] = ["commissionable-discovery"];
+
+/** The onboarding values a discovered TH has to be reported with. */
+export interface ExpectedDiscoveredNode {
+    longDiscriminator: number;
+    vendorId: number;
+    productId: number;
+}
+
+/**
+ * Judges what the DUT reported from a commissionable discovery: a pass needs one reported node that carries the TH's
+ * long discriminator together with the vendor and product its onboarding payload names. The detail names every node
+ * the DUT reported, so a failure shows what the DUT saw instead.
+ */
+export function discoveredThCheck(
+    nodes: readonly DiscoveredCommissionableNode[],
+    expected: ExpectedDiscoveredNode,
+): CheckRecord {
+    const found = nodes.some(
+        node =>
+            node.longDiscriminator === expected.longDiscriminator &&
+            node.vendorId === expected.vendorId &&
+            node.productId === expected.productId,
+    );
+    const reported = nodes.length
+        ? nodes
+              .map(
+                  node =>
+                      `${node.instanceName} (D=${node.longDiscriminator} vendorId=${node.vendorId} ` +
+                      `productId=${node.productId} CM=${node.commissioningMode})`,
+              )
+              .join(", ")
+        : "no commissionable node";
+    return {
+        type: "response",
+        verdict: found ? "pass" : "fail",
+        detail:
+            `DUT reported ${reported}; the TH's onboarding payload names D=${expected.longDiscriminator} ` +
+            `vendorId=${expected.vendorId} productId=${expected.productId}`,
+    };
+}
+
+/**
+ * Has the DUT discover commissionable nodes over DNS-SD, and records whether it reported `th` with the values of the
+ * TH's own onboarding payload. The DUT is asked to look for the TH's long discriminator, as a commissioner holding
+ * that payload would; a DUT that cannot narrow its search reports every node it found, and the check selects.
+ */
+export async function recordDiscoveredTh(cx: CertStepContext, th = theTh(cx)): Promise<void> {
+    const dut = cx.controllers.dut;
+    if (dut.discoverCommissionableNodes === undefined) {
+        throw new UnsupportedByControllerError(
+            "discoverCommissionableNodes",
+            dut.id,
+            "the adapter offers no commissionable discovery",
+            "commissionable-discovery",
+        );
+    }
+
+    const { vendorId, productId } = qrPayloadFields(await thQrPayload(th));
+    const longDiscriminator = th.commissioning.discriminator;
+
+    let nodes: DiscoveredCommissionableNode[];
+    try {
+        nodes = await dut.discoverCommissionableNodes({ longDiscriminator });
+    } catch (e) {
+        if (e instanceof UnsupportedByControllerError) {
+            throw e;
+        }
+        cx.recorder.check({ type: "response", verdict: "fail", detail: `DUT commissionable discovery failed: ${e}` });
+        throw e;
+    }
+
+    record(cx, discoveredThCheck(nodes, { longDiscriminator, vendorId, productId }), "Commissionable discovery");
 }
 
 /**
