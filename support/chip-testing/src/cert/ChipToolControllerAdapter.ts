@@ -177,6 +177,48 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "WNCV.C.C05.Tx": 1,
     "WNCV.C.C08.Tx": 1,
 
+    // The ColorControl client commands, features and attributes that TC-CC-3.4, TC-CC-4.5, TC-CC-5.4, TC-CC-6.4,
+    // TC-CC-7.5 and TC-CC-9.4 send, read or name as the DUT's precondition. CHIP's PICS file answers the features 0,
+    // because it describes a device; the other keys state the controller's full client surface for these cases.
+    "CC.C": 1,
+    "CC.C.F00": 1,
+    "CC.C.F01": 1,
+    "CC.C.F02": 1,
+    "CC.C.F03": 1,
+    "CC.C.F04": 1,
+    "CC.C.C00.Tx": 1,
+    "CC.C.C01.Tx": 1,
+    "CC.C.C02.Tx": 1,
+    "CC.C.C03.Tx": 1,
+    "CC.C.C04.Tx": 1,
+    "CC.C.C05.Tx": 1,
+    "CC.C.C06.Tx": 1,
+    "CC.C.C07.Tx": 1,
+    "CC.C.C08.Tx": 1,
+    "CC.C.C09.Tx": 1,
+    "CC.C.C0a.Tx": 1,
+    "CC.C.C40.Tx": 1,
+    "CC.C.C41.Tx": 1,
+    "CC.C.C42.Tx": 1,
+    "CC.C.C43.Tx": 1,
+    "CC.C.C44.Tx": 1,
+    "CC.C.C47.Tx": 1,
+    "CC.C.C4b.Tx": 1,
+    "CC.C.C4c.Tx": 1,
+    "CC.C.A0000": 1,
+    "CC.C.A0001": 1,
+    "CC.C.A0007": 1,
+    "CC.C.A4000": 1,
+    "CC.C.A4002": 1,
+    "CC.C.A4003": 1,
+    "CC.C.A4004": 1,
+    "CC.C.A4005": 1,
+
+    // The Thermostat client command TC-TSTAT-3.2 sends. CHIP's PICS file answers `TSTAT.C` 0, because it describes a
+    // device; `TSTAT.C.C00.Tx` states the controller's client surface for this case.
+    "TSTAT.C": 1,
+    "TSTAT.C.C00.Tx": 1,
+
     // The diagnostics client commands, and the one attribute, that TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and
     // TC-DGWIFI-3.2 send or read. Only `DGTHREAD.C` and `DGWIFI.C.C00.Tx` need the overlay, because CHIP's file
     // answers them 0; the other keys state the controller's full client surface for these cases.
