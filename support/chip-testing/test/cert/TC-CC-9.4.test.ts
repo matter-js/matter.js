@@ -17,7 +17,7 @@ import { CommissionedRefs, recordAll } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
 
-/** The plan's step 2e: reads over 30 seconds, 5 seconds apart. */
+/** The plan's step 2e: a read every 5 seconds over the next 30 seconds, the last one at 30 seconds. */
 const HUE_READS = 6;
 const HUE_READ_INTERVAL = Seconds(5);
 
@@ -73,9 +73,7 @@ certTest("TC-CC-9.4", { plan: "colorcontrol.adoc", pics: ["CC.C", "CC.C.F02", "C
         commissioned.withRef("dut", async (cx, ref) => {
             const checks = new Array<RecordedCheck>();
             for (let read = 0; read < HUE_READS; read++) {
-                if (read > 0) {
-                    await Time.sleep("EnhancedCurrentHue read interval", HUE_READ_INTERVAL);
-                }
+                await Time.sleep("EnhancedCurrentHue read interval", HUE_READ_INTERVAL);
                 checks.push(...(await readColorAttribute(cx, ref, "enhancedCurrentHue")).checks);
             }
             await recordAll(cx, checks);
