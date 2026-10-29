@@ -8,7 +8,14 @@ import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc, OperationalNodeIdError } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
-import { Bytes, MemoryStorageDriver, StandardCrypto, StorageContext, StorageManager } from "@matter/general";
+import {
+    Bytes,
+    ImplementationError,
+    MemoryStorageDriver,
+    StandardCrypto,
+    StorageContext,
+    StorageManager,
+} from "@matter/general";
 import { CaseAuthenticatedTag, FabricId, NodeId } from "@matter/types";
 
 const crypto = new StandardCrypto();
@@ -306,6 +313,98 @@ describe("CertificateAuthority", () => {
 
             const nocCert = Noc.fromTlv(noc);
             expect(nocCert.cert.subject.caseAuthenticatedTags).deep.equal(cats);
+        });
+    });
+
+    describe("External issuer", () => {
+        async function createIssuer(intermediateCert = false) {
+            const signer = await CertificateAuthority.create(crypto, intermediateCert);
+            const requests = new Array<CertificateAuthority.Issuer.NocRequest>();
+            const issuer: CertificateAuthority.Issuer = {
+                rootCert: signer.rootCert,
+                icacCert: signer.icacCert,
+                issueNoc(request) {
+                    requests.push(request);
+                    const { publicKey, fabricId, nodeId, caseAuthenticatedTags } = request;
+                    return signer.generateNoc(publicKey, fabricId, nodeId, caseAuthenticatedTags);
+                },
+            };
+            return { signer, issuer, requests };
+        }
+
+        it("uses the issuer's root certificate", async () => {
+            const { signer, issuer } = await createIssuer();
+            const ca = CertificateAuthority.external(crypto, issuer);
+            await ca.construction;
+
+            expect(Bytes.toHex(ca.rootCert)).equal(Bytes.toHex(signer.rootCert));
+            expect(ca.icacCert).undefined;
+        });
+
+        it("uses the issuer's ICAC", async () => {
+            const { signer, issuer } = await createIssuer(true);
+            const ca = CertificateAuthority.external(crypto, issuer);
+            await ca.construction;
+
+            expect(ca.icacCert).deep.equal(signer.icacCert);
+        });
+
+        it("forwards NOC generation to the issuer", async () => {
+            const { signer, issuer, requests } = await createIssuer();
+            const ca = CertificateAuthority.external(crypto, issuer);
+            await ca.construction;
+
+            const keyPair = await crypto.createKeyPair();
+            const cats = [CaseAuthenticatedTag(0x00010001)];
+            const noc = await ca.generateNoc(keyPair.publicKey, FabricId(1n), NodeId(100n), cats);
+
+            expect(requests.length).equal(1);
+            expect(requests[0].nodeId).equal(NodeId(100n));
+            expect(requests[0].caseAuthenticatedTags).deep.equal(cats);
+            expect(requests[0].commissioning).undefined;
+            await Noc.fromTlv(noc).verify(crypto, Rcac.fromTlv(signer.rootCert));
+        });
+
+        it("forwards the device's attestation and CSR responses to the issuer", async () => {
+            const { issuer, requests } = await createIssuer();
+            const ca = CertificateAuthority.external(crypto, issuer);
+            await ca.construction;
+
+            const evidence: CertificateAuthority.Issuer.CommissioningEvidence = {
+                dac: Bytes.fromHex("01"),
+                pai: Bytes.fromHex("02"),
+                attestationElements: Bytes.fromHex("03"),
+                attestationSignature: Bytes.fromHex("04"),
+                attestationNonce: Bytes.fromHex("05"),
+                attestationChallenge: Bytes.fromHex("06"),
+                nocsrElements: Bytes.fromHex("07"),
+                nocsrSignature: Bytes.fromHex("08"),
+                csrNonce: Bytes.fromHex("09"),
+            };
+            const keyPair = await crypto.createKeyPair();
+            await ca.generateNoc(keyPair.publicKey, FabricId(1n), NodeId(100n), undefined, evidence);
+
+            expect(requests.length).equal(1);
+            expect(requests[0].commissioning).deep.equal(evidence);
+        });
+
+        it("has no configuration to export", async () => {
+            const { issuer } = await createIssuer();
+            const ca = CertificateAuthority.external(crypto, issuer);
+            await ca.construction;
+
+            expect(() => ca.config).throws(ImplementationError);
+        });
+
+        it("stops issuing after erase", async () => {
+            const { issuer, requests } = await createIssuer();
+            const ca = CertificateAuthority.external(crypto, issuer);
+            await ca.construction;
+            await ca.erase();
+
+            const keyPair = await crypto.createKeyPair();
+            await expect(ca.generateNoc(keyPair.publicKey, FabricId(1n), NodeId(100n))).rejected;
+            expect(requests.length).equal(0);
         });
     });
 });

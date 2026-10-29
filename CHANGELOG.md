@@ -23,12 +23,16 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
+    - Enhancement: `peers.commission()` accepts `caseAdminSubject`, the subject of the device's first Administer ACL entry, for example a CASE Authenticated Tag
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
 
 - @matter/protocol
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
+    - Enhancement: `CertificateAuthority.external()` creates a certificate authority whose NOCs come from an `Issuer`, for example a remote CA service, so the controller holds no root or intermediate private key
+    - Enhancement: `ControllerCommissioningFlowOptions.caseAdminSubject` sets the CASE admin subject sent in AddNOC instead of the commissioner's node ID
+    - Enhancement: During commissioning, the NOC request to an external `Issuer` carries the device's attestation and CSR responses in `commissioning`, so a remote CA can verify them itself
 
 ## 0.18.0 (2026-10-20)
 

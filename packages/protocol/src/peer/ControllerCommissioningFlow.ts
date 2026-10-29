@@ -98,6 +98,18 @@ export type ControllerCommissioningFlowOptions = {
     adminVendorId?: VendorId;
 
     /**
+     * The CASE admin subject sent in AddNOC.  The device writes it as the subject of its first Administer ACL entry.
+     *
+     * Defaults to the commissioner's node ID.  Use a CASE Authenticated Tag subject
+     * ({@link NodeId.fromCaseAuthenticatedTag}) to give administrative access to every controller whose NOC carries
+     * that tag.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.6.8
+     * @see {@link MatterSpecification.v161.Core} § 6.6.2.1.2
+     */
+    caseAdminSubject?: NodeId;
+
+    /**
      * Required credentials if the device is to connect to a wifi network provide the credentials here.
      */
     wifiNetwork?: {
@@ -325,6 +337,10 @@ export class ControllerCommissioningFlow {
     #commissioningExpiryTime: Timestamp | undefined;
     #currentFailSafeEndTime: Timestamp | undefined;
     #dacPublicKey?: ReturnType<typeof PublicKey>;
+    #attestationEvidence?: Pick<
+        CertificateAuthority.Issuer.CommissioningEvidence,
+        "dac" | "pai" | "attestationElements" | "attestationSignature" | "attestationNonce"
+    >;
     protected lastBreadcrumb = 1;
     protected collectedCommissioningData: CollectedCommissioningData = {};
     #defaultFailSafeTime = DEFAULT_FAILSAFE_TIME;
@@ -1345,6 +1361,13 @@ export class ControllerCommissioningFlow {
             }
         }
         this.#dacPublicKey = dacPublicKey;
+        this.#attestationEvidence = {
+            dac: deviceAttestation,
+            pai: productAttestation,
+            attestationElements,
+            attestationSignature,
+            attestationNonce,
+        };
 
         return {
             code: CommissioningStepResultCode.Success,
@@ -1401,12 +1424,13 @@ export class ControllerCommissioningFlow {
      *     DCL contains the name and other information of the Commissioner’s manufacturer.
      */
     async #certificates() {
+        const csrNonce = this.fabric.crypto.randomBytes(32);
         const { nocsrElements, attestationSignature: csrSignature } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
                 cluster: OperationalCredentials,
                 command: "csrRequest",
-                fields: { csrNonce: this.fabric.crypto.randomBytes(32) },
+                fields: { csrNonce },
             },
             {
                 useExtendedFailSafeMessageResponseTimeout: true,
@@ -1451,6 +1475,14 @@ export class ControllerCommissioningFlow {
             operationalPublicKey,
             this.fabric.fabricId,
             this.interaction.address.nodeId,
+            undefined,
+            this.#attestationEvidence && {
+                ...this.#attestationEvidence,
+                attestationChallenge: this.commissioningOptions.attestation.challengeKey,
+                nocsrElements,
+                nocsrSignature: csrSignature,
+                csrNonce,
+            },
         );
 
         const addNocResponse = await this.#invokeCommand(
@@ -1463,7 +1495,7 @@ export class ControllerCommissioningFlow {
                     icacValue: this.ca.icacCert ?? new Uint8Array(0),
                     ipkValue: this.fabric.identityProtectionKey,
                     adminVendorId: this.fabric.rootVendorId,
-                    caseAdminSubject: this.fabric.rootNodeId,
+                    caseAdminSubject: this.commissioningOptions.caseAdminSubject ?? this.fabric.rootNodeId,
                 },
             },
             {
