@@ -73,6 +73,7 @@ import {
     recordUserIntentCommissioningStart,
     recordUnpair,
     thCodeParts,
+    thCommissionableInstanceNames,
     recordVendorOutcome,
     STANDARD_FLOW,
     thElevenDigitCodeParts,
@@ -471,8 +472,12 @@ describe("CommissioningRefusals", () => {
 });
 
 /** A TH whose own setup code is the one `payload` carries. */
-function thOf(payload: string): CertDevice {
+function thOf(payload: string, logLines = new Array<string>(), flavor: DeviceFlavor = "matterjs"): CertDevice {
     const { discriminator, passcode } = qrPayloadFields(payload);
+    const log = new LineQueue();
+    for (const line of logLines) {
+        log.push(line);
+    }
     return {
         id: "th",
         app: "all-clusters",
@@ -487,11 +492,64 @@ function thOf(payload: string): CertDevice {
         },
         async restore() {},
         backchannel: async () => {},
-        flavor: "matterjs",
-        log: new LogFollower(new LineQueue().follow(), "th"),
+        flavor,
+        log: new LogFollower(log.follow(), "th"),
         exit: new Promise<DeviceExitInfo>(() => {}),
     };
 }
+
+/** matter.js's publish line for a commissionable instance. */
+function matterjsPublished(instanceName: string) {
+    return `INFO MdnsAdvertisement Publishing kind: commissionable service: mdns:${instanceName}._matterc._udp.local`;
+}
+
+describe("thCommissionableInstanceNames", () => {
+    const PAYLOAD = "MT:-24J042C00KA0648G00";
+    const CHIP_DECIDED = "[1793233453.130] [5634:5634] [DIS] Updating services using commissioning mode 1";
+
+    it("reads every instance a matter.js TH published", async () => {
+        const th = thOf(PAYLOAD, [matterjsPublished("1111111111111111"), matterjsPublished("2222222222222222")]);
+
+        expect(await thCommissionableInstanceNames(th)).deep.equal(["1111111111111111", "2222222222222222"]);
+    });
+
+    it("reads the instance chip's minimal mDNS lists", async () => {
+        const th = thOf(
+            PAYLOAD,
+            [CHIP_DECIDED, "[1793233453.135] [5634:5634] [DIS] Responding with 5263DE7B38DC48B4._matterc._udp.local"],
+            "chip-local",
+        );
+
+        expect(await thCommissionableInstanceNames(th)).deep.equal(["5263DE7B38DC48B4"]);
+    });
+
+    it("reads the instance a chip platform build publishes", async () => {
+        const th = thOf(
+            PAYLOAD,
+            [CHIP_DECIDED, "[DIS] mDNS service published: _matterc._udp; instance name: 5263DE7B38DC48B4"],
+            "chip-local",
+        );
+
+        expect(await thCommissionableInstanceNames(th)).deep.equal(["5263DE7B38DC48B4"]);
+    });
+
+    it("waits for the instance chip lists after deciding to advertise", async () => {
+        const log = new LineQueue();
+        const th = { ...thOf(PAYLOAD, [], "chip-local"), log: new LogFollower(log.follow(), "th") };
+        log.push(CHIP_DECIDED);
+
+        const names = thCommissionableInstanceNames(th);
+        setTimeout(() => log.push("[DIS] Responding with 5263DE7B38DC48B4._matterc._udp.local"), 20);
+
+        expect(await names).deep.equal(["5263DE7B38DC48B4"]);
+    });
+
+    it("names none when the TH decided without naming an instance", async () => {
+        const th = thOf(PAYLOAD, [CHIP_DECIDED], "chip-local");
+
+        expect(await thCommissionableInstanceNames(th)).deep.equal([]);
+    });
+});
 
 describe("recordDiscoveredTh", () => {
     // chip-all-clusters-app's own payload: discriminator 3840, vendor 0xFFF1, product 0x8001
@@ -518,7 +576,7 @@ describe("recordDiscoveredTh", () => {
             return [other, TH_NODE];
         });
 
-        await recordDiscoveredTh(cx, thOf(TH_PAYLOAD));
+        await recordDiscoveredTh(cx, thOf(TH_PAYLOAD, [matterjsPublished(TH_NODE.instanceName)]));
 
         expect(filters).deep.equal([{ longDiscriminator: 3840 }]);
         const [check] = checksOf(cx);
@@ -532,7 +590,7 @@ describe("recordDiscoveredTh", () => {
             filters.push(filter);
             return [TH_NODE];
         });
-        const th = thOf(TH_PAYLOAD);
+        const th = thOf(TH_PAYLOAD, [matterjsPublished(TH_NODE.instanceName)]);
         th.commissioning = { ...th.commissioning, discriminator: 1234 };
 
         await recordDiscoveredTh(cx, th);
@@ -542,6 +600,7 @@ describe("recordDiscoveredTh", () => {
     });
 
     for (const [what, reported] of [
+        ["another instance", { instanceName: "OTHER" }],
         ["another discriminator", { longDiscriminator: 3841 }],
         ["another vendor", { vendorId: 0xfff2 }],
         ["another product", { productId: 0x8002 }],
@@ -550,7 +609,9 @@ describe("recordDiscoveredTh", () => {
         it(`fails when the DUT reports the TH with ${what}`, async () => {
             const cx = contextDiscovering(async () => [{ ...TH_NODE, ...reported }]);
 
-            await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD))).rejectedWith(CertCheckFailedError);
+            await expect(
+                recordDiscoveredTh(cx, thOf(TH_PAYLOAD, [matterjsPublished(TH_NODE.instanceName)])),
+            ).rejectedWith(CertCheckFailedError);
             expect(checksOf(cx).map(({ verdict }) => verdict)).deep.equal(["fail"]);
         });
     }
@@ -558,7 +619,9 @@ describe("recordDiscoveredTh", () => {
     it("fails, naming it, when the DUT reports no node", async () => {
         const cx = contextDiscovering(async () => []);
 
-        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD))).rejectedWith(CertCheckFailedError);
+        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD, [matterjsPublished(TH_NODE.instanceName)]))).rejectedWith(
+            CertCheckFailedError,
+        );
         expect(checksOf(cx)[0]?.detail).contains("DUT reported no commissionable node");
     });
 
@@ -568,7 +631,9 @@ describe("recordDiscoveredTh", () => {
             throw failure;
         });
 
-        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD))).rejectedWith(failure);
+        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD, [matterjsPublished(TH_NODE.instanceName)]))).rejectedWith(
+            failure,
+        );
         expect(checksOf(cx).map(({ verdict }) => verdict)).deep.equal(["fail"]);
     });
 
@@ -583,14 +648,18 @@ describe("recordDiscoveredTh", () => {
             throw refusal;
         });
 
-        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD))).rejectedWith(refusal);
+        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD, [matterjsPublished(TH_NODE.instanceName)]))).rejectedWith(
+            refusal,
+        );
         expect(checksOf(cx)).deep.equal([]);
     });
 
     it("hands a controller without the capability on as a missing declaration, recording nothing", async () => {
         const cx = contextDiscovering(undefined);
 
-        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD))).rejectedWith(UnsupportedByControllerError);
+        await expect(recordDiscoveredTh(cx, thOf(TH_PAYLOAD, [matterjsPublished(TH_NODE.instanceName)]))).rejectedWith(
+            UnsupportedByControllerError,
+        );
         expect(checksOf(cx)).deep.equal([]);
     });
 });
