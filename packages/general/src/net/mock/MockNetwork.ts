@@ -17,7 +17,7 @@ import type { NetworkSimulator } from "./NetworkSimulator.js";
 export class MockNetwork extends Network {
     readonly router = MockRouter();
     readonly #simulator: NetworkSimulator;
-    readonly #intf: NetworkInterfaceDetails;
+    readonly #mac: string;
     #defaultRoute?: string;
     readonly #ips: Set<string>;
     readonly #multicastIps = new Set<string>();
@@ -27,19 +27,7 @@ export class MockNetwork extends Network {
         super();
         this.#simulator = simulator;
         this.#ips = new Set(ips);
-        const self = this;
-
-        this.#intf = {
-            mac,
-
-            get ipV4() {
-                return [...self.#ips].filter(ip => isIPv4(ip));
-            },
-
-            get ipV6() {
-                return [...self.#ips].filter(ip => !isIPv4(ip));
-            },
-        };
+        this.#mac = mac;
 
         this.#simulator.router.add(this.router);
     }
@@ -100,7 +88,8 @@ export class MockNetwork extends Network {
         if (name !== "fake0") {
             throw new NetworkError(`No such interface ${name}`);
         }
-        return this.#intf;
+        const ips = [...this.#ips];
+        return { mac: this.#mac, ipV4: ips.filter(ip => isIPv4(ip)), ipV6: ips.filter(ip => !isIPv4(ip)) };
     }
 
     override createUdpSocket(options: UdpSocketOptions) {

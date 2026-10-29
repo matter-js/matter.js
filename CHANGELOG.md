@@ -19,6 +19,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: WAL storage loads its data when it opens, so a write during the first reads after opening is no longer lost
     - Fix: WAL storage starts a new log segment on every open, so a write after a crash that cut off the last log line is no longer lost
     - Fix: WAL storage snapshots right after an open that replayed its log, and refuses to open when its log is incomplete instead of opening with partial data
+    - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
 
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
@@ -31,6 +32,15 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
+    - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
+    - Fix: The mDNS responder no longer sends a goodbye for host addresses or shared pointers that another of its services still publishes
+    - Fix: The mDNS responder answers a multicast pointer query with the pointer of every service of that type
+    - Fix: The mDNS responder multicasts an answer at most once per second and interface, and sends a held-back answer when the second has passed
+    - Fix: Advertisements that announce in the same event-loop turn share one mDNS announcement
+    - Fix: `MdnsServer.close()` still sends goodbyes that are already waiting
+    - Fix: The mDNS responder sends a failed goodbye again until it leaves or peers drop the records
+    - Fix: The mDNS responder sends a goodbye for every record a refresh removes or replaces, such as the vendor pointer when a commissioning window becomes privacy masked
+    - Fix: The mDNS responder announces a service in the same message as the goodbye for a record that one of its records replaces, such as after a host name change
     - Fix: The mDNS responder follows interface address changes: it withdraws the addresses an interface lost and announces the current ones
 
 ## 0.18.0 (2026-10-20)
