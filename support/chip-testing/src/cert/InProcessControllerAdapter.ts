@@ -2794,13 +2794,12 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 discoveryCapabilities: { onIpNetwork: true },
             });
             // Discovery reports a node again on each new advertisement
-            return [...new Set(nodes)].map(node => {
+            // A node whose advertisement lacks an instance name or discriminator is not one a caller can select
+            return [...new Set(nodes)].flatMap(node => {
                 const { deviceIdentifier, discriminator, vendorId, productId, commissioningMode } =
                     node.state.commissioning;
                 if (deviceIdentifier === undefined || discriminator === undefined) {
-                    throw new InternalError(
-                        `Commissionable discovery reported ${node.id} without an instance name or discriminator`,
-                    );
+                    return [];
                 }
                 return {
                     instanceName: deviceIdentifier,
