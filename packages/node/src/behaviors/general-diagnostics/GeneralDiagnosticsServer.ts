@@ -109,7 +109,7 @@ export class GeneralDiagnosticsServer extends Base {
         const lifecycle = this.endpoint.lifecycle as NodeLifecycle;
         this.reactTo(lifecycle.online, this.#online, { lock: true });
         this.reactTo(lifecycle.goingOffline, this.#goingOffline, { lock: true });
-        this.maybeReactTo(this.env.maybeGet(Network)?.interfacesChanged, this.#interfacesChanged, {
+        this.reactTo(this.env.get(Network).interfacesChanged, this.#interfacesChanged, {
             lock: true,
             offline: true,
         });
@@ -387,6 +387,10 @@ export class GeneralDiagnosticsServer extends Base {
     }
 
     async #interfacesChanged() {
+        // The network runtime exists only between start and stop, and coming online reads the interfaces again
+        if (!this.env.has(NetworkRuntime)) {
+            return;
+        }
         try {
             await this.#updateNetworkList();
         } catch (error) {

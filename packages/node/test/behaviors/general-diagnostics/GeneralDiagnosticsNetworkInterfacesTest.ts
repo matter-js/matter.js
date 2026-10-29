@@ -5,7 +5,7 @@
  */
 
 import { GeneralDiagnosticsServer } from "#behaviors/general-diagnostics";
-import { MockNetwork, Network } from "@matter/general";
+import { Diagnostic, LogDestination, Logger, LogLevel, MockNetwork, Network } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 
 const ADDED_ADDRESS = "2001:db8:5::99";
@@ -19,6 +19,23 @@ async function createNode() {
         expect.fail("The mock node uses a mock network");
     }
     return { node, network };
+}
+
+function captureWarnings() {
+    const warnings = new Array<string>();
+    Logger.destinations.capture = LogDestination({
+        add(message: Diagnostic.Message) {
+            if (message.facility === "GeneralDiagnosticsServer" && message.level >= LogLevel.WARN) {
+                warnings.push(message.values.map(value => String(value)).join(" "));
+            }
+        },
+    });
+    return {
+        warnings,
+        [Symbol.dispose]() {
+            delete Logger.destinations.capture;
+        },
+    };
 }
 
 function ipv6Count(node: MockServerNode) {
@@ -45,13 +62,17 @@ describe("GeneralDiagnosticsServer network interfaces", () => {
         expect(ipv6Count(node)).equals(before + 1);
     });
 
-    it("reads the interfaces again when the node comes online", async () => {
+    it("skips address changes while offline and reads the interfaces again when the node comes online", async () => {
         const { node, network } = await createNode();
         const before = ipv6Count(node);
 
         await node.stop();
-        network.addAddr(ADDED_ADDRESS);
-        await network.checkInterfaces();
+        {
+            using log = captureWarnings();
+            network.addAddr(ADDED_ADDRESS);
+            await network.checkInterfaces();
+            expect(log.warnings).deep.equals([]);
+        }
         expect(ipv6Count(node)).equals(before);
 
         await node.start();

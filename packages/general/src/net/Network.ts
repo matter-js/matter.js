@@ -209,9 +209,17 @@ export abstract class Network {
             .filter(name => previous.get(name) !== snapshot.get(name))
             .sort();
         if (changed.length) {
+            await this.clearInterfaceCaches();
             await this.interfacesChanged.emit(changed);
         }
     }
+
+    /**
+     * Drop platform caches that derive from the interface details.  Runs on each detected change before
+     * {@link interfacesChanged} emits, so observers already see current lookups.  Runs only while
+     * {@link interfacesChanged} has an observant observer.
+     */
+    protected clearInterfaceCaches(): MaybePromise<void> {}
 
     abstract getNetInterfaces(configuration?: NetworkInterface[]): MaybePromise<NetworkInterface[]>;
     abstract getIpMac(netInterface: string): MaybePromise<NetworkInterfaceDetails | undefined>;
@@ -227,9 +235,11 @@ export abstract class Network {
         throw new NetworkError("TCP client not supported on this platform");
     }
 
+    /** Stop the periodic check and wait until a running check and its observers finished. */
     async close() {
         this.#isClosed = true;
         this.#checkTimer.stop();
+        await this.#checking?.catch(logCheckFailure);
     }
 }
 

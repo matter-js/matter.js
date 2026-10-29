@@ -31,7 +31,6 @@ import {
     NetworkError,
     NetworkInterface,
     NetworkInterfaceDetails,
-    observant,
     onSameNetwork,
     TcpConnection,
     TcpConnectOptions,
@@ -76,12 +75,8 @@ async function networkInterfaces() {
 }
 
 export class NetworkReactNative extends Network {
-    constructor() {
-        super();
-        // Clearing the lookup cache alone does not justify polling, so this observer does not start the checks
-        this.interfacesChanged.on(
-            Object.assign(() => NetworkReactNative.netInterfaces.clear(), { [observant]: false }),
-        );
+    protected override clearInterfaceCaches() {
+        return NetworkReactNative.netInterfaces.clear();
     }
 
     static async getMulticastInterfaceIpv4(netInterface: string): Promise<string | undefined> {

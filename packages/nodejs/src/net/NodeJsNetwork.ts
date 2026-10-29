@@ -15,7 +15,6 @@ import {
     NetworkError,
     NetworkInterface,
     NetworkInterfaceDetails,
-    observant,
     onSameNetwork,
     TCP_CONNECTION_TIMEOUT_MS,
     TcpConnection,
@@ -35,10 +34,8 @@ import { NodeJsUdpSocket } from "./NodeJsUdpSocket.js";
 const logger = Logger.get("NetworkNode");
 
 export class NodeJsNetwork extends Network {
-    constructor() {
-        super();
-        // Clearing the lookup cache alone does not justify polling, so this observer does not start the checks
-        this.interfacesChanged.on(Object.assign(() => NodeJsNetwork.netInterfaces.clear(), { [observant]: false }));
+    protected override clearInterfaceCaches() {
+        return NodeJsNetwork.netInterfaces.clear();
     }
 
     static getMulticastInterfaceIpv4(netInterface: string): string | undefined {

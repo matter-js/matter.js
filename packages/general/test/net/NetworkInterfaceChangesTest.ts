@@ -131,6 +131,29 @@ describe("Network interface changes", () => {
         expect(network.listings).equals(0);
     });
 
+    it("closes only after a running check reached its observers", async () => {
+        let release!: () => void;
+        const held = new Promise<void>(resolve => (release = resolve));
+        network.interfacesChanged.on(async names => {
+            record(names);
+            await held;
+        });
+        await network.checkInterfaces();
+
+        network.interfaces.eth0 = { ...network.interfaces.eth0, ipV4: ["10.0.0.3"] };
+        const check = network.checkInterfaces();
+        let isClosed = false;
+        const closing = network.close().then(() => (isClosed = true));
+        await MockTime.yield3();
+        expect(emitted).deep.equals([["eth0"]]);
+        expect(isClosed).equals(false);
+
+        release();
+        await check;
+        await closing;
+        expect(isClosed).equals(true);
+    });
+
     it("shares one run between overlapping checks", async () => {
         await Promise.all([network.checkInterfaces(), network.checkInterfaces()]);
 
