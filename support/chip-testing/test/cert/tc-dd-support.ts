@@ -1582,7 +1582,7 @@ export async function recordBackInCommissioningMode(
  * The fabric comes off first, so the controller never holds a peer for a fabric the device has
  * forgotten.
  */
-async function restoreCommissioningMode(
+export async function restoreCommissioningMode(
     cx: CertStepContext,
     commissioned: CommissionedRefs,
     probeCommissionable?: (cx: CertStepContext, what: string) => Promise<void>,
