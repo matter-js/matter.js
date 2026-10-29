@@ -168,6 +168,10 @@ RUN build-one network-manager-app/linux matter-network-manager-app
 # persisted subscription for it, and a controller always subscribes before it registers
 RUN build-one lit-icd-app/linux lit-icd-app lit-icd-app-nopersist chip_persist_subscriptions=false chip_subscription_timeout_resumption=false
 
+# The media client cases' TH, a video player with content apps. Kept under CHIP's own name, which the
+# chip-cert-bins image uses too
+RUN build-one tv-app/linux chip-tv-app
+
 # Install Python stuff
 COPY support/install-chip-python /bin
 RUN install-chip-python
