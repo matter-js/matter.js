@@ -79,8 +79,9 @@ const CHIP_LIST_GAP = /\[DMG\]\s*$/;
  *
  * Throws {@link InternalError} for an argument the command or a struct has no field for, for a value of the wrong
  * type, for a field of any other type or with an id of 10 or more, for a list this function cannot print, for an empty
- * top-level string, which matter.js prints as nothing, and for a string with a line break, which chip splits across
- * lines. A case that needs one of these extends this function.
+ * top-level string, which matter.js prints as nothing, for a top-level string that ends in whitespace, which matter.js
+ * trims from the end of the line, and for a string with a line break, which chip splits across lines. A case that needs
+ * one of these extends this function.
  */
 export function tvCommandPayload(cluster: ClusterModel, command: string, args: TvCommandArgs): CommandPayload {
     const model = cluster.commands.require(command);
@@ -95,6 +96,9 @@ export function tvCommandPayload(cluster: ClusterModel, command: string, args: T
         }
         if (value === "") {
             throw new InternalError(`matter.js prints the empty top-level string ${path} as nothing`);
+        }
+        if (typeof value === "string" && /\s$/.test(value)) {
+            throw new InternalError(`matter.js trims the whitespace that ends the top-level string ${path}`);
         }
         const rendered = renderValue(field, value, path, requireId(field.id, path));
         chip.push(...rendered.chip);

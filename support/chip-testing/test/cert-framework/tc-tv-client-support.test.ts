@@ -89,6 +89,13 @@ describe("tvCommandPayload", () => {
         );
     });
 
+    it("refuses a top-level string that ends in whitespace", () => {
+        expect(() => tvCommandPayload(TARGET_NAVIGATOR, "navigateTarget", { target: 2, data: "trailing " })).throws(
+            InternalError,
+            "trims the whitespace that ends the top-level string TargetNavigator.NavigateTarget.data",
+        );
+    });
+
     it("refuses a string with a line break at any depth", () => {
         expect(() => tvCommandPayload(TARGET_NAVIGATOR, "navigateTarget", { target: 2, data: "two\nlines" })).throws(
             InternalError,

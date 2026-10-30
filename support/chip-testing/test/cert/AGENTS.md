@@ -4186,8 +4186,9 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl. The 
   `{ a: 1, b: "x" }` (`serialize`). Refused with `InternalError` inside the step:
   - a top-level list, which matter.js prints as its bare entries, and list entries that are not structs, which chip
     prints on one line;
-  - an empty top-level string, which matter.js prints as nothing (a nested one prints as `""` and `"" (0 chars)`), and
-    a line break at any depth;
+  - an empty top-level string, which matter.js prints as nothing (a nested one prints as `""` and `"" (0 chars)`), a
+    top-level string that ends in whitespace, which matter.js trims from the end of the line (a nested one is
+    JSON-quoted), and a line break at any depth;
   - a field id of 10 or more: chip-tool's `command-by-id` writes members in the text order of their ids (`10` before
     `2`), so its wire order would differ from model order;
   - any other field type, and an argument no field takes.
