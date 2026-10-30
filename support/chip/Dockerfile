@@ -168,6 +168,10 @@ RUN build-one network-manager-app/linux matter-network-manager-app
 # persisted subscription for it, and a controller always subscribes before it registers
 RUN build-one lit-icd-app/linux lit-icd-app lit-icd-app-nopersist chip_persist_subscriptions=false chip_subscription_timeout_resumption=false
 
+# The media client cases' TH, a video player with content apps. Kept under CHIP's own name, which the
+# chip-cert-bins image uses too
+RUN build-one tv-app/linux chip-tv-app
+
 # Install Python stuff
 COPY support/install-chip-python /bin
 RUN install-chip-python
@@ -243,6 +247,10 @@ COPY --from=source /connectedhomeip/credentials/test/revoked-attestation-certifi
     /credentials/test/revoked-attestation-certificates/dac-provider-test-vectors
 COPY --from=source /connectedhomeip/credentials/test/revoked-attestation-certificates/revocation-sets \
     /credentials/test/revoked-attestation-certificates/revocation-sets
+
+# Attestation test vectors of the DUT-commissioner cases TC-DA-1.4 and TC-DA-1.8: each directory holds a
+# DAC provider for the TH app (`--dac_provider <dir>/test_case_vector.json`)
+COPY --from=source /connectedhomeip/credentials/development/commissioner_dut /credentials/development/commissioner_dut
 
 # Idempotent: the media packages above pull in dbus, whose own install creates this directory
 RUN mkdir -p /run/dbus

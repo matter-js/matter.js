@@ -37,9 +37,9 @@ export class KeySets<T extends OperationalKeySet> extends BasicSet<T> {
     }
 
     /**
-     * Returns whether the given group key set holds an operational key equal to the provided one. Used to resolve group
-     * session id collisions: two key sets with identical key material derive the same session id, so the decrypting key
-     * set may differ from the one a group is mapped to while still carrying the key that authenticated the message.
+     * Returns whether the given group key set holds an operational key equal to the provided one. Compares key
+     * material, not key set ids: two key sets with identical key material derive the same session id, and a cached
+     * group session matched by key may carry the id of the other set.
      */
     containsOperationalKey(keySetId: number, key: Bytes): boolean {
         if (this.forId(keySetId) === undefined) {

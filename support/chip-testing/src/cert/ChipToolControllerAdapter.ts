@@ -37,8 +37,10 @@ import type {
     CertNodeRef,
     ClientAttributePath,
     ClientEndpointEntry,
+    CommissionableNodeFilter,
     CommissioningTarget,
     ControllerAdapter,
+    DiscoveredCommissionableNode,
     EventPathSpec,
     EventReadEntry,
     GroupKeySetSpec,
@@ -177,6 +179,48 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "WNCV.C.C05.Tx": 1,
     "WNCV.C.C08.Tx": 1,
 
+    // The ColorControl client commands, features and attributes that TC-CC-3.4, TC-CC-4.5, TC-CC-5.4, TC-CC-6.4,
+    // TC-CC-7.5 and TC-CC-9.4 send, read or name as the DUT's precondition. CHIP's PICS file answers the features 0,
+    // because it describes a device; the other keys state the controller's full client surface for these cases.
+    "CC.C": 1,
+    "CC.C.F00": 1,
+    "CC.C.F01": 1,
+    "CC.C.F02": 1,
+    "CC.C.F03": 1,
+    "CC.C.F04": 1,
+    "CC.C.C00.Tx": 1,
+    "CC.C.C01.Tx": 1,
+    "CC.C.C02.Tx": 1,
+    "CC.C.C03.Tx": 1,
+    "CC.C.C04.Tx": 1,
+    "CC.C.C05.Tx": 1,
+    "CC.C.C06.Tx": 1,
+    "CC.C.C07.Tx": 1,
+    "CC.C.C08.Tx": 1,
+    "CC.C.C09.Tx": 1,
+    "CC.C.C0a.Tx": 1,
+    "CC.C.C40.Tx": 1,
+    "CC.C.C41.Tx": 1,
+    "CC.C.C42.Tx": 1,
+    "CC.C.C43.Tx": 1,
+    "CC.C.C44.Tx": 1,
+    "CC.C.C47.Tx": 1,
+    "CC.C.C4b.Tx": 1,
+    "CC.C.C4c.Tx": 1,
+    "CC.C.A0000": 1,
+    "CC.C.A0001": 1,
+    "CC.C.A0007": 1,
+    "CC.C.A4000": 1,
+    "CC.C.A4002": 1,
+    "CC.C.A4003": 1,
+    "CC.C.A4004": 1,
+    "CC.C.A4005": 1,
+
+    // The Thermostat client command TC-TSTAT-3.2 sends. CHIP's PICS file answers `TSTAT.C` 0, because it describes a
+    // device; `TSTAT.C.C00.Tx` states the controller's client surface for this case.
+    "TSTAT.C": 1,
+    "TSTAT.C.C00.Tx": 1,
+
     // The diagnostics client commands, and the one attribute, that TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and
     // TC-DGWIFI-3.2 send or read. Only `DGTHREAD.C` and `DGWIFI.C.C00.Tx` need the overlay, because CHIP's file
     // answers them 0; the other keys state the controller's full client surface for these cases.
@@ -189,6 +233,17 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "DGTHREAD.C.A0006": 1,
     "DGWIFI.C": 1,
     "DGWIFI.C.C00.Tx": 1,
+
+    // The AdministratorCommissioning client of the TC-CADMIN cases (`pairing open-commissioning-window`,
+    // RevokeCommissioning by id). Only the display and audio keys need the overlay: the CHIP PICS file answers
+    // 1 for both, and chip-tool takes a code as a command line argument and prints it, with no display a user
+    // enters a code into and no voice prompt. The other keys state the controller's client surface for these cases.
+    "CADMIN.C": 1,
+    "CADMIN.C.C00.Tx": 1,
+    "CADMIN.C.C01.Tx": 1,
+    "CADMIN.C.C02.Tx": 1,
+    "CADMIN.M.UserInterfaceDisplay": 0,
+    "CADMIN.M.AudioInterface": 0,
 
     // Every ThreadBorderRouterManagement client command TC-TBRM-3.1 sends. The CHIP PICS file answers
     // only the server side, because it describes a device; here the client is the controller.
@@ -1672,6 +1727,49 @@ function payloadField(logs: string[], code: string, pattern: RegExp, radix = 10)
     return Number.parseInt(value, radix);
 }
 
+/**
+ * The nodes a `discover` command's results report. chip-tool records each node it discovers as one entry
+ * `{"value": {"instanceName", "longDiscriminator", "vendorId", "productId", "commissioningMode", …}}`
+ * (`RemoteDataModelLogger::LogDiscoveredNodeData`), with 0 for a vendor or product the advertisement leaves out
+ * (the defaults of `Dnssd::CommissionNodeData`). An entry naming a cluster is a subscription report that arrived
+ * while the command ran.
+ */
+export function discoveredCommissionableNodesOf(results: unknown[]): DiscoveredCommissionableNode[] {
+    const nodes = new Array<DiscoveredCommissionableNode>();
+    for (const result of results) {
+        if (!isObject(result) || "clusterId" in result || !isObject(result.value)) {
+            continue;
+        }
+        const node = result.value;
+        if (!("longDiscriminator" in node)) {
+            continue;
+        }
+        const malformed = (field: string) =>
+            new UnexpectedDataError(
+                `chip-tool reported a discovered node without ${field}: ${JSON.stringify(result.value)}`,
+            );
+        const integer = (field: string) => {
+            const value = numberOf(node, field);
+            if (value === undefined || !Number.isInteger(value)) {
+                throw malformed(field);
+            }
+            return value;
+        };
+        const { instanceName } = node;
+        if (typeof instanceName !== "string") {
+            throw malformed("instanceName");
+        }
+        nodes.push({
+            instanceName,
+            longDiscriminator: integer("longDiscriminator"),
+            vendorId: statedIdentifier(integer("vendorId")),
+            productId: statedIdentifier(integer("productId")),
+            commissioningMode: integer("commissioningMode"),
+        });
+    }
+    return nodes;
+}
+
 function matchLog(logs: string[], pattern: RegExp) {
     for (const line of logs) {
         const match = pattern.exec(line);
@@ -1846,6 +1944,24 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             vendorId: carriesIdentity ? payloadField(logs, code, /VendorID:\s+(\d+)/) : undefined,
             productId: carriesIdentity ? payloadField(logs, code, /ProductID:\s+(\d+)/) : undefined,
         };
+    }
+
+    /**
+     * Reports one node at most: chip-tool's `discover` commands stop at the first node that matches
+     * (`--discover-once` defaults to true). A search that finds nothing ends in chip-tool's 30-second command
+     * timeout, which chip-tool reports like any other failure, so it rejects with {@link ChipToolCommandError}.
+     */
+    async discoverCommissionableNodes(filter?: CommissionableNodeFilter): Promise<DiscoveredCommissionableNode[]> {
+        const command =
+            filter?.longDiscriminator === undefined
+                ? "discover commissionables"
+                : `discover find-commissionable-by-long-discriminator ${filter.longDiscriminator}`;
+        const { reply, results } = await this.executeWithLogs(command);
+        const nodes = discoveredCommissionableNodesOf(results);
+        if (nodes.length === 0) {
+            assertCommandSucceeded(reply, `discovery of commissionable nodes (${command})`);
+        }
+        return nodes;
     }
 
     async commission(target: CommissioningTarget): Promise<CertNodeRef> {
@@ -2027,13 +2143,19 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         return (await this.executeWithLogs(command, requested)).reply;
     }
 
-    /** As {@link execute}, plus the reply's own decoded log lines for a command that answers only in logs. */
-    async executeWithLogs(command: string, requested?: RequestedPaths): Promise<{ reply: ChipReply; logs: string[] }> {
+    /**
+     * As {@link execute}, plus the reply's own decoded log lines for a command that answers only in logs, and its
+     * raw results for a command whose entries name no path.
+     */
+    async executeWithLogs(
+        command: string,
+        requested?: RequestedPaths,
+    ): Promise<{ reply: ChipReply; logs: string[]; results: unknown[] }> {
         const result = await this.#requireClient().execute(command);
         const reply = interpretReply(result.results, path => this.#isOwnPath(path, requested));
         this.#dispatchReports(reply.values);
         this.#dispatchEventReports(reply.events);
-        return { reply, logs: result.logs };
+        return { reply, logs: result.logs, results: result.results };
     }
 
     /**

@@ -43,12 +43,14 @@ import type {
     CertNodeApi,
     CertNodeRef,
     ClientEndpointEntry,
+    CommissionableNodeFilter,
     CommissioningTarget,
     ControllerAdapter,
     ControllerAdapterOptions,
     ControllerCapabilitiesOutOfScope,
     ControllerCapability,
     ControllerCapabilityGaps,
+    DiscoveredCommissionableNode,
     EventPathSpec,
     EventReadEntry,
     GroupKeySetSpec,
@@ -156,8 +158,16 @@ export const MATTERJS_SERVER_CONTROLLER_PICS: PicsValues = {
     // A concatenated payload names several commissionees and is refused; the caller is told to split it.
     "MCORE.DD.CTRL_CONCATENATED_QR_CODE_1": 0,
 
-    // `open_commissioning_window` ignores its `option` and always opens an enhanced window.
+    // The AdministratorCommissioning client of the TC-CADMIN cases: `open_commissioning_window`, and
+    // RevokeCommissioning through `device_command`. `open_commissioning_window` ignores its `option` and always
+    // opens an enhanced window. The DUT is the WebSocket controller, which has no display a user enters a code into
+    // and no voice prompt; the dashboard is a client that hands the code to `commission_with_code` as typed.
+    "CADMIN.C": 1,
+    "CADMIN.C.C00.Tx": 1,
     "CADMIN.C.C01.Tx": 0,
+    "CADMIN.C.C02.Tx": 1,
+    "CADMIN.M.UserInterfaceDisplay": 0,
+    "CADMIN.M.AudioInterface": 0,
 
     // matter.js commissioning sends no SetTCAcknowledgements.
     "CGEN.C.F00": 0,
@@ -261,6 +271,48 @@ export const MATTERJS_SERVER_CONTROLLER_PICS: PicsValues = {
     "WNCV.C.C02.Tx": 1,
     "WNCV.C.C05.Tx": 1,
     "WNCV.C.C08.Tx": 1,
+
+    // The ColorControl client commands, features and attributes that TC-CC-3.4, TC-CC-4.5, TC-CC-5.4, TC-CC-6.4,
+    // TC-CC-7.5 and TC-CC-9.4 send, read or name as the DUT's precondition. CHIP's PICS file answers the features 0,
+    // because it describes a device; the other keys state the server's full client surface for these cases.
+    "CC.C": 1,
+    "CC.C.F00": 1,
+    "CC.C.F01": 1,
+    "CC.C.F02": 1,
+    "CC.C.F03": 1,
+    "CC.C.F04": 1,
+    "CC.C.C00.Tx": 1,
+    "CC.C.C01.Tx": 1,
+    "CC.C.C02.Tx": 1,
+    "CC.C.C03.Tx": 1,
+    "CC.C.C04.Tx": 1,
+    "CC.C.C05.Tx": 1,
+    "CC.C.C06.Tx": 1,
+    "CC.C.C07.Tx": 1,
+    "CC.C.C08.Tx": 1,
+    "CC.C.C09.Tx": 1,
+    "CC.C.C0a.Tx": 1,
+    "CC.C.C40.Tx": 1,
+    "CC.C.C41.Tx": 1,
+    "CC.C.C42.Tx": 1,
+    "CC.C.C43.Tx": 1,
+    "CC.C.C44.Tx": 1,
+    "CC.C.C47.Tx": 1,
+    "CC.C.C4b.Tx": 1,
+    "CC.C.C4c.Tx": 1,
+    "CC.C.A0000": 1,
+    "CC.C.A0001": 1,
+    "CC.C.A0007": 1,
+    "CC.C.A4000": 1,
+    "CC.C.A4002": 1,
+    "CC.C.A4003": 1,
+    "CC.C.A4004": 1,
+    "CC.C.A4005": 1,
+
+    // The Thermostat client command TC-TSTAT-3.2 sends. CHIP's PICS file answers `TSTAT.C` 0, because it describes a
+    // device; `TSTAT.C.C00.Tx` states the server's client surface for this case.
+    "TSTAT.C": 1,
+    "TSTAT.C.C00.Tx": 1,
 
     // The diagnostics client commands, and the one attribute, that TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and
     // TC-DGWIFI-3.2 send or read. Only `DGTHREAD.C` and `DGWIFI.C.C00.Tx` need the overlay, because CHIP's file
@@ -673,6 +725,20 @@ export class MatterServerControllerAdapter implements ControllerAdapter {
             );
         }
         return parsed;
+    }
+
+    /**
+     * `discover_commissionable_nodes` takes no filter, so this reports every node the server found, whatever
+     * `filter` asks for. The server searches over IP only, for a window of its own.
+     */
+    async discoverCommissionableNodes(_filter?: CommissionableNodeFilter): Promise<DiscoveredCommissionableNode[]> {
+        const nodes = await this.#started.client.command("discover_commissionable_nodes", {});
+        if (!Array.isArray(nodes)) {
+            throw new UnexpectedDataError(
+                `matterjs-server answered discover_commissionable_nodes with ${Diagnostic.json(nodes)}`,
+            );
+        }
+        return nodes.map(discoveredNodeOf);
     }
 
     node(ref: CertNodeRef): MatterServerCertNodeApi {
@@ -1591,6 +1657,42 @@ function parsedIdentifier(parsed: Record<string, unknown>, name: string, code: s
         throw new UnexpectedDataError(`matterjs-server parsed ${name} of ${code} as 0 instead of leaving it out`);
     }
     return value;
+}
+
+/**
+ * One `CommissionableNodeData` entry of a `discover_commissionable_nodes` answer. The server reports a vendor or
+ * product the advertisement leaves out as -1.
+ */
+function discoveredNodeOf(entry: unknown): DiscoveredCommissionableNode {
+    const malformed = (field: string) =>
+        new UnexpectedDataError(
+            `matterjs-server reported a discovered node without ${field}: ${Diagnostic.json(entry)}`,
+        );
+    if (!isObject(entry)) {
+        throw malformed("any field");
+    }
+    const integer = (field: string) => {
+        const value = entry[field];
+        if (typeof value !== "number" || !Number.isInteger(value)) {
+            throw malformed(field);
+        }
+        return value;
+    };
+    const identifier = (field: string) => {
+        const value = integer(field);
+        return value === -1 ? undefined : value;
+    };
+    const { instance_name } = entry;
+    if (typeof instance_name !== "string") {
+        throw malformed("instance_name");
+    }
+    return {
+        instanceName: instance_name,
+        longDiscriminator: integer("long_discriminator"),
+        vendorId: identifier("vendor_id"),
+        productId: identifier("product_id"),
+        commissioningMode: integer("commissioning_mode"),
+    };
 }
 
 /** The `timed_request_timeout_ms` field of a `device_command`, `batched_device_commands` or `write_attribute`. */

@@ -96,6 +96,33 @@ describe("LogFollower", () => {
         await follower.close();
     });
 
+    it("stamps each line with the monotonic time it was taken in", async () => {
+        const source = new TestSource();
+        const follower = new LogFollower(source, "dut");
+        const before = performance.now();
+
+        source.push("line-0");
+        await waitUntil(() => follower.lines.length === 1);
+        await new Promise(resolve => setTimeout(resolve, 20));
+        source.push("line-1");
+        await waitUntil(() => follower.lines.length === 2);
+
+        const [first, second] = follower.lines;
+        expect(first.receivedAt).gte(before);
+        expect(second.receivedAt - first.receivedAt).gte(15);
+
+        await follower.close();
+    });
+
+    it("reports a source that ended as closed", async () => {
+        const source = new TestSource();
+        const follower = new LogFollower(source, "dut");
+        expect(follower.closed).equal(false);
+
+        await follower.close();
+        expect(follower.closed).equal(true);
+    });
+
     it("returns the buffered length from mark(), matching a subsequent lines snapshot", async () => {
         const source = new TestSource();
         const follower = new LogFollower(source, "dut");

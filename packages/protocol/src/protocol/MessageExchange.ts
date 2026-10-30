@@ -731,7 +731,7 @@ export class MessageExchange {
                 messageId,
                 destNodeId: this.#peerNodeId,
                 sourceNodeId: this.#nodeId,
-                hasPrivacyEnhancements: false, // Privacy is only defined for group messages
+                hasPrivacyEnhancements: false, // Not supported on unicast, as in the CHIP SDK
                 isControlMessage: false,
                 hasMessageExtensions: false,
             };

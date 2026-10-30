@@ -1390,6 +1390,10 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
     /**
      * A stored write is already applied when validation runs, so the presets it replaces are the baseline.
+     *
+     * Pre-commit announces the presets again after any change in flight, with the previous announcement as
+     * `oldPresets`.  Every announcement is therefore validated against the presets the first announcement of the
+     * transaction replaces.
      */
     #handlePersistedPresetsChanging(
         newPresets: Thermostat.Preset[],
@@ -1397,9 +1401,12 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         context: ActionContext,
     ) {
         const presets = this.#presetsIn(context);
+        presets.stored ??= { presets: oldPresets };
+        const storedPresets = presets.stored.presets;
 
-        this.#validatePresetWriteRequest(newPresets, oldPresets, presets.handles);
-        this.#normalizeAndValidatePresetCommit(newPresets, oldPresets, presets.handles);
+        this.#validatePresetWriteRequest(newPresets, storedPresets, presets.handles);
+        this.#normalizePresets(newPresets, storedPresets, presets.handles);
+        this.#validatePresetCommit(newPresets, storedPresets);
 
         if (!presets.validatesOnceSettled) {
             context.transaction.addParticipants({
@@ -1427,8 +1434,12 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
      * What this behavior did to the presets of the transaction in context.
      *
      * `handles` are the ones this device issued.  Normalization mutates the value in flight, so pre-commit announces
-     * the presets again, and an atomic write stores what it staged; both carry handles the baseline predates.  Every
-     * announcement is still validated - the handles are what the client did not supply.
+     * the presets again, and an atomic write stores what it staged; both carry handles the stored presets do not carry.
+     * Every announcement is still validated - the handles are what the client did not supply.
+     *
+     * `stored` holds the presets the transaction replaces, as the first announcement reports them.  Later announcements
+     * report the value in flight as the old value instead.  `stored` wraps the presets because they are undefined
+     * while the behavior seeds them, and that first announcement still counts as recorded.
      *
      * `validatesOnceSettled` records that the transaction will check the settled presets.  An observer that puts back
      * exactly the value it was handed leaves pre-commit nothing to announce, so a revert of the handle this device
@@ -1465,8 +1476,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         const oldPresetsMap = new Map<string, Thermostat.Preset>();
         if (oldPresets !== undefined) {
             for (const preset of oldPresets) {
-                // Pre-commit announces the presets again after normalization, so the value this one replaces is the
-                // one a client wrote, where a preset it is adding carries no handle yet
                 if (preset.presetHandle !== null) {
                     oldPresetsMap.set(Bytes.toHex(preset.presetHandle), preset);
                 }
@@ -1582,14 +1591,12 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     /**
-     * Handles additional validation of preset changes when all chunks were written in an atomic write operation.
+     * Refuses a commit that removes a built-in preset or the active preset, once every attribute of the atomic write is
+     * staged, so the failure names the presets attribute.  The staged value is a copy the store does not keep, so it is
+     * checked, not normalized; pre-commit normalizes the stored value.
      */
-    #handlePresetsAtomicChanged(
-        newPresets: Thermostat.Preset[],
-        oldPresets: Thermostat.Preset[] | undefined,
-        context: ActionContext,
-    ) {
-        this.#normalizeAndValidatePresetCommit(newPresets, oldPresets, this.#presetsIn(context).handles);
+    #handlePresetsAtomicChanged(newPresets: Thermostat.Preset[], oldPresets: Thermostat.Preset[] | undefined) {
+        this.#validatePresetCommit(newPresets, oldPresets);
     }
 
     /**
@@ -1601,71 +1608,49 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     /**
-     * Assigns a handle to any preset lacking one and validates the set, for both the atomic and the stored path.
+     * Assigns a handle to any preset lacking one and resolves a null `builtIn` from the stored preset with that handle.
+     * Normalizes in place: the report that follows reads the presets back through the attribute's accessor.
      */
-    #normalizeAndValidatePresetCommit(
+    #normalizePresets(
         newPresets: Thermostat.Preset[],
         oldPresets: Thermostat.Preset[] | undefined,
         issuedHandles: Set<string>,
     ) {
-        if (oldPresets === undefined) {
-            logger.debug(
-                "Old presets is undefined, skipping some checks. This should only happen on setup of the behavior.",
-            );
-        }
-
         const entropy = this.endpoint.env.get(Entropy);
-        const newPresetHandles = new Set<string>();
 
-        // Normalized in place: the report that follows reads these back through the attribute's accessor
         for (const preset of newPresets) {
             if (preset.presetHandle == null) {
                 logger.debug("Preset is missing presetHandle, generating a new one");
                 preset.presetHandle = entropy.randomBytes(16);
                 issuedHandles.add(Bytes.toHex(preset.presetHandle));
             }
-            newPresetHandles.add(Bytes.toHex(preset.presetHandle));
-            if (oldPresets === undefined) {
-                if (preset.builtIn === null) {
-                    preset.builtIn = false;
-                }
-            } else {
-                if (preset.builtIn === null) {
-                    const oldPreset = oldPresets.find(
-                        p =>
-                            p.presetHandle &&
-                            preset.presetHandle &&
-                            Bytes.areEqual(p.presetHandle, preset.presetHandle),
-                    );
-                    if (oldPreset !== undefined) {
-                        preset.builtIn = oldPreset.builtIn;
-                    } else {
-                        preset.builtIn = false;
-                    }
-                }
+            if (preset.builtIn === null) {
+                const { presetHandle } = preset;
+                const oldPreset = oldPresets?.find(
+                    p => p.presetHandle !== null && Bytes.areEqual(p.presetHandle, presetHandle),
+                );
+                preset.builtIn = oldPreset?.builtIn ?? false;
+            }
+        }
+    }
+
+    /**
+     * Refuses presets that drop a built-in preset or the active preset.  Checks handles only, so it needs no
+     * normalization: {@link #validatePresetWriteRequest} already refused a preset whose `builtIn` differs from the
+     * stored one, and a preset without a handle is new.
+     */
+    #validatePresetCommit(newPresets: Thermostat.Preset[], oldPresets: Thermostat.Preset[] | undefined) {
+        const newPresetHandles = new Set<string>();
+        for (const { presetHandle } of newPresets) {
+            if (presetHandle != null) {
+                newPresetHandles.add(Bytes.toHex(presetHandle));
             }
         }
 
-        const newBuildInPresets = new Set<string>();
-        for (const preset of newPresets) {
-            if (preset.builtIn) {
-                newBuildInPresets.add(Bytes.toHex(preset.presetHandle!));
-            }
-        }
-        const oldBuildInPresets = new Set<string>();
-        if (oldPresets !== undefined) {
-            for (const preset of oldPresets) {
-                if (preset.builtIn && preset.presetHandle !== null) {
-                    oldBuildInPresets.add(Bytes.toHex(preset.presetHandle));
-                }
-            }
-        }
-
-        // Ensure built-in presets are not removed
-        for (const oldBuiltInPreset of oldBuildInPresets) {
-            if (!newBuildInPresets.has(oldBuiltInPreset)) {
+        for (const { presetHandle, builtIn } of oldPresets ?? []) {
+            if (builtIn && presetHandle !== null && !newPresetHandles.has(Bytes.toHex(presetHandle))) {
                 throw new StatusResponse.ConstraintErrorError(
-                    `Cannot remove built-in preset with presetHandle ${oldBuiltInPreset}`,
+                    `Cannot remove built-in preset with presetHandle ${Bytes.toHex(presetHandle)}`,
                 );
             }
         }
@@ -1731,6 +1716,10 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
     /**
      * A stored write is already applied when validation runs, so the schedules it replaces are the baseline.
+     *
+     * Pre-commit announces the schedules again after any change in flight, with the previous announcement as
+     * `oldSchedules`. Every announcement is therefore validated against the schedules the first announcement of the
+     * transaction replaces.
      */
     #handlePersistedSchedulesChanging(
         newSchedules: Thermostat.Schedule[],
@@ -1738,9 +1727,12 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         context: ActionContext,
     ) {
         const schedules = this.#schedulesIn(context);
+        schedules.stored ??= { schedules: oldSchedules };
+        const storedSchedules = schedules.stored.schedules;
 
-        this.#validateScheduleWriteRequest(newSchedules, oldSchedules, schedules.handles);
-        this.#normalizeAndValidateScheduleCommit(newSchedules, oldSchedules, schedules.handles);
+        this.#validateScheduleWriteRequest(newSchedules, storedSchedules, schedules.handles);
+        this.#normalizeSchedules(newSchedules, storedSchedules, schedules.handles);
+        this.#validateScheduleCommit(newSchedules, storedSchedules);
 
         if (!schedules.validatesOnceSettled) {
             context.transaction.addParticipants({
@@ -2122,14 +2114,15 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     /**
-     * Handles additional validation of schedule changes when all chunks were written in an atomic write operation.
+     * Refuses a commit that removes a built-in schedule or the active schedule, once every attribute of the atomic
+     * write is staged, so the failure names the schedules attribute. The staged value is a copy the store does not
+     * keep, so it is checked, not normalized; pre-commit normalizes the stored value.
      */
     #handleSchedulesAtomicChanged(
         newSchedules: Thermostat.Schedule[],
         oldSchedules: Thermostat.Schedule[] | undefined,
-        context: ActionContext,
     ) {
-        this.#normalizeAndValidateScheduleCommit(newSchedules, oldSchedules, this.#schedulesIn(context).handles);
+        this.#validateScheduleCommit(newSchedules, oldSchedules);
     }
 
     /**
@@ -2141,71 +2134,49 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     /**
-     * Assigns a handle to any schedule lacking one and validates the set, for both the atomic and the stored path.
+     * Assigns a handle to any schedule lacking one and resolves a null `builtIn` from the stored schedule with that
+     * handle. Normalizes in place: the report that follows reads the schedules back through the attribute's accessor.
      */
-    #normalizeAndValidateScheduleCommit(
+    #normalizeSchedules(
         newSchedules: Thermostat.Schedule[],
         oldSchedules: Thermostat.Schedule[] | undefined,
         issuedHandles: Set<string>,
     ) {
-        if (oldSchedules === undefined) {
-            logger.debug(
-                "Old schedules is undefined, skipping some checks. This should only happen on setup of the behavior.",
-            );
-        }
-
         const entropy = this.endpoint.env.get(Entropy);
-        const newScheduleHandles = new Set<string>();
 
-        // Normalized in place: the report that follows reads these back through the attribute's accessor
         for (const schedule of newSchedules) {
             if (schedule.scheduleHandle == null) {
                 logger.debug("Schedule is missing scheduleHandle, generating a new one");
                 schedule.scheduleHandle = entropy.randomBytes(16);
                 issuedHandles.add(Bytes.toHex(schedule.scheduleHandle));
             }
-            newScheduleHandles.add(Bytes.toHex(schedule.scheduleHandle));
-            if (oldSchedules === undefined) {
-                if (schedule.builtIn === null) {
-                    schedule.builtIn = false;
-                }
-            } else {
-                if (schedule.builtIn === null) {
-                    const oldSchedule = oldSchedules.find(
-                        s =>
-                            s.scheduleHandle &&
-                            schedule.scheduleHandle &&
-                            Bytes.areEqual(s.scheduleHandle, schedule.scheduleHandle),
-                    );
-                    if (oldSchedule !== undefined) {
-                        schedule.builtIn = oldSchedule.builtIn;
-                    } else {
-                        schedule.builtIn = false;
-                    }
-                }
+            if (schedule.builtIn === null) {
+                const { scheduleHandle } = schedule;
+                const oldSchedule = oldSchedules?.find(
+                    s => s.scheduleHandle !== null && Bytes.areEqual(s.scheduleHandle, scheduleHandle),
+                );
+                schedule.builtIn = oldSchedule?.builtIn ?? false;
+            }
+        }
+    }
+
+    /**
+     * Refuses schedules that drop a built-in schedule or the active schedule. Checks handles only, so it needs no
+     * normalization: {@link #validateScheduleWriteRequest} already refused a schedule whose `builtIn` differs from
+     * the stored one, and a schedule without a handle is new.
+     */
+    #validateScheduleCommit(newSchedules: Thermostat.Schedule[], oldSchedules: Thermostat.Schedule[] | undefined) {
+        const newScheduleHandles = new Set<string>();
+        for (const { scheduleHandle } of newSchedules) {
+            if (scheduleHandle != null) {
+                newScheduleHandles.add(Bytes.toHex(scheduleHandle));
             }
         }
 
-        const newBuiltInSchedules = new Set<string>();
-        for (const schedule of newSchedules) {
-            if (schedule.builtIn) {
-                newBuiltInSchedules.add(Bytes.toHex(schedule.scheduleHandle!));
-            }
-        }
-        const oldBuiltInSchedules = new Set<string>();
-        if (oldSchedules !== undefined) {
-            for (const schedule of oldSchedules) {
-                if (schedule.builtIn && schedule.scheduleHandle !== null) {
-                    oldBuiltInSchedules.add(Bytes.toHex(schedule.scheduleHandle));
-                }
-            }
-        }
-
-        // Ensure built-in schedules are not removed
-        for (const oldBuiltInSchedule of oldBuiltInSchedules) {
-            if (!newBuiltInSchedules.has(oldBuiltInSchedule)) {
+        for (const { scheduleHandle, builtIn } of oldSchedules ?? []) {
+            if (builtIn && scheduleHandle !== null && !newScheduleHandles.has(Bytes.toHex(scheduleHandle))) {
                 throw new StatusResponse.ConstraintErrorError(
-                    `Cannot remove built-in schedule with scheduleHandle ${oldBuiltInSchedule}`,
+                    `Cannot remove built-in schedule with scheduleHandle ${Bytes.toHex(scheduleHandle)}`,
                 );
             }
         }
@@ -2482,22 +2453,36 @@ export namespace ThermostatBaseServer {
         controlSequenceOfOperation!: Thermostat.ControlSequenceOfOperation;
 
         /**
-         * What this behavior did to the presets of each transaction in flight: the handles it issued, which no
-         * baseline within that transaction carries, and whether it enlisted the check of the settled presets.
+         * What this behavior did to the presets of each transaction in flight: the handles it issued, the presets the
+         * transaction replaces, and whether it enlisted the check of the settled presets.
          *
          * Several transactions reach one endpoint at a time: an atomic write announces its staged presets before it
          * takes any lock.
          */
-        presetTransactions = new WeakMap<Transaction, { handles: Set<string>; validatesOnceSettled?: boolean }>();
+        presetTransactions = new WeakMap<
+            Transaction,
+            {
+                handles: Set<string>;
+                stored?: { presets: Thermostat.Preset[] | undefined };
+                validatesOnceSettled?: boolean;
+            }
+        >();
 
         /**
-         * What this behavior did to the schedules of each transaction in flight: the handles it issued, which no
-         * baseline within that transaction carries, and whether it enlisted the check of the settled schedules.
+         * What this behavior did to the schedules of each transaction in flight: the handles it issued, the schedules
+         * the transaction replaces, and whether it enlisted the check of the settled schedules.
          *
          * Several transactions reach one endpoint at a time: an atomic write announces its staged schedules before it
          * takes any lock.
          */
-        scheduleTransactions = new WeakMap<Transaction, { handles: Set<string>; validatesOnceSettled?: boolean }>();
+        scheduleTransactions = new WeakMap<
+            Transaction,
+            {
+                handles: Set<string>;
+                stored?: { schedules: Thermostat.Schedule[] | undefined };
+                validatesOnceSettled?: boolean;
+            }
+        >();
     }
 }
 

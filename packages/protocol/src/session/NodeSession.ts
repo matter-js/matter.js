@@ -34,6 +34,7 @@ import {
     Mutex,
     Time,
     Timer,
+    UnexpectedDataError,
 } from "@matter/general";
 import { CaseAuthenticatedTag, FabricIndex, GlobalFabricId, NodeId } from "@matter/types";
 import { SecureSession } from "./SecureSession.js";
@@ -202,9 +203,19 @@ export class NodeSession extends SecureSession {
         });
     }
 
+    /**
+     * Decrypt and decode a received message.
+     *
+     * @throws UnexpectedDataError when the payload cannot be decrypted with Matter's AES-CCM parameters or does not parse
+     * @throws CryptoDecryptError when the payload does not authenticate with this session's key
+     */
     decode({ header, applicationPayload, messageExtension }: DecodedPacket, aad: Bytes): DecodedMessage {
+        const undecryptable = SecureSession.undecryptablePayloadReason(applicationPayload, aad);
+        if (undecryptable !== undefined) {
+            throw new UnexpectedDataError(`Secured message cannot be decrypted: ${undecryptable}`);
+        }
         if (header.hasMessageExtensions) {
-            logger.info(
+            logger.debug(
                 `Message extensions are not supported. Ignoring ${messageExtension ? Bytes.toHex(messageExtension) : undefined}`,
             );
         }
@@ -215,7 +226,7 @@ export class NodeSession extends SecureSession {
         });
 
         if (message.payloadHeader.hasSecuredExtension) {
-            logger.info(
+            logger.debug(
                 `Secured extensions are not supported. Ignoring ${message.securityExtension ? Bytes.toHex(message.securityExtension) : undefined}`,
             );
         }
