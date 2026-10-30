@@ -5,6 +5,9 @@
  */
 
 import { Boot } from "@matter/general";
+import { mkdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { writeHeapSnapshot } from "node:v8";
 import { Environment, StorageService } from "@matter/main";
 import { chip, Chip } from "@matter/testing";
 import { log } from "../src/GenericTestApp.js";
@@ -21,6 +24,19 @@ declare global {
 Object.assign(globalThis, { chip });
 
 await chip.initialize();
+
+// DIAGNOSTIC ONLY (not for merge): heap trend per cert case on CI, and one snapshot past 1.8 GB
+let snapshotWritten = false;
+setInterval(() => {
+    const { heapUsed, rss } = process.memoryUsage();
+    if (!snapshotWritten && heapUsed > 1800 * 1048576) {
+        snapshotWritten = true;
+        const dir = fileURLToPath(new URL("../../cert-evidence/", import.meta.url));
+        mkdirSync(dir, { recursive: true });
+        process.stderr.write(`HEAPDIAG snapshot ${writeHeapSnapshot(`${dir}heap-${process.pid}.heapsnapshot`)}\n`);
+    }
+    process.stderr.write(`HEAPDIAG heapUsed=${Math.round(heapUsed / 1048576)}MB rss=${Math.round(rss / 1048576)}MB\n`);
+}, 20_000).unref();
 
 // Default to memory driver for tests; overridable via MATTER_STORAGE_DRIVER env var.  We use Boot.init so the
 // setting survives Boot.reboot() which the test runner calls before each file
