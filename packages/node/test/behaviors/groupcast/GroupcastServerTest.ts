@@ -10,6 +10,7 @@ import { GroupcastClient, GroupcastServer } from "#behaviors/groupcast";
 import { GroupsClient } from "#behaviors/groups";
 import { ServerNode } from "#node/ServerNode.js";
 import {
+    Bytes,
     deepCopy,
     Diagnostic,
     Environment,
@@ -23,7 +24,16 @@ import {
 } from "@matter/general";
 import { AccessLevel } from "@matter/model";
 import { captureLog, MockExchange, MockServerNode, MockSite } from "@matter/node/testing";
-import { Fabric, FabricManager, IANA_GROUPCAST_MULTICAST_ADDRESS, SessionManager } from "@matter/protocol";
+import {
+    Fabric,
+    FabricManager,
+    GroupSession,
+    IANA_GROUPCAST_MULTICAST_ADDRESS,
+    MessageCodec,
+    MessageCounter,
+    SessionManager,
+    SessionType,
+} from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, MATTER_EPOCH_OFFSET_US, NodeId } from "@matter/types";
 import { Groupcast } from "@matter/types/clusters/groupcast";
 import { recordMembershipChanges } from "./multicast-helpers.js";
@@ -700,6 +710,21 @@ describe("GroupcastServer", () => {
                 "Legacy",
             );
             expect(realFabric.groups.endpoints.has(GroupId(0x0300))).equal(true);
+
+            // Replacing every endpoint removes and recreates the entry, which must still keep the name
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0300),
+                    endpoints: [EndpointNumber(3)],
+                    keySetId: 1,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                    replaceEndpoints: true,
+                }),
+            );
+            await MockTime.yield3();
+            const replaced = node.stateOf(GroupKeyManagementServer).groupTable.find(e => e.groupId === 0x0300);
+            expect(replaced?.endpoints).deep.equal([3]);
+            expect(replaced?.groupName).equal("Legacy");
         });
 
         it("shrinks Membership and auxiliary ACLs when groups are removed via the GKM group table", async () => {
@@ -905,6 +930,26 @@ describe("GroupcastServer", () => {
 
             const realFabric = node.env.get(FabricManager).for(fi);
             expect(realFabric.groups.endpoints.get(GroupId(0x0103))).deep.equal([1, 2]);
+        });
+
+        it("creates the GKM groupTable entry without a GroupName", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const fi = fabric.fabricIndex;
+
+            await node.online({ exchange: fabricExchange(fi), command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0103),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+
+            const entry = node.stateOf(GroupKeyManagementServer).groupTable.find(e => e.groupId === 0x0103);
+            expect(entry?.endpoints).deep.equal([1]);
+            expect(entry?.groupName).equal(undefined);
         });
 
         it("removes endpoints from GKM groupTable and FabricGroups when group is left", async () => {
@@ -1783,6 +1828,7 @@ describe("GroupcastServer", () => {
 
             // Authenticated success: destination derived from the group's multicast policy
             sessions.emitGroupMessage({
+                kind: "authenticated",
                 result: Groupcast.GroupcastTestResult.Success,
                 fabric: fabricObj,
                 groupId: GroupId(0x0001),
@@ -1792,18 +1838,16 @@ describe("GroupcastServer", () => {
             });
 
             // Unauthenticated decode failure: destination derived from the header group id, no GroupID reported
-            sessions.emitGroupMessage({
-                result: Groupcast.GroupcastTestResult.NoAvailableKey,
-                headerGroupId: GroupId(0x0001),
+            sessions.onGroupMessage.emit({
+                kind: "unauthenticated",
+                candidateFabrics: new Set(),
+                group: { groupId: GroupId(0x0001) },
                 sourceIp: "fe80::1%en0",
             });
 
             // Fully unknown key with a privacy-obfuscated header: no group id at all, IANA is the only
             // plausible arrival address
-            sessions.emitGroupMessage({
-                result: Groupcast.GroupcastTestResult.NoAvailableKey,
-                sourceIp: "fd00::2",
-            });
+            sessions.onGroupMessage.emit({ kind: "unauthenticated", candidateFabrics: new Set(), sourceIp: "fd00::2" });
 
             await MockTime.yield3();
 
@@ -1822,8 +1866,9 @@ describe("GroupcastServer", () => {
             expect(events[1].destinationIpAddress).deep.equal(ipv6ToBytes(IANA_GROUPCAST_MULTICAST_ADDRESS));
         });
 
-        it("drops messages that another fabric authenticated", async () => {
-            await using node = await createGroupcastNode();
+        /** A node with two fabrics, testing enabled for the first, and the testing events it emits. */
+        async function twoFabricTestingNode() {
+            const node = await createGroupcastNode();
             const fabric1 = await node.addFabric();
             const fabric2 = await node.addFabric();
 
@@ -1839,22 +1884,269 @@ describe("GroupcastServer", () => {
                 events.push(payload);
             });
 
-            const sessions = node.env.get(SessionManager);
+            return {
+                node,
+                fabric1,
+                fabric2,
+                events,
+                sessions: node.env.get(SessionManager),
+                [Symbol.asyncDispose]: () => node.close(),
+            };
+        }
+
+        async function joinGroup(
+            node: Awaited<ReturnType<typeof createGroupcastNode>>,
+            fabricIndex: FabricIndex,
+            groupId: GroupId,
+            mcastAddrPolicy: Groupcast.MulticastAddrPolicy,
+        ) {
+            await node.online({ exchange: fabricExchange(fabricIndex), command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId,
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy,
+                }),
+            );
+        }
+
+        it("drops authenticated messages of another fabric", async () => {
+            await using testing = await twoFabricTestingNode();
+            const { node, fabric1, fabric2, events, sessions } = testing;
             const fabrics = node.env.get(FabricManager);
             for (const fabric of [fabric2, fabric1]) {
-                sessions.emitGroupMessage({
-                    result: Groupcast.GroupcastTestResult.NoAvailableKey,
-                    fabric: fabrics.for(fabric.fabricIndex),
-                    headerGroupId: GroupId(0x0001),
+                for (const result of [
+                    Groupcast.GroupcastTestResult.Success,
+                    Groupcast.GroupcastTestResult.MessageReplay,
+                ]) {
+                    sessions.emitGroupMessage({
+                        kind: "authenticated",
+                        result,
+                        fabric: fabrics.for(fabric.fabricIndex),
+                        groupId: GroupId(0x0001),
+                        sourceIp: "fd00::1",
+                    });
+                }
+            }
+            await MockTime.yield3();
+
+            expect(
+                events.map(({ fabricIndex, groupcastTestResult }) => ({ fabricIndex, groupcastTestResult })),
+            ).deep.equal([
+                { fabricIndex: fabric1.fabricIndex, groupcastTestResult: Groupcast.GroupcastTestResult.Success },
+                { fabricIndex: fabric1.fabricIndex, groupcastTestResult: Groupcast.GroupcastTestResult.MessageReplay },
+            ]);
+        });
+
+        it("reports a message without candidate key on the fabric under test although another fabric's key named the group", async () => {
+            await using testing = await twoFabricTestingNode();
+            const { fabric1, fabric2, events, sessions } = testing;
+
+            sessions.onGroupMessage.emit({
+                kind: "unauthenticated",
+                candidateFabrics: new Set(),
+                group: { groupId: GroupId(0x0001), fabricIndex: fabric2.fabricIndex },
+                sourceIp: "fd00::1",
+            });
+            await MockTime.yield3();
+
+            expect(events).length(1);
+            expect(events[0].fabricIndex).equal(fabric1.fabricIndex);
+            expect(events[0].groupcastTestResult).equal(Groupcast.GroupcastTestResult.NoAvailableKey);
+            expect(events[0].groupId).equal(undefined);
+            // Group 1 is not joined, so the datagram can only have arrived via the shared IANA address
+            expect(events[0].destinationIpAddress).deep.equal(ipv6ToBytes(IANA_GROUPCAST_MULTICAST_ADDRESS));
+        });
+
+        it("reports failed authentication only to a fabric whose key was a candidate", async () => {
+            await using testing = await twoFabricTestingNode();
+            const { fabric1, fabric2, events, sessions } = testing;
+            for (const candidates of [[fabric2], [fabric2, fabric1]]) {
+                sessions.onGroupMessage.emit({
+                    kind: "unauthenticated",
+                    candidateFabrics: new Set(candidates.map(({ fabricIndex }) => fabricIndex)),
+                    group: { groupId: GroupId(0x0001) },
                     sourceIp: "fd00::1",
                 });
             }
             await MockTime.yield3();
 
-            expect(events).length(1);
-            expect(events[0].fabricIndex).equal(fabric1.fabricIndex);
-            // Group 1 is not joined, so the datagram can only have arrived via the shared IANA address
-            expect(events[0].destinationIpAddress).deep.equal(ipv6ToBytes(IANA_GROUPCAST_MULTICAST_ADDRESS));
+            expect(
+                events.map(({ groupcastTestResult, fabricIndex, groupId }) => ({
+                    groupcastTestResult,
+                    fabricIndex,
+                    groupId,
+                })),
+            ).deep.equal([
+                {
+                    groupcastTestResult: Groupcast.GroupcastTestResult.NoAvailableKey,
+                    fabricIndex: fabric1.fabricIndex,
+                    groupId: undefined,
+                },
+                {
+                    groupcastTestResult: Groupcast.GroupcastTestResult.FailedAuth,
+                    fabricIndex: fabric1.fabricIndex,
+                    groupId: undefined,
+                },
+            ]);
+        });
+
+        it("does not use the fabric under test's address for a group id that another fabric owns", async () => {
+            await using testing = await twoFabricTestingNode();
+            const { node, fabric1, fabric2, events, sessions } = testing;
+            const group = GroupId(0x0001);
+            await joinGroup(node, fabric1.fabricIndex, group, Groupcast.MulticastAddrPolicy.PerGroup);
+
+            sessions.onGroupMessage.emit({
+                kind: "unauthenticated",
+                candidateFabrics: new Set([fabric1.fabricIndex]),
+                group: { groupId: group, fabricIndex: fabric2.fabricIndex },
+                sourceIp: "fd00::1",
+            });
+            await MockTime.yield3();
+
+            // Fabric 2 has not joined the group, so the datagram can only have arrived via the shared IANA address
+            expect(events.map(({ destinationIpAddress }) => destinationIpAddress)).deep.equal([
+                ipv6ToBytes(IANA_GROUPCAST_MULTICAST_ADDRESS),
+            ]);
+        });
+
+        it("derives the arrival address from the fabric that owns the group id", async () => {
+            await using testing = await twoFabricTestingNode();
+            const { node, fabric1, fabric2, events, sessions } = testing;
+            const group = GroupId(0x0001);
+            await joinGroup(node, fabric1.fabricIndex, group, Groupcast.MulticastAddrPolicy.IanaAddr);
+            await joinGroup(node, fabric2.fabricIndex, group, Groupcast.MulticastAddrPolicy.PerGroup);
+
+            sessions.onGroupMessage.emit({
+                kind: "unauthenticated",
+                candidateFabrics: new Set([fabric1.fabricIndex]),
+                group: { groupId: group, fabricIndex: fabric2.fabricIndex },
+                sourceIp: "fd00::1",
+            });
+            await MockTime.yield3();
+
+            const fabric2Address = node.env
+                .get(FabricManager)
+                .for(fabric2.fabricIndex)
+                .groups.multicastAddressFor(group);
+            expect(fabric2Address).not.equal(IANA_GROUPCAST_MULTICAST_ADDRESS);
+            expect(events.map(({ destinationIpAddress }) => destinationIpAddress)).deep.equal([
+                ipv6ToBytes(fabric2Address),
+            ]);
+        });
+
+        it("uses the shared IANA address when the fabric that owns the group id no longer exists", async () => {
+            await using testing = await twoFabricTestingNode();
+            const { node, fabric1, fabric2, events, sessions } = testing;
+            await node.env.get(FabricManager).for(fabric2.fabricIndex).delete();
+
+            sessions.onGroupMessage.emit({
+                kind: "unauthenticated",
+                candidateFabrics: new Set([fabric1.fabricIndex]),
+                group: { groupId: GroupId(0x0001), fabricIndex: fabric2.fabricIndex },
+                sourceIp: "fd00::1",
+            });
+            await MockTime.yield3();
+
+            expect(events.map(({ destinationIpAddress }) => destinationIpAddress)).deep.equal([
+                ipv6ToBytes(IANA_GROUPCAST_MULTICAST_ADDRESS),
+            ]);
+        });
+
+        it("reports a received datagram that a key of another group authenticated as failed authentication", async () => {
+            await using testing = await twoFabricTestingNode();
+            const { node, fabric1, events, sessions } = testing;
+            const fabric = node.env.get(FabricManager).for(fabric1.fabricIndex);
+            await joinGroup(node, fabric1.fabricIndex, GroupId(0x0001), Groupcast.MulticastAddrPolicy.PerGroup);
+            await node.online({ exchange: fabricExchange(fabric1.fabricIndex), command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0002),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 2,
+                    key: Bytes.fromHex("f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"),
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.PerGroup,
+                }),
+            );
+
+            // Key set 2 is mapped to group 2 only, so it does not authenticate a message for group 1
+            const current = fabric.groups.keySets.currentKeyForId(2);
+            const sender = new GroupSession({
+                id: current.sessionId!,
+                fabric,
+                keySetId: 2,
+                operationalGroupKey: current.key,
+                operationalPrivacyKey: current.privacyKey,
+                peerNodeId: NodeId.fromGroupId(GroupId(0x0001)),
+                multicastAddress: fabric.groups.multicastAddressFor(GroupId(0x0001)),
+                messageCounter: new MessageCounter(fabric.crypto),
+            });
+            const wire = MessageCodec.encodePacket(
+                sender.encode({
+                    packetHeader: {
+                        sessionId: current.sessionId!,
+                        sessionType: SessionType.Group,
+                        messageId: 0x1000,
+                        destGroupId: 0x0001,
+                        sourceNodeId: NodeId(0x1234),
+                        hasPrivacyEnhancements: true,
+                        isControlMessage: false,
+                        hasMessageExtensions: false,
+                    },
+                    payloadHeader: {
+                        isInitiatorMessage: true,
+                        requiresAck: false,
+                        messageType: 0x08,
+                        exchangeId: 0x1234,
+                        protocolId: 0x0001,
+                        ackedMessageId: undefined,
+                        hasSecuredExtension: false,
+                    },
+                    payload: Bytes.empty,
+                }),
+            );
+            const packet = MessageCodec.decodePacket(wire);
+            const aad = Bytes.of(wire).slice(0, wire.byteLength - packet.applicationPayload.byteLength);
+
+            expect(sessions.groupSessionFromPacket(packet, aad, "fd00::1")).equal(undefined);
+            await MockTime.yield3();
+
+            expect(
+                events.map(({ groupcastTestResult, groupId, fabricIndex, destinationIpAddress }) => ({
+                    groupcastTestResult,
+                    groupId,
+                    fabricIndex,
+                    destinationIpAddress,
+                })),
+            ).deep.equal([
+                {
+                    groupcastTestResult: Groupcast.GroupcastTestResult.FailedAuth,
+                    groupId: undefined,
+                    fabricIndex: fabric1.fabricIndex,
+                    destinationIpAddress: ipv6ToBytes(fabric.groups.multicastAddressFor(GroupId(0x0001))),
+                },
+            ]);
+        });
+
+        // Characterization: a plain header names no fabric, so the address keeps using the fabric under test
+        it("derives the arrival address of an unauthenticated plain header group id from the fabric under test", async () => {
+            await using testing = await twoFabricTestingNode();
+            const { node, fabric1, events, sessions } = testing;
+            const group = GroupId(0x0001);
+            await joinGroup(node, fabric1.fabricIndex, group, Groupcast.MulticastAddrPolicy.PerGroup);
+
+            sessions.onGroupMessage.emit({
+                kind: "unauthenticated",
+                candidateFabrics: new Set(),
+                group: { groupId: group },
+                sourceIp: "fd00::1",
+            });
+            await MockTime.yield3();
+
+            expect(events.map(({ destinationIpAddress }) => destinationIpAddress)).deep.equal([
+                ipv6ToBytes(node.env.get(FabricManager).for(fabric1.fabricIndex).groups.multicastAddressFor(group)),
+            ]);
         });
 
         it("derives the destination from each group's policy when groups share a key set", async () => {
@@ -1895,6 +2187,7 @@ describe("GroupcastServer", () => {
             const fabricObj = node.env.get(FabricManager).for(fabric.fabricIndex);
             for (const groupId of [GroupId(0x0001), GroupId(0x0002)]) {
                 sessions.emitGroupMessage({
+                    kind: "authenticated",
                     result: Groupcast.GroupcastTestResult.Success,
                     fabric: fabricObj,
                     groupId,

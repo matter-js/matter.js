@@ -8,7 +8,6 @@ import { Mark } from "#common/Mark.js";
 import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import {
     Bytes,
-    CRYPTO_AEAD_MIC_LENGTH_BYTES,
     DataReader,
     DataWriter,
     Diagnostic,
@@ -29,6 +28,12 @@ import {
 } from "@matter/types";
 import { MessageType } from "../interaction/InteractionMessenger.js";
 
+/** The session id of unicast messages without a secure session.  They carry no MIC. */
+export const UNICAST_UNSECURE_SESSION_ID = 0x0000;
+
+/** The obfuscated header region of a privacy message: counter, source node id and destination group id. */
+const PRIVACY_HEADER_LENGTH = 4 + 8 + 2;
+
 export interface PacketHeader {
     sessionId: number;
     sessionType: SessionType;
@@ -42,6 +47,9 @@ export interface PacketHeader {
 }
 
 export interface DecodedPacketHeader extends PacketHeader {
+    /** The message flags byte as received.  Privacy never obfuscates it. */
+    messageFlags: number;
+
     securityFlags: number; // The SecurityFlags as pure data field to be used as nonce
 }
 
@@ -204,14 +212,14 @@ export class MessageCodec {
         const flags = reader.readUInt8();
         const version = (flags & PacketHeaderFlag.VersionMask) >> 4;
         const hasDestNodeId = (flags & PacketHeaderFlag.HasDestNodeId) !== 0;
-        const hasDestGroupId = (flags & PacketHeaderFlag.HasDestGroupId) !== 0;
+        const hasDestGroupId = MessageCodec.hasDestGroupId(flags);
         const hasSourceNodeId = (flags & PacketHeaderFlag.HasSourceNodeId) !== 0;
 
         if (hasDestNodeId && hasDestGroupId)
             throw new UnexpectedDataError(
                 "The header cannot contain destination group and node at the same time. Reserved for future use. Discard message.",
             );
-        if (version !== HEADER_VERSION) throw new NotImplementedError(`Unsupported header version ${version}.`);
+        if (version !== HEADER_VERSION) throw new UnexpectedDataError(`Unsupported header version ${version}.`);
 
         const sessionId = reader.readUInt16();
         const securityFlags = reader.readUInt8();
@@ -223,9 +231,16 @@ export class MessageCodec {
         if (sessionType === SessionType.Unicast && hasDestGroupId) {
             throw new UnexpectedDataError(`Unicast session cannot have destination group id.`);
         }
+        // The CHIP SDK drops these too: only the initiator has a source node id, only the responder a destination
+        if (sessionType === SessionType.Unicast && sessionId === UNICAST_UNSECURE_SESSION_ID) {
+            if (hasSourceNodeId === hasDestNodeId) {
+                throw new UnexpectedDataError(`Unsecured message must have either a source or a destination node id.`);
+            }
+        }
         if (sessionType === SessionType.Group) {
-            if (!hasDestGroupId && !hasDestNodeId) {
-                throw new UnexpectedDataError(`Group session must have destination group id or destination node id.`);
+            // A group session message to a destination node is MCSP, which the CHIP SDK does not process either
+            if (!hasDestGroupId) {
+                throw new UnexpectedDataError(`Group session must have destination group id.`);
             }
             if (!hasSourceNodeId) {
                 throw new UnexpectedDataError(`Group session must have source node id.`);
@@ -233,28 +248,22 @@ export class MessageCodec {
         }
 
         const hasPrivacyEnhancements = (securityFlags & SecurityFlag.HasPrivacyEnhancements) !== 0;
+        if (hasPrivacyEnhancements && sessionType !== SessionType.Group) {
+            throw new UnexpectedDataError(`Privacy enhancements are not supported on unicast, as in the CHIP SDK.`);
+        }
         const isControlMessage = (securityFlags & SecurityFlag.IsControlMessage) !== 0;
         if (isControlMessage) {
-            throw new NotImplementedError(`Control Messages not supported.`);
+            throw new UnexpectedDataError(`Control Messages not supported.`);
         }
         const hasMessageExtensions = (securityFlags & SecurityFlag.HasMessageExtension) !== 0;
 
         if (hasPrivacyEnhancements) {
-            if (hasMessageExtensions) {
-                throw new NotImplementedError(`Privacy enhancements with message extensions not supported.`);
-            }
-            const privacyHeaderLength = 4 + (hasSourceNodeId ? 8 : 0) + (hasDestNodeId ? 8 : hasDestGroupId ? 2 : 0);
-            if (reader.remainingBytesCount < privacyHeaderLength) {
-                throw new UnexpectedDataError(
-                    `Privacy header length ${privacyHeaderLength} exceeds remaining message size ${reader.remainingBytesCount}.`,
-                );
-            }
-            const obfuscatedRegion = reader.readByteArray(privacyHeaderLength);
+            const obfuscatedRegion = reader.readByteArray(PRIVACY_HEADER_LENGTH);
             return {
                 flags,
                 sessionType,
                 hasPrivacyEnhancements: true,
-                hasMessageExtensions: false,
+                hasMessageExtensions,
                 sessionId,
                 securityFlags,
                 obfuscatedRegion,
@@ -282,8 +291,27 @@ export class MessageCodec {
         };
     }
 
+    /**
+     * Decode the header of a received datagram and split off its payload.  Only the header is checked here; the session
+     * that decrypts the payload checks the payload.  Refuses with {@link UnexpectedDataError} a datagram whose header a
+     * session cannot be identified from.  These are mostly the cases the CHIP SDK refuses before it tries a key;
+     * matter.js also refuses unicast control messages:
+     *
+     * - an unsupported header version or an unsupported session type
+     * - a control message
+     * - both destination flags set, or a unicast message with a destination group id
+     * - a group session message without destination group id (MCSP is not supported) or without source node id
+     * - the privacy flag on a unicast message, which the CHIP SDK does not support either
+     * - an unsecured unicast message with both or neither of source and destination node id
+     * - a datagram shorter than its header or its message extensions
+     *
+     * For a privacy message the counter, the source node id and the destination group id are obfuscated: the header
+     * then has message id 0 and neither `sourceNodeId` nor `destGroupId`, and {@link DecodedPacket.privacyHeader} holds
+     * the obfuscated region for the session to decode.
+     */
     static decodePacket(data: Bytes): DecodedPacket {
         const {
+            flags,
             sessionType,
             hasPrivacyEnhancements,
             hasMessageExtensions,
@@ -296,53 +324,6 @@ export class MessageCodec {
             obfuscatedRegion,
             applicationPayload,
         } = MessageCodec.decodeFixedHeader(data);
-
-        if (hasPrivacyEnhancements) {
-            // decodeFixedHeader sets obfuscatedRegion whenever privacy is enabled; assert the invariant for the type.
-            if (obfuscatedRegion === undefined) {
-                throw new UnexpectedDataError("Privacy-enhanced packet is missing its obfuscated header region.");
-            }
-            // Reject early: the privacy nonce is derived from the MIC, so a packet without a full MIC must not proceed.
-            if (applicationPayload.byteLength < CRYPTO_AEAD_MIC_LENGTH_BYTES) {
-                throw new UnexpectedDataError(
-                    `Privacy-enhanced message too short to contain a MIC: ${applicationPayload.byteLength} bytes remaining.`,
-                );
-            }
-            return {
-                header: {
-                    securityFlags,
-                    sessionId,
-                    sessionType,
-                    hasPrivacyEnhancements: true,
-                    isControlMessage: false,
-                    hasMessageExtensions: false,
-                    messageId: 0,
-                    sourceNodeId: undefined,
-                    destNodeId: undefined,
-                    destGroupId: undefined,
-                },
-                privacyHeader: obfuscatedRegion,
-                applicationPayload,
-            };
-        }
-
-        // decodeFixedHeader always reads the counter for non-privacy packets; assert the invariant for the type.
-        if (messageId === undefined) {
-            throw new UnexpectedDataError("Message is missing its message counter.");
-        }
-
-        const header: DecodedPacketHeader = {
-            securityFlags,
-            sessionId,
-            sourceNodeId: sourceNodeId === undefined ? undefined : NodeId(sourceNodeId),
-            messageId,
-            destGroupId: destGroupId === undefined ? undefined : GroupId(destGroupId),
-            destNodeId: destNodeId === undefined ? undefined : NodeId(destNodeId),
-            sessionType,
-            hasPrivacyEnhancements: false,
-            isControlMessage: false,
-            hasMessageExtensions,
-        };
 
         let messageExtension: Bytes | undefined = undefined;
         let payload = applicationPayload;
@@ -358,44 +339,78 @@ export class MessageCodec {
             payload = reader.remainingBytes;
         }
 
+        if (hasPrivacyEnhancements) {
+            // decodeFixedHeader sets obfuscatedRegion whenever privacy is enabled; assert the invariant for the type.
+            if (obfuscatedRegion === undefined) {
+                throw new InternalError("Privacy-enhanced packet is missing its obfuscated header region.");
+            }
+            return {
+                header: {
+                    messageFlags: flags,
+                    securityFlags,
+                    sessionId,
+                    sessionType,
+                    hasPrivacyEnhancements: true,
+                    isControlMessage: false,
+                    hasMessageExtensions,
+                    messageId: 0,
+                    sourceNodeId: undefined,
+                    destNodeId: undefined,
+                    destGroupId: undefined,
+                },
+                privacyHeader: obfuscatedRegion,
+                messageExtension,
+                applicationPayload: payload,
+            };
+        }
+
+        // decodeFixedHeader always reads the counter for non-privacy packets; assert the invariant for the type.
+        if (messageId === undefined) {
+            throw new InternalError("Message is missing its message counter.");
+        }
+
         return {
-            header,
+            header: {
+                messageFlags: flags,
+                securityFlags,
+                sessionId,
+                sourceNodeId: sourceNodeId === undefined ? undefined : NodeId(sourceNodeId),
+                messageId,
+                destGroupId: destGroupId === undefined ? undefined : GroupId(destGroupId),
+                destNodeId: destNodeId === undefined ? undefined : NodeId(destNodeId),
+                sessionType,
+                hasPrivacyEnhancements: false,
+                isControlMessage: false,
+                hasMessageExtensions,
+            },
             messageExtension,
             applicationPayload: payload,
         };
     }
 
+    /** Whether the message flags byte, which privacy never obfuscates, announces a destination group id. */
+    static hasDestGroupId(messageFlags: number) {
+        return (messageFlags & PacketHeaderFlag.HasDestGroupId) !== 0;
+    }
+
     /**
      * Decode the message counter and node/group IDs from a deobfuscated privacy header region. Presence of each field
-     * is determined from the (cleartext) message flags byte.
+     * is determined from the (cleartext) message flags byte.  The region must come from {@link decodePacket}, which
+     * guarantees its length.
      */
     static decodeObfuscatedHeaderFields(
         messageFlags: number,
         region: Bytes,
-    ): Pick<DecodedPacketHeader, "messageId" | "sourceNodeId" | "destNodeId" | "destGroupId"> {
-        const hasDestNodeId = (messageFlags & PacketHeaderFlag.HasDestNodeId) !== 0;
-        const hasDestGroupId = (messageFlags & PacketHeaderFlag.HasDestGroupId) !== 0;
+    ): Pick<DecodedPacketHeader, "messageId" | "sourceNodeId" | "destGroupId"> {
+        const hasDestGroupId = MessageCodec.hasDestGroupId(messageFlags);
         const hasSourceNodeId = (messageFlags & PacketHeaderFlag.HasSourceNodeId) !== 0;
-
-        if (hasDestNodeId && hasDestGroupId)
-            throw new UnexpectedDataError(
-                "The header cannot contain destination group and node at the same time. Reserved for future use. Discard message.",
-            );
-
-        const expectedLength = 4 + (hasSourceNodeId ? 8 : 0) + (hasDestNodeId ? 8 : hasDestGroupId ? 2 : 0);
-        if (region.byteLength < expectedLength) {
-            throw new UnexpectedDataError(
-                `Privacy header region length ${region.byteLength} is shorter than expected ${expectedLength}.`,
-            );
-        }
 
         const reader = new DataReader(region, Endian.Little);
         const messageId = reader.readUInt32();
         const sourceNodeId = hasSourceNodeId ? NodeId(reader.readUInt64()) : undefined;
-        const destNodeId = hasDestNodeId ? NodeId(reader.readUInt64()) : undefined;
         const destGroupId = hasDestGroupId ? GroupId(reader.readUInt16()) : undefined;
 
-        return { messageId, sourceNodeId, destNodeId, destGroupId };
+        return { messageId, sourceNodeId, destGroupId };
     }
 
     static decodePayload({ header, applicationPayload }: DecodedPacket): DecodedMessage {
@@ -410,12 +425,6 @@ export class MessageCodec {
                 );
             }
             securityExtension = reader.readByteArray(extensionLength);
-        }
-
-        if (header.sessionType === SessionType.Group && !header.isControlMessage) {
-            if (payloadHeader.requiresAck || payloadHeader.ackedMessageId) {
-                throw new UnexpectedDataError(`Group data messages cannot have requiresAck or ackedMessageId set.`);
-            }
         }
 
         return {

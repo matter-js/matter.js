@@ -19,6 +19,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: WAL storage loads its data when it opens, so a write during the first reads after opening is no longer lost
     - Fix: WAL storage starts a new log segment on every open, so a write after a crash that cut off the last log line is no longer lost
     - Fix: WAL storage snapshots right after an open that replayed its log, and refuses to open when its log is incomplete instead of opening with partial data
+    - Fix: The Node.js implementation (`NodeJsStyleCrypto`) refuses AES-CCM nonces of 7 to 11 bytes, which Node.js accepted
+    - Fix: The Node.js implementation (`NodeJsStyleCrypto`) refuses AES-CCM AAD over 65535 bytes, which Node.js accepted
+    - Fix: Both crypto implementations throw `CryptoInputError` for AES-CCM input outside the limits in `CryptoConstants`, where the Node.js implementation threw `RangeError` or `TypeError`
+    - Fix: `StandardCrypto` encrypts and decrypts AES-CCM plaintext of 65521 to 65535 bytes, which Matter messages reach only with `network.tcp.maxMessageSize` raised above its 64000-byte default
+    - Fix: `StandardCrypto` computes the correct AES-CCM tag for AAD of 65280 bytes or more
     - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
 
 - @matter/node
@@ -26,7 +31,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
-    - Fix: A list or struct assigned to state is stored as a copy, so a later nested write no longer changes the value it came from
+    - Fix: A local write that removes the last GroupKeyMap entry of a fabric also clears the fabric's operational group key map
+    - Fix: Groupcast testing reports NoAvailableKey to the fabric under test when only an unmapped key set of another fabric authenticated a group message, instead of reporting nothing
+    - Fix: Groupcast testing derives DestinationIpAddress from the fabric that owns the group id and the groups the node joins
+    - Fix: A group that Groupcast JoinGroup creates has no GroupName in the GroupKeyManagement GroupTable, instead of an empty name    - Fix: A list or struct assigned to state is stored as a copy, so a later nested write no longer changes the value it came from
     - Fix: Removing an entry from a fabric-filtered list emits the change and is undone by a rollback
     - Fix: `sort()`, `reverse()`, `unshift()` and `splice()` on a state list no longer duplicate entries or throw when they move them, and `shift()` and `pop()` return the removed entry
     - Fix: Array methods that change a state list apply all of their change or none of it, hand removed entries and `sort()` comparator arguments out as read-only views, and a later nested write to an entry they moved is rolled back with the transaction
@@ -40,6 +48,16 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
 
 - @matter/protocol
+    - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
+    - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec`, `MessageCodec` and `ExchangeManager`
+    - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
+    - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
+    - Fix: A group message whose key set GroupKeyMap does not map to its destination group fails authentication instead of reaching access control
+    - Fix: A group message whose payload is too short, too long or does not parse fails every candidate key and is reported to Groupcast testing as FailedAuth or NoAvailableKey
+    - Fix: Groupcast testing reports a group message for which only another fabric had a candidate key as NoAvailableKey instead of FailedAuth
+    - Fix: Starting an exchange skips exchange ids that are still open on the session, instead of reusing one after the 16-bit counter wraps
+    - Fix: An exchange is identified by its session, so a message on another session with the same exchange id no longer reaches or replaces it, nor counts toward its session's exchange limit
+    - Fix: A privacy group message with message extensions is decoded with the extensions in the additional authenticated data, as specified in section 4.8.2, instead of refused
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Fix: The mDNS responder no longer sends a goodbye for host addresses or shared pointers that another of its services still publishes
