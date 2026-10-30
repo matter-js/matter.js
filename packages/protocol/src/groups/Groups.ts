@@ -69,12 +69,21 @@ export class Groups {
         return false;
     }
 
+    /**
+     * Whether GroupKeyMap maps the group to a key set that holds the given operational key.  Compares key material, so
+     * a key of another key set with identical material is allowed too.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.17.3.6
+     */
+    mappingAllows(id: GroupId, operationalKey: Bytes) {
+        const mappedKeySetId = this.#groupKeyIdMap.get(id);
+        return mappedKeySetId !== undefined && this.#keySets.containsOperationalKey(mappedKeySetId, operationalKey);
+    }
+
     subjectForGroup(id: GroupId, operationalKey: Bytes) {
-        const mappedKeySetId = this.idMap.get(id);
         return Subject.Group({
             id,
-            hasValidMapping:
-                mappedKeySetId !== undefined && this.#keySets.containsOperationalKey(mappedKeySetId, operationalKey),
+            hasValidMapping: this.mappingAllows(id, operationalKey),
             endpoints: this.endpointMap.get(id) ?? [],
         });
     }
