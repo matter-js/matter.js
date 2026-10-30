@@ -33,8 +33,9 @@ export type TvCommandArgs = Record<string, number | string>;
  * matter.js's `name: value` text.
  *
  * Takes integer, enum and string fields. Throws {@link InternalError} for an argument the command has no field for,
- * for a field of any other type, and for a string matter.js cannot print as a matchable value (empty, or carrying a
- * line break); a case that needs one of these extends this function.
+ * for a field of any other type, and for a string matter.js cannot print as a matchable value (empty, ending in
+ * whitespace, which matter.js trims from the end of the line, or carrying a line break); a case that needs one of
+ * these extends this function.
  */
 export function tvCommandPayload(cluster: ClusterModel, command: string, args: TvCommandArgs): CommandPayload {
     const model = cluster.commands.require(command);
@@ -64,7 +65,7 @@ export function tvCommandPayload(cluster: ClusterModel, command: string, args: T
             if (typeof value !== "string") {
                 throw new InternalError(`${what} needs a string for ${name}`);
             }
-            if (value === "" || /[\n\r]/.test(value)) {
+            if (value === "" || /\s$/.test(value) || /[\n\r]/.test(value)) {
                 throw new InternalError(`matter.js does not print ${what}.${name} "${value}" as a matchable value`);
             }
             chip.push(chipCommandField({ id, value }));

@@ -74,7 +74,7 @@ describe("tvCommandPayload", () => {
     });
 
     it("refuses a string matter.js cannot print as a matchable value", () => {
-        for (const data of ["", "two\nlines"]) {
+        for (const data of ["", "trailing ", "two\nlines"]) {
             expect(() => tvCommandPayload(TARGET_NAVIGATOR, "navigateTarget", { target: 2, data })).throws(
                 InternalError,
                 "as a matchable value",
