@@ -139,6 +139,18 @@ function hasStdinCommands(app: string) {
     return STDIN_COMMANDS[app] !== undefined;
 }
 
+/**
+ * The apps CHIP's own builds, chip-cert-bins among them, compile with the interactive shell (`chip_build_libshell` in the
+ * app's `args.gni`). The shell reads standard input and stops the app at end of input, so such an app needs a standard
+ * input that stays open. This project's image builds every app without the shell.
+ */
+const SHELL_APPS = new Set(["tv"]);
+
+/** Whether `app` needs a standard input pipe: for its simulation commands, or to keep its shell from ending it. */
+function needsStdin(app: string) {
+    return hasStdinCommands(app) || SHELL_APPS.has(app);
+}
+
 /** The character `app` reads for `command`, or `undefined` for a command it does not take that way. */
 function stdinCommandFor(app: string, command: BackchannelCommand): string | undefined {
     return STDIN_COMMANDS[app]?.get(command.name);
@@ -494,7 +506,7 @@ class ChipLocalDevice implements CertDevice {
 
         let generation: LocalGeneration | undefined;
         const app = ManagedChildProcess.spawn(binPath, args, {
-            stdin: hasStdinCommands(this.app) ? "pipe" : "ignore",
+            stdin: needsStdin(this.app) ? "pipe" : "ignore",
             onExit: exit => {
                 if (generation !== undefined) {
                     this.#ended(generation, exit);
