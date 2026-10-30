@@ -89,6 +89,17 @@ describe("CdSigners", () => {
         });
     });
 
+    it("hands out a copy of a built-in key", () => {
+        const skid = Bytes.fromHex(CsaCdSigningKey001.subjectKeyId);
+        const first = Bytes.of(CdSigners.known(skid)?.publicKey ?? new Uint8Array());
+        expect(first.byteLength).equal(65);
+        first[1] ^= 0xff;
+
+        expect(Bytes.toHex(CdSigners.known(skid)?.publicKey ?? new Uint8Array())).equal(
+            CsaCdSigningKey001.publicKeyHex,
+        );
+    });
+
     it("recognizes the Matter test CD signer", () => {
         expect(CdSigners.isTestSigner(CertificationDeclaration.testSignerInfo().subjectKeyId)).equal(true);
         expect(CdSigners.isTestSigner(Bytes.fromHex(CsaCdSigningKey001.subjectKeyId))).equal(false);

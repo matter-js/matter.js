@@ -855,7 +855,18 @@ export class DclCertificateService {
             return false;
         }
 
-        const isProduction = options?.isProduction ?? false;
+        await this.#putCertificate(cert, skid, derBytes, kind, options?.isProduction ?? false);
+        return true;
+    }
+
+    /** Write a parsed certificate and its index entry, replacing whatever is stored under `skid`. */
+    async #putCertificate(
+        cert: ReturnType<typeof parseTrustStoreCertificate>,
+        skid: string,
+        derBytes: Bytes,
+        kind: DclCertificateService.CertificateKind,
+        isProduction: boolean,
+    ) {
         const vid = (cert.subject as { vendorId?: number }).vendorId ?? 0;
 
         await this.#storeCertificate(this.#storage!, skid, Bytes.of(derBytes), {
@@ -870,7 +881,6 @@ export class DclCertificateService {
         await this.#saveIndex();
 
         logger.info(`Added ${kind} certificate`, Diagnostic.dict({ skid, isProduction }));
-        return true;
     }
 
     /**
@@ -923,7 +933,8 @@ export class DclCertificateService {
         }
 
         if ((this.#certificateIndex.get(normalizedSkid)?.kind ?? "PAA") === "CDSigner") {
-            const stored = await this.#verifiedCdSigner(await this.#getCertificateDer(normalizedSkid), skid, "store");
+            const storedDer = await this.#readStoredCdSigner(normalizedSkid);
+            const stored = storedDer && (await this.#verifiedCdSigner(storedDer, skid, "store"));
             if (stored !== undefined) {
                 return { publicKey: stored.publicKey, isTestSigner: false };
             }
@@ -948,12 +959,25 @@ export class DclCertificateService {
         for (const { pemCert } of answer) {
             const signer = await this.#verifiedCdSigner(pemCert, skid, "DCL");
             if (signer !== undefined) {
-                if (this.#certificateIndex.get(normalizedSkid)?.kind === "CDSigner") {
-                    await this.deleteCertificate(normalizedSkid);
+                // A stored CD signer that failed verification is replaced; a PAA under the same SKID stays
+                if ((this.#certificateIndex.get(normalizedSkid)?.kind ?? "CDSigner") === "CDSigner") {
+                    const cert = parseTrustStoreCertificate(signer.der, "CDSigner");
+                    await this.#putCertificate(cert, normalizedSkid, signer.der, "CDSigner", true);
                 }
-                await this.addCertificate(signer.der, "CDSigner", { isProduction: true });
                 return { publicKey: signer.publicKey, isTestSigner: false };
             }
+        }
+    }
+
+    /** The stored DER of a CD signer, or `undefined` if it cannot be read, which then counts as not stored. */
+    async #readStoredCdSigner(skid: string) {
+        try {
+            return await this.#getCertificateDer(skid);
+        } catch (error) {
+            if (error instanceof InternalError || error instanceof ImplementationError) {
+                throw error;
+            }
+            logger.debug(`Stored CD signer ${skid} cannot be read:`, Diagnostic.errorMessage(asError(error)));
         }
     }
 

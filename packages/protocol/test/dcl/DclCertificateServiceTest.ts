@@ -1818,6 +1818,27 @@ describe("DclCertificateService", () => {
                 await service.close();
             });
 
+            it("asks the DCL when the stored certificate cannot be read", async () => {
+                mockRootCertificates();
+                mockSkidAnswer(futureSkid, futureKey);
+                const service = await onlineService({
+                    seed: {
+                        cdSigners: cdSignerSeed([
+                            { subjectKeyId: futureSkid, derHex: Bytes.toHex(futureKey), kind: "production" },
+                        ]),
+                    },
+                });
+                const storage = await environment.get(StorageService).open("certificates");
+                await storage.createContext("root").delete(futureSkid);
+                expect(service.getCertificate(futureSkid)?.kind).equal("CDSigner");
+
+                expect((await service.lookupCdSigner(futureSkid))?.isTestSigner).equal(false);
+                expect(skidCalls()).length(1);
+                expect(Bytes.toHex(await service.getCertificateAsDer(futureSkid))).equal(Bytes.toHex(futureKey));
+
+                await service.close();
+            });
+
             it("finds it offline from a seed", async () => {
                 const service = await offlineService(
                     cdSignerSeed([{ subjectKeyId: futureSkid, derHex: Bytes.toHex(futureKey), kind: "production" }]),

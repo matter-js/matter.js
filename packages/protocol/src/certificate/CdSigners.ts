@@ -79,7 +79,7 @@ export namespace CdSigners {
             return { publicKey: CertificationDeclaration.testSignerInfo().publicKey, isTestSigner: true };
         }
         const publicKey = CSA_CD_SIGNING_KEYS.get(Bytes.toHex(subjectKeyId).toUpperCase());
-        return publicKey === undefined ? undefined : { publicKey, isTestSigner: false };
+        return publicKey === undefined ? undefined : { publicKey: Bytes.of(publicKey).slice(), isTestSigner: false };
     }
 
     /** Whether `subjectKeyId` names the Matter test CD signer ({@link CertificationDeclaration.testSignerInfo}). */
