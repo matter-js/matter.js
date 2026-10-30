@@ -328,9 +328,11 @@ export const State = {
             await State.container.exec(["bash", "-c", 'export GLOBIGNORE="/tmp/*_fifo_*"; rm -rf /tmp/*']);
 
             if (!startCommissioned) {
-                // Initialize single-use subject
+                // A single-use subject is closed by deactivateSubject(), also when it fails to start, and nothing
+                // else may hold it: a closed subject still references its log and the steps of its test
+                Values.activeSubject = subject;
+                Values.singleUseSubject = true;
                 await subject.initialize();
-                State.onClose(subject.close.bind(subject));
 
                 await beforeStart?.(subject, test);
                 await subject.start();
