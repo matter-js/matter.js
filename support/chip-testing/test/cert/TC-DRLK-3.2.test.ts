@@ -36,7 +36,7 @@ const PIN = Bytes.fromString("123456");
 
 const PIN_CREDENTIAL = { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 1 };
 
-/** SetUser arguments as CHIP's worked commands send them, for `userIndex`. */
+/** SetUser arguments for `userIndex` as CHIP's worked commands send them, except that each user gets its own `userUniqueId`. */
 function addUser(userIndex: number): CommandArgs {
     return {
         operationType: DoorLock.DataOperationType.Add,

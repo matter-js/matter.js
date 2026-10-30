@@ -4228,8 +4228,8 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl.
   `exampleid` to the content app installed and loaded at startup for vendor 1 (`AppTv.cpp`, `main.cpp`). Only the
   matter.js TH needs the catalog in its CatalogList, so `TV_KNOWN_APPLICATION` uses 123, which both list. chip checks
   a LaunchURL `ContentType` (not in the 1.6.1 model) against AcceptHeader.
-- **`commandPayload` (`tc-command-payload.ts`) renders integer, enum, string and boolean fields, and structs and lists of them**
-  (octet strings, bitmaps and nulls too, see the door lock case below). chip prints
+- **`commandPayload` (`tc-command-payload.ts`) renders integer, enum, string, boolean, octet string, bitmap and null
+  fields, and structs and lists of them** (the door lock case below covers the last three). chip prints
   a struct as its `0x<id> = ` line, `{`, its members and `},`; a list as `0x<id> = [`, a line without text, its
   entries and `],`, each struct entry without an id (`CheckIMPayload` in `MessageDefHelper.cpp`). A boolean has no
   type name. matter.js prints a top-level string unquoted but a nested one JSON-quoted, and a struct as
