@@ -22,8 +22,9 @@ export interface ValReference<T extends Val = Val> {
     readonly value: T | undefined | null;
 
     /**
-     * When true, the reference no longer tracks live state: the owning context has exited, or the reference is a
-     * read-only view.  Final, and true for every reference below an expired one.
+     * When true, the reference no longer tracks live state: the owning context has exited, an edit through the list
+     * proxy moved or removed the entry, or the reference is a read-only view.  Final, and true for every reference
+     * below an expired one.
      */
     readonly expired: boolean;
 
@@ -36,6 +37,13 @@ export interface ValReference<T extends Val = Val> {
      * Active references to child properties.
      */
     subrefs?: Record<number | string, ValReference>;
+
+    /**
+     * Stop following the member, for a reference a list holds for one of its entries.  An edit through the list proxy
+     * calls this when it moves or removes the entry.  The reference then keeps its last value and is
+     * {@link expired}.
+     */
+    detach?(): void;
 
     /**
      * Mutates data.  A nested reference first clones its container unless the transaction {@link owns} it.

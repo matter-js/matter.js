@@ -123,15 +123,15 @@ export class ConformanceError extends ValidateError {
 export class EnumValueConformanceError extends ConformanceError {}
 
 /**
- * Thrown for access attempts against a managed value that no longer tracks live state: its context exited, or it is a
- * read-only view.
+ * Thrown for access attempts against a managed value that no longer tracks live state: its context exited, an edit
+ * through its list moved or removed it, or it is a read-only view.
  */
 export class ExpiredReferenceError extends SchemaViolationError {
     constructor(path: SchemaErrorPath) {
         super(
             "Referencing",
             path,
-            "This value is no longer live: its context exited, or it is a read-only view",
+            "This value is no longer live: its context exited, an edit through its list moved or removed it, or it is a read-only view",
             Status.Failure,
         );
     }

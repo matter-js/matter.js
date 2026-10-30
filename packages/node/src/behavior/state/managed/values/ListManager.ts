@@ -169,14 +169,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
         if (length > this.getListLength()) {
             throw new WriteError(this.reference.location, `Length ${length} would leave a gap after the last entry`);
         }
-        this.truncate(length);
-    }
-
-    /**
-     * Remove the visible entries from `length` on.
-     */
-    protected truncate(length: number) {
-        this.reference.change(() => (this.writeVal().length = length), "length");
+        this.storeEntries(this.visibleEntries().slice(0, length));
     }
 
     protected hasEntry(index: number) {
@@ -273,6 +266,8 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
      *
      * An entry that `entries` holds more than once is stored as a copy from its second slot on.  The transaction may
      * own the entry, and a nested write changes an owned entry in place (see {@link ValReference.owns}).
+     *
+     * The reference of an entry that does not stay at its index is detached (see {@link ManagedReference.detach}).
      */
     protected storeEntries(entries: Val[]) {
         if (entries.length > MAX_LIST_LENGTH) {
@@ -296,16 +291,34 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
 
         this.reference.change(() => {
             const list = this.writeVal();
+            this.#detachDisplaced(placed);
             placed.forEach((entry, index) => (list[index] = entry));
             list.length = placed.length;
         }, "length");
     }
 
     /**
+     * Detach the entry references whose entry `placed` does not hold at the same index.  Runs before the list changes,
+     * so a detached reference keeps the entry it was read for.
+     */
+    #detachDisplaced(placed: Val[]) {
+        const subrefs = this.reference.subrefs;
+        if (subrefs === undefined) {
+            return;
+        }
+        for (const key in subrefs) {
+            const subref = subrefs[key];
+            if (subref.value !== placed[Number(key)]) {
+                subref.detach?.();
+            }
+        }
+    }
+
+    /**
      * Apply an array method that changes entries, and return its result.
      *
-     * The method runs on a plain array of the visible entries, because entry proxies follow their index.  A stored
-     * entry keeps its value.  Every other value is new: it is copied, prepared and validated before anything is
+     * The method runs on a plain array of the visible entries, because entry proxies are bound to their index.  A
+     * stored entry keeps its value.  Every other value is new: it is copied, prepared and validated before anything is
      * stored.  The result is stored in a single change, so a rejected entry leaves the list unchanged.
      *
      * A stored entry leaves this method only as a read-only view (see {@link ReadOnlyReference}): the entries `pop`,
@@ -463,8 +476,25 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
         return Reflect.ownKeys(this.readVal());
     }
 
+    /**
+     * An entry's descriptor carries the managed entry, so a caller that reads it gets what {@link get} returns.
+     */
     getOwnPropertyDescriptor(_target: Val.List, key: PropertyKey) {
-        return Reflect.getOwnPropertyDescriptor(this.readVal(), key);
+        const index = entryIndexFor(key);
+        if (index === undefined) {
+            return Reflect.getOwnPropertyDescriptor(this.readVal(), key);
+        }
+        if (index >= this.getListLength()) {
+            return undefined;
+        }
+
+        this.#sublocation.path.id = index;
+        return {
+            value: this.readEntry(index, this.#sublocation),
+            writable: true,
+            enumerable: true,
+            configurable: true,
+        };
     }
 }
 
@@ -580,10 +610,6 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
         return this.visibleEntries().length;
     }
 
-    protected override truncate(length: number) {
-        this.storeEntries(this.visibleEntries().slice(0, length));
-    }
-
     override ownKeys() {
         const length = this.getListLength();
 
@@ -594,15 +620,6 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
             const index = entryIndexFor(k);
             return index === undefined || index < length;
         });
-    }
-
-    override getOwnPropertyDescriptor(_target: Val.List, key: PropertyKey) {
-        key = entryIndexFor(key) ?? key;
-        if (typeof key !== "number") {
-            return Reflect.getOwnPropertyDescriptor(this.readVal(), key);
-        }
-
-        return Reflect.getOwnPropertyDescriptor(this.readVal(), this.#mapScopedToActual(key, true));
     }
 }
 

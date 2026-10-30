@@ -37,7 +37,9 @@ type Container = Record<string | number, Val>;
  * |---------|-----------------------------------------------------|--------------------|-------------------------|
  * | live    | the member holds a container                        | that container     | allowed                 |
  * | absent  | the member, or a container above it, is absent      | `undefined`/`null` | `PhantomReferenceError` |
- * | expired | the owning context exited, or a parent is read-only | last value seen    | `ExpiredReferenceError` |
+ * | expired | the owning context exited, a parent is read-only,   | last value seen    | `ExpiredReferenceError` |
+ * |         | or an edit through the list proxy moved or removed  |                    |                         |
+ * |         | this entry (see {@link detach})                     |                    |                         |
  *
  * "absent" returns to "live" when a container is assigned again.  "expired" is final.
  */
@@ -58,6 +60,7 @@ export class ManagedReference implements ValReference {
     #value: unknown;
     #dynamicContainer: Val.Struct | undefined;
     #dynamicSource: Val | undefined;
+    #detached = false;
 
     /**
      * @param parent a reference to the container we reference
@@ -116,7 +119,22 @@ export class ManagedReference implements ValReference {
     }
 
     get expired() {
-        return this.parent.expired;
+        return this.#detached || this.parent.expired;
+    }
+
+    /**
+     * Stop following the member.  An edit through the list proxy detaches the reference of an entry it moves to another
+     * index or removes, so a held entry proxy does not serve the entry that takes its index.  The reference keeps the
+     * last value it saw and refuses writes, also after a rollback that puts its entry back.
+     *
+     * Only an edit in this session detaches.  When another transaction reorders the list and commits, the reference
+     * follows its index like any member.
+     */
+    detach() {
+        this.#detached = true;
+        if (this.parent.subrefs?.[this.#key] === this) {
+            delete this.parent.subrefs[this.#key];
+        }
     }
 
     get location() {
