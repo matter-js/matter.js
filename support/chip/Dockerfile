@@ -172,6 +172,10 @@ RUN build-one lit-icd-app/linux lit-icd-app lit-icd-app-nopersist chip_persist_s
 # chip-cert-bins image uses too
 RUN build-one tv-app/linux chip-tv-app
 
+# TC-DRLK-3.2's TH, a door lock with users, credentials and schedules. Kept under CHIP's own name, which the
+# chip-cert-bins image uses too
+RUN build-one lock-app/linux chip-lock-app
+
 # Install Python stuff
 COPY support/install-chip-python /bin
 RUN install-chip-python
