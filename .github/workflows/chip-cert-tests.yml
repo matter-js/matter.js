@@ -479,10 +479,11 @@ jobs:
           MATTER_CERT_LONG_RUNNING: ${{ needs.prepare.outputs.long-running }}
           MATTER_WTF: 1
         run: |
-          mapfile -t specs < <(.github/scripts/cert-shard-files.sh "${SHARD%of*}" "${SHARD#*of}")
-          if [ "${#specs[@]}" -eq 0 ]; then
-            echo "::warning::Shard $SHARD selected no cert spec files, so this job ran nothing"
-            exit 0
+          files=$(.github/scripts/cert-shard-files.sh "${SHARD%of*}" "${SHARD#*of}")
+          mapfile -t specs <<< "$files"
+          if [ -z "$files" ]; then
+            echo "::error::Shard $SHARD selected no cert spec files; lower SHARD_COUNT in prepare"
+            exit 1
           fi
           echo "Shard $SHARD runs ${#specs[@]} spec files:"
           printf '  %s\n' "${specs[@]}"
