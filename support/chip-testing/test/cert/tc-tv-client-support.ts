@@ -6,11 +6,12 @@
 
 import { InternalError, isObject } from "@matter/main";
 import type { ClusterModel, ValueModel } from "@matter/model";
-import type { CertStepContext } from "@matter/testing";
+import type { CertStepContext, TimedInteractionOptions } from "@matter/testing";
 import type { CommandPayload, CommissionedRefs } from "./tc-support.js";
 import {
     chipCommandField,
     describeValue,
+    MATTERJS_EMPTY_PAYLOAD,
     MATTERJS_NO_PAYLOAD,
     requireId,
     sendCommand,
@@ -23,6 +24,12 @@ import {
  * matter.js's `TvTestInstance` hosts the clusters the cases send to on the same endpoint.
  */
 export const TV_VIDEO_PLAYER_ENDPOINT = 1;
+
+/**
+ * The endpoint of the `tv` TH that acts as a content app. chip's tv-app hosts AccountLogin there (`tv-app.matter`);
+ * matter.js's `TvTestInstance` hosts it on the same endpoint.
+ */
+export const TV_CONTENT_APP_ENDPOINT = 3;
 
 /**
  * An application both `tv` THs launch, stop and hide with success. chip never checks CatalogList: for any catalog but
@@ -70,7 +77,8 @@ const CHIP_LIST_GAP = /\[DMG\]\s*$/;
  * byte count, a boolean without a type), and a struct or list over several lines: its field id, then `{` or `[`, its
  * members, and `},` or `],`. A list prints a line without text after its `[`, and its struct entries carry no field id.
  * matter.js prints each top-level field as `name: value` with a string unquoted, and a struct as
- * `{ name: value, ... }` with its strings JSON-quoted and its lists as `[ entry, ... ]`.
+ * `{ name: value, ... }` with its strings JSON-quoted and its lists as `[ entry, ... ]`. A request without fields prints
+ * as {@link MATTERJS_NO_PAYLOAD} if the command has none, and as {@link MATTERJS_EMPTY_PAYLOAD} if it has some.
  *
  * Takes integer, enum, string and boolean fields, and structs and lists of these, at any depth. A list must sit inside
  * a struct and carry struct entries: matter.js prints a top-level list as bare entries, and chip prints entries that
@@ -108,7 +116,11 @@ export function tvCommandPayload(cluster: ClusterModel, command: string, args: T
     return {
         label: `${model.name} carries exactly ${describeValue(args)}`,
         chip,
-        matterjs: matterjs.length ? matterjs.join(" ") : MATTERJS_NO_PAYLOAD,
+        matterjs: matterjs.length
+            ? matterjs.join(" ")
+            : model.children.length
+              ? MATTERJS_EMPTY_PAYLOAD
+              : MATTERJS_NO_PAYLOAD,
     };
 }
 
@@ -227,22 +239,27 @@ function chipFieldOpening(id: number, opening: string) {
     return new RegExp(`0x${id.toString(16)} = ${opening}\\s*$`);
 }
 
+/** Where {@link sendsTvCommand} sends a command, and whether as a timed invoke. */
+export interface TvCommandTarget {
+    /** Default {@link TV_VIDEO_PLAYER_ENDPOINT}. */
+    endpoint?: number;
+
+    /** Set for a command with the timed quality; the TH refuses it untimed. */
+    options?: TimedInteractionOptions;
+}
+
 /**
- * A step in which the DUT sends `command` with `args` to the TH's video player endpoint, the TH answers with success
- * and the TH's log shows exactly that payload; see {@link sendCommand}.
+ * A step in which the DUT sends `command` with `args` to the TH, the TH answers with success and the TH's log shows
+ * exactly that payload; see {@link sendCommand}.
  */
 export function sendsTvCommand(
     commissioned: CommissionedRefs,
     cluster: ClusterModel,
     command: string,
     args: TvCommandArgs,
+    { endpoint = TV_VIDEO_PLAYER_ENDPOINT, options }: TvCommandTarget = {},
 ): (cx: CertStepContext) => Promise<void> {
     return commissioned.withRef("dut", (cx, ref) =>
-        sendCommand(
-            cx,
-            ref,
-            { cluster, endpoint: TV_VIDEO_PLAYER_ENDPOINT, command, args },
-            tvCommandPayload(cluster, command, args),
-        ),
+        sendCommand(cx, ref, { cluster, endpoint, command, args, options }, tvCommandPayload(cluster, command, args)),
     );
 }

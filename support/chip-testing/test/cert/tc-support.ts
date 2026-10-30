@@ -1672,7 +1672,10 @@ export interface CommandPayload {
      */
     chip: RegExp[];
 
-    /** The text that ends matter.js's line for the dispatched command: its fields, or {@link MATTERJS_NO_PAYLOAD}. */
+    /**
+     * The text that ends matter.js's line for the dispatched command: its fields, {@link MATTERJS_NO_PAYLOAD} for a
+     * command without fields, or {@link MATTERJS_EMPTY_PAYLOAD} for a command that sends none of its optional fields.
+     */
     matterjs: string;
 }
 
@@ -1754,9 +1757,10 @@ async function matterjsCommandPayload(
     const model = cluster.commands.require(command);
 
     // The dispatch line names the exchange, then the message (`✉…`) the command arrived in
+    const payloadText = payload.matterjs === MATTERJS_EMPTY_PAYLOAD ? "\\s*" : ` ${literally(payload.matterjs)}`;
     const dispatchLine = new RegExp(
         `ProtocolService Invoke « \\S+\\.ep${endpoint}\\.${camelize(cluster.name)}\\.${camelize(model.name)} ` +
-            `(@[^\\s✉]+)\\S* ${literally(payload.matterjs)}$`,
+            `(@[^\\s✉]+)\\S*${payloadText}$`,
     );
     const dispatch = await expectDeviceLog(log, flavor, { matterjs: dispatchLine }, from, remaining());
     const exchange = dispatch.check.matched?.match(dispatchLine)?.[1];
@@ -1812,6 +1816,12 @@ export function sendCommand(
 
 /** What matter.js prints for a command without fields. */
 export const MATTERJS_NO_PAYLOAD = "(no payload)";
+
+/**
+ * What matter.js prints for a command whose fields are all optional and left out: the request decodes as an empty
+ * struct, which prints as nothing, so the line ends after the message id.
+ */
+export const MATTERJS_EMPTY_PAYLOAD = "";
 
 function isStatusAnswer(error: unknown): error is StatusResponseError {
     return error instanceof StatusResponseError && !(error instanceof ValidationError);

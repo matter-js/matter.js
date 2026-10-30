@@ -16,6 +16,7 @@ import {
 } from "@matter/main/clusters";
 import { StatusResponse } from "@matter/main/types";
 import { expect } from "chai";
+import { CHIP_TV_SETUP_PIN, TestAccountLoginServer } from "../../src/cluster/TestAccountLoginServer.js";
 import { TestApplicationLauncherServer } from "../../src/cluster/TestApplicationLauncherServer.js";
 import { TestAudioOutputServer } from "../../src/cluster/TestAudioOutputServer.js";
 import { TestChannelServer } from "../../src/cluster/TestChannelServer.js";
@@ -25,17 +26,21 @@ import { TestMediaInputServer } from "../../src/cluster/TestMediaInputServer.js"
 import { TestMediaPlaybackServer } from "../../src/cluster/TestMediaPlaybackServer.js";
 import { TestTargetNavigatorServer } from "../../src/cluster/TestTargetNavigatorServer.js";
 import { TvTestInstance } from "../../src/TvTestInstance.js";
-import { TV_KNOWN_APPLICATION, TV_VIDEO_PLAYER_ENDPOINT } from "../cert/tc-tv-client-support.js";
+import {
+    TV_CONTENT_APP_ENDPOINT,
+    TV_KNOWN_APPLICATION,
+    TV_VIDEO_PLAYER_ENDPOINT,
+} from "../cert/tc-tv-client-support.js";
 
-function videoPlayer(instance: TvTestInstance): Endpoint {
+function endpointOf(instance: TvTestInstance, number: number): Endpoint {
     let found: Endpoint | undefined;
     instance.node.visit(endpoint => {
-        if (endpoint.number === TV_VIDEO_PLAYER_ENDPOINT) {
+        if (endpoint.number === number) {
             found = endpoint;
         }
     });
     if (found === undefined) {
-        throw new InternalError(`TvTestInstance has no endpoint ${TV_VIDEO_PLAYER_ENDPOINT}`);
+        throw new InternalError(`TvTestInstance has no endpoint ${number}`);
     }
     return found;
 }
@@ -47,7 +52,7 @@ describe("TvTestInstance", () => {
     beforeEach(async () => {
         instance = new TvTestInstance({ commandPipeFactory: async () => {} });
         await instance.initialize();
-        endpoint = videoPlayer(instance);
+        endpoint = endpointOf(instance, TV_VIDEO_PLAYER_ENDPOINT);
     });
 
     afterEach(async () => {
@@ -183,6 +188,26 @@ describe("TvTestInstance", () => {
             StatusResponse.InvalidInStateError,
         );
         expect(currentChannel()).equal(null);
+    });
+
+    it("declares ElectronicGuide and RecordProgram, which the program guide commands need", () => {
+        const { featureMap } = endpoint.globalsOf(TestChannelServer);
+
+        expect(featureMap.electronicGuide).equal(true);
+        expect(featureMap.recordProgram).equal(true);
+    });
+
+    it("answers GetProgramGuide with an empty ProgramList and refuses StartTime after EndTime", async () => {
+        const guide = (startTime: number, endTime: number) =>
+            endpoint.act(async agent => agent.get(TestChannelServer).getProgramGuide({ startTime, endTime }));
+
+        expect(await guide(10, 10)).deep.equal({ paging: {}, programList: [] });
+        await expect(guide(11, 10)).rejectedWith(StatusResponse.InvalidActionError, "StartTime 11 is after EndTime 10");
+    });
+
+    it("answers Success to RecordProgram and CancelRecordProgram", async () => {
+        await endpoint.act(agent => agent.get(TestChannelServer).recordProgram());
+        await endpoint.act(agent => agent.get(TestChannelServer).cancelRecordProgram());
     });
 
     it("seeds the inputs chip's tv-app seeds, on index 1", () => {
@@ -397,5 +422,34 @@ describe("TvTestInstance", () => {
 
     it("names the video player endpoint ep1, the segment the cert log checks match", () => {
         expect(endpoint.id).equal(`ep${TV_VIDEO_PLAYER_ENDPOINT}`);
+    });
+
+    describe("content app", () => {
+        let contentApp: Endpoint;
+
+        beforeEach(() => {
+            contentApp = endpointOf(instance, TV_CONTENT_APP_ENDPOINT);
+        });
+
+        it("returns chip's Setup PIN", async () => {
+            const response = await contentApp.act(agent => agent.get(TestAccountLoginServer).getSetupPin());
+
+            expect(response).deep.equal({ setupPin: CHIP_TV_SETUP_PIN });
+        });
+
+        it("logs in with chip's Setup PIN, refuses any other with UNSUPPORTED_ACCESS and logs out", async () => {
+            const login = (setupPin: string) =>
+                contentApp.act(async agent =>
+                    agent.get(TestAccountLoginServer).login({ tempAccountIdentifier: "AnyAccountId1234", setupPin }),
+                );
+
+            await login(CHIP_TV_SETUP_PIN);
+            await expect(login("otherPin123")).rejectedWith(StatusResponse.UnsupportedAccessError, "does not match");
+            await contentApp.act(agent => agent.get(TestAccountLoginServer).logout());
+        });
+
+        it("names the content app endpoint ep3, the segment the cert log checks match", () => {
+            expect(contentApp.id).equal(`ep${TV_CONTENT_APP_ENDPOINT}`);
+        });
     });
 });

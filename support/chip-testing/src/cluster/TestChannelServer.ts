@@ -25,9 +25,10 @@ function sameNumber(a: Channel.ChannelInfo, b: Channel.ChannelInfo) {
 }
 
 /**
- * A channel tuner with the features chip's tv-app declares on its video player endpoint (ChannelList and LineupInfo,
- * FeatureMap 3). Every command changes CurrentChannel to a channel of the ChannelList, so the endpoint must enable
- * CurrentChannel.
+ * A channel tuner that accepts every command chip's tv-app handles on its video player endpoint. chip declares only
+ * ChannelList and LineupInfo there (FeatureMap 3) but also handles the program guide commands, which need
+ * ElectronicGuide and RecordProgram on a matter.js server. The channel commands change CurrentChannel to a channel of
+ * the ChannelList, so the endpoint must enable CurrentChannel.
  *
  * | Command               | Answer for a channel in ChannelList | Otherwise                                  |
  * | --------------------- | ----------------------------------- | ------------------------------------------ |
@@ -38,9 +39,18 @@ function sameNumber(a: Channel.ChannelInfo, b: Channel.ChannelInfo) {
  * ¹ The highest-priority key that matches anything decides; more than one channel with it is a tie. The specification
  * gives the priority order but no rule for a tie.
  *
+ * The server has no program guide. GetProgramGuide answers an empty ProgramList, and INVALID_ACTION when StartTime is
+ * after EndTime (§ 6.6.7.5). RecordProgram and CancelRecordProgram answer success for every program, as chip's tv-app
+ * does.
+ *
  * @see {@link MatterSpecification.v161.Cluster} § 6.6.7
  */
-export class TestChannelServer extends ChannelServer.with("ChannelList", "LineupInfo") {
+export class TestChannelServer extends ChannelServer.with(
+    "ChannelList",
+    "LineupInfo",
+    "ElectronicGuide",
+    "RecordProgram",
+) {
     override changeChannel({ match }: Channel.ChangeChannelRequest): Channel.ChangeChannelResponse {
         const wanted = match.toLowerCase();
         for (const keyOf of MATCH_PRIORITY) {
@@ -76,4 +86,15 @@ export class TestChannelServer extends ChannelServer.with("ChannelList", "Lineup
         const size = channelList.length;
         this.state.currentChannel = channelList[(((current + count) % size) + size) % size];
     }
+
+    override getProgramGuide({ startTime, endTime }: Channel.GetProgramGuideRequest): Channel.ProgramGuideResponse {
+        if (startTime > endTime) {
+            throw new StatusResponse.InvalidActionError(`StartTime ${startTime} is after EndTime ${endTime}`);
+        }
+        return { paging: {}, programList: [] };
+    }
+
+    override recordProgram() {}
+
+    override cancelRecordProgram() {}
 }

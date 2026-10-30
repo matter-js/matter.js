@@ -9,7 +9,7 @@ import { Matter } from "@matter/model";
 import type { LogFlavor } from "@matter/testing";
 import { LogFollower } from "@matter/testing";
 import { expect } from "chai";
-import { expectCommandPayload, MATTERJS_NO_PAYLOAD } from "../cert/tc-support.js";
+import { expectCommandPayload, MATTERJS_EMPTY_PAYLOAD, MATTERJS_NO_PAYLOAD } from "../cert/tc-support.js";
 import { tvCommandPayload } from "../cert/tc-tv-client-support.js";
 
 const KEYPAD_INPUT = Matter.clusters.require("KeypadInput");
@@ -19,6 +19,7 @@ const CONTENT_LAUNCHER = Matter.clusters.require("ContentLauncher");
 const MEDIA_PLAYBACK = Matter.clusters.require("MediaPlayback");
 const APPLICATION_LAUNCHER = Matter.clusters.require("ApplicationLauncher");
 const SCENES = Matter.clusters.require("ScenesManagement");
+const ACCOUNT_LOGIN = Matter.clusters.require("AccountLogin");
 
 const STRUCT_OPEN = "\\{\\s*$";
 const STRUCT_CLOSE = "\\},\\s*$";
@@ -73,11 +74,31 @@ describe("tvCommandPayload", () => {
         expect(track.matterjs).equal("trackId: activeAudioTrackId_1 audioOutputIndex: 1");
     });
 
+    it("renders an epoch-s field as an unsigned number (characterization)", () => {
+        const payload = tvCommandPayload(CHANNEL, "getProgramGuide", {
+            startTime: 1_700_000_000,
+            endTime: 1_700_003_600,
+        });
+
+        expect(sources(payload.chip)).deep.equal([
+            "0x0 = 1700000000 \\(unsigned\\),\\s*$",
+            "0x1 = 1700003600 \\(unsigned\\),\\s*$",
+        ]);
+        expect(payload.matterjs).equal("startTime: 1700000000 endTime: 1700003600");
+    });
+
     it("renders a command without fields as no payload", () => {
         const payload = tvCommandPayload(MEDIA_PLAYBACK, "play", {});
 
         expect(payload.chip).deep.equal([]);
         expect(payload.matterjs).equal(MATTERJS_NO_PAYLOAD);
+    });
+
+    it("renders a command that sends none of its optional fields as an empty payload", () => {
+        const payload = tvCommandPayload(ACCOUNT_LOGIN, "logout", {});
+
+        expect(payload.chip).deep.equal([]);
+        expect(payload.matterjs).equal(MATTERJS_EMPTY_PAYLOAD);
     });
 
     it("refuses an argument the command has no field for", () => {
@@ -335,6 +356,31 @@ describe("tvCommandPayload in the payload check", () => {
     it("passes the request on both flavors", async () => {
         expect(await verdict(CHIP_REQUEST, "chip-local", ARGS)).equal("pass");
         expect(await verdict(MATTERJS_REQUEST, "matterjs", ARGS)).equal("pass");
+    });
+
+    it("matches a matter.js line that ends after the message id for an empty payload, and no other", async () => {
+        const logout = { cluster: ACCOUNT_LOGIN, endpoint: 3, command: "logout" };
+        const lines = (ending: string) => [
+            `INFO InteractionServer Invoke « ${EXCHANGE} invokes: 3.accountLogin.logout`,
+            `INFO ProtocolService Invoke « th.ep3.accountLogin.logout ${EXCHANGE}✉07eb2514${ending}`,
+        ];
+        const check = async (ending: string) => {
+            const follower = new LogFollower(
+                (async function* () {
+                    yield* lines(ending);
+                })(),
+                "th",
+            );
+            try {
+                const payload = tvCommandPayload(ACCOUNT_LOGIN, "logout", {});
+                return (await expectCommandPayload(follower, "matterjs", logout, payload, 0, Millis(200))).verdict;
+            } finally {
+                await follower.close();
+            }
+        };
+
+        expect(await check("")).equal("pass");
+        expect(await check(" node: 1")).equal("fail");
     });
 
     it("fails a request whose nested value differs", async () => {

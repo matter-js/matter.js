@@ -1367,6 +1367,19 @@ describe("ControllerAdapter registry", () => {
         }
     });
 
+    it("declares the Channel program guide client keys of TC-CHANNEL-5.8", () => {
+        const keys = ["CHANNEL.C.C04.Tx", "CHANNEL.C.C06.Tx", "CHANNEL.C.C07.Tx"];
+        const asDevice = new PicsFile(keys.map(key => `${key}=0`));
+
+        for (const implementation of IMPLEMENTATIONS) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of keys) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
+        }
+    });
+
     it("declares the AdministratorCommissioning client of the TC-CADMIN cases", () => {
         // A file answering every key 0 shows that each one comes from the overlay; the real device files answer 1.
         // Only the matterjs-server opens no basic window, which skips TC-CADMIN-1.2 and 1.18 there as a whole.

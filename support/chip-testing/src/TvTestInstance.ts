@@ -21,6 +21,7 @@ import {
 } from "@matter/main/clusters";
 import { DimmableLightDevice } from "@matter/main/devices/dimmable-light";
 import { DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
+import { TestAccountLoginServer } from "./cluster/TestAccountLoginServer.js";
 import { TestApplicationLauncherServer } from "./cluster/TestApplicationLauncherServer.js";
 import { TestAudioOutputServer } from "./cluster/TestAudioOutputServer.js";
 import { TestChannelServer } from "./cluster/TestChannelServer.js";
@@ -211,7 +212,7 @@ export class TvTestInstance extends NodeTestInstance {
         await serverNode.add(endpoint1);
 
         const endpoint3 = new Endpoint(
-            DimmableLightDevice.with(DescriptorServer.with("TagList"), ApplicationBasicServer),
+            DimmableLightDevice.with(DescriptorServer.with("TagList"), ApplicationBasicServer, TestAccountLoginServer),
             {
                 number: EndpointNumber(3),
                 id: "ep3",

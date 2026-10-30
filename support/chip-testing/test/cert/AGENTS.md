@@ -4139,16 +4139,15 @@ window, and TH_CR3 not after it. 1.7 opens enhanced windows, 1.8 basic ones. The
   plan gives the closed window as the reason for the refusal. A log line cannot show it on chip, which writes its
   window-closed line (`WINDOW_CLOSED`) for a timeout or a revoke, not when a commissioning completes.
 
-## The media client block (`TC-KEYPADINPUT-3.1`, `TC-TGTNAV-8.2`, `TC-CHANNEL-5.4`–`5.6`, `TC-MEDIAINPUT-3.14`–`3.17`, `TC-CONTENTLAUNCHER-10.4`, `10.6`, `TC-APPLAUNCHER-3.7.1`–`3.9.1`, `TC-AUDIOOUTPUT-7.3`, `7.4`, `TC-MEDIAPLAYBACK-6.5`, `6.7`, `6.10`)
+## The media client block (`TC-KEYPADINPUT-3.1`, `TC-TGTNAV-8.2`, `TC-CHANNEL-5.4`–`5.6`, `TC-MEDIAINPUT-3.14`–`3.17`, `TC-CONTENTLAUNCHER-10.4`, `10.6`, `TC-APPLAUNCHER-3.7.1`–`3.9.1`, `TC-AUDIOOUTPUT-7.3`, `7.4`, `TC-MEDIAPLAYBACK-6.5`, `6.7`, `6.10`, `TC-CHANNEL-5.8`, `TC-ALOGIN-12.2`)
 
 The first cases on the `tv` app: the DUT sends one media command to the TH's video player endpoint, and the TH's log
 shows its payload. Steps go through `sendsTvCommand` (`tc-tv-client-support.ts`), which builds both flavors' payload
-from the command's model, the way `tc-cc-support.ts` does for ColorControl. The later media client cases
-(AccountLogin) are meant to reuse it.
+from the command's model, the way `tc-cc-support.ts` does for ColorControl.
 
 - **Endpoint 1 on both THs.** chip's tv-app puts every video player cluster on endpoint 1 (`tv-app.matter`) and the
   content app clusters, AccountLogin among them, on endpoint 3. `TvTestInstance` adds the clusters a case sends to on
-  endpoint 1 of its own. A case for an endpoint 3 cluster needs its own endpoint constant. CHIP's MediaPlayback yaml
+  endpoint 1 of its own, and AccountLogin on its endpoint 3 (`TV_CONTENT_APP_ENDPOINT`). CHIP's MediaPlayback yaml
   sends to endpoint 3. in current source, chip's tv-app shares one `MediaPlaybackManager` between its endpoints 1
   and 3 (`ZCLCallbacks.cpp`), and endpoint 1 declares FeatureMap 0x1F with every track command, so the cases use endpoint 1.
 - **The matter.js TH matches chip's seed data rather than the case reading it first.** chip's
@@ -4158,7 +4157,7 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl. The 
   at 0 (its own "no current target"), matter.js at 0xFF, which § 6.11.5.2 defines as "no target is in the foreground".
 - **Channel and MediaInput are seeded like chip's tv-app too.** `ChannelManager` seeds 6.0 ABC, 9.1 PBS, 9.2 PBS
   Kids and 9.3 World Channel and starts on 6.0; `MediaInputManager` seeds two HDMI inputs, indexes 1 and 2, and starts
-  on 1. Both declare the features the plan steps need (Channel CL|LI, MediaInput NU). chip's answers differ from the
+  on 1. Both declare the features the plan steps need (Channel CL|LI|EG|RP, MediaInput NU). chip's answers differ from the
   spec in two places, so pick arguments both THs accept rather than relying on either rule:
   - ChangeChannel compares every key at once and case-sensitively, and ignores Identifier. § 6.6.7.1 asks for a
     case-insensitive match in priority order, which `TestChannelServer` implements. A name that no other key of any
@@ -4174,11 +4173,24 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl. The 
   matches chip. chip ignores AudioOutputIndex. CHIP's worked command sends 0, an index neither TH lists, so
   `TC-MEDIAPLAYBACK-6.10` sends 1. `TestMediaPlaybackServer` declares only AudioTracks and TextTracks of chip's five
   features; no case sends Seek, Rewind or FastForward.
+- **The program guide commands go to endpoint 1, AccountLogin to endpoint 3.** chip's tv-app declares only the
+  ChannelList and LineupInfo features (FeatureMap 3) but handles GetProgramGuide, RecordProgram and
+  CancelRecordProgram with success (`ChannelManager`). On a matter.js server, GetProgramGuide needs ElectronicGuide,
+  and the two record commands need ElectronicGuide and RecordProgram, so `TestChannelServer` declares both. Its guide
+  is empty. chip filters its seeded programs by the window, and the case's window matches none of them.
+- **chip's AccountLogin is on the content app endpoint 3** with one Setup PIN, `tempPin123`, for every account. A
+  Login with a PIN shorter than 8 characters answers CONSTRAINT_ERROR, and any other wrong PIN UNSUPPORTED_ACCESS
+  (`account-login-server.cpp`). `TestAccountLoginServer` on `ep3` uses the same PIN. All three commands are timed;
+  `sendsTvCommand` takes the endpoint and the timed options. GetSetupPIN and Login need Administer, Logout needs
+  Operate. The DUT commissioned the TH, so it holds Administer.
 - **ShowInputStatus and HideInputStatus carry no fields**, so their payload check is the empty `CommandFields` block
-  on chip and `(no payload)` on matter.js, as for `TC-DGETH-3.2`.
+  on chip and `(no payload)` on matter.js, as for `TC-DGETH-3.2`. Logout is sent without its optional Node field. chip
+  prints the same empty block, but matter.js decodes an empty struct and prints it as nothing, so its line ends after
+  the message id (`MATTERJS_EMPTY_PAYLOAD`).
 - **The response status is a claim.** SendKey, NavigateTarget, ChangeChannel, LaunchContent, LaunchURL, LaunchApp,
   StopApp, HideApp and every MediaPlayback command that answers with a PlaybackResponse carry a status in their
-  payload, which `sendCommand` checks. chip's `KeypadInputManager`
+  payload, which `sendCommand` checks.
+  GetProgramGuide and GetSetupPIN answer with a response that carries no status. chip's `KeypadInputManager`
   accepts the navigation and number keys and answers `UnsupportedKey` for the rest; matter.js's
   `TestKeypadInputServer` accepts every key. Send a key both accept.
 - **ContentLauncher and ApplicationLauncher answer success for the arguments the cases send.** chip's
@@ -4210,5 +4222,7 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl. The 
 - **PICS:** CHIP's file answers `TGTNAV.C` 0, so without the controller overlay `TC-TGTNAV-8.2` is pending. CHIP's
   file has no `MEDIAPLAYBACK.C.C0c.Tx`, `C0d.Tx` or `C0e.Tx`, and a key the file does not have evaluates false, so
   without the overlay every step of `TC-MEDIAPLAYBACK-6.10` is skipped. All three overlays declare the client keys of
-  `TC-KEYPADINPUT-3.1`, `TC-TGTNAV-8.2` and the AudioOutput and MediaPlayback cases. CHIP's file answers every `CHANNEL.C`,
-  `MEDIAINPUT.C`, `CONTENTLAUNCHER.C` and `APPLAUNCHER.C` key these cases use with 1, so those need no overlay.
+  `TC-KEYPADINPUT-3.1`, `TC-TGTNAV-8.2`, the AudioOutput and MediaPlayback cases and `TC-CHANNEL-5.8`
+  (`CHANNEL.C.C04.Tx`, `C06.Tx`, `C07.Tx`, which CHIP's file lacks). CHIP's file answers every other `CHANNEL.C`, and
+  every `MEDIAINPUT.C`, `CONTENTLAUNCHER.C` and `APPLAUNCHER.C` key these cases use, with 1, so those need no overlay.
+  `TC-ALOGIN-12.2` names no step PICS, and CHIP's file answers `ALOGIN.C` 1.

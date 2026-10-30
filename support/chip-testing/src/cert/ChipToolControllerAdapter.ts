@@ -248,6 +248,11 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "MEDIAPLAYBACK.C.C0d.Tx": 1,
     "MEDIAPLAYBACK.C.C0e.Tx": 1,
 
+    // The Channel program guide commands TC-CHANNEL-5.8 sends. CHIP's PICS file has none of these keys.
+    "CHANNEL.C.C04.Tx": 1,
+    "CHANNEL.C.C06.Tx": 1,
+    "CHANNEL.C.C07.Tx": 1,
+
     // The diagnostics client commands, and the one attribute, that TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and
     // TC-DGWIFI-3.2 send or read. Only `DGTHREAD.C` and `DGWIFI.C.C00.Tx` need the overlay, because CHIP's file
     // answers them 0; the other keys state the controller's full client surface for these cases.
