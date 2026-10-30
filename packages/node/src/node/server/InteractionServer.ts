@@ -1055,6 +1055,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                     // Emitted => access allowed (denied paths are dropped, see below); AccessAllowed is the
                     // access-control outcome, not command success (Groupcast spec §11.27.7.6.3).
                     this.#context.sessions.emitGroupMessage({
+                        kind: "authenticated",
                         result: Groupcast.GroupcastTestResult.Success,
                         fabric,
                         groupId,
@@ -1070,9 +1071,10 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             if (!emitted) {
                 const subject = groupSession?.subjectFor(message);
                 if (subject !== undefined && Subject.isGroup(subject) && !subject.hasValidMapping) {
-                    // The authenticating key is not the one mapped for the group: improperly authenticated per
-                    // core§11.27.7.6.3, reported without the unauthenticated group id
+                    // GroupKeyMap or the key set changed after decode accepted the key: improperly authenticated per
+                    // core§11.27.7.6.3, reported without the group id
                     this.#context.sessions.emitGroupMessage({
+                        kind: "authenticated",
                         result: Groupcast.GroupcastTestResult.FailedAuth,
                         fabric,
                         sourceIp,
@@ -1088,6 +1090,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                         memberEndpoints !== undefined && memberEndpoints.length > 0 ? false : undefined;
                     for (const { commandPath } of invokeRequests) {
                         this.#context.sessions.emitGroupMessage({
+                            kind: "authenticated",
                             result: Groupcast.GroupcastTestResult.Success,
                             fabric,
                             groupId,

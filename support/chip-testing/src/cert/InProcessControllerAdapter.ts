@@ -119,10 +119,12 @@ import type {
     CertSessionInfo,
     ClientAttributePath,
     ClientEndpointEntry,
+    CommissionableNodeFilter,
     CommissioningTarget,
     ControllerAdapter,
     ControllerAdapterOptions,
     ControllerTransport,
+    DiscoveredCommissionableNode,
     EventPathSpec,
     EventReadEntry,
     GroupKeySetSpec,
@@ -252,6 +254,85 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "WNCV.C.C02.Tx": 1,
     "WNCV.C.C05.Tx": 1,
     "WNCV.C.C08.Tx": 1,
+
+    // The Network Commissioning client features TC-CNET-4.20 and TC-CNET-4.21 require. CHIP's PICS file answers both 0,
+    // because it describes a device; the controller configures Wi-Fi and Thread networks.
+    "CNET.C.F00": 1,
+    "CNET.C.F01": 1,
+
+    // The ColorControl client commands, features and attributes that TC-CC-3.4, TC-CC-4.5, TC-CC-5.4, TC-CC-6.4,
+    // TC-CC-7.5 and TC-CC-9.4 send, read or name as the DUT's precondition. CHIP's PICS file answers the features 0,
+    // because it describes a device; the other keys state the controller's full client surface for these cases.
+    "CC.C": 1,
+    "CC.C.F00": 1,
+    "CC.C.F01": 1,
+    "CC.C.F02": 1,
+    "CC.C.F03": 1,
+    "CC.C.F04": 1,
+    "CC.C.C00.Tx": 1,
+    "CC.C.C01.Tx": 1,
+    "CC.C.C02.Tx": 1,
+    "CC.C.C03.Tx": 1,
+    "CC.C.C04.Tx": 1,
+    "CC.C.C05.Tx": 1,
+    "CC.C.C06.Tx": 1,
+    "CC.C.C07.Tx": 1,
+    "CC.C.C08.Tx": 1,
+    "CC.C.C09.Tx": 1,
+    "CC.C.C0a.Tx": 1,
+    "CC.C.C40.Tx": 1,
+    "CC.C.C41.Tx": 1,
+    "CC.C.C42.Tx": 1,
+    "CC.C.C43.Tx": 1,
+    "CC.C.C44.Tx": 1,
+    "CC.C.C47.Tx": 1,
+    "CC.C.C4b.Tx": 1,
+    "CC.C.C4c.Tx": 1,
+    "CC.C.A0000": 1,
+    "CC.C.A0001": 1,
+    "CC.C.A0007": 1,
+    "CC.C.A4000": 1,
+    "CC.C.A4002": 1,
+    "CC.C.A4003": 1,
+    "CC.C.A4004": 1,
+    "CC.C.A4005": 1,
+
+    // The Thermostat client command TC-TSTAT-3.2 sends. CHIP's PICS file answers `TSTAT.C` 0, because it describes a
+    // device; `TSTAT.C.C00.Tx` states the controller's client surface for this case.
+    "TSTAT.C": 1,
+    "TSTAT.C.C00.Tx": 1,
+
+    // The KeypadInput and TargetNavigator client commands TC-KEYPADINPUT-3.1 and TC-TGTNAV-8.2 send. CHIP's PICS file
+    // answers `TGTNAV.C` 0, because it describes a device; the other keys state the controller's client surface for these
+    // cases.
+    "KEYPADINPUT.C": 1,
+    "KEYPADINPUT.C.C00.Tx": 1,
+    "TGTNAV.C": 1,
+    "TGTNAV.C.C00.Tx": 1,
+
+    // The AudioOutput and MediaPlayback client commands TC-AUDIOOUTPUT-7.3, 7.4 and TC-MEDIAPLAYBACK-6.5, 6.7, 6.10 send.
+    // CHIP's PICS file has no `MEDIAPLAYBACK.C.C0c.Tx`, `C0d.Tx` or `C0e.Tx`; the other keys state the controller's client
+    // surface for these cases.
+    "AUDIOOUTPUT.C": 1,
+    "AUDIOOUTPUT.C.C00.Tx": 1,
+    "AUDIOOUTPUT.C.C01.Tx": 1,
+    "MEDIAPLAYBACK.C": 1,
+    "MEDIAPLAYBACK.C.C00.Tx": 1,
+    "MEDIAPLAYBACK.C.C01.Tx": 1,
+    "MEDIAPLAYBACK.C.C02.Tx": 1,
+    "MEDIAPLAYBACK.C.C03.Tx": 1,
+    "MEDIAPLAYBACK.C.C04.Tx": 1,
+    "MEDIAPLAYBACK.C.C05.Tx": 1,
+    "MEDIAPLAYBACK.C.C08.Tx": 1,
+    "MEDIAPLAYBACK.C.C09.Tx": 1,
+    "MEDIAPLAYBACK.C.C0c.Tx": 1,
+    "MEDIAPLAYBACK.C.C0d.Tx": 1,
+    "MEDIAPLAYBACK.C.C0e.Tx": 1,
+
+    // The Channel program guide commands TC-CHANNEL-5.8 sends. CHIP's PICS file has none of these keys.
+    "CHANNEL.C.C04.Tx": 1,
+    "CHANNEL.C.C06.Tx": 1,
+    "CHANNEL.C.C07.Tx": 1,
 
     // The diagnostics client commands, and the one attribute, that TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and
     // TC-DGWIFI-3.2 send or read. Only `DGTHREAD.C` and `DGWIFI.C.C00.Tx` need the overlay, because CHIP's file
@@ -2361,6 +2442,12 @@ class InProcessCertNodeApi implements CertNodeApi {
 const CERT_PEER_CONNECTION_TIMEOUT = Seconds(15);
 
 /**
+ * How long {@link InProcessControllerAdapter.discoverCommissionableNodes} collects advertisements. A node already
+ * advertising answers the first query within a second; the rest covers a slow multicast path.
+ */
+const COMMISSIONABLE_DISCOVERY_WINDOW = Seconds(5);
+
+/**
  * How long to wait for a peer to hold a subscription before continuing without one.
  *
  * Longer than the interaction's own wait for the peer, so a peer that stops answering reports why
@@ -2775,6 +2862,34 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             throw new InternalError(`Manual pairing code ${code} decoded to no short discriminator`);
         }
         return { shortDiscriminator, passcode, vendorId, productId };
+    }
+
+    /** Discovers over DNS-SD only, for {@link COMMISSIONABLE_DISCOVERY_WINDOW}. */
+    discoverCommissionableNodes(filter?: CommissionableNodeFilter): Promise<DiscoveredCommissionableNode[]> {
+        return runTagged(this.id, async () => {
+            const nodes = await this.#startedController.peers.discover({
+                ...(filter?.longDiscriminator === undefined ? {} : { longDiscriminator: filter.longDiscriminator }),
+                timeout: COMMISSIONABLE_DISCOVERY_WINDOW,
+                discoveryCapabilities: { onIpNetwork: true },
+            });
+            // Discovery reports a node again on each new advertisement
+            // A node whose advertisement lacks an instance name or discriminator is not one a caller can select
+            return [...new Set(nodes)].flatMap(node => {
+                const { deviceIdentifier, discriminator, vendorId, productId, commissioningMode } =
+                    node.state.commissioning;
+                if (deviceIdentifier === undefined || discriminator === undefined) {
+                    return [];
+                }
+                return {
+                    instanceName: deviceIdentifier,
+                    longDiscriminator: discriminator,
+                    vendorId,
+                    productId,
+                    // § 4.3.1.7: an absent CM key means 0
+                    commissioningMode: commissioningMode ?? 0,
+                };
+            });
+        });
     }
 
     commission(target: CommissioningTarget): Promise<CertNodeRef> {

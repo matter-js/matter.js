@@ -56,11 +56,12 @@ to an app this way:
 | ---------------------------------- | ------------ | -------------------------- | --------------------------- |
 | `IDM`, `CADMIN`, most generic/core  | `all-clusters` | `chip-all-clusters-app`   | yes (`AllClustersTestInstance`) |
 | `ACT`, `BR`                         | `bridge`     | `chip-bridge-app`          | yes (`BridgeTestInstance`) |
-| Media Playback/App-cluster TCs      | `tv`         | `chip-tv-app`               | no — `TvTestInstance` exists but isn't wired into `registerMatterJsCertSubject` yet |
+| `KEYPADINPUT`, `TGTNAV`, other media client TCs | `tv` | `chip-tv-app` | yes (`TvTestInstance`) |
 | `DRLK`                              | `lock`       | `chip-lock-app`             | no — no matterjs lock `TestInstance` exists in this package yet |
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
 | `TBRM`                              | `network-manager` | `matter-network-manager-app` | no — the case declares `flavors: ["chip-local"]`, which skips it before registration |
+| `CNET` DUT-client (Wi-Fi / Thread)  | `wifi-network` / `thread-network` | none: chip's apps in the image have no Wi-Fi or Thread network | yes (`WiFiNetworkTestInstance`, `ThreadNetworkTestInstance`); the cases declare `flavors: ["matterjs"]` |
 | `ICDB`, `ICDM`                      | `lit-icd`    | `lit-icd-app-nopersist` (variant, own-built); `lit-icd-app` (cert-bins) | yes (`IcdTestInstance`) |
 | `BIND`                              | `light-switch` | `chip-light-switch-app` (not in our image) | yes (`LightSwitchTestInstance`); the cases declare `flavors: ["matterjs"]` |
 | `BIND` (no Groupcast on the root)   | `light-switch-no-groupcast` | none | yes (`LightSwitchNoGroupcastTestInstance`); matterjs only |
@@ -371,8 +372,14 @@ error.
 
 ## `expectMdns` (`src/cert/mdns-check.ts`)
 
-- `commissionable: true|false` is scoped to the device via its `commissioning.discriminator` — safe
-  to use with only a `CertDevice` in hand, no extra setup needed.
+- `commissionable: true|false` is scoped to the device via its `commissioning.discriminator`. Every
+  cert TH uses discriminator 3840, so the discriminator alone also accepts a record an earlier TH left in
+  the shared cache. For the TH, pass `options.commissionableInstanceNames` from
+  `thCommissionableInstanceNames(th)` (`tc-dd-support.ts`): every instance the TH's log names once it
+  decided to advertise. A matter.js TH draws a new instance each time it advertises again, and peers may
+  still cache the earlier ones, so all count. A chip platform build on Darwin may name none at boot; the list is then
+  empty and the check matches by discriminator. `commissionableCheck(th)`, `recordCommissionable` and
+  `recordDiscoveredTh` do this. A window opened with a fresh discriminator needs no instance name.
 - `operationalRecords: n` **requires** `options.operationalInstanceName`. There is no way to derive a
   device's operational mDNS instance name from `CertDevice` alone (it needs the compressed fabric id
   and assigned node id, known only to whichever `ControllerAdapter` commissioned it). Obtain it after
@@ -1832,9 +1839,9 @@ would restart a TH that needs nothing. And the wait for the restarted app matter
 probe can run before the new generation exists at all.
 
 **What the wait does not do is make the probe witness the restart.** `checkCommissionable` primes
-from the DNS-SD names already cached and fires on any live record for the TH's discriminator, which
-every flavor pins across restarts — so a record cached before the TH was ever commissioned answers it
-just as well. `recordBackInCommissioningMode` therefore requires the device's own announcement that
+from the DNS-SD names already cached and fires on any live record of an instance the TH's log names
+(or, where it names none, for the TH's discriminator, which every flavor pins across restarts) — so a
+record the TH published before it was ever commissioned answers it just as well. `recordBackInCommissioningMode` therefore requires the device's own announcement that
 it is advertising commissionable (`mDNS service published: _matterc._udp` /
 `MdnsAdvertisement Publishing kind: commissionable`) and treats the probe as corroboration. See
 "Freshness: a cache hit is not a state transition" below for where the same instrument is still the
@@ -1870,8 +1877,10 @@ interface and need nothing.
 **And an mDNS gate after the removal.** `decommission()` returns as soon as the TH answers
 `RemoveFabric`; the TH re-advertises itself commissionable a moment later, and a discovery started
 before that finds only devices this run is not looking for — every cert TH in the process uses
-discriminator 3840, which is all discovery matches on. `expectMdns(th, { commissionable: true })`
-before the next attempt closes that race and records the wait as the step's own network evidence.
+discriminator 3840, which is all discovery matches on. `recordBackInCommissioningMode` closes that
+race: it waits for the TH's own advertising line, then probes with `commissionableCheck(th)`, and records
+the wait as the step's own network evidence. A probe right after `decommission()` without that wait reads
+the instance names logged so far, which may not include the new one yet.
 
 ## The commissioning-flow block shares one support module (`TC-DD-3.21`)
 
@@ -2106,6 +2115,22 @@ against itself — the plan's "ensure the Version bit string follows the current
 about the artifact, not about the TH. Note the plan's own example payload, `MT:-24J029Q00KA0648G00`,
 decodes to `flowType` 2: it is copy-pasted into 3.11, 3.12 and 3.14 from 3.13, the one case whose flow
 value it actually matches.
+
+## Discovery without commissioning (`TC-DD-2.2`)
+
+Only step 6 (DNS-SD) runs; the BLE and Wi-Fi PAF legs carry `notApplicable` and no `pics`, for the
+reason the `TC-DD-3.11` section gives. Step 6 uses `ControllerAdapter.discoverCommissionableNodes` (capability
+`commissionable-discovery`), and the three controllers report differently:
+
+- **chip-tool reports at most one node.** `discover find-commissionable-by-long-discriminator` stops at
+  the first match (`--discover-once` defaults to true), so the search is narrowed to the TH's
+  discriminator: an unfiltered `discover commissionables` on a busy LAN reports whichever node answers
+  first. A search that finds nothing ends in chip-tool's fixed 30-second command timeout and rejects.
+- **matterjs-server ignores the filter.** `discover_commissionable_nodes` takes no arguments and
+  reports every node it found in its own 3-second window, with -1 for a vendor or product left out.
+- **The check selects.** `discoveredThCheck` passes on one reported node with the TH's long
+  discriminator and the vendor and product of the TH's own QR payload; the detail lists every node the
+  DUT reported.
 
 ## Commission, unpair, re-commission (`TC-DD-3.20`)
 
@@ -2347,8 +2372,10 @@ Step 1 reads `AB=12345` back from this process's DNS-SD cache (`cachedTxtValue`)
 that went out. The alias advertises the harness's own addresses, so the TH must run on this host
 (`chip-local`, `matterjs`).
 
-**Cleanup decommissions before closing the alias.** The alias's goodbye expires the A/AAAA records of the
-host name this process shares, which an in-process matterjs TH also announces under.
+**The cleanup order of the alias does not matter for the TH's addresses.** The alias publishes through the
+responder of this process, under the host name an in-process matterjs TH also announces under. The responder's
+goodbye leaves out records that another registered service still publishes, so closing the alias keeps the TH's
+A/AAAA records.
 
 ## What a commissioning step owes its own evidence
 
@@ -3835,6 +3862,28 @@ cluster-client block. What it adds:
   fails codegen with "Version validation failed". `scripts/tools/zap/zap_download.py --zap RELEASE`
   fetches the right one, and `ZAP_INSTALL_PATH` points the build at it.
 
+## The Network Commissioning client cases, where only matter.js can be the TH (`TC-CNET-4.20`, `TC-CNET-4.21`)
+
+Six "DUT sends *command* to TH" steps, built by `cnetClientCase` in `tc-cnet-support.ts`. Only step 3
+differs: AddOrUpdateWiFiNetwork or AddOrUpdateThreadNetwork. What the block adds:
+
+- **chip's apps cannot be this TH.** `support/chip/support/build-one` builds every app with
+  `chip_enable_wifi=false` and `chip_enable_thread=false`, so no app has a Wi-Fi or Thread Network
+  Commissioning cluster. The cases run against the matter.js `wifi-network` and `thread-network`
+  THs (`RadioNetworkTestInstance`) on the matterjs flavor only.
+- **The TH's server answers like chip's.** `TestWiFiNetworkCommissioningServer` and
+  `TestThreadNetworkCommissioningServer` keep the Networks list and need no fail-safe for
+  ScanNetworks and ReorderNetwork, as chip's server does. Matter 1.6.1 § 11.9.7.1
+  requires one for ScanNetworks, but the plans send ScanNetworks in step 1, before ArmFailSafe in
+  step 2.
+- **`invokeCommand` does not check these responses.** It checks a response field named `Status`.
+  The Network Commissioning responses carry `NetworkingStatus`, and ArmFailSafeResponse carries
+  `ErrorCode`, so the steps check those themselves.
+- **Each step sends its own number as Breadcrumb**, so the TH log line of every command differs from
+  the others, also where two commands name the same network.
+- **The plans leave the fail-safe from step 2 armed.** The cleanup sends CommissioningComplete
+  before it decommissions the TH.
+
 ## The ICD client case, and what it takes for a TH to send a Check-In (`TC-ICDB-1.3`)
 
 The DUT registers as TH1's Check-In client, TH2 (a helper controller on TH1's second fabric) sends CHIP's ICD test
@@ -4005,7 +4054,7 @@ all-clusters app, except `TC-MOD-2.2` step 1, which reads SupportedModes. What t
   (unsigned),` on chip and `onOffControl: { acceptOnlyWhenOn: true }` on matter.js. Send a set bit; a cleared one
   cannot tell a lost bitmap from a correct one.
 - **`TC-LOWPOWER-2.2` runs on the chip flavors only.** matter.js's all-clusters test device has no LowPower cluster;
-  `TvTestInstance` has one but is not a cert subject.
+  `TvTestInstance` has one and is the `tv` cert subject, but the case still names `all-clusters`.
 - **The WindowCovering preconditions read the TH's FeatureMap** (`tc-wncv-support.ts`). `TC-WNCV-7.1` requires both
   position-aware features, which is stricter than the plan's "and/or": for a TH with only one position-aware axis,
   the plan defines no outcome for the other axis's command. Both THs have all four features.
@@ -4112,3 +4161,93 @@ window, and TH_CR3 not after it. 1.7 opens enhanced windows, 1.8 basic ones. The
 - **Step 12 first has DUT_CR1 read WindowStatus**, which must be `WindowNotOpen` after TH_CR2's commissioning: the
   plan gives the closed window as the reason for the refusal. A log line cannot show it on chip, which writes its
   window-closed line (`WINDOW_CLOSED`) for a timeout or a revoke, not when a commissioning completes.
+
+## The media client block (`TC-KEYPADINPUT-3.1`, `TC-TGTNAV-8.2`, `TC-CHANNEL-5.4`–`5.6`, `TC-MEDIAINPUT-3.14`–`3.17`, `TC-CONTENTLAUNCHER-10.4`, `10.6`, `TC-APPLAUNCHER-3.7.1`–`3.9.1`, `TC-AUDIOOUTPUT-7.3`, `7.4`, `TC-MEDIAPLAYBACK-6.5`, `6.7`, `6.10`, `TC-CHANNEL-5.8`, `TC-ALOGIN-12.2`)
+
+The first cases on the `tv` app: the DUT sends one media command to the TH's video player endpoint, and the TH's log
+shows its payload. Steps go through `sendsTvCommand` (`tc-tv-client-support.ts`), which builds both flavors' payload
+from the command's model, the way `tc-cc-support.ts` does for ColorControl.
+
+- **Endpoint 1 on both THs.** chip's tv-app puts every video player cluster on endpoint 1 (`tv-app.matter`) and the
+  content app clusters, AccountLogin among them, on endpoint 3. `TvTestInstance` adds the clusters a case sends to on
+  endpoint 1 of its own, and AccountLogin on its endpoint 3 (`TV_CONTENT_APP_ENDPOINT`). CHIP's MediaPlayback yaml
+  sends to endpoint 3. in current source, chip's tv-app shares one `MediaPlaybackManager` between its endpoints 1
+  and 3 (`ZCLCallbacks.cpp`), and endpoint 1 declares FeatureMap 0x1F with every track command, so the cases use endpoint 1.
+- **The matter.js TH matches chip's seed data rather than the case reading it first.** chip's
+  `TargetNavigatorManager` default constructor seeds two targets, identifiers 1 and 2, both named `exampleName`, and
+  answers `TargetNotFound` for 0 or anything above the list size. `TvTestInstance` seeds the same list, so a fixed
+  identifier is valid on both THs and the plan's single step stays a single step. CurrentTarget differs: chip starts
+  at 0 (its own "no current target"), matter.js at 0xFF, which § 6.11.5.2 defines as "no target is in the foreground".
+- **Channel and MediaInput are seeded like chip's tv-app too.** `ChannelManager` seeds 6.0 ABC, 9.1 PBS, 9.2 PBS
+  Kids and 9.3 World Channel and starts on 6.0; `MediaInputManager` seeds two HDMI inputs, indexes 1 and 2, and starts
+  on 1. Both declare the features the plan steps need (Channel CL|LI|EG|RP, MediaInput NU). chip's answers differ from the
+  spec in two places, so pick arguments both THs accept rather than relying on either rule:
+  - ChangeChannel compares every key at once and case-sensitively, and ignores Identifier. § 6.6.7.1 asks for a
+    case-insensitive match in priority order, which `TestChannelServer` implements. A name that no other key of any
+    seeded channel equals (`PBS`) gives the same channel on both.
+  - ChangeChannelByNumber to the channel already current answers FAILURE (the delegate reports "not changed");
+    § 6.6.7.3 does not ask for that, and `TestChannelServer` succeeds. Send a channel other than 6.0.
+- **AudioOutput and MediaPlayback are seeded like chip's tv-app too.** `AudioOutputManager` seeds three HDMI outputs,
+  indexes 1 to 3, and starts on 1; chip's tv-app answers FAILURE for any other index (`audio-output-server.cpp`).
+  `MediaPlaybackManager` seeds the audio tracks `activeAudioTrackId_0` and `_1` and the text tracks
+  `activeTextTrackId_0` and `_1`, with the first audio track active. Its active text track is an empty track, where the
+  matter.js TH reports null. chip's tv-app answers INVALID_IN_STATE (`media-playback-server.cpp`) for an
+  ActivateAudioTrack or ActivateTextTrack naming any other track, where § 6.10.7.13 and § 6.10.7.14 name INVALID_ARGUMENT; `TestMediaPlaybackServer`
+  matches chip. chip ignores AudioOutputIndex. CHIP's worked command sends 0, an index neither TH lists, so
+  `TC-MEDIAPLAYBACK-6.10` sends 1. `TestMediaPlaybackServer` declares only AudioTracks and TextTracks of chip's five
+  features; no case sends Seek, Rewind or FastForward.
+- **The program guide commands go to endpoint 1, AccountLogin to endpoint 3.** chip's tv-app declares only the
+  ChannelList and LineupInfo features (FeatureMap 3) but handles GetProgramGuide, RecordProgram and
+  CancelRecordProgram with success (`ChannelManager`). On a matter.js server, GetProgramGuide needs ElectronicGuide,
+  and the two record commands need ElectronicGuide and RecordProgram, so `TestChannelServer` declares both. Its guide
+  is empty. chip filters its seeded programs by the window, and the case's window matches none of them.
+- **StartTime and EndTime are `epoch-s`.** The case gives Unix-epoch seconds. Every DUT sends Matter-epoch seconds,
+  which chip prints, and matter.js prints the Unix-epoch value it decodes. `tvCommandPayload` builds both lines.
+- **chip's AccountLogin is on the content app endpoint 3** with one Setup PIN, `tempPin123`, for every account. A
+  Login with a PIN shorter than 8 characters answers CONSTRAINT_ERROR, and any other wrong PIN UNSUPPORTED_ACCESS
+  (`account-login-server.cpp`). `TestAccountLoginServer` on `ep3` uses the same PIN. All three commands are timed;
+  `sendsTvCommand` takes the endpoint and the timed options. GetSetupPIN and Login need Administer, Logout needs
+  Operate. The DUT commissioned the TH, so it holds Administer.
+- **ShowInputStatus and HideInputStatus carry no fields**, so their payload check is the empty `CommandFields` block
+  on chip and `(no payload)` on matter.js, as for `TC-DGETH-3.2`. Logout is sent without its optional Node field. chip
+  prints the same empty block, but matter.js decodes an empty struct and prints it as nothing, so its line ends after
+  the message id (`MATTERJS_EMPTY_PAYLOAD`).
+- **The response status is a claim.** SendKey, NavigateTarget, ChangeChannel, LaunchContent, LaunchURL, LaunchApp,
+  StopApp, HideApp and every MediaPlayback command that answers with a PlaybackResponse carry a status in their
+  payload, which `sendCommand` checks.
+  GetProgramGuide and GetSetupPIN answer with a response that carries no status. chip's `KeypadInputManager`
+  accepts the navigation and number keys and answers `UnsupportedKey` for the rest; matter.js's
+  `TestKeypadInputServer` accepts every key. Send a key both accept.
+- **ContentLauncher and ApplicationLauncher answer success for the arguments the cases send.** chip's
+  `ContentLauncherManager` answers Success for any LaunchContent and for any LaunchURL but `https://badurl` and
+  `https://csa-iot.org/badauth`. It makes no check for `https`, which § 6.7.7.2 requires without naming a status for a
+  failed check; `TestContentLauncherServer` makes it and answers URLNotAvailable. chip's ApplicationLauncher on
+  endpoint 1 has the ApplicationPlatform feature, so LaunchApp, StopApp and HideApp go to the content app platform: an
+  application not installed answers `AppNotAvailable`, and HideApp finds only an app that is already loaded. chip
+  never checks CatalogList. For any catalog but its platform catalog 0xFFF1, which it matches without mapping, it maps
+  `exampleid` to the content app installed and loaded at startup for vendor 1 (`AppTv.cpp`, `main.cpp`). Only the
+  matter.js TH needs the catalog in its CatalogList, so `TV_KNOWN_APPLICATION` uses 123, which both list. chip checks
+  a LaunchURL `ContentType` (not in the 1.6.1 model) against AcceptHeader.
+- **`tvCommandPayload` renders integer, enum, string and boolean fields, and structs and lists of them.** chip prints
+  a struct as its `0x<id> = ` line, `{`, its members and `},`; a list as `0x<id> = [`, a line without text, its
+  entries and `],`, each struct entry without an id (`CheckIMPayload` in `MessageDefHelper.cpp`). A boolean has no
+  type name. matter.js prints a top-level string unquoted but a nested one JSON-quoted, and a struct as
+  `{ a: 1, b: "x" }` (`serialize`). Refused with `InternalError` inside the step:
+  - a top-level list, which matter.js prints as its bare entries, and list entries that are not structs, which chip
+    prints on one line;
+  - an empty top-level string, which matter.js prints as nothing (a nested one prints as `""` and `"" (0 chars)`), a
+    top-level string that ends in whitespace, which matter.js trims from the end of the line (a nested one is
+    JSON-quoted), and a line break at any depth;
+  - a field id of 10 or more: chip-tool's `command-by-id` writes members in the text order of their ids (`10` before
+    `2`), so its wire order would differ from model order;
+  - any other field type, and an argument no field takes.
+
+  A uint64 field (SkipForward, SkipBackward) and a nullable integer field (AudioOutputIndex) need nothing extra while
+  the value is a non-null number: matter.js decodes a uint64 that fits in 32 bits as a number and a larger one as a bigint.
+- **PICS:** CHIP's file answers `TGTNAV.C` 0, so without the controller overlay `TC-TGTNAV-8.2` is pending. CHIP's
+  file has no `MEDIAPLAYBACK.C.C0c.Tx`, `C0d.Tx` or `C0e.Tx`, and a key the file does not have evaluates false, so
+  without the overlay every step of `TC-MEDIAPLAYBACK-6.10` is skipped. All three overlays declare the client keys of
+  `TC-KEYPADINPUT-3.1`, `TC-TGTNAV-8.2`, the AudioOutput and MediaPlayback cases and `TC-CHANNEL-5.8`
+  (`CHANNEL.C.C04.Tx`, `C06.Tx`, `C07.Tx`, which CHIP's file lacks). CHIP's file answers every other `CHANNEL.C`, and
+  every `MEDIAINPUT.C`, `CONTENTLAUNCHER.C` and `APPLAUNCHER.C` key these cases use, with 1, so those need no overlay.
+  `TC-ALOGIN-12.2` names no step PICS, and CHIP's file answers `ALOGIN.C` 1.

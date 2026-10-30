@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, InternalError, Millis, Seconds, Time } from "@matter/main";
+import { Duration, InternalError, Millis, Seconds } from "@matter/main";
 import { AdministratorCommissioning } from "@matter/main/clusters";
 import { Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
@@ -42,6 +42,7 @@ import {
     ABSENT_DEVICE_WAIT,
     chipToolGaveUpOrPaseFailed,
     CommissioningRefusals,
+    thCommissionableInstanceNames,
 } from "./tc-dd-support.js";
 import {
     attempt,
@@ -56,6 +57,8 @@ import {
     RecordedCheck,
     requireId,
     runCleanups,
+    sleepUntil,
+    theTh,
     withChecks,
 } from "./tc-support.js";
 
@@ -155,16 +158,6 @@ export function lateStartCheck(openLine: LogLine, startedAt: number): CheckRecor
     };
 }
 
-/**
- * Sleeps until `performance.now()` reaches `deadline`.  A timer may fire up to a millisecond before its delay has
- * passed on this clock, so the wait repeats until the deadline is reached.
- */
-async function sleepUntil(what: string, deadline: number) {
-    for (let remaining = deadline - performance.now(); remaining > 0; remaining = deadline - performance.now()) {
-        await Time.sleep(what, Millis(Math.ceil(remaining)));
-    }
-}
-
 /** DUT_CR1's read of WindowStatus as a check that the TH reports no open window, for a step that records later. */
 async function windowStatusCheck(node: CertNodeApi): Promise<CheckRecord> {
     const read = await attempt(
@@ -221,16 +214,21 @@ export function windowHandlingCase(tc: string, method: CommissioningMethod): voi
     let joinedWindow: OpenedWindow | undefined;
 
     const openWindow = async (cx: CertStepContext) => {
+        const th = theTh(cx);
+        await th.log.settled();
+        const beforeOpen = th.log.lines.length;
         const window = await openWindowChecked(cx, cx.controllers.dut, commissioned.require("dut"), method, "DUT_CR1");
         pendingWindow.set(window);
         const { discriminator } = window;
         if (discriminator !== undefined) {
+            // A basic window advertises the device's own discriminator, which a record an earlier TH left matches too
+            const commissionableInstanceNames = await thCommissionableInstanceNames(th, beforeOpen);
             record(
                 cx,
                 await expectMdns(
                     { commissioning: { discriminator } },
                     { commissionable: true },
-                    { timeoutMs: ADVERTISEMENT_TIMEOUT },
+                    { timeoutMs: ADVERTISEMENT_TIMEOUT, commissionableInstanceNames },
                 ),
                 "Commissionable record for the window's discriminator, which the refused steps look for",
             );
