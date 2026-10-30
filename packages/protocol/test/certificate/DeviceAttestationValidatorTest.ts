@@ -124,7 +124,6 @@ describe("DeviceAttestationValidator", () => {
             /** The CRL signer, by default the PAI */
             signer?: { cert: Bytes; crlSigner: TestCrlSigner; isPAA?: boolean };
         },
-        options?: { injectTestCdSigner?: boolean },
     ) {
         if (revocation !== undefined) {
             const { cert, crlSigner, isPAA } = revocation.signer ?? { cert: paiDer, crlSigner: paiCrlSigner };
@@ -141,15 +140,31 @@ describe("DeviceAttestationValidator", () => {
         }
         fetchMock.install();
 
-        service = new DclCertificateService(environment, { updateInterval: null });
+        service = new DclCertificateService(environment, { updateInterval: null, acceptTestCertificates: true });
         await service.construction;
-
-        // Inject the Matter test CD signer certificate by default so CD sig verification works
-        if (options?.injectTestCdSigner !== false) {
-            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
-        }
-
         return service;
+    }
+
+    /**
+     * Attestation whose CD names a signer that is neither built in nor the test signer, so an online service asks the
+     * DCL for it.
+     */
+    async function attestationWithUnlistedCdSigner() {
+        const cd = await new CertificationDeclaration(
+            {
+                formatVersion: 1,
+                vendorId,
+                produceIdArray: [productId],
+                deviceTypeId: 22,
+                certificateId: "CSA00000SWC00000-00",
+                securityLevel: 0,
+                securityInformation: 0,
+                versionNumber: 1,
+                certificationType: 0,
+            },
+            crypto.randomBytes(20),
+        ).asSignedAsn1(crypto, await crypto.createKeyPair());
+        return buildAttestationWithCd(cd);
     }
 
     /**
@@ -505,13 +520,13 @@ describe("DeviceAttestationValidator", () => {
             await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
         });
 
-        it("skips CD signature verification when no CD signer is available", async () => {
-            const dclService = await setupDclService(TestCert_PAA_NoVID_Cert, undefined, {
-                injectTestCdSigner: false,
-            });
+        it("skips CD signature verification when the DCL cannot be asked for the CD signer", async () => {
+            const dclService = await setupDclService();
 
-            // DCL lookup for the test signer returns 404 on prod DCL — validator skips verification
-            await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+            await DeviceAttestationValidator.validate(
+                buildContext(dclService),
+                buildData(await attestationWithUnlistedCdSigner()),
+            );
         });
 
         it("throws CertificationDeclarationSignatureInvalid for CD signed with wrong key", async () => {
@@ -712,6 +727,16 @@ describe("DeviceAttestationValidator", () => {
                 /is not a known CD signer/,
             );
         });
+
+        it("refuses a test-signed CD when the test signer is stored but test certificates are not accepted", async () => {
+            const dclService = await serviceWithoutStoredCdSigner(false);
+            await dclService.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
+
+            await expect(DeviceAttestationValidator.validate(buildContext(dclService), buildData())).to.be.rejectedWith(
+                DeviceAttestationError,
+                /is not a known CD signer/,
+            );
+        });
     });
 
     describe("findings model", () => {
@@ -724,12 +749,13 @@ describe("DeviceAttestationValidator", () => {
             expect(result.findings).to.be.an("array");
         });
 
-        it("returns CdSignerVerificationSkipped warning when no CD signer is available", async () => {
-            const dclService = await setupDclService(TestCert_PAA_NoVID_Cert, undefined, {
-                injectTestCdSigner: false,
-            });
+        it("returns CdSignerVerificationSkipped warning when the DCL cannot be asked for the CD signer", async () => {
+            const dclService = await setupDclService();
 
-            const result = await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+            const result = await DeviceAttestationValidator.validate(
+                buildContext(dclService),
+                buildData(await attestationWithUnlistedCdSigner()),
+            );
 
             const cdFinding = result.findings.find(f => f.type === DeviceAttestationCheck.CdSignerVerificationSkipped);
             expect(cdFinding).to.not.be.undefined;
@@ -820,25 +846,6 @@ describe("DeviceAttestationValidator", () => {
     });
 
     describe("test-certificate PAA detection", () => {
-        it("emits TrustedAsTestCertificate when PAA is test-only and service disallows test certs", async () => {
-            fetchMock.addResponse("/dcl/pki/root-certificates", {
-                approvedRootCertificates: { schemaVersion: 0, certs: [] },
-            });
-            fetchMock.install();
-
-            service = new DclCertificateService(environment, { updateInterval: null });
-            await service.construction;
-
-            await service.addCertificate(TestCert_PAA_NoVID_Cert, "PAA", { isProduction: false });
-            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
-
-            const result = await DeviceAttestationValidator.validate(buildContext(service), buildData());
-
-            const finding = result.findings.find(f => f.type === DeviceAttestationCheck.TrustedAsTestCertificate);
-            expect(finding).to.not.be.undefined;
-            expect(finding!.level).to.equal("error");
-        });
-
         it("does NOT emit TrustedAsTestCertificate when service acceptsTestCertificates is true", async () => {
             fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
                 approvedRootCertificates: { schemaVersion: 0, certs: [] },
@@ -859,7 +866,6 @@ describe("DeviceAttestationValidator", () => {
             await service.construction;
 
             await service.addCertificate(TestCert_PAA_NoVID_Cert, "PAA", { isProduction: false });
-            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
 
             const result = await DeviceAttestationValidator.validate(buildContext(service), buildData());
 
@@ -913,11 +919,10 @@ describe("DeviceAttestationValidator", () => {
             fetchMock.addResponse("https://example.com/test.crl", crl, { binary: true });
             fetchMock.install();
 
-            service = new DclCertificateService(environment, { updateInterval: null });
+            service = new DclCertificateService(environment, { updateInterval: null, acceptTestCertificates: true });
             await service.construction;
 
             await service.addCertificate(TestCert_PAA_NoVID_Cert, "PAA", { isProduction: false });
-            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
 
             await expect(DeviceAttestationValidator.validate(buildContext(service), buildData())).to.be.rejectedWith(
                 DeviceAttestationError,

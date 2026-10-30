@@ -128,6 +128,21 @@ describe("CertificationDeclaration", () => {
             );
         });
 
+        it("rejects a signer subject key identifier that is not 20 bytes", async () => {
+            const cd = new CertificationDeclaration(
+                CertificationDeclaration.parse(
+                    await CertificationDeclaration.generate(crypto, VendorId(0xfff1), 0x8000),
+                ).content,
+                Bytes.of(TestCMS_SignerSubjectKeyIdentifier).slice(0, 19),
+            );
+            const cdBytes = await cd.asSignedAsn1(crypto, PrivateKey(TestCMS_SignerPrivateKey));
+
+            expect(() => CertificationDeclaration.parse(cdBytes)).throw(
+                CertificationDeclarationFormatError,
+                "CMS SignerInfo subjectKeyIdentifier must be 20 bytes, found 19",
+            );
+        });
+
         it("rejects invalid input gracefully", () => {
             // Empty bytes
             expect(() => CertificationDeclaration.parse(new Uint8Array(0))).to.throw();

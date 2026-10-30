@@ -26,6 +26,7 @@ import {
     ChipCdRefusedVectors,
     ChipCdTestVector,
     ChipCdTestVectors,
+    ChipCsaSignedCdVector,
 } from "./ChipCdTestVectors.js";
 
 function seedOf(entries: CertSeedEntry[]): SeedSource<CertSeedEntry> {
@@ -71,14 +72,14 @@ describe("DeviceAttestationValidator with CHIP CD test vectors", () => {
         service = undefined;
     });
 
-    async function offlineService(options: { cdSigners: boolean }) {
+    async function offlineService(options: { cdSigners: boolean; acceptTestCertificates?: boolean }) {
         const environment = new Environment("test");
         environment.set(Crypto, crypto);
         new MockStorageService(environment);
         service = new DclCertificateService(environment, {
             seed: { paaRoots: chipTestPaas(), cdSigners: options.cdSigners ? testCdSigner() : undefined },
             fetchTestCertificates: true,
-            acceptTestCertificates: true,
+            acceptTestCertificates: options.acceptTestCertificates ?? true,
             updateInterval: null,
             offline: true,
         });
@@ -198,6 +199,32 @@ describe("DeviceAttestationValidator with CHIP CD test vectors", () => {
             const skipped = findings.find(({ type }) => type === DeviceAttestationCheck.CdSignerVerificationSkipped);
             expect(skipped?.level).equal("warning");
             expect(skipped?.message).include("has no CD signer seed");
+        });
+    });
+
+    describe("CD signer trust", () => {
+        it("refuses struct_cd_official_cd, an official CD signed by the test signer", async () => {
+            await expectRefusal(
+                ChipCdTestVectors.struct_cd_official_cd,
+                DeviceAttestationCheck.OfficialCdSignedByTestSigner,
+                /certification_type=2 \(official\) is signed by the Matter test CD signer/,
+            );
+        });
+
+        it("verifies a CD signed by CSA signing key 001 without any CD signer source", async () => {
+            const dcl = await offlineService({ cdSigners: false });
+            const { findings } = await validate(ChipCsaSignedCdVector, dcl);
+            expect(findings.filter(({ level }) => level !== "info")).deep.equal([]);
+        });
+
+        it("verifies a CSA-signed CD and still reports a test PAA under a production-only policy", async () => {
+            const dcl = await offlineService({ cdSigners: false, acceptTestCertificates: false });
+            const { findings } = await validate(ChipCsaSignedCdVector, dcl);
+            expect(findings.map(({ level, type }) => ({ level, type }))).deep.include({
+                level: "error",
+                type: DeviceAttestationCheck.TrustedAsTestCertificate,
+            });
+            expect(findings.map(({ type }) => type)).not.include(DeviceAttestationCheck.CdSignerVerificationSkipped);
         });
     });
 });

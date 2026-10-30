@@ -23,6 +23,7 @@ import {
     hashAlgorithmForId,
     Hours,
     ImplementationError,
+    InternalError,
     isObject,
     Logger,
     LogLevel,
@@ -34,7 +35,12 @@ import {
     Time,
     Timer,
 } from "@matter/general";
-import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "@matter/types";
+import {
+    DeviceAttestationPkiRevocationDclSchema,
+    ProductAttestationDclSchema,
+    RevocationTypeEnum,
+} from "@matter/types";
+import { CdSigners } from "../certificate/CdSigners.js";
 import { MlDsaAttestationDisabledError, Paa, Pai } from "../certificate/kinds/AttestationCertificates.js";
 import { Certificate } from "../certificate/kinds/Certificate.js";
 import { certificateSignatureOf, verifyCertificateSignature } from "../certificate/kinds/CertificateSignature.js";
@@ -305,6 +311,7 @@ export class DclCertificateService {
     #closed = false;
     #options: DclCertificateService.Options;
     #fetchPromise?: Promise<void>;
+    #cdSignerSeedComplete = false;
 
     /** Lazy CRL revocation cache: keyed by normalized AKID, fetches on-demand from DCL */
     #revocationCache: AsyncCache<RevocationLookup>;
@@ -338,7 +345,7 @@ export class DclCertificateService {
                 await this.#consumeCertSeed(options.seed.paaRoots, "PAA");
             }
             if (options.seed?.cdSigners) {
-                await this.#consumeCertSeed(options.seed.cdSigners, "CDSigner");
+                this.#cdSignerSeedComplete = await this.#consumeCertSeed(options.seed.cdSigners, "CDSigner");
             }
             // `update()` answers an offline service by doing nothing, so this needs no condition
             await this.update();
@@ -818,6 +825,9 @@ export class DclCertificateService {
      * Returns `true` if the certificate was newly added, `false` if a certificate with the same
      * SubjectKeyIdentifier already exists (in which case the store is unchanged).
      *
+     * A stored CD signer is trusted only if {@link CdSigners.verifyCertificate} accepts it; see
+     * {@link lookupCdSigner}.
+     *
      * @param derBytes DER-encoded X.509 certificate
      * @param kind "PAA" (self-signed root) or "CDSigner" (CMS Certification Declaration signer)
      * @param options.isProduction  mark as production-trust; defaults to `false`
@@ -857,38 +867,49 @@ export class DclCertificateService {
     /**
      * Look up a CD signer certificate by its SubjectKeyIdentifier.
      *
-     * Checks the local trust store first. On miss, queries the production DCL
-     * (`/dcl/pki/all-certificates?subjectKeyId=<skid>`) and caches the result as a
-     * CDSigner entry with `isProduction: true`.
+     * Returns `undefined` unless {@link lookupCdSigner} finds a trusted CD signer.
      *
-     * Returns `undefined` if no matching CD signer can be found either locally or on DCL. Use
-     * {@link lookupCdSigner} to tell an unknown signer apart from a lookup that had no signer information.
+     * `isProduction` is `false` only for the Matter test CD signer.
+     *
+     * @deprecated Use {@link lookupCdSigner}, which tells an unknown signer apart from a lookup without signer
+     *   information.
      */
     async getOrFetchCdSigner(
         subjectKeyId: Bytes | string,
     ): Promise<{ publicKey: Bytes; isProduction: boolean } | undefined> {
         const lookup = await this.lookupCdSigner(subjectKeyId);
-        return lookup.kind === "found" ? { publicKey: lookup.publicKey, isProduction: lookup.isProduction } : undefined;
+        return lookup.kind === "found"
+            ? { publicKey: lookup.publicKey, isProduction: !lookup.isTestSigner }
+            : undefined;
     }
 
     /**
-     * Look up a CD signer certificate by its SubjectKeyIdentifier and state how far the answer can be trusted.
+     * Look up a trusted CD signer by its SubjectKeyIdentifier and state how far the answer can be trusted.
      *
-     * Checks the local trust store first. On miss, an online service queries the production DCL
-     * (`/dcl/pki/all-certificates?subjectKeyId=<skid>`) and caches the result as a CDSigner entry with
-     * `isProduction: true`.
+     * Only the signers {@link CdSigners} describes are trusted. A certificate from the store, a seed or the DCL counts
+     * only after {@link CdSigners.verifyCertificate} accepts it; no PAA or PAI is ever a CD signer. An online service
+     * asks the production DCL (`/dcl/pki/all-certificates?subjectKeyId=<skid>`) on a miss and stores a certificate
+     * from the answer only once it is verified.
      *
-     * | Situation                                                  | Result         |
-     * |------------------------------------------------------------|----------------|
-     * | Signer in the local trust store, or returned by the DCL    | `found`        |
-     * | Matter test CD signer, and test certificates are accepted  | `found`        |
-     * | Online, and the DCL answered without a certificate         | `unknown`      |
-     * | Offline with `seed.cdSigners`, and the signer not stored   | `unknown`      |
-     * | Offline without `seed.cdSigners`                           | `unavailable`  |
-     * | Online, and the DCL query failed                           | `unavailable`  |
+     * | Situation                                                                    | Result        |
+     * |------------------------------------------------------------------------------|---------------|
+     * | Built-in CSA signing key                                                     | `found`       |
+     * | Verified certificate in the store                                            | `found`       |
+     * | Matter test CD signer while test certificates are accepted                   | `found`       |
+     * | Matter test CD signer while test certificates are not accepted               | `unknown`     |
+     * | Subject key identifier that is not 20 bytes                                  | `unknown`     |
+     * | Online, the DCL answered with a verified certificate                         | `found`       |
+     * | Online, the DCL answered without one (none, unparseable, or not CSA-issued)  | `unknown`     |
+     * | Online, the DCL could not be asked (network error, error status)             | `unavailable` |
+     * | Offline, `seed.cdSigners` was read completely                                | `unknown`     |
+     * | Offline, without `seed.cdSigners` or with one that was not read completely   | `unavailable` |
      *
-     * Offline, `seed.cdSigners` states the whole signer set. Signers stored by earlier online runs are only a cache of
-     * the DCL, so without a seed a missing signer is unavailable rather than unknown.
+     * Offline, a completely read `seed.cdSigners` states the whole signer set. Signers stored by earlier online runs are
+     * only a cache of the DCL, so they do not make a missing signer unknown.
+     *
+     * `unavailable` leaves the decision to the caller: the device attestation validator reports it as a warning. We
+     * accept that a CD from a signer nobody could check passes a warning-tolerant policy, because refusing it would
+     * refuse every device whose CD signer is neither built in nor stored while the DCL is unreachable.
      *
      * @see {@link MatterSpecification.v161.Core} § 6.2.3.1
      */
@@ -896,45 +917,86 @@ export class DclCertificateService {
         this.construction.assert();
 
         const normalizedSkid = this.#normalizeSubjectKeyId(subjectKeyId);
+        if (
+            !/^[0-9A-F]+$/.test(normalizedSkid) ||
+            normalizedSkid.length !== CertificationDeclaration.SIGNER_SUBJECT_KEY_ID_LENGTH * 2
+        ) {
+            return { kind: "unknown" };
+        }
+        const skid = Bytes.fromHex(normalizedSkid);
 
-        const existing = this.#certificateIndex.get(normalizedSkid);
-        if (existing !== undefined && (existing.kind ?? "PAA") === "CDSigner") {
-            const derBytes = await this.#getCertificateDer(normalizedSkid);
-            const cert = Certificate.parseAsn1Certificate(derBytes, Certificate.REQUIRED_EXTENSIONS);
-            return { kind: "found", publicKey: cert.ellipticCurvePublicKey, isProduction: existing.isProduction };
+        if (CdSigners.isTestSigner(skid)) {
+            if (!this.acceptsTestCertificates) {
+                return { kind: "unknown" };
+            }
+            return {
+                kind: "found",
+                publicKey: CertificationDeclaration.testSignerInfo().publicKey,
+                isTestSigner: true,
+            };
         }
 
-        if (this.acceptsTestCertificates) {
-            const testSigner = CertificationDeclaration.testSignerInfo();
-            if (normalizedSkid === this.#normalizeSubjectKeyId(testSigner.subjectKeyId)) {
-                return { kind: "found", publicKey: testSigner.publicKey, isProduction: false };
+        const builtIn = CdSigners.builtIn(skid);
+        if (builtIn !== undefined) {
+            return { kind: "found", publicKey: builtIn, isTestSigner: false };
+        }
+
+        if ((this.#certificateIndex.get(normalizedSkid)?.kind ?? "PAA") === "CDSigner") {
+            const stored = await this.#verifiedCdSigner(await this.#getCertificateDer(normalizedSkid), skid, "store");
+            if (stored !== undefined) {
+                return { kind: "found", publicKey: stored.publicKey, isTestSigner: false };
             }
         }
 
         if (this.#options.offline) {
-            if (this.#options.seed?.cdSigners !== undefined) {
+            if (this.#cdSignerSeedComplete) {
                 return { kind: "unknown" };
             }
-            return { kind: "unavailable", reason: "the service is offline and has no CD signer seed" };
+            return {
+                kind: "unavailable",
+                reason:
+                    this.#options.seed?.cdSigners === undefined
+                        ? "the service is offline and has no CD signer seed"
+                        : "the service is offline and its CD signer seed was not read completely",
+            };
         }
 
+        let answer: ProductAttestationDclSchema[];
         try {
-            const config = this.#options.dclConfig ?? DclConfig.production;
-            const dclClient = new DclClient(config);
-            const certs = await dclClient.fetchCertificatesBySubjectKeyId(normalizedSkid, this.#options);
-            if (certs.length === 0) {
-                return { kind: "unknown" };
-            }
-
-            const derBytes = Pem.asDer(certs[0].pemCert);
-            await this.addCertificate(derBytes, "CDSigner", { isProduction: true });
-
-            const cert = Certificate.parseAsn1Certificate(derBytes, Certificate.REQUIRED_EXTENSIONS);
-            return { kind: "found", publicKey: cert.ellipticCurvePublicKey, isProduction: true };
+            const dclClient = new DclClient(this.#options.dclConfig ?? DclConfig.production);
+            answer = await dclClient.fetchCertificatesBySubjectKeyId(normalizedSkid, this.#options);
         } catch (error) {
             const cause = asError(error);
             logger.info(`Failed to fetch CD signer ${normalizedSkid} from DCL:`, Diagnostic.errorMessage(cause));
             return { kind: "unavailable", reason: `the DCL lookup failed: ${cause.message}` };
+        }
+
+        for (const { pemCert } of answer) {
+            const signer = await this.#verifiedCdSigner(pemCert, skid, "DCL");
+            if (signer !== undefined) {
+                await this.addCertificate(signer.der, "CDSigner", { isProduction: true });
+                return { kind: "found", publicKey: signer.publicKey, isTestSigner: false };
+            }
+        }
+        return { kind: "unknown" };
+    }
+
+    /**
+     * The DER and public key of a certificate, given as DER or PEM, that {@link CdSigners.verifyCertificate} accepts for
+     * `skid`, else `undefined`.
+     */
+    async #verifiedCdSigner(certificate: Bytes | string, skid: Bytes, source: string) {
+        try {
+            const der = typeof certificate === "string" ? Pem.asDer(certificate) : certificate;
+            return { der, publicKey: await CdSigners.verifyCertificate(this.#crypto, der, skid) };
+        } catch (error) {
+            if (error instanceof InternalError || error instanceof ImplementationError) {
+                throw error;
+            }
+            logger.debug(
+                `${source}: certificate for ${Bytes.toHex(skid)} is not a CD signer:`,
+                Diagnostic.errorMessage(asError(error)),
+            );
         }
     }
 
@@ -1255,7 +1317,7 @@ export class DclCertificateService {
 
     /**
      * Fetch CD signer certificates from the configured GitHub directory.
-     * Stores each as a CDSigner entry with isProduction=false (user may promote via addCertificate).
+     * Stores each as a CDSigner entry with isProduction=false; {@link lookupCdSigner} decides whether it is trusted.
      */
     async #fetchGitHubCdSignerCertificates(storage: StorageContext, force: boolean) {
         if (this.#githubRateLimited) {
@@ -1401,9 +1463,17 @@ export class DclCertificateService {
         this.#certificateIndex.set(subjectKeyId, metadata);
     }
 
+    /**
+     * Store the certificates of a seed.
+     *
+     * @returns whether every entry the seed states was read and stored or already present; `false` when the stream
+     *   failed or was cut short, or an entry was skipped as expired, as a test certificate, or as unusable
+     */
     async #consumeCertSeed(source: SeedSource<CertSeedEntry>, certKind: DclCertificateService.CertificateKind) {
         const inserted = new Array<string>();
         let expiredCount = 0;
+        let readCount = 0;
+        let complete = true;
         const parsedBuiltAt = Date.parse(source.builtAt);
         const fetchedAt = Number.isNaN(parsedBuiltAt) ? Date.now() : parsedBuiltAt;
         const isPaa = certKind === "PAA";
@@ -1411,6 +1481,7 @@ export class DclCertificateService {
         try {
             for await (const entry of source.entries) {
                 if (this.#closed) break;
+                readCount++;
                 try {
                     if (
                         typeof entry.subjectKeyId !== "string" ||
@@ -1423,11 +1494,13 @@ export class DclCertificateService {
                     }
 
                     if (entry.kind === "test" && !this.#options.fetchTestCertificates) {
+                        complete = false;
                         continue;
                     }
 
                     if (entry.notAfter !== undefined && Date.parse(entry.notAfter) < Date.now()) {
                         expiredCount++;
+                        complete = false;
                         continue;
                     }
 
@@ -1435,6 +1508,7 @@ export class DclCertificateService {
                     const entrySkid = this.#normalizeSubjectKeyId(entry.subjectKeyId);
                     const parsed = this.#parseAndCheckSkid(der, certKind, entrySkid, "seed");
                     if (parsed === undefined) {
+                        complete = false;
                         continue;
                     }
 
@@ -1458,11 +1532,13 @@ export class DclCertificateService {
                     inserted.push(entrySkid);
                 } catch (err) {
                     logger.warn("seed: malformed entry, aborting stream", Diagnostic.errorMessage(asError(err)));
+                    complete = false;
                     break;
                 }
             }
         } catch (err) {
             logger.warn("seed: stream failed", Diagnostic.errorMessage(asError(err)));
+            complete = false;
         }
 
         if (inserted.length > 0) {
@@ -1472,6 +1548,7 @@ export class DclCertificateService {
             logger.info(`seed: skipped ${expiredCount} expired ${certKind} certs from snapshot ${source.builtAt}`);
         }
         logger.info(`seed: consumed ${inserted.length} ${certKind} certs from snapshot ${source.builtAt}`);
+        return complete && readCount === source.expectedCount;
     }
 
     /**
@@ -2106,8 +2183,10 @@ export namespace DclCertificateService {
             paaRoots?: SeedSource<CertSeedEntry>;
 
             /**
-             * When `offline`, these are taken as the complete CD signer set: a CD from any other signer is refused
-             * instead of only warned about. See {@link DclCertificateService.lookupCdSigner}.
+             * When `offline` and read completely, these are taken as the complete CD signer set: a CD from any other
+             * signer is refused instead of only warned about. A seed whose stream fails, states more entries than it
+             * delivers, or has an entry skipped as expired, as a test certificate or as unusable does not count as
+             * complete. See {@link DclCertificateService.lookupCdSigner}.
              */
             cdSigners?: SeedSource<CertSeedEntry>;
         };
@@ -2147,10 +2226,13 @@ export namespace DclCertificateService {
 
     /** Result of {@link DclCertificateService.lookupCdSigner}. */
     export type CdSignerLookup =
-        /** The signer certificate is known; `publicKey` verifies the CD signature. */
-        | { kind: "found"; publicKey: Bytes; isProduction: boolean }
+        /**
+         * The signer is trusted; `publicKey` verifies the CD signature. `isTestSigner` marks the Matter test CD signer,
+         * which may sign only CDs of certification_type test or provisional.
+         */
+        | { kind: "found"; publicKey: Bytes; isTestSigner: boolean }
 
-        /** The CD signer set is known and does not contain this signer. */
+        /** The signer is not trusted: the signer set is known and lacks it, or it may not sign CDs at all. */
         | { kind: "unknown" }
 
         /** No signer information was available to judge the signer; `reason` says why. */

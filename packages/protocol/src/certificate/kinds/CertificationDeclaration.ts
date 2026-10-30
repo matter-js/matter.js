@@ -99,8 +99,9 @@ export class CertificationDeclaration {
      * Only the first SignerInfo is read. The signature is not verified here.
      *
      * @throws CertificationDeclarationFormatError if the CMS envelope breaks a CD encoding rule: contentType
-     *   pkcs7-signedData, CMS version 3, digest algorithm sha256, eContentType pkcs7-data, SignerInfo version 3,
-     *   signature algorithm ecdsa-with-SHA256
+     *   pkcs7-signedData, CMS version 3, at least one digest algorithm and every one sha256, eContentType pkcs7-data,
+     *   SignerInfo version 3, a 20-byte subjectKeyIdentifier, SignerInfo digest algorithm sha256, signature algorithm
+     *   ecdsa-with-SHA256
      * @throws DerError or a TLV decoding error if the structure cannot be decoded
      * @see {@link MatterSpecification.v161.Core} § 6.3.1
      */
@@ -171,6 +172,12 @@ export class CertificationDeclaration {
         // Tag 0x80 = context-specific (0x80) | primitive | tag number 0
         if (subjectKeyIdNode._tag !== 0x80) {
             throw new DerError("Expected SubjectKeyIdentifier context tag [0] in SignerInfo");
+        }
+        const { SIGNER_SUBJECT_KEY_ID_LENGTH } = CertificationDeclaration;
+        if (subjectKeyIdNode._bytes.byteLength !== SIGNER_SUBJECT_KEY_ID_LENGTH) {
+            throw new CertificationDeclarationFormatError(
+                `CMS SignerInfo subjectKeyIdentifier must be ${SIGNER_SUBJECT_KEY_ID_LENGTH} bytes, found ${subjectKeyIdNode._bytes.byteLength}`,
+            );
         }
         requireAlgorithm(
             signerDigestAlgorithm,
@@ -244,6 +251,9 @@ export class CertificationDeclaration {
 }
 
 export namespace CertificationDeclaration {
+    /** Length in bytes of the signer subject key identifier, a 160-bit SHA-1 key identifier. */
+    export const SIGNER_SUBJECT_KEY_ID_LENGTH = 20;
+
     /**
      * Returns the well-known test CD signer's subject key identifier and public key.
      *
@@ -261,8 +271,8 @@ export namespace CertificationDeclaration {
     /**
      * Returns the well-known Matter test CD signer certificate (DER-encoded X.509).
      * Mirrored from CHIP's `credentials/development/cd-certs/Chip-Test-CD-Cert.der`.
-     * Useful for injecting the test signer into `DclCertificateService.addCertificate` with
-     * kind "CDSigner".
+     * A `DclCertificateService` trusts this signer while it accepts test certificates, whether or not the certificate
+     * is stored.
      */
     export function testSignerCertificate(): Bytes {
         return TestCMS_SignerCertificate;

@@ -19,6 +19,7 @@ import { MATTER_EPOCH_OFFSET_S, VendorId } from "@matter/types";
 import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { CommissioningError } from "../peer/CommissioningError.js";
+import { CdSigners } from "./CdSigners.js";
 import { Dac, Paa, Pai } from "./kinds/AttestationCertificates.js";
 import { mayIssue } from "./kinds/CertificateSignature.js";
 import { CertificationDeclaration, CertificationDeclarationFormatError } from "./kinds/CertificationDeclaration.js";
@@ -46,11 +47,17 @@ export enum DeviceAttestationCheck {
     AttestationElementsUnparseable = "AttestationElementsUnparseable",
     CertificationDeclarationUnparseable = "CertificationDeclarationUnparseable",
 
-    /** The CD breaks an encoding rule of § 6.3.1, such as its CMS envelope, `format_version` or `certification_type`. */
+    /**
+     * The CD breaks an encoding rule of § 6.3.1, such as its CMS envelope or `format_version`, or has a reserved
+     * `certification_type`, which CHIP refuses.
+     */
     CertificationDeclarationFormatInvalid = "CertificationDeclarationFormatInvalid",
 
-    /** The CD signer set is known (DCL answered, or CD signers were configured) and does not contain the CD's signer. */
+    /** The CD's signer is not a trusted CD signer; see {@link DclCertificateService.lookupCdSigner}. */
     CdSignerUnknown = "CdSignerUnknown",
+
+    /** A CD of certification_type official is signed by the Matter test CD signer. */
+    OfficialCdSignedByTestSigner = "OfficialCdSignedByTestSigner",
 
     CdSignerVerificationSkipped = "CdSignerVerificationSkipped",
     PaaTrustStoreTimeMismatch = "PaaTrustStoreTimeMismatch",
@@ -459,6 +466,15 @@ export namespace DeviceAttestationValidator {
                 `CD certification_type ${certType} is a reserved value`,
             );
         }
+
+        // § 6.3.1 allows a test-signed CD with certification_type 0; CHIP also accepts provisional, so only official fails
+        if (certType === CertificationType.Official && CdSigners.isTestSigner(cd.signerSubjectKeyId)) {
+            throw new DeviceAttestationError(
+                DeviceAttestationCheck.OfficialCdSignedByTestSigner,
+                "CD with certification_type=2 (official) is signed by the Matter test CD signer",
+            );
+        }
+
         if (certType === CertificationType.Provisional) {
             findings.push({
                 level: "warning",
