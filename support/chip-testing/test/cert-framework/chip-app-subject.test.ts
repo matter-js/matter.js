@@ -783,6 +783,34 @@ describe("ChipLocalSubject", () => {
         }
     });
 
+    it("keeps the standard input of an app built with CHIP's shell open", async function () {
+        this.timeout(15_000);
+
+        // Stands in for a chip-cert-bins tv-app, whose shell stops the app when its standard input ends
+        await writeFile(
+            join(appDir, "chip-tv-app"),
+            ["#!/bin/sh", "echo ready", "read -r line", 'echo "stdin ended"', "sleep 30", ""].join("\n"),
+            { mode: 0o755 },
+        );
+
+        const device = ChipLocalSubject("tv")("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            const lines = device.log.follow();
+            expect(await collectLines(lines, 1, 5_000)).deep.equal(["ready"]);
+            await expect(collectLines(lines, 1, 1_000)).rejectedWith("timeout");
+        } finally {
+            await device.stop();
+            await device.close();
+        }
+    });
+
     it("refuses a standard-input command while the app is not running", async function () {
         this.timeout(15_000);
 
