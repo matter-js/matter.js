@@ -44,6 +44,17 @@ Each pilot's own section further down is written chronologically (what was found
 that TC), which is also a reasonable reading order: source lookup → single-device reads → invoking
 commands → a smaller invoke-only variant → multi-controller → the python-wrapped escape hatch.
 
+## Test cases deliberately not automated
+
+- **TC-APPOBSERVER-13.1** (Content App Message, DUT as client): skipped. The plan's only step has the DUT send
+  ContentAppMessage, and its note 1 defers argument values and the DUT state to "manufacturer provided instructions",
+  so no generic case can define what the DUT should send. CHIP's tv-app TH also logs "NOT returning ContentApp
+  delegate" for it.
+- **TC-SC-4.4** (re-discovery after the TH's IP address changes): postponed. Step 3 changes the TH's address "by any
+  means within the same network", which needs a TH whose address the harness can change and whose old address then
+  becomes unreachable. Restarting the TH on a new port exercises the same DUT re-resolution, but it is not the step
+  the plan describes.
+
 ## App → chip binary mapping
 
 `certTest()`'s `app` option (and `devices`' per-role app names) is the string chip's own example
