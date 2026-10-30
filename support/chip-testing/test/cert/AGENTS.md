@@ -371,8 +371,14 @@ error.
 
 ## `expectMdns` (`src/cert/mdns-check.ts`)
 
-- `commissionable: true|false` is scoped to the device via its `commissioning.discriminator` — safe
-  to use with only a `CertDevice` in hand, no extra setup needed.
+- `commissionable: true|false` is scoped to the device via its `commissioning.discriminator`. Every
+  cert TH uses discriminator 3840, so the discriminator alone also accepts a record an earlier TH left in
+  the shared cache. For the TH, pass `options.commissionableInstanceNames` from
+  `thCommissionableInstanceNames(th)` (`tc-dd-support.ts`): every instance the TH's log names once it
+  decided to advertise. A matter.js TH draws a new instance each time it advertises again, and peers may
+  still cache the earlier ones, so all count. A chip platform build on Darwin may name none at boot; the list is then
+  empty and the check matches by discriminator. `commissionableCheck(th)`, `recordCommissionable` and
+  `recordDiscoveredTh` do this. A window opened with a fresh discriminator needs no instance name.
 - `operationalRecords: n` **requires** `options.operationalInstanceName`. There is no way to derive a
   device's operational mDNS instance name from `CertDevice` alone (it needs the compressed fabric id
   and assigned node id, known only to whichever `ControllerAdapter` commissioned it). Obtain it after
@@ -1832,9 +1838,9 @@ would restart a TH that needs nothing. And the wait for the restarted app matter
 probe can run before the new generation exists at all.
 
 **What the wait does not do is make the probe witness the restart.** `checkCommissionable` primes
-from the DNS-SD names already cached and fires on any live record for the TH's discriminator, which
-every flavor pins across restarts — so a record cached before the TH was ever commissioned answers it
-just as well. `recordBackInCommissioningMode` therefore requires the device's own announcement that
+from the DNS-SD names already cached and fires on any live record of an instance the TH's log names
+(or, where it names none, for the TH's discriminator, which every flavor pins across restarts) — so a
+record the TH published before it was ever commissioned answers it just as well. `recordBackInCommissioningMode` therefore requires the device's own announcement that
 it is advertising commissionable (`mDNS service published: _matterc._udp` /
 `MdnsAdvertisement Publishing kind: commissionable`) and treats the probe as corroboration. See
 "Freshness: a cache hit is not a state transition" below for where the same instrument is still the
@@ -1870,8 +1876,10 @@ interface and need nothing.
 **And an mDNS gate after the removal.** `decommission()` returns as soon as the TH answers
 `RemoveFabric`; the TH re-advertises itself commissionable a moment later, and a discovery started
 before that finds only devices this run is not looking for — every cert TH in the process uses
-discriminator 3840, which is all discovery matches on. `expectMdns(th, { commissionable: true })`
-before the next attempt closes that race and records the wait as the step's own network evidence.
+discriminator 3840, which is all discovery matches on. `recordBackInCommissioningMode` closes that
+race: it waits for the TH's own advertising line, then probes with `commissionableCheck(th)`, and records
+the wait as the step's own network evidence. A probe right after `decommission()` without that wait reads
+the instance names logged so far, which may not include the new one yet.
 
 ## The commissioning-flow block shares one support module (`TC-DD-3.21`)
 
@@ -2363,8 +2371,10 @@ Step 1 reads `AB=12345` back from this process's DNS-SD cache (`cachedTxtValue`)
 that went out. The alias advertises the harness's own addresses, so the TH must run on this host
 (`chip-local`, `matterjs`).
 
-**Cleanup decommissions before closing the alias.** The alias's goodbye expires the A/AAAA records of the
-host name this process shares, which an in-process matterjs TH also announces under.
+**The cleanup order of the alias does not matter for the TH's addresses.** The alias publishes through the
+responder of this process, under the host name an in-process matterjs TH also announces under. The responder's
+goodbye leaves out records that another registered service still publishes, so closing the alias keeps the TH's
+A/AAAA records.
 
 ## What a commissioning step owes its own evidence
 

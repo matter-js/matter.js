@@ -215,9 +215,9 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                         if (fabricScopedList || validate) {
                             // A dynamic member's previous value lives in the provider, not the container slot;
                             // read it only when rollback or the fabric-scoped merge check may consume it, as the
-                            // provider's getter may be costly.  Unmanage in case the provider serves a managed
-                            // value — rollback must not plant a proxy that expires with this session
-                            previousValue = Internal.unmanage(properties[name]);
+                            // provider's getter may be costly.  Copy in case the provider serves a managed value —
+                            // rollback must not plant a proxy that expires with this session
+                            previousValue = Internal.copy(properties[name]);
                         }
                     } else {
                         target = struct;
@@ -226,8 +226,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                     target = struct;
                 }
 
-                // Unwrap if incoming value (or nested children) is managed
-                value = Internal.unmanage(value);
+                value = Internal.copy(value);
 
                 // Undo our change on error.  Rollback will take care of this when transactional but this handles the
                 // cases of 1.) no transaction, and 2.) error is caught within transaction.  A previously absent member
@@ -262,6 +261,9 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                             proxy[i] = value[i];
                         }
                         proxy.length = value.length;
+
+                        // The list prepared copies of the entries, so validate those
+                        value = Array.from(proxy, Internal.copy);
                     } catch (e) {
                         undo();
                         throw e;
