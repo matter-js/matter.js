@@ -21,8 +21,11 @@ import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { CommissioningError } from "../peer/CommissioningError.js";
 import { Dac, Paa, Pai } from "./kinds/AttestationCertificates.js";
 import { mayIssue } from "./kinds/CertificateSignature.js";
-import { CertificationDeclaration } from "./kinds/CertificationDeclaration.js";
+import { CertificationDeclaration, CertificationDeclarationFormatError } from "./kinds/CertificationDeclaration.js";
 import { CertificationType } from "./kinds/definitions/certification-declaration.js";
+
+/** @see {@link MatterSpecification.v161.Core} § 6.3.1 */
+const CD_FORMAT_VERSION = 1;
 
 /** Reasons a device attestation validation can fail or produce warnings. */
 export enum DeviceAttestationCheck {
@@ -42,6 +45,13 @@ export enum DeviceAttestationCheck {
     CertificateUnparseable = "CertificateUnparseable",
     AttestationElementsUnparseable = "AttestationElementsUnparseable",
     CertificationDeclarationUnparseable = "CertificationDeclarationUnparseable",
+
+    /** The CD breaks an encoding rule of § 6.3.1, such as its CMS envelope, `format_version` or `certification_type`. */
+    CertificationDeclarationFormatInvalid = "CertificationDeclarationFormatInvalid",
+
+    /** The CD signer set is known (DCL answered, or CD signers were configured) and does not contain the CD's signer. */
+    CdSignerUnknown = "CdSignerUnknown",
+
     CdSignerVerificationSkipped = "CdSignerVerificationSkipped",
     PaaTrustStoreTimeMismatch = "PaaTrustStoreTimeMismatch",
     DclServiceUnavailable = "DclServiceUnavailable",
@@ -82,12 +92,38 @@ function parsePeerValue<T>(check: DeviceAttestationCheck, description: string, p
     try {
         return parse();
     } catch (cause) {
-        // A defect of ours is not the peer's malformed data and must not be reported as such
-        if (cause instanceof InternalError || cause instanceof ImplementationError) {
+        // A defect of ours is not the peer's malformed data, and an attestation failure is already classified
+        if (
+            cause instanceof InternalError ||
+            cause instanceof ImplementationError ||
+            cause instanceof DeviceAttestationError
+        ) {
             throw cause;
         }
         throw new DeviceAttestationError(check, `${description}: ${asError(cause).message}`, { cause });
     }
+}
+
+/** Parse the CD the peer supplied, reporting a broken encoding rule apart from a CD that cannot be decoded. */
+function parsePeerCertificationDeclaration(declaration: Bytes) {
+    return parsePeerValue(
+        DeviceAttestationCheck.CertificationDeclarationUnparseable,
+        "Device returned a Certification Declaration that cannot be parsed",
+        () => {
+            try {
+                return CertificationDeclaration.parse(declaration);
+            } catch (cause) {
+                if (cause instanceof CertificationDeclarationFormatError) {
+                    throw new DeviceAttestationError(
+                        DeviceAttestationCheck.CertificationDeclarationFormatInvalid,
+                        `Certification Declaration breaks an encoding rule: ${cause.message}`,
+                        { cause },
+                    );
+                }
+                throw cause;
+            }
+        },
+    );
 }
 
 /** Parse an attestation certificate the peer supplied, rejecting a missing certificate before the decoder sees it. */
@@ -366,30 +402,36 @@ export namespace DeviceAttestationValidator {
         // === Remaining local checks (CD validation) ===
 
         // Step 8: Certification Declaration signature verification
-        const cd = parsePeerValue(
-            DeviceAttestationCheck.CertificationDeclarationUnparseable,
-            "Device returned a Certification Declaration that cannot be parsed",
-            () => CertificationDeclaration.parse(attestationInfo.declaration),
-        );
+        const cd = parsePeerCertificationDeclaration(attestationInfo.declaration);
         const cdSignerSkidHex = Bytes.toHex(cd.signerSubjectKeyId);
 
         if (dclCertificateService !== undefined) {
-            const cdSigner = await dclCertificateService.getOrFetchCdSigner(cd.signerSubjectKeyId);
-            if (cdSigner !== undefined) {
-                try {
-                    await crypto.verifyEcdsa(PublicKey(cdSigner.publicKey), cd.signedData, cd.signature);
-                } catch {
+            const cdSigner = await dclCertificateService.lookupCdSigner(cd.signerSubjectKeyId);
+            switch (cdSigner.kind) {
+                case "found":
+                    try {
+                        await crypto.verifyEcdsa(PublicKey(cdSigner.publicKey), cd.signedData, cd.signature);
+                    } catch {
+                        throw new DeviceAttestationError(
+                            DeviceAttestationCheck.CertificationDeclarationSignatureInvalid,
+                            "Certification Declaration signature verification failed",
+                        );
+                    }
+                    break;
+
+                case "unknown":
                     throw new DeviceAttestationError(
-                        DeviceAttestationCheck.CertificationDeclarationSignatureInvalid,
-                        "Certification Declaration signature verification failed",
+                        DeviceAttestationCheck.CdSignerUnknown,
+                        `CD signer SKID ${cdSignerSkidHex} is not a known CD signer`,
                     );
-                }
-            } else {
-                findings.push({
-                    level: "warning",
-                    type: DeviceAttestationCheck.CdSignerVerificationSkipped,
-                    message: `CD signer SKID ${cdSignerSkidHex} not found in trust store or DCL; skipping CD signature verification`,
-                });
+
+                case "unavailable":
+                    findings.push({
+                        level: "warning",
+                        type: DeviceAttestationCheck.CdSignerVerificationSkipped,
+                        message: `CD signer SKID ${cdSignerSkidHex} cannot be checked because ${cdSigner.reason}; skipping CD signature verification`,
+                    });
+                    break;
             }
         } else {
             findings.push({
@@ -402,8 +444,21 @@ export namespace DeviceAttestationValidator {
         // Step 9: Certification Declaration field validation (Matter spec Section 6.2.3.1)
         const cdContent = cd.content;
 
-        // certification_type check (Matter 1.5.1): log and surface provisional/test CDs
+        if (cdContent.formatVersion !== CD_FORMAT_VERSION) {
+            throw new DeviceAttestationError(
+                DeviceAttestationCheck.CertificationDeclarationFormatInvalid,
+                `CD format_version ${cdContent.formatVersion} is not ${CD_FORMAT_VERSION}`,
+            );
+        }
+
+        // Reserved certification_type values are refused like CHIP does; the specification only marks them reserved
         const certType = cdContent.certificationType;
+        if (certType > CertificationType.Official) {
+            throw new DeviceAttestationError(
+                DeviceAttestationCheck.CertificationDeclarationFormatInvalid,
+                `CD certification_type ${certType} is a reserved value`,
+            );
+        }
         if (certType === CertificationType.Provisional) {
             findings.push({
                 level: "warning",

@@ -66,6 +66,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Advertisements that announce in the same event-loop turn share one mDNS announcement
     - Fix: `MdnsServer.close()` still sends goodbyes that are already waiting
     - Fix: The mDNS responder sends a failed goodbye again until it leaves or peers drop the records
+    - Fix: Device attestation refuses a Certification Declaration that breaks a rule of its CMS envelope, `format_version` or `certification_type`, as CHIP does
+    - Fix: Device attestation refuses a Certification Declaration from an unknown signer when the DCL answered or CD signers are configured, as CHIP does
+    - Feature: `DclCertificateService.lookupCdSigner()` tells an unknown CD signer apart from a lookup without signer information
     - Fix: The mDNS responder sends a goodbye for every record a refresh removes or replaces, such as the vendor pointer when a commissioning window becomes privacy masked
     - Fix: The mDNS responder announces a service in the same message as the goodbye for a record that one of its records replaces, such as after a host name change
     - Fix: The mDNS responder follows interface address changes: it withdraws the addresses an interface lost and announces the current ones

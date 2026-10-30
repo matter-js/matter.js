@@ -1664,6 +1664,95 @@ describe("DclCertificateService", () => {
         });
     });
 
+    describe("lookupCdSigner", () => {
+        const unknownSkid = "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF";
+
+        function mockRootCertificates() {
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+        }
+
+        it("reports a signer the DCL does not list as unknown", async () => {
+            mockRootCertificates();
+            fetchMock.addResponse(`/dcl/pki/all-certificates?subjectKeyId=`, { certificates: [] });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, { updateInterval: null });
+            await service.construction;
+
+            expect(await service.lookupCdSigner(unknownSkid)).deep.equal({ kind: "unknown" });
+
+            await service.close();
+        });
+
+        it("reports a failed DCL query as unavailable", async () => {
+            mockRootCertificates();
+            fetchMock.addResponse(
+                `/dcl/pki/all-certificates?subjectKeyId=`,
+                { code: 13, message: "internal" },
+                {
+                    status: 500,
+                },
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, { updateInterval: null });
+            await service.construction;
+
+            const lookup = await service.lookupCdSigner(unknownSkid);
+            expect(lookup.kind).equal("unavailable");
+
+            await service.close();
+        });
+
+        it("reports a signer as unavailable when offline without a CD signer seed, even with stored signers", async () => {
+            const service = new DclCertificateService(environment, { updateInterval: null, offline: true });
+            await service.construction;
+            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
+
+            const lookup = await service.lookupCdSigner(unknownSkid);
+            expect(lookup.kind).equal("unavailable");
+
+            await service.close();
+        });
+
+        it("reports a signer missing from the CD signer seed as unknown when offline", async () => {
+            const { subjectKeyId, publicKey } = CertificationDeclaration.testSignerInfo();
+            const service = new DclCertificateService(environment, {
+                updateInterval: null,
+                offline: true,
+                seed: {
+                    cdSigners: {
+                        builtAt: new Date(0).toISOString(),
+                        expectedCount: 1,
+                        entries: (async function* () {
+                            yield {
+                                subjectKeyId: Bytes.toHex(subjectKeyId),
+                                derHex: Bytes.toHex(CertificationDeclaration.testSignerCertificate()),
+                                kind: "production" as const,
+                            };
+                        })(),
+                    },
+                },
+            });
+            await service.construction;
+
+            expect(await service.lookupCdSigner(unknownSkid)).deep.equal({ kind: "unknown" });
+
+            const found = await service.lookupCdSigner(subjectKeyId);
+            expect(found.kind === "found" && Bytes.toHex(found.publicKey)).equal(Bytes.toHex(publicKey));
+
+            await service.close();
+        });
+    });
+
     describe("revocation support", () => {
         it("parseCrlRevokedSerials extracts serial numbers from CRL", () => {
             const crl = buildTestCrl(["01AB", "02CD", "FF00FF"]);

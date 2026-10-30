@@ -4,7 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CertificationDeclaration } from "#certificate/kinds/CertificationDeclaration.js";
+import {
+    CertificationDeclaration,
+    CertificationDeclarationFormatError,
+} from "#certificate/kinds/CertificationDeclaration.js";
 import { CertificationDeclaration as CertificationDeclarationDef } from "#certificate/kinds/definitions/certification-declaration.js";
 import { Bytes, PrivateKey, StandardCrypto } from "@matter/general";
 import { VendorId } from "@matter/types";
@@ -97,6 +100,32 @@ describe("CertificationDeclaration", () => {
             expect(parsed.content.vendorId).equal(vendorId);
             expect(parsed.content.produceIdArray).deep.equal([productId]);
             expect(parsed.content.certificationType).equal(1); // Provisional
+        });
+
+        it("rejects a ContentInfo whose contentType is not pkcs7-signedData", async () => {
+            const cdHex = Bytes.toHex(await CertificationDeclaration.generate(crypto, VendorId(0xfff1), 0x8000));
+            const signedDataOid = "06092a864886f70d010702";
+            expect(cdHex).include(signedDataOid);
+            const pkcs7DataOid = "06092a864886f70d010701";
+            const wrongContentType = Bytes.fromHex(cdHex.replace(signedDataOid, pkcs7DataOid));
+
+            expect(() => CertificationDeclaration.parse(wrongContentType)).throw(
+                CertificationDeclarationFormatError,
+                "CMS contentType must be pkcs7-signedData, found OID 2a864886f70d010701",
+            );
+        });
+
+        it("rejects a CMS version that is not an INTEGER", async () => {
+            const cdHex = Bytes.toHex(await CertificationDeclaration.generate(crypto, VendorId(0xfff1), 0x8000));
+            // SignedData SEQUENCE header followed by the version INTEGER 3, then the digestAlgorithms SET
+            const version = cdHex.match(/020103(31)/);
+            expect(version?.index).not.undefined;
+            const octetStringVersion = Bytes.fromHex(cdHex.replace(/020103(31)/, "040103$1"));
+
+            expect(() => CertificationDeclaration.parse(octetStringVersion)).throw(
+                CertificationDeclarationFormatError,
+                "CMS version must be 3, found none",
+            );
         });
 
         it("rejects invalid input gracefully", () => {
