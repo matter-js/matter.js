@@ -5,6 +5,7 @@
  */
 
 import { InternalError, isObject } from "@matter/main";
+import { MATTER_EPOCH_OFFSET_S } from "@matter/main/types";
 import type { ClusterModel, ValueModel } from "@matter/model";
 import type { CertStepContext, TimedInteractionOptions } from "@matter/testing";
 import type { CommandPayload, CommissionedRefs } from "./tc-support.js";
@@ -72,6 +73,9 @@ const CHIP_LIST_GAP = /\[DMG\]\s*$/;
 /**
  * The TH-log payload of `command` sent with `args`, built from the command's model so both renderings name the sent
  * fields in model order.
+ *
+ * An `epoch-s` field takes Unix-epoch seconds. It travels as Matter-epoch seconds, which chip prints; matter.js
+ * converts it back to Unix-epoch seconds before it prints it.
  *
  * chip prints one line per integer, enum, string or boolean field (a signed integer as `(signed)`, a string with its
  * byte count, a boolean without a type), and a struct or list over several lines: its field id, then `{` or `[`, its
@@ -161,7 +165,7 @@ function renderValue(field: ValueModel, value: TvValue, path: string, id: number
                 chip: [
                     chipCommandField({
                         id,
-                        value,
+                        value: field.type === "epoch-s" ? value - MATTER_EPOCH_OFFSET_S : value,
                         signed: SIGNED_TYPES.has(field.primitiveBase?.name ?? ""),
                     }),
                 ],

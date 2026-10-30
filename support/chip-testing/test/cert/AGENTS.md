@@ -4178,6 +4178,8 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl.
   CancelRecordProgram with success (`ChannelManager`). On a matter.js server, GetProgramGuide needs ElectronicGuide,
   and the two record commands need ElectronicGuide and RecordProgram, so `TestChannelServer` declares both. Its guide
   is empty. chip filters its seeded programs by the window, and the case's window matches none of them.
+- **StartTime and EndTime are `epoch-s`.** The case gives Unix-epoch seconds. Every DUT sends Matter-epoch seconds,
+  which chip prints, and matter.js prints the Unix-epoch value it decodes. `tvCommandPayload` builds both lines.
 - **chip's AccountLogin is on the content app endpoint 3** with one Setup PIN, `tempPin123`, for every account. A
   Login with a PIN shorter than 8 characters answers CONSTRAINT_ERROR, and any other wrong PIN UNSUPPORTED_ACCESS
   (`account-login-server.cpp`). `TestAccountLoginServer` on `ep3` uses the same PIN. All three commands are timed;

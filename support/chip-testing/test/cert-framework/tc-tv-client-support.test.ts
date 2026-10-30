@@ -74,15 +74,15 @@ describe("tvCommandPayload", () => {
         expect(track.matterjs).equal("trackId: activeAudioTrackId_1 audioOutputIndex: 1");
     });
 
-    it("renders an epoch-s field as an unsigned number (characterization)", () => {
+    it("renders an epoch-s field as Matter-epoch seconds for chip and Unix-epoch seconds for matter.js", () => {
         const payload = tvCommandPayload(CHANNEL, "getProgramGuide", {
             startTime: 1_700_000_000,
             endTime: 1_700_003_600,
         });
 
         expect(sources(payload.chip)).deep.equal([
-            "0x0 = 1700000000 \\(unsigned\\),\\s*$",
-            "0x1 = 1700003600 \\(unsigned\\),\\s*$",
+            "0x0 = 753315200 \\(unsigned\\),\\s*$",
+            "0x1 = 753318800 \\(unsigned\\),\\s*$",
         ]);
         expect(payload.matterjs).equal("startTime: 1700000000 endTime: 1700003600");
     });
