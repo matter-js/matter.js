@@ -38,6 +38,7 @@ import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "@ma
 import { MlDsaAttestationDisabledError, Paa, Pai } from "../certificate/kinds/AttestationCertificates.js";
 import { Certificate } from "../certificate/kinds/Certificate.js";
 import { certificateSignatureOf, verifyCertificateSignature } from "../certificate/kinds/CertificateSignature.js";
+import { CertificationDeclaration } from "../certificate/kinds/CertificationDeclaration.js";
 import { DclClient, MatterDclError, MatterDclResponseError } from "./DclClient.js";
 import { DclConfig, DclGithubConfig } from "./DclConfig.js";
 import { DclPkiRootCertificateSubjectReference } from "./DclRestApiTypes.js";
@@ -880,6 +881,7 @@ export class DclCertificateService {
      * | Situation                                                  | Result         |
      * |------------------------------------------------------------|----------------|
      * | Signer in the local trust store, or returned by the DCL    | `found`        |
+     * | Matter test CD signer, and test certificates are accepted  | `found`        |
      * | Online, and the DCL answered without a certificate         | `unknown`      |
      * | Offline with `seed.cdSigners`, and the signer not stored   | `unknown`      |
      * | Offline without `seed.cdSigners`                           | `unavailable`  |
@@ -900,6 +902,13 @@ export class DclCertificateService {
             const derBytes = await this.#getCertificateDer(normalizedSkid);
             const cert = Certificate.parseAsn1Certificate(derBytes, Certificate.REQUIRED_EXTENSIONS);
             return { kind: "found", publicKey: cert.ellipticCurvePublicKey, isProduction: existing.isProduction };
+        }
+
+        if (this.acceptsTestCertificates) {
+            const testSigner = CertificationDeclaration.testSignerInfo();
+            if (normalizedSkid === this.#normalizeSubjectKeyId(testSigner.subjectKeyId)) {
+                return { kind: "found", publicKey: testSigner.publicKey, isProduction: false };
+            }
         }
 
         if (this.#options.offline) {

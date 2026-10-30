@@ -673,6 +673,47 @@ describe("DeviceAttestationValidator", () => {
         });
     });
 
+    describe("Matter test CD signer", () => {
+        /**
+         * Online service whose DCL lists no CD signer and whose test certificate fetch from GitHub fails, so the test
+         * CD signer is in neither the store nor the DCL answer.
+         */
+        async function serviceWithoutStoredCdSigner(acceptTestCertificates: boolean) {
+            setupDclFetchMock(fetchMock, TestCert_PAA_NoVID_Cert);
+            fetchMock.addResponse("/dcl/pki/all-certificates?subjectKeyId=", { certificates: [] });
+            fetchMock.addResponse("github", { message: "rate limited" }, { status: 403 });
+            fetchMock.install();
+
+            service = new DclCertificateService(environment, {
+                updateInterval: null,
+                fetchTestCertificates: true,
+                acceptTestCertificates,
+            });
+            await service.construction;
+            expect(service.getCertificate(CertificationDeclaration.testSignerInfo().subjectKeyId)).undefined;
+            return service;
+        }
+
+        it("verifies a test-signed CD when test certificates are accepted", async () => {
+            const dclService = await serviceWithoutStoredCdSigner(true);
+
+            const { findings } = await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+
+            const types = findings.map(({ type }) => type);
+            expect(types).not.include(DeviceAttestationCheck.CdSignerUnknown);
+            expect(types).not.include(DeviceAttestationCheck.CdSignerVerificationSkipped);
+        });
+
+        it("refuses a test-signed CD as from an unknown signer when test certificates are not accepted", async () => {
+            const dclService = await serviceWithoutStoredCdSigner(false);
+
+            await expect(DeviceAttestationValidator.validate(buildContext(dclService), buildData())).to.be.rejectedWith(
+                DeviceAttestationError,
+                /is not a known CD signer/,
+            );
+        });
+    });
+
     describe("findings model", () => {
         it("returns findings alongside dacPublicKey on successful validation", async () => {
             const dclService = await setupDclService();
