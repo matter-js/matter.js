@@ -10,9 +10,7 @@ import { WriteResult } from "#action/index.js";
 import { Invoke } from "#action/request/Invoke.js";
 import { Read } from "#action/request/Read.js";
 import { Write } from "#action/request/Write.js";
-import { ResultStatus } from "#action/response/ResultStatus.js";
 import { BleDisconnectedError } from "#ble/Ble.js";
-import { Certificate } from "#certificate/kinds/Certificate.js";
 import { PeerMessageMissingError, PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import { OperationalDataset } from "#thread/OperationalDataset.js";
 import {
@@ -23,7 +21,6 @@ import {
     ChannelType,
     Diagnostic,
     Duration,
-    EcdsaSignature,
     ImplementationError,
     Instant,
     Logger,
@@ -37,7 +34,6 @@ import {
     Timer,
     Timespan,
     Timestamp,
-    UnexpectedDataError,
 } from "@matter/general";
 import {
     ClusterId,
@@ -46,7 +42,6 @@ import {
     FabricIndex,
     Global,
     NodeId,
-    Status,
     StatusResponseError,
     VendorId,
 } from "@matter/types";
@@ -65,9 +60,9 @@ import {
     DeviceAttestationValidator,
 } from "../certificate/DeviceAttestationValidator.js";
 import { Dac } from "../certificate/kinds/AttestationCertificates.js";
-import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { Fabric } from "../fabric/Fabric.js";
+import { invokeSingleCommand, operationalPublicKeyOfCsr } from "./AdministratorCommands.js";
 import { CommissioningError } from "./CommissioningError.js";
 import { PeerAddress } from "./PeerAddress.js";
 
@@ -502,31 +497,11 @@ export class ControllerCommissioningFlow {
         return [...attributeMap.values()];
     }
 
-    // TODO improve response typing
     async #invokeCommand<const C extends ClusterType.Concrete>(
         request: Invoke.ConcreteCommandRequest<C>,
         options: Omit<Invoke.Definition, "commands"> = {},
     ) {
-        for await (const data of this.interaction.invoke(
-            Invoke({
-                commands: [request],
-                ...options,
-            }),
-        )) {
-            for (const entry of data) {
-                // We send only one command, so we only get one response back
-                switch (entry.kind) {
-                    case "cmd-status":
-                        if (entry.status !== Status.Success) {
-                            throw ResultStatus.errorOf(entry);
-                        }
-                        return;
-
-                    case "cmd-response":
-                        return entry.data;
-                }
-            }
-        }
+        return invokeSingleCommand(this.interaction, request, options);
     }
 
     /**
@@ -1401,7 +1376,7 @@ export class ControllerCommissioningFlow {
      *     DCL contains the name and other information of the Commissioner’s manufacturer.
      */
     async #certificates() {
-        const { nocsrElements, attestationSignature: csrSignature } = await this.#invokeCommand(
+        const { nocsrElements, attestationSignature } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
                 cluster: OperationalCredentials,
@@ -1413,25 +1388,12 @@ export class ControllerCommissioningFlow {
             },
         );
 
-        if (nocsrElements.byteLength === 0 || csrSignature.byteLength === 0) {
-            throw new UnexpectedDataError("Invalid response from device");
-        }
-
-        // Verify CSR attestation signature using DAC public key (extracted in step 10)
-        if (this.#dacPublicKey !== undefined) {
-            try {
-                await this.fabric.crypto.verifyEcdsa(
-                    this.#dacPublicKey,
-                    Bytes.concat(nocsrElements, this.commissioningOptions.attestation!.challengeKey),
-                    new EcdsaSignature(csrSignature),
-                );
-            } catch {
-                throw new CommissioningError("CSR signature verification failed against DAC public key");
-            }
-        }
-
-        const { certSigningRequest } = TlvCertSigningRequest.decode(nocsrElements);
-        const operationalPublicKey = await Certificate.getPublicKeyFromCsr(this.ca.crypto, certSigningRequest);
+        // The DAC public key is only known when the attestation step ran
+        const operationalPublicKey = await operationalPublicKeyOfCsr(
+            this.ca.crypto,
+            { nocsrElements, attestationSignature },
+            { challenge: this.commissioningOptions.attestation!.challengeKey, dacPublicKey: this.#dacPublicKey },
+        );
 
         await this.#invokeCommand(
             {

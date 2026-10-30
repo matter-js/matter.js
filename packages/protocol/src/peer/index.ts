@@ -8,6 +8,7 @@ export * from "./CommissioningError.js";
 export * from "./ControllerCommissioner.js";
 export * from "./ControllerCommissioningFlow.js";
 export * from "./NetworkProfile.js";
+export * from "./OperationalCertificateUpdate.js";
 export * from "./Peer.js";
 export * from "./PeerAddress.js";
 export * from "./PeerCommunicationError.js";

@@ -78,10 +78,17 @@ const logger = Logger.get("Peers");
 const DEFAULT_TTL = Minutes(15);
 const EXPIRATION_INTERVAL = Minutes.one;
 
-type FabricOperation = "commission" | "decommission";
+type FabricOperation = "commission" | "decommission" | "certificate update";
+
+const FABRIC_OPERATION_VERBS: Record<FabricOperation, string> = {
+    commission: "commission",
+    decommission: "decommission",
+    "certificate update": "update the operational certificate of",
+};
 
 /**
- * Thrown when a commission or decommission of a {@link ClientNode} is requested while one is already in progress.
+ * Thrown when a commission, decommission or certificate update of a {@link ClientNode} is requested while one of them
+ * is already in progress.
  */
 export class FabricOperationInProgressError extends CommissioningError {}
 
@@ -594,7 +601,7 @@ export class Peers extends EndpointContainer<ClientNode> {
      * Run a commission attempt on {@link node} while protecting the node from the expired-node cull.
      *
      * Rejects with `DestroyedDependencyError` or `CrashedDependencyError` if the node is gone (its closing or deletion
-     * began, or it crashed), so the attempt fails fast instead of crashing later when the closed backing is accessed, and with {@link FabricOperationInProgressError} if a commission or decommission attempt on it
+     * began, or it crashed), so the attempt fails fast instead of crashing later when the closed backing is accessed, and with {@link FabricOperationInProgressError} if a commission, decommission or certificate update of it
      * is already in progress, as parallel attempts on the same {@link ClientNode} would race on device-side state.
      * Calling {@link ClientNode.commission} inside {@link fn} therefore rejects.
      */
@@ -607,10 +614,22 @@ export class Peers extends EndpointContainer<ClientNode> {
      * the node, and {@link forDescriptor} waits for it to end before handing out a node for the device.
      *
      * Rejects like {@link runCommissioning}: with `DestroyedDependencyError` or `CrashedDependencyError` if the node is
-     * gone, with {@link FabricOperationInProgressError} if a commission or decommission of it is already in progress.
+     * gone, with {@link FabricOperationInProgressError} if a commission, decommission or certificate update of it is already
+     * in progress.
      */
     async runDecommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
         return this.#runFabricOperation(node, "decommission", fn);
+    }
+
+    /**
+     * Run an operational certificate update of {@link node}.
+     *
+     * Rejects like {@link runCommissioning}: with `DestroyedDependencyError` or `CrashedDependencyError` if the node is
+     * gone, with {@link FabricOperationInProgressError} if a commission, decommission or certificate update of it is
+     * already in progress.
+     */
+    async runOperationalCertificateUpdate<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
+        return this.#runFabricOperation(node, "certificate update", fn);
     }
 
     /**
@@ -624,7 +643,7 @@ export class Peers extends EndpointContainer<ClientNode> {
             const running = this.#fabricOperations.get(node);
             if (running !== undefined) {
                 throw new FabricOperationInProgressError(
-                    `Cannot ${operation} ${node.toString()} because a ${running.operation} attempt is already in progress`,
+                    `Cannot ${FABRIC_OPERATION_VERBS[operation]} ${node.toString()} because a ${running.operation} attempt is already in progress`,
                 );
             }
             this.#fabricOperations.set(node, { operation, settled });
