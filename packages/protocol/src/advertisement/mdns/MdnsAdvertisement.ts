@@ -44,6 +44,7 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
     #isPrivacyMasked: boolean;
     #stopAt?: Timestamp;
     #broadcastPromise?: Promise<void>;
+    #registration?: MdnsServer.Registration;
 
     constructor(advertiser: MdnsAdvertiser, qname: string, description: T) {
         description = {
@@ -97,21 +98,21 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
     async #broadcast() {
         if (!this.#isPrivacyMasked && this.isPrivacyMasked) {
             this.#isPrivacyMasked = true;
-            await this.advertiser.server.setRecordsGenerator(this.service, this.#recordsGenerator);
+            await this.#registration?.refresh();
         }
 
         await this.advertiser.server.broadcast(this.service);
     }
 
     /**
-     * Broadcast expiration announcement immediately.
+     * Withdraw the service and send its goodbye.
      */
     async expire() {
         if (this.#broadcastPromise !== undefined) {
             await this.#broadcastPromise;
         }
         logger.info("Unpublishing", this.dict({ time: Duration.format(this.duration) }));
-        await this.advertiser.server.expireAnnouncements(this.service);
+        await this.#registration?.withdraw();
     }
 
     override serviceConnected() {
@@ -135,15 +136,14 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
 
     protected override async onCreate() {
         // Use Promise.resolve() to initialize on next microtick so the constructor completes before invocation
-        await Promise.resolve().then(() => {
-            // Install the records generator.  This will be used for broadcast and to respond to queries
-            logger.info("Publishing", this.dict());
-            return this.advertiser.server.setRecordsGenerator(this.service, this.#recordsGenerator);
-        });
+        await Promise.resolve();
+
+        // Install the records generator.  This will be used for broadcast and to respond to queries
+        logger.info("Publishing", this.dict());
+        this.#registration = await this.advertiser.server.register(this.service, this.#recordsGenerator);
     }
 
     protected override async onClose() {
-        // The MDNS server doesn't currently track which answers have been sent so just expire unconditionally
         await this.expire();
     }
 
