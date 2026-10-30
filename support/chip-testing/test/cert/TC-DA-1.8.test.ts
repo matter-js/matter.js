@@ -120,9 +120,9 @@ async function commissionEach(cx: CertStepContext) {
     try {
         await withChecks(cx, async checks => {
             let failed = 0;
-            const started = Time.nowMs;
+            const started = Time.nowUs;
             for (const [index, [vector, productId]] of CERTIFICATE_SETS.entries()) {
-                if (Time.nowMs - started > ATTEMPT_BUDGET) {
+                if (Time.nowUs - started > ATTEMPT_BUDGET) {
                     const skipped = CERTIFICATE_SETS.slice(index).map(([name]) => name);
                     checks.push({
                         what: "Every certificate set attempted",
