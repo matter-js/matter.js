@@ -55,7 +55,7 @@ export enum DeviceAttestationCheck {
 
     /**
      * The CD's signer is not known to be a CD signer: neither a built-in CSA key, the Matter test CD signer, nor a
-     * CSA-issued key from the DCL. See {@link DclCertificateService.lookupCdSigner}.
+     * CSA-issued certificate from the DCL, the store or a seed. See {@link DclCertificateService.lookupCdSigner}.
      */
     CdSignerUnknown = "CdSignerUnknown",
 

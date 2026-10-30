@@ -771,6 +771,25 @@ describe("DeviceAttestationValidator", () => {
     });
 
     describe("certification_type findings", () => {
+        it("refuses certification_type 3, the first reserved value", async () => {
+            const dclService = await setupDclService();
+            // The Matter test CD signer key from Appendix F of the Matter Core Specification
+            const testSignerKey = PrivateKey(
+                Bytes.fromHex("AEF3484116E9481EC57BE0472DF41BF499064E5024AD869ECA5E889802D48075"),
+            );
+            const reservedTypeCd = await new CertificationDeclaration(
+                { ...CertificationDeclaration.parse(validCdBytes).content, certificationType: 3 },
+                CertificationDeclaration.testSignerInfo().subjectKeyId,
+            ).asSignedAsn1(crypto, testSignerKey);
+
+            await expect(
+                DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData(await buildAttestationWithCd(reservedTypeCd)),
+                ),
+            ).to.be.rejectedWith(DeviceAttestationError, /certification_type 3 is a reserved value/);
+        });
+
         it("returns CertificationTypeProvisional warning for provisional CD (type=1)", async () => {
             const dclService = await setupDclService();
 

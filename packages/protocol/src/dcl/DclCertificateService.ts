@@ -891,12 +891,12 @@ export class DclCertificateService {
     /**
      * Look up the CD signer a Certification Declaration names by its subject key identifier.
      *
-     * | Signer                                                                     | Result           |
-     * |----------------------------------------------------------------------------|------------------|
-     * | Built-in CSA signing key, or the Matter test CD signer ({@link CdSigners.known}) | the signer   |
-     * | Stored certificate that {@link CdSigners.verifyCertificate} accepts        | the signer       |
-     * | Online: DCL answer that {@link CdSigners.verifyCertificate} accepts        | the signer, then stored |
-     * | Anything else, including an unreachable DCL or an offline service          | `undefined`      |
+     * | Signer                                                                        | Result                  |
+     * |-------------------------------------------------------------------------------|-------------------------|
+     * | Built-in CSA signing key or Matter test CD signer ({@link CdSigners.known})   | the signer              |
+     * | Stored or seeded certificate that {@link CdSigners.verifyCertificate} accepts | the signer, also offline |
+     * | Online: DCL answer that {@link CdSigners.verifyCertificate} accepts           | the signer, then stored |
+     * | Anything else, including an unreachable DCL or an offline service             | `undefined`             |
      *
      * The store is only a cache of DCL answers: a stored or seeded certificate counts only if it verifies. The Matter
      * test CD signer is returned with `isTestSigner` set, also when this service does not accept test certificates; the

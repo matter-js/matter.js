@@ -88,9 +88,12 @@ export namespace CdSigners {
     }
 
     /**
-     * Check that a DER certificate is a CD signer for `subjectKeyId`: its subject key identifier is `subjectKeyId`, the
-     * CSA "Matter Certification and Testing CA" issued and signed it, and the root was valid when the certificate
-     * became valid.
+     * Check that a DER certificate is a CD signer for `subjectKeyId`:
+     *
+     * - its subject key identifier is `subjectKeyId`,
+     * - it is not the CSA "Matter Certification and Testing CA" root itself,
+     * - its authority key identifier is that root's subject key identifier and the root's key verifies its signature,
+     * - the root was valid when the certificate became valid.
      *
      * The validity rule follows CHIP, which validates the chain at the certificate's notBefore time. CHIP's strict
      * X.509 profile checks of the chain are not repeated.

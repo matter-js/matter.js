@@ -1672,6 +1672,7 @@ describe("DclCertificateService", () => {
 
             expect(await service.lookupCdSigner("")).undefined;
             expect(await service.lookupCdSigner("DEADBEEF")).undefined;
+            expect(await service.lookupCdSigner("Z".repeat(40))).undefined;
             expect(skidCalls()).length(0);
 
             await service.close();
@@ -1782,10 +1783,15 @@ describe("DclCertificateService", () => {
 
                 const fromDcl = await service.lookupCdSigner(futureSkid);
                 expect(fromDcl && Bytes.toHex(fromDcl.publicKey)).equal(CsaCdSigningKey001.publicKeyHex);
-                expect(service.getCertificate(futureSkid)?.kind).equal("CDSigner");
+                expect(fromDcl?.isTestSigner).equal(false);
+                const stored = service.getCertificate(futureSkid);
+                expect({ kind: stored?.kind, isProduction: stored?.isProduction }).deep.equal({
+                    kind: "CDSigner",
+                    isProduction: true,
+                });
                 expect(skidCalls()).length(1);
 
-                expect(await service.lookupCdSigner(futureSkid)).not.undefined;
+                expect((await service.lookupCdSigner(futureSkid))?.isTestSigner).equal(false);
                 expect(skidCalls()).length(1);
 
                 await service.close();
@@ -1817,7 +1823,7 @@ describe("DclCertificateService", () => {
                     cdSignerSeed([{ subjectKeyId: futureSkid, derHex: Bytes.toHex(futureKey), kind: "production" }]),
                 );
 
-                expect(await service.lookupCdSigner(futureSkid)).not.undefined;
+                expect((await service.lookupCdSigner(futureSkid))?.isTestSigner).equal(false);
 
                 await service.close();
             });

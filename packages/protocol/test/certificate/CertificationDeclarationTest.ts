@@ -9,7 +9,17 @@ import {
     CertificationDeclarationFormatError,
 } from "#certificate/kinds/CertificationDeclaration.js";
 import { CertificationDeclaration as CertificationDeclarationDef } from "#certificate/kinds/definitions/certification-declaration.js";
-import { Bytes, PrivateKey, StandardCrypto } from "@matter/general";
+import {
+    Bytes,
+    ContextTaggedBytes,
+    DerCodec,
+    DerNodeDefinition,
+    Pkcs7,
+    PrivateKey,
+    Shs,
+    StandardCrypto,
+    X962,
+} from "@matter/general";
 import { VendorId } from "@matter/types";
 
 describe("CertificationDeclaration", () => {
@@ -140,6 +150,51 @@ describe("CertificationDeclaration", () => {
             expect(() => CertificationDeclaration.parse(cdBytes)).throw(
                 CertificationDeclarationFormatError,
                 "CMS SignerInfo subjectKeyIdentifier must be 20 bytes, found 19",
+            );
+        });
+
+        /** A CMS SignedData for a valid CD content, with the digest algorithms given as stated. */
+        function signedData(digestAlgorithms: DerNodeDefinition[], signerDigestAlgorithm: DerNodeDefinition) {
+            const content = CertificationDeclarationDef.TlvDc.encode({
+                formatVersion: 1,
+                vendorId: VendorId(0xfff1),
+                produceIdArray: [0x8000],
+                deviceTypeId: 22,
+                certificateId: "CSA00000SWC00000-00",
+                securityLevel: 0,
+                securityInformation: 0,
+                versionNumber: 1,
+                certificationType: 0,
+            });
+            return DerCodec.encode(
+                Pkcs7.SignedData({
+                    version: 3,
+                    digestAlgorithm: digestAlgorithms,
+                    encapContentInfo: Pkcs7.Data(content),
+                    signerInfo: [
+                        {
+                            version: 3,
+                            subjectKeyIdentifier: ContextTaggedBytes(0, TestCMS_SignerSubjectKeyIdentifier),
+                            digestAlgorithm: signerDigestAlgorithm,
+                            signatureAlgorithm: X962.EcdsaWithSHA256,
+                            signature: Bytes.fromHex("3006020101020101"),
+                        },
+                    ],
+                }),
+            );
+        }
+
+        it("rejects a CMS SignedData with an empty digestAlgorithms SET", () => {
+            expect(() => CertificationDeclaration.parse(signedData([], Shs.SHA256_CMS))).throw(
+                CertificationDeclarationFormatError,
+                "CMS digestAlgorithms must hold sha256, found none",
+            );
+        });
+
+        it("rejects a SignerInfo digestAlgorithm that is a bare OID instead of an AlgorithmIdentifier", () => {
+            expect(() => CertificationDeclaration.parse(signedData([Shs.SHA256_CMS], Shs.SHA256_CMS._objectId))).throw(
+                CertificationDeclarationFormatError,
+                "CMS SignerInfo digestAlgorithm must be sha256, found OID none",
             );
         });
 
