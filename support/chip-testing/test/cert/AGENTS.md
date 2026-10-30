@@ -57,7 +57,7 @@ to an app this way:
 | `IDM`, `CADMIN`, most generic/core  | `all-clusters` | `chip-all-clusters-app`   | yes (`AllClustersTestInstance`) |
 | `ACT`, `BR`                         | `bridge`     | `chip-bridge-app`          | yes (`BridgeTestInstance`) |
 | `KEYPADINPUT`, `TGTNAV`, other media client TCs | `tv` | `chip-tv-app` | yes (`TvTestInstance`) |
-| `DRLK`                              | `lock`       | `chip-lock-app`             | no — no matterjs lock `TestInstance` exists in this package yet |
+| `DRLK`                              | `lock`       | `chip-lock-app`             | yes (`LockTestInstance`) |
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
 | `TBRM`                              | `network-manager` | `matter-network-manager-app` | no — the case declares `flavors: ["chip-local"]`, which skips it before registration |
@@ -4202,7 +4202,7 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl.
   and the two record commands need ElectronicGuide and RecordProgram, so `TestChannelServer` declares both. Its guide
   is empty. chip filters its seeded programs by the window, and the case's window matches none of them.
 - **StartTime and EndTime are `epoch-s`.** The case gives Unix-epoch seconds. Every DUT sends Matter-epoch seconds,
-  which chip prints, and matter.js prints the Unix-epoch value it decodes. `tvCommandPayload` builds both lines.
+  which chip prints, and matter.js prints the Unix-epoch value it decodes. `commandPayload` builds both lines.
 - **chip's AccountLogin is on the content app endpoint 3** with one Setup PIN, `tempPin123`, for every account. A
   Login with a PIN shorter than 8 characters answers CONSTRAINT_ERROR, and any other wrong PIN UNSUPPORTED_ACCESS
   (`account-login-server.cpp`). `TestAccountLoginServer` on `ep3` uses the same PIN. All three commands are timed;
@@ -4228,7 +4228,8 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl.
   `exampleid` to the content app installed and loaded at startup for vendor 1 (`AppTv.cpp`, `main.cpp`). Only the
   matter.js TH needs the catalog in its CatalogList, so `TV_KNOWN_APPLICATION` uses 123, which both list. chip checks
   a LaunchURL `ContentType` (not in the 1.6.1 model) against AcceptHeader.
-- **`tvCommandPayload` renders integer, enum, string and boolean fields, and structs and lists of them.** chip prints
+- **`commandPayload` (`tc-command-payload.ts`) renders integer, enum, string and boolean fields, and structs and lists of them**
+  (octet strings, bitmaps and nulls too, see the door lock case below). chip prints
   a struct as its `0x<id> = ` line, `{`, its members and `},`; a list as `0x<id> = [`, a line without text, its
   entries and `],`, each struct entry without an id (`CheckIMPayload` in `MessageDefHelper.cpp`). A boolean has no
   type name. matter.js prints a top-level string unquoted but a nested one JSON-quoted, and a struct as
@@ -4251,3 +4252,26 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl.
   (`CHANNEL.C.C04.Tx`, `C06.Tx`, `C07.Tx`, which CHIP's file lacks). CHIP's file answers every other `CHANNEL.C`, and
   every `MEDIAINPUT.C`, `CONTENTLAUNCHER.C` and `APPLAUNCHER.C` key these cases use, with 1, so those need no overlay.
   `TC-ALOGIN-12.2` names no step PICS, and CHIP's file answers `ALOGIN.C` 1.
+
+## The door lock client case (`TC-DRLK-3.2`)
+
+The DUT sends every DoorLock command of the plan to endpoint 1 of the `lock` TH, and the TH's log shows each payload.
+Each step goes through `sendCommand` with `commandPayload`, and a command with the timed quality is sent timed.
+
+- **The THs.** chip's all-clusters app has had no DoorLock since 2023, so the chip legs use `chip-lock-app`: cert-bins
+  ships it, and this project's image builds it too. The own-built chip legs copy it out of the published image
+  (`chip-cert-tests.yml`), so they need an image that carries it.
+  `LockTestInstance` copies the lock-app's DoorLock: its features except Aliro, 10 users and 10 schedules of each
+  kind, PINs of 6 to 8 digits, and RequirePINforRemoteOperation off. matter.js's all-clusters lock requires a PIN for a
+  remote lock or unlock, and chip's lock-app refuses a PIN that no credential holds (`LockEndpoint::setLockState`), so
+  no PIN value works on both.
+- **A user exists before step 4.** The plan's precondition is "Steps 4–12 need a User added to the lock"; step `0b`
+  has the DUT add user 1, as CHIP's worked step 4 does. Steps 13 to 15 add, read and clear user 2. Step 16 adds a PIN
+  credential to user 1, which § 5.2.10.20 requires with a null UserStatus and UserType.
+- **`commandPayload` also renders an octet string** (chip's three-line byte list, matter.js's hex), **a bitmap** given
+  as its set bits (chip's number, matter.js's object with every bit) **and a null** (chip prints `0x<id> = NULL` with
+  no comma, matter.js `null`).
+- **The year-day and holiday steps are gated on `DRLK.C.F04` (WDSCH)**, as in the plan and in CHIP's yaml, although
+  the commands belong to YDSCH and HDSCH (`F0a`, `F0b`). CHIP's PICS file answers those two 0 for a client.
+- **PICS:** CHIP's file answers every key the case uses 1; all three overlays declare them anyway, as the controller's
+  client surface.
