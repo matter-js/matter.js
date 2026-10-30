@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Duration, InternalError, Minutes, Seconds, Time } from "@matter/main";
+import { Bytes, InternalError, Seconds } from "@matter/main";
 import type { CertDevice, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest, chip } from "@matter/testing";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -74,12 +74,6 @@ const SERVER_READY = /\[SVR\] Server initialization complete/;
 /** A commissioning the TH refuses or never answers ends well before this; one that succeeds takes seconds. */
 const COMMISSIONING_TIMEOUT = Seconds(60);
 
-/**
- * When no further certificate set is started. A commissioning that hangs past `giveUpAfterMs` can still take
- * minutes in CASE, so this leaves room for one inside the case's 30-minute limit and the evidence is still written.
- */
-const ATTEMPT_BUDGET = Minutes(22);
-
 /** `OperationalCredentials.CertificateChainRequest` CertificateType for the DAC. @see {@link MatterSpecification.v161.Core} § 11.18.6.3 */
 const DAC_CERTIFICATE = 1;
 
@@ -120,21 +114,7 @@ async function commissionEach(cx: CertStepContext) {
     try {
         await withChecks(cx, async checks => {
             let failed = 0;
-            const started = Time.nowUs;
-            for (const [index, [vector, productId]] of CERTIFICATE_SETS.entries()) {
-                if (Time.nowUs - started > ATTEMPT_BUDGET) {
-                    const skipped = CERTIFICATE_SETS.slice(index).map(([name]) => name);
-                    checks.push({
-                        what: "Every certificate set attempted",
-                        check: () => ({
-                            type: "response",
-                            verdict: "fail",
-                            detail: `Out of time after ${Duration.format(ATTEMPT_BUDGET)}; not attempted: ${skipped.join(", ")}`,
-                        }),
-                    });
-                    failed += skipped.length;
-                    break;
-                }
+            for (const [vector, productId] of CERTIFICATE_SETS) {
                 const dac = await startWith(th, dir, vector, productId);
                 if (!(await commissionVector(cx, th, vector, dac, checks))) {
                     failed++;
