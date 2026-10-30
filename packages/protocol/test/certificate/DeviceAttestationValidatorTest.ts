@@ -520,13 +520,15 @@ describe("DeviceAttestationValidator", () => {
             await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
         });
 
-        it("skips CD signature verification when the DCL cannot be asked for the CD signer", async () => {
+        it("refuses a CD from a signer the DCL does not answer for", async () => {
             const dclService = await setupDclService();
 
-            await DeviceAttestationValidator.validate(
-                buildContext(dclService),
-                buildData(await attestationWithUnlistedCdSigner()),
-            );
+            await expect(
+                DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData(await attestationWithUnlistedCdSigner()),
+                ),
+            ).to.be.rejectedWith(DeviceAttestationError, /is not known to be a CD signer/);
         });
 
         it("throws CertificationDeclarationSignatureInvalid for CD signed with wrong key", async () => {
@@ -714,28 +716,34 @@ describe("DeviceAttestationValidator", () => {
 
             const { findings } = await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
 
-            const types = findings.map(({ type }) => type);
-            expect(types).not.include(DeviceAttestationCheck.CdSignerUnknown);
-            expect(types).not.include(DeviceAttestationCheck.CdSignerVerificationSkipped);
+            expect(findings.map(({ type }) => type)).not.include(DeviceAttestationCheck.TrustedAsTestCertificate);
         });
 
-        it("refuses a test-signed CD as from an unknown signer when test certificates are not accepted", async () => {
+        it("verifies a test-signed CD but reports it as TrustedAsTestCertificate when test certificates are not accepted", async () => {
             const dclService = await serviceWithoutStoredCdSigner(false);
 
-            await expect(DeviceAttestationValidator.validate(buildContext(dclService), buildData())).to.be.rejectedWith(
-                DeviceAttestationError,
-                /is not a known CD signer/,
-            );
+            const { findings } = await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+
+            const trusted = findings.filter(({ type }) => type === DeviceAttestationCheck.TrustedAsTestCertificate);
+            expect(
+                trusted.map(({ level, message }) => ({ level, signer: message.includes("test CD signer") })),
+            ).deep.equal([{ level: "error", signer: true }]);
+            expect(findings.map(({ type }) => type)).include(DeviceAttestationCheck.CertificationTypeTest);
         });
 
-        it("refuses a test-signed CD when the test signer is stored but test certificates are not accepted", async () => {
+        it("refuses a test-signed CD with a bad signature also when test certificates are not accepted", async () => {
             const dclService = await serviceWithoutStoredCdSigner(false);
-            await dclService.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
+            const forged = await new CertificationDeclaration(
+                CertificationDeclaration.parse(validCdBytes).content,
+                CertificationDeclaration.testSignerInfo().subjectKeyId,
+            ).asSignedAsn1(crypto, await crypto.createKeyPair());
 
-            await expect(DeviceAttestationValidator.validate(buildContext(dclService), buildData())).to.be.rejectedWith(
-                DeviceAttestationError,
-                /is not a known CD signer/,
-            );
+            await expect(
+                DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData(await buildAttestationWithCd(forged)),
+                ),
+            ).to.be.rejectedWith(DeviceAttestationError, /Certification Declaration signature verification failed/);
         });
     });
 
@@ -747,19 +755,6 @@ describe("DeviceAttestationValidator", () => {
 
             expect(result.dacPublicKey).to.not.be.undefined;
             expect(result.findings).to.be.an("array");
-        });
-
-        it("returns CdSignerVerificationSkipped warning when the DCL cannot be asked for the CD signer", async () => {
-            const dclService = await setupDclService();
-
-            const result = await DeviceAttestationValidator.validate(
-                buildContext(dclService),
-                buildData(await attestationWithUnlistedCdSigner()),
-            );
-
-            const cdFinding = result.findings.find(f => f.type === DeviceAttestationCheck.CdSignerVerificationSkipped);
-            expect(cdFinding).to.not.be.undefined;
-            expect(cdFinding!.level).to.equal("warning");
         });
 
         it("still throws DeviceAttestationError for hard failures", async () => {

@@ -53,15 +53,23 @@ export enum DeviceAttestationCheck {
      */
     CertificationDeclarationFormatInvalid = "CertificationDeclarationFormatInvalid",
 
-    /** The CD's signer is not a trusted CD signer; see {@link DclCertificateService.lookupCdSigner}. */
+    /**
+     * The CD's signer is not known to be a CD signer: neither a built-in CSA key, the Matter test CD signer, nor a
+     * CSA-issued key from the DCL. See {@link DclCertificateService.lookupCdSigner}.
+     */
     CdSignerUnknown = "CdSignerUnknown",
 
     /** A CD of certification_type official is signed by the Matter test CD signer. */
     OfficialCdSignedByTestSigner = "OfficialCdSignedByTestSigner",
 
+    /** @deprecated The CD signature is always verified; a CD from an unknown signer fails with {@link CdSignerUnknown}. */
     CdSignerVerificationSkipped = "CdSignerVerificationSkipped",
     PaaTrustStoreTimeMismatch = "PaaTrustStoreTimeMismatch",
     DclServiceUnavailable = "DclServiceUnavailable",
+    /**
+     * A test PAA or the Matter test CD signer while the trust policy does not accept test certificates. Collected as a
+     * recoverable error so the policy decides.
+     */
     TrustedAsTestCertificate = "TrustedAsTestCertificate",
 
     /** An unexpected error during validation (e.g. an unrecoverably corrupt trust-store certificate). */
@@ -160,8 +168,8 @@ export namespace DeviceAttestationValidator {
         /**
          * DclCertificateService for PAA trust store, chain validation, revocation checks, and
          * CD signer lookup. When absent, DCL-dependent checks are skipped (PAA lookup, chain
-         * verification, revocation, CD signature) but local checks still run (nonce, signature,
-         * VendorID, CD fields).
+         * verification, revocation) but local checks still run (nonce, signature, VendorID, CD fields),
+         * and the CD signature is verified with the built-in CSA keys and the Matter test CD signer only.
          */
         dclCertificateService?: DclCertificateService;
     }
@@ -412,39 +420,31 @@ export namespace DeviceAttestationValidator {
         const cd = parsePeerCertificationDeclaration(attestationInfo.declaration);
         const cdSignerSkidHex = Bytes.toHex(cd.signerSubjectKeyId);
 
-        if (dclCertificateService !== undefined) {
-            const cdSigner = await dclCertificateService.lookupCdSigner(cd.signerSubjectKeyId);
-            switch (cdSigner.kind) {
-                case "found":
-                    try {
-                        await crypto.verifyEcdsa(PublicKey(cdSigner.publicKey), cd.signedData, cd.signature);
-                    } catch {
-                        throw new DeviceAttestationError(
-                            DeviceAttestationCheck.CertificationDeclarationSignatureInvalid,
-                            "Certification Declaration signature verification failed",
-                        );
-                    }
-                    break;
-
-                case "unknown":
-                    throw new DeviceAttestationError(
-                        DeviceAttestationCheck.CdSignerUnknown,
-                        `CD signer SKID ${cdSignerSkidHex} is not a known CD signer`,
-                    );
-
-                case "unavailable":
-                    findings.push({
-                        level: "warning",
-                        type: DeviceAttestationCheck.CdSignerVerificationSkipped,
-                        message: `CD signer SKID ${cdSignerSkidHex} cannot be checked because ${cdSigner.reason}; skipping CD signature verification`,
-                    });
-                    break;
-            }
-        } else {
+        const cdSigner =
+            dclCertificateService === undefined
+                ? CdSigners.known(cd.signerSubjectKeyId)
+                : await dclCertificateService.lookupCdSigner(cd.signerSubjectKeyId);
+        if (cdSigner === undefined) {
+            throw new DeviceAttestationError(
+                DeviceAttestationCheck.CdSignerUnknown,
+                `CD signer SKID ${cdSignerSkidHex} is not known to be a CD signer`,
+            );
+        }
+        try {
+            await crypto.verifyEcdsa(PublicKey(cdSigner.publicKey), cd.signedData, cd.signature);
+        } catch {
+            throw new DeviceAttestationError(
+                DeviceAttestationCheck.CertificationDeclarationSignatureInvalid,
+                "Certification Declaration signature verification failed",
+            );
+        }
+        if (cdSigner.isTestSigner && dclCertificateService?.acceptsTestCertificates === false) {
             findings.push({
-                level: "warning",
-                type: DeviceAttestationCheck.CdSignerVerificationSkipped,
-                message: "No DclCertificateService provided; skipping CD signature verification",
+                level: "error",
+                type: DeviceAttestationCheck.TrustedAsTestCertificate,
+                message:
+                    `CD is signed by the Matter test CD signer ${cdSignerSkidHex}; ` +
+                    "the device presented a valid test attestation but production trust policy is in effect",
             });
         }
 
@@ -468,7 +468,7 @@ export namespace DeviceAttestationValidator {
         }
 
         // § 6.3.1 allows a test-signed CD with certification_type 0; CHIP also accepts provisional, so only official fails
-        if (certType === CertificationType.Official && CdSigners.isTestSigner(cd.signerSubjectKeyId)) {
+        if (certType === CertificationType.Official && cdSigner.isTestSigner) {
             throw new DeviceAttestationError(
                 DeviceAttestationCheck.OfficialCdSignedByTestSigner,
                 "CD with certification_type=2 (official) is signed by the Matter test CD signer",

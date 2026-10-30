@@ -261,7 +261,7 @@ export default function commands(theNode: MatterNode) {
                 // DCL Test Certificates
                 .command(
                     "dcl-test-certificates",
-                    "Manage DCL test certificate fetching (production only vs. include test)",
+                    "Manage DCL test certificates: fetching them and trusting test PAAs and the Matter test CD signer",
                     yargs => {
                         return yargs
                             .command(
@@ -279,7 +279,7 @@ export default function commands(theNode: MatterNode) {
                             )
                             .command(
                                 "set <value>",
-                                "Enable or disable test certificate fetching from DCL",
+                                "Enable or disable fetching and trusting test certificates",
                                 yargs => {
                                     return yargs.positional("value", {
                                         describe: "Enable test certificates (true/false)",

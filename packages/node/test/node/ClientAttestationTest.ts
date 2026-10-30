@@ -223,7 +223,7 @@ async function runAttestationTest(options: AttestationTestOptions) {
         }
 
         if (options.dclPaaCert !== undefined) {
-            // The device presents a CD signed by the Matter test CD signer, which only counts while test certificates do
+            // The device CD is signed by the Matter test CD signer, which a production-only policy reports as a finding
             dclService = new DclCertificateService(controller.env, {
                 updateInterval: null,
                 acceptTestCertificates: !options.paaAsTestOnly,
@@ -390,7 +390,7 @@ describe("device attestation during commissioning", () => {
                 assertFindings: findings => {
                     const types = findings.map(f => f.type);
                     expect(types).to.include(DeviceAttestationCheck.CertificationTypeTest);
-                    expect(types).to.not.include(DeviceAttestationCheck.CdSignerVerificationSkipped);
+                    expect(types).to.not.include(DeviceAttestationCheck.CdSignerUnknown);
 
                     const certType = findings.find(f => f.type === DeviceAttestationCheck.CertificationTypeTest);
                     expect(certType!.level).equals("info");
@@ -448,26 +448,28 @@ describe("device attestation during commissioning", () => {
     });
 
     describe("with DCL trust store (test-only PAA)", () => {
-        it("test-only PAA under a production-only policy: the test-signed CD is refused, callback rejects", () =>
+        it("emits TrustedAsTestCertificate for the test PAA and the test CD signer, callback rejects", () =>
             runAttestationTest({
                 dclPaaCert: TestCert_PAA_NoVID_Cert,
                 paaAsTestOnly: true,
                 onAttestationFailure: () => false,
-                expectRejection: /is not a known CD signer/,
+                expectRejection: /finding\(s\) and was rejected by policy/,
                 assertFindings: findings => {
-                    const unknown = findings.find(f => f.type === DeviceAttestationCheck.CdSignerUnknown);
-                    expect(unknown?.level).equals("error");
+                    const trusted = findings.filter(f => f.type === DeviceAttestationCheck.TrustedAsTestCertificate);
+                    expect(trusted.map(f => f.level)).deep.equals(["error", "error"]);
+                    expect(trusted.some(f => f.message.includes("test CD signer"))).equals(true);
                 },
             }));
 
-        it("test-only PAA under a production-only policy: callback accepts the refused CD → commissioning proceeds", () =>
+        it("emits TrustedAsTestCertificate finding, callback accepts → commissioning proceeds", () =>
             runAttestationTest({
                 dclPaaCert: TestCert_PAA_NoVID_Cert,
                 paaAsTestOnly: true,
                 onAttestationFailure: () => true,
                 assertFindings: findings => {
                     const types = findings.map(f => f.type);
-                    expect(types).to.include(DeviceAttestationCheck.CdSignerUnknown);
+                    expect(types).to.include(DeviceAttestationCheck.TrustedAsTestCertificate);
+                    expect(types).not.to.include(DeviceAttestationCheck.CdSignerUnknown);
                 },
                 assertResult: (device, peers) => {
                     expect(device.state.commissioning.commissioned).equals(true);

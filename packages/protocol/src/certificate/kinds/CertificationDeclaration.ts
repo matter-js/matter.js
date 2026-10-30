@@ -251,7 +251,11 @@ export class CertificationDeclaration {
 }
 
 export namespace CertificationDeclaration {
-    /** Length in bytes of the signer subject key identifier, a 160-bit SHA-1 key identifier. */
+    /**
+     * Length in bytes of the signer subject key identifier. A key identifier is 20 octets.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.1.2
+     */
     export const SIGNER_SUBJECT_KEY_ID_LENGTH = 20;
 
     /**

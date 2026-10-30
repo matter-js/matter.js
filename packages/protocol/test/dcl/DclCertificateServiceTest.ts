@@ -13,10 +13,10 @@ import { Paa, Pai } from "#certificate/kinds/AttestationCertificates.js";
 import { Certificate } from "#certificate/kinds/Certificate.js";
 import { CertificationDeclaration } from "#certificate/kinds/CertificationDeclaration.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
-import { MatterDclError } from "#dcl/DclClient.js";
 import type { CertSeedEntry, SeedSource } from "#dcl/SeedTypes.js";
 import {
     Bytes,
+    CertificateError,
     ClosedError,
     Crypto,
     Diagnostic,
@@ -1615,6 +1615,26 @@ describe("DclCertificateService", () => {
             return service;
         }
 
+        function cdSignerSeed(entries: CertSeedEntry[]): SeedSource<CertSeedEntry> {
+            return {
+                builtAt: new Date(0).toISOString(),
+                expectedCount: entries.length,
+                entries: (async function* () {
+                    yield* entries;
+                })(),
+            };
+        }
+
+        async function offlineService(seed?: SeedSource<CertSeedEntry>) {
+            const service = new DclCertificateService(environment, {
+                updateInterval: null,
+                offline: true,
+                seed: seed === undefined ? undefined : { cdSigners: seed },
+            });
+            await service.construction;
+            return service;
+        }
+
         function skidCalls() {
             return fetchMock.getCallLog().filter(({ url }) => url.includes("all-certificates"));
         }
@@ -1623,67 +1643,56 @@ describe("DclCertificateService", () => {
             mockRootCertificates();
             const service = await onlineService();
 
-            const lookup = await service.lookupCdSigner(CsaCdSigningKey001.subjectKeyId);
-            expect(lookup.kind === "found" && Bytes.toHex(lookup.publicKey)).equal(CsaCdSigningKey001.publicKeyHex);
+            const signer = await service.lookupCdSigner(CsaCdSigningKey001.subjectKeyId);
+            expect(signer && Bytes.toHex(signer.publicKey)).equal(CsaCdSigningKey001.publicKeyHex);
+            expect(signer?.isTestSigner).equal(false);
             expect(skidCalls()).length(0);
 
             await service.close();
         });
 
-        it("finds the test signer, stored or not, while test certificates are accepted", async () => {
-            mockRootCertificates();
-            const service = await onlineService({ acceptTestCertificates: true });
-
-            const lookup = await service.lookupCdSigner(testSigner.subjectKeyId);
-            expect(lookup.kind === "found" && lookup.isTestSigner).equal(true);
-            expect(lookup.kind === "found" && Bytes.toHex(lookup.publicKey)).equal(Bytes.toHex(testSigner.publicKey));
-            expect(skidCalls()).length(0);
-
-            await service.close();
-        });
-
-        it("does not trust a stored test signer while test certificates are not accepted", async () => {
+        it("finds the test signer as such without asking the DCL, whatever the test certificate policy", async () => {
             mockRootCertificates();
             const service = await onlineService();
-            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
 
-            expect(await service.lookupCdSigner(testSigner.subjectKeyId)).deep.equal({ kind: "unknown" });
-            expect(await service.getOrFetchCdSigner(testSigner.subjectKeyId)).undefined;
+            const signer = await service.lookupCdSigner(testSigner.subjectKeyId);
+            expect(signer?.isTestSigner).equal(true);
+            expect(signer && Bytes.toHex(signer.publicKey)).equal(Bytes.toHex(testSigner.publicKey));
             expect(skidCalls()).length(0);
 
             await service.close();
         });
 
-        it("reports a subject key identifier that is not 20 bytes as unknown without asking the DCL", async () => {
+        it("does not know a subject key identifier that is not 20 bytes and does not ask the DCL", async () => {
             mockRootCertificates();
             fetchMock.addResponse("/dcl/pki/all-certificates?subjectKeyId=", {
                 certificates: [{ subject: "", subjectKeyId: "", certs: [], schemaVersion: 0 }],
             });
             const service = await onlineService();
 
-            expect(await service.lookupCdSigner("")).deep.equal({ kind: "unknown" });
-            expect(await service.lookupCdSigner("DEADBEEF")).deep.equal({ kind: "unknown" });
+            expect(await service.lookupCdSigner("")).undefined;
+            expect(await service.lookupCdSigner("DEADBEEF")).undefined;
             expect(skidCalls()).length(0);
 
             await service.close();
         });
 
-        it("reports a signer the DCL does not list as unknown", async () => {
+        it("does not know a signer the DCL does not list", async () => {
             mockRootCertificates();
             fetchMock.addResponse(`/dcl/pki/all-certificates?subjectKeyId=`, { certificates: [] });
             const service = await onlineService();
 
-            expect(await service.lookupCdSigner(unknownSkid)).deep.equal({ kind: "unknown" });
+            expect(await service.lookupCdSigner(unknownSkid)).undefined;
 
             await service.close();
         });
 
-        it("reports a DCL answer whose certificate cannot be parsed as unknown and stores nothing", async () => {
+        it("does not know a signer whose DCL certificate cannot be parsed, and stores nothing", async () => {
             mockRootCertificates();
             mockSkidAnswer(unknownSkid, Bytes.fromHex("3003020101"));
             const service = await onlineService();
 
-            expect(await service.lookupCdSigner(unknownSkid)).deep.equal({ kind: "unknown" });
+            expect(await service.lookupCdSigner(unknownSkid)).undefined;
             expect(service.getCertificate(unknownSkid)).undefined;
 
             await service.close();
@@ -1698,10 +1707,49 @@ describe("DclCertificateService", () => {
             mockSkidAnswer(paiSkid, pai);
             const service = await onlineService();
 
-            expect(await service.lookupCdSigner(paaSkid)).deep.equal({ kind: "unknown" });
-            expect(await service.lookupCdSigner(paiSkid)).deep.equal({ kind: "unknown" });
+            expect(await service.lookupCdSigner(paaSkid)).undefined;
+            expect(await service.lookupCdSigner(paiSkid)).undefined;
             expect(service.getCertificate(paiSkid)).undefined;
             expect(service.getCertificate(paaSkid)?.kind ?? "PAA").equal("PAA");
+
+            await service.close();
+        });
+
+        it("does not take a CSA-issued certificate the DCL returns for another SKID", async () => {
+            mockRootCertificates();
+            mockSkidAnswer(unknownSkid, Bytes.fromHex(CsaCdSigningKey001.certificateHex));
+            const service = await onlineService();
+
+            expect(await service.lookupCdSigner(unknownSkid)).undefined;
+            expect(service.getCertificate(CsaCdSigningKey001.subjectKeyId)).undefined;
+
+            await service.close();
+        });
+
+        it("does not know a signer while the DCL cannot be asked", async () => {
+            mockRootCertificates();
+            fetchMock.addResponse(
+                `/dcl/pki/all-certificates?subjectKeyId=`,
+                { code: 13, message: "internal" },
+                { status: 500 },
+            );
+            const service = await onlineService();
+
+            expect(await service.lookupCdSigner(unknownSkid)).undefined;
+
+            await service.close();
+        });
+
+        it("does not know a signer offline, and does not trust a seeded certificate the CSA did not issue", async () => {
+            const pai = Bytes.fromHex(ChipCsaSignedCdVector.pai);
+            const paiSkid = Pai.fromAsn1(pai).cert.extensions.subjectKeyIdentifier;
+            const service = await offlineService(
+                cdSignerSeed([{ subjectKeyId: Bytes.toHex(paiSkid), derHex: Bytes.toHex(pai), kind: "production" }]),
+            );
+
+            expect(await service.lookupCdSigner(unknownSkid)).undefined;
+            expect(service.getCertificate(paiSkid)?.kind).equal("CDSigner");
+            expect(await service.lookupCdSigner(paiSkid)).undefined;
 
             await service.close();
         });
@@ -1733,168 +1781,86 @@ describe("DclCertificateService", () => {
                 const service = await onlineService();
 
                 const fromDcl = await service.lookupCdSigner(futureSkid);
-                expect(fromDcl.kind === "found" && Bytes.toHex(fromDcl.publicKey)).equal(
-                    CsaCdSigningKey001.publicKeyHex,
-                );
+                expect(fromDcl && Bytes.toHex(fromDcl.publicKey)).equal(CsaCdSigningKey001.publicKeyHex);
                 expect(service.getCertificate(futureSkid)?.kind).equal("CDSigner");
                 expect(skidCalls()).length(1);
 
-                const fromStore = await service.lookupCdSigner(futureSkid);
-                expect(fromStore.kind).equal("found");
+                expect(await service.lookupCdSigner(futureSkid)).not.undefined;
                 expect(skidCalls()).length(1);
 
                 await service.close();
             });
-        });
 
-        it("does not take a CSA-issued certificate the DCL returns for another SKID", async () => {
-            mockRootCertificates();
-            mockSkidAnswer(unknownSkid, Bytes.fromHex(CsaCdSigningKey001.certificateHex));
-            const service = await onlineService();
-
-            expect(await service.lookupCdSigner(unknownSkid)).deep.equal({ kind: "unknown" });
-            expect(service.getCertificate(CsaCdSigningKey001.subjectKeyId)).undefined;
-
-            await service.close();
-        });
-
-        it("reports a failed DCL query as unavailable", async () => {
-            mockRootCertificates();
-            fetchMock.addResponse(
-                `/dcl/pki/all-certificates?subjectKeyId=`,
-                { code: 13, message: "internal" },
-                { status: 500 },
-            );
-            const service = await onlineService();
-
-            const lookup = await service.lookupCdSigner(unknownSkid);
-            expect(lookup.kind).equal("unavailable");
-
-            await service.close();
-        });
-
-        describe("offline", () => {
-            function cdSignerSeed(entries: CertSeedEntry[], expectedCount = entries.length) {
-                return {
-                    builtAt: new Date(0).toISOString(),
-                    expectedCount,
-                    entries: (async function* () {
-                        yield* entries;
-                    })(),
-                };
-            }
-
-            const csaKeyEntry: CertSeedEntry = {
-                subjectKeyId: CsaCdSigningKey001.subjectKeyId,
-                derHex: CsaCdSigningKey001.certificateHex,
-                kind: "production",
-            };
-
-            async function offlineService(seed?: SeedSource<CertSeedEntry>) {
-                const service = new DclCertificateService(environment, {
-                    updateInterval: null,
-                    offline: true,
-                    seed: seed === undefined ? undefined : { cdSigners: seed },
+            it("replaces a stored certificate that does not verify once the DCL answers with one that does", async () => {
+                mockRootCertificates();
+                mockSkidAnswer(futureSkid, futureKey);
+                const forgedSerial = Bytes.toHex(futureKey).replace("63736163646b31", "63736163646b39");
+                const service = await onlineService({
+                    seed: {
+                        cdSigners: cdSignerSeed([
+                            { subjectKeyId: futureSkid, derHex: forgedSerial, kind: "production" },
+                        ]),
+                    },
                 });
-                await service.construction;
-                return service;
-            }
+                expect(Bytes.toHex(await service.getCertificateAsDer(futureSkid))).equal(forgedSerial);
 
-            it("reports a signer as unavailable without a CD signer seed, even with stored signers", async () => {
-                const service = await offlineService();
-                await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
-
-                expect((await service.lookupCdSigner(unknownSkid)).kind).equal("unavailable");
+                expect(await service.lookupCdSigner(futureSkid)).not.undefined;
+                expect(Bytes.toHex(await service.getCertificateAsDer(futureSkid))).equal(Bytes.toHex(futureKey));
+                expect(await service.lookupCdSigner(futureSkid)).not.undefined;
+                expect(skidCalls()).length(1);
 
                 await service.close();
             });
 
-            it("reports a signer missing from a completely read CD signer seed as unknown", async () => {
-                const service = await offlineService(cdSignerSeed([csaKeyEntry]));
+            it("finds it offline from a seed", async () => {
+                const service = await offlineService(
+                    cdSignerSeed([{ subjectKeyId: futureSkid, derHex: Bytes.toHex(futureKey), kind: "production" }]),
+                );
 
-                expect(await service.lookupCdSigner(unknownSkid)).deep.equal({ kind: "unknown" });
-
-                await service.close();
-            });
-
-            it("reports a signer as unavailable when the seed states more entries than it delivers", async () => {
-                const service = await offlineService(cdSignerSeed([csaKeyEntry], 2));
-
-                expect((await service.lookupCdSigner(unknownSkid)).kind).equal("unavailable");
-
-                await service.close();
-            });
-
-            it("reports a signer as unavailable when the seed stream fails", async () => {
-                const service = await offlineService({
-                    builtAt: new Date(0).toISOString(),
-                    expectedCount: 1,
-                    entries: (async function* () {
-                        yield csaKeyEntry;
-                        throw new MatterDclError("seed source broke");
-                    })(),
-                });
-
-                expect((await service.lookupCdSigner(unknownSkid)).kind).equal("unavailable");
-
-                await service.close();
-            });
-
-            it("reports a signer as unavailable when a seed entry was skipped as a test certificate", async () => {
-                const service = await offlineService(cdSignerSeed([{ ...csaKeyEntry, kind: "test" }]));
-
-                expect((await service.lookupCdSigner(unknownSkid)).kind).equal("unavailable");
-
-                await service.close();
-            });
-
-            it("does not trust a stored CD signer certificate the CSA CD root did not issue", async () => {
-                const pai = Bytes.fromHex(ChipCsaSignedCdVector.pai);
-                const service = await offlineService();
-                await service.addCertificate(pai, "CDSigner");
-
-                const lookup = await service.lookupCdSigner(Pai.fromAsn1(pai).cert.extensions.subjectKeyIdentifier);
-                expect(lookup.kind).equal("unavailable");
-
-                await service.close();
-            });
-
-            it("reports a signer as unavailable when a seed entry is malformed", async () => {
-                const malformed = { subjectKeyId: "", derHex: "", kind: "production" } as const;
-                const service = await offlineService(cdSignerSeed([csaKeyEntry, malformed]));
-
-                expect((await service.lookupCdSigner(unknownSkid)).kind).equal("unavailable");
-
-                await service.close();
-            });
-
-            it("reports a signer as unavailable when a seed entry was skipped as expired", async () => {
-                const expired = { ...csaKeyEntry, notAfter: new Date(0).toISOString() };
-                const service = await offlineService(cdSignerSeed([expired]));
-
-                expect((await service.lookupCdSigner(unknownSkid)).kind).equal("unavailable");
-
-                await service.close();
-            });
-
-            it("reports a signer as unavailable when a seed entry cannot be used", async () => {
-                const unusable = { ...csaKeyEntry, subjectKeyId: unknownSkid };
-                const service = await offlineService(cdSignerSeed([unusable]));
-
-                expect((await service.lookupCdSigner(unknownSkid)).kind).equal("unavailable");
+                expect(await service.lookupCdSigner(futureSkid)).not.undefined;
 
                 await service.close();
             });
         });
     });
 
+    describe("addCertificate as CD signer", () => {
+        it("stores a CSA-issued certificate and the Matter test CD signer", async () => {
+            const service = new DclCertificateService(environment, { updateInterval: null, offline: true });
+            await service.construction;
+
+            expect(await service.addCertificate(Bytes.fromHex(CsaCdSigningKey001.certificateHex), "CDSigner")).equal(
+                true,
+            );
+            expect(await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner")).equal(
+                true,
+            );
+
+            await service.close();
+        });
+
+        it("refuses a certificate the CSA did not issue", async () => {
+            const service = new DclCertificateService(environment, { updateInterval: null, offline: true });
+            await service.construction;
+            const pai = Bytes.fromHex(ChipCsaSignedCdVector.pai);
+
+            await expect(service.addCertificate(pai, "CDSigner")).rejectedWith(CertificateError, /not the CSA CD root/);
+
+            const testSignerHex = Bytes.toHex(CertificationDeclaration.testSignerCertificate());
+            const otherKey = Bytes.fromHex(testSignerHex.replace("043c398922", "043c398923"));
+            await expect(service.addCertificate(otherKey, "CDSigner")).rejectedWith(
+                CertificateError,
+                /test CD signer's key identifier but another key/,
+            );
+            expect(service.getCertificate(Pai.fromAsn1(pai).cert.extensions.subjectKeyIdentifier)).undefined;
+
+            await service.close();
+        });
+    });
+
     describe("getOrFetchCdSigner", () => {
-        it("maps a trusted signer and leaves any other lookup undefined", async () => {
-            const service = new DclCertificateService(environment, {
-                updateInterval: null,
-                offline: true,
-                acceptTestCertificates: true,
-            });
+        it("maps a known signer and leaves any other lookup undefined", async () => {
+            const service = new DclCertificateService(environment, { updateInterval: null, offline: true });
             await service.construction;
             const { subjectKeyId, publicKey } = CertificationDeclaration.testSignerInfo();
 

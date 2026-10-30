@@ -69,12 +69,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The mDNS responder sends a goodbye for every record a refresh removes or replaces, such as the vendor pointer when a commissioning window becomes privacy masked
     - Fix: The mDNS responder announces a service in the same message as the goodbye for a record that one of its records replaces, such as after a host name change
     - Fix: The mDNS responder follows interface address changes: it withdraws the addresses an interface lost and announces the current ones
-    - Adjustment: Device attestation refuses a Certification Declaration whose signer is untrusted, so a callback policy now sees an error where it saw a warning
-    - Fix: Only CSA CD signing keys, certificates the CSA CD root issued and, while test certificates are accepted, the Matter test signer count as CD signers
+    - Breaking: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
     - Fix: Device attestation refuses a Certification Declaration that breaks a rule of its CMS envelope, `format_version` or `certification_type`
     - Fix: Device attestation refuses an official Certification Declaration signed by the Matter test CD signer
-    - Feature: `DclCertificateService.lookupCdSigner()` reports a CD signer as found, unknown or unavailable, and `getOrFetchCdSigner()` is deprecated
-    - Feature: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports
+    - Fix: Device attestation reports a Certification Declaration from the Matter test CD signer as `TrustedAsTestCertificate` when test certificates are not accepted
+    - Breaking: `DclCertificateService.addCertificate()` refuses a CD signer certificate that is known to be untrusted because the CSA did not issue it
+    - Feature: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
+    - Feature: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
 
 ## 0.18.0 (2026-10-20)
 

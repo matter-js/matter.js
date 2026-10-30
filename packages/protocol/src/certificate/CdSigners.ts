@@ -42,26 +42,44 @@ const CSA_CD_SIGNING_KEYS = new Map(
     ].map(([skid, publicKey]) => [skid, Bytes.fromHex(publicKey)]),
 );
 
+/** Validity of the CSA CD root, in Matter epoch seconds: 2022-07-07T19:28:04Z to 2122-06-13T19:28:04Z. */
+const CSA_CD_ROOT_NOT_BEFORE = 710537284;
+const CSA_CD_ROOT_NOT_AFTER = 3864137284;
+
 /**
- * The keys that may sign a Certification Declaration.
+ * The keys that may sign a Certification Declaration, as CHIP trusts them.
  *
- * A CD signer is one of:
+ * | Signer                                          | Known through                                  |
+ * |-------------------------------------------------|------------------------------------------------|
+ * | CSA CD signing keys 001 to 005                  | {@link known}, built in                        |
+ * | The Matter test CD signer                       | {@link known}; the caller applies its policy   |
+ * | A certificate the CSA CD root issued and signed | {@link verifyCertificate}, for a DCL answer    |
  *
- * | Signer                                                 | Known through                                           |
- * |--------------------------------------------------------|---------------------------------------------------------|
- * | CSA CD signing keys 001 to 005                         | {@link builtIn}                                         |
- * | A certificate the CSA CD root issued and signed        | {@link verifyCertificate}, for a DCL answer or a seed   |
- * | The Matter test CD signer                              | {@link isTestSigner}, only while test certificates count |
- *
- * No other certificate is a CD signer, in particular no PAA or PAI.
+ * No other key is a CD signer, in particular no PAA or PAI.
  *
  * @see {@link MatterSpecification.v161.Core} § 6.2.3.1
  * @see {@link MatterSpecification.v161.Core} § 6.3.1
  */
 export namespace CdSigners {
-    /** The public key of a built-in CSA CD signing key, or `undefined` if `subjectKeyId` names none of them. */
-    export function builtIn(subjectKeyId: Bytes): Bytes | undefined {
-        return CSA_CD_SIGNING_KEYS.get(Bytes.toHex(subjectKeyId).toUpperCase());
+    /** A trusted CD signer. */
+    export interface Signer {
+        /** EC P-256 public key that verifies the CD signature. */
+        publicKey: Bytes;
+
+        /**
+         * Marks the Matter test CD signer. It may sign only CDs of certification_type test or provisional, and only a
+         * caller that accepts test certificates should trust it.
+         */
+        isTestSigner: boolean;
+    }
+
+    /** The built-in CSA signing key or the Matter test CD signer that `subjectKeyId` names, else `undefined`. */
+    export function known(subjectKeyId: Bytes): Signer | undefined {
+        if (isTestSigner(subjectKeyId)) {
+            return { publicKey: CertificationDeclaration.testSignerInfo().publicKey, isTestSigner: true };
+        }
+        const publicKey = CSA_CD_SIGNING_KEYS.get(Bytes.toHex(subjectKeyId).toUpperCase());
+        return publicKey === undefined ? undefined : { publicKey, isTestSigner: false };
     }
 
     /** Whether `subjectKeyId` names the Matter test CD signer ({@link CertificationDeclaration.testSignerInfo}). */
@@ -70,11 +88,12 @@ export namespace CdSigners {
     }
 
     /**
-     * Check that a DER certificate is a CD signer for `subjectKeyId`: its subject key identifier is `subjectKeyId`,
-     * and the CSA "Matter Certification and Testing CA" issued and signed it.
+     * Check that a DER certificate is a CD signer for `subjectKeyId`: its subject key identifier is `subjectKeyId`, the
+     * CSA "Matter Certification and Testing CA" issued and signed it, and the root was valid when the certificate
+     * became valid.
      *
-     * Only the issuer and the signature are checked. Unlike CHIP's chain validation, validity periods and strict X.509
-     * profile rules are not.
+     * The validity rule follows CHIP, which validates the chain at the certificate's notBefore time. CHIP's strict
+     * X.509 profile checks of the chain are not repeated.
      *
      * @returns the certificate's EC P-256 public key
      * @throws CertificateError naming the rule the certificate breaks, or why it cannot be parsed
@@ -94,6 +113,9 @@ export namespace CdSigners {
             throw new CertificateError(
                 `Certificate is issued by ${Bytes.toHex(authorityKeyIdentifier)}, not the CSA CD root ${Bytes.toHex(CSA_CD_ROOT_SKID)}`,
             );
+        }
+        if (cert.notBefore < CSA_CD_ROOT_NOT_BEFORE || cert.notBefore > CSA_CD_ROOT_NOT_AFTER) {
+            throw new CertificateError("Certificate became valid outside the validity period of the CSA CD root");
         }
         if (cert.tbsDer === undefined) {
             throw new InternalError("A parsed certificate carries its TBSCertificate");

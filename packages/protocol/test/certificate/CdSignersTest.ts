@@ -18,7 +18,9 @@ describe("CdSigners", () => {
             it(`key 00${index + 1} is built in and verifies against the CSA CD root`, async () => {
                 const skid = Bytes.fromHex(key.subjectKeyId);
 
-                expect(Bytes.toHex(CdSigners.builtIn(skid) ?? new Uint8Array())).equal(key.publicKeyHex);
+                const known = CdSigners.known(skid);
+                expect(known && Bytes.toHex(known.publicKey)).equal(key.publicKeyHex);
+                expect(known?.isTestSigner).equal(false);
                 const verified = await CdSigners.verifyCertificate(crypto, Bytes.fromHex(key.certificateHex), skid);
                 expect(Bytes.toHex(verified)).equal(key.publicKeyHex);
             });
@@ -55,6 +57,30 @@ describe("CdSigners", () => {
             await expectRefused(TestCert_PAA_FFF1_Cert, TestCert_PAA_FFF1_SKID, /not the CSA CD root/);
         });
 
+        it("refuses a certificate that became valid before the CSA CD root did", async () => {
+            // notBefore 221003192855Z moved to 220103192855Z; the root is valid from 2022-07-07
+            const earlier = CsaCdSigningKey001.certificateHex.replace("170d323231303033", "170d323230313033");
+            expect(earlier).not.equal(CsaCdSigningKey001.certificateHex);
+            await expectRefused(
+                Bytes.fromHex(earlier),
+                Bytes.fromHex(CsaCdSigningKey001.subjectKeyId),
+                /outside the validity period of the CSA CD root/,
+            );
+        });
+
+        it("refuses a certificate that became valid after the CSA CD root expired", async () => {
+            // notBefore UTCTime 221003192855Z replaced by GeneralizedTime 21231003192855Z, two bytes longer
+            const later = CsaCdSigningKey001.certificateHex
+                .replace("30820207308201ad", "30820209308201af")
+                .replace("3020170d3232313030333139323835355a", "3022180f32313233313030333139323835355a");
+            expect(later).not.equal(CsaCdSigningKey001.certificateHex);
+            await expectRefused(
+                Bytes.fromHex(later),
+                Bytes.fromHex(CsaCdSigningKey001.subjectKeyId),
+                /outside the validity period of the CSA CD root/,
+            );
+        });
+
         it("refuses a certificate whose signature does not verify against the CSA CD root", async () => {
             const der = Bytes.fromHex(CsaCdSigningKey001.certificateHex);
             const tampered = Bytes.of(der).slice();
@@ -66,6 +92,7 @@ describe("CdSigners", () => {
     it("recognizes the Matter test CD signer", () => {
         expect(CdSigners.isTestSigner(CertificationDeclaration.testSignerInfo().subjectKeyId)).equal(true);
         expect(CdSigners.isTestSigner(Bytes.fromHex(CsaCdSigningKey001.subjectKeyId))).equal(false);
-        expect(CdSigners.builtIn(CertificationDeclaration.testSignerInfo().subjectKeyId)).undefined;
+        expect(CdSigners.known(CertificationDeclaration.testSignerInfo().subjectKeyId)?.isTestSigner).equal(true);
+        expect(CdSigners.known(Bytes.fromHex("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"))).undefined;
     });
 });
