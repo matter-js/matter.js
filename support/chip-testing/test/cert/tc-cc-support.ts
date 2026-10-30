@@ -22,6 +22,7 @@ import {
     recordAll,
     requireId,
     sendCommand,
+    SIGNED_TYPES,
     theTh,
 } from "./tc-support.js";
 
@@ -42,8 +43,6 @@ export type ColorControlFeature = "hueSaturation" | "enhancedHue" | "colorLoop" 
  * out and are then sent with no bit set.
  */
 export type ColorCommandArgs = Record<string, number | Record<string, boolean>>;
-
-const SIGNED_TYPES = new Set(["int8", "int16", "int24", "int32", "int40", "int48", "int56", "int64"]);
 
 function attributeId(name: string) {
     return requireId(COLOR_CONTROL.attributes.require(name).id, `ColorControl.${name}`);

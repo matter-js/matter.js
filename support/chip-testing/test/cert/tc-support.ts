@@ -1108,7 +1108,8 @@ export function literally(value: string): string {
 }
 
 /**
- * The line chip prints for one decoded `CommandFields` entry.
+ * The line chip prints for one decoded `CommandFields` entry. A boolean prints as `true` or `false`, with no type
+ * name.
  *
  * The trailing type name is load-bearing: without it `0x0 = 2,` also matches the first two digits of
  * `0x0 = 20,`.
@@ -1119,13 +1120,17 @@ export function chipCommandField({
     signed = false,
 }: {
     id: number;
-    value: number | bigint | string;
+    value: number | bigint | string | boolean;
     signed?: boolean;
 }): RegExp {
-    const rendered =
-        typeof value === "string"
-            ? `"${literally(value)}" \\(${new TextEncoder().encode(value).length} chars\\)`
-            : `${value} \\(${signed ? "signed" : "unsigned"}\\)`;
+    let rendered: string;
+    if (typeof value === "string") {
+        rendered = `"${literally(value)}" \\(${new TextEncoder().encode(value).length} chars\\)`;
+    } else if (typeof value === "boolean") {
+        rendered = `${value}`;
+    } else {
+        rendered = `${value} \\(${signed ? "signed" : "unsigned"}\\)`;
+    }
     return new RegExp(`0x${id.toString(16)} = ${rendered},\\s*$`);
 }
 
@@ -1662,12 +1667,15 @@ export interface CommandPayload {
     label: string;
 
     /**
-     * Every line inside chip's `CommandFields` block, in order ({@link chipCommandField} for a number or a string);
-     * none for a command without fields.
+     * Every line inside chip's `CommandFields` block, in order: {@link chipCommandField} for a number, a string or a
+     * boolean, several lines for a struct or a list. None for a command without fields.
      */
     chip: RegExp[];
 
-    /** The text that ends matter.js's line for the dispatched command: its fields, or {@link MATTERJS_NO_PAYLOAD}. */
+    /**
+     * The text that ends matter.js's line for the dispatched command: its fields, {@link MATTERJS_NO_PAYLOAD} for a
+     * command without fields, or {@link MATTERJS_EMPTY_PAYLOAD} for a command that sends none of its optional fields.
+     */
     matterjs: string;
 }
 
@@ -1749,9 +1757,10 @@ async function matterjsCommandPayload(
     const model = cluster.commands.require(command);
 
     // The dispatch line names the exchange, then the message (`✉…`) the command arrived in
+    const payloadText = payload.matterjs === MATTERJS_EMPTY_PAYLOAD ? "\\s*" : ` ${literally(payload.matterjs)}`;
     const dispatchLine = new RegExp(
         `ProtocolService Invoke « \\S+\\.ep${endpoint}\\.${camelize(cluster.name)}\\.${camelize(model.name)} ` +
-            `(@[^\\s✉]+)\\S* ${literally(payload.matterjs)}$`,
+            `(@[^\\s✉]+)\\S*${payloadText}$`,
     );
     const dispatch = await expectDeviceLog(log, flavor, { matterjs: dispatchLine }, from, remaining());
     const exchange = dispatch.check.matched?.match(dispatchLine)?.[1];
@@ -1807,6 +1816,12 @@ export function sendCommand(
 
 /** What matter.js prints for a command without fields. */
 export const MATTERJS_NO_PAYLOAD = "(no payload)";
+
+/**
+ * What matter.js prints for a command whose fields are all optional and left out: the request decodes as an empty
+ * struct, which prints as nothing, so the line ends after the message id.
+ */
+export const MATTERJS_EMPTY_PAYLOAD = "";
 
 function isStatusAnswer(error: unknown): error is StatusResponseError {
     return error instanceof StatusResponseError && !(error instanceof ValidationError);
@@ -2841,3 +2856,15 @@ export async function sleepUntil(what: string, deadline: number) {
         await Time.sleep(what, Millis(Math.ceil(remaining)));
     }
 }
+
+/** The integer types chip prints as `(signed)` in a decoded command field, see {@link chipCommandField}. */
+export const SIGNED_TYPES: ReadonlySet<string> = new Set([
+    "int8",
+    "int16",
+    "int24",
+    "int32",
+    "int40",
+    "int48",
+    "int56",
+    "int64",
+]);

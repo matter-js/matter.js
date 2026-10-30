@@ -39,8 +39,8 @@
 #   * "own-built" — the app binaries matter.js builds itself (support/chip/Dockerfile), taken from
 #     the published ghcr.io/matter-js/chip image: chip-all-clusters-app,
 #     chip-all-clusters-app-nlfaultinject, chip-bridge-app, chip-camera-app, the
-#     chip-ota-provider-app/chip-ota-requestor-app pair, matter-network-manager-app and
-#     lit-icd-app-nopersist. Published as a multi-arch manifest, so each leg pulls the variant matching
+#     chip-ota-provider-app/chip-ota-requestor-app pair, matter-network-manager-app,
+#     lit-icd-app-nopersist and chip-tv-app. Published as a multi-arch manifest, so each leg pulls the variant matching
 #     its runner. Runs when binariesSource is own-built or both
 #
 #   * "cert-bins" — project-chip's official connectedhomeip/chip-cert-bins image. Published
@@ -387,7 +387,8 @@ jobs:
           docker run --rm -v /tmp/cert-app-dir:/out ghcr.io/matter-js/chip:latest \
             bash -c "cp -a /bin/chip-all-clusters-app* /bin/chip-bridge-app \
                            /bin/chip-ota-provider-app /bin/chip-ota-requestor-app \
-                           /bin/matter-network-manager-app /bin/lit-icd-app-nopersist /out/"
+                           /bin/matter-network-manager-app /bin/lit-icd-app-nopersist \
+                           /bin/chip-tv-app /out/"
           # cert-dsl.ts's chipLocalMarkerRevision() reads this to populate evidence's chipRef; the
           # image carries the same connectedhomeip commit in its org.opencontainers.image.revision
           # label (baked by docker-bake.hcl from CHIP_COMMIT).
@@ -400,7 +401,7 @@ jobs:
           for bin in chip-all-clusters-app chip-all-clusters-app-nlfaultinject \
                      chip-all-clusters-app-nogroupcast chip-bridge-app \
                      chip-ota-provider-app chip-ota-requestor-app matter-network-manager-app \
-                     lit-icd-app-nopersist; do
+                     lit-icd-app-nopersist chip-tv-app; do
             if [ ! -x "/tmp/cert-app-dir/$bin" ]; then
               echo "::error::$bin is missing from the published ghcr.io/matter-js/chip image." \
                 "support/chip/Dockerfile's own-built binaries changed shape, or the image pipeline" \
