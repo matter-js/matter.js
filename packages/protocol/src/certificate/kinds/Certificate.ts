@@ -400,10 +400,46 @@ export namespace Certificate {
     /** These extensions are usually required for all Matter certificates, beside a PAA. */
     export const REQUIRED_EXTENSIONS = [...REQUIRED_PAA_EXTENSIONS, "authorityKeyIdentifier"];
 
+    /** @throws CertificateError unless the node holds exactly one content byte, as DER encodes a BOOLEAN */
+    function derBoolean(node: DerNode, field: string) {
+        const bytes = Bytes.of(node._bytes);
+        if (bytes.length !== 1) {
+            throw new CertificateError(`${field} is a BOOLEAN of ${bytes.length} bytes`);
+        }
+        return bytes[0] !== 0;
+    }
+
+    /** @throws CertificateError for an INTEGER without content bytes */
+    function derUnsignedInteger(node: DerNode, field: string) {
+        const bytes = Bytes.of(node._bytes);
+        if (bytes.length === 0) {
+            throw new CertificateError(`${field} is an INTEGER without content`);
+        }
+        return Number(Bytes.asBigInt(bytes));
+    }
+
+    /**
+     * All bits of a key usage BIT STRING (without its padding byte), bit n as X.509 numbers it.  A set bit beyond bit
+     * 15 reads as bit 16.
+     */
+    function keyUsageBits(bitString: Uint8Array) {
+        let bits = 0;
+        for (let bit = 0; bit < 16 && bit >> 3 < bitString.length; bit++) {
+            if (bitString[bit >> 3] & (0x80 >> (bit & 7))) {
+                bits |= 1 << bit;
+            }
+        }
+        if (bitString.subarray(2).some(byte => byte !== 0)) {
+            bits |= 1 << 16;
+        }
+        return bits;
+    }
+
     /**
      * Parse extensions from ASN.1 DER format.
      *
-     * An absent extension stays undefined in the result, so the required extensions check sees it.
+     * The result holds `basicConstraints` even without the extension, as RFC 5280 § 4.2.1.9 reads an absent one: not a
+     * CA.  Whether the extension is present is in the returned encoding, which the required extensions check uses.
      */
     function parseExtensions(
         extensionsNode: DerNode,
@@ -412,11 +448,12 @@ export namespace Certificate {
         extensions: MatterCertificate["extensions"] & {
             [oid: string]: unknown; // For unrecognized extensions
         };
-        criticalExtensions: MatterCertificate.ExtensionName[];
+        encoding: Pick<MatterCertificate.Encoding, "extensions" | "keyUsage">;
     } {
-        const result = {} as MatterCertificate["extensions"] & { [oid: string]: unknown };
-        const criticalExtensions = new Array<MatterCertificate.ExtensionName>();
-        const seenExtensions = new Set<MatterCertificate.ExtensionName>();
+        const result = {
+            basicConstraints: { isCa: false },
+        } as MatterCertificate["extensions"] & { [oid: string]: unknown };
+        const encoding: Pick<MatterCertificate.Encoding, "extensions" | "keyUsage"> = { extensions: [] };
 
         const { _elements: extensions } = extensionsNode;
         if (!extensions) {
@@ -435,7 +472,7 @@ export namespace Certificate {
             let critical = false;
             if (extElements.length > 2 && extElements[1]._tag === DerType.Boolean) {
                 valueIndex = 2;
-                critical = Bytes.of(extElements[1]._bytes)[0] !== 0;
+                critical = derBoolean(extElements[1], `Critical flag of extension ${oidValue}`);
             }
 
             let name: MatterCertificate.ExtensionName;
@@ -464,15 +501,7 @@ export namespace Certificate {
             if (value === undefined || value._tag !== DerType.OctetString) {
                 throw new CertificateError(`Extension ${oidValue} is missing its value octet string`);
             }
-
-            // RFC 5280 § 4.2: "A certificate MUST NOT include more than one instance of a particular extension."
-            if (seenExtensions.has(name)) {
-                throw new CertificateError(`Certificate carries more than one ${name} extension`);
-            }
-            seenExtensions.add(name);
-            if (critical) {
-                criticalExtensions.push(name);
-            }
+            encoding.extensions.push({ name, critical });
 
             const valueNode = DerCodec.decode(value._bytes);
 
@@ -484,10 +513,13 @@ export namespace Certificate {
                         const basicConstraints: MatterCertificate["extensions"]["basicConstraints"] = { isCa: false };
                         let bcIndex = 0;
                         if (bcElements[bcIndex]?._tag === DerType.Boolean) {
-                            basicConstraints.isCa = Bytes.of(bcElements[bcIndex++]._bytes)[0] !== 0;
+                            basicConstraints.isCa = derBoolean(bcElements[bcIndex++], "Basic constraints cA");
                         }
                         if (bcElements[bcIndex]?._tag === DerType.Integer) {
-                            basicConstraints.pathLen = Number(Bytes.asBigInt(bcElements[bcIndex]._bytes));
+                            basicConstraints.pathLen = derUnsignedInteger(
+                                bcElements[bcIndex],
+                                "Basic constraints pathLenConstraint",
+                            );
                         }
                         result.basicConstraints = basicConstraints;
                     }
@@ -497,23 +529,22 @@ export namespace Certificate {
                     {
                         // Note: DerKey.Bytes for BIT STRING returns data without the padding byte
                         const bitString = Bytes.of(valueNode._bytes);
-                        if (bitString.length >= 1) {
-                            // The keyUsage flags are in the first byte
-                            const usageByte = bitString[0];
-
-                            // Set all flags based on the bit values
-                            result.keyUsage = {
-                                digitalSignature: (usageByte & 0x80) !== 0,
-                                nonRepudiation: (usageByte & 0x40) !== 0,
-                                keyEncipherment: (usageByte & 0x20) !== 0,
-                                dataEncipherment: (usageByte & 0x10) !== 0,
-                                keyAgreement: (usageByte & 0x08) !== 0,
-                                keyCertSign: (usageByte & 0x04) !== 0,
-                                cRLSign: (usageByte & 0x02) !== 0,
-                                encipherOnly: (usageByte & 0x01) !== 0,
-                                decipherOnly: bitString.length > 1 ? (bitString[1] & 0x80) !== 0 : false,
-                            };
+                        const bits = keyUsageBits(bitString);
+                        encoding.keyUsage = bits;
+                        if (bitString.length === 0) {
+                            break;
                         }
+                        result.keyUsage = {
+                            digitalSignature: (bits & 0x001) !== 0,
+                            nonRepudiation: (bits & 0x002) !== 0,
+                            keyEncipherment: (bits & 0x004) !== 0,
+                            dataEncipherment: (bits & 0x008) !== 0,
+                            keyAgreement: (bits & 0x010) !== 0,
+                            keyCertSign: (bits & 0x020) !== 0,
+                            cRLSign: (bits & 0x040) !== 0,
+                            encipherOnly: (bits & 0x080) !== 0,
+                            decipherOnly: (bits & 0x100) !== 0,
+                        };
                     }
                     break;
 
@@ -568,12 +599,13 @@ export namespace Certificate {
             }
         }
 
-        const missing = requiredExtensions.filter(ext => result[ext] === undefined);
+        const present = new Set<string>(encoding.extensions.map(({ name }) => name));
+        const missing = requiredExtensions.filter(ext => !present.has(ext) || result[ext] === undefined);
         if (missing.length) {
             throw new CertificateError(`Missing required extensions in certificate: ${missing.join(", ")}`);
         }
 
-        return { extensions: result, criticalExtensions };
+        return { extensions: result, encoding };
     }
 
     /**
@@ -632,8 +664,11 @@ export namespace Certificate {
      * Parse an ASN.1/DER encoded certificate into the internal format.
      * This extracts the certificate data without the signature.
      *
-     * An extension that is absent and not in `requiredExtensions` is undefined in the result, even where the
-     * {@link MatterCertificate} type declares it.
+     * `extensions.basicConstraints` is always set; without the extension it reads as not a CA, and only
+     * {@link MatterCertificate.encoding} tells whether the extension is present.  Another extension that is absent and
+     * not in `requiredExtensions` is undefined in the result, even where the {@link MatterCertificate} type declares it.
+     *
+     * @throws CertificateError if the certificate is malformed or lacks an extension in `requiredExtensions`
      */
     export function parseAsn1Certificate(
         encodedCert: Bytes,
@@ -673,7 +708,7 @@ export namespace Certificate {
             if (versionNode?._tag !== DerType.Integer) {
                 throw new CertificateError("Invalid certificate version structure");
             }
-            version = Number(Bytes.asBigInt(versionNode._bytes));
+            version = derUnsignedInteger(versionNode, "Certificate version");
         }
 
         // Serial number
@@ -760,7 +795,7 @@ export namespace Certificate {
         }
         const extensionsBytes = certElements[idx]._bytes;
         const extensionsSequence = DerCodec.decode(extensionsBytes);
-        const { extensions, criticalExtensions } = parseExtensions(extensionsSequence, requiredExtensions);
+        const { extensions, encoding } = parseExtensions(extensionsSequence, requiredExtensions);
 
         // Extract signature from BIT STRING
         // Note: DerKey.Bytes for BIT STRING returns data without the padding byte
@@ -800,8 +835,7 @@ export namespace Certificate {
             ellipticCurveIdentifier,
             ellipticCurvePublicKey,
             extensions,
-            criticalExtensions,
-            version,
+            encoding: { ...encoding, version },
             signature,
             ...(mlDsaSignature === undefined ? {} : { mlDsaSignature }),
             ...(mlDsaPublicKey === undefined ? {} : { mlDsaPublicKey }),

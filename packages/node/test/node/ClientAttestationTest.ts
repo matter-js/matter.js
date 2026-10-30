@@ -380,15 +380,13 @@ describe("device attestation during commissioning", () => {
     });
 
     describe("DAC that violates the DAC profile", () => {
-        it("reports the DAC as unparseable and rejects when policy rejects", () =>
+        it("reports DacFormatInvalid and rejects when policy rejects", () =>
             runAttestationTest({
                 deviceCertification: DAC_PROFILE_VIOLATION,
                 onAttestationFailure: () => false,
-                expectRejection: /DAC certificate that cannot be parsed/,
+                expectRejection: /DAC certificate that violates the DAC profile/,
                 assertFindings: findings => {
-                    expect(findings.map(({ type }) => type)).deep.equals([
-                        DeviceAttestationCheck.CertificateUnparseable,
-                    ]);
+                    expect(findings.map(({ type }) => type)).deep.equals([DeviceAttestationCheck.DacFormatInvalid]);
                 },
             }));
 
@@ -397,9 +395,7 @@ describe("device attestation during commissioning", () => {
                 deviceCertification: DAC_PROFILE_VIOLATION,
                 onAttestationFailure: () => true,
                 assertFindings: findings => {
-                    expect(findings.map(({ type }) => type)).deep.equals([
-                        DeviceAttestationCheck.CertificateUnparseable,
-                    ]);
+                    expect(findings.map(({ type }) => type)).deep.equals([DeviceAttestationCheck.DacFormatInvalid]);
                 },
                 assertResult: (device, peers) => {
                     expect(device.state.commissioning.commissioned).equals(true);

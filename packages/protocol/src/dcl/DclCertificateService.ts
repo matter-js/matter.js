@@ -1653,9 +1653,10 @@ export class DclCertificateService {
         // Step 2
         const signerDer = Pem.asDer(point.crlSignerCertificate);
         const delegator = point.crlSignerDelegator ? Pai.fromAsn1(Pem.asDer(point.crlSignerDelegator)) : undefined;
-        // A PAI-delegated signer is not a CA, so only a PAI that signs its own CRL has to meet the PAI profile
+        // Only a signer on a PAI entry without a delegator must meet the PAI profile; any other signer parses without
+        // one, and a missing basic constraints extension reads as not a CA
         const signer = point.isPAA
-            ? Paa.fromAsn1(signerDer)
+            ? Paa.fromAsn1(signerDer, { acceptProfileViolation: true })
             : Pai.fromAsn1(signerDer, { acceptProfileViolation: delegator !== undefined });
         const selfSigned =
             sameName(nameOf(signer, "subject"), nameOf(signer, "issuer")) && (await this.#signsItself(signer));

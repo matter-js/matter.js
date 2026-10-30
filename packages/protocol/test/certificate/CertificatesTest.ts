@@ -125,13 +125,12 @@ describe("Certificates", () => {
                     // Load from TLV, convert to ASN.1, parse back, and verify
                     const rootFromTlv = Rcac.fromTlv(certs.ROOT.TLV);
                     const rootFromAsn1 = Rcac.fromAsn1(rootFromTlv.asSignedDer());
-                    // issuerDer/subjectDer/tbsDer/version/criticalExtensions are only present on ASN.1-parsed certs, strip for structural equality
+                    // issuerDer/subjectDer/tbsDer/encoding are only present on ASN.1-parsed certs, strip for structural equality
                     const {
                         issuerDer: _i,
                         subjectDer: _s,
                         tbsDer: _t,
-                        version: _v,
-                        criticalExtensions: _c,
+                        encoding: _e,
                         ...asn1Cert
                     } = rootFromAsn1.cert as any;
                     expect(asn1Cert).to.deep.equal(rootFromTlv.cert);
@@ -152,8 +151,7 @@ describe("Certificates", () => {
                             issuerDer: _i,
                             subjectDer: _s,
                             tbsDer: _t,
-                            version: _v,
-                            criticalExtensions: _c,
+                            encoding: _e,
                             ...asn1Cert
                         } = icacFromAsn1.cert as any;
                         expect(asn1Cert).to.deep.equal(icacFromTlv.cert);
@@ -172,8 +170,7 @@ describe("Certificates", () => {
                         issuerDer: _i,
                         subjectDer: _s,
                         tbsDer: _t,
-                        version: _v,
-                        criticalExtensions: _c,
+                        encoding: _e,
                         ...asn1Cert
                     } = nocFromAsn1.cert as any;
                     expect(asn1Cert).to.deep.equal(nocFromTlv.cert);

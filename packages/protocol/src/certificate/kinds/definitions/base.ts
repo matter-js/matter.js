@@ -62,15 +62,30 @@ export interface MatterCertificate {
     mlDsaPublicKey?: { parameterSet: MlDsa.ParameterSet; key: Bytes };
 
     /**
-     * The X.509 `version` field as encoded; 2 means v3 and 0 means the field was absent (v1).  Only present on parsed
-     * certificates.
+     * What the DER encoding states beyond the values in this object, for certificate profile checks.  Only present on
+     * parsed certificates.
      */
-    version?: number;
-
-    /** The interpreted {@link extensions} whose DER encoding marks them critical.  Only present on parsed certificates. */
-    criticalExtensions?: MatterCertificate.ExtensionName[];
+    encoding?: MatterCertificate.Encoding;
 }
 
 export namespace MatterCertificate {
     export type ExtensionName = keyof MatterCertificate["extensions"];
+
+    export interface Encoding {
+        /** The X.509 `version` field; 2 means v3.  An absent field reads as 0 (v1), as does an explicit 0. */
+        version: number;
+
+        /**
+         * Each interpreted extension the certificate carries, in encoding order and including duplicates.  An absent
+         * extension has no entry, even where {@link MatterCertificate.extensions} holds a default for it.
+         */
+        extensions: { name: ExtensionName; critical: boolean }[];
+
+        /**
+         * All bits of the key usage BIT STRING, bit n as X.509 numbers it (0 is digitalSignature, 8 is decipherOnly),
+         * so bits 9 and up that {@link MatterCertificate.extensions} cannot hold are kept too.  A set bit beyond bit
+         * 15 reads as bit 16.  Undefined without the extension.
+         */
+        keyUsage?: number;
+    }
 }

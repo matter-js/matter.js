@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, CertificateError } from "@matter/general";
+import { Bytes, CertificateError, InternalError } from "@matter/general";
 import { Specification } from "@matter/model";
 import { Certificate } from "./Certificate.js";
 import { Unsigned } from "./common.js";
 import { AttestationCertificate } from "./definitions/attestation.js";
-import { ExtensionKeyUsageSchema, MatterCertificate } from "./definitions/base.js";
+import { MatterCertificate } from "./definitions/base.js";
 
 /**
  * Base class for Attestation Certificates (PAA, PAI, DAC).
@@ -26,11 +26,23 @@ export abstract class AttestationBaseCertificate<CT extends MatterCertificate> e
  */
 export class MlDsaAttestationDisabledError extends CertificateError {}
 
+/**
+ * Thrown when a DAC or PAI is well-formed but violates the X.509 profile of its kind.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 6.2.2.3
+ * @see {@link MatterSpecification.v161.Core} § 6.2.2.4
+ */
+export class CertificateProfileError extends CertificateError {}
+
 export interface AttestationParseOptions {
     /**
-     * Accept a certificate that violates the X.509 profile of its kind.  Only for a caller that does not judge the
-     * profile: a commissioner that already decided to proceed despite a failed device attestation, a device reading
-     * its own certificates, or a parser of a certificate in another role, such as a PAI-delegated CRL signer.
+     * Accept a certificate that violates the X.509 profile of its kind, and read an absent basic constraints extension
+     * as not a CA.  Only for a caller that does not judge the profile: a commissioner that already decided to proceed
+     * despite a failed device attestation, a device reading its own certificates, or a parser of a certificate in
+     * another role, such as a CRL signer.
+     *
+     * The PAA profile is not checked either way; for a PAA this option only lets the basic constraints extension be
+     * absent.
      */
     acceptProfileViolation?: boolean;
 }
@@ -47,52 +59,80 @@ function parseAttestationCertificate(asn1: Bytes, requiredExtensions: string[]) 
     return cert;
 }
 
-const DAC_PAI_EXTENSIONS_WITHOUT_PROFILE = Certificate.REQUIRED_EXTENSIONS.filter(name => name !== "basicConstraints");
-
 /**
- * Parse a DAC or PAI.  When the caller accepts a profile violation, a certificate without the basic constraints
- * extension parses as not a CA, which is what RFC 5280 § 4.2.1.9 makes of an absent extension.
- *
- * @throws MlDsaAttestationDisabledError for an ML-DSA certificate while PQC Phase 1 is not enabled
+ * Leave out basic constraints, whose absence is a profile violation.  A certificate without key usage or a key
+ * identifier is unusable, so those stay required even for a caller that accepts a profile violation.
  */
-function parseDacOrPai(asn1: Bytes, acceptProfileViolation = false) {
-    if (!acceptProfileViolation) {
-        return parseAttestationCertificate(asn1, Certificate.REQUIRED_EXTENSIONS);
-    }
-    const cert = parseAttestationCertificate(asn1, DAC_PAI_EXTENSIONS_WITHOUT_PROFILE);
-    cert.extensions.basicConstraints ??= { isCa: false };
-    return cert;
+function withoutBasicConstraints(required: string[]) {
+    return required.filter(name => name !== "basicConstraints");
 }
+
+const DAC_PAI_REQUIRED_EXTENSIONS = withoutBasicConstraints(Certificate.REQUIRED_EXTENSIONS);
 
 /** PAA (Product Attestation Authority) Certificate. */
 export class Paa extends AttestationBaseCertificate<AttestationCertificate.Paa> {
-    /** Construct the class from an ASN.1/DER encoded certificate */
-    static fromAsn1(asn1: Bytes): Paa {
-        const cert = parseAttestationCertificate(asn1, Certificate.REQUIRED_PAA_EXTENSIONS);
+    /**
+     * Construct the class from an ASN.1/DER encoded certificate.
+     *
+     * @throws CertificateError if the certificate cannot be parsed
+     * @throws MlDsaAttestationDisabledError for an ML-DSA certificate while PQC Phase 1 is not enabled
+     */
+    static fromAsn1(asn1: Bytes, options: AttestationParseOptions = {}): Paa {
+        const required = options.acceptProfileViolation
+            ? withoutBasicConstraints(Certificate.REQUIRED_PAA_EXTENSIONS)
+            : Certificate.REQUIRED_PAA_EXTENSIONS;
+        const cert = parseAttestationCertificate(asn1, required);
         return new Paa(cert as AttestationCertificate.Paa);
     }
+}
+
+/** The extensions a DAC or PAI must carry at most once, as the CHIP SDK checks. */
+const DAC_PAI_SINGLE_EXTENSIONS: MatterCertificate.ExtensionName[] = [
+    "basicConstraints",
+    "keyUsage",
+    "subjectKeyIdentifier",
+    "authorityKeyIdentifier",
+];
+
+function encodingOf(cert: MatterCertificate) {
+    if (cert.encoding === undefined) {
+        throw new InternalError("A certificate parsed from DER lacks its encoding details");
+    }
+    return cert.encoding;
 }
 
 /**
  * DAC and PAI share these rules:
  *
  * - "The `version` field SHALL be set to `2` to indicate v3 certificate."
+ * - "The certificate SHALL carry the following Extensions", among them basic constraints
  * - "Basic Constraint extension SHALL be marked `critical`"
  * - "Key Usage extension SHALL be marked `critical`"
+ * - RFC 5280 § 4.2: "A certificate MUST NOT include more than one instance of a particular extension."
  *
  * @see {@link MatterSpecification.v161.Core} § 6.2.2.3
  * @see {@link MatterSpecification.v161.Core} § 6.2.2.4
- * @throws CertificateError naming the violated rule
+ * @throws CertificateProfileError naming the violated rule
  */
 function assertCommonProfile(kind: "DAC" | "PAI", cert: MatterCertificate) {
-    if (cert.version !== 2) {
-        throw new CertificateError(`${kind} version field must be 2 (v3), not ${cert.version}`);
+    const { version, extensions } = encodingOf(cert);
+    if (version !== 2) {
+        throw new CertificateProfileError(`${kind} version field must be 2 (v3), not ${version}`);
     }
-    if (!cert.criticalExtensions?.includes("basicConstraints")) {
-        throw new CertificateError(`${kind} basic constraints extension must be marked critical`);
+    for (const name of DAC_PAI_SINGLE_EXTENSIONS) {
+        if (extensions.filter(extension => extension.name === name).length > 1) {
+            throw new CertificateProfileError(`${kind} carries more than one ${name} extension`);
+        }
     }
-    if (!cert.criticalExtensions?.includes("keyUsage")) {
-        throw new CertificateError(`${kind} key usage extension must be marked critical`);
+    const basicConstraints = extensions.find(({ name }) => name === "basicConstraints");
+    if (basicConstraints === undefined) {
+        throw new CertificateProfileError(`${kind} must carry the basic constraints extension`);
+    }
+    if (!basicConstraints.critical) {
+        throw new CertificateProfileError(`${kind} basic constraints extension must be marked critical`);
+    }
+    if (!extensions.find(({ name }) => name === "keyUsage")?.critical) {
+        throw new CertificateProfileError(`${kind} key usage extension must be marked critical`);
     }
 }
 
@@ -105,20 +145,20 @@ function assertCommonProfile(kind: "DAC" | "PAI", cert: MatterCertificate) {
  *   MAY be set", "Other bits SHALL NOT be set"
  *
  * @see {@link MatterSpecification.v161.Core} § 6.2.2.4
- * @throws CertificateError naming the violated rule
+ * @throws CertificateProfileError naming the violated rule
  */
 function assertPaiProfile(cert: MatterCertificate) {
     assertCommonProfile("PAI", cert);
-    const { basicConstraints, keyUsage } = cert.extensions;
+    const { basicConstraints } = cert.extensions;
     if (!basicConstraints.isCa) {
-        throw new CertificateError("PAI basic constraints must have cA set to TRUE");
+        throw new CertificateProfileError("PAI basic constraints must have cA set to TRUE");
     }
     if (basicConstraints.pathLen !== 0) {
-        throw new CertificateError(`PAI basic constraints must have pathLen 0, not ${basicConstraints.pathLen}`);
+        throw new CertificateProfileError(`PAI basic constraints must have pathLen 0, not ${basicConstraints.pathLen}`);
     }
-    const usage = ExtensionKeyUsageSchema.encode(keyUsage);
-    if (usage !== 0x0060 && usage !== 0x0061) {
-        throw new CertificateError(
+    const { keyUsage } = encodingOf(cert);
+    if (keyUsage !== 0x0060 && keyUsage !== 0x0061) {
+        throw new CertificateProfileError(
             "PAI key usage must have keyCertSign and cRLSign set, may have digitalSignature set, and no other bit",
         );
     }
@@ -134,19 +174,21 @@ function assertPaiProfile(cert: MatterCertificate) {
  * refused.
  *
  * @see {@link MatterSpecification.v161.Core} § 6.2.2.3
- * @throws CertificateError naming the violated rule
+ * @throws CertificateProfileError naming the violated rule
  */
 function assertDacProfile(cert: MatterCertificate) {
     assertCommonProfile("DAC", cert);
-    const { basicConstraints, keyUsage } = cert.extensions;
+    const { basicConstraints } = cert.extensions;
     if (basicConstraints.isCa) {
-        throw new CertificateError("DAC basic constraints must have cA set to FALSE");
+        throw new CertificateProfileError("DAC basic constraints must have cA set to FALSE");
     }
     if (basicConstraints.pathLen !== undefined) {
-        throw new CertificateError(`DAC basic constraints must not have a pathLen, found ${basicConstraints.pathLen}`);
+        throw new CertificateProfileError(
+            `DAC basic constraints must not have a pathLen, found ${basicConstraints.pathLen}`,
+        );
     }
-    if (ExtensionKeyUsageSchema.encode(keyUsage) !== 0x0001) {
-        throw new CertificateError("DAC key usage must have only digitalSignature set");
+    if (encodingOf(cert).keyUsage !== 0x0001) {
+        throw new CertificateProfileError("DAC key usage must have only digitalSignature set");
     }
 }
 
@@ -155,11 +197,12 @@ export class Pai extends AttestationBaseCertificate<AttestationCertificate.Pai> 
     /**
      * Construct the class from an ASN.1/DER encoded certificate.
      *
-     * @throws CertificateError if the certificate cannot be parsed or violates the PAI profile
+     * @throws CertificateProfileError if the certificate violates the PAI profile
+     * @throws CertificateError if the certificate cannot be parsed
      * @throws MlDsaAttestationDisabledError for an ML-DSA certificate while PQC Phase 1 is not enabled
      */
     static fromAsn1(asn1: Bytes, options: AttestationParseOptions = {}): Pai {
-        const cert = parseDacOrPai(asn1, options.acceptProfileViolation);
+        const cert = parseAttestationCertificate(asn1, DAC_PAI_REQUIRED_EXTENSIONS);
         const pai = new Pai(cert as AttestationCertificate.Pai);
         if (!options.acceptProfileViolation) {
             assertPaiProfile(cert);
@@ -173,11 +216,12 @@ export class Dac extends AttestationBaseCertificate<AttestationCertificate.Dac> 
     /**
      * Construct the class from an ASN.1/DER encoded certificate.
      *
-     * @throws CertificateError if the certificate cannot be parsed, has no EC P-256 key, or violates the DAC profile
+     * @throws CertificateProfileError if the certificate violates the DAC profile
+     * @throws CertificateError if the certificate cannot be parsed or has no EC P-256 key
      * @throws MlDsaAttestationDisabledError for an ML-DSA certificate while PQC Phase 1 is not enabled
      */
     static fromAsn1(asn1: Bytes, options: AttestationParseOptions = {}): Dac {
-        const cert = parseDacOrPai(asn1, options.acceptProfileViolation);
+        const cert = parseAttestationCertificate(asn1, DAC_PAI_REQUIRED_EXTENSIONS);
         const dac = new Dac(cert as AttestationCertificate.Dac);
         if (!options.acceptProfileViolation) {
             assertDacProfile(cert);

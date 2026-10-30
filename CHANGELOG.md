@@ -53,7 +53,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
     - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: A group message whose key set GroupKeyMap does not map to its destination group fails authentication instead of reaching access control
-    - Fix: Device attestation refuses a DAC or PAI that violates the certificate profile (version, basic constraints, key usage and their criticality)
+    - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept
+    - Adjustment: DER certificate parsing requires the basic constraints extension when the required extensions list it, as `Certificate.REQUIRED_EXTENSIONS` does, instead of reading a missing one as not a CA
     - Fix: A group message whose payload is too short, too long or does not parse fails every candidate key and is reported to Groupcast testing as FailedAuth or NoAvailableKey
     - Fix: Groupcast testing reports a group message for which only another fabric had a candidate key as NoAvailableKey instead of FailedAuth
     - Fix: Starting an exchange skips exchange ids that are still open on the session, instead of reusing one after the 16-bit counter wraps
