@@ -205,8 +205,6 @@ certTest("TC-SC-4.2", {
     .finalize(cx => {
         const published = alias;
         alias = undefined;
-        // The alias's goodbye expires address records of the host name this process shares, which an
-        // in-process TH also announces under, so it goes only after the DUT no longer needs the TH
         return runCleanups(
             () => refusals.settle(cx),
             () => commissioned.decommissionAll(cx),

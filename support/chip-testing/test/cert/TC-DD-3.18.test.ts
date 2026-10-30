@@ -8,11 +8,10 @@ import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { CertDevice, CertNodeRef, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import { expectMdns } from "../../src/cert/mdns-check.js";
 import {
+    commissionableCheck,
     commissionByQr,
     CommissioningRefusals,
-    MDNS_TIMEOUT,
     PARSES_PAYLOAD,
     qrPayloadFields,
     recordDiscriminatorHonored,
@@ -128,7 +127,7 @@ certTest("TC-DD-3.18", {
                     what: "The two THs advertise different discriminators",
                 },
                 {
-                    check: () => expectMdns(th1, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT }),
+                    check: () => commissionableCheck(th1),
                     what: "TH1 advertising",
                 },
             ]);
@@ -140,7 +139,7 @@ certTest("TC-DD-3.18", {
         "Place TH2 into commissioning mode using the TH manufacturer's means to be discovered by a commissioner",
         async cx => {
             const { th2 } = await distinctSubjects(cx);
-            record(cx, await expectMdns(th2, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT }), "TH2 advertising");
+            record(cx, await commissionableCheck(th2), "TH2 advertising");
         },
         { expected: "Verify that TH2 is advertising and able to be discovered by a commissioner." },
     )

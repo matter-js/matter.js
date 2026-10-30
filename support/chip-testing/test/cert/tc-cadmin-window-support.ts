@@ -42,6 +42,7 @@ import {
     ABSENT_DEVICE_WAIT,
     chipToolGaveUpOrPaseFailed,
     CommissioningRefusals,
+    thCommissionableInstanceNames,
 } from "./tc-dd-support.js";
 import {
     attempt,
@@ -57,6 +58,7 @@ import {
     requireId,
     runCleanups,
     sleepUntil,
+    theTh,
     withChecks,
 } from "./tc-support.js";
 
@@ -212,16 +214,21 @@ export function windowHandlingCase(tc: string, method: CommissioningMethod): voi
     let joinedWindow: OpenedWindow | undefined;
 
     const openWindow = async (cx: CertStepContext) => {
+        const th = theTh(cx);
+        await th.log.settled();
+        const beforeOpen = th.log.lines.length;
         const window = await openWindowChecked(cx, cx.controllers.dut, commissioned.require("dut"), method, "DUT_CR1");
         pendingWindow.set(window);
         const { discriminator } = window;
         if (discriminator !== undefined) {
+            // A basic window advertises the device's own discriminator, which a record an earlier TH left matches too
+            const commissionableInstanceNames = await thCommissionableInstanceNames(th, beforeOpen);
             record(
                 cx,
                 await expectMdns(
                     { commissioning: { discriminator } },
                     { commissionable: true },
-                    { timeoutMs: ADVERTISEMENT_TIMEOUT },
+                    { timeoutMs: ADVERTISEMENT_TIMEOUT, commissionableInstanceNames },
                 ),
                 "Commissionable record for the window's discriminator, which the refused steps look for",
             );

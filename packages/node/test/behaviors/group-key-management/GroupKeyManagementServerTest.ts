@@ -8,6 +8,7 @@ import { GroupKeyManagementClient, GroupKeyManagementServer } from "#behaviors/g
 import { ServerNode } from "#node/index.js";
 import { Bytes } from "@matter/general";
 import { causeMessagesOf, MockServerNode, MockSite } from "@matter/node/testing";
+import { FabricManager } from "@matter/protocol";
 import { FabricIndex, GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 
@@ -205,5 +206,84 @@ describe("GroupKeyManagementServer", () => {
         expect(groupKeyMap.map(({ groupId, groupKeySetId }) => ({ groupId, groupKeySetId }))).deep.equals([
             { groupId: 0x0102, groupKeySetId: 2 },
         ]);
+    });
+
+    it("clears the operational key map of a fabric whose last GroupKeyMap entry a local write removes", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: { type: ServerNode.RootEndpoint },
+        });
+
+        const cmds = controller.peers.get("peer1")!.commandsOf(GroupKeyManagementClient);
+        await cmds.keySetWrite({
+            groupKeySet: {
+                groupKeySetId: 1,
+                groupKeySecurityPolicy: 0,
+                epochKey0: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
+                epochStartTime0: 18446744073709551612n,
+                epochKey1: null,
+                epochStartTime1: null,
+                epochKey2: null,
+                epochStartTime2: null,
+            },
+        });
+
+        await device.act(agent => {
+            agent.get(GroupKeyManagementServer).state.groupKeyMap = [
+                { fabricIndex: FabricIndex(1), groupId: GroupId(0x0101), groupKeySetId: 1 },
+            ];
+        });
+        const { groups } = device.env.get(FabricManager).for(FabricIndex(1));
+        expect([...groups.groupKeyIdMap.entries()]).deep.equals([[GroupId(0x0101), 1]]);
+
+        await device.act(agent => {
+            agent.get(GroupKeyManagementServer).state.groupKeyMap = [];
+        });
+
+        expect(groups.groupKeyIdMap.size).equals(0);
+    });
+
+    it("keeps the operational key map of a fabric whose entries a local write keeps", async () => {
+        await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
+        const fabric1 = await node.addFabric();
+        const fabric2 = await node.addFabric();
+        const entry = (fabricIndex: FabricIndex) => ({ fabricIndex, groupId: GroupId(0x0101), groupKeySetId: 1 });
+
+        await node.act(agent => {
+            agent.get(GroupKeyManagementServer).state.groupKeyMap = [
+                entry(fabric1.fabricIndex),
+                entry(fabric2.fabricIndex),
+            ];
+        });
+        await node.act(agent => {
+            agent.get(GroupKeyManagementServer).state.groupKeyMap = [entry(fabric1.fabricIndex)];
+        });
+
+        const fabrics = node.env.get(FabricManager);
+        expect([...fabrics.for(fabric1.fabricIndex).groups.groupKeyIdMap.entries()]).deep.equals([
+            [GroupId(0x0101), 1],
+        ]);
+        expect(fabrics.for(fabric2.fabricIndex).groups.groupKeyIdMap.size).equals(0);
+    });
+
+    it("refuses group id 0 in GroupKeyMap", async () => {
+        await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
+        const fabric = await node.addFabric();
+
+        let failure: unknown;
+        try {
+            await node.act(agent => {
+                agent.get(GroupKeyManagementServer).state.groupKeyMap = [
+                    { fabricIndex: fabric.fabricIndex, groupId: GroupId(0), groupKeySetId: 1 },
+                ];
+            });
+        } catch (error) {
+            failure = error;
+        }
+
+        expect(failure)
+            .property("message")
+            .match(/Only operational GroupIds/);
+        expect(node.stateOf(GroupKeyManagementServer).groupKeyMap).deep.equals([]);
     });
 });
