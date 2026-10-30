@@ -20,7 +20,7 @@ import {
     X509,
     X962,
 } from "@matter/general";
-import { MockSite } from "@matter/node/testing";
+import { MockServerNode, MockSite } from "@matter/node/testing";
 import {
     AttestationFinding,
     CertificationDeclaration,
@@ -151,6 +151,21 @@ function setupDclFetchMock(
 }
 
 /**
+ * CHIP test vector struct_dac_ext_basic_ca_wrong (connectedhomeip credentials/development/commissioner_dut): a DAC with cA set to TRUE,
+ * which violates the DAC profile, with its key, PAI and Certification Declaration for VendorID 0xFFF1 and ProductID
+ * 0x8000.
+ */
+const DAC_PROFILE_VIOLATION = {
+    privateKey: "0b693783a3c15e1ac0edb2285d8dfd9c862d82e4708c420f6071e78a1a96ecfe",
+    certificate:
+        "308201d130820177a00302010202083b56a43ddd336667300a06082a8648ce3d04030230303118301606035504030c0f4d617474657220546573742050414931143012060a2b0601040182a27c02010c04464646313020170d3232303932333030303030305a180f39393939313233313233353935395a30463118301606035504030c0f4d617474657220546573742044414331143012060a2b0601040182a27c02010c044646463131143012060a2b0601040182a27c02020c04383030303059301306072a8648ce3d020106082a8648ce3d0301070342000445b4b2be47ed9b260dcb3e7083b62d826a65d798f5173daae437d43a44ebc471cdfa6f77259262643041936522f0ec35c84a3eb9589ed95279eba9afa8d81bbda3633061300f0603551d130101ff040530030101ff300e0603551d0f0101ff040403020780301d0603551d0e04160414da0e770aa51514be235842ba34494867f0a87d35301f0603551d230418301680145d227b7af2389dfcf038be059d03a8845fa5958e300a06082a8648ce3d0403020348003045022100f4d16c045c3b94aa44b4515ffe0db0af003a2edf98742c161401bb1223a6aee7022023a97ffc1d72704122ec036e9404b79a363d25bd9dd75e1420bcab33e724c4d7",
+    intermediateCertificate:
+        "308201be30820164a0030201020208399cc990009060a3300a06082a8648ce3d04030230303118301606035504030c0f4d617474657220546573742050414131143012060a2b0601040182a27c02010c04464646313020170d3232303932333030303030305a180f39393939313233313233353935395a30303118301606035504030c0f4d617474657220546573742050414931143012060a2b0601040182a27c02010c04464646313059301306072a8648ce3d020106082a8648ce3d0301070342000436323ffb940179b7795f28f7b0777d5e92c8ab8fc258e2fab5efd7dc095402111c4d9ab60a9b3bcd761ff0c97ea88c39491a7e110efb2167407a0c1d95eaf95da366306430120603551d130101ff040830060101ff020100300e0603551d0f0101ff040403020106301d0603551d0e041604145d227b7af2389dfcf038be059d03a8845fa5958e301f0603551d230418301680146afd22771f511fecbf1641976710dcdc31a1717e300a06082a8648ce3d04030203480030450220038b785c2d8a1e213660b860d781b49794399a852bb303f5bbb34c5e6b247cc6022100e63ba37ecb72f10f8cb01075923a3f006808ff84cf8b8c997da657d7e1a6e3f0",
+    declaration:
+        "3081e906092a864886f70d010702a081db3081d8020103310d300b0609608648016503040201304506092a864886f70d010701a0380436152400012501f1ff360205008018250334122c04135a494732303134315a423333303030312d32342405002406002507769824080018317d307b020103801462fa823359acfaa9963e1cfa140addf504f37160300b0609608648016503040201300a06082a8648ce3d04030204473045022028cc0043c6f627c9aaef3441800fa99746c1a5728157df2aeb4946fc6c071ffe022100b03185ac043cbb929dcdb20274350c5290128b214027235e4b5480d3ee559e8c",
+};
+
+/**
  * Options for a commissioning attestation test case.
  */
 interface AttestationTestOptions {
@@ -193,6 +208,9 @@ interface AttestationTestOptions {
 
     /** Block the DCL root-certificate re-fetch so a corrupted cache cannot self-heal. */
     blockCachedPaaRefetch?: boolean;
+
+    /** Hex encoded certification the device presents instead of a generated one. */
+    deviceCertification?: typeof DAC_PROFILE_VIOLATION;
 }
 
 /**
@@ -216,7 +234,24 @@ async function runAttestationTest(options: AttestationTestOptions) {
         }
 
         await using site = new MockSite();
-        const { controller, device } = await site.addUncommissionedPair();
+        const certification = options.deviceCertification;
+        const { controller, device } = await site.addUncommissionedPair(
+            certification === undefined
+                ? undefined
+                : {
+                      device: {
+                          type: MockServerNode.RootEndpoint,
+                          operationalCredentials: {
+                              certification: {
+                                  privateKey: Bytes.fromHex(certification.privateKey),
+                                  certificate: Bytes.fromHex(certification.certificate),
+                                  intermediateCertificate: Bytes.fromHex(certification.intermediateCertificate),
+                                  declaration: Bytes.fromHex(certification.declaration),
+                              },
+                          },
+                      },
+                  },
+        );
 
         // setupBeforeCommission sets up its own DCL mocks (e.g., with revocation data)
         if (options.setupBeforeCommission !== undefined) {
@@ -341,6 +376,35 @@ describe("device attestation during commissioning", () => {
             runAttestationTest({
                 onAttestationFailure: false,
                 expectRejection: /finding\(s\) and was rejected by policy/,
+            }));
+    });
+
+    describe("DAC that violates the DAC profile", () => {
+        it("reports the DAC as unparseable and rejects when policy rejects", () =>
+            runAttestationTest({
+                deviceCertification: DAC_PROFILE_VIOLATION,
+                onAttestationFailure: () => false,
+                expectRejection: /DAC certificate that cannot be parsed/,
+                assertFindings: findings => {
+                    expect(findings.map(({ type }) => type)).deep.equals([
+                        DeviceAttestationCheck.CertificateUnparseable,
+                    ]);
+                },
+            }));
+
+        it("commissions when policy accepts", () =>
+            runAttestationTest({
+                deviceCertification: DAC_PROFILE_VIOLATION,
+                onAttestationFailure: () => true,
+                assertFindings: findings => {
+                    expect(findings.map(({ type }) => type)).deep.equals([
+                        DeviceAttestationCheck.CertificateUnparseable,
+                    ]);
+                },
+                assertResult: (device, peers) => {
+                    expect(device.state.commissioning.commissioned).equals(true);
+                    expect(peers).equals(1);
+                },
             }));
 
         it("custom callback receives DclServiceUnavailable warning and other findings", () =>

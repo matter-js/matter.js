@@ -60,4 +60,17 @@ export interface MatterCertificate {
      * is then empty.  Only PAA and PAI certificates may carry one (PQC Phase 1).
      */
     mlDsaPublicKey?: { parameterSet: MlDsa.ParameterSet; key: Bytes };
+
+    /**
+     * The X.509 `version` field as encoded; 2 means v3 and 0 means the field was absent (v1).  Only present on parsed
+     * certificates.
+     */
+    version?: number;
+
+    /** The interpreted {@link extensions} whose DER encoding marks them critical.  Only present on parsed certificates. */
+    criticalExtensions?: MatterCertificate.ExtensionName[];
+}
+
+export namespace MatterCertificate {
+    export type ExtensionName = keyof MatterCertificate["extensions"];
 }

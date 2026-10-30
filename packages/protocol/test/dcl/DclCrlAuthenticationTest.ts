@@ -309,6 +309,11 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             expect(await revoked(pai.skid, [{ signer: pai, isPAA: false, crl: await crlBy(pai.crlSigner) }])).true;
         });
 
+        it("ignores a PAI signing its own CRL that violates the PAI profile", async () => {
+            const pai = await issue("Test PAI", { issuer: paa, ca: true, vendorId: 0xfff1, withoutKeyCertSign: true });
+            expect(await revoked(pai.skid, [{ signer: pai, isPAA: false, crl: await crlBy(pai.crlSigner) }])).false;
+        });
+
         it("ignores a PAI that does not chain to an approved PAA", async () => {
             const strangerPaa = await issue("Stranger PAA", { ca: true });
             const pai = await issue("Test PAI", { issuer: strangerPaa, ca: true, vendorId: 0xfff1 });
