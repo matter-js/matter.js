@@ -248,6 +248,10 @@ COPY --from=source /connectedhomeip/credentials/test/revoked-attestation-certifi
 COPY --from=source /connectedhomeip/credentials/test/revoked-attestation-certificates/revocation-sets \
     /credentials/test/revoked-attestation-certificates/revocation-sets
 
+# Attestation test vectors of the DUT-commissioner cases TC-DA-1.4 and TC-DA-1.8: each directory holds a
+# DAC provider for the TH app (`--dac_provider <dir>/test_case_vector.json`)
+COPY --from=source /connectedhomeip/credentials/development/commissioner_dut /credentials/development/commissioner_dut
+
 # Idempotent: the media packages above pull in dbus, whose own install creates this directory
 RUN mkdir -p /run/dbus
 
