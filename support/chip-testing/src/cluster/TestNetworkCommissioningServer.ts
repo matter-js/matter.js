@@ -8,7 +8,7 @@ import { Agent, Bytes, Environment } from "@matter/main";
 import { GeneralCommissioningServer } from "@matter/main/behaviors/general-commissioning";
 import { NetworkCommissioningServer } from "@matter/main/behaviors/network-commissioning";
 import { NetworkCommissioning } from "@matter/main/clusters/network-commissioning";
-import { DeviceCommissioner, OperationalDataset, ThreadDatasetError } from "@matter/main/protocol";
+import { DeviceCommissioner, OperationalDataset, ThreadDatasetError, ThreadTlvError } from "@matter/main/protocol";
 
 import NetworkingStatus = NetworkCommissioning.NetworkCommissioningStatus;
 
@@ -48,7 +48,7 @@ function extendedPanIdOf(dataset: Bytes) {
     try {
         return OperationalDataset.decode(dataset).extPanId;
     } catch (e) {
-        if (e instanceof ThreadDatasetError) {
+        if (e instanceof ThreadDatasetError || e instanceof ThreadTlvError) {
             return undefined;
         }
         throw e;

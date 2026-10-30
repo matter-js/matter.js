@@ -31,6 +31,9 @@ const DATASET_WITHOUT_EXTENDED_PAN_ID = Bytes.fromHex("030178");
 /** An Extended PAN ID TLV with four bytes instead of eight. */
 const MALFORMED_DATASET = Bytes.fromHex("020400000000");
 
+/** An Extended PAN ID TLV whose header announces eight bytes but carries one. */
+const TRUNCATED_DATASET = Bytes.fromHex("020801");
+
 async function expectFailsafeRequired(promise: Promise<unknown>) {
     const error = await promise.then(
         () => undefined,
@@ -308,6 +311,7 @@ describe("RadioNetworkTestInstance", () => {
             for (const [what, dataset] of [
                 ["has no Extended PAN ID", DATASET_WITHOUT_EXTENDED_PAN_ID],
                 ["is malformed", MALFORMED_DATASET],
+                ["is truncated", TRUNCATED_DATASET],
             ] as const) {
                 it(`answers OutOfRange for a dataset that ${what}`, async () => {
                     const response = await act(server =>
