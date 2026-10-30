@@ -61,6 +61,7 @@ to an app this way:
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
 | `TBRM`                              | `network-manager` | `matter-network-manager-app` | no — the case declares `flavors: ["chip-local"]`, which skips it before registration |
+| `CNET` DUT-client (Wi-Fi / Thread)  | `wifi-network` / `thread-network` | none: chip's apps in the image have no Wi-Fi or Thread network | yes (`WiFiNetworkTestInstance`, `ThreadNetworkTestInstance`); the cases declare `flavors: ["matterjs"]` |
 | `ICDB`, `ICDM`                      | `lit-icd`    | `lit-icd-app-nopersist` (variant, own-built); `lit-icd-app` (cert-bins) | yes (`IcdTestInstance`) |
 | `BIND`                              | `light-switch` | `chip-light-switch-app` (not in our image) | yes (`LightSwitchTestInstance`); the cases declare `flavors: ["matterjs"]` |
 | `BIND` (no Groupcast on the root)   | `light-switch-no-groupcast` | none | yes (`LightSwitchNoGroupcastTestInstance`); matterjs only |
@@ -3860,6 +3861,28 @@ cluster-client block. What it adds:
 - **Building the app on macOS needs the zap version the CHIP checkout names.** An older `zap-cli`
   fails codegen with "Version validation failed". `scripts/tools/zap/zap_download.py --zap RELEASE`
   fetches the right one, and `ZAP_INSTALL_PATH` points the build at it.
+
+## The Network Commissioning client cases, where only matter.js can be the TH (`TC-CNET-4.20`, `TC-CNET-4.21`)
+
+Six "DUT sends *command* to TH" steps, built by `cnetClientCase` in `tc-cnet-support.ts`. Only step 3
+differs: AddOrUpdateWiFiNetwork or AddOrUpdateThreadNetwork. What the block adds:
+
+- **chip's apps cannot be this TH.** `support/chip/support/build-one` builds every app with
+  `chip_enable_wifi=false` and `chip_enable_thread=false`, so no app has a Wi-Fi or Thread Network
+  Commissioning cluster. The cases run against the matter.js `wifi-network` and `thread-network`
+  THs (`RadioNetworkTestInstance`) on the matterjs flavor only.
+- **The TH's server answers like chip's.** `TestWiFiNetworkCommissioningServer` and
+  `TestThreadNetworkCommissioningServer` keep the Networks list and need no fail-safe for
+  ScanNetworks and ReorderNetwork, as chip's server does. Matter 1.6.1 § 11.9.7.1
+  requires one for ScanNetworks, but the plans send ScanNetworks in step 1, before ArmFailSafe in
+  step 2.
+- **`invokeCommand` does not check these responses.** It checks a response field named `Status`.
+  The Network Commissioning responses carry `NetworkingStatus`, and ArmFailSafeResponse carries
+  `ErrorCode`, so the steps check those themselves.
+- **Each step sends its own number as Breadcrumb**, so the TH log line of every command differs from
+  the others, also where two commands name the same network.
+- **The plans leave the fail-safe from step 2 armed.** The cleanup sends CommissioningComplete
+  before it decommissions the TH.
 
 ## The ICD client case, and what it takes for a TH to send a Check-In (`TC-ICDB-1.3`)
 

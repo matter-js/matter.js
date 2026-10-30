@@ -255,6 +255,11 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "WNCV.C.C05.Tx": 1,
     "WNCV.C.C08.Tx": 1,
 
+    // The Network Commissioning client features TC-CNET-4.20 and TC-CNET-4.21 require. CHIP's PICS file answers both 0,
+    // because it describes a device; the controller configures Wi-Fi and Thread networks.
+    "CNET.C.F00": 1,
+    "CNET.C.F01": 1,
+
     // The ColorControl client commands, features and attributes that TC-CC-3.4, TC-CC-4.5, TC-CC-5.4, TC-CC-6.4,
     // TC-CC-7.5 and TC-CC-9.4 send, read or name as the DUT's precondition. CHIP's PICS file answers the features 0,
     // because it describes a device; the other keys state the controller's full client surface for these cases.
