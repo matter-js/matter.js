@@ -24,6 +24,7 @@ export type BackchannelCommand =
     | BackchannelCommand.BridgeSimulation
     | BackchannelCommand.SendOnOffToBindings
     | BackchannelCommand.UserIntentCommissioningStart
+    | BackchannelCommand.FactoryResetWithAppArgs
     | BackchannelCommand.NoParameters;
 
 export namespace BackchannelCommand {
@@ -174,6 +175,16 @@ export namespace BackchannelCommand {
      */
     export type UserIntentCommissioningStart = {
         name: "userIntentCommissioningStart";
+    };
+
+    /**
+     * Factory-reset the device and start it with `appArgs` in place of the arguments its case declared. The arguments
+     * the harness adds itself, such as ports, stay. A case that starts the TH with a different certificate set for each
+     * of its vectors uses it. Only a chip-local device takes it; the others refuse it as unsupported.
+     */
+    export type FactoryResetWithAppArgs = {
+        name: "factoryResetWithAppArgs";
+        appArgs: string[];
     };
 
     export type NoParameters = {

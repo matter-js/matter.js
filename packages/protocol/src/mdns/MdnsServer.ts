@@ -19,6 +19,7 @@ import {
     Mutex,
     NetworkInterfaceDetails,
     ObserverGroup,
+    Seconds,
     Time,
     Timer,
 } from "@matter/general";
@@ -28,10 +29,20 @@ const logger = Logger.get("MdnsServer");
 
 const RESPONDER_NAMES_OWNER = "mdns-responder";
 
+/** RFC 6762 §8.3: a responder announces a change at least twice, one second apart */
+const CHANGE_REPEAT_INTERVAL = Seconds(1);
+
 /**
  * The mDNS responder: publishes the records of registered services, answers queries for them and says goodbye when
  * a service is withdrawn.  Each network interface has its own {@link InterfaceResponder}, which sends one packet at a
  * time.
+ *
+ * While services are registered, the server observes {@link Network.interfacesChanged}.  On a change it reads the
+ * interface details again and publishes all services on the reported interfaces, or on every interface if the host
+ * name changed; one second later it publishes them once more.  The first publication says goodbye to the addresses an
+ * interface lost; both announce the current ones, see {@link InterfaceResponder.publish}.
+ *
+ * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-8.4} RFC 6762 §8.4
  */
 export class MdnsServer {
     #lifetime: Lifetime;
@@ -48,6 +59,11 @@ export class MdnsServer {
     #pendingAnnouncement?: PendingAnnouncement;
     #hostname?: string;
     readonly #truncatedQueryCache = new Map<string, { message: MdnsSocket.Message; timer: Timer }>();
+    readonly #interfacesChangedObserver = (names: string[]) => this.#handleInterfacesChanged(names);
+    #isFollowingInterfaces = false;
+    /** The interfaces to publish on again when {@link #changeRepeat} fires */
+    #repeatOn?: Set<string> | "all";
+    readonly #changeRepeat: Timer;
 
     readonly #socket: MdnsSocket;
 
@@ -65,6 +81,9 @@ export class MdnsServer {
             viewChanged: () => this.#updateNames(),
         };
         this.#observers.on(this.#socket.receipt, this.#handleMessage.bind(this));
+        this.#changeRepeat = Time.getTimer("mDNS interface change repeat", CHANGE_REPEAT_INTERVAL, () =>
+            this.#repeatChange(),
+        );
     }
 
     toString() {
@@ -232,10 +251,15 @@ export class MdnsServer {
         await this.#publishOnListedInterfaces(request.all ? "all" : [...request.services]);
     }
 
-    async #publishOnListedInterfaces(services: string[] | "all") {
+    /** Publish on each listed interface, or only on those in {@link only}. */
+    async #publishOnListedInterfaces(services: string[] | "all", only?: ReadonlySet<string>) {
         try {
+            const listed = await this.#listInterfaces();
             await Promise.all(
-                (await this.#listInterfaces()).map(async ({ name }) => {
+                listed.map(async ({ name }) => {
+                    if (only !== undefined && !only.has(name)) {
+                        return;
+                    }
                     const responder = this.#interfaceFor(name);
                     try {
                         await this.#withCurrentDetails(name);
@@ -261,6 +285,67 @@ export class MdnsServer {
 
     #registrationsChanged() {
         this.#generation++;
+        this.#followInterfaces(this.#registrations.size > 0 && this.#closing === undefined);
+    }
+
+    /** Interface changes matter only while services are registered, and observing them starts the periodic checks. */
+    #followInterfaces(follow: boolean) {
+        if (follow === this.#isFollowingInterfaces) {
+            return;
+        }
+        this.#isFollowingInterfaces = follow;
+        if (follow) {
+            this.network.interfacesChanged.on(this.#interfacesChangedObserver);
+        } else {
+            this.network.interfacesChanged.off(this.#interfacesChangedObserver);
+            this.#changeRepeat.stop();
+            this.#repeatOn = undefined;
+        }
+    }
+
+    /** Logs and does not throw, so the other observers of {@link Network.interfacesChanged} still run. */
+    async #handleInterfacesChanged(names: string[]) {
+        using _changing = this.#lifetime.join("interface change", Diagnostic.strong(describeList("and", ...names)));
+        logger.debug(`Interfaces ${describeList("and", ...names)} changed, publishing the current records`);
+        try {
+            await this.#publishChange(names);
+        } catch (error) {
+            if (this.#lifetime.isClosing) {
+                logger.debug("mDNS records not published after an interface change, the server closed", error);
+            } else {
+                logger.warn("Cannot publish the mDNS records after an interface change", error);
+            }
+        }
+    }
+
+    async #publishChange(names: string[]) {
+        const previousHostname = this.#hostname;
+        for (const name of names) {
+            this.#responders.get(name)?.detailsChanged();
+        }
+        await this.#updateHost();
+        if (!this.#isFollowingInterfaces) {
+            return;
+        }
+
+        const changed = this.#hostname === previousHostname ? new Set(names) : undefined;
+        if (changed === undefined || this.#repeatOn === "all") {
+            this.#repeatOn = "all";
+        } else {
+            this.#repeatOn = new Set([...(this.#repeatOn ?? []), ...changed]);
+        }
+        this.#changeRepeat.stop().start();
+        await this.#publishOnListedInterfaces("all", changed);
+    }
+
+    async #repeatChange() {
+        using _repeating = this.#lifetime.join("repeating interface change");
+        const repeatOn = this.#repeatOn;
+        if (repeatOn === undefined) {
+            return;
+        }
+        this.#repeatOn = undefined;
+        await this.#publishOnListedInterfaces("all", repeatOn === "all" ? undefined : repeatOn);
     }
 
     /** Read the interface details, choose the host name again and update the socket names. */
@@ -350,6 +435,7 @@ export class MdnsServer {
     async #close() {
         using _closing = this.#lifetime.closing();
         this.#observers.close();
+        this.#followInterfaces(false);
         this.#socket.unregisterRelevantNames(RESPONDER_NAMES_OWNER);
         for (const { timer } of this.#truncatedQueryCache.values()) {
             timer.stop();
