@@ -152,7 +152,11 @@ export class CertificationDeclaration {
         if (eContentWrapper._tag !== 0xa0 || !eContentWrapper._elements || eContentWrapper._elements.length < 1) {
             throw new DerError("Invalid eContent wrapper in encapContentInfo");
         }
-        const eContentBytes = Bytes.of(eContentWrapper._elements[0]._bytes);
+        const eContent = eContentWrapper._elements[0];
+        if (eContent._tag !== DerType.OctetString) {
+            throw new DerError("Expected OCTET STRING eContent in encapContentInfo");
+        }
+        const eContentBytes = Bytes.of(eContent._bytes);
 
         const signerInfos = signerInfosSet._elements;
         if (!signerInfos || signerInfos.length < 1) {
@@ -189,6 +193,9 @@ export class CertificationDeclaration {
             X962.EcdsaWithSHA256._objectId._bytes,
             "CMS SignerInfo signatureAlgorithm must be ecdsa-with-SHA256",
         );
+        if (signatureNode._tag !== DerType.OctetString) {
+            throw new DerError("Expected OCTET STRING signature in SignerInfo");
+        }
 
         return {
             content: CertificationDeclarationDef.TlvDc.decode(eContentBytes),
