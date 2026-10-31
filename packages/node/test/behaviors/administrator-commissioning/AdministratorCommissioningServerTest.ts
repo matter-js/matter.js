@@ -191,7 +191,7 @@ class Device {
      * Runs a timed invoke through the interaction layer without client-side validation, so fields out of their
      * constraints reach the device.  Returns the status of the single command.
      */
-    async #invoke(command: Invoke.CommandRequest<any>, exchange?: MessageExchange) {
+    async #invoke(command: Invoke.CommandRequest, exchange?: MessageExchange) {
         exchange ??= await this.caseExchange();
         const request = {
             ...Invoke({ timed: true, skipValidation: true, commands: [command] }),
@@ -338,14 +338,6 @@ describe("AdministratorCommissioningServer", () => {
 
         // § 11.19.8.1: "If a commissioning window is already currently open, this command SHALL fail with a cluster
         // specific status code of Busy."
-        it("answers Busy while an administrator's enhanced window is open", async () => {
-            await using device = await Device.create();
-            await device.openWindow();
-
-            expect(await device.openWindow()).deep.equals(failure(Busy));
-            expect(device.attributes.windowStatus).equals(EnhancedWindowOpen);
-        });
-
         it("answers Busy while an administrator's basic window is open", async () => {
             await using device = await Device.create(BasicCapableRootEndpoint);
             await device.openBasicWindow();
@@ -362,6 +354,14 @@ describe("AdministratorCommissioningServer", () => {
 
             expect(await device.openWindow()).deep.equals(failure(Busy));
             expect(device.attributes).deep.equals(closedAttributes);
+        });
+
+        // The specification sets no order among the failures; CHIP checks Busy before the PAKE parameters
+        it("answers Busy before it checks the PAKE parameters", async () => {
+            await using device = await Device.create();
+            await device.openWindow();
+
+            expect(await device.openWindow({ saltLength: 15 })).deep.equals(failure(Busy));
         });
 
         // § 11.19.7.1: "This attribute SHALL revert to WindowNotOpen upon expiry of a commissioning window."
@@ -402,12 +402,18 @@ describe("AdministratorCommissioningServer", () => {
             });
         });
 
-        // A PASE session has no fabric to name as opener until AddNOC.  The specification does not name the status;
-        // CHIP answers PAKEParameterError.
         it("answers PAKEParameterError on a session without fabric", async () => {
             await using device = await Device.create();
 
             expect(await device.openWindow({}, await device.paseExchange())).deep.equals(failure(PakeParameterError));
+        });
+
+        it("answers PAKEParameterError on a session without fabric that armed the fail-safe", async () => {
+            await using device = await Device.create();
+            const exchange = await device.paseExchange();
+            await device.armFailSafe(exchange);
+
+            expect(await device.openWindow({}, exchange)).deep.equals(failure(PakeParameterError));
         });
 
         it("opens no window on a session without fabric and accepts the next window", async () => {
