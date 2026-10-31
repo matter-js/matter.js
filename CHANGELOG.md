@@ -44,6 +44,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Thermostat accepts a preset write that sends an existing built-in preset with a null `BuiltIn`
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
 
+- @matter/nodejs
+    - Fix: SQLite storage accepts overlapping transactions instead of failing with "Transaction is in progress", so concurrent node state writes are no longer lost (@delu999)
+
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
 
