@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint } from "@matter/main";
+import { Endpoint, ServerNode } from "@matter/main";
+import { ValveConfigurationAndControl } from "@matter/main/clusters/valve-configuration-and-control";
 import { ValidationError } from "@matter/main/types";
 import { AllDevicesTestInstance } from "../../src/AllDevicesTestInstance.js";
+import { TestValveConfigurationAndControlServer } from "../../src/cluster/TestValveConfigurationAndControlServer.js";
 import { listDeviceTypes } from "../../src/devices/DeviceTypeRegistry.js";
 
 function setupWith(...appArgs: string[]) {
@@ -58,5 +60,120 @@ describe("AllDevicesTestInstance --device", () => {
             ValidationError,
             "Endpoint 3 declared twice in --device flags",
         );
+    });
+});
+
+describe("AllDevicesTestInstance water-valve", () => {
+    const { ValveState } = ValveConfigurationAndControl;
+    const Valve = TestValveConfigurationAndControlServer;
+
+    before(() => MockTime.enable());
+    after(() => MockTime.disable());
+
+    let node: ServerNode;
+    let valve: Endpoint;
+
+    beforeEach(async () => {
+        MockTime.reset();
+        node = await setupWith("--device", "water-valve:1");
+        [valve] = node.parts;
+    });
+
+    afterEach(() => node.close());
+
+    it("reaches the target level after the movement", async () => {
+        await valve.act(agent => agent.get(Valve).open({ targetLevel: 40 }));
+        expect(valve.stateOf(Valve)).deep.include({
+            currentState: ValveState.Transitioning,
+            targetState: ValveState.Open,
+            targetLevel: 40,
+            currentLevel: 0,
+            openDuration: null,
+            remainingDuration: null,
+        });
+
+        await MockTime.advance(200);
+        expect(valve.stateOf(Valve)).deep.include({
+            currentState: ValveState.Open,
+            targetState: null,
+            targetLevel: null,
+            currentLevel: 40,
+        });
+
+        await valve.act(agent => agent.get(Valve).close());
+        expect(valve.stateOf(Valve)).deep.include({
+            currentState: ValveState.Transitioning,
+            targetState: ValveState.Closed,
+            targetLevel: 0,
+        });
+
+        await MockTime.advance(200);
+        expect(valve.stateOf(Valve)).deep.include({
+            currentState: ValveState.Closed,
+            targetState: null,
+            targetLevel: null,
+            currentLevel: 0,
+        });
+    });
+
+    it("counts RemainingDuration down and closes when it runs out", async () => {
+        await valve.act(agent => agent.get(Valve).open({ openDuration: 3 }));
+        expect(valve.stateOf(Valve)).deep.include({ openDuration: 3, remainingDuration: 3 });
+
+        await MockTime.advance(1000);
+        expect(valve.stateOf(Valve)).deep.include({ currentState: ValveState.Open, remainingDuration: 2 });
+
+        await MockTime.advance(2000);
+        expect(valve.stateOf(Valve)).deep.include({
+            openDuration: null,
+            remainingDuration: null,
+            targetState: ValveState.Closed,
+        });
+
+        await MockTime.advance(200);
+        expect(valve.stateOf(Valve)).deep.include({ currentState: ValveState.Closed, currentLevel: 0 });
+    });
+
+    it("uses DefaultOpenDuration when Open has no duration and stops the countdown on Close", async () => {
+        await valve.setStateOf(Valve, { defaultOpenDuration: 60 });
+        await valve.act(agent => agent.get(Valve).open({}));
+        expect(valve.stateOf(Valve)).deep.include({ openDuration: 60, remainingDuration: 60 });
+
+        await MockTime.advance(5000);
+        expect(valve.stateOf(Valve).remainingDuration).equals(55);
+
+        await valve.act(agent => agent.get(Valve).close());
+        await MockTime.advance(5000);
+        expect(valve.stateOf(Valve)).deep.include({
+            openDuration: null,
+            remainingDuration: null,
+            currentState: ValveState.Closed,
+        });
+    });
+
+    it("keeps the valve open without countdown when Open has a null duration", async () => {
+        await valve.setStateOf(Valve, { defaultOpenDuration: 60 });
+        await valve.act(agent => agent.get(Valve).open({ openDuration: null }));
+        await MockTime.advance(2000);
+        expect(valve.stateOf(Valve)).deep.include({
+            openDuration: null,
+            remainingDuration: null,
+            currentState: ValveState.Open,
+        });
+    });
+
+    it("reports RemainingDuration only when it leaves or returns to null or changes other than by the countdown", async () => {
+        const reported = new Array<number | null>();
+        valve.eventsOf(Valve).remainingDuration$Changed.quiet.on(value => {
+            reported.push(value);
+        });
+
+        await valve.act(agent => agent.get(Valve).open({ openDuration: 10 }));
+        await MockTime.advance(3000);
+        await valve.act(agent => agent.get(Valve).open({ openDuration: 20 }));
+        await MockTime.advance(2000);
+        await valve.act(agent => agent.get(Valve).close());
+
+        expect(reported).deep.equals([10, 20, null]);
     });
 });
