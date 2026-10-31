@@ -188,6 +188,26 @@ describe("Presets local write", () => {
         expect(storedPresets(deviceEp)[0].heatingSetpoint).equals(2200);
     });
 
+    it("keeps a held preset live after a rollback of two writes", async () => {
+        await using ctx = await thermostat(undefined, [newPreset()]);
+        const { deviceEp } = ctx;
+
+        await MockTime.resolve(
+            deviceEp.act(async agent => {
+                const held = agent.get(PresetsThermostatServer).state.presets[0];
+                held.heatingSetpoint = 2100;
+                held.heatingSetpoint = 2200;
+                await agent.context.transaction.rollback();
+
+                expect(held.heatingSetpoint).equals(2000);
+                held.heatingSetpoint = 2300;
+            }),
+            { macrotasks: true },
+        );
+
+        expect(storedPresets(deviceEp)[0].heatingSetpoint).equals(2300);
+    });
+
     it("refuses to clear the stored presets and keeps them", async () => {
         await using ctx = await thermostat(undefined, [newPreset()]);
         const { deviceEp } = ctx;

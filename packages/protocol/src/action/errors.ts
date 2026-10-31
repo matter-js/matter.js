@@ -123,8 +123,9 @@ export class ConformanceError extends ValidateError {
 export class EnumValueConformanceError extends ConformanceError {}
 
 /**
- * Thrown for a write to a managed value that no longer tracks live state: its context exited, a change in its
- * transaction moved, removed or replaced it in its list, or it is a read-only view.  Reads return the last value.
+ * Thrown for access to a managed value that no longer tracks live state: its context exited, a change in its
+ * transaction moved, removed or replaced it in its list, or it is a read-only view.  A write always throws.  A read of
+ * a nested value returns its last value; a read of a root value, or of a value whose container is absent, throws.
  */
 export class ExpiredReferenceError extends SchemaViolationError {
     constructor(path: SchemaErrorPath) {

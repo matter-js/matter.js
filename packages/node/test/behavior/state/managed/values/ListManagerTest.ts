@@ -8,7 +8,7 @@ import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { MaybePromise } from "@matter/general";
 import { MockExchange } from "@matter/node/testing";
-import { ConformanceError, ExpiredReferenceError, Val, WriteError } from "@matter/protocol";
+import { ConformanceError, ExpiredReferenceError, PhantomReferenceError, Val, WriteError } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { TestCluster, TestStruct, aclEndpoint, fieldOf, listOf, rawValuesOf, structOf } from "./value-utils.js";
 
@@ -1540,6 +1540,80 @@ describe("ListManager", () => {
                 expect(held.value).equals(3);
                 held.value = 9;
                 expect((ref1.list as ValueList)[0].value).equals(9);
+            });
+        });
+
+        it("stays live after a rollback of its own write that followed another transaction's commit", async () => {
+            const struct = entries();
+            const cx = {
+                exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                node: aclEndpoint(),
+            };
+
+            await struct.online2(cx, cx, async ({ cx1, cx2, ref1, ref2 }) => {
+                const held = (ref1.list as ValueList)[0];
+                (ref2.list as ValueList).reverse();
+                await cx2.transaction.commit();
+                held.value = 9;
+                await cx1.transaction.rollback();
+
+                expect(held.value).equals(3);
+                held.value = 8;
+                expect((ref1.list as ValueList)[0].value).equals(8);
+            });
+        });
+
+        it("expires when its own reorder puts back the entry another transaction's commit moved away", async () => {
+            const struct = entries();
+            const cx = {
+                exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                node: aclEndpoint(),
+            };
+
+            await struct.online2(cx, cx, async ({ cx2, ref1, ref2 }) => {
+                const held = (ref1.list as ValueList)[0];
+                (ref2.list as ValueList).reverse();
+                await cx2.transaction.commit();
+                (ref1.list as ValueList).reverse();
+
+                expect(() => (held.value = 7)).throws(ExpiredReferenceError);
+            });
+        });
+
+        it("expires when its own reorder puts back its committed copy that another transaction moved away", async () => {
+            const struct = entries();
+            const cx = {
+                exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                node: aclEndpoint(),
+            };
+
+            await struct.online2(cx, cx, async ({ cx1, cx2, ref1, ref2 }) => {
+                const held = (ref1.list as ValueList)[0];
+                held.value = 7;
+                await cx1.transaction.commit();
+                (ref2.list as ValueList).reverse();
+                await cx2.transaction.commit();
+
+                expect(held.value).equals(3);
+                (ref1.list as ValueList).reverse();
+                expect(() => (held.value = 8)).throws(ExpiredReferenceError);
+            });
+        });
+
+        it("stays absent, not expired, after another transaction removes its entry", async () => {
+            const struct = entries();
+            const cx = {
+                exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                node: aclEndpoint(),
+            };
+
+            await struct.online2(cx, cx, async ({ cx2, ref1, ref2 }) => {
+                const held = (ref1.list as ValueList)[2];
+                (ref2.list as ValueList).pop();
+                await cx2.transaction.commit();
+                (ref1.list as ValueList)[0].value = 5;
+
+                expect(() => (held.value = 7)).throws(PhantomReferenceError);
             });
         });
 

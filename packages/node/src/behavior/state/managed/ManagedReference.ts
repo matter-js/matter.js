@@ -64,7 +64,8 @@ export class ManagedReference implements ValReference {
     #dynamicContainer: Val.Struct | undefined;
     #dynamicSource: Val | undefined;
     #binding: ManagedReference.Binding;
-    #origin: unknown;
+    #entry: unknown;
+    #copies?: WeakSet<object>;
     #detached = false;
 
     /**
@@ -105,7 +106,7 @@ export class ManagedReference implements ValReference {
             this.#dynamicContainer === undefined
                 ? memberValueOf(parent.value as Container, key, readFallbackKey)
                 : memberValueOf(this.#dynamicContainer as Container, key, fallbackKey);
-        this.#origin = this.#value;
+        this.#entry = this.#value;
 
         // Propagate supervision config from parent
         if (parent.supervisionConfig) {
@@ -167,7 +168,9 @@ export class ManagedReference implements ValReference {
             if (!this.owns(this.#value)) {
                 const clone = this.#clone(this.#value);
                 this.adopt(clone);
-                this.#origin = this.#value;
+                if (this.#binding === "entry" && typeof clone === "object" && clone !== null) {
+                    (this.#copies ??= new WeakSet()).add(clone);
+                }
                 this.#replaceValue(clone, "session");
             }
 
@@ -206,21 +209,29 @@ export class ManagedReference implements ValReference {
 
     /**
      * Take `value` as the referenced value.  An entry reference expires instead when a change in this session put
-     * another entry at its index.  It accepts only the entry it holds and the entry its own copy was made from, which a
-     * rollback puts back.  After another transaction's commit, an entry reference follows its index like a member
-     * reference.
+     * another entry at its index.  It accepts its entry and every copy it made of that entry, because only a rollback
+     * puts an earlier copy back.  After another transaction's commit, an entry reference follows its index like a
+     * member reference and binds to the entry now there.
      */
     #follow(value: unknown, cause: ValReference.RefreshCause) {
         if (this.#binding === "entry") {
             if (cause === "external") {
-                this.#origin = value;
-            } else if (value !== this.#value && value !== this.#origin) {
+                this.#entry = value;
+                this.#copies = undefined;
+            } else if (!this.#holds(value)) {
                 this.#detach();
                 return;
             }
         }
 
         this.#replaceValue(value, cause);
+    }
+
+    #holds(value: unknown) {
+        if (value === this.#entry) {
+            return true;
+        }
+        return typeof value === "object" && value !== null && !!this.#copies?.has(value);
     }
 
     /**
@@ -282,8 +293,9 @@ export namespace ManagedReference {
      *
      * - `member`: the key.  A struct member is identified by its name, so the reference follows the container the
      *   parent holds there.
-     * - `entry`: the entry it was read for.  An index does not identify a list entry: a list method, a length change, an
-     *   assignment at the index or of the whole list puts another entry there.
+     * - `entry`: the entry it was read for, or the entry another transaction's commit put at its index.  An index does
+     *   not identify a list entry: a list method, a length change, an assignment at the index or of the whole list puts
+     *   another entry there.
      */
     export type Binding = "member" | "entry";
 }
