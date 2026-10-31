@@ -81,6 +81,14 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Device attestation refuses a Certification Declaration that breaks a rule of its CMS envelope, `format_version` or `certification_type`
     - Fix: Device attestation refuses an official Certification Declaration signed by the Matter test CD signer
     - Fix: Device attestation reports a Certification Declaration from the Matter test CD signer as `TrustedAsTestCertificate` when test certificates are not accepted
+    - Fix: A VVSC with is-ca false, as the specification requires, no longer fails to load
+    - Fix: Operational certificate verification refuses a NOC whose extended key usage lacks serverAuth, as CHIP does
+    - Fix: Operational certificate verification counts each CASE Authenticated Tag as an RDN, so a DN with more than 5 RDNs is refused
+    - Fix: Operational certificates that repeat a single-valued DN attribute, or whose NOC, ICAC or RCAC subject has a matter-vvs-id, are refused with an error that names the attribute
+    - Fix: DER certificate parsing refuses a CASE Authenticated Tag with version 0
+
+- @matter/types
+    - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when it decodes a field that is not repeated more than once
 
 ## 0.18.0 (2026-10-20)
 
