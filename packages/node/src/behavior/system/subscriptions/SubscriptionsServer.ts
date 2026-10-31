@@ -161,7 +161,7 @@ export class SubscriptionsServer extends Behavior {
     async #eraseLegacyStateList() {
         const endpointStore = this.env.get(ServerNodeStore).storeForEndpoint(this.endpoint);
         if (endpointStore.knownBehaviors.has(SubscriptionsServer.id)) {
-            await endpointStore.set({ [SubscriptionsServer.id]: undefined });
+            await endpointStore.eraseStoreForBehavior(SubscriptionsServer.id);
         }
     }
 

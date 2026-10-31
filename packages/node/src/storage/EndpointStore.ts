@@ -153,8 +153,9 @@ export class EndpointStore {
     /**
      * Remove all persisted information for a single behavior on the {@link Endpoint}.
      */
-    eraseStoreForBehavior(behaviorId: string) {
-        return this.storage.createContext(behaviorId).clearAll();
+    async eraseStoreForBehavior(behaviorId: string) {
+        await this.storage.createContext(behaviorId).clearAll();
+        this.#knownBehaviors.delete(behaviorId);
     }
 
     protected get storage() {
