@@ -218,7 +218,9 @@ runs this suite in CI:
 Every run also exercises the cheap `matterjs` flavor (no Docker app binaries needed) alongside
 whichever `chip-local` binary source(s) were selected. Evidence bundles
 (`support/chip-testing/build/cert-evidence/**`, including attached device/controller logs) are
-uploaded as job artifacts on every run, pass or fail, one per flavor/binary-source combination.
+uploaded as job artifacts on every run, pass or fail, one per controller, device and shard. Each
+controller × device combination runs as several shard jobs in parallel; a spec file's shard comes from a
+checksum of its path (`.github/scripts/cert-shard-files.sh`).
 
 ### Evidence
 

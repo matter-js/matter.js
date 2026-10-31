@@ -1867,11 +1867,11 @@ and filed upstream.
 **A factory reset is not the same operation on every flavor**, which is why it is the *device* that
 implements it, behind one `BackchannelCommand`:
 
-| Flavor | `factoryReset` | `reboot` |
-| --- | --- | --- |
-| `chip-local` | stop, drop the storage directory holding `chip_kvs`, start | stop, start (store kept) |
-| `chip-docker` | stop, start — the store lives in the container's own filesystem, which the composition discards | refused: it cannot keep the store, so a caller wanting one must use `chip-local` |
-| `matterjs` | `Node.erase()`, which goes offline, resets storage and comes back | close, reinitialize, start |
+| Flavor | `factoryReset` | `reboot` | `factoryResetWithAppArgs` |
+| --- | --- | --- | --- |
+| `chip-local` | stop, drop the storage directory holding `chip_kvs`, start | stop, start (store kept) | as `factoryReset`, starting with the case arguments it names in place of the declared ones |
+| `chip-docker` | stop, start — the store lives in the container's own filesystem, which the composition discards | refused: it cannot keep the store, so a caller wanting one must use `chip-local` | refused |
+| `matterjs` | `Node.erase()`, which goes offline, resets storage and comes back | close, reinitialize, start | refused |
 
 **A stop the harness asked for is not a crash.** `CertDevice.exit` settles only for an exit nobody
 asked for, so `cert-test.ts`'s exit watch survives a step restarting a device and still fails the run
