@@ -248,9 +248,9 @@ export class GeneralDiagnosticsServer extends Base {
      */
     registerHardwareFault(faultType: GeneralDiagnostics.HardwareFault) {
         const currentFaults = this.requireAttributeEnabled("activeHardwareFaults");
-        const list = currentFaults.filter(fault => fault !== faultType);
-        list.push(faultType);
-        this.state.activeHardwareFaults = list;
+        if (!currentFaults.includes(faultType)) {
+            this.state.activeHardwareFaults = [...currentFaults, faultType];
+        }
     }
 
     /**
@@ -286,9 +286,9 @@ export class GeneralDiagnosticsServer extends Base {
      */
     registerRadioFault(faultType: GeneralDiagnostics.RadioFault) {
         const currentFaults = this.requireAttributeEnabled("activeRadioFaults");
-        const list = currentFaults.filter(fault => fault !== faultType);
-        list.push(faultType);
-        this.state.activeRadioFaults = list;
+        if (!currentFaults.includes(faultType)) {
+            this.state.activeRadioFaults = [...currentFaults, faultType];
+        }
     }
 
     /**
@@ -324,9 +324,9 @@ export class GeneralDiagnosticsServer extends Base {
      */
     registerNetworkFault(faultType: GeneralDiagnostics.NetworkFault) {
         const currentFaults = this.requireAttributeEnabled("activeNetworkFaults");
-        const list = currentFaults.filter(fault => fault !== faultType);
-        list.push(faultType);
-        this.state.activeNetworkFaults = list;
+        if (!currentFaults.includes(faultType)) {
+            this.state.activeNetworkFaults = [...currentFaults, faultType];
+        }
     }
 
     /**

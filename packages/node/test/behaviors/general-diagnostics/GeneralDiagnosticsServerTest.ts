@@ -93,6 +93,33 @@ describe("GeneralDiagnosticsServer", () => {
             ]);
         });
 
+        // § 11.12.6.6: "This list SHALL NOT contain more than one instance of a specific HardwareFaultEnum value."
+        it("emits nothing when an active fault is registered again", async () => {
+            const { node, emitted } = await createFaultDevice();
+            await using _node = node;
+
+            await node.act(agent => {
+                const server = agent.get(FaultServer);
+                server.registerHardwareFault(HardwareFault.Radio);
+                server.registerHardwareFault(HardwareFault.Sensor);
+                server.registerRadioFault(RadioFault.WiFiFault);
+                server.registerRadioFault(RadioFault.ThreadFault);
+                server.registerNetworkFault(NetworkFault.NetworkJammed);
+                server.registerNetworkFault(NetworkFault.ConnectionFailed);
+            });
+            emitted.length = 0;
+
+            await node.act(agent => agent.get(FaultServer).registerHardwareFault(HardwareFault.Radio));
+            await node.act(agent => agent.get(FaultServer).registerRadioFault(RadioFault.WiFiFault));
+            await node.act(agent => agent.get(FaultServer).registerNetworkFault(NetworkFault.NetworkJammed));
+
+            const state = node.stateOf(FaultServer);
+            expect(state.activeHardwareFaults).deep.equals([HardwareFault.Radio, HardwareFault.Sensor]);
+            expect(state.activeRadioFaults).deep.equals([RadioFault.WiFiFault, RadioFault.ThreadFault]);
+            expect(state.activeNetworkFaults).deep.equals([NetworkFault.NetworkJammed, NetworkFault.ConnectionFailed]);
+            expect(emitted).deep.equals([]);
+        });
+
         it("emits nothing when an absent fault is cleared", async () => {
             const { node, emitted } = await createFaultDevice();
             await using _node = node;
