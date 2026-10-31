@@ -629,18 +629,9 @@ export namespace GeneralDiagnosticsServer {
 
     export declare const ExtensionInterface: {
         triggerTestEvent: (eventTrigger: number | bigint) => void;
-        registerHardwareFault: (
-            current: GeneralDiagnostics.HardwareFault[],
-            previous: GeneralDiagnostics.HardwareFault[],
-        ) => void;
-        registerRadioFault: (
-            current: GeneralDiagnostics.RadioFault[],
-            previous: GeneralDiagnostics.RadioFault[],
-        ) => void;
-        registerNetworkFault: (
-            current: GeneralDiagnostics.NetworkFault[],
-            previous: GeneralDiagnostics.NetworkFault[],
-        ) => void;
+        registerHardwareFault: (faultType: GeneralDiagnostics.HardwareFault) => void;
+        registerRadioFault: (faultType: GeneralDiagnostics.RadioFault) => void;
+        registerNetworkFault: (faultType: GeneralDiagnostics.NetworkFault) => void;
         clearHardwareFault: (faultType: GeneralDiagnostics.HardwareFault) => void;
         clearRadioFault: (faultType: GeneralDiagnostics.RadioFault) => void;
         clearNetworkFault: (faultType: GeneralDiagnostics.NetworkFault) => void;
