@@ -373,6 +373,18 @@ export const MATTERJS_SERVER_CONTROLLER_PICS: PicsValues = {
     "TBRM.C.C01.Tx": 1,
     "TBRM.C.C03.Tx": 1,
     "TBRM.C.C04.Tx": 1,
+    // The Operational Credentials client surface TC-OPCREDS-3.3 rests on, as for the other controllers
+    "OPCREDS.C": 1,
+    "OPCREDS.C.A0002": 1,
+    "OPCREDS.C.A0003": 1,
+    "OPCREDS.C.A0004": 1,
+    "OPCREDS.C.A0005": 1,
+    "OPCREDS.C.C04.Tx": 1,
+    "OPCREDS.C.C06.Tx": 1,
+    "OPCREDS.C.C07.Tx": 1,
+    "OPCREDS.C.C09.Tx": 1,
+    "OPCREDS.C.C0a.Tx": 1,
+    "OPCREDS.C.C0b.Tx": 1,
 };
 
 /**
@@ -393,6 +405,10 @@ export const MATTERJS_SERVER_CAPABILITY_GAPS = {
     "sustained-subscription":
         "this adapter keeps the server's own subscription to a node off except while an OTA update or an ICD " +
         "registration needs it, so it has none to observe events through or to keep its device list current",
+    "noc-update":
+        "the WebSocket API has no command that replaces a node's operational certificate, and a device_command " +
+        "UpdateNOC cannot stand in: the NOC must be issued by the server's certificate authority, which the API " +
+        "does not expose",
 } as const satisfies ControllerCapabilityGaps;
 
 const MULTI_PATH_WRITE_OUT_OF_SCOPE =
@@ -1471,6 +1487,10 @@ class MatterServerCertNodeApi implements CertNodeApi {
      */
     async decommission(): Promise<void> {
         await this.#command("remove_node", { node_id: this.#nodeId });
+    }
+
+    async updateOperationalCertificate(): Promise<never> {
+        throw refusal("noc-update", "updating the operational certificate of a node");
     }
 
     async operationalMdnsInstanceName(): Promise<string> {

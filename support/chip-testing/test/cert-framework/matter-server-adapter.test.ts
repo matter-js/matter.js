@@ -2189,6 +2189,7 @@ describe("MatterServerControllerAdapter", () => {
             ["basic-commissioning-window", () => n.openCommissioningWindow({ timeout: 180, enhanced: false })],
             ["ota-provider-script", () => n.announceOtaProvider()],
             ["ota-provider-script", () => n.scriptOtaProvider({})],
+            ["noc-update", () => n.updateOperationalCertificate?.()],
         ];
 
         for (const [capability, call] of refusals) {

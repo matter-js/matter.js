@@ -435,6 +435,20 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "MCORE.DEVLIST.UseDeviceName": 1,
     "MCORE.DEVLIST.UseDeviceState": 1,
     "MCORE.DEVLIST.UseBatInfo": 1,
+    // The Operational Credentials client surface TC-OPCREDS-3.3 rests on: the commands a commissioning and a
+    // certificate update send, and the attributes the case reads. matter.js's PICS file declares no `OPCREDS.C` key,
+    // and CHIP's answers them for a device.
+    "OPCREDS.C": 1,
+    "OPCREDS.C.A0002": 1,
+    "OPCREDS.C.A0003": 1,
+    "OPCREDS.C.A0004": 1,
+    "OPCREDS.C.A0005": 1,
+    "OPCREDS.C.C04.Tx": 1,
+    "OPCREDS.C.C06.Tx": 1,
+    "OPCREDS.C.C07.Tx": 1,
+    "OPCREDS.C.C09.Tx": 1,
+    "OPCREDS.C.C0a.Tx": 1,
+    "OPCREDS.C.C0b.Tx": 1,
 };
 
 const adapterStreams = new Map<string, LineQueue>();
@@ -2421,6 +2435,12 @@ class InProcessCertNodeApi implements CertNodeApi {
     decommission(): Promise<void> {
         return runTagged(this.#adapterId, async () => {
             await this.#peer.decommission();
+        });
+    }
+
+    updateOperationalCertificate(): Promise<void> {
+        return runTagged(this.#adapterId, async () => {
+            await this.#peer.updateOperationalCertificate();
         });
     }
 

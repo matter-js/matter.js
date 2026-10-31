@@ -4251,3 +4251,38 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl.
   (`CHANNEL.C.C04.Tx`, `C06.Tx`, `C07.Tx`, which CHIP's file lacks). CHIP's file answers every other `CHANNEL.C`, and
   every `MEDIAINPUT.C`, `CONTENTLAUNCHER.C` and `APPLAUNCHER.C` key these cases use, with 1, so those need no overlay.
   `TC-ALOGIN-12.2` names no step PICS, and CHIP's file answers `ALOGIN.C` 1.
+
+## The Operational Credentials client case (`TC-OPCREDS-3.3`)
+
+- **Step 1 resets the TH on both flavors.** `factoryReset` on a matter.js TH is `Node.erase()`, after which it logs
+  `Commissioning <id> is uncommissioned`. chip logs no such line; it opens its commissioning window at start only with
+  an empty fabric table, so `mDNS service published: _matterc._udp` after the reset stands for it. Step 8 confirms
+  the claim: the Fabrics read (not fabric-filtered) lists the DUT's fabric alone.
+- **Where the CSRResponse and AddNOC values come from.** matter.js prints them on its `ProtocolService Invoke »`
+  (response) and `Invoke «` (request) lines as `<name>: <hex>`, with `caseAdminSubject` and `adminVendorId` in
+  decimal. chip's interaction model dump never covers an outgoing InvokeResponse, and it prints an octet-string field
+  as `0x.., ` per byte on one line, so a field longer than about 280 bytes is cut at the 1708-character log line
+  limit, which a NOC can come close to. Its trace decoder does write each message's whole payload, in both
+  directions, as lowercase hex on a `data = <hex>` line after the `>> to` / `<< from` header, the
+  `Decrypted Payload (N bytes) =` line and a `{` line, and a payload of this cluster stays well under that limit. The case decodes that line with `TlvInvokeRequest` / `TlvInvokeResponse`, takes the command whose path is
+  the one it expects, and checks the hex length against `N`. The AddNOC and UpdateNOC request is the last inbound
+  `InvokeCommandRequest` header before chip's `Received an AddNOC command` line; the CSRResponse is the first outbound
+  `InvokeCommandResponse` after `CSRRequest successful.`.
+- **CertificateChainRequest on chip** is `OpCreds: Certificate Chain request received for DAC` (or `PAI`); there is
+  no `Received a ...` line for it. Steps 3 and 4 both search from the start of the commissioning, because every
+  commissioner here asks for the certificates before the attestation, the reverse of the plan's step order.
+- **Step 10 is a real comparison on every flavor**: the CSR is decoded out of NOCSRElements (its signature checked by
+  `Certificate.getPublicKeyFromCsr`) and its key compared with the AddNOC NOC's `ellipticCurvePublicKey`.
+- **Step 11 needs `noc-update`.** matter.js uses `ClientNode.updateOperationalCertificate()`. chip-tool runs it as
+  separate commands in its interactive process: ArmFailSafe, CSRRequest with IsForUpdateNOC, `pairing issue-noc-chain
+  hex:<NOCSRElements> <node-id>` (its result entry carries `NOC`/`ICAC` as `base64:` TLV certificates), UpdateNOC,
+  `sessionmanagement expire-case-sessions <node-id>`, CommissioningComplete. matterjs-server has no WebSocket command
+  for it and keeps its certificate authority to itself, so a `device_command` UpdateNOC has no NOC to send; the step
+  settles as a controller gap there. Besides the TH's received and OK lines, the step checks that the UpdateNOC NOC
+  names the same node and fabric as the AddNOC one with a different public key.
+- **chip logs no outcome for UpdateFabricLabel**, so step 12's success is the NOCResponse the DUT got. Step 17
+  sends RemoveFabric as a plain invoke with the FabricIndex step 8 read, not through `decommission()`, so the TH's
+  log shows that index: chip's `Received a RemoveFabric Command for FabricIndex 0x<n>` names it.
+- **PICS:** matter.js's PICS file has no `OPCREDS.C` key, so all three controller overlays declare the case's client
+  keys, as they state each controller's full client surface. matterjs-server's step 11 settles as the `noc-update`
+  gap through the capability mechanism.
