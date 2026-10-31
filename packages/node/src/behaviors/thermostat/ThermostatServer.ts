@@ -1722,9 +1722,21 @@ export namespace ThermostatBaseServer {
             Observable<[value: number, oldValue: number, context: ActionContext]>();
         externallyMeasuredOccupancy$Changed = Observable<[value: boolean, oldValue: boolean, context: ActionContext]>();
         persistedPresets$Changed =
-            Observable<[value: Thermostat.Preset[], oldValue: Thermostat.Preset[], context: ActionContext]>();
+            Observable<
+                [
+                    value: Thermostat.Preset[] | undefined,
+                    oldValue: Thermostat.Preset[] | undefined,
+                    context: ActionContext,
+                ]
+            >();
         persistedPresets$Changing =
-            Observable<[value: Thermostat.Preset[], oldValue: Thermostat.Preset[], context: ActionContext]>();
+            Observable<
+                [
+                    value: Thermostat.Preset[] | undefined,
+                    oldValue: Thermostat.Preset[] | undefined,
+                    context: ActionContext,
+                ]
+            >();
 
         /**
          * Custom event emitted when the calibrated temperature changes.

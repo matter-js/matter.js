@@ -260,7 +260,10 @@ describe("Presets local write", () => {
 
         // An observer that puts back exactly the value it was given leaves pre-commit nothing to announce, so only a
         // check of the settled presets sees this
-        const revert = (presets: Thermostat.Preset[]) => {
+        const revert = (presets: Thermostat.Preset[] | undefined) => {
+            if (presets === undefined) {
+                return;
+            }
             presets[0].presetHandle = null;
         };
         deviceEp.events.thermostat.persistedPresets$Changing.on(revert);
@@ -284,7 +287,10 @@ describe("Presets local write", () => {
         await using ctx = await thermostat();
         const { deviceEp } = ctx;
 
-        const revert = (presets: Thermostat.Preset[]) => {
+        const revert = (presets: Thermostat.Preset[] | undefined) => {
+            if (presets === undefined) {
+                return;
+            }
             for (const preset of presets) {
                 preset.presetHandle = null;
             }
@@ -327,6 +333,9 @@ describe("Presets local write", () => {
         const { deviceEp } = ctx;
 
         deviceEp.events.thermostat.persistedPresets$Changing.on(presets => {
+            if (presets === undefined) {
+                return;
+            }
             if (presets[0].presetHandle !== null) {
                 presets[0].builtIn = true;
             }
@@ -347,6 +356,9 @@ describe("Presets local write", () => {
         // An application observer registers after the behavior, so it runs after normalization; only the first
         // announcement that follows is the normalization coming back around
         deviceEp.events.thermostat.persistedPresets$Changing.on(presets => {
+            if (presets === undefined) {
+                return;
+            }
             if (presets[0].heatingSetpoint === 2000) {
                 presets[0].heatingSetpoint = 3100;
             }
