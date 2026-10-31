@@ -1116,7 +1116,21 @@ describe("ChipToolControllerAdapter", function () {
             const failure = await rejectionOf(update(node));
 
             expect(failure).instanceOf(OperationalCertificateUpdateError);
-            expect(fake.commands.slice(2)).deep.equal([ISSUE, updateNocCommand(ICAC), DISARM]);
+            expect(fake.commands.slice(2)).deep.equal([ISSUE, updateNocCommand(ICAC), EXPIRE, DISARM, EXPIRE]);
+        });
+
+        it("disarms on a new session and expires that one too where CommissioningComplete fails", async () => {
+            const { node } = await commissioned();
+            const succeed = answer();
+            fake.reply = command =>
+                command === COMPLETE
+                    ? commandResponse(GENERAL_COMMISSIONING_ID, 0x5, { "0": 2, "1": "" })
+                    : succeed(command);
+
+            const failure = await rejectionOf(update(node));
+
+            expect(failure).instanceOf(OperationalCertificateUpdateError);
+            expect(fake.commands.slice(4)).deep.equal([EXPIRE, COMPLETE, EXPIRE, DISARM, EXPIRE]);
         });
 
         it("sends nothing after an ArmFailSafe the node refused", async () => {

@@ -24,6 +24,7 @@ import {
     Lifetime,
     MockCrypto,
     Seconds,
+    StorageError,
     Time,
     UnexpectedDataError,
 } from "@matter/general";
@@ -611,6 +612,51 @@ describe("OperationalCertificateUpdate", () => {
             restoreController();
             restoreDevice();
         }
+    });
+
+    it("leaves a fail-safe armed by another operation of the fabric alone", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        const restore = loseUpdateNocResponse(() => device.setStateOf(GeneralCommissioningServer, { breadcrumb: 7 }));
+        try {
+            await expect(
+                withEntropy([controller, device], () =>
+                    MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
+                ),
+            ).rejectedWith(OperationalCertificateUpdateError, /outcome is unknown/);
+        } finally {
+            restore();
+        }
+
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).true;
+        expect(device.stateOf(GeneralCommissioningServer).breadcrumb).equal(7);
+    });
+
+    it("rolls back when dropping the resumption record fails after UpdateNOC", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const before = snapshot(device);
+
+        const original = SessionManager.prototype.deleteResumptionRecord;
+        let failed = false;
+        SessionManager.prototype.deleteResumptionRecord = async function (this: SessionManager, address: PeerAddress) {
+            if (!failed) {
+                failed = true;
+                throw new StorageError("test storage failure");
+            }
+            return original.call(this, address);
+        };
+        try {
+            await rejectedUpdate(controller, device, peer, /reverted to its previous certificate/);
+        } finally {
+            SessionManager.prototype.deleteResumptionRecord = original;
+        }
+
+        expect(failed).true;
+        expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
     });
 
     it("reports an unknown outcome when the node cannot be reached after UpdateNOC", async () => {

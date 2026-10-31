@@ -123,11 +123,12 @@ export interface OperationalCertificateUpdateResult {
  * | Failure                             | Action                                                                  |
  * | ----------------------------------- | ----------------------------------------------------------------------- |
  * | UpdateNOC not reached or refused    | disarm the fail-safe over session 1; the peer keeps its previous NOC    |
- * | UpdateNOC unanswered, or a failure  | disarm over a new session, then read Breadcrumb and NOCs together:      |
- * | after it                            | - Breadcrumb 0: the state is final; resolve if NOCs holds the new NOC,  |
- * |                                     |   else report the previous NOC kept                                     |
- * |                                     | - Breadcrumb of this update: the fail-safe is still armed; report that  |
- * |                                     |   the peer returns to its previous NOC when the fail-safe expires       |
+ * | UpdateNOC unanswered, or a failure  | read Breadcrumb and NOCs together over a new session; if Breadcrumb is  |
+ * | after it                            | this update's, disarm and read again. Then, by Breadcrumb:              |
+ * |                                     | - 0: the state is final; resolve if NOCs holds the new NOC, else report |
+ * |                                     |   the previous NOC kept                                                 |
+ * |                                     | - this update's: the fail-safe is still armed; report that the peer     |
+ * |                                     |   returns to its previous NOC when the fail-safe expires                |
  * |                                     | - other value: report the outcome as unknown                            |
  *
  * The update arms its fail-safe with a random non-zero Breadcrumb.  The peer resets Breadcrumb to 0 on a successful
@@ -192,9 +193,8 @@ export async function updateOperationalCertificate(
         return await settle(context, address, installed, failsafeArm, abort, installed.cause);
     }
 
-    await forgetSessions(context, address, "Operational certificate of the peer was updated");
-
     try {
+        await forgetSessions(context, address, "Operational certificate of the peer was updated");
         await withCase(
             context,
             address,
@@ -355,7 +355,8 @@ function randomBreadcrumb(crypto: Crypto) {
 /**
  * Report the state of a peer whose UpdateNOC may have taken effect.
  *
- * Disarms the fail-safe, then reads Breadcrumb and NOCs; see the table at {@link updateOperationalCertificate}.
+ * Does not disarm a fail-safe that it reads with another Breadcrumb, which another operation of the same fabric armed;
+ * see the table at {@link updateOperationalCertificate}.
  */
 async function settle(
     context: OperationalCertificateUpdateContext,
@@ -368,18 +369,21 @@ async function settle(
     let state: CertificateState;
     try {
         await forgetSessions(context, address, "Operational certificate update of the peer failed");
-        try {
-            await withCase(context, address, { abort }, ({ interaction }) => disarmFailsafe(interaction));
-        } catch (error) {
-            logger.info(`Could not reach ${address} to disarm its fail-safe:`, error);
+        const readState = () =>
+            withCase(context, address, { abort }, ({ interaction }) => certificateState(interaction, nocValue));
+        state = await readState();
+
+        if (state.breadcrumb === breadcrumb) {
+            try {
+                await withCase(context, address, { abort }, ({ interaction }) => disarmFailsafe(interaction));
+            } catch (error) {
+                logger.info(`Could not reach ${address} to disarm its fail-safe:`, error);
+            }
+
+            // A rollback ends the fabric's sessions without notice, and the disarm answer may be lost with them
+            await forgetSessions(context, address, "Peer may have reverted to its previous operational certificate");
+            state = await readState();
         }
-
-        // A rollback ends the fabric's sessions without notice, and the disarm answer may be lost with them
-        await forgetSessions(context, address, "Peer may have reverted to its previous operational certificate");
-
-        state = await withCase(context, address, { abort }, ({ interaction }) =>
-            certificateState(interaction, nocValue),
-        );
     } catch (error) {
         logger.info(`Could not read the certificate state of ${address} after a failed update:`, error);
         state = {};

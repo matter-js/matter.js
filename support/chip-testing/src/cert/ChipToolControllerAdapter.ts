@@ -1760,8 +1760,13 @@ class ChipToolCertNodeApi implements CertNodeApi {
         }
     }
 
-    /** Best effort: where this fails, the node still drops the update when its fail-safe ends. */
+    /**
+     * Best effort: where this fails, the node still drops the update when its fail-safe ends.  The disarm runs on a new
+     * CASE session because the node may already have dropped the one chip-tool holds, and the rollback clears the
+     * fabric's sessions on the node again, so chip-tool's sessions are expired before and after.
+     */
     async #disarmFailSafe() {
+        await this.#expireCaseSessions();
         try {
             await this.invoke(
                 "GeneralCommissioning",
@@ -1771,6 +1776,18 @@ class ChipToolCertNodeApi implements CertNodeApi {
             );
         } catch (error) {
             logger.info(`Disarming the fail-safe of node ${this.#node} failed`, error);
+        }
+        await this.#expireCaseSessions();
+    }
+
+    async #expireCaseSessions() {
+        try {
+            assertCommandSucceeded(
+                await this.#adapter.execute(`sessionmanagement expire-case-sessions ${this.#node}`),
+                "expire-case-sessions",
+            );
+        } catch (error) {
+            logger.info(`Expiring the CASE sessions of node ${this.#node} failed`, error);
         }
     }
 
