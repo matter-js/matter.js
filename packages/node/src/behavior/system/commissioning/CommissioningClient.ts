@@ -488,7 +488,7 @@ export class CommissioningClient extends Behavior {
      * it holds, or that this could not be determined.  If CommissioningComplete took effect but its answer was lost,
      * the update resolves.  Throws `OperationalCertificateUpdateError` for a failure once the node was reached, the
      * connection error if it cannot be reached, and {@link ImplementationError} if the node is not commissioned, this
-     * controller is not the certificate authority of its fabric or {@link OperationalCertificateUpdateOptions.failsafe}
+     * controller is not the certificate authority of its fabric or {@link CommissioningClient.OperationalCertificateUpdateOptions.failsafe}
      * is out of range.
      *
      * @see {@link MatterSpecification.v161.Core} § 11.18.6.9

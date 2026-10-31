@@ -104,6 +104,15 @@ function answeredOk(command: string, chip: RegExp): LogExpectPatterns {
 
 const UPDATE_NOC_OK = answeredOk("updateNoc", /OpCreds: UpdateNOC successful\./);
 
+/**
+ * The TH's line for a CommissioningComplete that committed the pending NOC and disarmed the fail-safe.  Without it the
+ * TH rolls the UpdateNOC back when the fail-safe expires.
+ */
+const COMMISSIONING_COMPLETE_OK = {
+    chip: /GeneralCommissioning: Successfully committed pending fabric data/,
+    matterjs: /ProtocolService Invoke » .*generalCommissioning\.commissioningComplete\b.*errorCode: 0(?!\d)/,
+};
+
 /** The CSRResponse the TH sent: chip's success line, matter.js's response line carrying the fields. */
 const CSR_RESPONSE = {
     chip: /OpCreds: CSRRequest successful\./,
@@ -710,10 +719,18 @@ certTest("TC-OPCREDS-3.3", {
             );
             const request = await readNocRequest(th, UPDATE_NOC, UPDATE_NOC_ID, from);
             const answered = await expectDeviceLog(th.log, th.flavor, UPDATE_NOC_OK, from, LOG_TIMEOUT);
+            const completed = await expectDeviceLog(
+                th.log,
+                th.flavor,
+                COMMISSIONING_COMPLETE_OK,
+                answered.check.logLine ?? from,
+                LOG_TIMEOUT,
+            );
             await withChecks(cx, async checks => {
                 checks.push({ what: "the DUT's certificate update", check: () => updated.check });
                 checks.push({ what: "the TH received UpdateNOC", check: () => request.check });
                 checks.push({ what: "the TH answered UpdateNOC with OK", check: () => answered.check });
+                checks.push({ what: "the TH completed the update", check: () => completed.check });
                 const updatedNoc = request.value?.nocValue;
                 if (updatedNoc === undefined || addNoc === undefined) {
                     return;

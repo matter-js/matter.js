@@ -436,8 +436,8 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "MCORE.DEVLIST.UseDeviceState": 1,
     "MCORE.DEVLIST.UseBatInfo": 1,
     // The Operational Credentials client surface TC-OPCREDS-3.3 rests on: the commands a commissioning and a
-    // certificate update send, and the attributes the case reads. matter.js's PICS file declares no `OPCREDS.C` key,
-    // and CHIP's answers them for a device.
+    // certificate update send, and the attributes the case reads. CHIP's ci-pics-values answers them 1 already; the
+    // overlay states the controller's own client surface, as for the other client cases.
     "OPCREDS.C": 1,
     "OPCREDS.C.A0002": 1,
     "OPCREDS.C.A0003": 1,

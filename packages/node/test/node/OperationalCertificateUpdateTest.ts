@@ -12,11 +12,27 @@ import { OperationalCredentialsServer } from "#behaviors/operational-credentials
 import { FabricOperationInProgressError } from "#node/client/Peers.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { Bytes, Crypto, Entropy, Environment, ImplementationError, MockCrypto, Seconds } from "@matter/general";
+import {
+    Bytes,
+    causedBy,
+    Crypto,
+    Entropy,
+    Environment,
+    ImplementationError,
+    isObject,
+    Lifetime,
+    MockCrypto,
+    Seconds,
+    Time,
+    UnexpectedDataError,
+} from "@matter/general";
 import { MockSite, subscribedPeer } from "@matter/node/testing";
 import {
     CertificateAuthority,
+    ClientInteraction,
     ControllerCommissioner,
+    FabricChangedError,
+    PeerUnresponsiveError,
     DeviceCommissioner,
     ExchangeManager,
     Fabric,
@@ -108,6 +124,54 @@ async function nodeLabelReachesController(device: ServerNode, peer: ClientNode, 
         await MockTime.resolve(MockTime.sleep("wait for report", Seconds(1)));
     }
     expect(peer.stateOf(BasicInformationClient).nodeLabel).equals(nodeLabel);
+}
+
+/** § 11.18.6: UpdateNOC is command 0x07 of the Operational Credentials cluster. */
+const UPDATE_NOC_COMMAND_ID = 0x07;
+
+/**
+ * Make the controller see no answer to UpdateNOC although the device processed it: the real invoke runs to its end,
+ * then the call fails as if the response had been lost.  Returns a restore function.
+ */
+function loseUpdateNocResponse(afterDelivery?: () => Promise<void>) {
+    const original = ClientInteraction.prototype.invoke;
+    ClientInteraction.prototype.invoke = async function* (
+        this: ClientInteraction,
+        ...args: Parameters<typeof original>
+    ): ReturnType<typeof original> {
+        const [request] = args;
+        const isUpdateNoc = request.invokeRequests.some(
+            ({ commandPath }) =>
+                commandPath.clusterId === OperationalCredentials.Cluster.id &&
+                commandPath.commandId === UPDATE_NOC_COMMAND_ID,
+        );
+        if (!isUpdateNoc) {
+            yield* original.apply(this, args);
+            return;
+        }
+        for await (const _chunk of original.apply(this, args));
+        await afterDelivery?.();
+        throw new PeerUnresponsiveError(Seconds(30));
+    };
+    return () => {
+        ClientInteraction.prototype.invoke = original;
+    };
+}
+
+/** Number of open interaction lifetimes under the environment of {@link node}. */
+function interactionLifetimesOf(node: ServerNode) {
+    const probe = node.env.join("probe");
+    const root = probe.owner;
+    probe[Symbol.dispose]();
+    return root === undefined ? 0 : interactionLifetimes(root);
+}
+
+function interactionLifetimes(lifetime: Lifetime): number {
+    let count = lifetime.name === "interactions" ? 1 : 0;
+    for (const span of lifetime.spans) {
+        count += interactionLifetimes(span);
+    }
+    return count;
 }
 
 describe("OperationalCertificateUpdate", () => {
@@ -255,6 +319,7 @@ describe("OperationalCertificateUpdate", () => {
         const { controller, device } = await site.addCommissionedPair();
         const peer = await subscribedPeer(controller, "peer1");
         const before = snapshot(device);
+        const fabricIndexOnPeer = peer.stateOf(CommissioningClient).fabricIndexOnPeer;
 
         const restore = await patchDeviceCommand(
             device,
@@ -274,6 +339,8 @@ describe("OperationalCertificateUpdate", () => {
 
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
         expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).false;
+        // The NOCResponse arrived, so its fabric index is known; the result of the lost confirmation carries none
+        expect(peer.stateOf(CommissioningClient).fabricIndexOnPeer).equals(fabricIndexOnPeer);
         await nodeLabelReachesController(device, peer, "after lost confirmation");
     });
 
@@ -391,6 +458,173 @@ describe("OperationalCertificateUpdate", () => {
                 { address: PeerAddress(peer.peerAddress!) },
             ),
         ).rejectedWith(ImplementationError, /not the certificate authority/);
+    });
+
+    it("reverts when the UpdateNOC answer is lost", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const before = snapshot(device);
+
+        const restore = loseUpdateNocResponse();
+        const startedAt = Time.nowMs;
+        try {
+            await rejectedUpdate(controller, device, peer, /reverted to its previous certificate/);
+        } finally {
+            restore();
+        }
+
+        // The disarm over a fresh session settled it; nothing waited for the fail-safe to expire
+        expect(Time.nowMs - startedAt).lessThan(60_000);
+
+        expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
+        await nodeLabelReachesController(device, peer, "after lost UpdateNOC answer");
+    });
+
+    it("reads the certificate only after the fail-safe expired when the disarm fails", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const before = snapshot(device);
+
+        const restoreDevice = await patchDeviceCommand(
+            device,
+            GeneralCommissioningServer,
+            "armFailSafe",
+            original =>
+                async function (this: unknown, ...args: unknown[]) {
+                    const [request] = args;
+                    if (isObject(request) && request.expiryLengthSeconds === 0) {
+                        return {
+                            errorCode: GeneralCommissioning.CommissioningError.ValueOutsideRange,
+                            debugText: "test refusal",
+                        };
+                    }
+                    return original.apply(this, args);
+                },
+        );
+        const restoreController = loseUpdateNocResponse();
+        const startedAt = Time.nowMs;
+        try {
+            await expect(
+                withEntropy([controller, device], () =>
+                    MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
+                ),
+            ).rejectedWith(OperationalCertificateUpdateError, /reverted to its previous certificate/);
+        } finally {
+            restoreController();
+            restoreDevice();
+        }
+
+        expect(Time.nowMs - startedAt).greaterThanOrEqual(60_000);
+        expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
+    });
+
+    it("reports an unknown outcome when the node cannot be reached after UpdateNOC", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        const restore = loseUpdateNocResponse(() => device.stop());
+        try {
+            await expect(
+                withEntropy([controller, device], () =>
+                    MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
+                ),
+            ).rejectedWith(OperationalCertificateUpdateError, /outcome is unknown/);
+        } finally {
+            restore();
+        }
+    });
+
+    it("rolls back when the CSR response is empty", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const before = snapshot(device);
+
+        const restore = await patchDeviceCommand(
+            device,
+            OperationalCredentialsServer,
+            "csrRequest",
+            () => async () => ({
+                nocsrElements: new Uint8Array(),
+                attestationSignature: new Uint8Array(64),
+            }),
+        );
+        let failure: unknown;
+        try {
+            failure = await withEntropy([controller, device], () =>
+                MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }).then(
+                    () => undefined,
+                    (error: unknown) => error,
+                ),
+            );
+        } finally {
+            restore();
+        }
+
+        expect(failure).instanceOf(OperationalCertificateUpdateError);
+        expect(causedBy(failure, UnexpectedDataError)).true;
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
+        expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
+    });
+
+    it("accepts the fail-safe bounds 30 s and 65535 s", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        for (const failsafe of [Seconds(30), Seconds(0xffff)]) {
+            const before = snapshot(device).operationalCert;
+            await withEntropy([controller, device], () =>
+                MockTime.resolve(peer.updateOperationalCertificate({ failsafe }), { macrotasks: true }),
+            );
+            expect(Bytes.areEqual(snapshot(device).operationalCert, before)).false;
+        }
+    });
+
+    it("fails fast without arming a fail-safe when aborted before connecting", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        await controller.env.get(PeerSet).get(peer.peerAddress!)!.disconnect(new FabricChangedError("test"));
+
+        const abort = new AbortController();
+        abort.abort(new FabricChangedError("aborted by test"));
+        await expect(MockTime.resolve(peer.updateOperationalCertificate({ abort: abort.signal }), { macrotasks: true }))
+            .rejected;
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
+    });
+
+    it("leaves no interaction open", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const open = interactionLifetimesOf(controller);
+
+        await update(controller, device, peer);
+
+        expect(interactionLifetimesOf(controller)).equals(open);
+    });
+
+    it("refuses a second update or a commission while the certificate update runs", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        await withEntropy([controller, device], async () => {
+            const updating = MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true });
+            await expect(peer.updateOperationalCertificate()).rejectedWith(
+                FabricOperationInProgressError,
+                /^Cannot update the operational certificate of .* because a certificate update attempt is already in progress$/,
+            );
+            await expect(peer.commission({ passcode: 20202021 })).rejectedWith(
+                FabricOperationInProgressError,
+                /^Cannot commission .* because a certificate update attempt is already in progress$/,
+            );
+            await updating;
+        });
     });
 
     it("refuses to decommission while the certificate update runs", async () => {

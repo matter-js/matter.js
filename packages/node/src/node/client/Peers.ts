@@ -601,8 +601,9 @@ export class Peers extends EndpointContainer<ClientNode> {
      * Run a commission attempt on {@link node} while protecting the node from the expired-node cull.
      *
      * Rejects with `DestroyedDependencyError` or `CrashedDependencyError` if the node is gone (its closing or deletion
-     * began, or it crashed), so the attempt fails fast instead of crashing later when the closed backing is accessed, and with {@link FabricOperationInProgressError} if a commission, decommission or certificate update of it
-     * is already in progress, as parallel attempts on the same {@link ClientNode} would race on device-side state.
+     * began, or it crashed), so the attempt fails fast instead of crashing later when the closed backing is accessed,
+     * and with {@link FabricOperationInProgressError} if a commission, decommission or certificate update of it is
+     * already in progress, as parallel attempts on the same {@link ClientNode} would race on device-side state.
      * Calling {@link ClientNode.commission} inside {@link fn} therefore rejects.
      */
     async runCommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {

@@ -49,6 +49,9 @@ const COMMISSIONING_COMPLETE_MARGIN = Seconds(10);
 /** Shortest fail-safe that leaves time for the reconnect after {@link COMMISSIONING_COMPLETE_MARGIN}. */
 const MIN_FAILSAFE = Seconds(30);
 
+/** Time added to the fail-safe before the peer is assumed to have rolled back an unconfirmed update. */
+const FAILSAFE_EXPIRY_MARGIN = Seconds(10);
+
 /** ArmFailSafe carries the expiry as uint16 seconds (§ 11.10.7.2). */
 const MAX_FAILSAFE = Seconds(0xffff);
 
@@ -119,11 +122,15 @@ export interface OperationalCertificateUpdateResult {
  *
  * Failure handling:
  *
- * | Failure                          | Action                                                                     |
- * | -------------------------------- | -------------------------------------------------------------------------- |
- * | before UpdateNOC was sent        | disarm the fail-safe over session 1; the peer keeps its previous NOC       |
- * | after UpdateNOC was sent         | disarm over a new session, then read the NOCs attribute to learn which NOC |
- * |                                  | the peer kept; resolve if it kept the new one                              |
+ * | Failure                             | Action                                                                  |
+ * | ----------------------------------- | ----------------------------------------------------------------------- |
+ * | UpdateNOC not reached or refused    | disarm the fail-safe over session 1; the peer keeps its previous NOC    |
+ * | UpdateNOC unanswered, or a failure  | disarm over a new session; once the disarm is confirmed, or once the    |
+ * | after it                            | armed fail-safe has certainly expired, read the NOCs attribute to learn |
+ * |                                     | which NOC the peer kept; resolve if it kept the new one                 |
+ *
+ * The NOCs attribute shows a pending NOC while the fail-safe is armed (§ 11.18.6.9), so it is read only once the
+ * peer's state is final.
  *
  * After UpdateNOC and after a rollback the peer clears our sessions without notice, so we close ours, drop the
  * resumption record and restart subscriptions.
@@ -161,7 +168,14 @@ export async function updateOperationalCertificate(
     const armedAt = Time.nowUs;
     const failsafeLeft = () => Millis(Math.max(Math.floor(failsafe - (Time.nowUs - armedAt)), 0));
 
-    const installed = await installNewCertificate(context, first, fabric.fabricId, failsafe);
+    let installed: InstalledCertificate;
+    try {
+        installed = await installNewCertificate(context, first, fabric.fabricId, failsafe);
+    } finally {
+        await first.interaction.close();
+    }
+    // The peer armed the fail-safe before it answered ArmFailSafe, so it expires before this
+    const failsafeExpiredAt = Time.nowUs + failsafe + FAILSAFE_EXPIRY_MARGIN;
 
     if (installed.kind === "refused") {
         if (installed.cause instanceof FailsafeRefusedError) {
@@ -174,7 +188,7 @@ export async function updateOperationalCertificate(
     }
 
     if (installed.kind === "unconfirmed") {
-        return await settle(context, address, installed, installed.cause);
+        return await settle(context, address, installed, failsafeExpiredAt, installed.cause);
     }
 
     await forgetSessions(context, address, "Operational certificate of the peer was updated");
@@ -205,7 +219,7 @@ export async function updateOperationalCertificate(
             },
         );
     } catch (error) {
-        return await settle(context, address, installed, error);
+        return await settle(context, address, installed, failsafeExpiredAt, error);
     }
 
     logger.info("Updated operational certificate of", address.toString());
@@ -328,22 +342,42 @@ async function installNewCertificate(
 /**
  * Bring a peer whose UpdateNOC may have taken effect to a final state and report it.
  *
- * Disarming makes the state final: it reverts a pending update and does nothing once CommissioningComplete went
- * through.  The NOCs attribute then shows which certificate the peer kept.
+ * A confirmed disarm makes the state final: it reverts a pending update and does nothing once CommissioningComplete
+ * went through.  Without a confirmed disarm the state is final once the armed fail-safe has expired, at
+ * {@link failsafeExpiredAt} on the {@link Time.nowUs} clock.  The NOCs attribute then shows which certificate the peer
+ * kept.
  */
 async function settle(
     context: OperationalCertificateUpdateContext,
     address: PeerAddress,
     { nocValue, operationalPublicKey }: NewCertificate,
+    failsafeExpiredAt: number,
     cause: unknown,
 ): Promise<OperationalCertificateUpdateResult> {
     let kept: boolean;
     try {
         await forgetSessions(context, address, "Operational certificate update of the peer failed");
-        const disarmed = await withCase(context, address, {}, ({ interaction }) => disarmFailsafe(interaction));
-        if (disarmed) {
-            await forgetSessions(context, address, "Peer may have reverted to its previous operational certificate");
+        let disarmed = false;
+        try {
+            disarmed = await withCase(context, address, {}, ({ interaction }) => disarmFailsafe(interaction));
+        } catch (error) {
+            logger.info(`Could not reach ${address} to disarm its fail-safe:`, error);
         }
+
+        // A rollback ends the fabric's sessions without notice, and the disarm answer may be lost with them
+        await forgetSessions(context, address, "Peer may have reverted to its previous operational certificate");
+
+        if (!disarmed) {
+            const wait = Math.ceil(failsafeExpiredAt - Time.nowUs);
+            if (wait > 0) {
+                logger.info(
+                    `Waiting ${Duration.format(Millis(wait))} for the fail-safe of ${address} to expire before reading its certificate`,
+                );
+                await Time.sleep("operational certificate rollback", Millis(wait));
+            }
+            await forgetSessions(context, address, "Fail-safe of the peer expired");
+        }
+
         kept = await withCase(context, address, {}, ({ interaction }) => holdsNoc(interaction, nocValue));
     } catch (error) {
         logger.info(`Could not determine the operational certificate of ${address} after a failed update:`, error);
@@ -425,19 +459,19 @@ async function connectCase(
     };
 }
 
-/**
- * Run {@link fn} with a CASE session from {@link connectCase}.
- *
- * The interaction stays open: closing a {@link ClientInteraction} also closes every subscription to the peer, including
- * those of other components.
- */
+/** Run {@link fn} with a CASE session from {@link connectCase} and close its interaction afterwards. */
 async function withCase<T>(
     context: OperationalCertificateUpdateContext,
     address: PeerAddress,
     options: { connectionTimeout?: Duration },
     fn: (session: AdministratorSession) => Promise<T>,
 ) {
-    return await fn(await connectCase(context, address, options));
+    const session = await connectCase(context, address, options);
+    try {
+        return await fn(session);
+    } finally {
+        await session.interaction.close();
+    }
 }
 
 /** The peer answered ArmFailSafe with an error code, so no fail-safe was armed for us. */

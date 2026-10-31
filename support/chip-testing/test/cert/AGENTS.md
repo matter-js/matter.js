@@ -4287,6 +4287,7 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl.
   the peer and its session before the NOCResponse came. `decommission()` holds the node against the leave handler and
   accepts the lost response. The FabricIndex check stays on the TH side: the log line that names the removed index
   (chip: `Received a RemoveFabric Command for FabricIndex 0x<n>`) must match the index step 8 read.
-- **PICS:** matter.js's PICS file has no `OPCREDS.C` key, so all three controller overlays declare the case's client
-  keys, as they state each controller's full client surface. matterjs-server's step 11 settles as the `noc-update`
-  gap through the capability mechanism.
+- **PICS:** the base PICS file is CHIP's `ci-pics-values`, which answers every `OPCREDS.C` key of the case 1, and
+  `matter-js-pics.properties` does not override them. The three controller overlays declare them anyway, as for the
+  other client cases, to state each controller's own client surface. matterjs-server's step 11 settles as the
+  `noc-update` gap through the capability mechanism.

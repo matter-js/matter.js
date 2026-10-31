@@ -277,7 +277,9 @@ A wrong passcode fails with `PasscodeMismatchError` (`@matter/protocol`), possib
 `onAttestationFailure(findings)` replaces the legacy attestation callback — return `true` to accept, `false` to
 reject, or a string to reject with that message; each finding carries `level` (`"error"` / `"warn"` / `"info"`),
 `type` and `message`. To decommission, use `node.decommission()` (contacts the device, so call it only while
-`lifecycle.isConnected`) or `node.delete()` (force-drop locally when the peer is unreachable).
+`lifecycle.isConnected`) or `node.delete()` (force-drop locally when the peer is unreachable). To rotate a node's
+operational certificate and key pair, use `node.updateOperationalCertificate()`; node ID, fabric and ACLs stay the
+same.
 
 ### Delegated / split commissioning (legacy `PaseCommissioner`)
 
