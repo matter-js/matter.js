@@ -486,7 +486,9 @@ export class CommissioningClient extends Behavior {
      *
      * On failure the node keeps or returns to its previous NOC and stays reachable; the error message says which NOC
      * it holds, or that this could not be determined.  If CommissioningComplete took effect but its answer was lost,
-     * the update resolves.  Throws `OperationalCertificateUpdateError` for a failure once the node was reached, the
+     * the update resolves.  Throws `OperationalCertificateUpdateBusyError` when the node's fail-safe may be in use
+     * (retry later), `OperationalCertificateUpdateRefusedError` when the node refused the fail-safe otherwise,
+     * `OperationalCertificateUpdateError` for any later failure once the node was reached, the
      * connection error if it cannot be reached, and {@link ImplementationError} if the node is not commissioned, this
      * controller is not the certificate authority of its fabric or {@link CommissioningClient.OperationalCertificateUpdateOptions.failsafe}
      * is out of range.

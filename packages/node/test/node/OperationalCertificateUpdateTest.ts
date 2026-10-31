@@ -40,7 +40,9 @@ import {
     ExchangeManager,
     Fabric,
     FabricManager,
+    OperationalCertificateUpdateBusyError,
     OperationalCertificateUpdateError,
+    OperationalCertificateUpdateRefusedError,
     PeerAddress,
     PeerSet,
     SessionManager,
@@ -498,7 +500,46 @@ describe("OperationalCertificateUpdate", () => {
             withEntropy([controller, device], () =>
                 MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
             ),
-        ).rejectedWith(OperationalCertificateUpdateError, /another administrator holds the fail-safe/);
+        ).rejectedWith(OperationalCertificateUpdateBusyError, /another administrator holds the fail-safe/);
+        expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
+    });
+
+    it("reports a refused ArmFailSafe as refused, not busy", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const before = snapshot(device);
+
+        const restore = await patchDeviceCommand(
+            device,
+            GeneralCommissioningServer,
+            "armFailSafe",
+            original =>
+                async function (this: unknown, ...args: unknown[]) {
+                    const [request] = args;
+                    if (isObject(request) && request.expiryLengthSeconds !== 0) {
+                        return {
+                            errorCode: GeneralCommissioning.CommissioningError.ValueOutsideRange,
+                            debugText: "test refusal",
+                        };
+                    }
+                    return original.apply(this, args);
+                },
+        );
+        try {
+            const failure = await withEntropy([controller, device], () =>
+                MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
+            ).then(
+                () => undefined,
+                (error: unknown) => error,
+            );
+            expect(failure).instanceOf(OperationalCertificateUpdateRefusedError);
+            expect(failure).not.instanceOf(OperationalCertificateUpdateBusyError);
+        } finally {
+            restore();
+        }
+
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
         expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
     });
 
@@ -515,7 +556,7 @@ describe("OperationalCertificateUpdate", () => {
                 withEntropy([controller, device], () =>
                     MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
                 ),
-            ).rejectedWith(OperationalCertificateUpdateError, /Breadcrumb is 7, so another operation/);
+            ).rejectedWith(OperationalCertificateUpdateBusyError, /Breadcrumb is 7, so another operation/);
         } finally {
             restore();
         }

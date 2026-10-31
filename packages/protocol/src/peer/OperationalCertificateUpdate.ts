@@ -61,6 +61,18 @@ const MAX_FAILSAFE = Seconds(0xffff);
 export class OperationalCertificateUpdateError extends MatterError {}
 
 /**
+ * Thrown when the update did not start because the fail-safe of the peer may be in use: ArmFailSafe answered
+ * BusyWithOtherAdmin, or Breadcrumb was not 0 before arming.  Nothing changed on the peer; the caller may retry later.
+ */
+export class OperationalCertificateUpdateBusyError extends OperationalCertificateUpdateError {}
+
+/**
+ * Thrown when the peer refused ArmFailSafe with an error code other than BusyWithOtherAdmin.  Nothing changed on the
+ * peer; a retry fails the same way until the cause on the peer is fixed.
+ */
+export class OperationalCertificateUpdateRefusedError extends OperationalCertificateUpdateError {}
+
+/**
  * Dependencies of {@link updateOperationalCertificate}.
  */
 export interface OperationalCertificateUpdateContext {
@@ -159,8 +171,9 @@ export interface OperationalCertificateUpdateResult {
  * resumption record and restart subscriptions.
  *
  * Rejects with {@link ImplementationError} for an unknown peer, a fabric whose CA we do not hold or a fail-safe out
- * of range, with the connection error when no CASE session can be established at the start, and with
- * {@link OperationalCertificateUpdateError} for every later failure.
+ * of range, with the connection error when no CASE session can be established at the start, with
+ * {@link OperationalCertificateUpdateBusyError} or {@link OperationalCertificateUpdateRefusedError} when no fail-safe
+ * was armed, and with {@link OperationalCertificateUpdateError} for every later failure.
  *
  * @see {@link MatterSpecification.v161.Core} § 11.18.6.9
  * @see {@link MatterSpecification.v161.Core} § 11.10.7.2
@@ -201,7 +214,7 @@ export async function updateOperationalCertificate(
     }
 
     if (installed.kind === "refused") {
-        if (installed.cause instanceof FailsafeRefusedError) {
+        if (isArmRefusal(installed.cause)) {
             throw installed.cause;
         }
         throw new OperationalCertificateUpdateError(
@@ -301,7 +314,7 @@ async function installNewCertificate(
     if (breadcrumb !== 0n) {
         return {
             kind: "refused",
-            cause: new FailsafeRefusedError(
+            cause: new OperationalCertificateUpdateBusyError(
                 `Cannot update the operational certificate of ${interaction.address}: its Breadcrumb is ${breadcrumb}, so another operation of the same fabric may hold the fail-safe; retry later`,
             ),
         };
@@ -311,7 +324,7 @@ async function installNewCertificate(
     try {
         await armFailsafe(interaction, failsafeArm);
     } catch (cause) {
-        if (!(cause instanceof FailsafeRefusedError)) {
+        if (!isArmRefusal(cause)) {
             await disarmFailsafe(interaction);
         }
         return { kind: "refused", cause };
@@ -611,8 +624,13 @@ async function withCase<T>(
     }
 }
 
-/** The update did not arm a fail-safe because the peer refused ArmFailSafe or Breadcrumb showed another operation. */
-class FailsafeRefusedError extends OperationalCertificateUpdateError {}
+/** The update armed no fail-safe, so nothing on the peer needs to be undone. */
+function isArmRefusal(cause: unknown) {
+    return (
+        cause instanceof OperationalCertificateUpdateBusyError ||
+        cause instanceof OperationalCertificateUpdateRefusedError
+    );
+}
 
 async function armFailsafe(interaction: ClientInteraction, { failsafe, breadcrumb }: FailsafeArm) {
     const { errorCode, debugText } = responseOf(
@@ -627,12 +645,13 @@ async function armFailsafe(interaction: ClientInteraction, { failsafe, breadcrum
     if (errorCode === GeneralCommissioning.CommissioningError.Ok) {
         return;
     }
-    const reason =
-        errorCode === GeneralCommissioning.CommissioningError.BusyWithOtherAdmin
-            ? "another administrator holds the fail-safe or a commissioning window is open"
-            : commissioningErrorText(errorCode, debugText);
-    throw new FailsafeRefusedError(
-        `Cannot update the operational certificate of ${interaction.address}: ArmFailSafe failed because ${reason}`,
+    if (errorCode === GeneralCommissioning.CommissioningError.BusyWithOtherAdmin) {
+        throw new OperationalCertificateUpdateBusyError(
+            `Cannot update the operational certificate of ${interaction.address}: ArmFailSafe failed because another administrator holds the fail-safe or a commissioning window is open; retry later`,
+        );
+    }
+    throw new OperationalCertificateUpdateRefusedError(
+        `Cannot update the operational certificate of ${interaction.address}: ArmFailSafe failed with ${commissioningErrorText(errorCode, debugText)}`,
     );
 }
 
