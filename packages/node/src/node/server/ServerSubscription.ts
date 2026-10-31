@@ -42,6 +42,7 @@ import {
     Read,
     ReadResult,
     SessionClosedError,
+    SessionManager,
     Subscription,
     TransientPeerCommunicationError,
 } from "@matter/protocol";
@@ -890,6 +891,23 @@ export class ServerSubscription implements Subscription {
         }
     }
 
+    /**
+     * The newest open session of the peer that carries the CASE Authenticated Tags of the subscription's own session.
+     * Falls back to the own session when no such session is open, for example while the own session is closing.
+     *
+     * A peer that set up a new session may have dropped its older ones without telling us.  The CHIP SDK moves its
+     * read handlers to each newer CASE session with equal CATs in the same way.
+     */
+    #reportSession() {
+        let newest = this.session;
+        for (const session of this.#context.node.env.get(SessionManager).sessionsFor(this.#peerAddress)) {
+            if (carriesSameCats(session, this.session)) {
+                newest = session;
+            }
+        }
+        return newest;
+    }
+
     async #sendUpdateMessage(
         lifetime: Lifetime | undefined,
         attributeFilter: DirtyState.ForCluster | undefined,
@@ -897,7 +915,7 @@ export class ServerSubscription implements Subscription {
         onlyWithData: boolean,
         session?: Session,
     ) {
-        const exchange = this.#context.initiateExchange(session ?? this.#peerAddress, INTERACTION_PROTOCOL_ID);
+        const exchange = this.#context.initiateExchange(session ?? this.#reportSession(), INTERACTION_PROTOCOL_ID);
         if (exchange === undefined) {
             return false;
         }
@@ -956,4 +974,10 @@ export class ServerSubscription implements Subscription {
         }
         return true;
     }
+}
+
+function carriesSameCats(session: NodeSession, other: NodeSession) {
+    const tags = new Set(session.caseAuthenticatedTags);
+    const otherTags = new Set(other.caseAuthenticatedTags);
+    return tags.size === otherTags.size && [...otherTags].every(tag => tags.has(tag));
 }

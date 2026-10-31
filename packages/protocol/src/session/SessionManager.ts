@@ -624,6 +624,7 @@ export class SessionManager {
         return found;
     }
 
+    /** The open sessions with {@link address}, in the order they were established. */
     sessionsFor(address: PeerAddress) {
         address = PeerAddress(address);
         return this.#sessions.filter(session => session.peerAddress === address && !session.isClosing);
