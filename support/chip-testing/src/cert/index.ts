@@ -28,6 +28,7 @@ import { BridgeTestInstance } from "../BridgeTestInstance.js";
 import { DeviceTestInstanceConstructor } from "../GenericTestApp.js";
 import { IcdTestInstance } from "../IcdTestInstance.js";
 import { LightSwitchNoGroupcastTestInstance, LightSwitchTestInstance } from "../LightSwitchTestInstance.js";
+import { LockTestInstance } from "../LockTestInstance.js";
 import { NodeTestInstance } from "../NodeTestInstance.js";
 import { OtaProviderTestInstance } from "../OtaProviderTestInstance.js";
 import { OtaRequestorTestInstance } from "../OtaRequestorTestInstance.js";
@@ -260,6 +261,7 @@ registerMatterJsCertSubject("light-switch-no-groupcast", MatterJsCertSubject(Lig
 registerMatterJsCertSubject("ota-requestor", MatterJsCertSubject(OtaRequestorTestInstance));
 registerMatterJsCertSubject("ota-provider", MatterJsCertSubject(OtaProviderTestInstance));
 registerMatterJsCertSubject("tv", MatterJsCertSubject(TvTestInstance));
+registerMatterJsCertSubject("lock", MatterJsCertSubject(LockTestInstance));
 
 // BDX roles an OTA requestor takes when it downloads an image: it opens the transfer with a
 // ReceiveInit and receives the blocks. The CHIP PICS file answers these for a generic device, where
