@@ -5,9 +5,9 @@
  */
 
 import { camelize, InternalError } from "@matter/main";
-import type { ValueModel } from "@matter/model";
 import { Matter } from "@matter/model";
 import type { CertNodeRef, CertStepContext } from "@matter/testing";
+import { bitsOf } from "./tc-command-payload.js";
 import { commissionThStep } from "./tc-dd-support.js";
 import type { CommandPayload, RecordedCheck } from "./tc-support.js";
 import {
@@ -46,17 +46,6 @@ export type ColorCommandArgs = Record<string, number | Record<string, boolean>>;
 
 function attributeId(name: string) {
     return requireId(COLOR_CONTROL.attributes.require(name).id, `ColorControl.${name}`);
-}
-
-/** The bits of a bitmap field in model order, with their bit numbers. */
-function bitsOf(field: ValueModel) {
-    const bitmap = field.definingModel ?? field;
-    return bitmap.children.map(bit => {
-        if (typeof bit.constraint.value !== "number") {
-            throw new InternalError(`Bit ${bit.name} of ${field.name} has no single bit number`);
-        }
-        return { name: camelize(bit.name), bit: bit.constraint.value };
-    });
 }
 
 /**

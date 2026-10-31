@@ -20,12 +20,15 @@ export interface TestDescriptor {
 
     /**
      * The app the test requires. A test naming an app the harness does not implement is skipped.
+     *
+     * The container's descriptor file may carry CHIP's own reference (`${ALL_CLUSTERS_APP}`); the harness brings it
+     * into harness form (`all-clusters`) when it loads the file.
      */
     app?: string;
 
     /**
      * The app chip uses for the test. The harness dispatches to it when it implements the app and falls back to the
-     * default subject otherwise.
+     * default subject otherwise. Same naming as {@link app}.
      */
     preferredApp?: string;
 

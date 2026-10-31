@@ -364,6 +364,30 @@ export const MATTERJS_SERVER_CONTROLLER_PICS: PicsValues = {
     "DGWIFI.C": 1,
     "DGWIFI.C.C00.Tx": 1,
 
+    // The DoorLock client commands TC-DRLK-3.2 sends, and the WDSCH and USR features its steps name. CHIP's PICS file
+    // answers these 1 already; the overlay states the controller's client surface for this case.
+    "DRLK.C": 1,
+    "DRLK.C.F04": 1,
+    "DRLK.C.F08": 1,
+    "DRLK.C.C00.Tx": 1,
+    "DRLK.C.C01.Tx": 1,
+    "DRLK.C.C03.Tx": 1,
+    "DRLK.C.C0b.Tx": 1,
+    "DRLK.C.C0c.Tx": 1,
+    "DRLK.C.C0d.Tx": 1,
+    "DRLK.C.C0e.Tx": 1,
+    "DRLK.C.C0f.Tx": 1,
+    "DRLK.C.C10.Tx": 1,
+    "DRLK.C.C11.Tx": 1,
+    "DRLK.C.C12.Tx": 1,
+    "DRLK.C.C13.Tx": 1,
+    "DRLK.C.C1a.Tx": 1,
+    "DRLK.C.C1b.Tx": 1,
+    "DRLK.C.C1d.Tx": 1,
+    "DRLK.C.C22.Tx": 1,
+    "DRLK.C.C24.Tx": 1,
+    "DRLK.C.C26.Tx": 1,
+
     // The same Switch client declaration as the other controllers: the switch it observes is an action switch
     "SWTCH.C": 1,
     "SWTCH.C.F02": 0,

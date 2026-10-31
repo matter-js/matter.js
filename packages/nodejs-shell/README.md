@@ -127,6 +127,8 @@ When enabled, the certificate service will fetch:
 - Test certificates from DCL
 - Development certificates from the Matter GitHub repository
 
+When enabled, the shell also trusts test certificates during device attestation: test PAAs and the Matter test CD signer. When disabled, a device that presents either is reported with a `TrustedAsTestCertificate` finding.
+
 When disabled (default), only production certificates from DCL are fetched. Changes require restarting the shell to take effect.
 
 ### OTA Test Images

@@ -60,4 +60,32 @@ export interface MatterCertificate {
      * is then empty.  Only PAA and PAI certificates may carry one (PQC Phase 1).
      */
     mlDsaPublicKey?: { parameterSet: MlDsa.ParameterSet; key: Bytes };
+
+    /**
+     * What the DER encoding states beyond the values in this object, for certificate profile checks.  Only present on
+     * parsed certificates.
+     */
+    encoding?: MatterCertificate.Encoding;
+}
+
+export namespace MatterCertificate {
+    export type ExtensionName = keyof MatterCertificate["extensions"];
+
+    export interface Encoding {
+        /** The X.509 `version` field; 2 means v3.  An absent field reads as 0 (v1), as does an explicit 0. */
+        version: number;
+
+        /**
+         * Each interpreted extension the certificate carries, in encoding order and including duplicates.  An absent
+         * extension has no entry, even where {@link MatterCertificate.extensions} holds a default for it.
+         */
+        extensions: { name: ExtensionName; critical: boolean }[];
+
+        /**
+         * All bits of the key usage BIT STRING, bit n as X.509 numbers it (0 is digitalSignature, 8 is decipherOnly),
+         * so bits 9 and up that {@link MatterCertificate.extensions} cannot hold are kept too.  A set bit beyond bit
+         * 15 reads as bit 16.  Undefined without the extension.
+         */
+        keyUsage?: number;
+    }
 }

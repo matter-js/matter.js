@@ -19,10 +19,14 @@ import { MATTER_EPOCH_OFFSET_S, VendorId } from "@matter/types";
 import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { CommissioningError } from "../peer/CommissioningError.js";
-import { Dac, Paa, Pai } from "./kinds/AttestationCertificates.js";
+import { CdSigners } from "./CdSigners.js";
+import { CertificateProfileError, Dac, Paa, Pai } from "./kinds/AttestationCertificates.js";
 import { mayIssue } from "./kinds/CertificateSignature.js";
-import { CertificationDeclaration } from "./kinds/CertificationDeclaration.js";
+import { CertificationDeclaration, CertificationDeclarationFormatError } from "./kinds/CertificationDeclaration.js";
 import { CertificationType } from "./kinds/definitions/certification-declaration.js";
+
+/** @see {@link MatterSpecification.v161.Core} § 6.3.1 */
+const CD_FORMAT_VERSION = 1;
 
 /** Reasons a device attestation validation can fail or produce warnings. */
 export enum DeviceAttestationCheck {
@@ -40,11 +44,47 @@ export enum DeviceAttestationCheck {
     CertificationTypeTest = "CertificationTypeTest",
     CertificateIdNotVerified = "CertificateIdNotVerified",
     CertificateUnparseable = "CertificateUnparseable",
+
+    /**
+     * The DAC parses but violates the DAC certificate profile.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.2.2.3
+     */
+    DacFormatInvalid = "DacFormatInvalid",
+
+    /**
+     * The PAI parses but violates the PAI certificate profile.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.2.2.4
+     */
+    PaiFormatInvalid = "PaiFormatInvalid",
+
     AttestationElementsUnparseable = "AttestationElementsUnparseable",
     CertificationDeclarationUnparseable = "CertificationDeclarationUnparseable",
+
+    /**
+     * The CD breaks an encoding rule of § 6.3.1, such as its CMS envelope or `format_version`, or has a reserved
+     * `certification_type`, which CHIP refuses.
+     */
+    CertificationDeclarationFormatInvalid = "CertificationDeclarationFormatInvalid",
+
+    /**
+     * The CD's signer is not known to be a CD signer: neither a built-in CSA key, the Matter test CD signer, nor a
+     * CSA-issued certificate from the DCL, the store or a seed. See {@link DclCertificateService.lookupCdSigner}.
+     */
+    CdSignerUnknown = "CdSignerUnknown",
+
+    /** A CD of certification_type official is signed by the Matter test CD signer. */
+    OfficialCdSignedByTestSigner = "OfficialCdSignedByTestSigner",
+
+    /** @deprecated The CD signature is always verified; a CD from an unknown signer fails with {@link CdSignerUnknown}. */
     CdSignerVerificationSkipped = "CdSignerVerificationSkipped",
     PaaTrustStoreTimeMismatch = "PaaTrustStoreTimeMismatch",
     DclServiceUnavailable = "DclServiceUnavailable",
+    /**
+     * A test PAA or the Matter test CD signer while the trust policy does not accept test certificates. Collected as a
+     * recoverable error so the policy decides.
+     */
     TrustedAsTestCertificate = "TrustedAsTestCertificate",
 
     /** An unexpected error during validation (e.g. an unrecoverably corrupt trust-store certificate). */
@@ -82,16 +122,48 @@ function parsePeerValue<T>(check: DeviceAttestationCheck, description: string, p
     try {
         return parse();
     } catch (cause) {
-        // A defect of ours is not the peer's malformed data and must not be reported as such
-        if (cause instanceof InternalError || cause instanceof ImplementationError) {
+        // A defect of ours is not the peer's malformed data, and a classified failure keeps its check
+        if (
+            cause instanceof InternalError ||
+            cause instanceof ImplementationError ||
+            cause instanceof DeviceAttestationError
+        ) {
             throw cause;
         }
         throw new DeviceAttestationError(check, `${description}: ${asError(cause).message}`, { cause });
     }
 }
 
-/** Parse an attestation certificate the peer supplied, rejecting a missing certificate before the decoder sees it. */
-function parsePeerCertificate<T>(kind: string, der: Bytes, parse: (der: Bytes) => T): T {
+/** Parse the CD the peer supplied, reporting a broken encoding rule apart from a CD that cannot be decoded. */
+function parsePeerCertificationDeclaration(declaration: Bytes) {
+    return parsePeerValue(
+        DeviceAttestationCheck.CertificationDeclarationUnparseable,
+        "Device returned a Certification Declaration that cannot be parsed",
+        () => {
+            try {
+                return CertificationDeclaration.parse(declaration);
+            } catch (cause) {
+                if (cause instanceof CertificationDeclarationFormatError) {
+                    throw new DeviceAttestationError(
+                        DeviceAttestationCheck.CertificationDeclarationFormatInvalid,
+                        `Certification Declaration breaks an encoding rule: ${cause.message}`,
+                        { cause },
+                    );
+                }
+                throw cause;
+            }
+        },
+    );
+}
+
+/**
+ * Parse an attestation certificate the peer supplied, rejecting a missing certificate before the decoder sees it.
+ *
+ * A certificate that parses but violates its profile is reported as {@link DeviceAttestationCheck.DacFormatInvalid} or
+ * {@link DeviceAttestationCheck.PaiFormatInvalid}, anything else that fails as
+ * {@link DeviceAttestationCheck.CertificateUnparseable}.
+ */
+function parsePeerCertificate<T>(kind: "DAC" | "PAI", der: Bytes, parse: (der: Bytes) => T): T {
     if (Bytes.of(der).byteLength === 0) {
         throw new DeviceAttestationError(
             DeviceAttestationCheck.CertificateUnparseable,
@@ -101,7 +173,22 @@ function parsePeerCertificate<T>(kind: string, der: Bytes, parse: (der: Bytes) =
     return parsePeerValue(
         DeviceAttestationCheck.CertificateUnparseable,
         `Device returned a ${kind} certificate that cannot be parsed`,
-        () => parse(der),
+        () => {
+            try {
+                return parse(der);
+            } catch (cause) {
+                if (cause instanceof CertificateProfileError) {
+                    throw new DeviceAttestationError(
+                        kind === "DAC"
+                            ? DeviceAttestationCheck.DacFormatInvalid
+                            : DeviceAttestationCheck.PaiFormatInvalid,
+                        `Device returned a ${kind} certificate that violates the ${kind} profile: ${cause.message}`,
+                        { cause },
+                    );
+                }
+                throw cause;
+            }
+        },
     );
 }
 
@@ -117,8 +204,8 @@ export namespace DeviceAttestationValidator {
         /**
          * DclCertificateService for PAA trust store, chain validation, revocation checks, and
          * CD signer lookup. When absent, DCL-dependent checks are skipped (PAA lookup, chain
-         * verification, revocation, CD signature) but local checks still run (nonce, signature,
-         * VendorID, CD fields).
+         * verification, revocation) but local checks still run (nonce, signature, VendorID, CD fields),
+         * and the CD signature is verified with the built-in CSA keys and the Matter test CD signer only.
          */
         dclCertificateService?: DclCertificateService;
     }
@@ -171,9 +258,9 @@ export namespace DeviceAttestationValidator {
         const { crypto, dclCertificateService } = context;
         const findings = new Array<AttestationFinding>();
 
-        // Step 1: Parse DAC and PAI from DER
-        const dac = parsePeerCertificate("DAC", data.dac, der => Dac.fromAsn1(der));
+        // Step 1: Parse PAI and DAC from DER; the PAI goes first, as the CHIP SDK checks the PAI format first
         const pai = parsePeerCertificate("PAI", data.pai, der => Pai.fromAsn1(der));
+        const dac = parsePeerCertificate("DAC", data.dac, der => Dac.fromAsn1(der));
 
         // === Local checks (always run, no DCL needed) ===
 
@@ -366,44 +453,64 @@ export namespace DeviceAttestationValidator {
         // === Remaining local checks (CD validation) ===
 
         // Step 8: Certification Declaration signature verification
-        const cd = parsePeerValue(
-            DeviceAttestationCheck.CertificationDeclarationUnparseable,
-            "Device returned a Certification Declaration that cannot be parsed",
-            () => CertificationDeclaration.parse(attestationInfo.declaration),
-        );
+        const cd = parsePeerCertificationDeclaration(attestationInfo.declaration);
         const cdSignerSkidHex = Bytes.toHex(cd.signerSubjectKeyId);
 
-        if (dclCertificateService !== undefined) {
-            const cdSigner = await dclCertificateService.getOrFetchCdSigner(cd.signerSubjectKeyId);
-            if (cdSigner !== undefined) {
-                try {
-                    await crypto.verifyEcdsa(PublicKey(cdSigner.publicKey), cd.signedData, cd.signature);
-                } catch {
-                    throw new DeviceAttestationError(
-                        DeviceAttestationCheck.CertificationDeclarationSignatureInvalid,
-                        "Certification Declaration signature verification failed",
-                    );
-                }
-            } else {
-                findings.push({
-                    level: "warning",
-                    type: DeviceAttestationCheck.CdSignerVerificationSkipped,
-                    message: `CD signer SKID ${cdSignerSkidHex} not found in trust store or DCL; skipping CD signature verification`,
-                });
-            }
-        } else {
+        const cdSigner =
+            dclCertificateService === undefined
+                ? CdSigners.known(cd.signerSubjectKeyId)
+                : await dclCertificateService.lookupCdSigner(cd.signerSubjectKeyId);
+        if (cdSigner === undefined) {
+            throw new DeviceAttestationError(
+                DeviceAttestationCheck.CdSignerUnknown,
+                `CD signer SKID ${cdSignerSkidHex} is not known to be a CD signer`,
+            );
+        }
+        try {
+            await crypto.verifyEcdsa(PublicKey(cdSigner.publicKey), cd.signedData, cd.signature);
+        } catch {
+            throw new DeviceAttestationError(
+                DeviceAttestationCheck.CertificationDeclarationSignatureInvalid,
+                "Certification Declaration signature verification failed",
+            );
+        }
+        if (cdSigner.isTestSigner && dclCertificateService?.acceptsTestCertificates === false) {
             findings.push({
-                level: "warning",
-                type: DeviceAttestationCheck.CdSignerVerificationSkipped,
-                message: "No DclCertificateService provided; skipping CD signature verification",
+                level: "error",
+                type: DeviceAttestationCheck.TrustedAsTestCertificate,
+                message:
+                    `CD is signed by the Matter test CD signer ${cdSignerSkidHex}; ` +
+                    "the device presented a valid test attestation but production trust policy is in effect",
             });
         }
 
         // Step 9: Certification Declaration field validation (Matter spec Section 6.2.3.1)
         const cdContent = cd.content;
 
-        // certification_type check (Matter 1.5.1): log and surface provisional/test CDs
+        if (cdContent.formatVersion !== CD_FORMAT_VERSION) {
+            throw new DeviceAttestationError(
+                DeviceAttestationCheck.CertificationDeclarationFormatInvalid,
+                `CD format_version ${cdContent.formatVersion} is not ${CD_FORMAT_VERSION}`,
+            );
+        }
+
+        // Reserved certification_type values are refused like CHIP does; the specification only marks them reserved
         const certType = cdContent.certificationType;
+        if (certType > CertificationType.Official) {
+            throw new DeviceAttestationError(
+                DeviceAttestationCheck.CertificationDeclarationFormatInvalid,
+                `CD certification_type ${certType} is a reserved value`,
+            );
+        }
+
+        // § 6.3.1 allows a test-signed CD with certification_type 0; CHIP also accepts provisional, so only official fails
+        if (certType === CertificationType.Official && cdSigner.isTestSigner) {
+            throw new DeviceAttestationError(
+                DeviceAttestationCheck.OfficialCdSignedByTestSigner,
+                "CD with certification_type=2 (official) is signed by the Matter test CD signer",
+            );
+        }
+
         if (certType === CertificationType.Provisional) {
             findings.push({
                 level: "warning",

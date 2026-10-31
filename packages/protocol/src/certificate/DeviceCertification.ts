@@ -112,8 +112,9 @@ export class DeviceCertification {
         }
 
         // Parse DAC and PAI
-        const dac = Dac.fromAsn1(certificate);
-        const pai = Pai.fromAsn1(intermediateCertificate);
+        // The commissioner judges the profile; a device only needs VendorID and ProductID to match its product
+        const dac = Dac.fromAsn1(certificate, { acceptProfileViolation: true });
+        const pai = Pai.fromAsn1(intermediateCertificate, { acceptProfileViolation: true });
 
         // Validate vendorId from DAC matches product
         const dacVendorId = dac.cert.subject.vendorId;
