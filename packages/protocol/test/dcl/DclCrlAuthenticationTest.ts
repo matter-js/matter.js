@@ -75,6 +75,8 @@ async function issue(
         /** State another issuer name than the issuer's */
         issuerName?: string;
         serialNumber?: string;
+        /** Omit the basic constraints extension */
+        withoutBasicConstraints?: boolean;
     },
 ): Promise<Issued> {
     const key = options.key ?? (await crypto.createKeyPair());
@@ -94,7 +96,13 @@ async function issue(
             validity: { notBefore: new Date(now.getTime() - DAY_MS), notAfter: new Date(now.getTime() + DAY_MS) },
             publicKey: X962.PublicKeyEcPrime256v1(key.publicKey),
             extensions: {
-                basicConstraints: options.ca ? { isCa: true, pathLen: issuer === undefined ? 1 : 0 } : { isCa: false },
+                ...(options.withoutBasicConstraints
+                    ? {}
+                    : {
+                          basicConstraints: options.ca
+                              ? { isCa: true, pathLen: issuer === undefined ? 1 : 0 }
+                              : { isCa: false },
+                      }),
                 keyUsage: options.ca
                     ? { keyCertSign: !options.withoutKeyCertSign, cRLSign: !options.withoutCrlSign }
                     : { cRLSign: !options.withoutCrlSign, digitalSignature: options.withoutCrlSign },
@@ -255,6 +263,25 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
                 .false;
         });
 
+        it("accepts a PAA-delegated signer without basic constraints", async () => {
+            const delegate = await issue("PAA CRL signer", { issuer: paa, ca: false, withoutBasicConstraints: true });
+            expect(await revoked(paa.skid, [{ signer: delegate, isPAA: true, crl: await crlBy(delegate.crlSigner) }]))
+                .true;
+        });
+
+        it("ignores a PAA-delegated signer whose PAA may not sign certificates", async () => {
+            const restrictedPaa = await issue("Restricted PAA", { ca: true, withoutKeyCertSign: true });
+            const delegate = await issue("PAA CRL signer", { issuer: restrictedPaa, ca: false });
+            expect(
+                await revoked(
+                    restrictedPaa.skid,
+                    [{ signer: delegate, isPAA: true, crl: await crlBy(delegate.crlSigner) }],
+                    REVOKED,
+                    [restrictedPaa.der],
+                ),
+            ).false;
+        });
+
         it("accepts a PAA-delegated signer that shares its PAA's name", async () => {
             const delegate = await issue(paa.name, { issuer: paa, ca: false });
             expect(await revoked(paa.skid, [{ signer: delegate, isPAA: true, crl: await crlBy(delegate.crlSigner) }]))
@@ -309,6 +336,11 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             expect(await revoked(pai.skid, [{ signer: pai, isPAA: false, crl: await crlBy(pai.crlSigner) }])).true;
         });
 
+        it("ignores a PAI signing its own CRL that violates the PAI profile", async () => {
+            const pai = await issue("Test PAI", { issuer: paa, ca: true, vendorId: 0xfff1, withoutKeyCertSign: true });
+            expect(await revoked(pai.skid, [{ signer: pai, isPAA: false, crl: await crlBy(pai.crlSigner) }])).false;
+        });
+
         it("ignores a PAI that does not chain to an approved PAA", async () => {
             const strangerPaa = await issue("Stranger PAA", { ca: true });
             const pai = await issue("Test PAI", { issuer: strangerPaa, ca: true, vendorId: 0xfff1 });
@@ -332,6 +364,16 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             ).true;
         });
 
+        it("accepts a signer a PAI delegated without basic constraints", async () => {
+            const pai = await issue("Test PAI", { issuer: paa, ca: true, vendorId: 0xfff1 });
+            const delegate = await issue("PAI CRL signer", { issuer: pai, ca: false, withoutBasicConstraints: true });
+            expect(
+                await revoked(pai.skid, [
+                    { signer: delegate, delegator: pai, isPAA: false, crl: await crlBy(delegate.crlSigner) },
+                ]),
+            ).true;
+        });
+
         it("ignores a PAI-delegated signer given without its delegator", async () => {
             const pai = await issue("Test PAI", { issuer: paa, ca: true, vendorId: 0xfff1 });
             const delegate = await issue("PAI CRL signer", { issuer: pai, ca: false });
@@ -339,7 +381,7 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
                 .false;
         });
 
-        it("ignores a delegator that is not a PAI", async () => {
+        it("ignores a delegator that violates the PAI profile by not being a CA", async () => {
             // Issued by the approved PAA, so only its missing CA flag disqualifies it
             const notPai = await issue("Not a PAI", { issuer: paa, ca: false, vendorId: 0xfff1 });
             const delegate = await issue("PAI CRL signer", { issuer: notPai, ca: false });
@@ -350,7 +392,7 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             ).false;
         });
 
-        it("ignores a delegator that may not sign certificates", async () => {
+        it("ignores a delegator that violates the PAI profile by lacking keyCertSign", async () => {
             const pai = await issue("Test PAI", { issuer: paa, ca: true, vendorId: 0xfff1, withoutKeyCertSign: true });
             const delegate = await issue("PAI CRL signer", { issuer: pai, ca: false });
             expect(

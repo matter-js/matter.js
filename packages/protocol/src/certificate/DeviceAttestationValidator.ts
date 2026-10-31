@@ -19,7 +19,7 @@ import { MATTER_EPOCH_OFFSET_S, VendorId } from "@matter/types";
 import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { CommissioningError } from "../peer/CommissioningError.js";
-import { Dac, Paa, Pai } from "./kinds/AttestationCertificates.js";
+import { CertificateProfileError, Dac, Paa, Pai } from "./kinds/AttestationCertificates.js";
 import { mayIssue } from "./kinds/CertificateSignature.js";
 import { CertificationDeclaration } from "./kinds/CertificationDeclaration.js";
 import { CertificationType } from "./kinds/definitions/certification-declaration.js";
@@ -40,6 +40,21 @@ export enum DeviceAttestationCheck {
     CertificationTypeTest = "CertificationTypeTest",
     CertificateIdNotVerified = "CertificateIdNotVerified",
     CertificateUnparseable = "CertificateUnparseable",
+
+    /**
+     * The DAC parses but violates the DAC certificate profile.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.2.2.3
+     */
+    DacFormatInvalid = "DacFormatInvalid",
+
+    /**
+     * The PAI parses but violates the PAI certificate profile.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.2.2.4
+     */
+    PaiFormatInvalid = "PaiFormatInvalid",
+
     AttestationElementsUnparseable = "AttestationElementsUnparseable",
     CertificationDeclarationUnparseable = "CertificationDeclarationUnparseable",
     CdSignerVerificationSkipped = "CdSignerVerificationSkipped",
@@ -82,16 +97,26 @@ function parsePeerValue<T>(check: DeviceAttestationCheck, description: string, p
     try {
         return parse();
     } catch (cause) {
-        // A defect of ours is not the peer's malformed data and must not be reported as such
-        if (cause instanceof InternalError || cause instanceof ImplementationError) {
+        // A defect of ours is not the peer's malformed data, and a classified failure keeps its check
+        if (
+            cause instanceof InternalError ||
+            cause instanceof ImplementationError ||
+            cause instanceof DeviceAttestationError
+        ) {
             throw cause;
         }
         throw new DeviceAttestationError(check, `${description}: ${asError(cause).message}`, { cause });
     }
 }
 
-/** Parse an attestation certificate the peer supplied, rejecting a missing certificate before the decoder sees it. */
-function parsePeerCertificate<T>(kind: string, der: Bytes, parse: (der: Bytes) => T): T {
+/**
+ * Parse an attestation certificate the peer supplied, rejecting a missing certificate before the decoder sees it.
+ *
+ * A certificate that parses but violates its profile is reported as {@link DeviceAttestationCheck.DacFormatInvalid} or
+ * {@link DeviceAttestationCheck.PaiFormatInvalid}, anything else that fails as
+ * {@link DeviceAttestationCheck.CertificateUnparseable}.
+ */
+function parsePeerCertificate<T>(kind: "DAC" | "PAI", der: Bytes, parse: (der: Bytes) => T): T {
     if (Bytes.of(der).byteLength === 0) {
         throw new DeviceAttestationError(
             DeviceAttestationCheck.CertificateUnparseable,
@@ -101,7 +126,22 @@ function parsePeerCertificate<T>(kind: string, der: Bytes, parse: (der: Bytes) =
     return parsePeerValue(
         DeviceAttestationCheck.CertificateUnparseable,
         `Device returned a ${kind} certificate that cannot be parsed`,
-        () => parse(der),
+        () => {
+            try {
+                return parse(der);
+            } catch (cause) {
+                if (cause instanceof CertificateProfileError) {
+                    throw new DeviceAttestationError(
+                        kind === "DAC"
+                            ? DeviceAttestationCheck.DacFormatInvalid
+                            : DeviceAttestationCheck.PaiFormatInvalid,
+                        `Device returned a ${kind} certificate that violates the ${kind} profile: ${cause.message}`,
+                        { cause },
+                    );
+                }
+                throw cause;
+            }
+        },
     );
 }
 
@@ -171,9 +211,9 @@ export namespace DeviceAttestationValidator {
         const { crypto, dclCertificateService } = context;
         const findings = new Array<AttestationFinding>();
 
-        // Step 1: Parse DAC and PAI from DER
-        const dac = parsePeerCertificate("DAC", data.dac, der => Dac.fromAsn1(der));
+        // Step 1: Parse PAI and DAC from DER; the PAI goes first, as the CHIP SDK checks the PAI format first
         const pai = parsePeerCertificate("PAI", data.pai, der => Pai.fromAsn1(der));
+        const dac = parsePeerCertificate("DAC", data.dac, der => Dac.fromAsn1(der));
 
         // === Local checks (always run, no DCL needed) ===
 
