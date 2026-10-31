@@ -94,6 +94,10 @@ function elapsedSince(start: Timestamp, end: Timestamp): Duration {
     return Duration.max(0, Timespan(start, end).duration);
 }
 
+function isAllZero(bytes: Bytes) {
+    return Bytes.of(bytes).every(byte => byte === 0);
+}
+
 /**
  * This is the default server implementation of GeneralDiagnosticsBehavior.
  *
@@ -101,7 +105,9 @@ function elapsedSince(start: Timestamp, end: Timestamp): Duration {
  * handle test Event triggers.
  *
  * To handle test Event triggers please override the triggerTestEvent method. If these test events are used in
- * certification please also set the EnableKey in the enhanced state as `deviceTestEnableKey`.
+ * certification please also set the EnableKey in the enhanced state as `deviceTestEnableKey` before the behavior
+ * initializes.  The testEventTriggersEnabled attribute follows from that key: it is true exactly when the key is not
+ * all zeros.
  *
  * To register or clear hardware, radio, and network faults, please use the provided convenience methods:
  * * registerHardwareFault and clearHardwareFault
@@ -116,13 +122,12 @@ export class GeneralDiagnosticsServer extends Base {
     static override readonly schema = schema;
 
     override initialize() {
-        if (this.state.testEventTriggersEnabled === undefined) {
-            this.state.testEventTriggersEnabled = false;
-        } else if (this.state.testEventTriggersEnabled) {
-            const enableKey = Bytes.of(this.state.deviceTestEnableKey);
-            if (enableKey.every(byte => byte === 0)) {
-                throw new ImplementationError("Test event triggers are enabled but no deviceTestEnableKey is set.");
-            }
+        const testEventTriggersEnabled = !isAllZero(this.state.deviceTestEnableKey);
+        if (this.state.testEventTriggersEnabled && !testEventTriggersEnabled) {
+            throw new ImplementationError("Test event triggers are enabled but no deviceTestEnableKey is set.");
+        }
+        this.state.testEventTriggersEnabled = testEventTriggersEnabled;
+        if (testEventTriggersEnabled) {
             logger.warn("Test event triggers are enabled. Make sure to disable them in production.");
         }
 
@@ -173,13 +178,22 @@ export class GeneralDiagnosticsServer extends Base {
         }
     }
 
-    #validateTestEnabledKey(enableKey: Bytes) {
-        const keyData = Bytes.of(enableKey);
-        if (keyData.every(byte => byte === 0)) {
+    /**
+     * The gate of both test commands, so the commands accept exactly when testEventTriggersEnabled reports true.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.12.7.1.1, § 11.12.7.4
+     * @throws {@link StatusResponseError} with CONSTRAINT_ERROR if test event triggers are disabled, or the key is all
+     *   zeros or does not match
+     */
+    #assertEnableKey(enableKey: Bytes) {
+        if (!this.state.testEventTriggersEnabled) {
+            throw new StatusResponseError("Test event triggers are disabled", Status.ConstraintError);
+        }
+        if (isAllZero(enableKey)) {
             throw new StatusResponseError("Invalid test enable key, all zeros", Status.ConstraintError);
         }
         const expectedKeyData = Bytes.of(this.state.deviceTestEnableKey);
-        keyData.forEach((byte, index) => {
+        Bytes.of(enableKey).forEach((byte, index) => {
             if (byte !== expectedKeyData[index]) {
                 throw new StatusResponseError("Invalid test enable key", Status.ConstraintError);
             }
@@ -187,7 +201,7 @@ export class GeneralDiagnosticsServer extends Base {
     }
 
     override testEventTrigger({ eventTrigger, enableKey }: GeneralDiagnostics.TestEventTriggerRequest): MaybePromise {
-        this.#validateTestEnabledKey(enableKey);
+        this.#assertEnableKey(enableKey);
 
         this.triggerTestEvent(eventTrigger);
     }
@@ -219,11 +233,7 @@ export class GeneralDiagnosticsServer extends Base {
         value,
         count,
     }: GeneralDiagnostics.PayloadTestRequest): MaybePromise<GeneralDiagnostics.PayloadTestResponse> {
-        this.#validateTestEnabledKey(enableKey);
-
-        if (!this.state.testEventTriggersEnabled) {
-            throw new StatusResponseError("Test event triggers are disabled", Status.ConstraintError);
-        }
+        this.#assertEnableKey(enableKey);
 
         const payload = new Uint8Array(count).fill(value);
 
@@ -538,7 +548,10 @@ export namespace GeneralDiagnosticsServer {
         /** Internal counter of the total time, updated every 5 minutes. */
         totalOperationalHoursCounter: Duration = 0;
 
-        /** The TestEnableKey set for this device for the test commands. Default means "not enabled"." */
+        /**
+         * The EnableKey of the test commands.  The default of all zeros disables them.  testEventTriggersEnabled
+         * is derived from this key when the behavior initializes, so a key set later leaves the commands disabled.
+         */
         deviceTestEnableKey: Bytes = new Uint8Array(16).fill(0);
 
         [Val.properties](endpoint: Endpoint, session: ValueSupervisor.Session) {
