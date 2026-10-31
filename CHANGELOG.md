@@ -85,7 +85,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Operational certificate verification refuses a NOC whose extended key usage lacks serverAuth, as CHIP does
     - Fix: Operational certificate verification counts each CASE Authenticated Tag as an RDN, so a DN with more than 5 RDNs is refused
     - Fix: Matter-TLV operational certificates that repeat a single-valued DN attribute, or whose NOC, ICAC or RCAC subject has a matter-vvs-id, are refused with an error that names the attribute
-    - Fix: DER certificate parsing refuses Matter-specific DN values that are not exactly twice their octet length in uppercase hexadecimal, and a repeated single-valued DN attribute, with a `CertificateError`
+    - Fix: DER certificate parsing refuses Matter-specific DN values that are not exactly twice their octet length in uppercase hexadecimal, and a repeated single-valued Matter-specific DN attribute, with a `CertificateError`
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once

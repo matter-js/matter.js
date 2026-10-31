@@ -301,14 +301,18 @@ export namespace Certificate {
     /**
      * Map an OID to a subject/issuer field name.
      * Uses auto-generated lookup maps from X520 and Matter OID definitions.
-     * Returns the field name and whether the value is a PrintableString variant.
+     * Returns the field name and whether it is a Matter-specific attribute.
      */
     function oidToSubjectField(oid: Bytes) {
         const oidHex = Bytes.toHex(oid);
 
-        const field = X520.OID_TO_FIELD_MAP[oidHex] ?? MATTER_OID_TO_FIELD_MAP[oidHex];
-        if (field !== undefined) {
-            return { field, isPrintable: false };
+        const standardField = X520.OID_TO_FIELD_MAP[oidHex];
+        if (standardField !== undefined) {
+            return { field: standardField, isMatterSpecific: false };
+        }
+        const matterField = MATTER_OID_TO_FIELD_MAP[oidHex];
+        if (matterField !== undefined) {
+            return { field: matterField, isMatterSpecific: true };
         }
     }
 
@@ -342,7 +346,8 @@ export namespace Certificate {
                 let { field } = fieldInfo;
                 let value;
 
-                if (field !== "caseAuthenticatedTag") {
+                // Each Matter-specific attribute except the CAT appears exactly once
+                if (fieldInfo.isMatterSpecific && field !== "caseAuthenticatedTag") {
                     if (seenFields.has(field)) {
                         throw new CertificateError(`Distinguished name contains ${field} more than once`);
                     }

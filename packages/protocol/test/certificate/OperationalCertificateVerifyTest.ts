@@ -782,7 +782,8 @@ describe("Operational certificate verification", () => {
                 expect(() => Noc.fromAsn1(der)).throws(CertificateError, /nodeId more than once/);
             });
 
-            it("refuses a repeated standard attribute", async () => {
+            // Characterization: a repeated standard attribute is not refused; the last value wins.
+            it("keeps accepting a repeated standard attribute", async () => {
                 const rcac = Rcac.fromTlv(
                     await rcacTlv(root, cert => {
                         cert.subject.commonName = "A";
@@ -790,7 +791,7 @@ describe("Operational certificate verification", () => {
                     }),
                 ).asSignedDer();
                 const der = withRdn(rcac, OID.orgName, "B", OID.commonName);
-                expect(() => Rcac.fromAsn1(der)).throws(CertificateError, /commonName more than once/);
+                expect(Rcac.fromAsn1(der).cert.subject.commonName).equals("B");
             });
         });
     });
