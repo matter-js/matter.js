@@ -4280,9 +4280,13 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl.
   for it and keeps its certificate authority to itself, so a `device_command` UpdateNOC has no NOC to send; the step
   settles as a controller gap there. Besides the TH's received and OK lines, the step checks that the UpdateNOC NOC
   names the same node and fabric as the AddNOC one with a different public key.
-- **chip logs no outcome for UpdateFabricLabel**, so step 12's success is the NOCResponse the DUT got. Step 17
-  sends RemoveFabric as a plain invoke with the FabricIndex step 8 read, not through `decommission()`, so the TH's
-  log shows that index: chip's `Received a RemoveFabric Command for FabricIndex 0x<n>` names it.
+- **chip logs no outcome for UpdateFabricLabel**, so step 12's success is the NOCResponse the DUT got.
+- **Step 17 uses the DUT's `decommission()`, not a raw RemoveFabric invoke.** Removing the accessing fabric ends the
+  session, and § 11.18.6.12.2 says the invoker "SHOULD NOT expect a response". A raw invoke on the in-process
+  controller failed with `ClosedError: Channel is closed`: the TH's flushed `leave` event made the controller drop
+  the peer and its session before the NOCResponse came. `decommission()` holds the node against the leave handler and
+  accepts the lost response. The FabricIndex check stays on the TH side: the log line that names the removed index
+  (chip: `Received a RemoveFabric Command for FabricIndex 0x<n>`) must match the index step 8 read.
 - **PICS:** matter.js's PICS file has no `OPCREDS.C` key, so all three controller overlays declare the case's client
   keys, as they state each controller's full client surface. matterjs-server's step 11 settles as the `noc-update`
   gap through the capability mechanism.

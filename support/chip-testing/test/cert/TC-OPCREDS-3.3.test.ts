@@ -21,7 +21,7 @@ import type { TlvStream } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import type { CertDevice, CertNodeRef, CertStepContext, CheckRecord, LogExpectPatterns } from "@matter/testing";
 import { certTest, flavorFamily } from "@matter/testing";
-import { readFabrics, removeFabricResponseFailure } from "./tc-cadmin-support.js";
+import { readFabrics } from "./tc-cadmin-support.js";
 import { commissionChecked, COMMISSIONING_LOG_TIMEOUT } from "./tc-dd-support.js";
 import {
     attempt,
@@ -796,17 +796,13 @@ certTest("TC-OPCREDS-3.3", {
             const { fabricIndex } = requireRead(fabric, "The FabricDescriptorStruct");
             const from = await th.log.markSettled();
             await withChecks(cx, async checks => {
-                const { response, failure: invokeFailure } = await invokeNocCommand(cx, ref, "removeFabric", {
-                    fabricIndex,
-                });
-                const failure =
-                    invokeFailure === undefined ? removeFabricResponseFailure(response, fabricIndex) : undefined;
-                checks.push({
-                    what: "RemoveFabric response",
-                    check: () =>
-                        invokeFailure ??
-                        matches(failure === undefined, failure ?? `NOCResponse statusCode Ok for ${fabricIndex}`),
-                });
+                // The DUT's own removal: it sends RemoveFabric for the fabric index the TH assigned it.  The TH may
+                // end the session before its NOCResponse arrives (§ 11.18.6.12.2), which decommission() accepts.
+                const decommissioned = await attempt(
+                    () => cx.controllers.dut.node(ref).decommission(),
+                    () => "The DUT removed its fabric from the TH",
+                );
+                checks.push({ what: "DUT decommission", check: () => decommissioned.check });
                 const receivedLog = await expectDeviceLog(
                     th.log,
                     th.flavor,
@@ -823,7 +819,7 @@ certTest("TC-OPCREDS-3.3", {
                     LOG_TIMEOUT,
                 );
                 checks.push({ what: "the TH removed the fabric", check: () => removed.check });
-                if (failure === undefined && removed.check.verdict === "pass") {
+                if (decommissioned.ok || removed.check.verdict === "pass") {
                     commissioned.clear("dut");
                 }
             });
