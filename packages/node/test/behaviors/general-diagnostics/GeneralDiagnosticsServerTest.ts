@@ -10,7 +10,7 @@ import { Bytes, ImplementationError, Time, Timestamp } from "@matter/general";
 import { AccessLevel } from "@matter/model";
 import { MockServerNode } from "@matter/node/testing";
 import { CommandInvokeResponse, Invoke, InvokeResult } from "@matter/protocol";
-import { Status, TlvByteString, TlvField, TlvNullable, TlvObject, TlvUInt64 } from "@matter/types";
+import { Status, StatusResponseError, TlvByteString, TlvField, TlvNullable, TlvObject, TlvUInt64 } from "@matter/types";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 
 const ENABLE_KEY = Bytes.fromHex("0102030405060708090a0b0c0d0e0f10");
@@ -152,6 +152,23 @@ async function setEnableKey(node: Device, deviceTestEnableKey: Bytes) {
     });
 }
 
+/**
+ * Calls TestEventTrigger on the behavior directly, as a call path without the model's 16-byte constraint would.
+ */
+async function directTestEventTrigger(node: Device, enableKey: Bytes) {
+    try {
+        await node.online({ command: true, accessLevel: AccessLevel.Manage }, agent =>
+            agent.get(TriggerServer).testEventTrigger({ enableKey, eventTrigger: SUPPORTED_TRIGGER }),
+        );
+        return Status.Success;
+    } catch (error) {
+        if (error instanceof StatusResponseError) {
+            return error.code;
+        }
+        throw error;
+    }
+}
+
 describe("GeneralDiagnosticsServer", () => {
     beforeEach(() => {
         MockTime.reset();
@@ -204,6 +221,34 @@ describe("GeneralDiagnosticsServer", () => {
             );
         });
 
+        it("does not authenticate a request key that is a prefix of the configured key", async () => {
+            await using node = await createDevice();
+            expect(await directTestEventTrigger(node, Bytes.of(ENABLE_KEY).slice(0, 8))).equals(Status.ConstraintError);
+            expect(triggered).deep.equals([]);
+        });
+
+        it("does not authenticate a prefix that leaves out trailing zero bytes of the configured key", async () => {
+            const configured = Bytes.fromHex("01020304050607080000000000000000");
+            await using node = await createDevice({ deviceTestEnableKey: configured });
+            expect(await directTestEventTrigger(node, Bytes.of(configured).slice(0, 8))).equals(Status.ConstraintError);
+            expect(triggered).deep.equals([]);
+        });
+
+        it("does not authenticate a request key that extends the configured key", async () => {
+            await using node = await createDevice();
+            expect(await directTestEventTrigger(node, Bytes.concat(ENABLE_KEY, new Uint8Array([1])))).equals(
+                Status.ConstraintError,
+            );
+            expect(triggered).deep.equals([]);
+        });
+
+        it("does not authenticate the 16-byte prefix of an over-long configured key", async () => {
+            await using node = await createDevice();
+            await setEnableKey(node, Bytes.concat(ENABLE_KEY, new Uint8Array([0x11])));
+            expect(await testEventTrigger(node, ENABLE_KEY)).equals(Status.ConstraintError);
+            expect(triggered).deep.equals([]);
+        });
+
         // § 11.12.7.1.2: "If the value of EventTrigger received is not supported by the receiving Node, this command
         // SHALL fail with a status code of INVALID_COMMAND."
         it("answers INVALID_COMMAND to an unsupported trigger with a matching key", async () => {
@@ -248,6 +293,19 @@ describe("GeneralDiagnosticsServer", () => {
 
         it("refuses to start when set true without a key", async () => {
             expect(await startupErrors({ testEventTriggersEnabled: true })).match(/no deviceTestEnableKey is set/);
+        });
+
+        it("refuses to start with a non-zero key that is not 16 bytes", async () => {
+            expect(await startupErrors({ deviceTestEnableKey: Bytes.of(ENABLE_KEY).slice(0, 8) })).match(
+                /must be 16 bytes long, but it has 8/,
+            );
+            expect(await startupErrors({ deviceTestEnableKey: Bytes.concat(ENABLE_KEY, new Uint8Array([1])) })).match(
+                /must be 16 bytes long, but it has 17/,
+            );
+        });
+
+        it("starts with the all-zero key of another length", async () => {
+            expect(await startupErrors({ deviceTestEnableKey: new Uint8Array(8) })).equals(undefined);
         });
 
         // § 11.12.7.4: "This command SHALL respond with a response status of CONSTRAINT_ERROR if either: ... The

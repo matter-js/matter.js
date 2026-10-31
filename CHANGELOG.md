@@ -50,6 +50,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: GeneralDiagnostics registering a fault that is already active no longer emits a fault change event
     - Fix: GeneralDiagnostics TimeSnapshot `SystemTimeMs` counts from when the node came online, like `UpTime`, instead of from the host boot
     - Fix: GeneralDiagnostics `TestEventTriggersEnabled` is true exactly when a non-zero `deviceTestEnableKey` is configured, and PayloadTestRequest accepts that key without also setting the attribute
+    - Fix: GeneralDiagnostics test commands compare the EnableKey in constant time and never accept a key that is not 16 bytes, and the node refuses to start with a non-zero `deviceTestEnableKey` of another length
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp

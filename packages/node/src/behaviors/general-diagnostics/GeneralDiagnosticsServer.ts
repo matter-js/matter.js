@@ -94,8 +94,27 @@ function elapsedSince(start: Timestamp, end: Timestamp): Duration {
     return Duration.max(0, Timespan(start, end).duration);
 }
 
+const ENABLE_KEY_LENGTH = 16;
+
 function isAllZero(bytes: Bytes) {
     return Bytes.of(bytes).every(byte => byte === 0);
+}
+
+/**
+ * Compares the whole key in constant time, so the response time does not reveal how many leading bytes matched.  Keys
+ * of any length other than 16 bytes never match.
+ */
+function enableKeysMatch(received: Bytes, configured: Bytes) {
+    const a = Bytes.of(received);
+    const b = Bytes.of(configured);
+    if (a.length !== ENABLE_KEY_LENGTH || b.length !== ENABLE_KEY_LENGTH) {
+        return false;
+    }
+    let difference = 0;
+    for (let i = 0; i < ENABLE_KEY_LENGTH; i++) {
+        difference |= a[i] ^ b[i];
+    }
+    return difference === 0;
 }
 
 /**
@@ -122,9 +141,15 @@ export class GeneralDiagnosticsServer extends Base {
     static override readonly schema = schema;
 
     override initialize() {
-        const testEventTriggersEnabled = !isAllZero(this.state.deviceTestEnableKey);
+        const { deviceTestEnableKey } = this.state;
+        const testEventTriggersEnabled = !isAllZero(deviceTestEnableKey);
         if (this.state.testEventTriggersEnabled && !testEventTriggersEnabled) {
             throw new ImplementationError("Test event triggers are enabled but no deviceTestEnableKey is set.");
+        }
+        if (testEventTriggersEnabled && deviceTestEnableKey.byteLength !== ENABLE_KEY_LENGTH) {
+            throw new ImplementationError(
+                `The deviceTestEnableKey must be ${ENABLE_KEY_LENGTH} bytes long, but it has ${deviceTestEnableKey.byteLength}.`,
+            );
         }
         this.state.testEventTriggersEnabled = testEventTriggersEnabled;
         if (testEventTriggersEnabled) {
@@ -192,12 +217,9 @@ export class GeneralDiagnosticsServer extends Base {
         if (isAllZero(enableKey)) {
             throw new StatusResponseError("Invalid test enable key, all zeros", Status.ConstraintError);
         }
-        const expectedKeyData = Bytes.of(this.state.deviceTestEnableKey);
-        Bytes.of(enableKey).forEach((byte, index) => {
-            if (byte !== expectedKeyData[index]) {
-                throw new StatusResponseError("Invalid test enable key", Status.ConstraintError);
-            }
-        });
+        if (!enableKeysMatch(enableKey, this.state.deviceTestEnableKey)) {
+            throw new StatusResponseError("Invalid test enable key", Status.ConstraintError);
+        }
     }
 
     override testEventTrigger({ eventTrigger, enableKey }: GeneralDiagnostics.TestEventTriggerRequest): MaybePromise {
@@ -549,10 +571,10 @@ export namespace GeneralDiagnosticsServer {
         totalOperationalHoursCounter: Duration = 0;
 
         /**
-         * The EnableKey of the test commands.  The default of all zeros disables them.  testEventTriggersEnabled
+         * The 16-byte EnableKey of the test commands.  The default of all zeros disables them.  testEventTriggersEnabled
          * is derived from this key when the behavior initializes, so a key set later leaves the commands disabled.
          */
-        deviceTestEnableKey: Bytes = new Uint8Array(16).fill(0);
+        deviceTestEnableKey: Bytes = new Uint8Array(ENABLE_KEY_LENGTH);
 
         [Val.properties](endpoint: Endpoint, session: ValueSupervisor.Session) {
             // Invoked on the underlying state, so read our own values from here.  Reading them via the endpoint would
