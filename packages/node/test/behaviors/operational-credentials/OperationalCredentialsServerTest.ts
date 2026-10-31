@@ -87,9 +87,11 @@ describe("OperationalCredentialsServer", () => {
         async function addNocStatus({
             nocNodeId,
             caseAdminSubject,
+            rootAsIcac = false,
         }: {
             nocNodeId: NodeId;
             caseAdminSubject: SubjectId;
+            rootAsIcac?: boolean;
         }) {
             const authority = await TestFabric.Authority({ index: 1 });
             const fabric = await authority.createFabric({
@@ -119,7 +121,7 @@ describe("OperationalCredentialsServer", () => {
             const { statusCode } = await node.online(context, agent =>
                 agent.operationalCredentials.addNoc({
                     nocValue: noc,
-                    icacValue: fabric.intermediateCACert,
+                    icacValue: rootAsIcac ? authority.ca.rootCert : fabric.intermediateCACert,
                     ipkValue: fabric.identityProtectionKey,
                     caseAdminSubject,
                     adminVendorId: VendorId(0xfff1),
@@ -135,6 +137,16 @@ describe("OperationalCredentialsServer", () => {
             });
 
             expect(status).equals(OperationalCredentials.NodeOperationalCertStatus.InvalidNodeOpId);
+        });
+
+        it("answers InvalidNoc for an RCAC in the ICAC field", async () => {
+            const status = await addNocStatus({
+                nocNodeId: NodeId(100),
+                caseAdminSubject: NodeId(100),
+                rootAsIcac: true,
+            });
+
+            expect(status).equals(OperationalCredentials.NodeOperationalCertStatus.InvalidNoc);
         });
 
         it("answers InvalidAdminSubject for a CAT admin subject with version 0", async () => {
