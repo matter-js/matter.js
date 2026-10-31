@@ -86,7 +86,7 @@ export interface OperationalCertificateUpdateOptions {
      */
     failsafe?: Duration;
 
-    /** Aborts waiting for the first CASE session with the peer. */
+    /** Aborts waiting for any CASE session the update opens with the peer. */
     abort?: AbortSignal;
 }
 
@@ -382,14 +382,15 @@ async function settle(
         );
     } catch (error) {
         logger.info(`Could not read the certificate state of ${address} after a failed update:`, error);
-        state = { breadcrumb: undefined, holdsNoc: false };
+        state = {};
     }
 
-    if (state.breadcrumb === 0n) {
-        if (state.holdsNoc) {
-            logger.info("Updated operational certificate of", address.toString(), "although a confirmation was lost");
-            return { operationalPublicKey };
-        }
+    if (state.breadcrumb === 0n && state.holdsNoc === true) {
+        logger.info("Updated operational certificate of", address.toString(), "although a confirmation was lost");
+        return { operationalPublicKey };
+    }
+
+    if (state.breadcrumb === 0n && state.holdsNoc === false) {
         throw new OperationalCertificateUpdateError(
             `Updating the operational certificate of ${address} failed; it reverted to its previous certificate`,
             { cause },
@@ -413,13 +414,13 @@ interface CertificateState {
     /** The Breadcrumb attribute, if the peer reported it. */
     breadcrumb?: bigint;
 
-    /** Whether the NOCs attribute of the accessing fabric holds the new NOC. */
-    holdsNoc: boolean;
+    /** Whether the NOCs attribute of the accessing fabric holds the new NOC, if the peer reported it. */
+    holdsNoc?: boolean;
 }
 
 /** Read Breadcrumb and the NOCs of the accessing fabric in one request. */
 async function certificateState(interaction: ClientInteraction, nocValue: Bytes): Promise<CertificateState> {
-    const state: CertificateState = { holdsNoc: false };
+    const state: CertificateState = {};
     for await (const chunk of interaction.read(
         Read(
             { fabricFilter: true },
@@ -438,11 +439,10 @@ async function certificateState(interaction: ClientInteraction, nocValue: Bytes)
                 }
                 continue;
             }
-            if (
-                Array.isArray(value) &&
-                value.some(entry => isObject(entry) && Bytes.isBytes(entry.noc) && Bytes.areEqual(entry.noc, nocValue))
-            ) {
-                state.holdsNoc = true;
+            if (Array.isArray(value)) {
+                state.holdsNoc = value.some(
+                    entry => isObject(entry) && Bytes.isBytes(entry.noc) && Bytes.areEqual(entry.noc, nocValue),
+                );
             }
         }
     }
@@ -527,10 +527,10 @@ async function armFailsafe(interaction: ClientInteraction, { failsafe, breadcrum
 }
 
 /**
- * Expire the fail-safe at once so the peer rolls back.  Returns whether the peer confirmed.  Failure only delays the
- * rollback until the fail-safe expires.
+ * Expire the fail-safe at once so the peer rolls back.  Failure is logged; it only delays the rollback until the
+ * fail-safe expires.
  */
-async function disarmFailsafe(interaction: ClientInteraction) {
+async function disarmFailsafe(interaction: ClientInteraction): Promise<void> {
     let failure: unknown;
     try {
         const { errorCode, debugText } = responseOf(
@@ -543,7 +543,7 @@ async function disarmFailsafe(interaction: ClientInteraction) {
             "ArmFailSafe",
         );
         if (errorCode === GeneralCommissioning.CommissioningError.Ok) {
-            return true;
+            return;
         }
         failure = commissioningErrorText(errorCode, debugText);
     } catch (error) {
@@ -553,7 +553,6 @@ async function disarmFailsafe(interaction: ClientInteraction) {
         `Could not disarm the fail-safe of ${interaction.address}; it rolls back when the fail-safe expires:`,
         failure,
     );
-    return false;
 }
 
 function commissioningErrorText(errorCode: GeneralCommissioning.CommissioningError, debugText?: string) {

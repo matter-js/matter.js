@@ -34,6 +34,7 @@ import {
     ControllerCommissioner,
     FabricChangedError,
     PeerUnresponsiveError,
+    ReadResult,
     DeviceCommissioner,
     ExchangeManager,
     Fabric,
@@ -182,6 +183,38 @@ function loseResponse(clusterId: number, commandId: number, afterDelivery?: () =
 
 function loseUpdateNocResponse(afterDelivery?: () => Promise<void>) {
     return loseResponse(OperationalCredentials.Cluster.id, UPDATE_NOC_COMMAND_ID, afterDelivery);
+}
+
+/** The NOCs attribute is attribute 0x0000 of the Operational Credentials cluster (§ 11.18.5.1). */
+const NOCS_ATTRIBUTE_ID = 0x0000;
+
+async function* withoutNocs(chunk: ReadResult.Chunk) {
+    for await (const report of chunk) {
+        if (
+            report.kind === "attr-value" &&
+            report.path.clusterId === OperationalCredentials.Cluster.id &&
+            report.path.attributeId === NOCS_ATTRIBUTE_ID
+        ) {
+            continue;
+        }
+        yield report;
+    }
+}
+
+/** Drop NOCs values from every read of the controller, as if the peer reported none.  Returns a restore function. */
+function dropNocsReports() {
+    const original = ClientInteraction.prototype.read;
+    ClientInteraction.prototype.read = async function* (
+        this: ClientInteraction,
+        ...args: Parameters<typeof original>
+    ): ReturnType<typeof original> {
+        for await (const chunk of original.apply(this, args)) {
+            yield withoutNocs(chunk);
+        }
+    };
+    return () => {
+        ClientInteraction.prototype.read = original;
+    };
 }
 
 /** Number of open interaction lifetimes under the environment of {@link node}. */
@@ -528,6 +561,25 @@ describe("OperationalCertificateUpdate", () => {
         await MockTime.resolve(MockTime.sleep("fail-safe expiry", Seconds(70)), { macrotasks: true });
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
         expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
+    });
+
+    it("reports an unknown outcome when the node reports no NOCs value", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        const restoreAnswer = loseUpdateNocResponse();
+        const restoreRead = dropNocsReports();
+        try {
+            await expect(
+                withEntropy([controller, device], () =>
+                    MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
+                ),
+            ).rejectedWith(OperationalCertificateUpdateError, /outcome is unknown/);
+        } finally {
+            restoreRead();
+            restoreAnswer();
+        }
     });
 
     it("reports an unknown outcome when another fail-safe replaced the update's", async () => {
