@@ -118,22 +118,42 @@ export interface OperationalCertificateUpdateResult {
  * CSR signature only proves that the CSR comes from the holder of the DAC the peer reports; the CASE session already
  * authenticates the peer.
  *
+ * The update arms its fail-safe with a random non-zero Breadcrumb.  The peer resets Breadcrumb to 0 on a successful
+ * CommissioningComplete and on fail-safe expiry or disarm (§ 11.10.7.2, § 11.10.7.6).  The fail-safe is bound to the
+ * fabric, not to the session, so any operation of the same fabric may re-arm it and overwrite Breadcrumb.  The update
+ * therefore sends CommissioningComplete only over a session on which it has just read its own Breadcrumb, and it does
+ * not arm when Breadcrumb is not 0 at the start, because an ArmFailSafe would join the fail-safe of another operation.
+ * When it reads a foreign Breadcrumb after UpdateNOC, it disarms, so that no other operation can commit the pending NOC
+ * later, and decides from a second read; a disarm without an armed fail-safe has no effect (§ 11.10.7.2).
+ *
  * Failure handling:
  *
- * | Failure                             | Action                                                                  |
- * | ----------------------------------- | ----------------------------------------------------------------------- |
- * | UpdateNOC not reached or refused    | disarm the fail-safe over session 1; the peer keeps its previous NOC    |
- * | UpdateNOC unanswered, or a failure  | read Breadcrumb and NOCs together over a new session; if Breadcrumb is  |
- * | after it                            | this update's, disarm and read again. Then, by Breadcrumb:              |
- * |                                     | - 0: the state is final; resolve if NOCs holds the new NOC, else report |
- * |                                     |   the previous NOC kept                                                 |
- * |                                     | - this update's: the fail-safe is still armed; report that the peer     |
- * |                                     |   returns to its previous NOC when the fail-safe expires                |
- * |                                     | - other value: report the outcome as unknown                            |
+ * | Situation                                      | Action and result                                   |
+ * | ---------------------------------------------- | --------------------------------------------------- |
+ * | Breadcrumb not 0, or unreadable, before arming | arm nothing; reject, the caller may retry later     |
+ * | ArmFailSafe answered with an error code        | nothing armed; reject                               |
+ * | a later step before UpdateNOC fails, or        | disarm over session 1; previous NOC kept            |
+ * | UpdateNOC is refused                           |                                                     |
+ * | after UpdateNOC, on a new CASE session         | read Breadcrumb and NOCs, then by the values read:  |
+ * | - Breadcrumb ours, new NOC pending             | CommissioningComplete: OK → resolve; error code or  |
+ * |                                                | status → disarm, report previous NOC; no answer →   |
+ * |                                                | recovery                                            |
+ * | - Breadcrumb ours, new NOC not pending         | disarm, report previous NOC                         |
+ * | - Breadcrumb 0, NOCs lacks the new NOC         | send nothing; report previous NOC (fail-safe ended) |
+ * | - anything else                                | disarm, then read again on another new session:     |
+ * |                                                | 0 and old NOC → report previous NOC; 0 and new NOC  |
+ * |                                                | after a confirmed disarm → resolve; else report the |
+ * |                                                | outcome as unknown                                  |
+ * | UpdateNOC unanswered; or after a confirmed     | recovery, once: the same read and decision on       |
+ * | UpdateNOC no CASE session, or the read or      | another new CASE session; a failure there or an     |
+ * | CommissioningComplete unanswered               | abort reports the outcome as unknown                |
  *
- * The update arms its fail-safe with a random non-zero Breadcrumb.  The peer resets Breadcrumb to 0 on a successful
- * CommissioningComplete and on fail-safe expiry or disarm (§ 11.10.7.2, § 11.10.7.6), so 0 means its state is final.
- * NOCs alone cannot tell: it shows a pending NOC while the fail-safe is armed (§ 11.18.6.9).
+ * The update never lets another operation commit its new NOC unseen.  For that reason the disarm deliberately also
+ * reverts what another operation of the same fabric placed in the shared fail-safe context; that operation's
+ * CommissioningComplete then fails with NoFailSafe, and it can retry.  Matter offers no read of who holds the
+ * fail-safe, so an arm with Breadcrumb 0 by another operation before the update starts stays undetectable.  Breadcrumb
+ * is writable (§ 11.10.6.1), so a stale non-zero value written without a fail-safe makes the update refuse until
+ * CommissioningComplete, a fail-safe expiry or a restart of the peer resets it.
  *
  * After UpdateNOC and after a rollback the peer clears our sessions without notice, so we close ours, drop the
  * resumption record and restart subscriptions.
@@ -144,6 +164,7 @@ export interface OperationalCertificateUpdateResult {
  *
  * @see {@link MatterSpecification.v161.Core} § 11.18.6.9
  * @see {@link MatterSpecification.v161.Core} § 11.10.7.2
+ * @see {@link MatterSpecification.v161.Core} § 11.10.6.1
  */
 export async function updateOperationalCertificate(
     context: OperationalCertificateUpdateContext,
@@ -189,43 +210,64 @@ export async function updateOperationalCertificate(
         );
     }
 
-    if (installed.kind === "unconfirmed") {
-        return await settle(context, address, installed, failsafeArm, abort, installed.cause);
+    let cause = installed.kind === "unconfirmed" ? installed.cause : undefined;
+    let completion: Completion | undefined;
+    if (installed.kind === "installed") {
+        try {
+            completion = await completeUpdate(context, address, installed, failsafeArm, {
+                abort,
+                connectionTimeout: Millis(Math.max(failsafeLeft() - COMMISSIONING_COMPLETE_MARGIN, 0)),
+            });
+        } catch (error) {
+            cause = error;
+        }
     }
 
-    try {
-        await forgetSessions(context, address, "Operational certificate of the peer was updated");
-        await withCase(
-            context,
-            address,
-            { abort, connectionTimeout: Millis(Math.max(failsafeLeft() - COMMISSIONING_COMPLETE_MARGIN, 0)) },
-            async ({ interaction }) => {
-                const { errorCode, debugText } = responseOf(
-                    await invokeSingleCommand(
-                        interaction,
-                        {
-                            endpoint: RootEndpointNumber,
-                            cluster: GeneralCommissioning,
-                            command: "commissioningComplete",
-                        },
-                        { useExtendedFailSafeMessageResponseTimeout: true },
-                    ),
-                    "CommissioningComplete",
-                );
-                if (errorCode !== GeneralCommissioning.CommissioningError.Ok) {
-                    throw new OperationalCertificateUpdateError(
-                        `CommissioningComplete failed with ${commissioningErrorText(errorCode, debugText)}`,
-                    );
-                }
-            },
-        );
-    } catch (error) {
-        return await settle(context, address, installed, failsafeArm, abort, error);
+    const recovered = completion === undefined;
+    if (completion === undefined && abort?.aborted) {
+        completion = { kind: "unknown" };
+    }
+    if (completion === undefined) {
+        try {
+            completion = await completeUpdate(context, address, installed, failsafeArm, { abort });
+        } catch (error) {
+            logger.info(`Could not complete the operational certificate update of ${address}:`, error);
+            completion = { kind: "unknown" };
+        }
     }
 
-    logger.info("Updated operational certificate of", address.toString());
+    switch (completion.kind) {
+        case "completed":
+            logger.info(
+                "Updated operational certificate of",
+                address.toString(),
+                ...(recovered ? ["after a recovery"] : []),
+            );
+            return {
+                fabricIndexOnPeer: installed.kind === "installed" ? installed.fabricIndexOnPeer : undefined,
+                operationalPublicKey: installed.operationalPublicKey,
+            };
 
-    return { fabricIndexOnPeer: installed.fabricIndexOnPeer, operationalPublicKey: installed.operationalPublicKey };
+        case "rolledBack":
+            throw new OperationalCertificateUpdateError(
+                completion.disarmed
+                    ? `Updating the operational certificate of ${address} failed; it reverted to its previous certificate`
+                    : `Updating the operational certificate of ${address} failed; it keeps its previous certificate once its fail-safe, armed for ${Duration.format(failsafe)}, expires`,
+                { cause: completion.cause ?? cause },
+            );
+
+        case "reverted":
+            throw new OperationalCertificateUpdateError(
+                `Updating the operational certificate of ${address} failed; it reverted to its previous certificate`,
+                { cause },
+            );
+
+        case "unknown":
+            throw new OperationalCertificateUpdateError(
+                `Updating the operational certificate of ${address} failed and its outcome is unknown; the peer reverts to its previous certificate when its fail-safe expires, unless this update or another operation of the same fabric completed that fail-safe`,
+                { cause },
+            );
+    }
 }
 
 /** Outcome of the steps over the first session. */
@@ -240,8 +282,9 @@ interface NewCertificate {
 }
 
 /**
- * Run ArmFailSafe, CertificateChainRequest, CSRRequest and UpdateNOC over {@link session}.  On a failure before
- * UpdateNOC reached the peer, disarms the fail-safe over the same session.
+ * Read Breadcrumb, then run ArmFailSafe, CertificateChainRequest, CSRRequest and UpdateNOC over {@link session}.  Does
+ * not arm when Breadcrumb is not 0.  On a failure after arming and before UpdateNOC reached the peer, disarms the
+ * fail-safe over the same session.
  */
 async function installNewCertificate(
     { ca }: OperationalCertificateUpdateContext,
@@ -249,6 +292,21 @@ async function installNewCertificate(
     fabricId: FabricId,
     failsafeArm: FailsafeArm,
 ): Promise<InstalledCertificate> {
+    let breadcrumb: bigint;
+    try {
+        breadcrumb = await readBreadcrumb(interaction);
+    } catch (cause) {
+        return { kind: "refused", cause };
+    }
+    if (breadcrumb !== 0n) {
+        return {
+            kind: "refused",
+            cause: new FailsafeRefusedError(
+                `Cannot update the operational certificate of ${interaction.address}: its Breadcrumb is ${breadcrumb}, so another operation of the same fabric may hold the fail-safe; retry later`,
+            ),
+        };
+    }
+
     let certificate: NewCertificate;
     try {
         await armFailsafe(interaction, failsafeArm);
@@ -352,66 +410,98 @@ function randomBreadcrumb(crypto: Crypto) {
     return value === 0n ? 1n : value;
 }
 
+/** Result of {@link completeUpdate}. */
+type Completion =
+    | { kind: "completed" }
+    | { kind: "rolledBack"; cause?: unknown; disarmed: boolean }
+    | { kind: "reverted" }
+    | { kind: "unknown" };
+
 /**
- * Report the state of a peer whose UpdateNOC may have taken effect.
+ * Send CommissioningComplete over a new CASE session, but only after reading on that session this update's
+ * Breadcrumb and the new NOC pending; see the table at {@link updateOperationalCertificate}.
  *
- * Does not disarm a fail-safe that it reads with another Breadcrumb, which another operation of the same fabric armed;
- * see the table at {@link updateOperationalCertificate}.
+ * Rejects when the peer cannot be reached, the read fails or CommissioningComplete is not answered.
  */
-async function settle(
+async function completeUpdate(
     context: OperationalCertificateUpdateContext,
     address: PeerAddress,
-    { nocValue, operationalPublicKey }: NewCertificate,
-    { failsafe, breadcrumb }: FailsafeArm,
-    abort: AbortSignal | undefined,
-    cause: unknown,
-): Promise<OperationalCertificateUpdateResult> {
-    let state: CertificateState;
-    try {
-        await forgetSessions(context, address, "Operational certificate update of the peer failed");
-        const readState = () =>
-            withCase(context, address, { abort }, ({ interaction }) => certificateState(interaction, nocValue));
-        state = await readState();
-
-        if (state.breadcrumb === breadcrumb) {
-            try {
-                await withCase(context, address, { abort }, ({ interaction }) => disarmFailsafe(interaction));
-            } catch (error) {
-                logger.info(`Could not reach ${address} to disarm its fail-safe:`, error);
+    { nocValue }: NewCertificate,
+    { breadcrumb }: FailsafeArm,
+    options: { abort?: AbortSignal; connectionTimeout?: Duration },
+): Promise<Completion> {
+    await forgetSessions(context, address, "Operational certificate of the peer was updated");
+    const completion = await withCase(
+        context,
+        address,
+        options,
+        async ({ interaction }): Promise<Completion | { kind: "disarmedForeign"; disarmed: boolean }> => {
+            const state = await certificateState(interaction, nocValue);
+            if (state.breadcrumb !== breadcrumb) {
+                if (state.breadcrumb === 0n && state.holdsNoc === false) {
+                    return { kind: "reverted" };
+                }
+                return { kind: "disarmedForeign", disarmed: await disarmFailsafe(interaction) };
+            }
+            if (state.holdsNoc !== true) {
+                return { kind: "rolledBack", disarmed: await disarmFailsafe(interaction) };
             }
 
-            // A rollback ends the fabric's sessions without notice, and the disarm answer may be lost with them
-            await forgetSessions(context, address, "Peer may have reverted to its previous operational certificate");
-            state = await readState();
-        }
-    } catch (error) {
-        logger.info(`Could not read the certificate state of ${address} after a failed update:`, error);
-        state = {};
-    }
-
-    if (state.breadcrumb === 0n && state.holdsNoc === true) {
-        logger.info("Updated operational certificate of", address.toString(), "although a confirmation was lost");
-        return { operationalPublicKey };
-    }
-
-    if (state.breadcrumb === 0n && state.holdsNoc === false) {
-        throw new OperationalCertificateUpdateError(
-            `Updating the operational certificate of ${address} failed; it reverted to its previous certificate`,
-            { cause },
-        );
-    }
-
-    if (state.breadcrumb === breadcrumb) {
-        throw new OperationalCertificateUpdateError(
-            `Updating the operational certificate of ${address} failed; it keeps its previous certificate once its fail-safe, armed for ${Duration.format(failsafe)}, expires`,
-            { cause },
-        );
-    }
-
-    throw new OperationalCertificateUpdateError(
-        `Updating the operational certificate of ${address} failed and its outcome is unknown; the peer reverts to its previous certificate when its fail-safe expires unless CommissioningComplete reached it`,
-        { cause },
+            const response = await commissioningComplete(interaction);
+            if (response instanceof StatusResponseError) {
+                return { kind: "rolledBack", cause: response, disarmed: await disarmFailsafe(interaction) };
+            }
+            const { errorCode, debugText } = response;
+            if (errorCode === GeneralCommissioning.CommissioningError.Ok) {
+                return { kind: "completed" };
+            }
+            return {
+                kind: "rolledBack",
+                cause: new OperationalCertificateUpdateError(
+                    `CommissioningComplete failed with ${commissioningErrorText(errorCode, debugText)}`,
+                ),
+                disarmed: await disarmFailsafe(interaction),
+            };
+        },
     );
+
+    if (completion.kind === "rolledBack") {
+        await forgetSessions(context, address, "Peer reverted to its previous operational certificate");
+    }
+    if (completion.kind !== "disarmedForeign") {
+        return completion;
+    }
+
+    await forgetSessions(context, address, "Peer may have reverted to its previous operational certificate");
+    const state = await withCase(context, address, options, ({ interaction }) =>
+        certificateState(interaction, nocValue),
+    );
+    if (state.breadcrumb === 0n && state.holdsNoc === false) {
+        return { kind: "reverted" };
+    }
+    if (state.breadcrumb === 0n && state.holdsNoc === true && completion.disarmed) {
+        return { kind: "completed" };
+    }
+    return { kind: "unknown" };
+}
+
+/** Send CommissioningComplete; resolves to the error when the peer answers with a status instead of a response. */
+async function commissioningComplete(interaction: ClientInteraction) {
+    try {
+        return responseOf(
+            await invokeSingleCommand(
+                interaction,
+                { endpoint: RootEndpointNumber, cluster: GeneralCommissioning, command: "commissioningComplete" },
+                { useExtendedFailSafeMessageResponseTimeout: true },
+            ),
+            "CommissioningComplete",
+        );
+    } catch (error) {
+        if (error instanceof StatusResponseError) {
+            return error;
+        }
+        throw error;
+    }
 }
 
 interface CertificateState {
@@ -422,16 +512,32 @@ interface CertificateState {
     holdsNoc?: boolean;
 }
 
-/** Read Breadcrumb and the NOCs of the accessing fabric in one request. */
-async function certificateState(interaction: ClientInteraction, nocValue: Bytes): Promise<CertificateState> {
+/** Read Breadcrumb; rejects when the peer does not report it. */
+async function readBreadcrumb(interaction: ClientInteraction) {
+    const { breadcrumb } = await certificateState(interaction);
+    if (breadcrumb === undefined) {
+        throw new UnexpectedDataError(`${interaction.address} reported no Breadcrumb value`);
+    }
+    return breadcrumb;
+}
+
+/** Read Breadcrumb, and with {@link nocValue} also the NOCs of the accessing fabric, in one request. */
+async function certificateState(interaction: ClientInteraction, nocValue?: Bytes): Promise<CertificateState> {
     const state: CertificateState = {};
-    for await (const chunk of interaction.read(
-        Read(
-            { fabricFilter: true },
-            Read.Attribute({ endpoint: RootEndpointNumber, cluster: GeneralCommissioning, attributes: "breadcrumb" }),
-            Read.Attribute({ endpoint: RootEndpointNumber, cluster: OperationalCredentials, attributes: "nocs" }),
-        ),
-    )) {
+    const breadcrumbPath = Read.Attribute({
+        endpoint: RootEndpointNumber,
+        cluster: GeneralCommissioning,
+        attributes: "breadcrumb",
+    });
+    const request =
+        nocValue === undefined
+            ? Read({ fabricFilter: true }, breadcrumbPath)
+            : Read(
+                  { fabricFilter: true },
+                  breadcrumbPath,
+                  Read.Attribute({ endpoint: RootEndpointNumber, cluster: OperationalCredentials, attributes: "nocs" }),
+              );
+    for await (const chunk of interaction.read(request)) {
         for await (const report of chunk) {
             if (report.kind !== "attr-value") {
                 continue;
@@ -443,7 +549,7 @@ async function certificateState(interaction: ClientInteraction, nocValue: Bytes)
                 }
                 continue;
             }
-            if (Array.isArray(value)) {
+            if (nocValue !== undefined && Array.isArray(value)) {
                 state.holdsNoc = value.some(
                     entry => isObject(entry) && Bytes.isBytes(entry.noc) && Bytes.areEqual(entry.noc, nocValue),
                 );
@@ -505,7 +611,7 @@ async function withCase<T>(
     }
 }
 
-/** The peer answered ArmFailSafe with an error code, so no fail-safe was armed for us. */
+/** The update did not arm a fail-safe because the peer refused ArmFailSafe or Breadcrumb showed another operation. */
 class FailsafeRefusedError extends OperationalCertificateUpdateError {}
 
 async function armFailsafe(interaction: ClientInteraction, { failsafe, breadcrumb }: FailsafeArm) {
@@ -532,9 +638,9 @@ async function armFailsafe(interaction: ClientInteraction, { failsafe, breadcrum
 
 /**
  * Expire the fail-safe at once so the peer rolls back.  Failure is logged; it only delays the rollback until the
- * fail-safe expires.
+ * fail-safe expires.  Resolves to whether the peer confirmed the disarm.
  */
-async function disarmFailsafe(interaction: ClientInteraction): Promise<void> {
+async function disarmFailsafe(interaction: ClientInteraction): Promise<boolean> {
     let failure: unknown;
     try {
         const { errorCode, debugText } = responseOf(
@@ -547,7 +653,7 @@ async function disarmFailsafe(interaction: ClientInteraction): Promise<void> {
             "ArmFailSafe",
         );
         if (errorCode === GeneralCommissioning.CommissioningError.Ok) {
-            return;
+            return true;
         }
         failure = commissioningErrorText(errorCode, debugText);
     } catch (error) {
@@ -557,6 +663,7 @@ async function disarmFailsafe(interaction: ClientInteraction): Promise<void> {
         `Could not disarm the fail-safe of ${interaction.address}; it rolls back when the fail-safe expires:`,
         failure,
     );
+    return false;
 }
 
 function commissioningErrorText(errorCode: GeneralCommissioning.CommissioningError, debugText?: string) {
