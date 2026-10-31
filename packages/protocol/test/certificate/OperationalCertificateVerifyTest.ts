@@ -424,6 +424,11 @@ describe("Operational certificate verification", () => {
             await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(CertificateError, /rcacId/);
         });
 
+        it("refuses a matter-vvs-id", async () => {
+            const noc = withLeadingDnEntry(await nocTlv(node, ica), SUBJECT_TAG, dnEntry(DN_TAG.vvsId, VVS_ID));
+            await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(CertificateError, /vvsId/);
+        });
+
         it("refuses a second matter-icac-id in the issuer DN", async () => {
             const noc = withLeadingDnEntry(await nocTlv(node, ica), ISSUER_TAG, dnEntry(DN_TAG.icacId, 9));
             await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(UnexpectedDataError, /icacId/);
@@ -473,6 +478,11 @@ describe("Operational certificate verification", () => {
             );
             await expect(verifyIcac(icac, rootTlv)).rejectedWith(CertificateError, /caseAuthenticatedTags/);
         });
+
+        it("refuses a matter-vvs-id", async () => {
+            const icac = withLeadingDnEntry(await icacTlv(ica, root), SUBJECT_TAG, dnEntry(DN_TAG.vvsId, VVS_ID));
+            await expect(verifyIcac(icac, rootTlv)).rejectedWith(CertificateError, /vvsId/);
+        });
     });
 
     describe("RCAC subject DN and extensions", () => {
@@ -505,6 +515,11 @@ describe("Operational certificate verification", () => {
                 root,
             );
             await expect(verifyRcac(rcac)).rejectedWith(CertificateError, /nodeId/);
+        });
+
+        it("refuses a matter-vvs-id", async () => {
+            const rcac = withLeadingDnEntry(await rcacTlv(root), SUBJECT_TAG, dnEntry(DN_TAG.vvsId, VVS_ID));
+            await expect(verifyRcac(rcac)).rejectedWith(CertificateError, /vvsId/);
         });
 
         it("refuses a key usage flag beyond keyCertSign, cRLSign and digitalSignature", async () => {
