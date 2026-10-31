@@ -84,11 +84,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A VVSC with is-ca false, as the specification requires, no longer fails to load
     - Fix: Operational certificate verification refuses a NOC whose extended key usage lacks serverAuth, as CHIP does
     - Fix: Operational certificate verification counts each CASE Authenticated Tag as an RDN, so a DN with more than 5 RDNs is refused
-    - Fix: Operational certificates that repeat a single-valued DN attribute, or whose NOC, ICAC or RCAC subject has a matter-vvs-id, are refused with an error that names the attribute
-    - Fix: DER certificate parsing refuses a CASE Authenticated Tag with version 0
+    - Fix: Matter-TLV operational certificates that repeat a single-valued DN attribute, or whose NOC, ICAC or RCAC subject has a matter-vvs-id, are refused with an error that names the attribute
+    - Fix: DER certificate parsing refuses a CASE Authenticated Tag with version 0 or that is not a 32-bit value
 
 - @matter/types
-    - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when it decodes a field that is not repeated more than once
+    - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
 
 ## 0.18.0 (2026-10-20)
 

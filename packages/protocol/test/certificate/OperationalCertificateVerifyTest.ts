@@ -30,6 +30,7 @@ import {
     TlvTaggedList,
     TlvType,
     TlvUInt64,
+    ValidationMandatoryFieldMissingError,
     ValidationOutOfBoundsError,
 } from "@matter/types";
 
@@ -156,11 +157,9 @@ function dnEntry(tag: number, value: number | bigint): TlvStream {
 }
 
 /**
- * Inserts {@link entry} as the first element of the issuer or subject DN of a signed Matter-TLV certificate.
- *
- * The signature stays valid for the DN as matter.js decodes it whenever the decoder drops the inserted entry (an
- * unknown tag) or lets the original entry overwrite it (a duplicate of a single-valued tag that comes first).  So
- * these vectors reach the DN rule under test instead of failing on the signature.
+ * Inserts {@link entry} as the first element of the issuer or subject DN of a signed Matter-TLV certificate.  The
+ * signature is not updated; use {@link resignedNoc}, {@link resignedIcac} or {@link resignedRcac} where the decoded
+ * certificate must carry a valid signature.
  */
 function withLeadingDnEntry(tlv: Bytes, dnTag: typeof ISSUER_TAG | typeof SUBJECT_TAG, entry: TlvStream): Bytes {
     const stream = TlvAny.decode(tlv);
@@ -238,8 +237,8 @@ async function verifyVvsc(tlv: Bytes) {
 /**
  * Negative and edge vectors for operational certificate verification.
  *
- * Every vector is built from a conformant certificate with one field changed and is then signed again by its issuer, so
- * the ECDSA check never hides the rule under test.
+ * Each vector changes one field of a conformant certificate. Its signature is valid for the content that matter.js
+ * decoded before the matching fix, so a missing rule shows up as an accepted certificate, not as a signature failure.
  *
  * @see {@link MatterSpecification.v161.Core} § 6.5.6.3 and § 6.5.12
  */
@@ -475,8 +474,7 @@ describe("Operational certificate verification", () => {
             const noc = await nocTlv(node, root, cert => {
                 cert.issuer = { rcacId: ROOT_ID };
             });
-            await expect(verifyNoc(noc, rootTlv, rootTlv)).rejected;
-            await expect(verifyIcac(rootTlv, rootTlv)).rejected;
+            await expect(verifyNoc(noc, rootTlv, rootTlv)).rejectedWith(ValidationMandatoryFieldMissingError, /icacId/);
         });
 
         it("refuses fabric ID 0", async () => {
@@ -603,7 +601,7 @@ describe("Operational certificate verification", () => {
             ).asSignedDer();
             const mutated = replaceOnce(der, Bytes.fromString("ABCD0001"), Bytes.fromString("ABCD0000"));
 
-            expect(() => Noc.fromAsn1(mutated)).throws(ValidationOutOfBoundsError, /version/);
+            expect(() => Noc.fromAsn1(mutated)).throws(CertificateError, /Invalid CASE Authenticated Tag "ABCD0000"/);
         });
     });
 });

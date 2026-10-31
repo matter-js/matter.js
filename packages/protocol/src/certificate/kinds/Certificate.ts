@@ -353,7 +353,10 @@ export namespace Certificate {
                     case "caseAuthenticatedTag": {
                         // CAT tags - 4-byte hex string -> number
                         const hexString = Bytes.toString(valueBytes);
-                        const catValue = CaseAuthenticatedTag(parseInt(hexString, 16));
+                        const catValue = parseInt(hexString, 16);
+                        if (!CaseAuthenticatedTag.isValid(catValue)) {
+                            throw new CertificateError(`Invalid CASE Authenticated Tag "${hexString}"`);
+                        }
                         if (result.caseAuthenticatedTags !== undefined) {
                             (result.caseAuthenticatedTags as number[]).push(catValue);
                             continue;
