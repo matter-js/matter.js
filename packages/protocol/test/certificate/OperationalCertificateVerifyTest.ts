@@ -185,6 +185,18 @@ function withLeadingDnEntry(tlv: Bytes, dnTag: typeof ISSUER_TAG | typeof SUBJEC
     throw new InternalError(`Certificate has no DN with tag ${dnTag}`);
 }
 
+function replaceOnce(source: Bytes, search: Bytes, replacement: Bytes) {
+    const bytes = Bytes.of(source).slice();
+    const pattern = Bytes.of(search);
+    for (let offset = 0; offset + pattern.length <= bytes.length; offset++) {
+        if (pattern.every((byte, index) => bytes[offset + index] === byte)) {
+            bytes.set(Bytes.of(replacement), offset);
+            return bytes;
+        }
+    }
+    throw new InternalError("Pattern not found");
+}
+
 /** Signs a certificate again after {@link withLeadingDnEntry} added an entry the decoder keeps. */
 async function resignedNoc(tlv: Bytes, issuer: KeyMaterial) {
     const { signature: _signature, ...cert } = OperationalCertificate.TlvNoc.decode(tlv);
@@ -579,6 +591,19 @@ describe("Operational certificate verification", () => {
                 dnEntry(DN_TAG.fabricId, FABRIC_ID),
             );
             await expect(verifyVvsc(vvsc)).rejectedWith(CertificateError, /fabricId/);
+        });
+    });
+
+    describe("DER parsing", () => {
+        it("refuses a CAT with version 0", async () => {
+            const der = Noc.fromTlv(
+                await nocTlv(node, ica, cert => {
+                    cert.subject.caseAuthenticatedTags = [CaseAuthenticatedTag(0xabcd_0001)];
+                }),
+            ).asSignedDer();
+            const mutated = replaceOnce(der, Bytes.fromString("ABCD0001"), Bytes.fromString("ABCD0000"));
+
+            expect(() => Noc.fromAsn1(mutated)).throws(ValidationOutOfBoundsError, /version/);
         });
     });
 });
