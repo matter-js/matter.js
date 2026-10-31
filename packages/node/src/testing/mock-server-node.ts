@@ -31,8 +31,17 @@ import {
     nextEmitOf,
 } from "@matter/general";
 import { AccessLevel, MatterModel } from "@matter/model";
-import { ExchangeManager, FabricManager, ProtocolMocks, SessionManager, TestFabric } from "@matter/protocol";
-import { FabricIndex, NodeId } from "@matter/types";
+import {
+    ExchangeManager,
+    FabricManager,
+    NodeSession,
+    PeerAddress,
+    ProtocolMocks,
+    Session,
+    SessionManager,
+    TestFabric,
+} from "@matter/protocol";
+import { FabricIndex, INTERACTION_PROTOCOL_ID, NodeId } from "@matter/types";
 import { MockExchange } from "./mock-exchange.js";
 
 const logger = Logger.get("MockServerNode");
@@ -237,15 +246,19 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
             throw error;
         }
 
-        node.env.get(ExchangeManager).initiateExchange = address => {
-            const exchange = new MockExchange(address, {
-                session: node.env.get(SessionManager).maybeSessionFor(address),
-            });
-
+        const exchanges = node.env.get(ExchangeManager);
+        const initiateExchangeForSession = exchanges.initiateExchangeForSession.bind(exchanges);
+        const interceptExchange = (address: PeerAddress, session?: Session) => {
+            const exchange = new MockExchange(address, { session });
             node.#newExchanges.write(exchange);
-
             return exchange;
         };
+        exchanges.initiateExchange = address =>
+            interceptExchange(address, node.env.get(SessionManager).maybeSessionFor(address));
+        exchanges.initiateExchangeForSession = (session, protocolId, options) =>
+            protocolId === INTERACTION_PROTOCOL_ID && NodeSession.is(session)
+                ? interceptExchange(session.peerAddress, session)
+                : initiateExchangeForSession(session, protocolId, options);
 
         if (!node.lifecycle.isOnline) {
             await nextEmitOf(node.lifecycle.online);
@@ -255,7 +268,8 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
     }
 
     /**
-     * Resolves with the next exchange the node initiates towards a peer.  Only available on nodes made by {@link createOnline}.
+     * Resolves with the next exchange the node initiates towards a peer, by address or as an interaction on a node
+     * session.  Only available on nodes made by {@link createOnline}.
      */
     async handleExchange(): Promise<MockExchange> {
         return await this.#newExchanges.read();

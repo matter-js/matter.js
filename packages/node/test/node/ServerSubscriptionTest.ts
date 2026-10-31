@@ -6,7 +6,11 @@
 
 import { IcdManagementServer } from "#behaviors/icd-management";
 import { InteractionServer } from "#node/server/InteractionServer.js";
-import { ServerSubscription, ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
+import {
+    ServerSubscription,
+    ServerSubscriptionConfig,
+    ServerSubscriptionContext,
+} from "#node/server/ServerSubscription.js";
 import {
     createPromise,
     DataReadQueue,
@@ -26,17 +30,22 @@ import {
     MessageExchange,
     MessageType,
     NodeSession,
+    PeerAddress,
     PeerUnresponsiveError,
     ProtocolMocks,
+    Session,
+    SessionClosedError,
     SessionManager,
 } from "@matter/protocol";
 import {
     AttributeId,
+    CaseAuthenticatedTag,
     AttributePath,
     ClusterId,
     EndpointNumber,
     EventPath,
     INTERACTION_PROTOCOL_ID,
+    NodeId,
     Status,
     StatusResponseError,
     TlvDataReport,
@@ -72,7 +81,7 @@ describe("ServerSubscription", () => {
     // but stubs the node and initiateExchange to the minimum needed.
     async function createSubscription<T extends MockServerNode.RootEndpoint>(
         node: MockServerNode<T>,
-        makeExchange: () => MessageExchange,
+        makeExchange: ServerSubscriptionContext["initiateExchange"],
         overrides?: {
             minIntervalFloorSeconds?: number;
             maxIntervalCeilingSeconds?: number;
@@ -1280,6 +1289,45 @@ describe("ServerSubscription", () => {
         await MockTime.resolve(node.close());
     });
 
+    it("sends reports on the newest open session of the peer with the CATs of its own session", async () => {
+        const node = await MockServerNode.createOnline();
+        const fabric = await node.addFabric();
+        const [catA, catB] = [CaseAuthenticatedTag(0x0001_0001), CaseAuthenticatedTag(0x0002_0001)];
+        let nextId = 1;
+        const sessionWith = async (caseAuthenticatedTags: CaseAuthenticatedTag[]) =>
+            (await node.createExchange({ fabric, id: nextId++, peerNodeId: NodeId(0x1234), caseAuthenticatedTags }))
+                .session as NodeSession;
+
+        const own = await sessionWith([catA]);
+        const targets = new Array<PeerAddress | Session>();
+        const subscription = await createSubscription(
+            node,
+            target => {
+                targets.push(target);
+                return {
+                    maxPayloadSize: 1200,
+                    async send() {},
+                    async close() {},
+                } as unknown as MessageExchange;
+            },
+            { session: own },
+        );
+        subscription.activate();
+
+        const newest = await sessionWith([catA]);
+        await sessionWith([catA, catB]);
+        await sessionWith([catB]);
+
+        await MockTime.advance(200);
+        expect(targets.at(-1)).equals(newest);
+
+        await newest.initiateForceClose({ cause: new SessionClosedError("test") });
+        await MockTime.advance(200);
+        expect(targets.at(-1)).equals(own);
+
+        await MockTime.resolve(node.close());
+    });
+
     it("suppresses peer loss on the exchanges it opens to push subscription reports", async () => {
         const node = await MockServerNode.createOnline();
         const fabric = await node.addFabric();
@@ -1287,6 +1335,7 @@ describe("ServerSubscription", () => {
 
         const exchangeManager = node.env.get(ExchangeManager);
         const captured = new Array<MessageExchange.Options | undefined>();
+        const { initiateExchangeForSession } = exchangeManager;
         exchangeManager.initiateExchangeForSession = (_session, _protocolId, options) => {
             captured.push(options);
             throw new PeerUnresponsiveError(Millis(1000));
@@ -1310,7 +1359,7 @@ describe("ServerSubscription", () => {
                 ),
             ).to.be.rejectedWith(PeerUnresponsiveError);
         } finally {
-            delete (exchangeManager as Partial<ExchangeManager>).initiateExchangeForSession;
+            exchangeManager.initiateExchangeForSession = initiateExchangeForSession;
         }
 
         expect(captured).has.length(1);
