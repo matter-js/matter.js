@@ -7,6 +7,7 @@
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SessionParameters } from "#index.js";
+import type { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { DuplicateMessageError } from "#protocol/MessageReceptionState.js";
@@ -33,7 +34,7 @@ import {
     Time,
     Timestamp,
 } from "@matter/general";
-import { FabricId, FabricIndex, GlobalFabricId, NodeId, VendorId } from "@matter/types";
+import { CaseAuthenticatedTag, FabricId, FabricIndex, GlobalFabricId, NodeId, VendorId } from "@matter/types";
 
 const DUMMY_BYTEARRAY = new Uint8Array();
 
@@ -406,6 +407,125 @@ describe("SessionManager", () => {
             });
 
             expect(received[0]).equals(currentExchange);
+        });
+    });
+
+    describe("subscriptions on a newer CASE session", () => {
+        const PEER_NODE_ID = NodeId(0x1234n);
+        const [CAT_A, CAT_B] = [CaseAuthenticatedTag(0x0001_0001), CaseAuthenticatedTag(0x0002_0001)];
+        let sessionManager: SessionManager;
+        let nextId: number;
+
+        beforeEach(async () => {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            sessionManager = new SessionManager({
+                parameters: {} as SessionParameters,
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["context"]),
+            });
+            await sessionManager.construction.ready;
+            nextId = 0x0100;
+        });
+
+        function session(
+            options: {
+                peerNodeId?: NodeId;
+                caseAuthenticatedTags?: CaseAuthenticatedTag[];
+                isInitiator?: boolean;
+            } = {},
+        ) {
+            const id = nextId++;
+            return sessionManager.createSecureSession({
+                id,
+                fabric: undefined,
+                peerNodeId: options.peerNodeId ?? PEER_NODE_ID,
+                peerSessionId: id,
+                sharedSecret: DUMMY_BYTEARRAY,
+                salt: DUMMY_BYTEARRAY,
+                isInitiator: options.isInitiator ?? false,
+                isResumption: false,
+                caseAuthenticatedTags: options.caseAuthenticatedTags,
+            });
+        }
+
+        function subscriptionOn(owner: NodeSession, onClose?: () => void) {
+            const moves = new Array<NodeSession>();
+            const subscription: Subscription = {
+                subscriptionId: nextId,
+                isTerminated: false,
+                async handlePeerCancel() {},
+                async close() {
+                    onClose?.();
+                },
+                async closeForShutdown() {},
+                moveTo(session) {
+                    moves.push(session);
+                    owner.subscriptions.delete(subscription);
+                    owner = session;
+                    session.subscriptions.add(subscription);
+                },
+            };
+            owner.subscriptions.add(subscription);
+            return moves;
+        }
+
+        it("moves them from an older session with the same peer, role and CATs in any order", async () => {
+            const moves = subscriptionOn(await session({ caseAuthenticatedTags: [CAT_A, CAT_B] }));
+            const newer = await session({ caseAuthenticatedTags: [CAT_B, CAT_A] });
+            expect(moves).deep.equals([newer]);
+        });
+
+        it("leaves them on a session with other CATs", async () => {
+            const moves = subscriptionOn(await session({ caseAuthenticatedTags: [CAT_A] }));
+            await session({ caseAuthenticatedTags: [CAT_A, CAT_B] });
+            await session({ caseAuthenticatedTags: [CAT_B] });
+            await session();
+            expect(moves).deep.equals([]);
+        });
+
+        it("leaves them on a session of the other role", async () => {
+            const moves = subscriptionOn(await session());
+            await session({ isInitiator: true });
+            expect(moves).deep.equals([]);
+        });
+
+        it("leaves them on a session with another peer", async () => {
+            const moves = subscriptionOn(await session());
+            await session({ peerNodeId: NodeId(0x5678n) });
+            expect(moves).deep.equals([]);
+        });
+
+        it("leaves them on a closing session", async () => {
+            const older = await session();
+            const moves = subscriptionOn(older);
+            let release!: () => void;
+            const closing = older.initiateClose(() => new Promise<void>(resolve => (release = resolve)));
+            await session();
+            expect(moves).deep.equals([]);
+            release();
+            await closing;
+        });
+
+        it("moves them before the new session evicts the older one", async () => {
+            let closed = 0;
+            const older = await session();
+            const moves = subscriptionOn(older, () => closed++);
+            for (let i = 0; i < 4; i++) {
+                await session({ caseAuthenticatedTags: [CAT_A] });
+            }
+            const newer = await session();
+            await MockTime.yield3();
+
+            expect(older.isClosing).true;
+            expect(moves).deep.equals([newer]);
+            expect(closed).equals(0);
+        });
+
+        it("never moves them to a PASE session", async () => {
+            const moves = subscriptionOn(await session({ peerNodeId: NodeId.UNSPECIFIED_NODE_ID }));
+            await session({ peerNodeId: NodeId.UNSPECIFIED_NODE_ID });
+            expect(moves).deep.equals([]);
         });
     });
 

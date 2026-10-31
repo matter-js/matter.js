@@ -1289,16 +1289,16 @@ describe("ServerSubscription", () => {
         await MockTime.resolve(node.close());
     });
 
-    it("sends reports on the newest open session of the peer with the CATs of its own session", async () => {
+    it("moves to a newer session of the peer with equal CATs and reports there after the former session closes", async () => {
         const node = await MockServerNode.createOnline();
         const fabric = await node.addFabric();
-        const [catA, catB] = [CaseAuthenticatedTag(0x0001_0001), CaseAuthenticatedTag(0x0002_0001)];
+        const cat = CaseAuthenticatedTag(0x0001_0001);
         let nextId = 1;
         const sessionWith = async (caseAuthenticatedTags: CaseAuthenticatedTag[]) =>
             (await node.createExchange({ fabric, id: nextId++, peerNodeId: NodeId(0x1234), caseAuthenticatedTags }))
                 .session as NodeSession;
 
-        const own = await sessionWith([catA]);
+        const former = await sessionWith([cat]);
         const targets = new Array<PeerAddress | Session>();
         const subscription = await createSubscription(
             node,
@@ -1310,20 +1310,38 @@ describe("ServerSubscription", () => {
                     async close() {},
                 } as unknown as MessageExchange;
             },
-            { session: own },
+            { session: former },
         );
         subscription.activate();
 
-        const newest = await sessionWith([catA]);
-        await sessionWith([catA, catB]);
-        await sessionWith([catB]);
+        const newer = await sessionWith([cat]);
+        expect(subscription.session).equals(newer);
+        expect([...former.subscriptions]).deep.equals([]);
+        expect([...newer.subscriptions]).deep.equals([subscription]);
+
+        await former.initiateForceClose({ cause: new SessionClosedError("test") });
+        expect(subscription.isTerminated).false;
 
         await MockTime.advance(200);
-        expect(targets.at(-1)).equals(newest);
+        expect(targets.length).greaterThan(0);
+        expect(targets.every(target => target === newer)).true;
 
-        await newest.initiateForceClose({ cause: new SessionClosedError("test") });
-        await MockTime.advance(200);
-        expect(targets.at(-1)).equals(own);
+        await MockTime.resolve(node.close());
+    });
+
+    it("stays on its session when moved after it closed", async () => {
+        const node = await MockServerNode.createOnline();
+        const subscription = await createSubscription(node, () => ({}) as any);
+        const session = subscription.session;
+        subscription.activate();
+        await subscription.close();
+
+        const fabric = await node.addFabric();
+        const other = (await node.createExchange({ fabric })).session as NodeSession;
+        subscription.moveTo(other);
+
+        expect(subscription.session).equals(session);
+        expect([...other.subscriptions]).deep.equals([]);
 
         await MockTime.resolve(node.close());
     });

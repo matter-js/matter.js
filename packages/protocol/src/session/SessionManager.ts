@@ -278,6 +278,10 @@ export class SessionManager {
         });
 
         this.#sessions.added.on(session => {
+            // Before eviction, so an evicted older session does not end the subscriptions it hands over, and before the
+            // subscription monitors below, so a moved subscription does not count as added
+            this.#moveSubscriptionsTo(session);
+
             // We are the responder, so nothing else reclaims these: an initiator's sessions are swept by the peer
             // loss its own traffic reports
             if (!session.isInitiator) {
@@ -624,7 +628,6 @@ export class SessionManager {
         return found;
     }
 
-    /** The open sessions with {@link address}, in the order they were established. */
     sessionsFor(address: PeerAddress) {
         address = PeerAddress(address);
         return this.#sessions.filter(session => session.peerAddress === address && !session.isClosing);
@@ -656,6 +659,37 @@ export class SessionManager {
      */
     async handlePeerLoss(address: PeerAddress, context: PeerLossContext) {
         return await this.#handlePeerLoss({ ...context, address, asOf: context.asOf ?? Time.nowUs });
+    }
+
+    /**
+     * Move the subscriptions of the peer's older CASE sessions to the new CASE session {@link session}, as the CHIP SDK
+     * does in `SecureSessionTable::NewerSessionAvailable`.  A peer that sets up a new session may drop its older ones
+     * without telling us, and reports on a dropped session never arrive.
+     *
+     * Only sessions with the same role and equal CASE Authenticated Tags take part, so a moved subscription keeps the
+     * access subject it was set up with.  The role matters because a session we initiated carries our own CATs, while
+     * one the peer initiated carries the peer's.
+     */
+    #moveSubscriptionsTo(session: NodeSession) {
+        if (session.isPase) {
+            return;
+        }
+
+        for (const older of this.#sessions) {
+            if (
+                older === session ||
+                older.isClosing ||
+                older.isInitiator !== session.isInitiator ||
+                !older.peerIs(session.peerAddress) ||
+                !hasEqualCats(older, session)
+            ) {
+                continue;
+            }
+
+            for (const subscription of [...older.subscriptions]) {
+                subscription.moveTo?.(session);
+            }
+        }
     }
 
     /**
@@ -1101,4 +1135,10 @@ export class SessionManager {
         this.#idUpperBound = upperBound;
         this.#nextSessionId = (this.#context.fabrics.crypto.randomUint32 % upperBound) + 1;
     }
+}
+
+function hasEqualCats(session: NodeSession, other: NodeSession) {
+    const tags = new Set(session.caseAuthenticatedTags);
+    const otherTags = new Set(other.caseAuthenticatedTags);
+    return tags.size === otherTags.size && [...otherTags].every(tag => tags.has(tag));
 }

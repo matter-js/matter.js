@@ -46,7 +46,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
     - Fix: AdministratorCommissioning OpenCommissioningWindow answers INVALID_COMMAND to a discriminator above 4095 instead of CONSTRAINT_ERROR
     - Fix: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow answer PAKEParameterError on a session without fabric, as CHIP does, instead of UNSUPPORTED_ACCESS
-    - Fix: Subscription reports go out on the subscriber's newest session with the subscription's CASE Authenticated Tags, as CHIP does, instead of on the session the subscriber was last heard from, which it may have dropped
+    - Fix: A subscription moves to each newer CASE session of its subscriber with the same CASE Authenticated Tags, as CHIP does, and reports on its own session instead of the session the subscriber was last heard from, which it may have dropped
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
@@ -60,6 +60,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
     - Adjustment: `DclCertificateService.addCertificate()` refuses a CD signer certificate that is known to be untrusted because the CSA did not issue it
     - Adjustment: DER certificate parsing requires the basic constraints extension when the required extensions list it
+    - Adjustment: `SessionManager` moves subscriptions to each newer CASE session with the same peer, role and CASE Authenticated Tags through the new optional `Subscription.moveTo()`
     - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept
     - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: A group message whose key set GroupKeyMap does not map to its destination group fails authentication instead of reaching access control

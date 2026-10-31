@@ -42,7 +42,6 @@ import {
     Read,
     ReadResult,
     SessionClosedError,
-    SessionManager,
     Subscription,
     TransientPeerCommunicationError,
 } from "@matter/protocol";
@@ -154,7 +153,7 @@ export class ServerSubscription implements Subscription {
     #seededClusterDetails? = new Map<string, number>();
     #latestSeededEventNumber? = EventNumber(0);
     readonly #sendInterval: Duration;
-    readonly #peerAddress: PeerAddress;
+    #session: NodeSession;
 
     #sendNextUpdateImmediately = false;
     /** The send interval timer fired since the last pass started, so the next pass sends even without data. */
@@ -177,8 +176,7 @@ export class ServerSubscription implements Subscription {
         this.#request = request;
 
         this.#context = context;
-
-        this.#peerAddress = this.session.peerAddress;
+        this.#session = context.session;
 
         let maxInterval: Duration;
         let sendInterval: Duration;
@@ -212,8 +210,9 @@ export class ServerSubscription implements Subscription {
         return hex.fixed(this.#id, 8);
     }
 
+    /** The session the subscription reports on.  {@link moveTo} changes it. */
     get session() {
-        return this.#context.session;
+        return this.#session;
     }
 
     get isTerminated() {
@@ -421,7 +420,7 @@ export class ServerSubscription implements Subscription {
         }
         this.session.subscriptions.add(this);
         logger.debug(this.session.via, "New subscription", Diagnostic.strong(this.idStr));
-        this.#lifetime = this.#context.session.join("subscription", Diagnostic.strong(this.#id));
+        this.#lifetime = this.session.join("subscription", Diagnostic.strong(this.#id));
 
         // We do not need these data anymore, so we can free some memory
         if (this.request.eventFilters !== undefined) this.request.eventFilters.length = 0;
@@ -797,6 +796,22 @@ export class ServerSubscription implements Subscription {
         await this.#cancel();
     }
 
+    moveTo(session: NodeSession) {
+        if (this.#isClosed) {
+            return;
+        }
+
+        const former = this.#session;
+        former.subscriptions.delete(this);
+        this.#session = session;
+        session.subscriptions.add(this);
+        if (this.#lifetime !== undefined) {
+            this.#lifetime[Symbol.dispose]();
+            this.#lifetime = session.join("subscription", Diagnostic.strong(this.#id));
+        }
+        logger.debug(session.via, "Moved subscription", Diagnostic.strong(this.idStr), "from", former.via);
+    }
+
     /** Returns false if the subscription was already closed. */
     #markClosed(terminate: boolean) {
         if (this.#isClosed) {
@@ -891,23 +906,6 @@ export class ServerSubscription implements Subscription {
         }
     }
 
-    /**
-     * The newest open session of the peer that carries the CASE Authenticated Tags of the subscription's own session.
-     * Falls back to the own session when no such session is open, for example while the own session is closing.
-     *
-     * A peer that set up a new session may have dropped its older ones without telling us.  The CHIP SDK moves its
-     * read handlers to each newer CASE session with equal CATs in the same way.
-     */
-    #reportSession() {
-        let newest = this.session;
-        for (const session of this.#context.node.env.get(SessionManager).sessionsFor(this.#peerAddress)) {
-            if (carriesSameCats(session, this.session)) {
-                newest = session;
-            }
-        }
-        return newest;
-    }
-
     async #sendUpdateMessage(
         lifetime: Lifetime | undefined,
         attributeFilter: DirtyState.ForCluster | undefined,
@@ -915,7 +913,7 @@ export class ServerSubscription implements Subscription {
         onlyWithData: boolean,
         session?: Session,
     ) {
-        const exchange = this.#context.initiateExchange(session ?? this.#reportSession(), INTERACTION_PROTOCOL_ID);
+        const exchange = this.#context.initiateExchange(session ?? this.session, INTERACTION_PROTOCOL_ID);
         if (exchange === undefined) {
             return false;
         }
@@ -974,10 +972,4 @@ export class ServerSubscription implements Subscription {
         }
         return true;
     }
-}
-
-function carriesSameCats(session: NodeSession, other: NodeSession) {
-    const tags = new Set(session.caseAuthenticatedTags);
-    const otherTags = new Set(other.caseAuthenticatedTags);
-    return tags.size === otherTags.size && [...otherTags].every(tag => tags.has(tag));
 }
