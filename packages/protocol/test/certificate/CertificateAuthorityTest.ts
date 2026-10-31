@@ -103,6 +103,20 @@ describe("CertificateAuthority", () => {
             expect(nocCert.cert.issuer.rcacId).undefined;
         });
 
+        it("generates an ICAC and NOC that verify against the root", async () => {
+            const ca = await CertificateAuthority.create(crypto, true);
+            const keyPair = await crypto.createKeyPair();
+            const noc = await ca.generateNoc(keyPair.publicKey, FabricId(1n), NodeId(100n), [
+                CaseAuthenticatedTag(0x00010001),
+            ]);
+
+            const root = Rcac.fromTlv(ca.rootCert);
+            const icac = Icac.fromTlv(ca.icacCert!);
+            await root.verify(crypto);
+            await icac.verify(crypto, root);
+            await Noc.fromTlv(noc).verify(crypto, root, icac);
+        });
+
         it("persists ICAC to storage", async () => {
             const storage = new StorageManager(new MemoryStorageDriver());
             await storage.initialize();
@@ -306,6 +320,19 @@ describe("CertificateAuthority", () => {
 
             const nocCert = Noc.fromTlv(noc);
             expect(nocCert.cert.subject.caseAuthenticatedTags).deep.equal(cats);
+        });
+
+        // The signature covers the X.509 DN in this order, so decoding must keep it and never sort the keys.
+        it("keeps the subject DN order fabric ID, node ID, CATs", async () => {
+            const ca = await CertificateAuthority.create(crypto);
+            const keyPair = await crypto.createKeyPair();
+            const noc = await ca.generateNoc(keyPair.publicKey, FabricId(1n), NodeId(100n), [
+                CaseAuthenticatedTag(0x00010001),
+            ]);
+
+            const nocCert = Noc.fromTlv(noc);
+            expect(Object.keys(nocCert.cert.subject)).deep.equal(["fabricId", "nodeId", "caseAuthenticatedTags"]);
+            await nocCert.verify(crypto, Rcac.fromTlv(ca.rootCert));
         });
     });
 });

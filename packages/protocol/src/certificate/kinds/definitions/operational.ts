@@ -60,6 +60,7 @@ export namespace OperationalCertificate {
         rcacId: TlvOptionalField(20, TlvUInt64),
         fabricId: TlvOptionalField(21, TlvFabricId),
         caseAuthenticatedTags: TlvOptionalRepeatedField(22, TlvCaseAuthenticatedTag, { maxLength: 3 }),
+        vvsId: TlvOptionalField(23, TlvUInt64),
     };
 
     /**

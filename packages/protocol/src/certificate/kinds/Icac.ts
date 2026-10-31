@@ -70,18 +70,13 @@ export class Icac extends OperationalBase<OperationalCertificate.Icac> {
         }
 
         // The subject DN MAY encode at most one matter-fabric-id attribute.
-        if (fabricId !== undefined) {
-            if (Array.isArray(fabricId)) {
-                throw new CertificateError(`Invalid fabricId in NoC certificate: ${Diagnostic.json(fabricId)}`);
-            }
-            // If present, the matter-fabric-id attribute’s value SHALL NOT be 0
-            if (fabricId === FabricId(0)) {
-                throw new CertificateError(`Invalid fabricId in NoC certificate: ${Diagnostic.json(fabricId)}`);
-            }
+        // If present, the matter-fabric-id attribute’s value SHALL NOT be 0
+        if (fabricId === FabricId(0)) {
+            throw new CertificateError(`Invalid fabricId in Ica certificate: ${Diagnostic.json(fabricId)}`);
         }
 
         // The subject DN SHALL encode exactly one matter-icac-id attribute.
-        if (icacId === undefined || Array.isArray(icacId)) {
+        if (icacId === undefined) {
             throw new CertificateError(`Invalid icacId in Ica certificate: ${Diagnostic.json(icacId)}`);
         }
 

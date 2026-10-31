@@ -19,6 +19,9 @@ import { Rcac } from "./Rcac.js";
  */
 export class OperationalNodeIdError extends CertificateError {}
 
+/** key-purpose-id of serverAuth, @see {@link MatterSpecification.v161.Core} § 6.5.11.3 */
+const KEY_PURPOSE_SERVER_AUTH = 1;
+
 export class Noc extends OperationalBase<OperationalCertificate.Noc> {
     /** Construct the class from a Tlv version of the certificate */
     static fromTlv(tlv: Bytes) {
@@ -76,7 +79,7 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
         } = ica?.cert ?? { subject: {} };
 
         // The subject DN SHALL encode exactly one matter-node-id attribute.
-        if (nodeId === undefined || Array.isArray(nodeId)) {
+        if (nodeId === undefined) {
             throw new CertificateError(`Invalid nodeId in NoC certificate: ${Diagnostic.json(nodeId)}`);
         }
         // The matter-node-id attribute’s value SHALL be in the Operational Node ID
@@ -85,7 +88,7 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
         }
 
         // The subject DN SHALL encode exactly one matter-fabric-id attribute.
-        if (fabricId === undefined || Array.isArray(fabricId)) {
+        if (fabricId === undefined) {
             throw new CertificateError(`Invalid fabricId in NoC certificate: ${Diagnostic.json(fabricId)}`);
         }
         // The matter-fabric-id attribute’s value SHALL NOT be 0
@@ -136,18 +139,17 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
             throw new CertificateError(`Noc certificate must not have isCa set to true.`);
         }
 
-        // The key usage extension SHALL be encoded with exactly two flags: keyCertSign (0x0020) and CRLSign (0x0040).
-        // Formally the check should be the following line but Amazon uses a wrong Root cert which also has
-        // digitalCertificate set, so we just check that the two needed are set and ignore additionally set parameters.
-        //if (ExtensionKeyUsageSchema.encode(nocCert.extensions.keyUsage) !== 1) {
+        // The key usage extension SHALL be encoded with exactly one flag: digitalSignature.
+        // CHIP accepts additional flags and only requires digitalSignature, so matter.js does the same.
         if (!this.cert.extensions.keyUsage.digitalSignature) {
             throw new CertificateError(`Noc certificate must have keyUsage set to digitalSignature.`);
         }
 
         // The extended key usage extension SHALL be encoded with exactly two key-purpose-id values: serverAuth and clientAuth.
-        if (extendedKeyUsage === undefined || (!extendedKeyUsage.includes(1) && !extendedKeyUsage.includes(2))) {
+        // CHIP requires only serverAuth and accepts other purposes, so matter.js does the same.
+        if (extendedKeyUsage === undefined || !extendedKeyUsage.includes(KEY_PURPOSE_SERVER_AUTH)) {
             throw new CertificateError(
-                `Noc certificate must have extendedKeyUsage with serverAuth and clientAuth: ${Diagnostic.json(extendedKeyUsage)}`,
+                `Noc certificate must have extendedKeyUsage with serverAuth: ${Diagnostic.json(extendedKeyUsage)}`,
             );
         }
 

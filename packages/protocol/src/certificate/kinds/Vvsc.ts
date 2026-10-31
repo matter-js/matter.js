@@ -18,17 +18,11 @@ export class Vvsc extends OperationalBase<OperationalCertificate.Vvsc> {
         return new Vvsc(OperationalCertificate.TlvVvsc.decode(tlv));
     }
 
-    /** Validates all basic certificate fields on construction. */
-    protected validateFields() {
-        const {
-            extensions: {
-                basicConstraints: { isCa },
-            },
-        } = this.cert;
-        if (!isCa) {
-            throw new CertificateError("Intermediate certificate must be a CA.");
-        }
-    }
+    /**
+     * Accepts any basic constraints. The spec requires is-ca false for a VVSC, but CHIP does not check it on receipt, so
+     * matter.js does not refuse either value.
+     */
+    protected validateFields() {}
 
     /**
      * Encodes the certificate with the signature as Matter Tlv.
@@ -39,7 +33,7 @@ export class Vvsc extends OperationalBase<OperationalCertificate.Vvsc> {
     }
 
     /**
-     * Verify requirements a Matter Intermediate CA certificate must fulfill.
+     * Verify requirements a Vendor Verification Signer certificate must fulfill.
      * Rules for this are listed in @see {@link MatterSpecification.v161.Core} §6.5.x
      * // TODO ADD Verification once we know more about the chain
      */
@@ -50,7 +44,7 @@ export class Vvsc extends OperationalBase<OperationalCertificate.Vvsc> {
         const { vvsId } = subject;
 
         // The subject DN SHALL encode exactly one matter-vvs-id attribute.
-        if (vvsId === undefined || Array.isArray(vvsId)) {
+        if (vvsId === undefined) {
             throw new CertificateError(`Invalid vvsId in Vsc certificate: ${Diagnostic.json(vvsId)}`);
         }
 

@@ -354,6 +354,9 @@ export namespace Certificate {
                         // CAT tags - 4-byte hex string -> number
                         const hexString = Bytes.toString(valueBytes);
                         const catValue = parseInt(hexString, 16);
+                        if (!/^[0-9a-fA-F]{8}$/.test(hexString) || !CaseAuthenticatedTag.isValid(catValue)) {
+                            throw new CertificateError(`Invalid CASE Authenticated Tag "${hexString}"`);
+                        }
                         if (result.caseAuthenticatedTags !== undefined) {
                             (result.caseAuthenticatedTags as number[]).push(catValue);
                             continue;

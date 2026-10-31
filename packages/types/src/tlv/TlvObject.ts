@@ -227,6 +227,9 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
                     result[name].push(decoded);
                 }
             } else {
+                if (this.preserveDataOrdering && Object.hasOwn(result, name)) {
+                    throw new UnexpectedDataError(`Tagged list contains field ${name} more than once.`);
+                }
                 result[name] = decoded;
             }
         }
@@ -382,6 +385,9 @@ export const TlvTaggedList = <F extends TlvFields>(fields: F, allowProtocolSpeci
  * Variant of {@link TlvTaggedList} that preserves caller-supplied member order on encode. Use only when wire-position
  * is application data that must round-trip bit-identically — e.g. operational-certificate subject/issuer/extensions
  * sub-lists, whose signed bytes depend on original member order.
+ *
+ * Decoding throws {@link UnexpectedDataError} when a field that is not repeated occurs more than once, because the
+ * object form holds only one value and so cannot round-trip such a list.
  */
 export const TlvTaggedListPreservingOrder = <F extends TlvFields>(fields: F, allowProtocolSpecificTags = false) =>
     new ObjectSchema(fields, TlvType.List, allowProtocolSpecificTags, /* preserveDataOrdering */ true);

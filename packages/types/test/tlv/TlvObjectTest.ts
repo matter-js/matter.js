@@ -21,7 +21,7 @@ import {
 } from "#tlv/TlvObject.js";
 import { TypeFromSchema } from "#tlv/TlvSchema.js";
 import { TlvString } from "#tlv/TlvString.js";
-import { Bytes } from "@matter/general";
+import { Bytes, UnexpectedDataError } from "@matter/general";
 
 const schema = TlvObject({
     /** Mandatory field jsdoc */
@@ -549,6 +549,34 @@ describe("TlvObject tests", () => {
                 // @ts-expect-error test case
                 schemaPreserve.encode({ clusterId: 6, commandId: 1, bogus: 42 }),
             ).throw('Unknown field "bogus" not defined in tagged list schema.');
+        });
+
+        it("refuses to decode a field that is not repeated but occurs twice", () => {
+            const clusterIdTwice = Bytes.fromHex("1724010624020124010718");
+            expect(() => schemaPreserve.decode(clusterIdTwice)).throw(
+                UnexpectedDataError,
+                "Tagged list contains field clusterId more than once.",
+            );
+        });
+
+        it("decodes a field whose name is also an Object.prototype property", () => {
+            const schemaNamed = TlvTaggedListPreservingOrder({ constructor: TlvField(1, TlvUInt32) });
+            expect(schemaNamed.decode(Bytes.fromHex("1724010618"))).deep.equal({ constructor: 6 });
+        });
+
+        it("keeps the last value in a plain tagged list when a field occurs twice", () => {
+            const schemaList = TlvTaggedList({ clusterId: TlvField(1, TlvUInt32), commandId: TlvField(2, TlvUInt32) });
+            expect(schemaList.decode(Bytes.fromHex("1724010624020124010718"))).deep.equal({
+                clusterId: 7,
+                commandId: 1,
+            });
+        });
+
+        it("decodes a repeated field that occurs twice", () => {
+            const schemaRepeated = TlvTaggedListPreservingOrder({
+                clusterIds: TlvOptionalRepeatedField(1, TlvUInt32),
+            });
+            expect(schemaRepeated.decode(Bytes.fromHex("1724010624010718"))).deep.equal({ clusterIds: [6, 7] });
         });
     });
 
