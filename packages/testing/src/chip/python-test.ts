@@ -11,6 +11,7 @@ import { BaseTest } from "../device/test.js";
 import type { Container } from "../docker/container.js";
 import { Terminal } from "../docker/terminal.js";
 import { TestFileDescriptor } from "../test-descriptor.js";
+import { expandAppPlaceholders } from "./app-reference.js";
 import { parseStep } from "./chip-test-common.js";
 import { Constants, ContainerPaths } from "./config.js";
 import { PicsSource } from "./pics/source.js";
@@ -253,6 +254,11 @@ export function spiffy(line: string) {
  * or the test will not run.  So we must extract these arguments to pass into the script.
  *
  * A program defining mandatory arguments to itself seems silly but we work with what we've got amiright?
+ *
+ * App placeholders in those arguments, such as `${TV_APP}`, are expanded to container paths; `extraArgs` are passed
+ * as given.
+ *
+ * @throws UnresolvedAppPlaceholderError if a placeholder names no executable app in the container
  */
 export async function createCommand(
     descriptor: TestFileDescriptor,
@@ -263,7 +269,7 @@ export async function createCommand(
 ) {
     const command = ["python3", descriptor.path, ...Constants.PythonRunnerArgs];
 
-    const args = scriptArgsOf(descriptor);
+    const args = await expandAppPlaceholders(scriptArgsOf(descriptor), path => isExecutable(container, path));
 
     command.push(...args, ...extraArgs);
 
@@ -284,6 +290,17 @@ export async function createCommand(
     }
 
     return command;
+}
+
+async function isExecutable(container: Container, path: string) {
+    const answer = await container.execAndRead([
+        "sh",
+        "-c",
+        'test -f "$1" && test -x "$1" && echo yes || echo no',
+        "sh",
+        path,
+    ]);
+    return answer.trim() === "yes";
 }
 
 function scriptArgsOf(descriptor: TestFileDescriptor) {
