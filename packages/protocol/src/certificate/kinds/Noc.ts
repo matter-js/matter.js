@@ -76,7 +76,7 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
         } = ica?.cert ?? { subject: {} };
 
         // The subject DN SHALL encode exactly one matter-node-id attribute.
-        if (nodeId === undefined || Array.isArray(nodeId)) {
+        if (nodeId === undefined) {
             throw new CertificateError(`Invalid nodeId in NoC certificate: ${Diagnostic.json(nodeId)}`);
         }
         // The matter-node-id attribute’s value SHALL be in the Operational Node ID
@@ -85,7 +85,7 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
         }
 
         // The subject DN SHALL encode exactly one matter-fabric-id attribute.
-        if (fabricId === undefined || Array.isArray(fabricId)) {
+        if (fabricId === undefined) {
             throw new CertificateError(`Invalid fabricId in NoC certificate: ${Diagnostic.json(fabricId)}`);
         }
         // The matter-fabric-id attribute’s value SHALL NOT be 0

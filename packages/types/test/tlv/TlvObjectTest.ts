@@ -21,7 +21,7 @@ import {
 } from "#tlv/TlvObject.js";
 import { TypeFromSchema } from "#tlv/TlvSchema.js";
 import { TlvString } from "#tlv/TlvString.js";
-import { Bytes } from "@matter/general";
+import { Bytes, UnexpectedDataError } from "@matter/general";
 
 const schema = TlvObject({
     /** Mandatory field jsdoc */
@@ -549,6 +549,14 @@ describe("TlvObject tests", () => {
                 // @ts-expect-error test case
                 schemaPreserve.encode({ clusterId: 6, commandId: 1, bogus: 42 }),
             ).throw('Unknown field "bogus" not defined in tagged list schema.');
+        });
+
+        it("refuses to decode a field that is not repeated but occurs twice", () => {
+            const clusterIdTwice = Bytes.fromHex("1724010624020124010718");
+            expect(() => schemaPreserve.decode(clusterIdTwice)).throw(
+                UnexpectedDataError,
+                "Tagged list contains field clusterId more than once.",
+            );
         });
 
         it("keeps the last value in a plain tagged list when a field occurs twice", () => {

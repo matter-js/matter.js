@@ -44,7 +44,7 @@ export class Vvsc extends OperationalBase<OperationalCertificate.Vvsc> {
         const { vvsId } = subject;
 
         // The subject DN SHALL encode exactly one matter-vvs-id attribute.
-        if (vvsId === undefined || Array.isArray(vvsId)) {
+        if (vvsId === undefined) {
             throw new CertificateError(`Invalid vvsId in Vsc certificate: ${Diagnostic.json(vvsId)}`);
         }
 
