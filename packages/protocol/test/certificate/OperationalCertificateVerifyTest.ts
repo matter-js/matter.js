@@ -603,5 +603,16 @@ describe("Operational certificate verification", () => {
 
             expect(() => Noc.fromAsn1(mutated)).throws(CertificateError, /Invalid CASE Authenticated Tag "ABCD0000"/);
         });
+
+        it("refuses a CAT that is not eight hexadecimal digits", async () => {
+            const der = Noc.fromTlv(
+                await nocTlv(node, ica, cert => {
+                    cert.subject.caseAuthenticatedTags = [CaseAuthenticatedTag(0xabcd_0001)];
+                }),
+            ).asSignedDer();
+            const mutated = replaceOnce(der, Bytes.fromString("ABCD0001"), Bytes.fromString("ABCD000Z"));
+
+            expect(() => Noc.fromAsn1(mutated)).throws(CertificateError, /Invalid CASE Authenticated Tag "ABCD000Z"/);
+        });
     });
 });

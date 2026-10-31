@@ -559,6 +559,11 @@ describe("TlvObject tests", () => {
             );
         });
 
+        it("decodes a field whose name is also an Object.prototype property", () => {
+            const schemaNamed = TlvTaggedListPreservingOrder({ constructor: TlvField(1, TlvUInt32) });
+            expect(schemaNamed.decode(Bytes.fromHex("1724010618"))).deep.equal({ constructor: 6 });
+        });
+
         it("keeps the last value in a plain tagged list when a field occurs twice", () => {
             const schemaList = TlvTaggedList({ clusterId: TlvField(1, TlvUInt32), commandId: TlvField(2, TlvUInt32) });
             expect(schemaList.decode(Bytes.fromHex("1724010624020124010718"))).deep.equal({

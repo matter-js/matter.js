@@ -227,7 +227,7 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
                     result[name].push(decoded);
                 }
             } else {
-                if (this.preserveDataOrdering && result[name] !== undefined) {
+                if (this.preserveDataOrdering && Object.hasOwn(result, name)) {
                     throw new UnexpectedDataError(`Tagged list contains field ${name} more than once.`);
                 }
                 result[name] = decoded;
