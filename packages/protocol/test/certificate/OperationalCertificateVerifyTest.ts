@@ -313,6 +313,13 @@ describe("Operational certificate verification", () => {
             await verifyNoc(noc, rootTlv, icaTlv);
         });
 
+        it("refuses a NOC with clientAuth as its only key purpose", async () => {
+            const noc = await nocTlv(node, ica, cert => {
+                cert.extensions.extendedKeyUsage = [2];
+            });
+            await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(CertificateError, /serverAuth/);
+        });
+
         it("refuses a NOC without extended key usage", async () => {
             const noc = await nocTlv(node, ica, cert => {
                 cert.extensions.extendedKeyUsage = undefined;
