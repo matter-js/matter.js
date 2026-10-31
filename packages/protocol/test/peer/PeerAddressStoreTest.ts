@@ -69,6 +69,24 @@ describe("PeerAddressStore", () => {
         expect(storage.keys(["peers", "1"])).deep.equal(["2b"]);
     });
 
+    it("deletes entries the driver cannot read", async () => {
+        class UnreadableKeyStorage extends MemoryStorageDriver {
+            override get(contexts: string[], key: string) {
+                return key === "1a" ? undefined : super.get(contexts, key);
+            }
+        }
+        const unreadableStorage = new UnreadableKeyStorage();
+        unreadableStorage.initialize();
+        const unreadableStore = new PeerAddressStore<string>(new StorageContext(unreadableStorage, ["peers"]));
+        await unreadableStore.set(PEER_1, "one");
+        await unreadableStore.set(PEER_2, "two");
+
+        const loaded = await unreadableStore.load();
+
+        expect([...loaded.keys()]).deep.equal([PEER_2]);
+        expect(unreadableStorage.keys(["peers", "1"])).deep.equal(["2b"]);
+    });
+
     it("ignores contexts and keys outside its layout", async () => {
         await store.set(PEER_1, "one");
         storage.set(["peers", "other"], "1a", "foreign");

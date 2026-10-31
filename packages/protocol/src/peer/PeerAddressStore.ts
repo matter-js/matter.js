@@ -60,7 +60,8 @@ export class PeerAddressStore<T extends SupportedStorageTypes> {
     }
 
     /**
-     * Read all stored values.  Entries {@link keep} rejects are deleted from storage and left out of the result.
+     * Read all stored values.  Entries {@link keep} rejects and entries the driver cannot read are deleted from storage
+     * and left out of the result.
      */
     load(keep?: (address: PeerAddress, value: T) => boolean) {
         return this.#operations.produce(async () => {
@@ -80,6 +81,11 @@ export class PeerAddressStore<T extends SupportedStorageTypes> {
                         continue;
                     }
                     const address = PeerAddress({ fabricIndex, nodeId: NodeId(BigInt(`0x${key}`)) });
+                    if (!(await fabricContext.has(key))) {
+                        logger.warn(`Deleting stored value of ${address} in ${this}: not readable`);
+                        await fabricContext.delete(key);
+                        continue;
+                    }
                     const value = await fabricContext.get<T>(key);
                     if (keep !== undefined && !keep(address, value)) {
                         await fabricContext.delete(key);
