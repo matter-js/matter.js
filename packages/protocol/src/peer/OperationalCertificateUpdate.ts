@@ -15,6 +15,7 @@ import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
 import {
     Bytes,
+    Crypto,
     Duration,
     Environment,
     ImplementationError,
@@ -48,9 +49,6 @@ const COMMISSIONING_COMPLETE_MARGIN = Seconds(10);
 
 /** Shortest fail-safe that leaves time for the reconnect after {@link COMMISSIONING_COMPLETE_MARGIN}. */
 const MIN_FAILSAFE = Seconds(30);
-
-/** Time added to the fail-safe before the peer is assumed to have rolled back an unconfirmed update. */
-const FAILSAFE_EXPIRY_MARGIN = Seconds(10);
 
 /** ArmFailSafe carries the expiry as uint16 seconds (§ 11.10.7.2). */
 const MAX_FAILSAFE = Seconds(0xffff);
@@ -125,12 +123,16 @@ export interface OperationalCertificateUpdateResult {
  * | Failure                             | Action                                                                  |
  * | ----------------------------------- | ----------------------------------------------------------------------- |
  * | UpdateNOC not reached or refused    | disarm the fail-safe over session 1; the peer keeps its previous NOC    |
- * | UpdateNOC unanswered, or a failure  | disarm over a new session; once the disarm is confirmed, or once the    |
- * | after it                            | armed fail-safe has certainly expired, read the NOCs attribute to learn |
- * |                                     | which NOC the peer kept; resolve if it kept the new one                 |
+ * | UpdateNOC unanswered, or a failure  | disarm over a new session, then read Breadcrumb and NOCs together:      |
+ * | after it                            | - Breadcrumb 0: the state is final; resolve if NOCs holds the new NOC,  |
+ * |                                     |   else report the previous NOC kept                                     |
+ * |                                     | - Breadcrumb of this update: the fail-safe is still armed; report that  |
+ * |                                     |   the peer returns to its previous NOC when the fail-safe expires       |
+ * |                                     | - other value: report the outcome as unknown                            |
  *
- * The NOCs attribute shows a pending NOC while the fail-safe is armed (§ 11.18.6.9), so it is read only once the
- * peer's state is final.
+ * The update arms its fail-safe with a random non-zero Breadcrumb.  The peer resets Breadcrumb to 0 on a successful
+ * CommissioningComplete and on fail-safe expiry or disarm (§ 11.10.7.2, § 11.10.7.6), so 0 means its state is final.
+ * NOCs alone cannot tell: it shows a pending NOC while the fail-safe is armed (§ 11.18.6.9).
  *
  * After UpdateNOC and after a rollback the peer clears our sessions without notice, so we close ours, drop the
  * resumption record and restart subscriptions.
@@ -168,14 +170,13 @@ export async function updateOperationalCertificate(
     const armedAt = Time.nowUs;
     const failsafeLeft = () => Millis(Math.max(Math.floor(failsafe - (Time.nowUs - armedAt)), 0));
 
+    const failsafeArm: FailsafeArm = { failsafe, breadcrumb: randomBreadcrumb(ca.crypto) };
     let installed: InstalledCertificate;
     try {
-        installed = await installNewCertificate(context, first, fabric.fabricId, failsafe);
+        installed = await installNewCertificate(context, first, fabric.fabricId, failsafeArm);
     } finally {
         await first.interaction.close();
     }
-    // The peer armed the fail-safe before it answered ArmFailSafe, so it expires before this
-    const failsafeExpiredAt = Time.nowUs + failsafe + FAILSAFE_EXPIRY_MARGIN;
 
     if (installed.kind === "refused") {
         if (installed.cause instanceof FailsafeRefusedError) {
@@ -188,7 +189,7 @@ export async function updateOperationalCertificate(
     }
 
     if (installed.kind === "unconfirmed") {
-        return await settle(context, address, installed, failsafeExpiredAt, installed.cause);
+        return await settle(context, address, installed, failsafeArm, abort, installed.cause);
     }
 
     await forgetSessions(context, address, "Operational certificate of the peer was updated");
@@ -197,7 +198,7 @@ export async function updateOperationalCertificate(
         await withCase(
             context,
             address,
-            { connectionTimeout: Millis(Math.max(failsafeLeft() - COMMISSIONING_COMPLETE_MARGIN, 0)) },
+            { abort, connectionTimeout: Millis(Math.max(failsafeLeft() - COMMISSIONING_COMPLETE_MARGIN, 0)) },
             async ({ interaction }) => {
                 const { errorCode, debugText } = responseOf(
                     await invokeSingleCommand(
@@ -219,7 +220,7 @@ export async function updateOperationalCertificate(
             },
         );
     } catch (error) {
-        return await settle(context, address, installed, failsafeExpiredAt, error);
+        return await settle(context, address, installed, failsafeArm, abort, error);
     }
 
     logger.info("Updated operational certificate of", address.toString());
@@ -246,11 +247,11 @@ async function installNewCertificate(
     { ca }: OperationalCertificateUpdateContext,
     { session, interaction }: AdministratorSession,
     fabricId: FabricId,
-    failsafe: Duration,
+    failsafeArm: FailsafeArm,
 ): Promise<InstalledCertificate> {
     let certificate: NewCertificate;
     try {
-        await armFailsafe(interaction, failsafe);
+        await armFailsafe(interaction, failsafeArm);
     } catch (cause) {
         if (!(cause instanceof FailsafeRefusedError)) {
             await disarmFailsafe(interaction);
@@ -339,27 +340,36 @@ async function installNewCertificate(
     return { kind: "installed", fabricIndexOnPeer: fabricIndex, ...certificate };
 }
 
+/** The fail-safe this update arms and the Breadcrumb that marks it. */
+interface FailsafeArm {
+    failsafe: Duration;
+    breadcrumb: bigint;
+}
+
+/** A random non-zero uint64, so the Breadcrumb tells this update's fail-safe from any other. */
+function randomBreadcrumb(crypto: Crypto) {
+    const value = BigInt(`0x${Bytes.toHex(crypto.randomBytes(8))}`);
+    return value === 0n ? 1n : value;
+}
+
 /**
- * Bring a peer whose UpdateNOC may have taken effect to a final state and report it.
+ * Report the state of a peer whose UpdateNOC may have taken effect.
  *
- * A confirmed disarm makes the state final: it reverts a pending update and does nothing once CommissioningComplete
- * went through.  Without a confirmed disarm the state is final once the armed fail-safe has expired, at
- * {@link failsafeExpiredAt} on the {@link Time.nowUs} clock.  The NOCs attribute then shows which certificate the peer
- * kept.
+ * Disarms the fail-safe, then reads Breadcrumb and NOCs; see the table at {@link updateOperationalCertificate}.
  */
 async function settle(
     context: OperationalCertificateUpdateContext,
     address: PeerAddress,
     { nocValue, operationalPublicKey }: NewCertificate,
-    failsafeExpiredAt: number,
+    { failsafe, breadcrumb }: FailsafeArm,
+    abort: AbortSignal | undefined,
     cause: unknown,
 ): Promise<OperationalCertificateUpdateResult> {
-    let kept: boolean;
+    let state: CertificateState;
     try {
         await forgetSessions(context, address, "Operational certificate update of the peer failed");
-        let disarmed = false;
         try {
-            disarmed = await withCase(context, address, {}, ({ interaction }) => disarmFailsafe(interaction));
+            await withCase(context, address, { abort }, ({ interaction }) => disarmFailsafe(interaction));
         } catch (error) {
             logger.info(`Could not reach ${address} to disarm its fail-safe:`, error);
         }
@@ -367,42 +377,53 @@ async function settle(
         // A rollback ends the fabric's sessions without notice, and the disarm answer may be lost with them
         await forgetSessions(context, address, "Peer may have reverted to its previous operational certificate");
 
-        if (!disarmed) {
-            const wait = Math.ceil(failsafeExpiredAt - Time.nowUs);
-            if (wait > 0) {
-                logger.info(
-                    `Waiting ${Duration.format(Millis(wait))} for the fail-safe of ${address} to expire before reading its certificate`,
-                );
-                await Time.sleep("operational certificate rollback", Millis(wait));
-            }
-            await forgetSessions(context, address, "Fail-safe of the peer expired");
-        }
-
-        kept = await withCase(context, address, {}, ({ interaction }) => holdsNoc(interaction, nocValue));
+        state = await withCase(context, address, { abort }, ({ interaction }) =>
+            certificateState(interaction, nocValue),
+        );
     } catch (error) {
-        logger.info(`Could not determine the operational certificate of ${address} after a failed update:`, error);
+        logger.info(`Could not read the certificate state of ${address} after a failed update:`, error);
+        state = { breadcrumb: undefined, holdsNoc: false };
+    }
+
+    if (state.breadcrumb === 0n) {
+        if (state.holdsNoc) {
+            logger.info("Updated operational certificate of", address.toString(), "although a confirmation was lost");
+            return { operationalPublicKey };
+        }
         throw new OperationalCertificateUpdateError(
-            `Updating the operational certificate of ${address} failed and its outcome is unknown; the peer reverts to its previous certificate when its fail-safe expires unless CommissioningComplete reached it`,
+            `Updating the operational certificate of ${address} failed; it reverted to its previous certificate`,
             { cause },
         );
     }
 
-    if (kept) {
-        logger.info("Updated operational certificate of", address.toString(), "although a confirmation was lost");
-        return { operationalPublicKey };
+    if (state.breadcrumb === breadcrumb) {
+        throw new OperationalCertificateUpdateError(
+            `Updating the operational certificate of ${address} failed; it keeps its previous certificate once its fail-safe, armed for ${Duration.format(failsafe)}, expires`,
+            { cause },
+        );
     }
 
     throw new OperationalCertificateUpdateError(
-        `Updating the operational certificate of ${address} failed; it reverted to its previous certificate`,
+        `Updating the operational certificate of ${address} failed and its outcome is unknown; the peer reverts to its previous certificate when its fail-safe expires unless CommissioningComplete reached it`,
         { cause },
     );
 }
 
-/** Whether the NOCs attribute of the accessing fabric holds {@link nocValue}. */
-async function holdsNoc(interaction: ClientInteraction, nocValue: Bytes) {
+interface CertificateState {
+    /** The Breadcrumb attribute, if the peer reported it. */
+    breadcrumb?: bigint;
+
+    /** Whether the NOCs attribute of the accessing fabric holds the new NOC. */
+    holdsNoc: boolean;
+}
+
+/** Read Breadcrumb and the NOCs of the accessing fabric in one request. */
+async function certificateState(interaction: ClientInteraction, nocValue: Bytes): Promise<CertificateState> {
+    const state: CertificateState = { holdsNoc: false };
     for await (const chunk of interaction.read(
         Read(
             { fabricFilter: true },
+            Read.Attribute({ endpoint: RootEndpointNumber, cluster: GeneralCommissioning, attributes: "breadcrumb" }),
             Read.Attribute({ endpoint: RootEndpointNumber, cluster: OperationalCredentials, attributes: "nocs" }),
         ),
     )) {
@@ -410,16 +431,22 @@ async function holdsNoc(interaction: ClientInteraction, nocValue: Bytes) {
             if (report.kind !== "attr-value") {
                 continue;
             }
-            const nocs = report.value;
+            const { value } = report;
+            if (report.path.clusterId === GeneralCommissioning.id) {
+                if (typeof value === "number" || typeof value === "bigint") {
+                    state.breadcrumb = BigInt(value);
+                }
+                continue;
+            }
             if (
-                Array.isArray(nocs) &&
-                nocs.some(entry => isObject(entry) && Bytes.isBytes(entry.noc) && Bytes.areEqual(entry.noc, nocValue))
+                Array.isArray(value) &&
+                value.some(entry => isObject(entry) && Bytes.isBytes(entry.noc) && Bytes.areEqual(entry.noc, nocValue))
             ) {
-                return true;
+                state.holdsNoc = true;
             }
         }
     }
-    return false;
+    return state;
 }
 
 /**
@@ -463,7 +490,7 @@ async function connectCase(
 async function withCase<T>(
     context: OperationalCertificateUpdateContext,
     address: PeerAddress,
-    options: { connectionTimeout?: Duration },
+    options: { abort?: AbortSignal; connectionTimeout?: Duration },
     fn: (session: AdministratorSession) => Promise<T>,
 ) {
     const session = await connectCase(context, address, options);
@@ -477,13 +504,13 @@ async function withCase<T>(
 /** The peer answered ArmFailSafe with an error code, so no fail-safe was armed for us. */
 class FailsafeRefusedError extends OperationalCertificateUpdateError {}
 
-async function armFailsafe(interaction: ClientInteraction, failsafe: Duration) {
+async function armFailsafe(interaction: ClientInteraction, { failsafe, breadcrumb }: FailsafeArm) {
     const { errorCode, debugText } = responseOf(
         await invokeSingleCommand(interaction, {
             endpoint: RootEndpointNumber,
             cluster: GeneralCommissioning,
             command: "armFailSafe",
-            fields: { expiryLengthSeconds: Math.ceil(Seconds.of(failsafe)), breadcrumb: 0 },
+            fields: { expiryLengthSeconds: Math.ceil(Seconds.of(failsafe)), breadcrumb },
         }),
         "ArmFailSafe",
     );

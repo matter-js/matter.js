@@ -52,6 +52,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
     - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec`, `MessageCodec` and `ExchangeManager`
     - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
+    - Fix: `ClientInteraction.close()` closes only the subscriptions established through that interaction, no longer every subscription to the same peer
     - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: A group message whose key set GroupKeyMap does not map to its destination group fails authentication instead of reaching access control
     - Fix: A group message whose payload is too short, too long or does not parse fails every candidate key and is reported to Groupcast testing as FailedAuth or NoAvailableKey
