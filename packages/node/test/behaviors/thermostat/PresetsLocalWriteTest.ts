@@ -49,6 +49,29 @@ describe("Presets local write", () => {
         expect(stored[0].builtIn).equals(false);
     });
 
+    it("refuses more presets for a scenario than its preset type allows", async () => {
+        const deviceEp = new Endpoint(PresetsThermostat, {
+            id: "thermostat",
+            number: 1,
+            thermostat: {
+                ...thermostatConfig(5),
+                presetTypes: [
+                    {
+                        presetScenario: Thermostat.PresetScenario.Occupied,
+                        numberOfPresets: 1,
+                        presetTypeFeatures: { supportsNames: true },
+                    },
+                ],
+            },
+        });
+        await using _node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: deviceEp });
+
+        await expect(writePresets(deviceEp, [newPreset({ name: "Home" }), newPreset({ name: "Office" })])).rejectedWith(
+            StatusResponse.ResourceExhaustedError,
+            "Number of presets (2) for scenario Occupied exceeds allowed number (1)",
+        );
+    });
+
     it("stores presets written directly to persistedPresets", async () => {
         await using ctx = await thermostat();
         const { deviceEp } = ctx;
