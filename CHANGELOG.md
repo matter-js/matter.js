@@ -43,6 +43,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Deleting from a fabric-filtered state list, or setting the length of any state list, requires write access
     - Fix: Thermostat accepts a preset write that sends an existing built-in preset with a null `BuiltIn`
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
+    - Fix: AdministratorCommissioning OpenCommissioningWindow answers INVALID_COMMAND to a discriminator above 4095 instead of CONSTRAINT_ERROR
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp

@@ -27,7 +27,8 @@ import { AdministratorCommissioningBehavior } from "./AdministratorCommissioning
 
 /**
  * Extend the AdministratorCommissioning model to relax constraints on OpenCommissioningWindow fields.  This prevents
- * the interaction layer from rejecting with ConstraintError so the behavior can validate and return PakeParameterError.
+ * the interaction layer from rejecting with ConstraintError so the behavior can validate and return PakeParameterError
+ * or INVALID_COMMAND as § 11.19.8.1 requires.
  */
 const openCommissioningWindow = AdministratorCommissioning.schema.commands.require("OpenCommissioningWindow");
 
@@ -38,8 +39,11 @@ const AdministratorCommissioningSchema = AdministratorCommissioning.schema.exten
         openCommissioningWindow.fields.extend("PakePasscodeVerifier", { constraint: "none" }),
         openCommissioningWindow.fields.extend("Iterations", { constraint: "none" }),
         openCommissioningWindow.fields.extend("Salt", { constraint: "none" }),
+        openCommissioningWindow.fields.extend("Discriminator", { constraint: "none" }),
     ),
 );
+
+const MAX_DISCRIMINATOR = 0xfff;
 
 const AdministratorCommissioningBase = AdministratorCommissioningBehavior.for(
     AdministratorCommissioning,
@@ -79,6 +83,12 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         }
         if (salt.byteLength < 16 || salt.byteLength > 32) {
             throw new AdministratorCommissioning.PakeParameterError("PAKE salt has invalid length.");
+        }
+        if (discriminator > MAX_DISCRIMINATOR) {
+            throw new StatusResponseError(
+                `Discriminator ${discriminator} exceeds the maximum of ${MAX_DISCRIMINATOR}`,
+                Status.InvalidCommand,
+            );
         }
 
         const commissioner = this.env.get(DeviceCommissioner);

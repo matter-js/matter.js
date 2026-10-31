@@ -271,9 +271,9 @@ describe("AdministratorCommissioningServer", () => {
             await using device = await Device.create();
             const advertiser = RecordingAdvertiser.for(device);
 
-            await device.openWindow({ discriminator: 3840 });
+            await device.openWindow({ discriminator: 4095 });
 
-            expect(advertiser.commissionable).deep.equals([{ mode: CommissioningMode.Enhanced, discriminator: 3840 }]);
+            expect(advertiser.commissionable).deep.equals([{ mode: CommissioningMode.Enhanced, discriminator: 4095 }]);
         });
 
         // § 11.19.8.1.1 refers to § 5.4.2.3, which bounds a window opened by command to 3 to 15 minutes
@@ -296,6 +296,13 @@ describe("AdministratorCommissioningServer", () => {
                 expect(device.attributes).deep.equals(closedAttributes);
             });
         }
+
+        it("answers INVALID_COMMAND to a discriminator above 4095", async () => {
+            await using device = await Device.create();
+
+            expect(await device.openWindow({ discriminator: 4096 })).deep.equals(statusOf(Status.InvalidCommand));
+            expect(device.attributes).deep.equals(closedAttributes);
+        });
 
         // § 11.19.8.1: "If any format or validity errors related to the PAKEPasscodeVerifier, Iterations or Salt
         // arguments arise, this command SHALL fail with a cluster specific status code of PAKEParameterError."
