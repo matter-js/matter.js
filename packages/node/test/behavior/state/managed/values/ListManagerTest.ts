@@ -1444,7 +1444,7 @@ describe("ListManager", () => {
             });
         });
 
-        it("follows its index when an entry is assigned to that index", async () => {
+        it("expires when an entry is assigned to its index", async () => {
             const struct = entries();
 
             await LocalActorContext.act("test", cx => {
@@ -1452,7 +1452,94 @@ describe("ListManager", () => {
                 const held = list[0];
                 list[0] = { value: 5 };
 
-                expect(held.value).equals(5);
+                expect(held.value).equals(1);
+                expect(() => (held.value = 7)).throws(ExpiredReferenceError);
+                expect(list[0].value).equals(5);
+            });
+        });
+
+        it("expires when the whole list is assigned", async () => {
+            const struct = entries();
+
+            await LocalActorContext.act("test", cx => {
+                const state = struct.reference(cx) as { list: { value: number }[] };
+                const held = state.list[1];
+                state.list = state.list.filter(entry => entry.value !== 1);
+
+                expect(held.value).equals(2);
+                expect(() => (held.value = 7)).throws(ExpiredReferenceError);
+                state.list[1].value = 8;
+            });
+
+            struct.expect({ list: [{ value: 2 }, { value: 8 }] });
+        });
+
+        it("stays live at the source slot of copyWithin and expires at the overwritten slot", async () => {
+            const struct = entries();
+
+            await LocalActorContext.act("test", cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                const overwritten = list[0];
+                const source = list[1];
+                list.copyWithin(0, 1, 2);
+
+                source.value = 7;
+                expect(() => (overwritten.value = 9)).throws(ExpiredReferenceError);
+                list[0].value = 5;
+            });
+
+            struct.expect({ list: [{ value: 5 }, { value: 7 }, { value: 3 }] });
+        });
+
+        it("stays live after a rollback of its own write", async () => {
+            const struct = entries();
+
+            await LocalActorContext.act("test", async cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                const held = list[0];
+                held.value = 7;
+                await cx.transaction.commit();
+                held.value = 8;
+                await cx.transaction.rollback();
+
+                expect(held.value).equals(7);
+                held.value = 9;
+            });
+
+            struct.expect({ list: [{ value: 9 }, { value: 2 }, { value: 3 }] });
+        });
+
+        it("does not serve the entry a push puts at its index after a rollback removed its entry", async () => {
+            const struct = entries();
+
+            await LocalActorContext.act("test", async cx => {
+                const list = struct.reference(cx).list as { value: number }[];
+                list.push({ value: 4 });
+                const held = list[3];
+                await cx.transaction.rollback();
+                list.push({ value: 5 });
+
+                expect(() => (held.value = 7)).throws(ExpiredReferenceError);
+            });
+
+            struct.expect({ list: [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 5 }] });
+        });
+
+        it("follows its index after another transaction reorders the list", async () => {
+            const struct = entries();
+            const cx = {
+                exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                node: aclEndpoint(),
+            };
+
+            await struct.online2(cx, cx, async ({ cx2, ref1, ref2 }) => {
+                const held = (ref1.list as ValueList)[0];
+                (ref2.list as ValueList).reverse();
+                await cx2.transaction.commit();
+
+                expect(held.value).equals(3);
+                held.value = 9;
+                expect((ref1.list as ValueList)[0].value).equals(9);
             });
         });
 
@@ -1485,6 +1572,7 @@ describe("ListManager", () => {
             await testFabricScoped(async (_struct, { list1 }) => {
                 expect(Object.getOwnPropertyDescriptor(list1, 0)?.value).equals(list1[0]);
                 expect(Object.getOwnPropertyDescriptor(list1, 2)).undefined;
+                expect(Object.getOwnPropertyDescriptor(list1, "length")?.value).equals(2);
             });
         });
     });

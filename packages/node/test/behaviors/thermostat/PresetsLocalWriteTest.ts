@@ -5,7 +5,14 @@
  */
 
 import { Endpoint } from "#endpoint/index.js";
-import { Entropy, Environment, MemoryStorageDriver, StorageManager, StorageService } from "@matter/general";
+import {
+    Entropy,
+    Environment,
+    ImplementationError,
+    MemoryStorageDriver,
+    StorageManager,
+    StorageService,
+} from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 import { StatusResponse } from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
@@ -159,6 +166,42 @@ describe("Presets local write", () => {
         ).rejected;
 
         expect(storedPresets(deviceEp)[0].heatingSetpoint).equals(2000);
+    });
+
+    it("keeps a held preset live while the presets are the configured ones", async () => {
+        await using ctx = await thermostat(undefined, [newPreset()]);
+        const { deviceEp } = ctx;
+
+        await MockTime.resolve(
+            deviceEp.act(agent => {
+                const state = agent.get(PresetsThermostatServer).state;
+                state.persistedPresets = undefined;
+                const held = state.presets[0];
+
+                // Any write refreshes the presets reference, which reads the getter again
+                state.useAutomaticModeManagement = true;
+                held.heatingSetpoint = 2200;
+            }),
+            { macrotasks: true },
+        );
+
+        expect(storedPresets(deviceEp)[0].heatingSetpoint).equals(2200);
+    });
+
+    it("refuses to clear the stored presets and keeps them", async () => {
+        await using ctx = await thermostat(undefined, [newPreset()]);
+        const { deviceEp } = ctx;
+
+        await expect(
+            MockTime.resolve(
+                deviceEp.act(async agent => {
+                    agent.get(PresetsThermostatServer).state.persistedPresets = undefined;
+                }),
+                { macrotasks: true },
+            ),
+        ).rejectedWith(ImplementationError, "Cannot clear persistedPresets");
+
+        expect(storedPresets(deviceEp).length).equals(1);
     });
 
     it("edits a stored preset addressed by its handle", async () => {

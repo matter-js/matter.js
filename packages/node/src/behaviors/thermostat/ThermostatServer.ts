@@ -1296,12 +1296,21 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
      * Pre-commit announces the presets again after any change in flight, with the previous announcement as
      * `oldPresets`.  Every announcement is therefore validated against the presets the first announcement of the
      * transaction replaces.
+     *
+     * Once initialized, the presets stay stored: a transaction that leaves `persistedPresets` undefined fails with an
+     * {@link ImplementationError}.
      */
     #handlePersistedPresetsChanging(
-        newPresets: Thermostat.Preset[],
+        newPresets: Thermostat.Preset[] | undefined,
         oldPresets: Thermostat.Preset[] | undefined,
         context: ActionContext,
     ) {
+        if (newPresets === undefined) {
+            throw new ImplementationError(
+                `Cannot clear persistedPresets of ${this.endpoint}; store an empty list to remove all presets`,
+            );
+        }
+
         const presets = this.#presetsIn(context);
         presets.stored ??= { presets: oldPresets };
         const storedPresets = presets.stored.presets;
@@ -1676,12 +1685,13 @@ export namespace ThermostatBaseServer {
                             return pendingValue as Thermostat.Preset[];
                         }
 
-                        return (
-                            state.persistedPresets ??
-                            configuredPresets(endpoint) ??
-                            presetsIn(thermostat.defaults) ??
-                            []
-                        );
+                        if (state.persistedPresets !== undefined) {
+                            return state.persistedPresets;
+                        }
+
+                        const internal = endpoint.behaviors.internalsOf(ThermostatBaseServer);
+                        return (internal.defaultPresets ??=
+                            configuredPresets(endpoint) ?? presetsIn(thermostat.defaults) ?? []);
                     },
 
                     set(value: Thermostat.Preset[]) {
@@ -1759,6 +1769,15 @@ export namespace ThermostatBaseServer {
          * This value will be initialized when the behavior is initialized and is static afterward.
          */
         controlSequenceOfOperation!: Thermostat.ControlSequenceOfOperation;
+
+        /**
+         * The presets the `presets` getter serves until `persistedPresets` is set.  One copy, because a getter returns
+         * the same list on every read (see {@link Val.Dynamic}).
+         *
+         * After initialization the getter serves it only inside a transaction that sets `persistedPresets` to
+         * undefined, which cannot commit unless it stores presets again.
+         */
+        defaultPresets?: Thermostat.Preset[];
 
         /**
          * What this behavior did to the presets of each transaction in flight: the handles it issued, the presets the

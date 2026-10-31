@@ -199,7 +199,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
             let subref = this.reference.subrefs?.[index];
 
             if (subref === undefined) {
-                subref = new ManagedReference(this.reference, index, undefined, cloneEntry, this.session);
+                subref = new ManagedReference(this.reference, index, undefined, cloneEntry, this.session, "entry");
 
                 this.config.manageEntry(subref, this.session);
             }
@@ -264,10 +264,9 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
      * Replace the entries {@link visibleEntries} returns with `entries` in a single change.  Throws {@link WriteError}
      * when the list would exceed {@link MAX_LIST_LENGTH}.
      *
-     * An entry that `entries` holds more than once is stored as a copy from its second slot on.  The transaction may
-     * own the entry, and a nested write changes an owned entry in place (see {@link ValReference.owns}).
-     *
-     * The reference of an entry that does not stay at its index is detached (see {@link ManagedReference.detach}).
+     * An entry that `entries` holds more than once is stored once and copied into its other slots, because the
+     * transaction may own the entry and a nested write changes an owned entry in place (see {@link ValReference.owns}).
+     * The original stays at the slot that already holds it, so the reference held for that slot stays live.
      */
     protected storeEntries(entries: Val[]) {
         if (entries.length > MAX_LIST_LENGTH) {
@@ -277,47 +276,34 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
             );
         }
 
-        const seen = new Set<Val>();
-        const placed = entries.map(entry => {
+        const current = this.readVal();
+        const originalSlot = new Map<Val, number>();
+        entries.forEach((entry, index) => {
             if (typeof entry !== "object" || entry === null) {
-                return entry;
+                return;
             }
-            if (seen.has(entry)) {
-                return Internal.copy(entry);
+            const slot = originalSlot.get(entry);
+            if (slot === undefined || current[index] === entry) {
+                originalSlot.set(entry, index);
             }
-            seen.add(entry);
-            return entry;
         });
+        const placed = entries.map((entry, index) =>
+            typeof entry === "object" && entry !== null && originalSlot.get(entry) !== index
+                ? Internal.copy(entry)
+                : entry,
+        );
 
         this.reference.change(() => {
             const list = this.writeVal();
-            this.#detachDisplaced(placed);
             placed.forEach((entry, index) => (list[index] = entry));
             list.length = placed.length;
         }, "length");
     }
 
     /**
-     * Detach the entry references whose entry `placed` does not hold at the same index.  Runs before the list changes,
-     * so a detached reference keeps the entry it was read for.
-     */
-    #detachDisplaced(placed: Val[]) {
-        const subrefs = this.reference.subrefs;
-        if (subrefs === undefined) {
-            return;
-        }
-        for (const key in subrefs) {
-            const subref = subrefs[key];
-            if (subref.value !== placed[Number(key)]) {
-                subref.detach?.();
-            }
-        }
-    }
-
-    /**
      * Apply an array method that changes entries, and return its result.
      *
-     * The method runs on a plain array of the visible entries, because entry proxies are bound to their index.  A
+     * The method runs on a plain array of the visible entries, so it moves entry objects rather than entry proxies.  A
      * stored entry keeps its value.  Every other value is new: it is copied, prepared and validated before anything is
      * stored.  The result is stored in a single change, so a rejected entry leaves the list unchanged.
      *
@@ -477,12 +463,17 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     }
 
     /**
-     * An entry's descriptor carries the managed entry, so a caller that reads it gets what {@link get} returns.
+     * The descriptors of the entries and of `length` carry what {@link get} returns: the managed entry and the length
+     * this session sees.
      */
     getOwnPropertyDescriptor(_target: Val.List, key: PropertyKey) {
         const index = entryIndexFor(key);
         if (index === undefined) {
-            return Reflect.getOwnPropertyDescriptor(this.readVal(), key);
+            const descriptor = Reflect.getOwnPropertyDescriptor(this.readVal(), key);
+            if (key === "length" && descriptor !== undefined) {
+                descriptor.value = this.getListLength();
+            }
+            return descriptor;
         }
         if (index >= this.getListLength()) {
             return undefined;

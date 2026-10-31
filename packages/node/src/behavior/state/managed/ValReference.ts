@@ -16,15 +16,15 @@ import type { Supervision } from "../../supervision/Supervision.js";
 export interface ValReference<T extends Val = Val> {
     /**
      * The current value of the referenced property.  `undefined` or `null` while the property, or a container above
-     * it, is absent.  After the owning context exits, a nested reference keeps the last value it saw and the root
-     * reference throws {@link ExpiredReferenceError}.
+     * it, is absent.  An expired nested reference keeps the last container it saw, which a live reference to the same
+     * entry may still change.  The root reference throws {@link ExpiredReferenceError} after its owning context exits.
      */
     readonly value: T | undefined | null;
 
     /**
-     * When true, the reference no longer tracks live state: the owning context has exited, an edit through the list
-     * proxy moved or removed the entry, or the reference is a read-only view.  Final, and true for every reference
-     * below an expired one.
+     * When true, the reference no longer tracks live state: the owning context has exited, a change in this session
+     * moved, removed or replaced the list entry it was read for, or the reference is a read-only view.  Final, and true
+     * for every reference below an expired one.
      */
     readonly expired: boolean;
 
@@ -37,13 +37,6 @@ export interface ValReference<T extends Val = Val> {
      * Active references to child properties.
      */
     subrefs?: Record<number | string, ValReference>;
-
-    /**
-     * Stop following the member, for a reference a list holds for one of its entries.  An edit through the list proxy
-     * calls this when it moves or removes the entry.  The reference then keeps its last value and is
-     * {@link expired}.
-     */
-    detach?(): void;
 
     /**
      * Mutates data.  A nested reference first clones its container unless the transaction {@link owns} it.
@@ -60,8 +53,11 @@ export interface ValReference<T extends Val = Val> {
 
     /**
      * Refresh any internal cache from the referenced container.
+     *
+     * @param cause what changed the container, which decides whether a list entry reference follows its index (see
+     * `ManagedReference.Binding`)
      */
-    refresh(): void;
+    refresh(cause: ValReference.RefreshCause): void;
 
     /**
      * Whether the transaction cloned {@link container} since its last commit or rollback.  A nested write may change
@@ -102,6 +98,14 @@ export interface ValReference<T extends Val = Val> {
 }
 
 export namespace ValReference {
+    /**
+     * What changed a container before a refresh.
+     *
+     * - `session`: a change or rollback in the session that holds the reference.
+     * - `external`: another transaction committed, and the session has not written since.
+     */
+    export type RefreshCause = "session" | "external";
+
     /**
      * How a container keys its own members.
      *
