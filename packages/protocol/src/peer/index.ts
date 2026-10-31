@@ -10,6 +10,7 @@ export * from "./ControllerCommissioningFlow.js";
 export * from "./NetworkProfile.js";
 export * from "./Peer.js";
 export * from "./PeerAddress.js";
+export * from "./PeerAddressStore.js";
 export * from "./PeerCommunicationError.js";
 export * from "./PeerDescriptor.js";
 export * from "./PeerExchangeProvider.js";

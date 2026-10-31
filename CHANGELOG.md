@@ -34,7 +34,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A local write that removes the last GroupKeyMap entry of a fabric also clears the fabric's operational group key map
     - Fix: Groupcast testing reports NoAvailableKey to the fabric under test when only an unmapped key set of another fabric authenticated a group message, instead of reporting nothing
     - Fix: Groupcast testing derives DestinationIpAddress from the fabric that owns the group id and the groups the node joins
-    - Fix: A group that Groupcast JoinGroup creates has no GroupName in the GroupKeyManagement GroupTable, instead of an empty name    - Fix: A list or struct assigned to state is stored as a copy, so a later nested write no longer changes the value it came from
+    - Fix: A group that Groupcast JoinGroup creates has no GroupName in the GroupKeyManagement GroupTable, instead of an empty name
+    - Fix: A list or struct assigned to state is stored as a copy, so a later nested write no longer changes the value it came from
     - Fix: Removing an entry from a fabric-filtered list emits the change and is undone by a rollback
     - Fix: `sort()`, `reverse()`, `unshift()` and `splice()` on a state list no longer duplicate entries or throw when they move them, and `shift()` and `pop()` return the removed entry
     - Fix: Array methods that change a state list apply all of their change or none of it, hand removed entries and `sort()` comparator arguments out as read-only views, and a later nested write to an entry they moved is rolled back with the transaction
@@ -43,6 +44,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Deleting from a fabric-filtered state list, or setting the length of any state list, requires write access
     - Fix: Thermostat accepts a preset write that sends an existing built-in preset with a null `BuiltIn`
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
+    - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is removed; subscriptions stored by an older version are not re-established
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
@@ -51,7 +53,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
     - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
     - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
-    - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec`, `MessageCodec` and `ExchangeManager`
+    - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec` and `ExchangeManager`
+    - Enhancement: `SessionManager` stores each CASE resumption record under its own key with the new `PeerAddressStore` instead of rewriting all records on every change; after a downgrade each peer establishes a new session once
     - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
     - Adjustment: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
     - Adjustment: `DclCertificateService.addCertificate()` refuses a CD signer certificate that is known to be untrusted because the CSA did not issue it

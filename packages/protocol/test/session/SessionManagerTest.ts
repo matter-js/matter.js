@@ -30,6 +30,7 @@ import {
     StandardCrypto,
     StorageContext,
     StorageManager,
+    SupportedStorageTypes,
     Time,
     Timestamp,
 } from "@matter/general";
@@ -44,6 +45,27 @@ const TEST_IDENTITY_PROTECTION_KEY = Bytes.fromHex("9bc61cd9c62a2df6d64dfcaa9dc4
 const SEC1_KEY = Bytes.fromHex(
     "30770201010420aef3484116e9481ec57be0472df41bf499064e5024ad869eca5e889802d48075a00a06082a8648ce3d030107a144034200043c398922452b55caf389c25bd1bca4656952ccb90e8869249ad8474653014cbf95d687965e036b521c51037e6b8cedefca1eb44046694fa08882eed6519decba",
 );
+
+function testFabric(crypto: StandardCrypto, fabricStorage: StorageContext, fabricIndex = FabricIndex(1)) {
+    const fabric = new Fabric(crypto, {
+        fabricIndex,
+        fabricId: FabricId(BigInt("0x456789ABCDEF1234") + BigInt(fabricIndex - 1)),
+        nodeId: NodeId(1),
+        rootNodeId: NodeId(1),
+        globalId: GlobalFabricId(fabricIndex - 1),
+        keyPair: Key({ sec1: SEC1_KEY }) as PrivateKey,
+        rootPublicKey: TEST_ROOT_PUBLIC_KEY,
+        rootVendorId: VendorId(0),
+        rootCert: new Uint8Array(),
+        identityProtectionKey: new Uint8Array(),
+        operationalIdentityProtectionKey: TEST_IDENTITY_PROTECTION_KEY,
+        intermediateCACert: new Uint8Array(),
+        operationalCert: new Uint8Array(),
+        label: "",
+    });
+    fabric.storage = fabricStorage;
+    return fabric;
+}
 
 describe("SessionManager", () => {
     describe("getNextAvailableSessionId", () => {
@@ -469,27 +491,6 @@ describe("SessionManager", () => {
     });
 
     describe("group data message counter", () => {
-        function groupFabric(crypto: StandardCrypto, fabricStorage: StorageContext) {
-            const fabric = new Fabric(crypto, {
-                fabricIndex: FabricIndex(1),
-                fabricId: FabricId(BigInt("0x456789ABCDEF1234")),
-                nodeId: NodeId(1),
-                rootNodeId: NodeId(1),
-                globalId: GlobalFabricId(0),
-                keyPair: Key({ sec1: SEC1_KEY }) as PrivateKey,
-                rootPublicKey: TEST_ROOT_PUBLIC_KEY,
-                rootVendorId: VendorId(0),
-                rootCert: new Uint8Array(),
-                identityProtectionKey: new Uint8Array(),
-                operationalIdentityProtectionKey: TEST_IDENTITY_PROTECTION_KEY,
-                intermediateCACert: new Uint8Array(),
-                operationalCert: new Uint8Array(),
-                label: "",
-            });
-            fabric.storage = fabricStorage;
-            return fabric;
-        }
-
         it("exposes one node-global counter shared across group sessions", async () => {
             const storage = new MemoryStorageDriver();
             storage.initialize();
@@ -537,7 +538,7 @@ describe("SessionManager", () => {
             const fabricManager = new FabricManager(crypto);
             await fabricManager.construction.ready;
             const fabricStorage = new StorageContext(storage, ["fabric"]);
-            const fabric = groupFabric(crypto, fabricStorage);
+            const fabric = testFabric(crypto, fabricStorage);
             fabricManager.addFabric(fabric);
 
             // Simulate a legacy per-operational-key data counter persisted by the old model.
@@ -562,7 +563,7 @@ describe("SessionManager", () => {
 
             const fabricManager = new FabricManager(crypto);
             await fabricManager.construction.ready;
-            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            const fabric = testFabric(crypto, new StorageContext(storage, ["fabric"]));
             fabricManager.addFabric(fabric);
             await fabric.groups.setFromGroupKeySet({
                 groupKeySetId: 1,
@@ -607,7 +608,7 @@ describe("SessionManager", () => {
             storage.initialize();
             const fabricManager = new FabricManager(crypto);
             await fabricManager.construction.ready;
-            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            const fabric = testFabric(crypto, new StorageContext(storage, ["fabric"]));
             fabricManager.addFabric(fabric);
 
             const epochKey = b$`000102030405060708090a0b0c0d0e0f`;
@@ -640,7 +641,7 @@ describe("SessionManager", () => {
             storage.initialize();
             const fabricManager = new FabricManager(crypto);
             await fabricManager.construction.ready;
-            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            const fabric = testFabric(crypto, new StorageContext(storage, ["fabric"]));
             fabricManager.addFabric(fabric);
 
             const epochKey = b$`000102030405060708090a0b0c0d0e0f`;
@@ -670,7 +671,7 @@ describe("SessionManager", () => {
             storage.initialize();
             const fabricManager = new FabricManager(crypto);
             await fabricManager.construction.ready;
-            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            const fabric = testFabric(crypto, new StorageContext(storage, ["fabric"]));
             fabricManager.addFabric(fabric);
 
             const epochA = b$`000102030405060708090a0b0c0d0e0f`;
@@ -919,6 +920,153 @@ describe("SessionManager", () => {
 
             const [info] = sessionManager.getActiveSessionInformation();
             expect(info.lastActiveTimestamp).equals(0);
+        });
+    });
+
+    describe("resumption records", () => {
+        class WriteRecordingStorage extends MemoryStorageDriver {
+            writes = new Array<string>();
+
+            override set(
+                contexts: string[],
+                keyOrValues: string | Record<string, SupportedStorageTypes>,
+                value?: SupportedStorageTypes,
+            ) {
+                const keys = typeof keyOrValues === "string" ? [keyOrValues] : Object.keys(keyOrValues);
+                for (const key of keys) {
+                    this.writes.push([...contexts, key].join("."));
+                }
+                if (typeof keyOrValues === "string") {
+                    return super.set(contexts, keyOrValues, value);
+                }
+                return super.set(contexts, keyOrValues);
+            }
+        }
+
+        const crypto = new StandardCrypto();
+        let storage: WriteRecordingStorage;
+        let fabrics: FabricManager;
+        let fabric: Fabric;
+
+        beforeEach(async () => {
+            storage = new WriteRecordingStorage();
+            storage.initialize();
+            fabrics = new FabricManager(crypto);
+            await fabrics.construction.ready;
+            fabric = testFabric(crypto, new StorageContext(storage, ["fabric"]));
+            fabrics.addFabric(fabric);
+        });
+
+        async function startSessionManager() {
+            const sessionManager = new SessionManager({
+                fabrics,
+                storage: new StorageContext(storage, ["sessions"]),
+            });
+            await sessionManager.construction.ready;
+            return sessionManager;
+        }
+
+        function recordFor(peerNodeId: NodeId, resumptionId: Bytes) {
+            return {
+                sharedSecret: b$`00112233445566778899aabbccddeeff`,
+                resumptionId,
+                fabric,
+                peerNodeId,
+                sessionParameters: SessionParameters(),
+            };
+        }
+
+        function storedKeys(...contexts: string[]) {
+            return storage.keys(["sessions", ...contexts]);
+        }
+
+        it("writes only the changed peer's key", async () => {
+            const sessionManager = await startSessionManager();
+            await sessionManager.saveResumptionRecord(recordFor(NodeId(0x10), b$`01`));
+            await sessionManager.saveResumptionRecord(recordFor(NodeId(0x20), b$`02`));
+
+            storage.writes.length = 0;
+            await sessionManager.saveResumptionRecord(recordFor(NodeId(0x20), b$`03`));
+
+            expect(storage.writes).deep.equal(["sessions.resumption.1.20"]);
+            expect(storedKeys("resumption", "1")).deep.equal(["10", "20"]);
+            expect(storedKeys()).not.include("resumptionRecords");
+        });
+
+        it("restores records after a restart and finds them by their current resumption ID", async () => {
+            const first = await startSessionManager();
+            await first.saveResumptionRecord(recordFor(NodeId(0x10), b$`01`));
+            await first.saveResumptionRecord(recordFor(NodeId(0x10), b$`02`));
+            await first.close();
+
+            const sessionManager = await startSessionManager();
+
+            expect(sessionManager.findResumptionRecordById(b$`01`)).undefined;
+            expect(sessionManager.findResumptionRecordById(b$`02`)?.peerNodeId).equal(NodeId(0x10));
+            expect(
+                sessionManager.findResumptionRecordByAddress(fabric.addressOf(NodeId(0x10)))?.resumptionId,
+            ).deep.equal(b$`02`);
+        });
+
+        it("forgets a deleted record by address and by resumption ID", async () => {
+            const sessionManager = await startSessionManager();
+            await sessionManager.saveResumptionRecord(recordFor(NodeId(0x10), b$`01`));
+
+            expect(await sessionManager.deleteResumptionRecord(fabric.addressOf(NodeId(0x10)))).equal(true);
+
+            expect(sessionManager.findResumptionRecordById(b$`01`)).undefined;
+            expect(storedKeys("resumption", "1")).deep.equal([]);
+        });
+
+        it("deletes the records of a removed fabric", async () => {
+            const sessionManager = await startSessionManager();
+            await sessionManager.saveResumptionRecord(recordFor(NodeId(0x10), b$`01`));
+            await sessionManager.saveResumptionRecord(recordFor(NodeId(0x20), b$`02`));
+
+            expect(await sessionManager.deleteResumptionRecordsForFabric(fabric)).equal(true);
+
+            expect(sessionManager.findResumptionRecordById(b$`02`)).undefined;
+            expect(storedKeys("resumption", "1")).deep.equal([]);
+        });
+
+        it("moves the legacy array to per-peer keys and drops records of unknown fabrics", async () => {
+            const { sessionParameters } = recordFor(NodeId(0x10), b$`01`);
+            const legacyRecord = {
+                sharedSecret: b$`00112233445566778899aabbccddeeff`,
+                resumptionId: b$`01`,
+                fabricId: fabric.fabricId,
+                fabricIndex: fabric.fabricIndex,
+                nodeId: NodeId(0x10),
+                peerNodeId: NodeId(0x10),
+                sessionParameters: { ...sessionParameters, supportedTransports: undefined },
+            };
+            storage.set(["sessions"], "resumptionRecords", [
+                legacyRecord,
+                { ...legacyRecord, resumptionId: b$`02`, fabricId: FabricId(0x999), fabricIndex: FabricIndex(9) },
+            ]);
+            // Written by an earlier per-peer run before a downgrade; the array written since replaces it
+            storage.set(["sessions", "resumption", "1"], "30", { ...legacyRecord, peerNodeId: NodeId(0x30) });
+
+            const sessionManager = await startSessionManager();
+
+            expect(sessionManager.findResumptionRecordById(b$`01`)?.peerNodeId).equal(NodeId(0x10));
+            expect(sessionManager.findResumptionRecordById(b$`02`)).undefined;
+            expect(sessionManager.findResumptionRecordByAddress(fabric.addressOf(NodeId(0x30)))).undefined;
+            expect(storedKeys()).not.include("resumptionRecords");
+            expect(storedKeys("resumption", "1")).deep.equal(["10"]);
+            expect(storage.get(["sessions", "resumption", "1"], "10")).not.have.property("nodeId");
+        });
+
+        it("deletes a stored record whose fabric no longer exists", async () => {
+            const first = await startSessionManager();
+            await first.saveResumptionRecord(recordFor(NodeId(0x10), b$`01`));
+            await first.close();
+            storage.set(["sessions", "resumption", "2"], "10", storage.get(["sessions", "resumption", "1"], "10"));
+
+            await startSessionManager();
+
+            expect(storedKeys("resumption", "1")).deep.equal(["10"]);
+            expect(storedKeys("resumption", "2")).deep.equal([]);
         });
     });
 });
