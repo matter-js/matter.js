@@ -3021,8 +3021,8 @@ class InProcessAttestationApi implements AttestationApi {
             seed: { paaRoots: chipTestRoots() },
 
             // Both are about test certificates counting at all, not about going and getting them: the
-            // seed consumer drops a test root unless the first is set, and the validator refuses one
-            // as a trust anchor unless the second is. Nothing is fetched — the service is offline.
+            // seed consumer drops a test root unless the first is set, and the validator flags a test root
+            // or the Matter test CD signer unless the second is. Nothing is fetched — the service is offline.
             fetchTestCertificates: true,
             acceptTestCertificates: true,
 

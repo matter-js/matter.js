@@ -196,11 +196,36 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
         });
         fetchMock.install();
 
-        service = new DclCertificateService(environment, { updateInterval: null });
+        // addCertificate() refuses a CD signer the CSA did not issue, so such an entry arrives as a seed, unverified
+        const cdSigners = trusted.flatMap(entry =>
+            !Bytes.isBytes(entry) && entry.kind === "CDSigner"
+                ? [
+                      {
+                          subjectKeyId: hexOf(Paa.fromAsn1(entry.der).cert.extensions.subjectKeyIdentifier),
+                          derHex: Bytes.toHex(entry.der),
+                          kind: "production" as const,
+                      },
+                  ]
+                : [],
+        );
+        service = new DclCertificateService(environment, {
+            updateInterval: null,
+            seed: {
+                cdSigners: {
+                    builtAt: new Date(0).toISOString(),
+                    expectedCount: cdSigners.length,
+                    entries: (async function* () {
+                        yield* cdSigners;
+                    })(),
+                },
+            },
+        });
         await service.construction;
         for (const entry of trusted) {
             const { der, kind } = Bytes.isBytes(entry) ? { der: entry, kind: "PAA" as const } : entry;
-            await service.addCertificate(der, kind, { isProduction: false });
+            if (kind === "PAA") {
+                await service.addCertificate(der, kind, { isProduction: false });
+            }
         }
         return service;
     }

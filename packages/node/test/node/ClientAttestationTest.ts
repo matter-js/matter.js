@@ -23,7 +23,6 @@ import {
 import { MockServerNode, MockSite } from "@matter/node/testing";
 import {
     AttestationFinding,
-    CertificationDeclaration,
     CommissioningError,
     DclCertificateService,
     DeviceAttestationCheck,
@@ -173,8 +172,8 @@ interface AttestationTestOptions {
     dclPaaCert?: Bytes;
 
     /**
-     * When true, inject `dclPaaCert` directly as a test-only PAA (isProduction: false) and
-     * skip the production DCL fetch mock. Used to exercise the `TrustedAsTestCertificate` finding.
+     * When true, inject `dclPaaCert` directly as a test-only PAA (isProduction: false), skip the production DCL fetch
+     * mock and do not accept test certificates, which is a production-only trust policy.
      */
     paaAsTestOnly?: boolean;
 
@@ -259,13 +258,15 @@ async function runAttestationTest(options: AttestationTestOptions) {
         }
 
         if (options.dclPaaCert !== undefined) {
-            dclService = new DclCertificateService(controller.env, { updateInterval: null });
+            // The device CD is signed by the Matter test CD signer, which a production-only policy reports as a finding
+            dclService = new DclCertificateService(controller.env, {
+                updateInterval: null,
+                acceptTestCertificates: !options.paaAsTestOnly,
+            });
             await dclService.construction;
             if (options.paaAsTestOnly) {
                 await dclService.addCertificate(options.dclPaaCert, "PAA", { isProduction: false });
             }
-            // Inject the Matter test CD signer so CD signature verification works for test CDs
-            await dclService.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
 
             if (options.corruptCachedPaaSkid !== undefined) {
                 const normalizedSkid =
@@ -449,9 +450,7 @@ describe("device attestation during commissioning", () => {
                 assertFindings: findings => {
                     const types = findings.map(f => f.type);
                     expect(types).to.include(DeviceAttestationCheck.CertificationTypeTest);
-                    // CD signer is auto-injected from the well-known Matter test signer, so CD
-                    // signature verification succeeds (no CdSignerVerificationSkipped expected)
-                    expect(types).to.not.include(DeviceAttestationCheck.CdSignerVerificationSkipped);
+                    expect(types).to.not.include(DeviceAttestationCheck.CdSignerUnknown);
 
                     const certType = findings.find(f => f.type === DeviceAttestationCheck.CertificationTypeTest);
                     expect(certType!.level).equals("info");
@@ -509,16 +508,16 @@ describe("device attestation during commissioning", () => {
     });
 
     describe("with DCL trust store (test-only PAA)", () => {
-        it("emits TrustedAsTestCertificate finding, callback rejects", () =>
+        it("emits TrustedAsTestCertificate for the test PAA and the test CD signer, callback rejects", () =>
             runAttestationTest({
                 dclPaaCert: TestCert_PAA_NoVID_Cert,
                 paaAsTestOnly: true,
                 onAttestationFailure: () => false,
                 expectRejection: /finding\(s\) and was rejected by policy/,
                 assertFindings: findings => {
-                    const trusted = findings.find(f => f.type === DeviceAttestationCheck.TrustedAsTestCertificate);
-                    expect(trusted).to.not.be.undefined;
-                    expect(trusted!.level).equals("error");
+                    const trusted = findings.filter(f => f.type === DeviceAttestationCheck.TrustedAsTestCertificate);
+                    expect(trusted.map(f => f.level)).deep.equals(["error", "error"]);
+                    expect(trusted.some(f => f.message.includes("test CD signer"))).equals(true);
                 },
             }));
 
@@ -530,6 +529,7 @@ describe("device attestation during commissioning", () => {
                 assertFindings: findings => {
                     const types = findings.map(f => f.type);
                     expect(types).to.include(DeviceAttestationCheck.TrustedAsTestCertificate);
+                    expect(types).not.to.include(DeviceAttestationCheck.CdSignerUnknown);
                 },
                 assertResult: (device, peers) => {
                     expect(device.state.commissioning.commissioned).equals(true);
