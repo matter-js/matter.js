@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, Seconds } from "@matter/main";
+import { Duration, InternalError, Seconds } from "@matter/main";
 import { DeviceAttestationCheck } from "@matter/protocol";
-import type { CertDevice, CertStepContext, CheckRecord } from "@matter/testing";
+import type { CertDevice, CertNodeRef, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest, CertLogTimeoutError, chip } from "@matter/testing";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -202,6 +202,9 @@ const COMMISSIONING_TIMEOUT = Seconds(60);
 /** Longer than {@link COMMISSIONING_TIMEOUT}, so the controller gives up on its own before the step stops waiting. */
 const SETTLE_TIMEOUT = Seconds(75);
 
+/** How long a commissioning that outlived {@link SETTLE_TIMEOUT} gets to end before the vector loop stops. */
+const LATE_SETTLE_TIMEOUT = Seconds(60);
+
 const commissioned = new CommissionedRefs();
 let firstCommissioning: { thFrom: number; dutFrom: number } | undefined;
 let firstRequest: ReceivedRequest | undefined;
@@ -342,24 +345,26 @@ async function refuseVector(
 ): Promise<CheckRecord> {
     const dut = cx.controllers.dut;
     const from = await th.log.markSettled();
-    const outcome = await settleWithin(
-        `TC-DA-1.4 commissioning with ${vector}`,
-        dut.commission({
-            passcode: th.commissioning.passcode,
-            discriminator: th.commissioning.discriminator,
-            giveUpAfterMs: COMMISSIONING_TIMEOUT,
-            withoutSubscription: true,
-        }),
-        SETTLE_TIMEOUT,
-    );
+    const label = `TC-DA-1.4 commissioning with ${vector}`;
+    const commissioning = dut.commission({
+        passcode: th.commissioning.passcode,
+        discriminator: th.commissioning.discriminator,
+        giveUpAfterMs: COMMISSIONING_TIMEOUT,
+        withoutSubscription: true,
+    });
+    const outcome = await settleWithin(label, commissioning, SETTLE_TIMEOUT);
+
+    const remove = async (ref: CertNodeRef) => {
+        const removed = await attempt(
+            () => dut.node(ref).decommission(),
+            () => `DUT removed the TH presenting ${vector}`,
+        );
+        checks.push({ what: `DUT removes the TH presenting ${vector}`, check: () => removed.check });
+    };
 
     switch (outcome.kind) {
         case "resolved": {
-            const removed = await attempt(
-                () => dut.node(outcome.value).decommission(),
-                () => `DUT removed the TH presenting ${vector}`,
-            );
-            checks.push({ what: `DUT removes the TH presenting ${vector}`, check: () => removed.check });
+            await remove(outcome.value);
             return {
                 type: "response",
                 verdict: "fail",
@@ -367,12 +372,24 @@ async function refuseVector(
             };
         }
 
-        case "timeout":
+        case "timeout": {
+            // The next vector restarts the TH, which a commissioning still running would talk to or onboard
+            const late = await settleWithin(`${label} after its timeout`, commissioning, LATE_SETTLE_TIMEOUT);
+            if (late.kind === "timeout") {
+                throw new CertCheckFailedError(
+                    `${label} neither ended nor gave up within ${Duration.format(SETTLE_TIMEOUT)} and a further ` +
+                        `${late.elapsed}, so the remaining certificate sets cannot run on a TH it does not use`,
+                );
+            }
+            if (late.kind === "resolved") {
+                await remove(late.value);
+            }
             return {
                 type: "response",
                 verdict: "fail",
                 detail: `DUT neither commissioned nor refused the TH presenting ${vector} within ${outcome.elapsed}`,
             };
+        }
 
         case "rejected": {
             const refusal = refusalIn(outcome.error);
