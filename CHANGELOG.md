@@ -55,6 +55,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
     - Adjustment: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
     - Adjustment: `DclCertificateService.addCertificate()` refuses a CD signer certificate that is known to be untrusted because the CSA did not issue it
+    - Adjustment: DER certificate parsing requires the basic constraints extension when the required extensions list it
+    - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept
     - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: A group message whose key set GroupKeyMap does not map to its destination group fails authentication instead of reaching access control
     - Fix: A group message whose payload is too short, too long or does not parse fails every candidate key and is reported to Groupcast testing as FailedAuth or NoAvailableKey
