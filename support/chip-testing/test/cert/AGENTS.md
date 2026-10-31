@@ -3541,6 +3541,42 @@ of one prompt, and a handler answers on the line it matched. `statedInPrompt` (i
 reads the earlier lines back out of what the script has printed, because a handler cannot wait for
 more output — the loop reading it is suspended for the handler's whole duration.
 
+## Refusal vectors, and proving the TH presented them (`TC-DA-1.4`)
+
+`TC-DA-1.4` restarts the TH once per vector of the plan's table, as `TC-DA-1.8` does, and requires the DUT to
+refuse each one. Three things are not obvious.
+
+**chip's DAC provider falls back silently to its default certificates.** When it cannot open or parse the vector
+file, it logs `Error opening json file` or `Error parsing json file` and keeps the development DAC, PAI and CD.
+`ResolveDeviceAttestationCredentialsProvider` runs before `Server::Init`, so that line comes before
+`Server initialization complete`. The case checks the lines between the restart and that ready line. A refusal
+also proves nothing on its own, because a refusal is what the case expects. So every vector names the attestation
+check the refusal must carry, and the case matches it in the `Device attestation refused: <Type>: …` text that both
+matter.js controllers put in the error. The default certificates commission at product id 32768. At product id 177
+the DUT refuses them as `CertificationDeclarationFieldMismatch`, which no product id 177 vector expects. A timeout,
+a commissioning that fails before attestation, and a refusal for another check all count as not refused.
+
+**One vector cannot reach the DUT's judgement.** `struct_dac_sig_curve_secp256k1` carries a secp256k1 DAC key.
+chip's provider loads the key as a P-256 key pair to sign the AttestationResponse. `EC_POINT_oct2point` refuses
+that point, so the TH answers the AttestationRequest with an error
+(`OpCreds: Failed AttestationRequest request`). The DUT asks for the DAC and PAI before that request and judges
+them only after it, so it never receives attestation information to judge. The case accepts that line from the TH
+with a failed commissioning for this vector only.
+
+**Step 4, "Commissionee is not yet certified", is the TH's default CD.** That CD has certification_type 0
+(development and test). A cert controller accepts test certificates, or no vector could be judged on its own
+defect, so it commissions this TH. It reports the CD through its attestation policy callback as the
+`CertificationTypeTest` finding. The step reads that finding from the DUT's log as the indication "within its error
+handling APIs" that the plan asks for.
+
+The plan's table does not list every vector of the directory. CHIP generates the table with
+`gen_commissioner_dut_test_plan_table.py`, which skips five on purpose: `struct_cd_cert_id_mismatch`,
+`struct_cd_device_type_id_mismatch`, `struct_cd_version_number_wrong`, `struct_cd_security_level_wrong` and
+`struct_cd_security_info_wrong`. The first two need DCL compliance data. For the other three, § 6.3.1 says
+commissioners do not interpret or ignore the field. A commissioner accepts all five. Six more are newer than the
+plan's table: `struct_cd_official_cd`, `struct_cd_provisional_cd` and the four `struct_{dac,pai}_fuzzed_*`
+vectors. The case runs the plan's table only.
+
 ## The SU block, where the DUT is the OTA provider (`TC-SU-3.1`–`TC-SU-3.4`)
 
 The Software Update plans give their 3.x cases a provider DUT, which here is the controller — the
