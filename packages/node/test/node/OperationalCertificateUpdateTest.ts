@@ -32,6 +32,7 @@ import { MockSite, subscribedPeer } from "@matter/node/testing";
 import {
     CertificateAuthority,
     ClientInteraction,
+    ClientSubscriptions,
     Noc,
     ControllerCommissioner,
     FabricChangedError,
@@ -44,6 +45,7 @@ import {
     OperationalCertificateUpdateBusyError,
     OperationalCertificateUpdateError,
     OperationalCertificateUpdateRefusedError,
+    Peer,
     PeerAddress,
     PeerSet,
     SessionManager,
@@ -312,25 +314,33 @@ async function* withNocs(chunk: ReadResult.Chunk, forge: (entries: unknown[]) =>
 }
 
 /**
- * Have the first read of the controller report the NOCs value {@link forge} builds, as a malicious node could.
- * Returns a restore function.
+ * Have the reads of the controller report the NOCs value {@link forge} builds, as a malicious or changed node could,
+ * for each read that starts while {@link active} holds.  Returns a restore function.
  */
-function reportNocsOnce(forge: (entries: unknown[]) => unknown[]) {
+function reportNocs(forge: (entries: unknown[]) => unknown[], active: () => boolean) {
     const original = ClientInteraction.prototype.read;
-    let forged = false;
     ClientInteraction.prototype.read = async function* (
         this: ClientInteraction,
         ...args: Parameters<typeof original>
     ): ReturnType<typeof original> {
-        const first = !forged;
-        forged = true;
+        const forging = active();
         for await (const chunk of original.apply(this, args)) {
-            yield first ? withNocs(chunk, forge) : chunk;
+            yield forging ? withNocs(chunk, forge) : chunk;
         }
     };
     return () => {
         ClientInteraction.prototype.read = original;
     };
+}
+
+/** {@link reportNocs} for the first read only. */
+function reportNocsOnce(forge: (entries: unknown[]) => unknown[]) {
+    let first = true;
+    return reportNocs(forge, () => {
+        const forging = first;
+        first = false;
+        return forging;
+    });
 }
 
 /** Replace the NOC of every reported entry with {@link forgedNoc}. */
@@ -940,6 +950,151 @@ describe("OperationalCertificateUpdate", () => {
         const peer = await subscribedPeer(controller, "peer1");
 
         await expectForgedNocsRefused(controller, device, peer, entries => [...entries, ...entries]);
+    });
+
+    it("reports an unknown outcome when NOCs is empty after a disarm", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        const { sent: arms, restore: restoreArm } = interceptCommand(
+            GeneralCommissioning.Cluster.id,
+            ARM_FAIL_SAFE_COMMAND_ID,
+            { delivered: true, answered: true },
+        );
+        const restoreController = afterResponse(OperationalCredentials.Cluster.id, UPDATE_NOC_COMMAND_ID, () =>
+            device.setStateOf(GeneralCommissioningServer, { breadcrumb: 7 }),
+        );
+        const restoreRead = reportNocs(
+            () => [],
+            () => arms.attempts >= 2,
+        );
+        try {
+            await expect(
+                withEntropy([controller, device], () =>
+                    MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
+                ),
+            ).rejectedWith(OperationalCertificateUpdateError, /outcome is unknown/);
+        } finally {
+            restoreRead();
+            restoreController();
+            restoreArm();
+        }
+
+        expect(arms.attempts).equals(2);
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
+    });
+
+    it("reports an unknown outcome when NOCs holds a NOC of another rotation", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const fabric = deviceFabric(device);
+        const otherNoc = await controller.env
+            .get(CertificateAuthority)
+            .generateNoc(fabric.publicKey, fabric.fabricId, fabric.nodeId);
+
+        let delivered = false;
+        const restoreController = loseUpdateNocResponse(async () => {
+            await expireFailsafe(device);
+            delivered = true;
+        });
+        const restoreRead = reportNocs(forgedNocs(otherNoc), () => delivered);
+        try {
+            await expect(
+                withEntropy([controller, device], () =>
+                    MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
+                ),
+            ).rejectedWith(OperationalCertificateUpdateError, /outcome is unknown/);
+        } finally {
+            restoreRead();
+            restoreController();
+        }
+    });
+
+    it("sends nothing when aborted before the call on a connected peer", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        expect(controller.env.get(PeerSet).get(peer.peerAddress!)!.newestSession()).not.undefined;
+
+        const { sent: arms, restore: restoreArm } = interceptCommand(
+            GeneralCommissioning.Cluster.id,
+            ARM_FAIL_SAFE_COMMAND_ID,
+            { delivered: true, answered: true },
+        );
+        const abort = new AbortController();
+        abort.abort(new FabricChangedError("aborted by test"));
+        try {
+            await expect(
+                MockTime.resolve(peer.updateOperationalCertificate({ abort: abort.signal }), { macrotasks: true }),
+            ).rejectedWith(FabricChangedError, /aborted by test/);
+        } finally {
+            restoreArm();
+        }
+
+        expect(arms.attempts).equals(0);
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
+        expect(device.stateOf(GeneralCommissioningServer).breadcrumb).equal(0n);
+    });
+
+    it("sends nothing when aborted while the session is obtained", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        const { sent: arms, restore: restoreArm } = interceptCommand(
+            GeneralCommissioning.Cluster.id,
+            ARM_FAIL_SAFE_COMMAND_ID,
+            { delivered: true, answered: true },
+        );
+        const abort = new AbortController();
+        const originalConnect = Peer.prototype.connect;
+        Peer.prototype.connect = async function (this: Peer, ...args: Parameters<typeof originalConnect>) {
+            const session = await originalConnect.apply(this, args);
+            abort.abort(new FabricChangedError("aborted by test"));
+            return session;
+        };
+        try {
+            await expect(
+                MockTime.resolve(peer.updateOperationalCertificate({ abort: abort.signal }), { macrotasks: true }),
+            ).rejectedWith(FabricChangedError, /aborted by test/);
+        } finally {
+            Peer.prototype.connect = originalConnect;
+            restoreArm();
+        }
+
+        expect(arms.attempts).equals(0);
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
+    });
+
+    it("restarts subscriptions although dropping the resumption record fails", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        const originalDelete = SessionManager.prototype.deleteResumptionRecord;
+        SessionManager.prototype.deleteResumptionRecord = async function () {
+            throw new StorageError("test storage failure");
+        };
+        const originalClose = ClientSubscriptions.prototype.closeForPeer;
+        let restarts = 0;
+        ClientSubscriptions.prototype.closeForPeer = function (this: ClientSubscriptions, address: PeerAddress) {
+            restarts++;
+            return originalClose.call(this, address);
+        };
+        try {
+            await expect(
+                withEntropy([controller, device], () =>
+                    MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
+                ),
+            ).rejectedWith(OperationalCertificateUpdateError, /outcome is unknown/);
+        } finally {
+            ClientSubscriptions.prototype.closeForPeer = originalClose;
+            SessionManager.prototype.deleteResumptionRecord = originalDelete;
+        }
+
+        expect(restarts).equals(2);
     });
 
     it("keeps the CASE Authenticated Tags of the current NOC", async () => {
