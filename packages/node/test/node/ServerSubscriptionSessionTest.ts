@@ -8,9 +8,10 @@ import { SessionsBehavior } from "#behavior/system/sessions/SessionsBehavior.js"
 import { BasicInformationClient, BasicInformationServer } from "#behaviors/basic-information";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { Seconds } from "@matter/general";
+import { Seconds, UnexpectedDataError } from "@matter/general";
 import { MockSite, subscribedPeer } from "@matter/node/testing";
 import {
+    CaseServerMessenger,
     ClientSubscriptions,
     NodeSession,
     PeerAddress,
@@ -94,5 +95,37 @@ describe("ServerSubscriptionSession", () => {
         expect(subscription.isTerminated).false;
 
         await nodeLabelReachesController(device, peer, "after former session closed");
+        expect(added).equals(0);
+    });
+
+    it("leaves its subscriptions on their session when a resumption fails before the controller confirms it", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const address = peer.peerAddress!;
+        const [formerSession] = openSessionsOf(device);
+        const [subscription] = formerSession.subscriptions;
+
+        const { waitForSuccess } = CaseServerMessenger.prototype;
+        CaseServerMessenger.prototype.waitForSuccess = async function (
+            this: CaseServerMessenger,
+            ...args: Parameters<typeof waitForSuccess>
+        ) {
+            if (args[0]?.description === "Sigma2Resume-Success") {
+                throw new UnexpectedDataError("test: no confirmation of the resumption");
+            }
+            return waitForSuccess.apply(this, args);
+        };
+        try {
+            await dropSessionsOnController(controller, address);
+            await MockTime.resolve(controller.env.get(PeerSet).for(address).connect());
+
+            const resumedSession = await newSessionOf(device, formerSession);
+            expect(resumedSession).not.undefined;
+            expect([...formerSession.subscriptions]).deep.equals([subscription]);
+            expect([...resumedSession!.subscriptions]).deep.equals([]);
+        } finally {
+            CaseServerMessenger.prototype.waitForSuccess = waitForSuccess;
+        }
     });
 });

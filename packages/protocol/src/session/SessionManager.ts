@@ -227,6 +227,7 @@ export class SessionManager {
     readonly #context: SessionManagerContext;
     readonly #unsecuredSessions = new Map<NodeId, UnsecuredSession>();
     readonly #sessions = new BasicSet<NodeSession>();
+    readonly #unconfirmedSessions = new WeakSet<NodeSession>();
     readonly #groupSessions = new Map<NodeId, BasicSet<GroupSession>>();
     #nextSessionId: number;
     #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
@@ -277,18 +278,6 @@ export class SessionManager {
             await this.deleteResumptionRecordsForFabric(fabric);
         });
 
-        this.#sessions.added.on(session => {
-            // Before eviction, so an evicted older session does not end the subscriptions it hands over, and before the
-            // subscription monitors below, so a moved subscription does not count as added
-            this.#moveSubscriptionsTo(session);
-
-            // We are the responder, so nothing else reclaims these: an initiator's sessions are swept by the peer
-            // loss its own traffic reports
-            if (!session.isInitiator) {
-                this.#sessionEvictionMutex.run(() => this.#evictExcessSessionsFor(session));
-            }
-        });
-
         // Add subscription monitors to new node sessions
         this.#sessions.added.on(session => {
             const subscriptionsChanged = (subscription: Subscription) => {
@@ -306,6 +295,18 @@ export class SessionManager {
                 session.subscriptions.added.off(subscriptionsChanged);
                 session.subscriptions.deleted.off(subscriptionsChanged);
             });
+        });
+
+        this.#sessions.added.on(session => {
+            if (!this.#unconfirmedSessions.has(session)) {
+                this.#moveSubscriptionsTo(session);
+            }
+
+            // We are the responder, so nothing else reclaims these: an initiator's sessions are swept by the peer
+            // loss its own traffic reports
+            if (!session.isInitiator) {
+                this.#sessionEvictionMutex.run(() => this.#evictExcessSessionsFor(session));
+            }
         });
 
         this.#construction = Construction(this, () => this.#initialize());
@@ -662,27 +663,62 @@ export class SessionManager {
     }
 
     /**
+     * Register {@link session}, which the peer has yet to confirm, such as a session we resumed as responder before the
+     * peer's Sigma2Resume success status arrives.
+     *
+     * The session takes messages at once, because the peer may use it before its confirmation reaches us.
+     * Subscriptions of the peer's older sessions move to it only on {@link confirmSession}, so a resumption the peer
+     * abandons leaves them on a session the peer still has.  The CHIP SDK activates a resumed session at the same
+     * point.
+     */
+    addUnconfirmedSession(session: NodeSession) {
+        this.#unconfirmedSessions.add(session);
+        this.#sessions.add(session);
+    }
+
+    /**
+     * Record that the peer confirmed {@link session}, registered with {@link addUnconfirmedSession}.  A session that
+     * closed in the meantime takes no subscriptions.
+     */
+    confirmSession(session: NodeSession) {
+        this.#unconfirmedSessions.delete(session);
+        if (!session.isClosing) {
+            this.#moveSubscriptionsTo(session);
+        }
+    }
+
+    /**
+     * The session that subscriptions set up on {@link session} belong on: the newest open, confirmed CASE session
+     * established after {@link session} with the same peer, the same role and equal CASE Authenticated Tags, or
+     * {@link session} itself.
+     */
+    subscriptionSessionFor(session: NodeSession) {
+        let newest = session;
+        for (const candidate of this.#sessions) {
+            if (
+                candidate === session ||
+                (!candidate.isClosing &&
+                    !this.#unconfirmedSessions.has(candidate) &&
+                    sharesSubscriptions(candidate, session))
+            ) {
+                newest = candidate;
+            }
+        }
+        return newest;
+    }
+
+    /**
      * Move the subscriptions of the peer's older CASE sessions to the new CASE session {@link session}, as the CHIP SDK
      * does in `SecureSessionTable::NewerSessionAvailable`.  A peer that sets up a new session may drop its older ones
      * without telling us, and reports on a dropped session never arrive.
      *
-     * Only sessions with the same role and equal CASE Authenticated Tags take part, so a moved subscription keeps the
-     * access subject it was set up with.  The role matters because a session we initiated carries our own CATs, while
-     * one the peer initiated carries the peer's.
+     * Only sessions with the same peer, the same role and equal CASE Authenticated Tags take part, so a moved
+     * subscription keeps the access subject it was set up with.  The CHIP SDK compares only peer and CATs.  matter.js
+     * also compares the role, because a session matter.js initiated stores our own CATs, not the peer's.
      */
     #moveSubscriptionsTo(session: NodeSession) {
-        if (session.isPase) {
-            return;
-        }
-
         for (const older of this.#sessions) {
-            if (
-                older === session ||
-                older.isClosing ||
-                older.isInitiator !== session.isInitiator ||
-                !older.peerIs(session.peerAddress) ||
-                !hasEqualCats(older, session)
-            ) {
+            if (older === session || older.isClosing || !sharesSubscriptions(older, session)) {
                 continue;
             }
 
@@ -1135,6 +1171,15 @@ export class SessionManager {
         this.#idUpperBound = upperBound;
         this.#nextSessionId = (this.#context.fabrics.crypto.randomUint32 % upperBound) + 1;
     }
+}
+
+function sharesSubscriptions(session: NodeSession, other: NodeSession) {
+    return (
+        !session.isPase &&
+        session.isInitiator === other.isInitiator &&
+        session.peerIs(other.peerAddress) &&
+        hasEqualCats(session, other)
+    );
 }
 
 function hasEqualCats(session: NodeSession, other: NodeSession) {

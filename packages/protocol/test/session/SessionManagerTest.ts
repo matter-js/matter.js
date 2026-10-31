@@ -449,6 +449,23 @@ describe("SessionManager", () => {
             });
         }
 
+        async function unconfirmedSession() {
+            const id = nextId++;
+            const unconfirmed = await sessionManager.createSecureSession({
+                id,
+                fabric: undefined,
+                peerNodeId: PEER_NODE_ID,
+                peerSessionId: id,
+                sharedSecret: DUMMY_BYTEARRAY,
+                salt: DUMMY_BYTEARRAY,
+                isInitiator: false,
+                isResumption: true,
+                delayManagerRegistration: true,
+            });
+            sessionManager.addUnconfirmedSession(unconfirmed);
+            return unconfirmed;
+        }
+
         function subscriptionOn(owner: NodeSession, onClose?: () => void) {
             const moves = new Array<NodeSession>();
             const subscription: Subscription = {
@@ -474,6 +491,30 @@ describe("SessionManager", () => {
             const moves = subscriptionOn(await session({ caseAuthenticatedTags: [CAT_A, CAT_B] }));
             const newer = await session({ caseAuthenticatedTags: [CAT_B, CAT_A] });
             expect(moves).deep.equals([newer]);
+        });
+
+        it("names a closing session itself for its subscriptions although an older one is open", async () => {
+            await session();
+            const own = await session();
+            let release!: () => void;
+            const closed = own.initiateClose(() => new Promise<void>(resolve => (release = resolve)));
+
+            expect(sessionManager.subscriptionSessionFor(own)).equals(own);
+
+            release();
+            await closed;
+        });
+
+        it("reports the changed subscriptions of both sessions", async () => {
+            const older = await session();
+            subscriptionOn(older);
+            const changed = new Array<NodeSession>();
+            sessionManager.subscriptionsChanged.on(session => {
+                changed.push(session);
+            });
+
+            const newer = await session();
+            expect(changed).deep.equals([older, newer]);
         });
 
         it("leaves them on a session with other CATs", async () => {
@@ -520,6 +561,46 @@ describe("SessionManager", () => {
             expect(older.isClosing).true;
             expect(moves).deep.equals([newer]);
             expect(closed).equals(0);
+        });
+
+        it("moves them to an unconfirmed session only once the peer confirms it", async () => {
+            const moves = subscriptionOn(await session());
+            const unconfirmed = await unconfirmedSession();
+            expect(moves).deep.equals([]);
+
+            sessionManager.confirmSession(unconfirmed);
+            expect(moves).deep.equals([unconfirmed]);
+        });
+
+        it("moves nothing to an unconfirmed session that closed before the peer confirmed it", async () => {
+            const moves = subscriptionOn(await session());
+            const unconfirmed = await unconfirmedSession();
+            let release!: () => void;
+            const closed = unconfirmed.initiateClose(() => new Promise<void>(resolve => (release = resolve)));
+
+            sessionManager.confirmSession(unconfirmed);
+            expect(moves).deep.equals([]);
+
+            release();
+            await closed;
+        });
+
+        it("names the newest confirmed session established after the given one for its subscriptions", async () => {
+            const own = await session();
+            const newer = await session();
+            const newest = await session();
+            await session({ caseAuthenticatedTags: [CAT_A] });
+            await unconfirmedSession();
+            const closing = await session();
+            let release!: () => void;
+            const closed = closing.initiateClose(() => new Promise<void>(resolve => (release = resolve)));
+
+            expect(sessionManager.subscriptionSessionFor(own)).equals(newest);
+            expect(sessionManager.subscriptionSessionFor(newer)).equals(newest);
+            expect(sessionManager.subscriptionSessionFor(newest)).equals(newest);
+
+            release();
+            await closed;
         });
 
         it("never moves them to a PASE session", async () => {

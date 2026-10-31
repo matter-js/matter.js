@@ -208,12 +208,13 @@ export class CaseServer implements ProtocolHandler {
         // Now we are sure, add the session to the manager
         NodeSession.logNew(logger, "Resumed", secureSession, cx.messenger, fabric, peerNodeId);
 
-        this.#sessions.sessions.add(secureSession);
+        this.#sessions.addUnconfirmedSession(secureSession);
 
         cx.resumptionRecord.resumptionId = cx.localResumptionId; /* Update the ID */
 
         // Wait for success on the peer side
         await cx.messenger.waitForSuccess({ description: "Sigma2Resume-Success" });
+        this.#sessions.confirmSession(secureSession);
 
         await cx.messenger.close();
         await this.#sessions.saveResumptionRecord(cx.resumptionRecord);

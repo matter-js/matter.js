@@ -40,9 +40,10 @@ export interface Subscription {
     closeForShutdown(flushViaSession?: Session): Promise<void>;
 
     /**
-     * Continue the subscription on {@link session}, a newer CASE session with the same peer and the same CASE
-     * Authenticated Tags.  Reports then go out on {@link session}, and closing the former session no longer ends the
-     * subscription.  A subscription without this method stays on its session.
+     * Continue the subscription on {@link session}, a newer CASE session with the same peer, the same role and the same
+     * CASE Authenticated Tags.  Reports then go out on {@link session}, and closing the former session no longer ends
+     * the subscription.  A closed subscription ignores the call.  A subscription without this method stays on its
+     * session.
      */
     moveTo?(session: NodeSession): void;
 }
