@@ -8,4 +8,6 @@ describe("MOD", () => {
     chip("MOD/*")
         // MOD 2.3 tests add scenes management for future Matter versions (>1.4.2)
         .exclude("MOD/2.3");
+
+    chip("MOD/1.2/*");
 });
