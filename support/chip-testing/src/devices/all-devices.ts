@@ -40,4 +40,3 @@ import "./TemperatureSensorEndpoint.js";
 import "./ThermostatEndpoint.js";
 import "./WaterFreezeDetectorEndpoint.js";
 import "./WaterLeakDetectorEndpoint.js";
-import "./WaterValveEndpoint.js";
