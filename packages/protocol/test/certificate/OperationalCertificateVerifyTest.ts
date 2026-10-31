@@ -10,6 +10,7 @@ import { OperationalCertificate } from "#certificate/kinds/definitions/operation
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc, OperationalNodeIdError } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
+import { Vvsc } from "#certificate/kinds/Vvsc.js";
 import { Bytes, CertificateError, InternalError, PrivateKey, StandardCrypto, Time } from "@matter/general";
 import {
     CaseAuthenticatedTag,
@@ -39,6 +40,7 @@ const DN_TAG = {
 
 const ROOT_ID = 1;
 const ICAC_ID = 2;
+const VVS_ID = 3;
 const NODE_ID = NodeId(0x1234n);
 const FABRIC_ID = FabricId(1n);
 
@@ -121,6 +123,24 @@ async function nocTlv(node: KeyMaterial, issuer: KeyMaterial, mutate?: Mutate<Op
     return noc.asSignedTlv();
 }
 
+async function vvscTlv(vvs: KeyMaterial, root: KeyMaterial, mutate?: Mutate<OperationalCertificate.Vvsc>) {
+    const cert: Unsigned<OperationalCertificate.Vvsc> = {
+        ...commonFields(vvs.key.publicKey),
+        issuer: { rcacId: ROOT_ID },
+        subject: { vvsId: VVS_ID },
+        extensions: {
+            basicConstraints: { isCa: false },
+            keyUsage: { digitalSignature: true },
+            subjectKeyIdentifier: vvs.skid,
+            authorityKeyIdentifier: root.skid,
+        },
+    };
+    mutate?.(cert);
+    const vvsc = new Vvsc(cert);
+    await vvsc.sign(crypto, root.key);
+    return vvsc.asSignedTlv();
+}
+
 /** One Matter-TLV DN entry with a 64-bit unsigned value, as a stream fragment. */
 function dnEntry(tag: number, value: number | bigint): TlvStream {
     const stream = TlvTaggedList({ entry: TlvField(tag, TlvUInt64) }).encodeTlv({ entry: value });
@@ -189,6 +209,10 @@ async function verifyIcac(tlv: Bytes, rootTlv: Bytes) {
 
 async function verifyNoc(tlv: Bytes, rootTlv: Bytes, icaTlv?: Bytes) {
     await Noc.fromTlv(tlv).verify(crypto, Rcac.fromTlv(rootTlv), icaTlv ? Icac.fromTlv(icaTlv) : undefined);
+}
+
+async function verifyVvsc(tlv: Bytes) {
+    await Vvsc.fromTlv(tlv).verify(crypto);
 }
 
 /**
@@ -265,6 +289,10 @@ describe("Operational certificate verification", () => {
                 cert.subject.nodeId = NodeId(0xffff_ffef_ffff_ffffn);
             });
             await verifyNoc(noc, rootTlv, icaTlv);
+        });
+
+        it("verifies a VVSC", async () => {
+            await verifyVvsc(await vvscTlv(await keyMaterial(), root));
         });
     });
 
@@ -426,5 +454,23 @@ describe("Operational certificate verification", () => {
         });
     });
 
-    describe("VVSC subject DN", () => {});
+    describe("VVSC subject DN", () => {
+        it("refuses a matter-node-id", async () => {
+            const vvsc = withLeadingDnEntry(
+                await vvscTlv(await keyMaterial(), root),
+                SUBJECT_TAG,
+                dnEntry(DN_TAG.nodeId, NODE_ID),
+            );
+            await expect(verifyVvsc(vvsc)).rejectedWith(CertificateError, /nodeId/);
+        });
+
+        it("refuses a matter-fabric-id", async () => {
+            const vvsc = withLeadingDnEntry(
+                await vvscTlv(await keyMaterial(), root),
+                SUBJECT_TAG,
+                dnEntry(DN_TAG.fabricId, FABRIC_ID),
+            );
+            await expect(verifyVvsc(vvsc)).rejectedWith(CertificateError, /fabricId/);
+        });
+    });
 });
