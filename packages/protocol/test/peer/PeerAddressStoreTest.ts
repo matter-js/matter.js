@@ -74,6 +74,10 @@ describe("PeerAddressStore", () => {
             override get(contexts: string[], key: string) {
                 return key === "1a" ? undefined : super.get(contexts, key);
             }
+
+            override has(contexts: string[], key: string) {
+                return this.keys(contexts).includes(key);
+            }
         }
         const unreadableStorage = new UnreadableKeyStorage();
         unreadableStorage.initialize();
