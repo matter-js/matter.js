@@ -33,7 +33,7 @@ import {
     Time,
     Timestamp,
 } from "@matter/general";
-import { FabricId, FabricIndex, GlobalFabricId, NodeId, VendorId } from "@matter/types";
+import { CaseAuthenticatedTag, FabricId, FabricIndex, GlobalFabricId, NodeId, VendorId } from "@matter/types";
 
 const DUMMY_BYTEARRAY = new Uint8Array();
 
@@ -44,6 +44,27 @@ const TEST_IDENTITY_PROTECTION_KEY = Bytes.fromHex("9bc61cd9c62a2df6d64dfcaa9dc4
 const SEC1_KEY = Bytes.fromHex(
     "30770201010420aef3484116e9481ec57be0472df41bf499064e5024ad869eca5e889802d48075a00a06082a8648ce3d030107a144034200043c398922452b55caf389c25bd1bca4656952ccb90e8869249ad8474653014cbf95d687965e036b521c51037e6b8cedefca1eb44046694fa08882eed6519decba",
 );
+
+function testFabric(crypto: StandardCrypto, fabricStorage: StorageContext) {
+    const fabric = new Fabric(crypto, {
+        fabricIndex: FabricIndex(1),
+        fabricId: FabricId(BigInt("0x456789ABCDEF1234")),
+        nodeId: NodeId(1),
+        rootNodeId: NodeId(1),
+        globalId: GlobalFabricId(0),
+        keyPair: Key({ sec1: SEC1_KEY }) as PrivateKey,
+        rootPublicKey: TEST_ROOT_PUBLIC_KEY,
+        rootVendorId: VendorId(0),
+        rootCert: new Uint8Array(),
+        identityProtectionKey: new Uint8Array(),
+        operationalIdentityProtectionKey: TEST_IDENTITY_PROTECTION_KEY,
+        intermediateCACert: new Uint8Array(),
+        operationalCert: new Uint8Array(),
+        label: "",
+    });
+    fabric.storage = fabricStorage;
+    return fabric;
+}
 
 describe("SessionManager", () => {
     describe("getNextAvailableSessionId", () => {
@@ -469,27 +490,6 @@ describe("SessionManager", () => {
     });
 
     describe("group data message counter", () => {
-        function groupFabric(crypto: StandardCrypto, fabricStorage: StorageContext) {
-            const fabric = new Fabric(crypto, {
-                fabricIndex: FabricIndex(1),
-                fabricId: FabricId(BigInt("0x456789ABCDEF1234")),
-                nodeId: NodeId(1),
-                rootNodeId: NodeId(1),
-                globalId: GlobalFabricId(0),
-                keyPair: Key({ sec1: SEC1_KEY }) as PrivateKey,
-                rootPublicKey: TEST_ROOT_PUBLIC_KEY,
-                rootVendorId: VendorId(0),
-                rootCert: new Uint8Array(),
-                identityProtectionKey: new Uint8Array(),
-                operationalIdentityProtectionKey: TEST_IDENTITY_PROTECTION_KEY,
-                intermediateCACert: new Uint8Array(),
-                operationalCert: new Uint8Array(),
-                label: "",
-            });
-            fabric.storage = fabricStorage;
-            return fabric;
-        }
-
         it("exposes one node-global counter shared across group sessions", async () => {
             const storage = new MemoryStorageDriver();
             storage.initialize();
@@ -537,7 +537,7 @@ describe("SessionManager", () => {
             const fabricManager = new FabricManager(crypto);
             await fabricManager.construction.ready;
             const fabricStorage = new StorageContext(storage, ["fabric"]);
-            const fabric = groupFabric(crypto, fabricStorage);
+            const fabric = testFabric(crypto, fabricStorage);
             fabricManager.addFabric(fabric);
 
             // Simulate a legacy per-operational-key data counter persisted by the old model.
@@ -562,7 +562,7 @@ describe("SessionManager", () => {
 
             const fabricManager = new FabricManager(crypto);
             await fabricManager.construction.ready;
-            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            const fabric = testFabric(crypto, new StorageContext(storage, ["fabric"]));
             fabricManager.addFabric(fabric);
             await fabric.groups.setFromGroupKeySet({
                 groupKeySetId: 1,
@@ -607,7 +607,7 @@ describe("SessionManager", () => {
             storage.initialize();
             const fabricManager = new FabricManager(crypto);
             await fabricManager.construction.ready;
-            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            const fabric = testFabric(crypto, new StorageContext(storage, ["fabric"]));
             fabricManager.addFabric(fabric);
 
             const epochKey = b$`000102030405060708090a0b0c0d0e0f`;
@@ -640,7 +640,7 @@ describe("SessionManager", () => {
             storage.initialize();
             const fabricManager = new FabricManager(crypto);
             await fabricManager.construction.ready;
-            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            const fabric = testFabric(crypto, new StorageContext(storage, ["fabric"]));
             fabricManager.addFabric(fabric);
 
             const epochKey = b$`000102030405060708090a0b0c0d0e0f`;
@@ -670,7 +670,7 @@ describe("SessionManager", () => {
             storage.initialize();
             const fabricManager = new FabricManager(crypto);
             await fabricManager.construction.ready;
-            const fabric = groupFabric(crypto, new StorageContext(storage, ["fabric"]));
+            const fabric = testFabric(crypto, new StorageContext(storage, ["fabric"]));
             fabricManager.addFabric(fabric);
 
             const epochA = b$`000102030405060708090a0b0c0d0e0f`;
@@ -919,6 +919,64 @@ describe("SessionManager", () => {
 
             const [info] = sessionManager.getActiveSessionInformation();
             expect(info.lastActiveTimestamp).equals(0);
+        });
+    });
+    describe("resumption record storage", () => {
+        const peerNodeId = NodeId(0x1234);
+
+        function storedRecord(version?: number) {
+            return {
+                ...(version === undefined ? {} : { version }),
+                nodeId: peerNodeId,
+                sharedSecret: b$`00112233`,
+                resumptionId: b$`44556677`,
+                fabricId: FabricId(BigInt("0x456789ABCDEF1234")),
+                fabricIndex: FabricIndex(1),
+                peerNodeId,
+                sessionParameters: SessionParameters({}),
+                caseAuthenticatedTags: [CaseAuthenticatedTag(0x00010001)],
+            };
+        }
+
+        async function sessionManagerWith(records: ReturnType<typeof storedRecord>[]) {
+            const crypto = new StandardCrypto();
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            const fabrics = new FabricManager(crypto);
+            await fabrics.construction.ready;
+            const fabric = testFabric(crypto, new StorageContext(storage, ["fabric"]));
+            fabrics.addFabric(fabric);
+
+            const sessionStorage = new StorageContext(storage, ["sessions"]);
+            await sessionStorage.set("resumptionRecords", records);
+            const sessionManager = new SessionManager({
+                parameters: {} as SessionParameters,
+                fabrics,
+                storage: sessionStorage,
+            });
+            await sessionManager.construction.ready;
+            return { sessionManager, sessionStorage, address: fabric.addressOf(peerNodeId) };
+        }
+
+        it("drops records stored without a version, which may carry the local node's CATs", async () => {
+            const { sessionManager, sessionStorage, address } = await sessionManagerWith([storedRecord()]);
+
+            expect(sessionManager.findResumptionRecordByAddress(address)).undefined;
+            expect(await sessionStorage.get("resumptionRecords")).deep.equals([]);
+        });
+
+        it("restores versioned records with their CATs and stores them with the version", async () => {
+            const { sessionManager, sessionStorage, address } = await sessionManagerWith([storedRecord(1)]);
+
+            const record = sessionManager.findResumptionRecordByAddress(address);
+            if (record === undefined) {
+                expect.fail("versioned record was not restored");
+            }
+            expect(record.caseAuthenticatedTags).deep.equals([CaseAuthenticatedTag(0x00010001)]);
+
+            await sessionManager.saveResumptionRecord(record);
+            const [stored] = await sessionStorage.get<{ version?: number }[]>("resumptionRecords");
+            expect(stored.version).equals(1);
         });
     });
 });

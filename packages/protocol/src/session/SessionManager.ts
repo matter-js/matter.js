@@ -95,7 +95,14 @@ export interface ResumptionRecord extends Omit<InternalResumptionRecord, "fabric
     fabric: Fabric;
 }
 
+/**
+ * Stored resumption records from before this version may hold the local node's CATs instead of the peer's for sessions
+ * we initiated, so they are dropped on load and the next CASE runs in full.
+ */
+const RESUMPTION_RECORD_VERSION = 1;
+
 type ResumptionStorageRecord = {
+    version?: number;
     nodeId: NodeId;
     sharedSecret: Bytes;
     resumptionId: Bytes;
@@ -880,6 +887,10 @@ export class SessionManager {
 
     async #storeResumptionRecords() {
         await this.#construction;
+        await this.#writeResumptionRecords();
+    }
+
+    async #writeResumptionRecords() {
         await this.#context.storage.set(
             "resumptionRecords",
             [...this.#resumptionRecords].map(
@@ -895,6 +906,7 @@ export class SessionManager {
                         caseAuthenticatedTags,
                     },
                 ]): ResumptionStorageRecord => ({
+                    version: RESUMPTION_RECORD_VERSION,
                     nodeId: address.nodeId,
                     sharedSecret,
                     resumptionId,
@@ -940,8 +952,10 @@ export class SessionManager {
             [],
         );
 
+        let droppedOutdatedRecords = false;
         storedResumptionRecords.forEach(
             ({
+                version,
                 nodeId,
                 sharedSecret,
                 resumptionId,
@@ -951,6 +965,10 @@ export class SessionManager {
                 sessionParameters,
                 caseAuthenticatedTags,
             }) => {
+                if ((version ?? 0) < RESUMPTION_RECORD_VERSION) {
+                    droppedOutdatedRecords = true;
+                    return;
+                }
                 const fabric = this.#maybeFabricForId(fabricId, fabricIndex);
                 if (!fabric) {
                     this.#logger.warn(
@@ -979,6 +997,11 @@ export class SessionManager {
                 });
             },
         );
+
+        if (droppedOutdatedRecords) {
+            this.#logger.info("Dropped resumption records stored in an outdated format; next sessions use full CASE");
+            await this.#writeResumptionRecords();
+        }
     }
 
     /**
