@@ -22,6 +22,7 @@ import {
     Lifetime,
     Logger,
     LogLevel,
+    MaybePromise,
     MemoryStorageDriver,
     Millis,
     NetworkError,
@@ -29,7 +30,9 @@ import {
     Seconds,
     StandardCrypto,
     StorageContext,
+    StorageError,
     StorageManager,
+    SupportedStorageTypes,
     Time,
     Timestamp,
 } from "@matter/general";
@@ -922,9 +925,35 @@ describe("SessionManager", () => {
         });
     });
     describe("resumption record storage", () => {
-        const peerNodeId = NodeId(0x1234);
+        const CATS = [CaseAuthenticatedTag(0x00010001)];
+        const VERSIONED_PEER = NodeId(0x1234);
+        const UNVERSIONED_PEER = NodeId(0x5678);
 
-        function storedRecord(version?: number) {
+        class RecordingStorageDriver extends MemoryStorageDriver {
+            resumptionRecordWrites = 0;
+            failResumptionRecordWrites = false;
+
+            override set(contexts: string[], values: Record<string, SupportedStorageTypes>): MaybePromise<void>;
+            override set(contexts: string[], key: string, value: SupportedStorageTypes): MaybePromise<void>;
+            override set(
+                contexts: string[],
+                keyOrValues: string | Record<string, SupportedStorageTypes>,
+                value?: SupportedStorageTypes,
+            ) {
+                if (keyOrValues === "resumptionRecords") {
+                    this.resumptionRecordWrites++;
+                    if (this.failResumptionRecordWrites) {
+                        throw new StorageError("Simulated write failure");
+                    }
+                }
+                if (typeof keyOrValues === "string") {
+                    return super.set(contexts, keyOrValues, value!);
+                }
+                return super.set(contexts, keyOrValues);
+            }
+        }
+
+        function storedRecord(peerNodeId: NodeId, version?: number) {
             return {
                 ...(version === undefined ? {} : { version }),
                 nodeId: peerNodeId,
@@ -934,13 +963,13 @@ describe("SessionManager", () => {
                 fabricIndex: FabricIndex(1),
                 peerNodeId,
                 sessionParameters: SessionParameters({}),
-                caseAuthenticatedTags: [CaseAuthenticatedTag(0x00010001)],
+                caseAuthenticatedTags: CATS,
             };
         }
 
-        async function sessionManagerWith(records: ReturnType<typeof storedRecord>[]) {
+        async function sessionManagerWith(records: ReturnType<typeof storedRecord>[], { failRewrite = false } = {}) {
             const crypto = new StandardCrypto();
-            const storage = new MemoryStorageDriver();
+            const storage = new RecordingStorageDriver();
             storage.initialize();
             const fabrics = new FabricManager(crypto);
             await fabrics.construction.ready;
@@ -949,34 +978,100 @@ describe("SessionManager", () => {
 
             const sessionStorage = new StorageContext(storage, ["sessions"]);
             await sessionStorage.set("resumptionRecords", records);
+            storage.resumptionRecordWrites = 0;
+            storage.failResumptionRecordWrites = failRewrite;
             const sessionManager = new SessionManager({
-                parameters: {} as SessionParameters,
+                parameters: SessionParameters({}),
                 fabrics,
                 storage: sessionStorage,
             });
             await sessionManager.construction.ready;
-            return { sessionManager, sessionStorage, address: fabric.addressOf(peerNodeId) };
+            storage.failResumptionRecordWrites = false;
+            return { sessionManager, sessionStorage, storage, fabric };
+        }
+
+        function storedPeers(stored: { peerNodeId: NodeId }[]) {
+            return stored.map(({ peerNodeId }) => peerNodeId);
         }
 
         it("drops records stored without a version, which may carry the local node's CATs", async () => {
-            const { sessionManager, sessionStorage, address } = await sessionManagerWith([storedRecord()]);
+            const { sessionManager, sessionStorage, fabric } = await sessionManagerWith([
+                storedRecord(UNVERSIONED_PEER),
+            ]);
 
-            expect(sessionManager.findResumptionRecordByAddress(address)).undefined;
+            expect(sessionManager.findResumptionRecordByAddress(fabric.addressOf(UNVERSIONED_PEER))).undefined;
             expect(await sessionStorage.get("resumptionRecords")).deep.equals([]);
         });
 
-        it("restores versioned records with their CATs and stores them with the version", async () => {
-            const { sessionManager, sessionStorage, address } = await sessionManagerWith([storedRecord(1)]);
+        it("keeps the versioned record and drops the unversioned one when both are stored", async () => {
+            const { sessionManager, sessionStorage, fabric } = await sessionManagerWith([
+                storedRecord(UNVERSIONED_PEER),
+                storedRecord(VERSIONED_PEER, 1),
+            ]);
 
-            const record = sessionManager.findResumptionRecordByAddress(address);
+            expect(sessionManager.findResumptionRecordByAddress(fabric.addressOf(UNVERSIONED_PEER))).undefined;
+            expect(
+                sessionManager.findResumptionRecordByAddress(fabric.addressOf(VERSIONED_PEER))?.caseAuthenticatedTags,
+            ).deep.equals(CATS);
+
+            const stored = await sessionStorage.get<{ version?: number; peerNodeId: NodeId }[]>("resumptionRecords");
+            expect(storedPeers(stored)).deep.equals([VERSIONED_PEER]);
+            expect(stored[0].version).equals(1);
+        });
+
+        it("does not rewrite storage when every stored record is versioned", async () => {
+            const { sessionManager, storage, fabric } = await sessionManagerWith([storedRecord(VERSIONED_PEER, 1)]);
+
+            expect(sessionManager.findResumptionRecordByAddress(fabric.addressOf(VERSIONED_PEER))).not.undefined;
+            expect(storage.resumptionRecordWrites).equals(0);
+        });
+
+        it("keeps records stored with a newer version", async () => {
+            const { sessionManager, storage, fabric } = await sessionManagerWith([storedRecord(VERSIONED_PEER, 99)]);
+
+            expect(sessionManager.findResumptionRecordByAddress(fabric.addressOf(VERSIONED_PEER))).not.undefined;
+            expect(storage.resumptionRecordWrites).equals(0);
+        });
+
+        it("stores saved records with the version", async () => {
+            const { sessionManager, sessionStorage, fabric } = await sessionManagerWith([
+                storedRecord(VERSIONED_PEER, 1),
+            ]);
+
+            const record = sessionManager.findResumptionRecordByAddress(fabric.addressOf(VERSIONED_PEER));
             if (record === undefined) {
                 expect.fail("versioned record was not restored");
             }
-            expect(record.caseAuthenticatedTags).deep.equals([CaseAuthenticatedTag(0x00010001)]);
-
             await sessionManager.saveResumptionRecord(record);
             const [stored] = await sessionStorage.get<{ version?: number }[]>("resumptionRecords");
             expect(stored.version).equals(1);
+        });
+
+        it("starts and logs a warning when the rewrite after dropping records fails", async () => {
+            const dest = Logger.destinations.default;
+            const original = { ...dest };
+            const warnings = new Array<string>();
+            dest.level = LogLevel.WARN;
+            dest.add = message => {
+                if (message.level === LogLevel.WARN) {
+                    warnings.push(message.values.map(String).join(" "));
+                }
+            };
+
+            try {
+                const { sessionManager, storage, fabric } = await sessionManagerWith(
+                    [storedRecord(UNVERSIONED_PEER), storedRecord(VERSIONED_PEER, 1)],
+                    { failRewrite: true },
+                );
+
+                expect(storage.resumptionRecordWrites).equals(1);
+                expect(sessionManager.findResumptionRecordByAddress(fabric.addressOf(UNVERSIONED_PEER))).undefined;
+                expect(sessionManager.findResumptionRecordByAddress(fabric.addressOf(VERSIONED_PEER))).not.undefined;
+            } finally {
+                Object.assign(Logger.destinations.default, original);
+            }
+
+            expect(warnings.filter(w => w.includes("Could not rewrite resumption records")).length).equals(1);
         });
     });
 });

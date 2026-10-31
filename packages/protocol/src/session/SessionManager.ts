@@ -96,8 +96,8 @@ export interface ResumptionRecord extends Omit<InternalResumptionRecord, "fabric
 }
 
 /**
- * Stored resumption records from before this version may hold the local node's CATs instead of the peer's for sessions
- * we initiated, so they are dropped on load and the next CASE runs in full.
+ * Format version of stored resumption records.  Records without a version are dropped on load because they may hold
+ * the local node's CATs for sessions this node initiated.  Records with a newer version are kept.
  */
 const RESUMPTION_RECORD_VERSION = 1;
 
@@ -999,8 +999,15 @@ export class SessionManager {
         );
 
         if (droppedOutdatedRecords) {
-            this.#logger.info("Dropped resumption records stored in an outdated format; next sessions use full CASE");
-            await this.#writeResumptionRecords();
+            this.#logger.info(
+                "Dropped resumption records stored in an outdated format; the next CASE session with each peer runs in full",
+            );
+            try {
+                await this.#writeResumptionRecords();
+            } catch (error) {
+                // The in-memory records are correct, and the next save rewrites storage
+                this.#logger.warn("Could not rewrite resumption records after dropping outdated ones:", error);
+            }
         }
     }
 

@@ -397,8 +397,9 @@ export namespace CaseClient {
         expectedProcessingTime?: Duration;
 
         /**
-         * @deprecated Ignored.  The session always carries the CATs from the peer's NOC, and the local CATs are the
-         * ones in the fabric's operational certificate.
+         * @deprecated Ignored.  A session carries the CATs from the peer's NOC of the full CASE that created it; a
+         * resumed session takes them from the resumption record.  The local CATs are the ones in the fabric's
+         * operational certificate.
          */
         caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
         abort?: AbortSignal;
