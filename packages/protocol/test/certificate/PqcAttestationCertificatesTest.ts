@@ -552,10 +552,9 @@ describe("PQC Phase 1 attestation certificates", () => {
         });
 
         async function validate(chain: Chain, trustedPaaDer = chain.paaDer) {
-            service = new DclCertificateService(environment, { updateInterval: null });
+            service = new DclCertificateService(environment, { updateInterval: null, acceptTestCertificates: true });
             await service.construction;
             await service.addCertificate(trustedPaaDer, "PAA", { isProduction: false });
-            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
 
             const attestationChallenge = crypto.randomBytes(16);
             const attestationNonce = crypto.randomBytes(32);

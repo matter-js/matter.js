@@ -995,7 +995,7 @@ describe("InProcessControllerAdapter attestation", () => {
         expect(adapter.judgeAttestation([])).equal(true);
         expect(
             adapter.judgeAttestation([
-                { level: "warning", type: DeviceAttestationCheck.CdSignerVerificationSkipped, message: "no signer" },
+                { level: "warning", type: DeviceAttestationCheck.CertificationTypeProvisional, message: "provisional" },
             ]),
         ).equal(true);
     });

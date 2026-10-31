@@ -23,6 +23,11 @@
 # One job definition, test-cert, then covers the whole controller × device interop matrix; it expands
 # into test-cert-<controller>-vs-<device> from the table `prepare` emits.
 #
+# Each leg is split into shards that run as parallel jobs, because one job running every case
+# approached the job time limit, and a killed job loses the evidence of every case it ran. A spec
+# file belongs to a shard by a checksum of its path (.github/scripts/cert-shard-files.sh), so new
+# files need no list entry. The shard count is SHARD_COUNT in `prepare`.
+#
 # Controllers:
 #
 #   * "matterjs" — matter.js's own in-process controller stack
@@ -40,7 +45,7 @@
 #     the published ghcr.io/matter-js/chip image: chip-all-clusters-app,
 #     chip-all-clusters-app-nlfaultinject, chip-bridge-app, chip-camera-app, the
 #     chip-ota-provider-app/chip-ota-requestor-app pair, matter-network-manager-app,
-#     lit-icd-app-nopersist and chip-tv-app. Published as a multi-arch manifest, so each leg pulls the variant matching
+#     lit-icd-app-nopersist, chip-tv-app and chip-lock-app. Published as a multi-arch manifest, so each leg pulls the variant matching
 #     its runner. Runs when binariesSource is own-built or both
 #
 #   * "cert-bins" — project-chip's official connectedhomeip/chip-cert-bins image. Published
@@ -222,6 +227,7 @@ jobs:
           RUN_CERT_BINS: ${{ steps.flags.outputs.cert-bins }}
           RUN_OWN_BUILT: ${{ steps.flags.outputs.own-built }}
         run: |
+          SHARD_COUNT=3
           matrix=$(jq -nc --arg certBins "$RUN_CERT_BINS" --arg ownBuilt "$RUN_OWN_BUILT" '
             [
               {
@@ -293,9 +299,13 @@ jobs:
           # Every combination of the vectors must have an include entry, or its leg would start with
           # an empty `runs-on`. The leg list is rectangular today (each controller runs against each
           # selected device); this fails the run rather than the leg if that ever stops holding.
-          expanded=$(echo "$matrix" | jq -c '{
+          #
+          # The shard vector holds "<index>of<count>" so the leg name reads "matterjs, own-built,
+          # 1of3" and the value can be part of an artifact name, which a "/" could not.
+          expanded=$(echo "$matrix" | jq -c --argjson shards "$SHARD_COUNT" '{
             controller: (map(.controller) | unique),
             device: (map(.device) | unique),
+            shard: [range(1; $shards + 1) | "\(.)of\($shards)"],
             include: .
           }')
 
@@ -354,7 +364,7 @@ jobs:
       # Legs are independent: one broken combination must not cancel the evidence from the others.
       fail-fast: false
       # Forks skip prepare on its repository gate, so the output can be absent entirely here.
-      matrix: ${{ fromJSON(needs.prepare.outputs.matrix || '{"controller":[],"device":[],"include":[]}') }}
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix || '{"controller":[],"device":[],"shard":[],"include":[]}') }}
     steps:
       - name: Check out matter.js
         uses: actions/checkout@v7
@@ -388,7 +398,7 @@ jobs:
             bash -c "cp -a /bin/chip-all-clusters-app* /bin/chip-bridge-app \
                            /bin/chip-ota-provider-app /bin/chip-ota-requestor-app \
                            /bin/matter-network-manager-app /bin/lit-icd-app-nopersist \
-                           /bin/chip-tv-app /out/"
+                           /bin/chip-tv-app /bin/chip-lock-app /out/"
           # cert-dsl.ts's chipLocalMarkerRevision() reads this to populate evidence's chipRef; the
           # image carries the same connectedhomeip commit in its org.opencontainers.image.revision
           # label (baked by docker-bake.hcl from CHIP_COMMIT).
@@ -401,7 +411,7 @@ jobs:
           for bin in chip-all-clusters-app chip-all-clusters-app-nlfaultinject \
                      chip-all-clusters-app-nogroupcast chip-bridge-app \
                      chip-ota-provider-app chip-ota-requestor-app matter-network-manager-app \
-                     lit-icd-app-nopersist chip-tv-app; do
+                     lit-icd-app-nopersist chip-tv-app chip-lock-app; do
             if [ ! -x "/tmp/cert-app-dir/$bin" ]; then
               echo "::error::$bin is missing from the published ghcr.io/matter-js/chip image." \
                 "support/chip/Dockerfile's own-built binaries changed shape, or the image pipeline" \
@@ -449,8 +459,9 @@ jobs:
           sudo apt-get install -y ${{ matrix.apt-packages }}
           sudo systemctl start avahi-daemon
 
-      - name: Run certification controller tests (${{ matrix.controller }} controller vs ${{ matrix.device }} device)
+      - name: Run certification controller tests (${{ matrix.controller }} controller vs ${{ matrix.device }} device, shard ${{ matrix.shard }})
         env:
+          SHARD: ${{ matrix.shard }}
           MATTER_CHIP_PLATFORM: ${{ matrix.chip-platform }}
           MATTER_CHIP_BINS_SOURCE: ${{ matrix.chip-bins-source }}
           MATTER_CHIP_BINS_TAG: ${{ needs.prepare.outputs.chip-bins-tag }}
@@ -468,13 +479,21 @@ jobs:
           MATTER_CERT_LONG_RUNNING: ${{ needs.prepare.outputs.long-running }}
           MATTER_WTF: 1
         run: |
+          files=$(.github/scripts/cert-shard-files.sh "${SHARD%of*}" "${SHARD#*of}")
+          mapfile -t specs <<< "$files"
+          if [ -z "$files" ]; then
+            echo "::error::Shard $SHARD selected no cert spec files; lower SHARD_COUNT in prepare"
+            exit 1
+          fi
+          echo "Shard $SHARD runs ${#specs[@]} spec files:"
+          printf '  %s\n' "${specs[@]}"
           cd support/chip-testing
-          npm run test-cert -- --no-pull
+          npm run test-cert-files -- --spec "${specs[@]}" --no-pull
 
       - name: Upload cert evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: cert-evidence-${{ matrix.controller }}-vs-${{ matrix.device }}.zip
+          name: cert-evidence-${{ matrix.controller }}-vs-${{ matrix.device }}-${{ matrix.shard }}.zip
           path: support/chip-testing/build/cert-evidence/**
           if-no-files-found: ignore

@@ -137,6 +137,13 @@ export interface CertTestOptions {
     transport?: ControllerTransport;
 
     /**
+     * Has the test's controllers judge device attestation against the chip test roots
+     * (`ControllerAdapterOptions.attestation`), for a case about which attestations a commissioner accepts or refuses.
+     * Implies the `attestation` capability, so a case with a controller that cannot judge attestation is skipped.
+     */
+    attestation?: boolean;
+
+    /**
      * What the whole test needs of its controllers beyond the {@link ControllerAdapter} interface. Where a
      * controller filling one of its roles lacks one, the test is skipped before any device starts. Declare it here
      * rather than per step where later steps rest on what a step needing it sets up, so that none of them runs
@@ -343,6 +350,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         flavors: options.flavors,
         chipBinsSources: options.chipBinsSources,
         transport: options.transport,
+        attestation: options.attestation,
         controllers: controllerRoles,
         controllerCapabilities: options.controllerCapabilities,
         controllerGroups: options.controllerGroups,
@@ -646,14 +654,17 @@ export function unmetTestPics(definition: CertTestDefinition, pics = certPicsFil
  * one can: the capabilities it declares, and those its adapter options imply.
  */
 export function unmetControllerCapabilities(
-    definition: Pick<CertTestDefinition, "controllers" | "controllerCapabilities" | "transport">,
+    definition: Pick<CertTestDefinition, "controllers" | "controllerCapabilities" | "transport" | "attestation">,
     selection: ControllerSelection = resolveControllerSelection(),
 ): string | undefined {
     return controllerCapabilityGap(requiredCapabilities(definition), Object.values(definition.controllers), selection);
 }
 
-function requiredCapabilities(definition: Pick<CertTestDefinition, "controllerCapabilities" | "transport">) {
-    return [...(definition.controllerCapabilities ?? []), ...capabilitiesFor({ transport: definition.transport })];
+function requiredCapabilities(
+    definition: Pick<CertTestDefinition, "controllerCapabilities" | "transport" | "attestation">,
+) {
+    const { transport, attestation } = definition;
+    return [...(definition.controllerCapabilities ?? []), ...capabilitiesFor({ transport, attestation })];
 }
 
 /**
@@ -675,7 +686,7 @@ function controllerNotApplicable(
  * (see {@link controllerCapabilityOutOfScope}).
  */
 function outOfControllerScope(
-    definition: Pick<CertTestDefinition, "controllers" | "controllerCapabilities" | "transport">,
+    definition: Pick<CertTestDefinition, "controllers" | "controllerCapabilities" | "transport" | "attestation">,
     selection: ControllerSelection,
 ): string | undefined {
     return controllerCapabilityOutOfScope(
@@ -1034,6 +1045,7 @@ class WiredCertTest extends CertTest {
                     name,
                     {
                         transport: this.definition.transport,
+                        attestation: this.definition.attestation,
                         groups: kind === "dut" ? this.#controllerGroups() : undefined,
                     },
                     kind,

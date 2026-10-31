@@ -515,6 +515,59 @@ describe("ChipLocalSubject", () => {
         }
     });
 
+    /** The lines the fake app prints when it starts, without what the harness logs around a restart. */
+    async function* startLines(source: AsyncIterable<string>) {
+        for await (const line of source) {
+            if (/^(args|kvs) /.test(line)) {
+                yield line;
+            }
+        }
+    }
+
+    it("starts factory-new with the arguments a factoryResetWithAppArgs command names", async function () {
+        this.timeout(15_000);
+
+        await writeFile(
+            join(appDir, "chip-args-app"),
+            [
+                "#!/bin/sh",
+                'echo "args $*"',
+                'while [ $# -gt 0 ]; do if [ "$1" = "--KVS" ]; then kvs="$2"; fi; shift; done',
+                'echo "kvs $kvs"',
+                "exec sleep 30",
+                "",
+            ].join("\n"),
+            { mode: 0o755 },
+        );
+
+        const device = ChipLocalSubject("args")("cert", {
+            identity: { discriminator: 3998, passcode: 20202098, port: 5598 },
+            appArgs: ["--vector", "first"],
+        });
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            const lines = startLines(device.log.follow());
+            const [firstArgs, firstStore] = await collectLines(lines, 2, 5_000);
+            expect(firstArgs).match(/--secured-device-port 5598 .*--vector first/);
+
+            await device.backchannel({ name: "factoryResetWithAppArgs", appArgs: ["--vector", "second"] });
+
+            const [secondArgs, secondStore] = await collectLines(lines, 2, 5_000);
+            expect(secondArgs).match(/--secured-device-port 5598 .*--vector second/);
+            expect(secondArgs).not.include("first");
+            expect(secondStore).not.equal(firstStore);
+            expect(device.appArgs).include("second");
+        } finally {
+            await device.close();
+        }
+    });
+
     it("starts no process once closed, although a factoryReset under way when it closed goes on to start", async function () {
         this.timeout(15_000);
 
