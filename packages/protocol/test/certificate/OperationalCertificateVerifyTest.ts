@@ -14,6 +14,9 @@ import { Vvsc } from "#certificate/kinds/Vvsc.js";
 import {
     Bytes,
     CertificateError,
+    DerCodec,
+    DerNode,
+    DerType,
     InternalError,
     PrivateKey,
     StandardCrypto,
@@ -132,7 +135,11 @@ async function nocTlv(node: KeyMaterial, issuer: KeyMaterial, mutate?: Mutate<Op
     return noc.asSignedTlv();
 }
 
-async function vvscTlv(vvs: KeyMaterial, root: KeyMaterial, mutate?: Mutate<OperationalCertificate.Vvsc>) {
+function vvscCert(
+    vvs: KeyMaterial,
+    root: KeyMaterial,
+    mutate?: Mutate<OperationalCertificate.Vvsc>,
+): Unsigned<OperationalCertificate.Vvsc> {
     const cert: Unsigned<OperationalCertificate.Vvsc> = {
         ...commonFields(vvs.key.publicKey),
         issuer: { rcacId: ROOT_ID },
@@ -145,7 +152,11 @@ async function vvscTlv(vvs: KeyMaterial, root: KeyMaterial, mutate?: Mutate<Oper
         },
     };
     mutate?.(cert);
-    const vvsc = new Vvsc(cert);
+    return cert;
+}
+
+async function vvscTlv(vvs: KeyMaterial, root: KeyMaterial, mutate?: Mutate<OperationalCertificate.Vvsc>) {
+    const vvsc = new Vvsc(vvscCert(vvs, root, mutate));
     await vvsc.sign(crypto, root.key);
     return vvsc.asSignedTlv();
 }
@@ -194,6 +205,68 @@ function replaceOnce(source: Bytes, search: Bytes, replacement: Bytes) {
         }
     }
     throw new InternalError("Pattern not found");
+}
+
+const OP_OID_BASE = "2b0601040182a27c01";
+const ATT_OID_BASE = "2b0601040182a27c02";
+const OID = {
+    nodeId: `${OP_OID_BASE}01`,
+    firmwareSigningId: `${OP_OID_BASE}02`,
+    icacId: `${OP_OID_BASE}03`,
+    rcacId: `${OP_OID_BASE}04`,
+    fabricId: `${OP_OID_BASE}05`,
+    caseAuthenticatedTag: `${OP_OID_BASE}06`,
+    vvsId: `${OP_OID_BASE}07`,
+    vendorId: `${ATT_OID_BASE}01`,
+    productId: `${ATT_OID_BASE}02`,
+    commonName: "550403",
+    orgName: "55040a",
+};
+
+function reencode(node: DerNode): Bytes {
+    if (node._elements === undefined) {
+        const bytes =
+            node._tag === DerType.BitString
+                ? Bytes.concat(Uint8Array.of(node._padding ?? 0), node._bytes)
+                : node._bytes;
+        return DerCodec.encode({ _tag: node._tag, _bytes: bytes });
+    }
+    return DerCodec.encode({ _tag: node._tag, _bytes: Bytes.concat(...node._elements.map(reencode)) });
+}
+
+function findAttribute(node: DerNode, oidHex: string): DerNode | undefined {
+    const elements = node._elements;
+    if (elements === undefined) {
+        return undefined;
+    }
+    if (
+        elements.length === 2 &&
+        elements[0]._tag === DerType.ObjectIdentifier &&
+        Bytes.toHex(elements[0]._bytes) === oidHex
+    ) {
+        return node;
+    }
+    for (const element of elements) {
+        const found = findAttribute(element, oidHex);
+        if (found !== undefined) {
+            return found;
+        }
+    }
+}
+
+/**
+ * Re-encodes a certificate with the first DN attribute that has {@link oid} carrying {@link text} (and, when given,
+ * {@link newOid}), so the DER lengths stay correct for text of any length.
+ */
+function withRdn(der: Bytes, oid: string, text: string, newOid = oid): Bytes {
+    const cert = DerCodec.decode(der);
+    const attribute = findAttribute(cert, oid);
+    if (attribute === undefined) {
+        throw new InternalError(`Certificate has no DN attribute ${oid}`);
+    }
+    attribute._elements![0]._bytes = Bytes.fromHex(newOid);
+    attribute._elements![1]._bytes = Bytes.fromString(text);
+    return reencode(cert);
 }
 
 /** Signs a certificate again after {@link withLeadingDnEntry} added an entry the decoder keeps. */
@@ -563,6 +636,43 @@ describe("Operational certificate verification", () => {
         });
     });
 
+    describe("VVSC extensions", () => {
+        it("refuses a VVSC that is a CA", async () => {
+            const cert = vvscCert(await keyMaterial(), root, c => {
+                c.extensions.basicConstraints = { isCa: true };
+            });
+            expect(() => new Vvsc(cert)).throws(CertificateError, /must not be a CA/);
+        });
+
+        it("refuses a VVSC with a key usage flag besides digitalSignature", async () => {
+            const cert = vvscCert(await keyMaterial(), root, c => {
+                c.extensions.keyUsage = { digitalSignature: true, keyEncipherment: true };
+            });
+            await expect(new Vvsc(cert).verify(crypto)).rejectedWith(CertificateError, /keyUsage/);
+        });
+
+        it("refuses a VVSC without digitalSignature", async () => {
+            const cert = vvscCert(await keyMaterial(), root, c => {
+                c.extensions.keyUsage = { keyCertSign: true };
+            });
+            await expect(new Vvsc(cert).verify(crypto)).rejectedWith(CertificateError, /keyUsage/);
+        });
+
+        it("refuses a VVSC without subjectKeyIdentifier", async () => {
+            const cert = vvscCert(await keyMaterial(), root, c => {
+                Reflect.deleteProperty(c.extensions, "subjectKeyIdentifier");
+            });
+            await expect(new Vvsc(cert).verify(crypto)).rejectedWith(CertificateError, /subjectKeyIdentifier/);
+        });
+
+        it("refuses a VVSC without authorityKeyIdentifier", async () => {
+            const cert = vvscCert(await keyMaterial(), root, c => {
+                Reflect.deleteProperty(c.extensions, "authorityKeyIdentifier");
+            });
+            await expect(new Vvsc(cert).verify(crypto)).rejectedWith(CertificateError, /authorityKeyIdentifier/);
+        });
+    });
+
     describe("VVSC subject DN", () => {
         it("refuses a second matter-vvs-id", async () => {
             const vvsc = withLeadingDnEntry(
@@ -612,7 +722,76 @@ describe("Operational certificate verification", () => {
             ).asSignedDer();
             const mutated = replaceOnce(der, Bytes.fromString("ABCD0001"), Bytes.fromString("ABCD000Z"));
 
-            expect(() => Noc.fromAsn1(mutated)).throws(CertificateError, /Invalid CASE Authenticated Tag "ABCD000Z"/);
+            expect(() => Noc.fromAsn1(mutated)).throws(CertificateError, /Invalid caseAuthenticatedTag "ABCD000Z"/);
+        });
+
+        describe("Matter-specific attribute text (§6.1.1)", () => {
+            const fields = [
+                { field: "nodeId", octets: 8, source: "noc" },
+                { field: "fabricId", octets: 8, source: "noc" },
+                { field: "icacId", octets: 8, source: "noc" },
+                { field: "caseAuthenticatedTag", octets: 4, source: "noc" },
+                { field: "rcacId", octets: 8, source: "rcac" },
+                { field: "vvsId", octets: 8, source: "rcac" },
+                { field: "firmwareSigningId", octets: 8, source: "rcac" },
+                { field: "vendorId", octets: 2, source: "rcac" },
+                { field: "productId", octets: 2, source: "rcac" },
+            ] as const;
+
+            async function derFor(source: "noc" | "rcac", field: keyof typeof OID, text: string) {
+                if (source === "rcac") {
+                    return withRdn(Rcac.fromTlv(rootTlv).asSignedDer(), OID.rcacId, text, OID[field]);
+                }
+                const noc = Noc.fromTlv(
+                    await nocTlv(node, ica, cert => {
+                        cert.subject.caseAuthenticatedTags = [CaseAuthenticatedTag(0xabcd_0001)];
+                    }),
+                );
+                return withRdn(noc.asSignedDer(), OID[field], text);
+            }
+
+            for (const { field, octets, source } of fields) {
+                const zeros = (count: number) => "0".repeat(count);
+                const refused = {
+                    "lowercase digits": `${zeros(octets * 2 - 1)}a`,
+                    "too short": zeros(octets * 2 - 1),
+                    "too long": zeros(octets * 2 + 1),
+                    "trailing garbage": `${zeros(octets * 2 - 1)}G`,
+                    "0x prefix": `0x${zeros(octets * 2 - 2)}`,
+                    empty: "",
+                };
+                for (const [name, text] of Object.entries(refused)) {
+                    it(`refuses ${field} text that is ${name}`, async () => {
+                        const der = await derFor(source, field, text);
+                        const parse = () => (source === "noc" ? Noc.fromAsn1(der) : Rcac.fromAsn1(der));
+                        expect(parse).throws(CertificateError, new RegExp(`Invalid ${field} `));
+                    });
+                }
+            }
+
+            it("accepts the maximum 64-bit value", async () => {
+                const der = withRdn(Rcac.fromTlv(rootTlv).asSignedDer(), OID.rcacId, "FFFFFFFFFFFFFFFF");
+                expect(Rcac.fromAsn1(der).cert.issuer.rcacId).equals(0xffff_ffff_ffff_ffffn);
+            });
+        });
+
+        describe("repeated attributes", () => {
+            it("refuses a repeated matter-specific attribute", async () => {
+                const noc = Noc.fromTlv(await nocTlv(node, ica)).asSignedDer();
+                const der = withRdn(noc, OID.fabricId, "0000000000001234", OID.nodeId);
+                expect(() => Noc.fromAsn1(der)).throws(CertificateError, /nodeId more than once/);
+            });
+
+            it("refuses a repeated standard attribute", async () => {
+                const rcac = Rcac.fromTlv(
+                    await rcacTlv(root, cert => {
+                        cert.subject.commonName = "A";
+                        cert.subject.orgName = "B";
+                    }),
+                ).asSignedDer();
+                const der = withRdn(rcac, OID.orgName, "B", OID.commonName);
+                expect(() => Rcac.fromAsn1(der)).throws(CertificateError, /commonName more than once/);
+            });
         });
     });
 });

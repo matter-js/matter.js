@@ -14,6 +14,7 @@ import {
     DerNode,
     DerTag,
     DerType,
+    Diagnostic,
     EcdsaSignature,
     ImplementationError,
     Key,
@@ -241,6 +242,27 @@ export abstract class Certificate<CT extends MatterCertificate> {
 }
 
 /**
+ * Decodes the text of a Matter-specific DN attribute from an X.509 certificate.
+ *
+ * The text must be exactly twice {@link octets} characters of uppercase hexadecimal, without prefix or separators and
+ * with leading zeroes kept. Anything else is refused because the text comes from the certificate sender.
+ *
+ * @see {@link MatterSpecification.v161.Core} §6.1.1
+ */
+function parseMatterRdnHex(field: string, text: string, octets: number) {
+    if (!new RegExp(`^[0-9A-F]{${octets * 2}}$`).test(text)) {
+        throw new CertificateError(
+            `Invalid ${field} ${Diagnostic.json(text)}: expected exactly ${octets * 2} uppercase hexadecimal digits`,
+        );
+    }
+    return BigInt(`0x${text}`);
+}
+
+function numberIfSafe(value: bigint) {
+    return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : value;
+}
+
+/**
  * Extract a VendorID or ProductID encoded via the "fallback method" (Matter spec 6.2.2.2): the
  * prefix `Mvid:`/`Mpid:` followed by 4 uppercase hexadecimal characters, anywhere within a
  * `commonName`. Returns the leftmost correctly-encoded value, or `undefined` if the prefix is
@@ -295,6 +317,7 @@ export namespace Certificate {
      */
     function parseSubjectOrIssuer(node: DerNode) {
         const result: { [field: string]: unknown } = {};
+        const seenFields = new Set<string>();
 
         const { _elements: rdnSequence } = node;
         if (!rdnSequence) {
@@ -319,43 +342,38 @@ export namespace Certificate {
                 let { field } = fieldInfo;
                 let value;
 
+                if (field !== "caseAuthenticatedTag") {
+                    if (seenFields.has(field)) {
+                        throw new CertificateError(`Distinguished name contains ${field} more than once`);
+                    }
+                    seenFields.add(field);
+                }
+
                 // Parse the value based on the field type
                 const valueBytes = Bytes.of(valueNode._bytes);
                 const valueTag = valueNode._tag;
 
-                // Matter-specific fields are encoded as UTF8 strings containing hex values
+                // Matter-specific fields are encoded as text containing hex values
                 switch (field) {
                     case "nodeId":
-                    case "fabricId": {
-                        // 16-byte hex string -> BigInt
-                        const hexString = Bytes.toString(valueBytes);
-                        value = BigInt("0x" + hexString);
+                    case "fabricId":
+                        value = parseMatterRdnHex(field, Bytes.toString(valueBytes), 8);
                         break;
-                    }
                     case "icacId":
                     case "rcacId":
-                    case "vvsId": {
-                        // 8-byte hex string -> BigInt, but convert to number if it fits
-                        const hexString = Bytes.toString(valueBytes);
-                        const bigIntValue = BigInt("0x" + hexString);
-                        // Convert to number if it fits in Number.MAX_SAFE_INTEGER
-                        value = bigIntValue <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(bigIntValue) : bigIntValue;
-                        break;
-                    }
+                    case "vvsId":
                     case "firmwareSigningId":
-                    case "productId":
-                    case "vendorId": {
-                        // 4-byte or 2-byte hex string -> number
-                        const hexString = Bytes.toString(valueBytes);
-                        value = parseInt(hexString, 16);
+                        value = numberIfSafe(parseMatterRdnHex(field, Bytes.toString(valueBytes), 8));
                         break;
-                    }
+                    case "productId":
+                    case "vendorId":
+                        value = Number(parseMatterRdnHex(field, Bytes.toString(valueBytes), 2));
+                        break;
                     case "caseAuthenticatedTag": {
-                        // CAT tags - 4-byte hex string -> number
                         const hexString = Bytes.toString(valueBytes);
-                        const catValue = parseInt(hexString, 16);
-                        if (!/^[0-9a-fA-F]{8}$/.test(hexString) || !CaseAuthenticatedTag.isValid(catValue)) {
-                            throw new CertificateError(`Invalid CASE Authenticated Tag "${hexString}"`);
+                        const catValue = Number(parseMatterRdnHex(field, hexString, 4));
+                        if (!CaseAuthenticatedTag.isValid(catValue)) {
+                            throw new CertificateError(`Invalid CASE Authenticated Tag ${Diagnostic.json(hexString)}`);
                         }
                         if (result.caseAuthenticatedTags !== undefined) {
                             (result.caseAuthenticatedTags as number[]).push(catValue);
