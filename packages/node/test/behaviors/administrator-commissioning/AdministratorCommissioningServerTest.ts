@@ -156,7 +156,7 @@ class Device {
         );
     }
 
-    async openBasicWindow(commissioningTimeout = 180) {
+    async openBasicWindow(commissioningTimeout = 180, exchange?: MessageExchange) {
         return await this.#invoke(
             Invoke.ConcreteCommandRequest({
                 endpoint: this.node,
@@ -164,6 +164,7 @@ class Device {
                 command: "openBasicCommissioningWindow",
                 fields: { commissioningTimeout },
             }),
+            exchange,
         );
     }
 
@@ -401,6 +402,14 @@ describe("AdministratorCommissioningServer", () => {
             });
         });
 
+        // A PASE session has no fabric to name as opener until AddNOC.  The specification does not name the status;
+        // CHIP answers PAKEParameterError.
+        it("answers PAKEParameterError on a session without fabric", async () => {
+            await using device = await Device.create();
+
+            expect(await device.openWindow({}, await device.paseExchange())).deep.equals(failure(PakeParameterError));
+        });
+
         it("opens no window on a session without fabric and accepts the next window", async () => {
             await using device = await Device.create();
 
@@ -445,6 +454,15 @@ describe("AdministratorCommissioningServer", () => {
 
             expect(await device.openBasicWindow()).deep.equals(failure(Busy));
             expect(device.attributes.windowStatus).equals(EnhancedWindowOpen);
+        });
+
+        it("answers PAKEParameterError on a session without fabric", async () => {
+            await using device = await Device.create(BasicCapableRootEndpoint);
+
+            expect(await device.openBasicWindow(180, await device.paseExchange())).deep.equals(
+                failure(PakeParameterError),
+            );
+            expect(device.attributes).deep.equals(closedAttributes);
         });
 
         // § 11.19.8.2: "If the fail-safe timer is currently armed, this command SHALL fail with a cluster specific

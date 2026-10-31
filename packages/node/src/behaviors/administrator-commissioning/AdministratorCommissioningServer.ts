@@ -161,9 +161,19 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         await this.#closeCommissioningWindow();
     }
 
+    /**
+     * The fabric of the administrator that opens the window.  A PASE session has none before AddNOC.  The
+     * specification names no status for that case; CHIP answers PAKEParameterError.
+     */
     #adminFabric() {
         assertRemoteActor(this.context);
-        return this.context.session.associatedFabric;
+        const { fabric } = this.context.session;
+        if (fabric === undefined) {
+            throw new AdministratorCommissioning.PakeParameterError(
+                "Opening a commissioning window requires a session on a fabric",
+            );
+        }
+        return fabric;
     }
 
     #windowOptions(timeout: Duration): DeviceCommissioner.WindowOptions {
