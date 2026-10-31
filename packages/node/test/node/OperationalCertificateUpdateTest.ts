@@ -49,7 +49,7 @@ import {
     SessionManager,
     updateOperationalCertificate,
 } from "@matter/protocol";
-import { CaseAuthenticatedTag, FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
+import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 
@@ -294,6 +294,92 @@ function dropAttributeReports(clusterId: number, attributeId: number, active = (
     return () => {
         ClientInteraction.prototype.read = original;
     };
+}
+
+async function* withNocs(chunk: ReadResult.Chunk, forge: (entries: unknown[]) => unknown[]) {
+    for await (const report of chunk) {
+        if (
+            report.kind === "attr-value" &&
+            report.path.clusterId === OperationalCredentials.Cluster.id &&
+            report.path.attributeId === NOCS_ATTRIBUTE_ID &&
+            Array.isArray(report.value)
+        ) {
+            yield { ...report, value: forge(report.value) };
+            continue;
+        }
+        yield report;
+    }
+}
+
+/**
+ * Have the first read of the controller report the NOCs value {@link forge} builds, as a malicious node could.
+ * Returns a restore function.
+ */
+function reportNocsOnce(forge: (entries: unknown[]) => unknown[]) {
+    const original = ClientInteraction.prototype.read;
+    let forged = false;
+    ClientInteraction.prototype.read = async function* (
+        this: ClientInteraction,
+        ...args: Parameters<typeof original>
+    ): ReturnType<typeof original> {
+        const first = !forged;
+        forged = true;
+        for await (const chunk of original.apply(this, args)) {
+            yield first ? withNocs(chunk, forge) : chunk;
+        }
+    };
+    return () => {
+        ClientInteraction.prototype.read = original;
+    };
+}
+
+/** Replace the NOC of every reported entry with {@link forgedNoc}. */
+function forgedNocs(forgedNoc: Bytes) {
+    return (entries: unknown[]) =>
+        entries.map(entry => (isObject(entry) ? { ...entry, noc: forgedNoc, icac: null } : entry));
+}
+
+/**
+ * Run an update while the node reports the NOCs value {@link forge} builds; expects a refusal before any fail-safe was
+ * armed and before the controller's CA issued a NOC.
+ */
+async function expectForgedNocsRefused(
+    controller: ServerNode,
+    device: ServerNode,
+    peer: ClientNode,
+    forge: (entries: unknown[]) => unknown[],
+) {
+    const ca = controller.env.get(CertificateAuthority);
+    const generateNoc = ca.generateNoc;
+    let issued = 0;
+    ca.generateNoc = (...args) => {
+        issued++;
+        return generateNoc.apply(ca, args);
+    };
+    const { sent: arms, restore: restoreArm } = interceptCommand(
+        GeneralCommissioning.Cluster.id,
+        ARM_FAIL_SAFE_COMMAND_ID,
+        {
+            delivered: true,
+            answered: true,
+        },
+    );
+    const restoreRead = reportNocsOnce(forge);
+    try {
+        await expect(
+            withEntropy([controller, device], () =>
+                MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
+            ),
+        ).rejectedWith(OperationalCertificateUpdateRefusedError, /the certificate it reports did not verify/);
+    } finally {
+        restoreRead();
+        restoreArm();
+        ca.generateNoc = generateNoc;
+    }
+
+    expect(arms.attempts).equals(0);
+    expect(issued).equals(0);
+    expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
 }
 
 /** Number of open interaction lifetimes under the environment of {@link node}. */
@@ -806,6 +892,54 @@ describe("OperationalCertificateUpdate", () => {
         expect(handled.count).equals(0);
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
         expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
+    });
+
+    it("refuses a reported NOC that another CA signed", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const fabric = deviceFabric(device);
+
+        const otherCa = await CertificateAuthority.create(controller.env.get(Crypto));
+        const forgedNoc = await otherCa.generateNoc(fabric.publicKey, fabric.fabricId, fabric.nodeId, [
+            CaseAuthenticatedTag(0xfffd_0001),
+        ]);
+
+        await expectForgedNocsRefused(controller, device, peer, forgedNocs(forgedNoc));
+    });
+
+    it("refuses a reported NOC for another node", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const fabric = deviceFabric(device);
+
+        const forgedNoc = await controller.env
+            .get(CertificateAuthority)
+            .generateNoc(fabric.publicKey, fabric.fabricId, NodeId(0x4242));
+
+        await expectForgedNocsRefused(controller, device, peer, forgedNocs(forgedNoc));
+    });
+
+    it("refuses a reported NOC for another fabric", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const fabric = deviceFabric(device);
+
+        const forgedNoc = await controller.env
+            .get(CertificateAuthority)
+            .generateNoc(fabric.publicKey, FabricId(fabric.fabricId + 1n), fabric.nodeId);
+
+        await expectForgedNocsRefused(controller, device, peer, forgedNocs(forgedNoc));
+    });
+
+    it("refuses when the node reports more than one NOC for its fabric", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        await expectForgedNocsRefused(controller, device, peer, entries => [...entries, ...entries]);
     });
 
     it("keeps the CASE Authenticated Tags of the current NOC", async () => {

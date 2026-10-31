@@ -10,6 +10,7 @@ import { Read } from "#action/request/Read.js";
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { Dac } from "#certificate/kinds/AttestationCertificates.js";
 import { Noc } from "#certificate/kinds/Noc.js";
+import { Fabric } from "#fabric/Fabric.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { NodeSession } from "#session/NodeSession.js";
@@ -30,7 +31,7 @@ import {
     Time,
     UnexpectedDataError,
 } from "@matter/general";
-import { CaseAuthenticatedTag, EndpointNumber, FabricId, FabricIndex, StatusResponseError } from "@matter/types";
+import { CaseAuthenticatedTag, EndpointNumber, FabricIndex, NodeId, StatusResponseError } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { invokeSingleCommand, operationalPublicKeyOfCsr } from "./AdministratorCommands.js";
@@ -68,8 +69,9 @@ export class OperationalCertificateUpdateError extends MatterError {}
 export class OperationalCertificateUpdateBusyError extends OperationalCertificateUpdateError {}
 
 /**
- * Thrown when the peer refused ArmFailSafe with an error code other than BusyWithOtherAdmin.  Nothing changed on the
- * peer; a retry fails the same way until the cause on the peer is fixed.
+ * Thrown when the peer refused ArmFailSafe with an error code other than BusyWithOtherAdmin, or when the certificate
+ * the peer reports for its fabric does not verify.  Nothing changed on the peer; a retry fails the same way until the
+ * cause on the peer is fixed.
  */
 export class OperationalCertificateUpdateRefusedError extends OperationalCertificateUpdateError {}
 
@@ -144,8 +146,10 @@ export interface OperationalCertificateUpdateResult {
  * | Situation                                  | Action and result                                   |
  * | ------------------------------------------ | --------------------------------------------------- |
  * | Breadcrumb not 0 before arming             | arm nothing; reject as busy, the caller may retry   |
- * | Breadcrumb unreadable, or not exactly one  | arm nothing; reject, nothing changed                |
- * | NOC that parses, before arming             |                                                     |
+ * | Breadcrumb or NOCs unreadable before       | arm nothing; reject, nothing changed                |
+ * | arming                                     |                                                     |
+ * | the reported NOC fails to verify against   | arm nothing; reject as refused, nothing changed     |
+ * | the fabric root, node ID or fabric ID      |                                                     |
  * | ArmFailSafe answered with an error code    | nothing armed; reject                               |
  * | a later step before UpdateNOC fails, or    | disarm over session 1; previous NOC kept            |
  * | UpdateNOC is refused                       |                                                     |
@@ -210,7 +214,7 @@ export async function updateOperationalCertificate(
     const failsafeArm: FailsafeArm = { failsafe, breadcrumb: randomBreadcrumb(ca.crypto) };
     let installed: InstalledCertificate;
     try {
-        installed = await installNewCertificate(context, first, fabric.fabricId, failsafeArm);
+        installed = await installNewCertificate(context, first, fabric, failsafeArm);
     } finally {
         await first.interaction.close();
     }
@@ -298,21 +302,34 @@ interface NewCertificate {
 /**
  * Read Breadcrumb and the current NOC, then run ArmFailSafe, CertificateChainRequest, CSRRequest and UpdateNOC over
  * {@link session}.  The new NOC keeps the CASE Authenticated Tags of the current one.  Does not arm when Breadcrumb is
- * not 0 or the current NOC cannot be read.  On a failure after arming and before UpdateNOC reached the peer, disarms the
+ * not 0 or the current NOC cannot be read or does not verify.  On a failure after arming and before UpdateNOC reached the peer, disarms the
  * fail-safe over the same session.
  */
 async function installNewCertificate(
     { ca }: OperationalCertificateUpdateContext,
     { session, interaction }: AdministratorSession,
-    fabricId: FabricId,
+    fabric: Fabric,
     failsafeArm: FailsafeArm,
 ): Promise<InstalledCertificate> {
     let breadcrumb: bigint;
-    let caseAuthenticatedTags: CaseAuthenticatedTag[] | undefined;
+    let nocs: OperationalCertificate[];
     try {
-        ({ breadcrumb, caseAuthenticatedTags } = await readStartState(interaction));
+        ({ breadcrumb, nocs } = await readStartState(interaction));
     } catch (cause) {
         return { kind: "refused", cause };
+    }
+
+    let caseAuthenticatedTags: CaseAuthenticatedTag[] | undefined;
+    try {
+        caseAuthenticatedTags = await verifiedCaseAuthenticatedTags(nocs, fabric, interaction.address.nodeId);
+    } catch (cause) {
+        return {
+            kind: "refused",
+            cause: new OperationalCertificateUpdateRefusedError(
+                `Cannot update the operational certificate of ${interaction.address}: the certificate it reports did not verify`,
+                { cause },
+            ),
+        };
     }
     if (breadcrumb !== 0n) {
         return {
@@ -370,7 +387,7 @@ async function installNewCertificate(
             operationalPublicKey,
             nocValue: await ca.generateNoc(
                 operationalPublicKey,
-                fabricId,
+                fabric.fabricId,
                 interaction.address.nodeId,
                 caseAuthenticatedTags,
             ),
@@ -518,35 +535,55 @@ async function commissioningComplete(interaction: ClientInteraction) {
     }
 }
 
+/** One entry of the NOCs attribute. */
+interface OperationalCertificate {
+    noc: Bytes;
+    icac?: Bytes;
+}
+
 interface CertificateState {
     /** The Breadcrumb attribute, if the peer reported it. */
     breadcrumb?: bigint;
 
     /** The NOCs of the accessing fabric, if the peer reported the NOCs attribute. */
-    nocs?: Bytes[];
+    nocs?: OperationalCertificate[];
 }
 
 /** Whether {@link state} shows {@link nocValue}, or undefined if the peer did not report its NOCs. */
 function holdsNoc({ nocs }: CertificateState, nocValue: Bytes) {
-    return nocs?.some(noc => Bytes.areEqual(noc, nocValue));
+    return nocs?.some(({ noc }) => Bytes.areEqual(noc, nocValue));
 }
 
-/**
- * Read Breadcrumb and the CASE Authenticated Tags of the current NOC.  Rejects when the peer does not report
- * Breadcrumb or exactly one NOC for the accessing fabric, or when that NOC does not parse.
- */
+/** Read Breadcrumb and the NOCs of the accessing fabric; rejects when the peer does not report both. */
 async function readStartState(interaction: ClientInteraction) {
     const { breadcrumb, nocs } = await certificateState(interaction);
     if (breadcrumb === undefined) {
         throw new UnexpectedDataError(`${interaction.address} reported no Breadcrumb value`);
     }
-    if (nocs?.length !== 1) {
+    if (nocs === undefined) {
+        throw new UnexpectedDataError(`${interaction.address} reported no NOCs value`);
+    }
+    return { breadcrumb, nocs };
+}
+
+/**
+ * The CASE Authenticated Tags of the one NOC the peer reports for the accessing fabric.  The NOCs value is peer data,
+ * so the NOC must chain to the root of {@link fabric} and name {@link nodeId} and the fabric ID before our CA copies
+ * its tags; otherwise a peer could obtain tags it never held.  Rejects when any of this fails.
+ */
+async function verifiedCaseAuthenticatedTags(nocs: OperationalCertificate[], fabric: Fabric, nodeId: NodeId) {
+    if (nocs.length !== 1) {
+        throw new UnexpectedDataError(`Peer reported ${nocs.length} NOCs for its fabric instead of one`);
+    }
+    const [{ noc, icac }] = nocs;
+    await fabric.verifyCredentials(noc, icac);
+    const { subject } = Noc.fromTlv(noc).cert;
+    if (subject.nodeId !== nodeId || subject.fabricId !== fabric.fabricId) {
         throw new UnexpectedDataError(
-            `${interaction.address} reported ${nocs?.length ?? "no"} NOCs for its fabric instead of one`,
+            `Reported NOC is for node ${NodeId.strOf(subject.nodeId)} of fabric ${subject.fabricId}, not node ${NodeId.strOf(nodeId)} of fabric ${fabric.fabricId}`,
         );
     }
-    const { caseAuthenticatedTags } = Noc.fromTlv(nocs[0]).cert.subject;
-    return { breadcrumb, caseAuthenticatedTags };
+    return subject.caseAuthenticatedTags;
 }
 
 /** Read Breadcrumb and the NOCs of the accessing fabric in one request. */
@@ -571,7 +608,11 @@ async function certificateState(interaction: ClientInteraction): Promise<Certifi
                 continue;
             }
             if (Array.isArray(value)) {
-                state.nocs = value.flatMap(entry => (isObject(entry) && Bytes.isBytes(entry.noc) ? [entry.noc] : []));
+                state.nocs = value.flatMap(entry =>
+                    isObject(entry) && Bytes.isBytes(entry.noc)
+                        ? [{ noc: entry.noc, icac: Bytes.isBytes(entry.icac) ? entry.icac : undefined }]
+                        : [],
+                );
             }
         }
     }
