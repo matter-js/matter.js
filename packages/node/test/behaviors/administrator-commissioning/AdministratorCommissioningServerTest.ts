@@ -502,7 +502,18 @@ describe("AdministratorCommissioningServer", () => {
         // § 11.19.8.3.1 step 1: "The Node SHALL perform the following actions regardless of current commissioning
         // window state: [...] terminate any open PASE sessions [...] immediately expire any fail-safe held by an open
         // PASE session"
-        it("terminates the PASE session and expires its fail-safe before it answers WindowNotOpen", async () => {
+        it("terminates the PASE session before it answers WindowNotOpen", async () => {
+            await using device = await Device.create();
+            await device.paseExchange();
+            const sessions = device.node.env.get(SessionManager);
+            expect(sessions.getPaseSession()).not.undefined;
+
+            expect(await device.revoke()).deep.equals(failure(WindowNotOpenCode));
+
+            expect(sessions.getPaseSession()).undefined;
+        });
+
+        it("expires the fail-safe of the PASE session before it answers WindowNotOpen", async () => {
             await using device = await Device.create();
             await device.armFailSafe(await device.paseExchange());
             expect(device.commissioner.isFailsafeArmed).true;
@@ -510,7 +521,6 @@ describe("AdministratorCommissioningServer", () => {
             expect(await device.revoke()).deep.equals(failure(WindowNotOpenCode));
 
             expect(device.commissioner.isFailsafeArmed).false;
-            expect(device.node.env.get(SessionManager).getPaseSession()).undefined;
         });
     });
 });
