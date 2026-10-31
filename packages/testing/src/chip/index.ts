@@ -183,6 +183,7 @@ export type { ChipBinsSource, EnsureChipBinsResult } from "./chip-bins.js";
 export { parseDockerHubTagsResponse, resetChipBinsPrepareCacheForTesting } from "./chip-bins.js";
 /** @internal Test seam — not API. */
 export type { ChipBinsDockerHandle } from "./chip-bins.js";
+export { UnresolvedAppPlaceholderError } from "./app-reference.js";
 export { HarnessBusyError } from "./harness-lock.js";
 /** @internal Test seam — not API. Exported for the Docker-backed lock test in support/chip-testing. */
 export { acquireHarnessLock } from "./harness-lock.js";
