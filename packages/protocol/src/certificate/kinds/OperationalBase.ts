@@ -12,6 +12,19 @@ import { MatterCertificate } from "./definitions/base.js";
 
 const logger = Logger.get("OperationalBaseCertificate");
 
+const MAX_RDNS = 5;
+
+/** A repeated attribute such as matter-noc-cat is one property holding an array, but each value is its own RDN. */
+function rdnCount(dn: object) {
+    let count = 0;
+    for (const value of Object.values(dn)) {
+        if (value !== undefined) {
+            count += Array.isArray(value) ? value.length : 1;
+        }
+    }
+    return count;
+}
+
 /**
  * Base class for all operational certificates (RCAC, ICAC, NOC)
  */
@@ -86,10 +99,10 @@ export abstract class OperationalBase<CT extends MatterCertificate> extends Cert
         }
 
         // All implementations SHALL reject Matter certificates with more than 5 RDNs in a single DN.
-        if (Object.keys(cert.subject).length > 5) {
+        if (rdnCount(cert.subject) > MAX_RDNS) {
             throw new CertificateError(`Certificate subject must not contain more than 5 RDNs.`);
         }
-        if (Object.keys(cert.issuer).length > 5) {
+        if (rdnCount(cert.issuer) > MAX_RDNS) {
             throw new CertificateError(`Certificate issuer must not contain more than 5 RDNs.`);
         }
 

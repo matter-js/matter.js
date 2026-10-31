@@ -345,6 +345,22 @@ describe("Operational certificate verification", () => {
     });
 
     describe("NOC subject DN", () => {
+        it("refuses a subject with six RDNs, three of them CATs", async () => {
+            const noc = await nocTlv(node, ica, cert => {
+                cert.subject = {
+                    nodeId: NODE_ID,
+                    fabricId: FABRIC_ID,
+                    caseAuthenticatedTags: [
+                        CaseAuthenticatedTag(0x0001_0001),
+                        CaseAuthenticatedTag(0x0002_0001),
+                        CaseAuthenticatedTag(0x0003_0001),
+                    ],
+                    commonName: "node",
+                };
+            });
+            await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(CertificateError, /more than 5 RDNs/);
+        });
+
         it("refuses an issuer DN with six RDNs", async () => {
             const noc = await nocTlv(node, ica, cert => {
                 cert.issuer = {
