@@ -8,6 +8,7 @@ import {
     asError,
     AsyncCache,
     Bytes,
+    CertificateError,
     ClosedError,
     Construction,
     Crypto,
@@ -23,6 +24,7 @@ import {
     hashAlgorithmForId,
     Hours,
     ImplementationError,
+    InternalError,
     isObject,
     Logger,
     LogLevel,
@@ -34,10 +36,16 @@ import {
     Time,
     Timer,
 } from "@matter/general";
-import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "@matter/types";
+import {
+    DeviceAttestationPkiRevocationDclSchema,
+    ProductAttestationDclSchema,
+    RevocationTypeEnum,
+} from "@matter/types";
+import { CdSigners } from "../certificate/CdSigners.js";
 import { MlDsaAttestationDisabledError, Paa, Pai } from "../certificate/kinds/AttestationCertificates.js";
 import { Certificate } from "../certificate/kinds/Certificate.js";
 import { certificateSignatureOf, verifyCertificateSignature } from "../certificate/kinds/CertificateSignature.js";
+import { CertificationDeclaration } from "../certificate/kinds/CertificationDeclaration.js";
 import { DclClient, MatterDclError, MatterDclResponseError } from "./DclClient.js";
 import { DclConfig, DclGithubConfig } from "./DclConfig.js";
 import { DclPkiRootCertificateSubjectReference } from "./DclRestApiTypes.js";
@@ -416,7 +424,7 @@ export class DclCertificateService {
     }
 
     /**
-     * Whether the service trusts test (non-production) certificates as valid trust anchors.
+     * Whether the service trusts test (non-production) certificates: test PAAs and the Matter test CD signer.
      *
      * Independent of {@link Options.fetchTestCertificates} (which only governs whether test certs are
      * downloaded). Defaults to {@link Options.acceptTestCertificates}, falling back to
@@ -820,6 +828,8 @@ export class DclCertificateService {
      * @param derBytes DER-encoded X.509 certificate
      * @param kind "PAA" (self-signed root) or "CDSigner" (CMS Certification Declaration signer)
      * @param options.isProduction  mark as production-trust; defaults to `false`
+     * @throws CertificateError for a "CDSigner" that is neither the Matter test CD signer certificate nor a
+     *   certificate {@link CdSigners.verifyCertificate} accepts, as only those can sign a CD
      */
     async addCertificate(
         derBytes: Bytes,
@@ -829,13 +839,34 @@ export class DclCertificateService {
         this.construction.assert();
 
         const cert = parseTrustStoreCertificate(derBytes, kind);
-        const skid = this.#normalizeSubjectKeyId(cert.extensions.subjectKeyIdentifier);
+        const skidBytes = cert.extensions.subjectKeyIdentifier;
+        if (kind === "CDSigner") {
+            if (!CdSigners.isTestSigner(skidBytes)) {
+                await CdSigners.verifyCertificate(this.#crypto, derBytes, skidBytes);
+            } else if (
+                !Bytes.areEqual(cert.ellipticCurvePublicKey, CertificationDeclaration.testSignerInfo().publicKey)
+            ) {
+                throw new CertificateError("Certificate has the test CD signer's key identifier but another key");
+            }
+        }
+        const skid = this.#normalizeSubjectKeyId(skidBytes);
 
         if (this.#certificateIndex.has(skid)) {
             return false;
         }
 
-        const isProduction = options?.isProduction ?? false;
+        await this.#putCertificate(cert, skid, derBytes, kind, options?.isProduction ?? false);
+        return true;
+    }
+
+    /** Write a parsed certificate and its index entry, replacing whatever is stored under `skid`. */
+    async #putCertificate(
+        cert: ReturnType<typeof parseTrustStoreCertificate>,
+        skid: string,
+        derBytes: Bytes,
+        kind: DclCertificateService.CertificateKind,
+        isProduction: boolean,
+    ) {
         const vid = (cert.subject as { vendorId?: number }).vendorId ?? 0;
 
         await this.#storeCertificate(this.#storage!, skid, Bytes.of(derBytes), {
@@ -850,57 +881,122 @@ export class DclCertificateService {
         await this.#saveIndex();
 
         logger.info(`Added ${kind} certificate`, Diagnostic.dict({ skid, isProduction }));
-        return true;
     }
 
     /**
      * Look up a CD signer certificate by its SubjectKeyIdentifier.
      *
-     * Checks the local trust store first. On miss, queries the production DCL
-     * (`/dcl/pki/all-certificates?subjectKeyId=<skid>`) and caches the result as a
-     * CDSigner entry with `isProduction: true`.
+     * Returns `undefined` unless {@link lookupCdSigner} finds a CD signer. `isProduction` is `false` only for the
+     * Matter test CD signer, which this method returns whatever the test certificate policy.
      *
-     * Returns `undefined` if no matching CD signer can be found either locally or on DCL.
+     * @deprecated Use {@link lookupCdSigner}.
      */
     async getOrFetchCdSigner(
         subjectKeyId: Bytes | string,
     ): Promise<{ publicKey: Bytes; isProduction: boolean } | undefined> {
+        const signer = await this.lookupCdSigner(subjectKeyId);
+        return signer === undefined ? undefined : { publicKey: signer.publicKey, isProduction: !signer.isTestSigner };
+    }
+
+    /**
+     * Look up the CD signer a Certification Declaration names by its subject key identifier.
+     *
+     * | Signer                                                                        | Result                  |
+     * |-------------------------------------------------------------------------------|-------------------------|
+     * | Built-in CSA signing key or Matter test CD signer ({@link CdSigners.known})   | the signer              |
+     * | Stored or seeded certificate that {@link CdSigners.verifyCertificate} accepts | the signer, also offline |
+     * | Online: DCL answer that {@link CdSigners.verifyCertificate} accepts           | the signer, then stored |
+     * | Anything else, including an unreachable DCL or an offline service             | `undefined`             |
+     *
+     * The store is only a cache of DCL answers: a stored or seeded certificate counts only if it verifies. The Matter
+     * test CD signer is returned with `isTestSigner` set, also when this service does not accept test certificates; the
+     * caller applies that policy.
+     *
+     * @returns the signer, or `undefined` if the key is not known to be a CD signer
+     * @see {@link MatterSpecification.v161.Core} § 6.2.3.1
+     */
+    async lookupCdSigner(subjectKeyId: Bytes | string): Promise<CdSigners.Signer | undefined> {
         this.construction.assert();
 
         const normalizedSkid = this.#normalizeSubjectKeyId(subjectKeyId);
+        if (
+            !/^[0-9A-F]+$/.test(normalizedSkid) ||
+            normalizedSkid.length !== CertificationDeclaration.SIGNER_SUBJECT_KEY_ID_LENGTH * 2
+        ) {
+            return;
+        }
+        const skid = Bytes.fromHex(normalizedSkid);
 
-        // Local lookup first
-        const existing = this.#certificateIndex.get(normalizedSkid);
-        if (existing !== undefined && (existing.kind ?? "PAA") === "CDSigner") {
-            const derBytes = await this.#getCertificateDer(normalizedSkid);
-            const cert = Certificate.parseAsn1Certificate(derBytes, Certificate.REQUIRED_EXTENSIONS);
-            return { publicKey: cert.ellipticCurvePublicKey, isProduction: existing.isProduction };
+        const known = CdSigners.known(skid);
+        if (known !== undefined) {
+            return known;
+        }
+
+        if ((this.#certificateIndex.get(normalizedSkid)?.kind ?? "PAA") === "CDSigner") {
+            const storedDer = await this.#readStoredCdSigner(normalizedSkid);
+            const stored = storedDer && (await this.#verifiedCdSigner(storedDer, skid, "store"));
+            if (stored !== undefined) {
+                return { publicKey: stored.publicKey, isTestSigner: false };
+            }
         }
 
         if (this.#options.offline) {
-            return undefined;
+            return;
         }
 
-        // DCL fallback
+        let answer: ProductAttestationDclSchema[];
         try {
-            const config = this.#options.dclConfig ?? DclConfig.production;
-            const dclClient = new DclClient(config);
-            const certs = await dclClient.fetchCertificatesBySubjectKeyId(normalizedSkid, this.#options);
-            if (certs.length === 0) {
-                return undefined;
-            }
-
-            const derBytes = Pem.asDer(certs[0].pemCert);
-            await this.addCertificate(derBytes, "CDSigner", { isProduction: true });
-
-            const cert = Certificate.parseAsn1Certificate(derBytes, Certificate.REQUIRED_EXTENSIONS);
-            return { publicKey: cert.ellipticCurvePublicKey, isProduction: true };
+            const dclClient = new DclClient(this.#options.dclConfig ?? DclConfig.production);
+            answer = await dclClient.fetchCertificatesBySubjectKeyId(normalizedSkid, this.#options);
         } catch (error) {
             logger.info(
                 `Failed to fetch CD signer ${normalizedSkid} from DCL:`,
                 Diagnostic.errorMessage(asError(error)),
             );
-            return undefined;
+            return;
+        }
+
+        for (const { pemCert } of answer) {
+            const signer = await this.#verifiedCdSigner(pemCert, skid, "DCL");
+            if (signer !== undefined) {
+                // A stored CD signer that failed verification is replaced; a PAA under the same SKID stays
+                if ((this.#certificateIndex.get(normalizedSkid)?.kind ?? "CDSigner") === "CDSigner") {
+                    const cert = parseTrustStoreCertificate(signer.der, "CDSigner");
+                    await this.#putCertificate(cert, normalizedSkid, signer.der, "CDSigner", true);
+                }
+                return { publicKey: signer.publicKey, isTestSigner: false };
+            }
+        }
+    }
+
+    /** The stored DER of a CD signer, or `undefined` if it cannot be read, which then counts as not stored. */
+    async #readStoredCdSigner(skid: string) {
+        try {
+            return await this.#getCertificateDer(skid);
+        } catch (error) {
+            if (error instanceof InternalError || error instanceof ImplementationError) {
+                throw error;
+            }
+            logger.debug(`Stored CD signer ${skid} cannot be read:`, Diagnostic.errorMessage(asError(error)));
+        }
+    }
+
+    /**
+     * The DER and public key of a certificate, given as DER or PEM, that {@link CdSigners.verifyCertificate} accepts for
+     * `skid`, else `undefined`.
+     */
+    async #verifiedCdSigner(certificate: Bytes | string, skid: Bytes, source: string) {
+        try {
+            const der = typeof certificate === "string" ? Pem.asDer(certificate) : certificate;
+            return { der, publicKey: await CdSigners.verifyCertificate(this.#crypto, der, skid) };
+        } catch (error) {
+            if (error instanceof InternalError || error instanceof ImplementationError) {
+                throw error;
+            }
+            logger.debug(
+                `${source}: certificate for ${Bytes.toHex(skid)} is not a CD signer:`,
+                Diagnostic.errorMessage(asError(error)),
+            );
         }
     }
 
@@ -1221,7 +1317,7 @@ export class DclCertificateService {
 
     /**
      * Fetch CD signer certificates from the configured GitHub directory.
-     * Stores each as a CDSigner entry with isProduction=false (user may promote via addCertificate).
+     * Stores each as a CDSigner entry with isProduction=false; {@link lookupCdSigner} decides whether it is trusted.
      */
     async #fetchGitHubCdSignerCertificates(storage: StorageContext, force: boolean) {
         if (this.#githubRateLimited) {
@@ -2037,8 +2133,8 @@ export namespace DclCertificateService {
         fetchTestCertificates?: boolean;
 
         /**
-         * Whether to trust test (non-production) certificates as valid trust anchors. Controls whether a
-         * matched test PAA is accepted during device attestation or flagged via a
+         * Whether to trust test (non-production) certificates. Controls whether a matched test PAA and a CD
+         * signed by the Matter test CD signer are accepted during device attestation or flagged via a
          * `TrustedAsTestCertificate` finding. Independent of `fetchTestCertificates`. Defaults to the value
          * of `fetchTestCertificates` when not set.
          */
@@ -2071,6 +2167,8 @@ export namespace DclCertificateService {
          */
         seed?: {
             paaRoots?: SeedSource<CertSeedEntry>;
+
+            /** CD signer certificates; like the store, a cache that counts only for certificates the CSA issued. */
             cdSigners?: SeedSource<CertSeedEntry>;
         };
 
