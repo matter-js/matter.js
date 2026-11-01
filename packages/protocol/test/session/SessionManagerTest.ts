@@ -8,6 +8,7 @@ import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SessionParameters } from "#index.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { SessionClosedError } from "#protocol/errors.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { DuplicateMessageError } from "#protocol/MessageReceptionState.js";
 import { NodeSession } from "#session/NodeSession.js";
@@ -18,6 +19,7 @@ import {
     Environment,
     Hours,
     ImplementationError,
+    InternalError,
     Key,
     Lifetime,
     Logger,
@@ -604,6 +606,64 @@ describe("SessionManager", () => {
             newer.completeEstablishment();
             await MockTime.yield3();
             expect(events).deep.equals(["superseded", "closing"]);
+        });
+
+        it("lists an establishing session in sessions only once it is established", async () => {
+            const added = new Array<NodeSession>();
+            sessionManager.sessions.added.on(session => {
+                added.push(session);
+            });
+
+            const establishing = await session({ establishing: true });
+
+            expect(sessionManager.sessions.has(establishing)).false;
+            expect(sessionManager.registeredSessions.has(establishing)).true;
+            expect(sessionManager.getSession(establishing.id)).equals(establishing);
+            expect(added).deep.equals([]);
+
+            establishing.completeEstablishment();
+
+            expect(sessionManager.sessions.has(establishing)).true;
+            expect(added).deep.equals([establishing]);
+        });
+
+        it("never lists a session whose handshake fails", async () => {
+            const events = new Array<string>();
+            sessionManager.sessions.added.on(() => {
+                events.push("added");
+            });
+            sessionManager.sessions.deleted.on(() => {
+                events.push("deleted");
+            });
+            const establishing = await session({ establishing: true });
+
+            await establishing.initiateForceClose({ cause: new SessionClosedError("test") });
+
+            expect(establishing.completeEstablishment()).false;
+            expect(sessionManager.registeredSessions.has(establishing)).false;
+            expect(sessionManager.sessions.has(establishing)).false;
+            expect(events).deep.equals([]);
+        });
+
+        it("reports an established session that is closing as established", async () => {
+            const established = await session();
+            const release = holdClosing(established);
+
+            expect(established.completeEstablishment()).true;
+
+            await release();
+        });
+
+        it("completes establishment when an observer of sessions throws", async () => {
+            sessionManager.sessions.added.on(() => {
+                throw new InternalError("test: observer fails");
+            });
+            const establishing = await session({ establishing: true });
+
+            expect(establishing.completeEstablishment()).true;
+
+            expect(establishing.isEstablishing).false;
+            expect(sessionManager.sessions.has(establishing)).true;
         });
 
         it("neither counts nor evicts an establishing session for the per-peer cap", async () => {

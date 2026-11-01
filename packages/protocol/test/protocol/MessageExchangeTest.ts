@@ -38,11 +38,12 @@ function makeThrowingSession(config?: ProtocolMocks.NodeSession.Config): Protoco
 }
 
 /**
- * Creates a NodeSession on an unreliable channel, so sends use MRP, whose channel records each message it sends.
+ * Creates a NodeSession whose channel records each message it sends.  The channel is unreliable unless
+ * {@link isReliable} is set, so sends use MRP.
  */
-function mrpSession() {
+function mrpSession(isReliable = false) {
     const channel = new ProtocolMocks.NetworkChannel({ index: 1 });
-    channel.isReliable = false;
+    channel.isReliable = isReliable;
     const session = new ProtocolMocks.NodeSession({ channel });
     const sent = new Array<Message>();
     (session.channel as any).send = async (message: Message) => {
@@ -995,6 +996,32 @@ describe("MessageExchange", () => {
             await expect(sending).rejected;
 
             expect(sent.filter(({ payloadHeader: { messageType } }) => messageType === 1).length).greaterThan(1);
+            expect(transmittedAt).deep.equals([1]);
+        });
+
+        it("runs on a reliable channel, which sends without MRP", async () => {
+            const { session, sent } = mrpSession(true);
+            const { exchange } = createExchange(session);
+            const transmittedAt = new Array<number>();
+
+            await exchange.send(1, Bytes.empty, { onTransmitted: () => transmittedAt.push(sent.length) });
+
+            expect(session.usesMrp).false;
+            expect(transmittedAt).deep.equals([1]);
+        });
+
+        it("runs when the ack wait was aborted before the send", async () => {
+            const { session, sent } = mrpSession();
+            const { exchange } = createExchange(session);
+            const abort = new AbortController();
+            abort.abort();
+            const transmittedAt = new Array<number>();
+
+            await exchange.send(1, Bytes.empty, {
+                ackWaitAbort: abort.signal,
+                onTransmitted: () => transmittedAt.push(sent.length),
+            });
+
             expect(transmittedAt).deep.equals([1]);
         });
 

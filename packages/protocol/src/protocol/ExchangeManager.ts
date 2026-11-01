@@ -124,8 +124,8 @@ export class ExchangeManager implements Transport.Provider {
 
         this.#observers.on(this.#transports.added, this.#addTransport);
         this.#observers.on(this.#transports.deleted, this.#deleteTransport);
-        this.#observers.on(this.#sessions.sessions.added, this.#addSession);
-        this.#observers.on(this.#sessions.sessions.deleted, this.#deleteSession);
+        this.#observers.on(this.#sessions.registeredSessions.added, this.#addSession);
+        this.#observers.on(this.#sessions.registeredSessions.deleted, this.#deleteSession);
     }
 
     static [Environmental.create](env: Environment) {
@@ -706,7 +706,7 @@ export class ExchangeManager implements Transport.Provider {
             }
         };
 
-        for (const session of this.#sessions.sessions) check(session);
+        for (const session of this.#sessions.registeredSessions) check(session);
         for (const session of this.#sessions.unsecuredSessions.values()) check(session);
 
         return result;

@@ -111,17 +111,10 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     }
 
     /**
-     * Associate an operational session with its peer, creating the peer if we do not know it yet.  A session whose
-     * handshake still runs joins its peer once it is established, so a {@link Peer} never holds an establishing
-     * session.
+     * Associate an operational session with its peer, creating the peer if we do not know it yet.
      */
     #adoptSession(session: NodeSession) {
         if (session.fabric === undefined || session.isClosed) {
-            return;
-        }
-
-        if (session.isEstablishing) {
-            session.established.once(() => this.#adoptSession(session));
             return;
         }
 

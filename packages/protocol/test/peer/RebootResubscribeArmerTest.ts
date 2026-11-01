@@ -10,6 +10,7 @@ import { Subscribe } from "#action/request/Subscribe.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { RebootResubscribeArmer } from "#peer/RebootResubscribeArmer.js";
+import { SessionClosedError } from "#protocol/errors.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { SessionParameters } from "#session/SessionParameters.js";
@@ -45,7 +46,7 @@ async function setup() {
     const armer = new RebootResubscribeArmer(sessions, subscriptions);
 
     let nextSessionId = 100;
-    async function createSession(isInitiator = false): Promise<NodeSession> {
+    async function createSession(isInitiator = false, establishing?: true): Promise<NodeSession> {
         return sessions.createSecureSession({
             id: nextSessionId++,
             fabric: undefined,
@@ -55,6 +56,7 @@ async function setup() {
             salt: EMPTY,
             isInitiator,
             isResumption: false,
+            establishing,
         });
     }
 
@@ -129,6 +131,20 @@ describe("RebootResubscribeArmer", () => {
 
         expect(sessionLives(older)).equals(false);
         expect(sessionLives(returned)).equals(true);
+    });
+
+    it("does not take a session whose handshake fails as the return", async () => {
+        const { armer, createSession, sessionLives } = await setup();
+        using _armer = armer;
+        const older = await createSession();
+        armer.arm(PEER);
+        await MockTime.advance(Seconds(1));
+
+        const failed = await createSession(false, true);
+        await failed.initiateForceClose({ cause: new SessionClosedError("test") });
+        await MockTime.macrotasks;
+
+        expect(sessionLives(older)).equals(true);
     });
 
     it("re-subscribes when no report arrives within the grace window", async () => {

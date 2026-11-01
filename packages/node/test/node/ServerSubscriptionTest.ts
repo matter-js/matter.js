@@ -1555,7 +1555,7 @@ describe("ServerSubscription", () => {
             await MockTime.resolve(node.close());
         });
 
-        it("does not move to a session of the same node on another fabric", async () => {
+        it("does not move to a session of the same node on another fabric (characterization)", async () => {
             const node = await MockServerNode.createOnline();
             const sessionOn = async (fabric: Fabric, id: number) => {
                 const { session } = await node.createExchange({
@@ -1582,7 +1582,7 @@ describe("ServerSubscription", () => {
             await MockTime.resolve(node.close());
         });
 
-        it("leaves no observer on the newer session once closed after a move", async () => {
+        it("leaves no observer on the newer session once closed after a move (characterization)", async () => {
             const node = await MockServerNode.createOnline();
             const newSession = await sessionsOf(node);
             const former = await newSession();
@@ -1772,7 +1772,7 @@ describe("ServerSubscription", () => {
             await MockTime.resolve(node.close());
         });
 
-        it("resends attribute and event data of an update that failed on the session it left", async () => {
+        it("resends attribute and event data of an update that failed on the session it left (characterization)", async () => {
             const node = await MockServerNode.createOnline();
             const newSession = await sessionsOf(node);
             const former = await newSession();
@@ -1798,7 +1798,7 @@ describe("ServerSubscription", () => {
             await MockTime.resolve(node.close());
         });
 
-        it("resends attribute and event data of an update that failed on its own session", async () => {
+        it("resends attribute and event data of an update that failed on its own session (characterization)", async () => {
             const node = await MockServerNode.createOnline();
             const session = await (await sessionsOf(node))();
             const { reports, waitForReports } = await subscribeWithDataReports(
@@ -1824,7 +1824,7 @@ describe("ServerSubscription", () => {
             await MockTime.resolve(node.close());
         });
 
-        it("does not count a failure on the session it left towards giving up", async () => {
+        it("does not count a failure on the session it left towards giving up (characterization)", async () => {
             const node = await MockServerNode.createOnline();
             const newSession = await sessionsOf(node);
             const sessions = [await newSession()];
@@ -1860,7 +1860,7 @@ describe("ServerSubscription", () => {
             await MockTime.resolve(node.close());
         });
 
-        it("flushes on the session it is given when it closes", async () => {
+        it("flushes on the session it is given when it closes (characterization)", async () => {
             const node = await MockServerNode.createOnline();
             const newSession = await sessionsOf(node);
             const session = await newSession();
@@ -1879,7 +1879,7 @@ describe("ServerSubscription", () => {
             await MockTime.resolve(node.close());
         });
 
-        it("keeps a subscription alive when eviction closes its least recently used session for a newer one", async () => {
+        it("keeps a subscription alive when eviction closes its least recently used session for a newer one (characterization)", async () => {
             const node = await MockServerNode.createOnline();
             const fabric = await node.addFabric();
             let nextId = 1;

@@ -117,7 +117,7 @@ describe("Client startUp event handling", () => {
         // is delivered through the live session.
         newSession.activeTimestamp = Timestamp(Number.MAX_SAFE_INTEGER);
 
-        sessionManager.sessions.add(newSession);
+        sessionManager.registeredSessions.add(newSession);
 
         // Emit startUp — #onStartUp will:
         //   1. maybeSessionFor → newSession (highest activeTimestamp)

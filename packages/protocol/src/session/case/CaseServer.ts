@@ -6,7 +6,11 @@
 
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Mark } from "#common/Mark.js";
-import { PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import {
+    PeerAckMissingError,
+    PeerUnresponsiveError,
+    TransientPeerCommunicationError,
+} from "#peer/PeerCommunicationError.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionParametersWithDurations } from "#session/pase/PaseMessages.js";
 import { ResumptionRecord, SessionManager, ShutdownError } from "#session/SessionManager.js";
@@ -189,11 +193,10 @@ export class CaseServer implements ProtocolHandler {
             establishing: true,
         });
 
-        // Generate sigma 2 resume
-        const resumeSalt = Bytes.concat(cx.peerRandom, cx.localResumptionId);
-        const resumeKey = await crypto.createHkdfKey(sharedSecret, resumeSalt, KDFSR2_KEY_INFO);
-        const resumeMic = crypto.encrypt(resumeKey, new Uint8Array(0), RESUME2_MIC_NONCE);
         try {
+            const resumeSalt = Bytes.concat(cx.peerRandom, cx.localResumptionId);
+            const resumeKey = await crypto.createHkdfKey(sharedSecret, resumeSalt, KDFSR2_KEY_INFO);
+            const resumeMic = crypto.encrypt(resumeKey, new Uint8Array(0), RESUME2_MIC_NONCE);
             const responderSessionParams = this.#sessions.sessionParameters;
             await cx.messenger.sendSigma2Resume({
                 resumptionId: cx.localResumptionId,
@@ -333,6 +336,9 @@ export class CaseServer implements ProtocolHandler {
         } catch (error) {
             if (secureSession.isEstablishing) {
                 await secureSession.initiateForceClose({ cause: asError(error) });
+                throw error;
+            }
+            if (!causedBy(error, PeerAckMissingError)) {
                 throw error;
             }
             // The initiator may already use the session, so a missing ack for SigmaFinished does not close it

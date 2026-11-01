@@ -157,7 +157,7 @@ export class NodeSession extends SecureSession {
         );
 
         if (!delayManagerRegistration) {
-            manager?.sessions.add(this);
+            manager?.registeredSessions.add(this);
         }
         fabric?.addSession(this);
     }
@@ -207,16 +207,18 @@ export class NodeSession extends SecureSession {
      * state.  A resumed session is established once the peer's SigmaFinished arrives, a new one once our SigmaFinished
      * went out for the first time.
      *
-     * | State        | Entered by                                         | `maybeSessionFor`, `Peer` | Eviction             | Supersession             |
+     * | State        | Entered by                                         | `SessionManager.sessions` | Eviction             | Supersession             |
      * | ------------ | -------------------------------------------------- | ------------------------- | -------------------- | ------------------------ |
-     * | establishing | creation with `establishing: true`                 | skip it                   | not counted          | neither side             |
-     * | established  | creation without it, {@link completeEstablishment} | use it                    | counted, evictable   | supersedes, superseded   |
+     * | establishing | creation with `establishing: true`                 | absent                    | not counted          | neither side             |
+     * | established  | creation without it, {@link completeEstablishment} | present                   | counted, evictable   | supersedes, superseded   |
      *
      * Closing ({@link isClosing}) is a flag on top of both states.  A closing session is skipped by `maybeSessionFor`,
      * is never superseded and is not evicted again.  A closing established session still counts for eviction, a
      * closing establishing session does not.  Eviction counts only sessions the peer established with us as responder.
      *
-     * The session receives messages in every state until it is closed.
+     * The session is in `SessionManager.registeredSessions` and receives messages in every state until it is closed.
+     * Unlike the CHIP SDK, which drops messages on a session before it is established, we process them: our
+     * controller starts interactions before it acknowledges SigmaFinished.
      *
      * @see {@link MatterSpecification.v161.Core} § 4.14.2.3.13
      */
@@ -225,11 +227,12 @@ export class NodeSession extends SecureSession {
     }
 
     /**
-     * Mark the handshake as complete and emit {@link established}.  Observers of {@link established} see
-     * {@link isEstablishing} as false.
+     * Mark the handshake as complete and emit {@link established}, which also adds the session to
+     * `SessionManager.sessions`.  Observers see {@link isEstablishing} as false.  An observer that throws is logged and
+     * does not change the result, so a caller inside a send is not interrupted.
      *
-     * @returns true if the session is established, also when it already was; false if it is closing and therefore
-     * stays establishing
+     * @returns true if the session is established, also when it already was and is closing now; false if it is
+     * closing and therefore stays establishing
      */
     completeEstablishment() {
         if (!this.#isEstablishing) {
@@ -239,7 +242,11 @@ export class NodeSession extends SecureSession {
             return false;
         }
         this.#isEstablishing = false;
-        this.#established.emit();
+        try {
+            this.#established.emit();
+        } catch (error) {
+            logger.warn(this.via, "Error in an observer of session establishment:", error);
+        }
         return true;
     }
 
@@ -251,11 +258,13 @@ export class NodeSession extends SecureSession {
     /**
      * Emits when {@link newer}, an established CASE session with the same peer, the same role and equal CASE
      * Authenticated Tags, replaces this session for the peer's subscriptions.  Each subscription on this session then
-     * continues on {@link newer}.  The session itself stays open.
+     * continues on {@link newer}, and the session itself stays open.
      *
-     * The CHIP SDK does the same in `SecureSessionTable::NewerSessionAvailable`, without the role condition: a peer
-     * that sets up a new session may drop its older ones without telling us, and reports on a dropped session never
-     * arrive.
+     * The move matches `SecureSessionTable::NewerSessionAvailable` of the CHIP SDK.  A peer that sets up a new session
+     * may drop its older ones without telling us, so reports on an older session may never arrive.
+     *
+     * The role condition is our own addition.  A session we initiated stores our own CASE Authenticated Tags, not the
+     * peer's, so the tags of sessions with different roles cannot be compared.
      */
     get superseded() {
         return this.#superseded;
@@ -494,7 +503,7 @@ export class NodeSession extends SecureSession {
         this.#fabric?.deleteSession(this);
         await super.close();
 
-        this.manager?.sessions.delete(this);
+        this.manager?.registeredSessions.delete(this);
     }
 
     /**
