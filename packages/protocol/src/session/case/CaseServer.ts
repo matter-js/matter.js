@@ -6,11 +6,7 @@
 
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Mark } from "#common/Mark.js";
-import {
-    PeerAckMissingError,
-    PeerUnresponsiveError,
-    TransientPeerCommunicationError,
-} from "#peer/PeerCommunicationError.js";
+import { PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionParametersWithDurations } from "#session/pase/PaseMessages.js";
 import { ResumptionRecord, SessionManager, ShutdownError } from "#session/SessionManager.js";
@@ -338,13 +334,10 @@ export class CaseServer implements ProtocolHandler {
                 await secureSession.initiateForceClose({ cause: asError(error) });
                 throw error;
             }
-            if (!causedBy(error, PeerAckMissingError)) {
-                throw error;
-            }
-            // The initiator may already use the session, so a missing ack for SigmaFinished does not close it
+            // Once SigmaFinished went out the initiator may use the session, so a later failure does not close it
             logger.debug(
                 cx.messenger.via,
-                "SigmaFinished not acknowledged, session stays established:",
+                "Sending SigmaFinished failed after it went out, session stays established:",
                 Diagnostic.errorMessage(asError(error)),
             );
         }

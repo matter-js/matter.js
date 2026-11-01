@@ -46,7 +46,7 @@ function mrpSession(isReliable = false) {
     channel.isReliable = isReliable;
     const session = new ProtocolMocks.NodeSession({ channel });
     const sent = new Array<Message>();
-    (session.channel as any).send = async (message: Message) => {
+    session.channel.send = async (message: Message) => {
         sent.push(message);
     };
     return { session, sent };

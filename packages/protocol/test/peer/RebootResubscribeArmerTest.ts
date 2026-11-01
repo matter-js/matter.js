@@ -190,6 +190,83 @@ describe("RebootResubscribeArmer", () => {
         expect(isSubscribed(subscription)).equals(true);
     });
 
+    it("keeps the subscription when the priming report arrives before the returning session is established", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
+        const subscription = registerSubscription();
+        armer.arm(PEER);
+
+        const returning = await createSession(false, true);
+        reportOver(returning);
+        returning.completeEstablishment();
+        await MockTime.macrotasks;
+
+        await MockTime.advance(Seconds(30));
+        expect(isSubscribed(subscription)).equals(true);
+    });
+
+    it("keeps the subscription when a report arrives over a session still establishing after the return", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
+        const subscription = registerSubscription();
+        armer.arm(PEER);
+        await createSession();
+        await MockTime.macrotasks;
+
+        reportOver(await createSession(false, true));
+
+        await MockTime.advance(Seconds(30));
+        expect(isSubscribed(subscription)).equals(true);
+    });
+
+    it("keeps the subscription when a report arrives over a session that was establishing when the peer returned", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
+        const subscription = registerSubscription();
+        armer.arm(PEER);
+        const returning = await createSession(false, true);
+        const second = await createSession(false, true);
+
+        returning.completeEstablishment();
+        await MockTime.macrotasks;
+        reportOver(second);
+
+        await MockTime.advance(Seconds(30));
+        expect(isSubscribed(subscription)).equals(true);
+    });
+
+    it("re-subscribes when the only report arrives over a handshake that started before the return", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
+        const subscription = registerSubscription();
+        armer.arm(PEER);
+
+        const stale = await createSession(false, true);
+        await MockTime.advance(Seconds(1));
+        reportOver(stale);
+        await createSession();
+        await MockTime.macrotasks;
+
+        await MockTime.advance(Seconds(30));
+        expect(isSubscribed(subscription)).equals(false);
+    });
+
+    it("characterization: re-subscribes when the only report arrives over a session whose handshake fails", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
+        const subscription = registerSubscription();
+        armer.arm(PEER);
+
+        const failed = await createSession(false, true);
+        reportOver(failed);
+        await failed.initiateForceClose({ cause: new SessionClosedError("test") });
+        await createSession();
+        await MockTime.macrotasks;
+
+        await MockTime.advance(Seconds(30));
+        expect(isSubscribed(subscription)).equals(false);
+    });
+
     it("re-subscribes when the only report arrives over a pre-reboot session", async () => {
         const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
         using _armer = armer;

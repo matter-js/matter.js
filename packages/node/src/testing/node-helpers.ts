@@ -315,7 +315,11 @@ export function CommissioningHelper() {
 }
 
 export namespace interaction {
-    const BarelyMockedMessenger = {
+    /**
+     * Messenger that discards everything the interaction server sends, enough for handlers whose response a test does
+     * not read.
+     */
+    export const BarelyMockedMessenger = {
         sendStatus: (_code: Status) => {},
         sendDataReport: async (_options: unknown) => {},
         send: async (_type: number, _message: Bytes) => {},

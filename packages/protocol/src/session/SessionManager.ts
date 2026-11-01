@@ -247,8 +247,8 @@ export class SessionManager {
     readonly #logger: Logger;
     readonly #context: SessionManagerContext;
     readonly #unsecuredSessions = new Map<NodeId, UnsecuredSession>();
-    readonly #registeredSessions = new BasicSet<NodeSession>();
     readonly #establishedSessions = new BasicSet<NodeSession>();
+    readonly #registeredSessions = new RegisteredSessions(this.#establishedSessions);
     readonly #groupSessions = new Map<NodeId, BasicSet<GroupSession>>();
     #nextSessionId: number;
     #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
@@ -318,17 +318,6 @@ export class SessionManager {
             });
         });
 
-        this.#registeredSessions.added.on(session => {
-            if (session.isEstablishing) {
-                session.established.once(() => {
-                    if (this.#registeredSessions.has(session)) {
-                        this.#establishedSessions.add(session);
-                    }
-                });
-            } else {
-                this.#establishedSessions.add(session);
-            }
-        });
         this.#registeredSessions.deleted.on(session => {
             this.#establishedSessions.delete(session);
         });
@@ -372,8 +361,12 @@ export class SessionManager {
      * The established secure sessions.  A session joins once its handshake completed, so {@link ObservableSet.added}
      * emits on establishment, and a session whose handshake fails never appears.  It leaves when it closes.
      *
-     * Read this set to find, list or observe sessions.  {@link registeredSessions} also holds sessions whose handshake
-     * still runs.
+     * Read this set to find a session to use, or to list or observe the sessions with peers.
+     *
+     * Read {@link registeredSessions} instead for subscriptions and reports, and for session teardown and message
+     * routing.  A peer may send a Subscribe on a session we respond to before that session is established, so the
+     * subscriptions of a peer may live on a session that is not in this set.  The CHIP SDK drops such messages; we
+     * serve them, see {@link NodeSession.isEstablishing}.
      */
     get sessions(): ImmutableSet<NodeSession> & ObservableSet<NodeSession> {
         return this.#establishedSessions;
@@ -384,10 +377,14 @@ export class SessionManager {
      * {@link NodeSession.isEstablishing}).  A session joins on creation, unless it is created with
      * `delayManagerRegistration`, and leaves when it closes.
      *
-     * Only for message routing, session ID allocation and session teardown.  Code that uses, lists or observes sessions
-     * reads {@link sessions}.
+     * Read this set for message routing, session ID allocation, session teardown, peer loss, and for the subscriptions
+     * and reports of a peer.  Code that looks for a session to use reads {@link sessions}.
+     *
+     * {@link sessions} emits {@link ObservableSet.added} for a session only after every observer of `added` here ran,
+     * so components that wire up a session here, such as the ExchangeManager, are ready before users of the
+     * established session see it.
      */
-    get registeredSessions() {
+    get registeredSessions(): BasicSet<NodeSession> {
         return this.#registeredSessions;
     }
 
@@ -566,7 +563,7 @@ export class SessionManager {
         return deletedCount > 0;
     }
 
-    /** The session in {@link sessions} with the least recent traffic among those {@link filter} accepts, if any. */
+    /** The session with the least recent traffic among the given {@link sessions} that {@link filter} accepts, if any. */
     #leastRecentlyUsedSession(sessions: Iterable<NodeSession>, filter: (session: NodeSession) => boolean) {
         let oldest: NodeSession | undefined;
         for (const session of sessions) {
@@ -1206,13 +1203,48 @@ export class SessionManager {
  * and equal CASE Authenticated Tags, so a subscription that moves keeps the access subject it was set up with.  The
  * role does not matter, because both roles store the CATs of the peer's NOC.  This matches
  * `SecureSessionTable::NewerSessionAvailable` of the CHIP SDK.
+ *
+ * Only {@link newer} needs the PASE check: a PASE session has the unspecified peer node ID, which no CASE peer has, so
+ * an {@link older} session with the same peer as a CASE session is a CASE session too.
  */
 function supersedes(newer: NodeSession, older: NodeSession) {
-    return !newer.isPase && !older.isPase && newer.peerIs(older.peerAddress) && hasEqualCats(newer, older);
+    return !newer.isPase && newer.peerIs(older.peerAddress) && hasEqualCats(newer, older);
 }
 
 function hasEqualCats(session: NodeSession, other: NodeSession) {
     const tags = new Set(session.caseAuthenticatedTags);
     const otherTags = new Set(other.caseAuthenticatedTags);
     return tags.size === otherTags.size && [...otherTags].every(tag => tags.has(tag));
+}
+
+/**
+ * The registered sessions.  The set also adds each session to the set of established sessions once it is established.
+ * A session that is already established on registration joins that set after all observers of {@link added} ran.
+ */
+class RegisteredSessions extends BasicSet<NodeSession> {
+    readonly #established: BasicSet<NodeSession>;
+
+    constructor(established: BasicSet<NodeSession>) {
+        super();
+        this.#established = established;
+    }
+
+    override add(session: NodeSession) {
+        if (this.has(session)) {
+            return;
+        }
+
+        super.add(session);
+
+        if (session.isEstablishing) {
+            session.established.once(() => {
+                // A session disposed without a close leaves this set while it is not closing and may still establish
+                if (this.has(session)) {
+                    this.#established.add(session);
+                }
+            });
+        } else {
+            this.#established.add(session);
+        }
+    }
 }

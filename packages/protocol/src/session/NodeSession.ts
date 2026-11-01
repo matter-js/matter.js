@@ -214,11 +214,11 @@ export class NodeSession extends SecureSession {
      *
      * Closing ({@link isClosing}) is a flag on top of both states.  A closing session is skipped by `maybeSessionFor`,
      * is never superseded and is not evicted again.  A closing established session still counts for eviction, a
-     * closing establishing session does not.  Eviction counts only sessions the peer established with us as responder.
+     * closing establishing session does not.  Eviction counts only sessions the peer initiated (we are the responder).
      *
      * The session is in `SessionManager.registeredSessions` and receives messages in every state until it is closed.
      * Unlike the CHIP SDK, which drops messages on a session before it is established, we process them: our
-     * controller starts interactions before it acknowledges SigmaFinished.
+     * controller starts interactions right after it sent SigmaFinished, before the device acknowledged it.
      *
      * @see {@link MatterSpecification.v161.Core} § 4.14.2.3.13
      */

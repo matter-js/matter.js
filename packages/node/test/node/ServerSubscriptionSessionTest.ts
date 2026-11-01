@@ -416,19 +416,20 @@ describe("ServerSubscriptionSession", () => {
         await nodeLabelReachesController(device, peer, "after missing ack");
     });
 
-    it("saves no resumption record when the send of SigmaFinished fails after it went out for another reason than a missing ack", async () => {
+    it("keeps a new full CASE session and saves its record when SigmaFinished fails after it went out for another reason", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
         const peer = await subscribedPeer(controller, "peer1");
         const address = peer.peerAddress!;
         const [formerSession] = openSessionsOf(device);
+        const [subscription] = formerSession.subscriptions;
         const sessions = device.env.get(SessionManager);
         await sessions.deleteResumptionRecord(formerSession.peerAddress);
         const established = establishingSessionsOf(device);
 
         const restore = replaceSendSuccess(async function (original, abort, onTransmitted) {
             await original(abort, onTransmitted);
-            throw new SessionClosedError("test: session closing while SigmaFinished waits for its ack");
+            throw new UnexpectedDataError("test: SigmaFinished fails after it went out");
         });
         try {
             await reconnect(controller, address);
@@ -438,8 +439,12 @@ describe("ServerSubscriptionSession", () => {
         }
 
         expect(established).length(1);
-        expect(established[0].isEstablishing).false;
-        expect(sessions.findResumptionRecordByAddress(formerSession.peerAddress)).undefined;
+        const [newSession] = established;
+        expect(newSession.isEstablishing).false;
+        expect(newSession.isClosing).false;
+        expect(sessions.sessions.has(newSession)).true;
+        expect([...newSession.subscriptions]).deep.equals([subscription]);
+        expect(sessions.findResumptionRecordByAddress(formerSession.peerAddress)).not.undefined;
     });
 
     it("does not complete a new full CASE session that closed before SigmaFinished went out", async () => {

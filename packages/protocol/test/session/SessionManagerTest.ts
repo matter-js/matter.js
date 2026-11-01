@@ -664,6 +664,20 @@ describe("SessionManager", () => {
             expect(added).deep.equals([establishing]);
         });
 
+        it("lists a session in sessions only after every observer of registeredSessions saw it", async () => {
+            const events = new Array<string>();
+            sessionManager.sessions.added.on(() => {
+                events.push("sessions");
+            });
+            sessionManager.registeredSessions.added.on(() => {
+                events.push("registeredSessions");
+            });
+
+            await session();
+
+            expect(events).deep.equals(["registeredSessions", "sessions"]);
+        });
+
         it("never lists a session whose handshake fails", async () => {
             const events = new Array<string>();
             sessionManager.sessions.added.on(() => {
@@ -680,6 +694,16 @@ describe("SessionManager", () => {
             expect(sessionManager.registeredSessions.has(establishing)).false;
             expect(sessionManager.sessions.has(establishing)).false;
             expect(events).deep.equals([]);
+        });
+
+        it("characterization: does not list a session that establishes after it was disposed", async () => {
+            const establishing = await session({ establishing: true });
+
+            await establishing[Symbol.asyncDispose]();
+            expect(establishing.completeEstablishment()).true;
+
+            expect(sessionManager.registeredSessions.has(establishing)).false;
+            expect(sessionManager.sessions.has(establishing)).false;
         });
 
         it("reports an established session that is closing as established", async () => {

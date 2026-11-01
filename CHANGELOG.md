@@ -50,6 +50,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A subscription moves to each newer CASE session of its subscriber
     - Fix: A subscription sends its reports on its own session instead of the most recently active session with its subscriber
     - Fix: A subscription whose SubscribeResponse cannot be sent is closed
+    - Adjustment: `SessionsBehavior` events `opened` and `closed` no longer fire for a session whose handshake fails
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
@@ -65,7 +66,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: DER certificate parsing requires the basic constraints extension when the required extensions list it
     - Enhancement: `NodeSession` has an establishing state, see `isEstablishing`, `completeEstablishment()` and `established`
     - Enhancement: `NodeSession.superseded` emits the newer CASE session with the same peer and CASE Authenticated Tags
-    - Adjustment: `SessionManager.sessions` is read-only and holds only established sessions, so its `added` event fires on establishment
+    - Adjustment: `SessionManager.sessions` is read-only and holds only established sessions
+    - Adjustment: `SecureSession` subclasses implement the new abstract `isEstablishing`
     - Enhancement: `SessionManager.registeredSessions` holds every session that receives messages, including those whose handshake still runs
     - Adjustment: `SessionManager.maybeSessionFor()` and `sessionFor()` skip a session whose handshake is still running
     - Enhancement: `ExchangeSendOptions.onTransmitted` runs once the first transmission of a message went out

@@ -646,7 +646,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
 
         if (fabric !== undefined && !keepSubscriptions) {
             let clearedCount = 0;
-            for (const sess of this.#context.sessions.sessions) {
+            for (const sess of this.#context.sessions.registeredSessions) {
                 // TODO Adjust this filtering when subscriptions move to Peer
                 if (!PeerAddress.is(sess.peerAddress, session.peerAddress)) {
                     // Ignore subscriptions from other peers
@@ -953,7 +953,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const jitter = delayJitterWindowMs > 0 ? this.#node.env.get(Entropy).randomUint32 % delayJitterWindowMs : 0;
         const delay = Millis(delayMinMs + jitter);
 
-        for (const session of this.#context.sessions.sessions) {
+        for (const session of this.#context.sessions.registeredSessions) {
             for (const subscription of session.subscriptions) {
                 if (subscription instanceof ServerSubscription && subscription.selectsAnyEndpoint(endpoints)) {
                     subscription.deferReports(delay);
