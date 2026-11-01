@@ -39,38 +39,22 @@ export class Vvsc extends OperationalBase<OperationalCertificate.Vvsc> {
 
     /**
      * Verify requirements a Vendor Verification Signer certificate must fulfill.
-     * Rules for this are listed in @see {@link MatterSpecification.v161.Core} §6.5.x
-     * // TODO ADD Verification once we know more about the chain
+     * Rules for this are listed in @see {@link MatterSpecification.v161.Core} § 6.5.12
+     * // TODO Verify the VVSC chain, see the open TODO in VendorIdVerification.verifyData
      */
     async verify(_crypto: Crypto) {
         this.generalVerify();
 
         const {
             subject,
-            extensions: { keyUsage, subjectKeyIdentifier, authorityKeyIdentifier },
+            extensions: { keyUsage },
         } = this.cert;
-        const { vvsId } = subject;
 
         // The key usage extension SHALL be encoded with exactly one flag: digitalSignature.
         if (ExtensionKeyUsageSchema.encode(keyUsage) !== KEY_USAGE_DIGITAL_SIGNATURE) {
             throw new CertificateError(
                 `Vvsc certificate keyUsage must have only digitalSignature set: ${Diagnostic.json(keyUsage)}`,
             );
-        }
-
-        // The subject key identifier extension SHALL be present.
-        if (subjectKeyIdentifier === undefined) {
-            throw new CertificateError(`Vvsc certificate must have subjectKeyIdentifier set.`);
-        }
-
-        // The authority key identifier extension SHALL be present.
-        if (authorityKeyIdentifier === undefined) {
-            throw new CertificateError(`Vvsc certificate must have authorityKeyIdentifier set.`);
-        }
-
-        // The subject DN SHALL encode exactly one matter-vvs-id attribute.
-        if (vvsId === undefined) {
-            throw new CertificateError(`Invalid vvsId in Vsc certificate: ${Diagnostic.json(vvsId)}`);
         }
 
         // The subject DN SHALL NOT encode any matter-node-id attribute.

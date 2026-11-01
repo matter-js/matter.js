@@ -249,14 +249,28 @@ export abstract class Certificate<CT extends MatterCertificate> {
  *
  * @see {@link MatterSpecification.v161.Core} §6.1.1
  */
-function parseMatterRdnHex(field: string, text: string, octets: number) {
+function parseMatterRdnHex(field: string, text: string, octets: number, ErrorType = CertificateError) {
     if (!new RegExp(`^[0-9A-F]{${octets * 2}}$`).test(text)) {
-        throw new CertificateError(
+        throw new ErrorType(
             `Invalid ${field} ${Diagnostic.json(text)}: expected exactly ${octets * 2} uppercase hexadecimal digits`,
         );
     }
     return BigInt(`0x${text}`);
 }
+
+function isVidOrPid(field: string) {
+    return field === "vendorId" || field === "productId";
+}
+
+/**
+ * Thrown when a DAC, PAI or PAA is well-formed but violates its X.509 profile, including a VendorID or ProductID in
+ * the distinguished name that is malformed or repeated.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 6.2.2.2
+ * @see {@link MatterSpecification.v161.Core} § 6.2.2.3
+ * @see {@link MatterSpecification.v161.Core} § 6.2.2.4
+ */
+export class CertificateProfileError extends CertificateError {}
 
 function numberIfSafe(value: bigint) {
     return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : value;
@@ -319,9 +333,10 @@ export namespace Certificate {
     /**
      * Parse a subject or issuer field from ASN.1 DER format.
      */
-    function parseSubjectOrIssuer(node: DerNode) {
+    function parseSubjectOrIssuer(node: DerNode, acceptProfileViolation: boolean) {
         const result: { [field: string]: unknown } = {};
         const seenFields = new Set<string>();
+        const unusableFields = new Set<string>();
 
         const { _elements: rdnSequence } = node;
         if (!rdnSequence) {
@@ -346,10 +361,18 @@ export namespace Certificate {
                 let { field } = fieldInfo;
                 let value;
 
-                // Each Matter-specific attribute except the CAT appears exactly once
+                // Each Matter-specific attribute except the CAT appears at most once
                 if (fieldInfo.isMatterSpecific && field !== "caseAuthenticatedTag") {
                     if (seenFields.has(field)) {
-                        throw new CertificateError(`Distinguished name contains ${field} more than once`);
+                        const message = `Distinguished name contains ${field} more than once`;
+                        if (!isVidOrPid(field)) {
+                            throw new CertificateError(message);
+                        }
+                        if (!acceptProfileViolation) {
+                            throw new CertificateProfileError(message);
+                        }
+                        unusableFields.add(field);
+                        continue;
                     }
                     seenFields.add(field);
                 }
@@ -372,7 +395,16 @@ export namespace Certificate {
                         break;
                     case "productId":
                     case "vendorId":
-                        value = Number(parseMatterRdnHex(field, Bytes.toString(valueBytes), 2));
+                        try {
+                            value = Number(
+                                parseMatterRdnHex(field, Bytes.toString(valueBytes), 2, CertificateProfileError),
+                            );
+                        } catch (error) {
+                            if (!acceptProfileViolation || !(error instanceof CertificateProfileError)) {
+                                throw error;
+                            }
+                            continue;
+                        }
                         break;
                     case "caseAuthenticatedTag": {
                         const hexString = Bytes.toString(valueBytes);
@@ -402,8 +434,12 @@ export namespace Certificate {
             }
         }
 
+        for (const field of unusableFields) {
+            delete result[field];
+        }
+
         // Spec 6.2.2.2: an OID VID/PID anywhere in the field disables fallback parsing for that field.
-        if (result.vendorId === undefined && result.productId === undefined) {
+        if (!seenFields.has("vendorId") && !seenFields.has("productId")) {
             const commonName = (result.commonName ?? result.commonNamePs) as string | undefined;
             if (commonName !== undefined) {
                 const vendorId = parseMatterFallbackVidPid(commonName, "Mvid:");
@@ -684,6 +720,12 @@ export namespace Certificate {
          * ML-DSA is rejected.
          */
         postQuantum?: boolean;
+
+        /**
+         * Read a certificate whose VendorID or ProductID is malformed or repeated, leaving the affected field
+         * undefined, instead of throwing {@link CertificateProfileError}.
+         */
+        acceptProfileViolation?: boolean;
     }
 
     /**
@@ -758,7 +800,7 @@ export namespace Certificate {
 
         // Issuer — retain raw DER for exact-match comparisons (CRL revocation lookup)
         const issuerDer = Bytes.of(DerCodec.encode(certElements[idx]));
-        const issuer = parseSubjectOrIssuer(certElements[idx++]);
+        const issuer = parseSubjectOrIssuer(certElements[idx++], options.acceptProfileViolation === true);
 
         // Validity
         const { _elements: validityElements } = certElements[idx++];
@@ -769,7 +811,7 @@ export namespace Certificate {
         const notAfter = parseDate(validityElements[1]);
 
         const subjectDer = Bytes.of(DerCodec.encode(certElements[idx]));
-        const subject = parseSubjectOrIssuer(certElements[idx++]);
+        const subject = parseSubjectOrIssuer(certElements[idx++], options.acceptProfileViolation === true);
 
         // Public key
         const publicKeyNode = certElements[idx++];
@@ -1059,7 +1101,7 @@ function astOfDistinguishedName(data: { [field: string]: any }) {
                 ast.nodeId = NodeId_Matter(value as NodeId);
                 break;
             case "firmwareSigningId":
-                ast.firmwareSigningId = FirmwareSigningId_Matter(value as number);
+                ast.firmwareSigningId = FirmwareSigningId_Matter(value);
                 break;
             case "icacId":
                 ast.icacId = IcacId_Matter(value as number | bigint);

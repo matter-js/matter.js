@@ -55,7 +55,7 @@ export namespace OperationalCertificate {
     /** All defined Matter fields for subject and issuer that we always allow optionally to be encoded */
     const AllowedSubjectAndIssuerMatterFields = {
         nodeId: TlvOptionalField(17, TlvNodeId),
-        firmwareSigningId: TlvOptionalField(18, TlvUInt32),
+        firmwareSigningId: TlvOptionalField(18, TlvUInt64),
         icacId: TlvOptionalField(19, TlvUInt64),
         rcacId: TlvOptionalField(20, TlvUInt64),
         fabricId: TlvOptionalField(21, TlvFabricId),

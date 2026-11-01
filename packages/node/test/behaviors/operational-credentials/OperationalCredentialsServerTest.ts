@@ -139,6 +139,7 @@ describe("OperationalCredentialsServer", () => {
             expect(status).equals(OperationalCredentials.NodeOperationalCertStatus.InvalidNodeOpId);
         });
 
+        // Characterization: passes without the fix.
         it("answers InvalidNoc for an RCAC in the ICAC field", async () => {
             const status = await addNocStatus({
                 nocNodeId: NodeId(100),

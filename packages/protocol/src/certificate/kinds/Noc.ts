@@ -146,7 +146,9 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
         }
 
         // The extended key usage extension SHALL be encoded with exactly two key-purpose-id values: serverAuth and clientAuth.
-        // CHIP requires only serverAuth and accepts other purposes, so matter.js does the same.
+        // CHIP requires only serverAuth and accepts other purposes (FabricTable.cpp:344, CASESession.cpp:455), so
+        // matter.js does the same. CHIP's NOC chain check for VID verification requires clientAuth instead
+        // (jcm/VendorIdVerificationClient.cpp:35).
         if (extendedKeyUsage === undefined || !extendedKeyUsage.includes(KEY_PURPOSE_SERVER_AUTH)) {
             throw new CertificateError(
                 `Noc certificate must have extendedKeyUsage with serverAuth: ${Diagnostic.json(extendedKeyUsage)}`,

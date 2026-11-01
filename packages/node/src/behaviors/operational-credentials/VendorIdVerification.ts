@@ -184,38 +184,43 @@ export namespace VendorIdVerification {
             rcac,
             fabric: { vendorId: rootVendorId, vidVerificationStatement, fabricIndex },
         } = options;
-        const {
-            subject: { fabricId },
-            ellipticCurvePublicKey: rootPublicKey,
-        } = Noc.fromTlv(noc).cert;
 
-        const tbs = dataToSign({
-            fabricBindingVersion,
-            clientChallenge,
-            attChallenge,
-            fabricIndex,
-            fabric: {
-                rootPublicKey,
-                fabricId,
-                rootVendorId,
-                vidVerificationStatement,
-            },
-        }).signatureData;
-
+        let tbs: Bytes;
         try {
+            const nocCert = Noc.fromTlv(noc);
+            const {
+                subject: { fabricId },
+                ellipticCurvePublicKey: rootPublicKey,
+            } = nocCert.cert;
+
+            tbs = dataToSign({
+                fabricBindingVersion,
+                clientChallenge,
+                attChallenge,
+                fabricIndex,
+                fabric: {
+                    rootPublicKey,
+                    fabricId,
+                    rootVendorId,
+                    vidVerificationStatement,
+                },
+            }).signatureData;
+
             // Validate signature over TBS data
             await crypto.verifyEcdsa(PublicKey(rootPublicKey), tbs, new EcdsaSignature(signature));
 
             // Verify Noc cert chain using trusted root
             const rootCert = Rcac.fromTlv(rcac);
-            const nocCert = Noc.fromTlv(noc);
             const icaCert = icac ? Icac.fromTlv(icac) : undefined;
             if (icaCert !== undefined) {
                 await icaCert.verify(crypto, rootCert);
             }
             await nocCert.verify(crypto, rootCert, icaCert);
         } catch (error) {
-            CryptoError.accept(error);
+            // TLV the peer sent that does not decode, such as a repeated field, fails the verification
+            if (!(error instanceof UnexpectedDataError)) {
+                CryptoError.accept(error);
+            }
             logger.warn("Could not verify VendorId: certificate chain verification failed", error);
             return false;
         }

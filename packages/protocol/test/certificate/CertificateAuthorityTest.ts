@@ -103,6 +103,7 @@ describe("CertificateAuthority", () => {
             expect(nocCert.cert.issuer.rcacId).undefined;
         });
 
+        // Characterization: passes without the fix.
         it("generates an ICAC and NOC that verify against the root", async () => {
             const ca = await CertificateAuthority.create(crypto, true);
             const keyPair = await crypto.createKeyPair();
@@ -322,6 +323,7 @@ describe("CertificateAuthority", () => {
             expect(nocCert.cert.subject.caseAuthenticatedTags).deep.equal(cats);
         });
 
+        // Characterization: passes without the fix.
         // The signature covers the X.509 DN in this order, so decoding must keep it and never sort the keys.
         it("keeps the subject DN order fabric ID, node ID, CATs", async () => {
             const ca = await CertificateAuthority.create(crypto);

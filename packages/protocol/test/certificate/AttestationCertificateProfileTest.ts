@@ -9,8 +9,9 @@ import {
     DeviceAttestationError,
     DeviceAttestationValidator,
 } from "#certificate/DeviceAttestationValidator.js";
-import { CertificateProfileError, Dac, Paa, Pai } from "#certificate/kinds/AttestationCertificates.js";
-import { Certificate } from "#certificate/kinds/Certificate.js";
+import { DeviceCertification } from "#certificate/DeviceCertification.js";
+import { Dac, Paa, Pai } from "#certificate/kinds/AttestationCertificates.js";
+import { Certificate, CertificateProfileError } from "#certificate/kinds/Certificate.js";
 import { Bytes, CertificateError, DerCodec, DerNode, DerType, StandardCrypto } from "@matter/general";
 import { VendorId } from "@matter/types";
 import { AcceptedAttestationVectors, RefusedDacVectors, RefusedPaiVectors } from "./ChipAttestationProfileVectors.js";
@@ -122,8 +123,72 @@ function withExtensionValue(hex: string, oidHex: string, valueHex: string) {
     });
 }
 
+const VENDOR_ID_OID = "2b0601040182a27c0201";
+const PRODUCT_ID_OID = "2b0601040182a27c0202";
+const COMMON_NAME_OID = "550403";
+const ISSUER_ELEMENT = 3;
+const SUBJECT_ELEMENT = 5;
+
+function attributeOf(name: DerNode, oidHex: string) {
+    return (
+        name._elements
+            ?.flatMap(rdn => rdn._elements ?? [])
+            .find(attribute => Bytes.toHex(attribute._elements?.[0]._bytes ?? new Uint8Array()) === oidHex) ??
+        expect.fail(`Name has no attribute ${oidHex}`)
+    );
+}
+
+/** Let `edit` change the subject of a certificate.  The signature no longer matches the result. */
+function editSubject(hex: string, edit: (subject: DerNode) => void) {
+    return editTbs(hex, elements => edit(elements[SUBJECT_ELEMENT]));
+}
+
+/** Replace the text of the issuer's attribute `oidHex`. */
+function withIssuerText(hex: string, oidHex: string, text: string) {
+    return editTbs(hex, elements => {
+        attributeOf(elements[ISSUER_ELEMENT], oidHex)._elements![1]._bytes = Bytes.fromString(text);
+    });
+}
+
+/** Replace the text of the subject's attribute `oidHex`. */
+function withSubjectText(hex: string, oidHex: string, text: string) {
+    return editSubject(hex, subject => {
+        attributeOf(subject, oidHex)._elements![1]._bytes = Bytes.fromString(text);
+    });
+}
+
+/** Add a copy of the subject's attribute `oidHex` as an additional RDN. */
+function withRepeatedSubjectAttribute(hex: string, oidHex: string) {
+    return editSubject(hex, subject => {
+        const rdn = subject._elements!.find(candidate =>
+            candidate._elements?.some(a => Bytes.toHex(a._elements?.[0]._bytes ?? new Uint8Array()) === oidHex),
+        );
+        subject._elements!.push(rdn ?? expect.fail(`Subject has no attribute ${oidHex}`));
+    });
+}
+
 const VALID_DAC = AcceptedAttestationVectors.struct_dac_cert_version_v3.dac;
 const VALID_PAI = AcceptedAttestationVectors.struct_dac_cert_version_v3.pai;
+
+async function validate(dac: string, pai: string) {
+    try {
+        await DeviceAttestationValidator.validate(
+            { crypto: new StandardCrypto(), attestationChallenge: new Uint8Array(16) },
+            {
+                dac: Bytes.fromHex(dac),
+                pai: Bytes.fromHex(pai),
+                attestationElements: new Uint8Array(),
+                attestationSignature: new Uint8Array(64),
+                attestationNonce: new Uint8Array(32),
+                vendorId: VendorId(0xfff1),
+                productId: 0x8000,
+            },
+        );
+    } catch (error) {
+        return error;
+    }
+    expect.fail("Validation succeeded");
+}
 
 describe("Attestation certificate profile", () => {
     describe("refuses a DAC that violates the DAC profile", () => {
@@ -346,27 +411,92 @@ describe("Attestation certificate profile", () => {
         });
     });
 
-    describe("device attestation findings", () => {
-        async function validate(dac: string, pai: string) {
-            try {
-                await DeviceAttestationValidator.validate(
-                    { crypto: new StandardCrypto(), attestationChallenge: new Uint8Array(16) },
-                    {
-                        dac: Bytes.fromHex(dac),
-                        pai: Bytes.fromHex(pai),
-                        attestationElements: new Uint8Array(),
-                        attestationSignature: new Uint8Array(64),
-                        attestationNonce: new Uint8Array(32),
-                        vendorId: VendorId(0xfff1),
-                        productId: 0x8000,
-                    },
-                );
-            } catch (error) {
-                return error;
-            }
-            expect.fail("Validation succeeded");
+    describe("VendorID and ProductID in the distinguished name", () => {
+        const violations = {
+            "lowercase VendorID": () => withSubjectText(VALID_DAC, VENDOR_ID_OID, "fff1"),
+            "VendorID of the wrong length": () => withSubjectText(VALID_DAC, VENDOR_ID_OID, "FFF"),
+            "non-hexadecimal ProductID": () => withSubjectText(VALID_DAC, PRODUCT_ID_OID, "80G0"),
+            "repeated VendorID": () => withRepeatedSubjectAttribute(VALID_DAC, VENDOR_ID_OID),
+            "repeated ProductID": () => withRepeatedSubjectAttribute(VALID_DAC, PRODUCT_ID_OID),
+        };
+
+        for (const [name, build] of Object.entries(violations)) {
+            it(`reports a DAC with a ${name} as a profile violation`, () => {
+                const dac = build();
+                expect(() => Dac.fromAsn1(dac)).throws(CertificateProfileError);
+            });
+
+            it(`parses a DAC with a ${name} when accepting a profile violation, without the value`, () => {
+                const { subject } = Dac.fromAsn1(build(), { acceptProfileViolation: true }).cert;
+                const field = name.includes("VendorID") ? "vendorId" : "productId";
+                expect(subject[field]).undefined;
+            });
         }
 
+        it("keeps the valid one of the two values when only the other is malformed", () => {
+            const { subject } = Dac.fromAsn1(withSubjectText(VALID_DAC, VENDOR_ID_OID, "fff1"), {
+                acceptProfileViolation: true,
+            }).cert;
+            expect(subject.productId).equals(0x8000);
+        });
+
+        it("reports a malformed VendorID in the issuer of a DAC like one in the subject", () => {
+            const dac = withIssuerText(VALID_DAC, VENDOR_ID_OID, "fff1");
+            expect(() => Dac.fromAsn1(dac)).throws(CertificateProfileError);
+            expect(Dac.fromAsn1(dac, { acceptProfileViolation: true }).cert.issuer.vendorId).undefined;
+        });
+
+        it("reports a PAI with a malformed VendorID as a profile violation", () => {
+            const pai = withSubjectText(VALID_PAI, VENDOR_ID_OID, "fff1");
+            expect(() => Pai.fromAsn1(pai)).throws(CertificateProfileError);
+            expect(Pai.fromAsn1(pai, { acceptProfileViolation: true }).cert.subject.vendorId).undefined;
+        });
+
+        it("does not read the common name as VendorID when the OID value is malformed", () => {
+            // The PAI carries no ProductID, so only the VendorID decides whether the common name is read
+            const pai = editSubject(Bytes.toHex(withSubjectText(VALID_PAI, VENDOR_ID_OID, "fff1")), subject => {
+                attributeOf(subject, COMMON_NAME_OID)._elements![1]._bytes = Bytes.fromString("Mvid:FFF2");
+            });
+            expect(Pai.fromAsn1(pai, { acceptProfileViolation: true }).cert.subject.vendorId).undefined;
+        });
+
+        it("starts a device whose own DAC has a malformed VendorID", async () => {
+            const crypto = new StandardCrypto();
+            const certification = new DeviceCertification(
+                crypto,
+                {
+                    privateKey: new Uint8Array(32).fill(1),
+                    certificate: withSubjectText(VALID_DAC, VENDOR_ID_OID, "fff1"),
+                    intermediateCertificate: Bytes.fromHex(VALID_PAI),
+                    declaration: new Uint8Array(1),
+                },
+                { name: "Test", deviceType: 0x0100, vendorId: VendorId(0xfff1), productId: 0x8000 },
+            );
+            await certification.construction;
+            await certification.close();
+        });
+
+        it("reports a DAC with a malformed VendorID as DacFormatInvalid", async () => {
+            const error = await validate(Bytes.toHex(withSubjectText(VALID_DAC, VENDOR_ID_OID, "fff1")), VALID_PAI);
+            expect(error)
+                .instanceOf(DeviceAttestationError)
+                .with.property("failure")
+                .equals(DeviceAttestationCheck.DacFormatInvalid);
+        });
+
+        it("reports a PAI with a repeated VendorID as PaiFormatInvalid", async () => {
+            const error = await validate(
+                VALID_DAC,
+                Bytes.toHex(withRepeatedSubjectAttribute(VALID_PAI, VENDOR_ID_OID)),
+            );
+            expect(error)
+                .instanceOf(DeviceAttestationError)
+                .with.property("failure")
+                .equals(DeviceAttestationCheck.PaiFormatInvalid);
+        });
+    });
+
+    describe("device attestation findings", () => {
         it("reports a DAC that violates the DAC profile as DacFormatInvalid", async () => {
             const error = await validate(RefusedDacVectors.struct_dac_ext_basic_ca_wrong.dac, VALID_PAI);
             expect(error)

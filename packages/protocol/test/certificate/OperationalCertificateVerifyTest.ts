@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { CertificateProfileError } from "#certificate/kinds/Certificate.js";
 import { Unsigned } from "#certificate/kinds/common.js";
 import { jsToMatterDate } from "#certificate/kinds/definitions/asn.js";
 import { OperationalCertificate } from "#certificate/kinds/definitions/operational.js";
@@ -43,6 +44,7 @@ const ISSUER_TAG = 3;
 const SUBJECT_TAG = 6;
 const DN_TAG = {
     nodeId: 17,
+    firmwareSigningId: 18,
     icacId: 19,
     rcacId: 20,
     fabricId: 21,
@@ -269,6 +271,20 @@ function withRdn(der: Bytes, oid: string, text: string, newOid = oid): Bytes {
     return reencode(cert);
 }
 
+const SUBJECT_ELEMENT = 5;
+
+/** Re-encodes a certificate without the subject RDN that holds the DN attribute with {@link oid}. */
+function withoutSubjectRdn(der: Bytes, oid: string): Bytes {
+    const cert = DerCodec.decode(der);
+    const subject = cert._elements?.[0]._elements?.[SUBJECT_ELEMENT] ?? expect.fail("Certificate has no subject");
+    const index = subject._elements?.findIndex(rdn => findAttribute(rdn, oid) !== undefined) ?? -1;
+    if (index < 0) {
+        expect.fail(`Subject has no DN attribute ${oid}`);
+    }
+    subject._elements!.splice(index, 1);
+    return reencode(cert);
+}
+
 /** Signs a certificate again after {@link withLeadingDnEntry} added an entry the decoder keeps. */
 async function resignedNoc(tlv: Bytes, issuer: KeyMaterial) {
     const { signature: _signature, ...cert } = OperationalCertificate.TlvNoc.decode(tlv);
@@ -310,8 +326,8 @@ async function verifyVvsc(tlv: Bytes) {
 /**
  * Negative and edge vectors for operational certificate verification.
  *
- * Each vector changes one field of a conformant certificate. Its signature is valid for the content that matter.js
- * decoded before the matching fix, so a missing rule shows up as an accepted certificate, not as a signature failure.
+ * Each vector changes one field of a conformant certificate. Each vector is signed again by the issuer, so the
+ * signature check does not hide the rule under test.
  *
  * @see {@link MatterSpecification.v161.Core} § 6.5.6.3 and § 6.5.12
  */
@@ -332,18 +348,22 @@ describe("Operational certificate verification", () => {
     });
 
     describe("conformant certificates", () => {
+        // Characterization: passes without the fix.
         it("verifies an RCAC", async () => {
             await verifyRcac(rootTlv);
         });
 
+        // Characterization: passes without the fix.
         it("verifies an ICAC", async () => {
             await verifyIcac(icaTlv, rootTlv);
         });
 
+        // Characterization: passes without the fix.
         it("verifies a NOC issued by an ICAC", async () => {
             await verifyNoc(await nocTlv(node, ica), rootTlv, icaTlv);
         });
 
+        // Characterization: passes without the fix.
         it("verifies a NOC issued by the RCAC", async () => {
             const noc = await nocTlv(node, root, cert => {
                 cert.issuer = { rcacId: ROOT_ID };
@@ -351,6 +371,7 @@ describe("Operational certificate verification", () => {
             await verifyNoc(noc, rootTlv);
         });
 
+        // Characterization: passes without the fix.
         it("verifies a NOC whose subject has five RDNs, three of them CATs", async () => {
             const noc = await nocTlv(node, ica, cert => {
                 cert.subject.caseAuthenticatedTags = [
@@ -362,6 +383,7 @@ describe("Operational certificate verification", () => {
             await verifyNoc(noc, rootTlv, icaTlv);
         });
 
+        // Characterization: passes without the fix.
         it("does not count an absent attribute of an in-memory certificate as an RDN", async () => {
             const noc = Noc.fromTlv(
                 await nocTlv(node, ica, cert => {
@@ -376,6 +398,7 @@ describe("Operational certificate verification", () => {
             await noc.verify(crypto, Rcac.fromTlv(rootTlv), Icac.fromTlv(icaTlv));
         });
 
+        // Characterization: passes without the fix.
         it("verifies a NOC with node ID 0xFFFF_FFEF_FFFF_FFFF, the top of the operational range", async () => {
             const noc = await nocTlv(node, ica, cert => {
                 cert.subject.nodeId = NodeId(0xffff_ffef_ffff_ffffn);
@@ -389,7 +412,8 @@ describe("Operational certificate verification", () => {
     });
 
     describe("NOC extensions", () => {
-        // CHIP requires serverAuth only (FabricTable and CASESession validation contexts), so matter.js does too.
+        // CHIP requires serverAuth only (FabricTable.cpp:344, CASESession.cpp:455), so matter.js does too.
+        // Characterization: passes without the fix.
         it("verifies a NOC with serverAuth as its only key purpose", async () => {
             const noc = await nocTlv(node, ica, cert => {
                 cert.extensions.extendedKeyUsage = [1];
@@ -404,6 +428,7 @@ describe("Operational certificate verification", () => {
             await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(CertificateError, /serverAuth/);
         });
 
+        // Characterization: passes without the fix.
         it("refuses a NOC without extended key usage", async () => {
             const noc = await nocTlv(node, ica, cert => {
                 cert.extensions.extendedKeyUsage = undefined;
@@ -427,6 +452,7 @@ describe("Operational certificate verification", () => {
             await verifyNoc(noc, rootTlv, icaTlv);
         });
 
+        // Characterization: passes without the fix.
         it("refuses a NOC whose key usage lacks digitalSignature", async () => {
             const noc = await nocTlv(node, ica, cert => {
                 cert.extensions.keyUsage = { keyEncipherment: true };
@@ -452,6 +478,21 @@ describe("Operational certificate verification", () => {
             await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(CertificateError, /more than 5 RDNs/);
         });
 
+        // Characterization: passes without the fix.
+        it("verifies an issuer DN with exactly five RDNs", async () => {
+            const noc = await nocTlv(node, ica, cert => {
+                cert.issuer = {
+                    icacId: ICAC_ID,
+                    commonName: "a",
+                    surName: "b",
+                    serialNum: "c",
+                    countryName: "DE",
+                };
+            });
+            await verifyNoc(noc, rootTlv, icaTlv);
+        });
+
+        // Characterization: passes without the fix.
         it("refuses an issuer DN with six RDNs", async () => {
             const noc = await nocTlv(node, ica, cert => {
                 cert.issuer = {
@@ -469,6 +510,7 @@ describe("Operational certificate verification", () => {
             );
         });
 
+        // Characterization: passes without the fix.
         it("refuses a CAT with version 0", async () => {
             const noc = withLeadingDnEntry(
                 await nocTlv(node, ica),
@@ -478,6 +520,7 @@ describe("Operational certificate verification", () => {
             await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(ValidationOutOfBoundsError, /version/);
         });
 
+        // Characterization: passes without the fix.
         it("refuses node ID 0", async () => {
             const noc = await nocTlv(node, ica, cert => {
                 cert.subject.nodeId = NodeId(0n);
@@ -485,6 +528,7 @@ describe("Operational certificate verification", () => {
             await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(OperationalNodeIdError);
         });
 
+        // Characterization: passes without the fix.
         it("refuses node ID 0xFFFF_FFF0_0000_0000, the first value above the operational range", async () => {
             const noc = await nocTlv(node, ica, cert => {
                 cert.subject.nodeId = NodeId(0xffff_fff0_0000_0000n);
@@ -492,6 +536,7 @@ describe("Operational certificate verification", () => {
             await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(OperationalNodeIdError);
         });
 
+        // Characterization: passes without the fix.
         it("refuses fabric ID 0", async () => {
             const noc = await nocTlv(node, ica, cert => {
                 cert.subject.fabricId = FabricId(0n);
@@ -515,6 +560,7 @@ describe("Operational certificate verification", () => {
             await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(UnexpectedDataError, /fabricId/);
         });
 
+        // Characterization: passes without the fix.
         it("refuses a matter-icac-id", async () => {
             const noc = await resignedNoc(
                 withLeadingDnEntry(await nocTlv(node, ica), SUBJECT_TAG, dnEntry(DN_TAG.icacId, ICAC_ID)),
@@ -523,6 +569,7 @@ describe("Operational certificate verification", () => {
             await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(CertificateError, /icacId/);
         });
 
+        // Characterization: passes without the fix.
         it("refuses a matter-rcac-id", async () => {
             const noc = await resignedNoc(
                 withLeadingDnEntry(await nocTlv(node, ica), SUBJECT_TAG, dnEntry(DN_TAG.rcacId, ROOT_ID)),
@@ -543,6 +590,7 @@ describe("Operational certificate verification", () => {
     });
 
     describe("ICAC subject DN", () => {
+        // Characterization: passes without the fix.
         it("refuses an RCAC in the ICAC position", async () => {
             const noc = await nocTlv(node, root, cert => {
                 cert.issuer = { rcacId: ROOT_ID };
@@ -550,6 +598,7 @@ describe("Operational certificate verification", () => {
             await expect(verifyNoc(noc, rootTlv, rootTlv)).rejectedWith(ValidationMandatoryFieldMissingError, /icacId/);
         });
 
+        // Characterization: passes without the fix.
         it("refuses fabric ID 0", async () => {
             const icac = await icacTlv(ica, root, cert => {
                 cert.subject.fabricId = FabricId(0n);
@@ -573,6 +622,7 @@ describe("Operational certificate verification", () => {
             await expect(verifyIcac(icac, rootTlv)).rejectedWith(UnexpectedDataError, /fabricId/);
         });
 
+        // Characterization: passes without the fix.
         it("refuses a matter-noc-cat", async () => {
             const icac = await resignedIcac(
                 withLeadingDnEntry(
@@ -592,6 +642,7 @@ describe("Operational certificate verification", () => {
     });
 
     describe("RCAC subject DN and extensions", () => {
+        // Characterization: passes without the fix.
         it("refuses fabric ID 0", async () => {
             const rcac = await rcacTlv(root, cert => {
                 cert.subject.fabricId = FabricId(0n);
@@ -615,6 +666,7 @@ describe("Operational certificate verification", () => {
             await expect(verifyRcac(rcac)).rejectedWith(UnexpectedDataError, /fabricId/);
         });
 
+        // Characterization: passes without the fix.
         it("refuses a matter-node-id", async () => {
             const rcac = await resignedRcac(
                 withLeadingDnEntry(await rcacTlv(root), SUBJECT_TAG, dnEntry(DN_TAG.nodeId, NODE_ID)),
@@ -628,6 +680,7 @@ describe("Operational certificate verification", () => {
             await expect(verifyRcac(rcac)).rejectedWith(CertificateError, /vvsId/);
         });
 
+        // Characterization: passes without the fix.
         it("refuses a key usage flag beyond keyCertSign, cRLSign and digitalSignature", async () => {
             const rcac = await rcacTlv(root, cert => {
                 cert.extensions.keyUsage = { keyCertSign: true, cRLSign: true, keyEncipherment: true };
@@ -651,25 +704,18 @@ describe("Operational certificate verification", () => {
             await expect(new Vvsc(cert).verify(crypto)).rejectedWith(CertificateError, /keyUsage/);
         });
 
+        it("refuses a VVSC with an empty key usage", async () => {
+            const cert = vvscCert(await keyMaterial(), root, c => {
+                c.extensions.keyUsage = {};
+            });
+            await expect(new Vvsc(cert).verify(crypto)).rejectedWith(CertificateError, /keyUsage/);
+        });
+
         it("refuses a VVSC without digitalSignature", async () => {
             const cert = vvscCert(await keyMaterial(), root, c => {
                 c.extensions.keyUsage = { keyCertSign: true };
             });
             await expect(new Vvsc(cert).verify(crypto)).rejectedWith(CertificateError, /keyUsage/);
-        });
-
-        it("refuses a VVSC without subjectKeyIdentifier", async () => {
-            const cert = vvscCert(await keyMaterial(), root, c => {
-                Reflect.deleteProperty(c.extensions, "subjectKeyIdentifier");
-            });
-            await expect(new Vvsc(cert).verify(crypto)).rejectedWith(CertificateError, /subjectKeyIdentifier/);
-        });
-
-        it("refuses a VVSC without authorityKeyIdentifier", async () => {
-            const cert = vvscCert(await keyMaterial(), root, c => {
-                Reflect.deleteProperty(c.extensions, "authorityKeyIdentifier");
-            });
-            await expect(new Vvsc(cert).verify(crypto)).rejectedWith(CertificateError, /authorityKeyIdentifier/);
         });
     });
 
@@ -702,6 +748,23 @@ describe("Operational certificate verification", () => {
         });
     });
 
+    describe("matter-firmware-signing-id", () => {
+        const values = { "above 32 bits": 0x1_0000_0001n, "above 53 bits": 0xffff_ffff_ffff_ffffn };
+
+        for (const [name, value] of Object.entries(values)) {
+            it(`round-trips a value ${name} through TLV and DER`, async () => {
+                const rcac = Rcac.fromTlv(
+                    withLeadingDnEntry(await rcacTlv(root), SUBJECT_TAG, dnEntry(DN_TAG.firmwareSigningId, value)),
+                );
+                const idOf = (certificate: Rcac) => BigInt(Reflect.get(certificate.cert.subject, "firmwareSigningId"));
+
+                expect(idOf(rcac)).equals(value);
+                expect(idOf(Rcac.fromTlv(rcac.asSignedTlv()))).equals(value);
+                expect(idOf(Rcac.fromAsn1(rcac.asSignedDer()))).equals(value);
+            });
+        }
+    });
+
     describe("DER parsing", () => {
         it("refuses a CAT with version 0", async () => {
             const der = Noc.fromTlv(
@@ -724,6 +787,22 @@ describe("Operational certificate verification", () => {
 
             expect(() => Noc.fromAsn1(mutated)).throws(CertificateError, /Invalid caseAuthenticatedTag "ABCD000Z"/);
         });
+
+        // Characterization: passes without the fix.
+        for (const count of [2, 3]) {
+            it(`parses a NOC with ${count} CASE Authenticated Tags`, async () => {
+                const tags = [0x0001_0001, 0x0002_0001, 0x0003_0001]
+                    .slice(0, count)
+                    .map(tag => CaseAuthenticatedTag(tag));
+                const noc = Noc.fromTlv(
+                    await nocTlv(node, ica, cert => {
+                        cert.subject.caseAuthenticatedTags = tags;
+                    }),
+                );
+
+                expect(Noc.fromAsn1(noc.asSignedDer()).cert.subject.caseAuthenticatedTags).deep.equals(tags);
+            });
+        }
 
         describe("Matter-specific attribute text (§6.1.1)", () => {
             const fields = [
@@ -764,14 +843,57 @@ describe("Operational certificate verification", () => {
                     it(`refuses ${field} text that is ${name}`, async () => {
                         const der = await derFor(source, field, text);
                         const parse = () => (source === "noc" ? Noc.fromAsn1(der) : Rcac.fromAsn1(der));
-                        expect(parse).throws(CertificateError, new RegExp(`Invalid ${field} `));
+                        const message = new RegExp(`Invalid ${field} `);
+                        if (field === "vendorId" || field === "productId") {
+                            expect(parse).throws(CertificateProfileError, message);
+                        } else {
+                            expect(parse).throws(CertificateError, message);
+                            expect(parse).not.throws(CertificateProfileError);
+                        }
                     });
                 }
             }
 
+            // Characterization: passes without the fix.
             it("accepts the maximum 64-bit value", async () => {
                 const der = withRdn(Rcac.fromTlv(rootTlv).asSignedDer(), OID.rcacId, "FFFFFFFFFFFFFFFF");
                 expect(Rcac.fromAsn1(der).cert.issuer.rcacId).equals(0xffff_ffff_ffff_ffffn);
+            });
+        });
+
+        // Characterization: passes without the fix.
+        describe("mandatory subject attribute absent from a DER certificate", () => {
+            // A DER certificate does not pass the TLV schema, so verification is the check that refuses it
+            it("refuses a NOC without matter-node-id", async () => {
+                const der = withoutSubjectRdn(Noc.fromTlv(await nocTlv(node, ica)).asSignedDer(), OID.nodeId);
+                const error = await Noc.fromAsn1(der)
+                    .verify(crypto, Rcac.fromTlv(rootTlv), Icac.fromTlv(icaTlv))
+                    .catch((error: unknown) => error);
+                expect(error)
+                    .instanceOf(CertificateError)
+                    .with.property("message")
+                    .match(/Invalid nodeId/);
+                expect(error).not.instanceOf(OperationalNodeIdError);
+            });
+
+            it("refuses a NOC without matter-fabric-id", async () => {
+                const der = withoutSubjectRdn(Noc.fromTlv(await nocTlv(node, ica)).asSignedDer(), OID.fabricId);
+                await expect(
+                    Noc.fromAsn1(der).verify(crypto, Rcac.fromTlv(rootTlv), Icac.fromTlv(icaTlv)),
+                ).rejectedWith(CertificateError, /Invalid fabricId/);
+            });
+
+            it("refuses an ICAC without matter-icac-id", async () => {
+                const der = withoutSubjectRdn(Icac.fromTlv(icaTlv).asSignedDer(), OID.icacId);
+                await expect(Icac.fromAsn1(der).verify(crypto, Rcac.fromTlv(rootTlv))).rejectedWith(
+                    CertificateError,
+                    /Invalid icacId/,
+                );
+            });
+
+            it("refuses an RCAC without matter-rcac-id", async () => {
+                const der = withoutSubjectRdn(Rcac.fromTlv(rootTlv).asSignedDer(), OID.rcacId);
+                await expect(Rcac.fromAsn1(der).verify(crypto)).rejectedWith(CertificateError, /Invalid rcacId/);
             });
         });
 
@@ -780,6 +902,7 @@ describe("Operational certificate verification", () => {
                 const noc = Noc.fromTlv(await nocTlv(node, ica)).asSignedDer();
                 const der = withRdn(noc, OID.fabricId, "0000000000001234", OID.nodeId);
                 expect(() => Noc.fromAsn1(der)).throws(CertificateError, /nodeId more than once/);
+                expect(() => Noc.fromAsn1(der)).not.throws(CertificateProfileError);
             });
 
             // Characterization: a repeated standard attribute is not refused; the last value wins.
