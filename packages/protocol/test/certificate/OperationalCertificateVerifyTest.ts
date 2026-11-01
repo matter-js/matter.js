@@ -79,10 +79,30 @@ function commonFields(publicKey: Bytes) {
     };
 }
 
-type Mutate<T> = (cert: Unsigned<T>) => void;
+/** Only VendorID and ProductID violations are a {@link CertificateProfileError}; other repeats are a plain {@link CertificateError}. */
+async function expectPlainCertificateError(result: Promise<unknown>, message: RegExp) {
+    const error = await result.then(
+        () => expect.fail("Expected a rejection"),
+        (error: unknown) => error,
+    );
+    if (!(error instanceof CertificateError)) {
+        expect.fail(`Expected a CertificateError, got ${error}`);
+    }
+    expect(error).not.instanceOf(CertificateProfileError);
+    expect(error.message).match(message);
+}
+
+/** A certificate under construction: its subject and issuer can still be changed. */
+type Unfrozen<T> = {
+    -readonly [K in keyof T]: T[K] extends readonly (infer U)[] | undefined ? U[] | undefined : T[K];
+};
+type Building<T> = {
+    [K in keyof Unsigned<T>]: K extends "subject" | "issuer" ? Unfrozen<Unsigned<T>[K]> : Unsigned<T>[K];
+};
+type Mutate<T> = (cert: Building<T>) => void;
 
 async function rcacTlv(root: KeyMaterial, mutate?: Mutate<OperationalCertificate.Rcac>) {
-    const cert: Unsigned<OperationalCertificate.Rcac> = {
+    const cert: Building<OperationalCertificate.Rcac> = {
         ...commonFields(root.key.publicKey),
         issuer: { rcacId: ROOT_ID },
         subject: { rcacId: ROOT_ID },
@@ -100,7 +120,7 @@ async function rcacTlv(root: KeyMaterial, mutate?: Mutate<OperationalCertificate
 }
 
 async function icacTlv(ica: KeyMaterial, root: KeyMaterial, mutate?: Mutate<OperationalCertificate.Icac>) {
-    const cert: Unsigned<OperationalCertificate.Icac> = {
+    const cert: Building<OperationalCertificate.Icac> = {
         ...commonFields(ica.key.publicKey),
         issuer: { rcacId: ROOT_ID },
         subject: { icacId: ICAC_ID },
@@ -118,7 +138,7 @@ async function icacTlv(ica: KeyMaterial, root: KeyMaterial, mutate?: Mutate<Oper
 }
 
 async function nocTlv(node: KeyMaterial, issuer: KeyMaterial, mutate?: Mutate<OperationalCertificate.Noc>) {
-    const cert: Unsigned<OperationalCertificate.Noc> = {
+    const cert: Building<OperationalCertificate.Noc> = {
         ...commonFields(node.key.publicKey),
         issuer: { icacId: ICAC_ID },
         subject: { nodeId: NODE_ID, fabricId: FABRIC_ID },
@@ -141,7 +161,7 @@ function vvscCert(
     root: KeyMaterial,
     mutate?: Mutate<OperationalCertificate.Vvsc>,
 ): Unsigned<OperationalCertificate.Vvsc> {
-    const cert: Unsigned<OperationalCertificate.Vvsc> = {
+    const cert: Building<OperationalCertificate.Vvsc> = {
         ...commonFields(vvs.key.publicKey),
         issuer: { rcacId: ROOT_ID },
         subject: { vvsId: VVS_ID },
@@ -549,7 +569,7 @@ describe("Operational certificate verification", () => {
 
         it("refuses a second matter-node-id", async () => {
             const noc = withLeadingDnEntry(await nocTlv(node, ica), SUBJECT_TAG, dnEntry(DN_TAG.nodeId, 0x5678));
-            await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(CertificateError, /nodeId more than once/);
+            await expectPlainCertificateError(verifyNoc(noc, rootTlv, icaTlv), /nodeId more than once/);
         });
 
         it("refuses a second matter-fabric-id", async () => {
@@ -560,7 +580,7 @@ describe("Operational certificate verification", () => {
                 SUBJECT_TAG,
                 dnEntry(DN_TAG.fabricId, 2),
             );
-            await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(CertificateError, /fabricId more than once/);
+            await expectPlainCertificateError(verifyNoc(noc, rootTlv, icaTlv), /fabricId more than once/);
         });
 
         // Characterization: passes without the fix.
@@ -588,7 +608,7 @@ describe("Operational certificate verification", () => {
 
         it("refuses a second matter-icac-id in the issuer DN", async () => {
             const noc = withLeadingDnEntry(await nocTlv(node, ica), ISSUER_TAG, dnEntry(DN_TAG.icacId, 9));
-            await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(CertificateError, /icacId more than once/);
+            await expectPlainCertificateError(verifyNoc(noc, rootTlv, icaTlv), /icacId more than once/);
         });
     });
 
@@ -611,7 +631,7 @@ describe("Operational certificate verification", () => {
 
         it("refuses a second matter-icac-id", async () => {
             const icac = withLeadingDnEntry(await icacTlv(ica, root), SUBJECT_TAG, dnEntry(DN_TAG.icacId, 9));
-            await expect(verifyIcac(icac, rootTlv)).rejectedWith(CertificateError, /icacId more than once/);
+            await expectPlainCertificateError(verifyIcac(icac, rootTlv), /icacId more than once/);
         });
 
         it("refuses a second matter-fabric-id", async () => {
@@ -622,7 +642,7 @@ describe("Operational certificate verification", () => {
                 SUBJECT_TAG,
                 dnEntry(DN_TAG.fabricId, 2),
             );
-            await expect(verifyIcac(icac, rootTlv)).rejectedWith(CertificateError, /fabricId more than once/);
+            await expectPlainCertificateError(verifyIcac(icac, rootTlv), /fabricId more than once/);
         });
 
         // Characterization: passes without the fix.
@@ -655,7 +675,7 @@ describe("Operational certificate verification", () => {
 
         it("refuses a second matter-rcac-id", async () => {
             const rcac = withLeadingDnEntry(await rcacTlv(root), SUBJECT_TAG, dnEntry(DN_TAG.rcacId, 9));
-            await expect(verifyRcac(rcac)).rejectedWith(CertificateError, /rcacId more than once/);
+            await expectPlainCertificateError(verifyRcac(rcac), /rcacId more than once/);
         });
 
         it("refuses a second matter-fabric-id", async () => {
@@ -666,7 +686,7 @@ describe("Operational certificate verification", () => {
                 SUBJECT_TAG,
                 dnEntry(DN_TAG.fabricId, 2),
             );
-            await expect(verifyRcac(rcac)).rejectedWith(CertificateError, /fabricId more than once/);
+            await expectPlainCertificateError(verifyRcac(rcac), /fabricId more than once/);
         });
 
         // Characterization: passes without the fix.
@@ -729,7 +749,7 @@ describe("Operational certificate verification", () => {
                 SUBJECT_TAG,
                 dnEntry(DN_TAG.vvsId, 9),
             );
-            await expect(verifyVvsc(vvsc)).rejectedWith(CertificateError, /vvsId more than once/);
+            await expectPlainCertificateError(verifyVvsc(vvsc), /vvsId more than once/);
         });
 
         it("refuses a matter-node-id", async () => {

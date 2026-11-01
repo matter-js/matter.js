@@ -383,8 +383,8 @@ export const TlvTaggedList = <F extends TlvFields>(fields: F, allowProtocolSpeci
 
 /**
  * Variant of {@link TlvTaggedList} that preserves caller-supplied member order on encode. Use only when wire-position
- * is application data that must round-trip bit-identically — e.g. operational-certificate subject/issuer/extensions
- * sub-lists, whose signed bytes depend on original member order.
+ * is application data that must round-trip bit-identically — e.g. a list inside signed data, whose signed bytes
+ * depend on the original member order.
  *
  * Decoding throws {@link UnexpectedDataError} when a field that is not repeated occurs more than once, because the
  * object form holds only one value and so cannot round-trip such a list.

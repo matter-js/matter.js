@@ -293,7 +293,8 @@ export namespace Certificate {
      * Parse a subject or issuer field from ASN.1 DER format.
      *
      * Attributes of an unknown type are left out.  A malformed VendorID or ProductID is left out too with
-     * `acceptProfileViolation`, and makes that field undefined.
+     * `acceptProfileViolation`, and makes that field undefined.  A domainComponent is read whatever its string type,
+     * as the CHIP SDK does, and is encoded as IA5String.
      */
     function parseSubjectOrIssuer(node: DerNode, acceptProfileViolation: boolean) {
         const { _elements: rdnSequence } = node;
@@ -354,7 +355,7 @@ export namespace Certificate {
                         break;
                     default:
                         value = text;
-                        if (valueNode._tag === DerType.PrintableString) {
+                        if (valueNode._tag === DerType.PrintableString && field !== "domainComponent") {
                             field += "Ps";
                         }
                 }

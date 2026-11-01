@@ -74,14 +74,20 @@ export function parseMatterFallbackVidPid(commonName: string, prefix: "Mvid:" | 
  * |                                         | repeated standard attribute, all CATs in an array       |              |
  * | RDN list (`rdns` of a decoded DN)       | every RDN in encoded order, repeats included            | re-encoding  |
  *
- * Standard attributes such as commonName or organizationalUnitName may repeat (RFC 5280 § 4.1.2.4).  Only the RDN list
- * keeps all of them, and only the RDN list keeps each CAT at its position between other attributes, so a re-encoded
- * certificate matches the bytes its issuer signed, in TLV and in DER.
+ * Standard attributes such as commonName or organizationalUnitName may repeat, as the `Name` structure of X.509 allows.
+ * Only the RDN list keeps all of them, and only the RDN list keeps each CAT at its position between other attributes,
+ * so a re-encoded certificate matches the bytes its issuer signed, in TLV and in DER.
  *
- * A DER DN re-encodes differently when it has an attribute of a type the decoder does not know, a VendorID or
- * ProductID that was malformed and accepted as a profile violation, or an RDN of more than one attribute (a Matter
- * certificate "SHALL be always a single DN attribute", § 6.5.6.1).  The decoder leaves such attributes out of the RDN
- * list.  Signature verification of a DER certificate uses its original bytes, so only conversion to TLV is affected.
+ * A DER DN can re-encode differently.  The list is not complete.  Known cases are:
+ *
+ * - an attribute of a type the decoder does not know, which the decoder leaves out of the RDN list
+ * - a VendorID or ProductID that was malformed and accepted as a profile violation, which is left out too
+ * - an RDN of more than one attribute (a Matter certificate "SHALL be always a single DN attribute", § 6.5.6.1), which
+ *   the decoder splits into one RDN per attribute
+ * - a string type other than the one the encoder writes, such as a PrintableString VendorID or a domainComponent that
+ *   is not an IA5String
+ *
+ * Signature verification of a DER certificate uses its original bytes, so only conversion to TLV is affected.
  *
  * A DN built in code has no RDN list and encodes from its properties in property order.
  *
@@ -147,14 +153,25 @@ export namespace DistinguishedName {
         readonly rdns?: readonly Rdn[];
     }
 
-    /** The object view of a DN. */
-    export type View = { [K in StringAttribute]?: string } & { [K in IdentifierAttribute]?: number | bigint } & {
-        nodeId?: NodeId;
-        fabricId?: FabricId;
-        caseAuthenticatedTags?: CaseAuthenticatedTag[];
-        vendorId?: VendorId;
-        productId?: number;
+    /** The object view of a DN.  A decoded DN is frozen, so its properties are read-only. */
+    export type View = { readonly [K in StringAttribute]?: string } & {
+        readonly [K in IdentifierAttribute]?: number | bigint;
+    } & {
+        readonly nodeId?: NodeId;
+        readonly fabricId?: FabricId;
+        readonly caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
+        readonly vendorId?: VendorId;
+        readonly productId?: number;
     } & Decoded;
+
+    /** The type of a decoded DN whose attributes are the fields of a TLV schema: read-only, arrays included. */
+    export type Frozen<T> = {
+        readonly [K in keyof T]: T[K] extends (infer U)[] | undefined
+            ? undefined extends T[K]
+                ? readonly U[] | undefined
+                : readonly U[]
+            : T[K];
+    };
 
     /**
      * The RDN list of a DN that a decoder returned, or undefined for a DN built in code.  Use this
@@ -170,7 +187,7 @@ export namespace DistinguishedName {
      *
      * @see {@link MatterSpecification.v161.Core} § 6.5.6.3
      */
-    export function rdnCount(dn: Decoded) {
+    export function rdnCount(dn: View) {
         const rdns = rdnsOf(dn);
         if (rdns !== undefined) {
             return rdns.length;
@@ -184,6 +201,8 @@ export namespace DistinguishedName {
         return count;
     }
 }
+
+type Mutable<T> = { -readonly [K in keyof T]: T[K] extends readonly (infer U)[] | undefined ? U[] | undefined : T[K] };
 
 type VidPidAttribute = "vendorId" | "productId";
 
@@ -208,11 +227,12 @@ export interface DnDecodeOptions {
  * Build the frozen object view of a DN from its RDN list, with the list as `rdns`.  The TLV and the DER decoder both use
  * this, so these rules hold for either encoding:
  *
- * - A Matter-specific attribute other than matter-noc-cat occurs at most once (§ 6.5.6.3).  A repeated VendorID or
- *   ProductID throws {@link CertificateProfileError}, any other {@link CertificateError}.
+ * - A Matter-specific attribute other than matter-noc-cat occurs at most once (§ 6.5.6.3 for node, fabric, icac, rcac,
+ *   vvs and noc-cat; § 6.2.2.3 and § 6.2.2.4 for VendorID and ProductID).  A repeated VendorID or ProductID throws
+ *   {@link CertificateProfileError} unless `acceptProfileViolation` is set, any other repeat {@link CertificateError}.
  * - A standard attribute may repeat.  The object view holds its first value.
  * - With {@link DnDecodeOptions.vidPidFallback}, VendorID and ProductID come from the first commonName that carries
- *   either of them; see {@link fallbackVidPid}.
+ *   a VendorID or ProductID; see {@link fallbackVidPid}.
  *
  * @see {@link MatterSpecification.v161.Core} § 6.2.2.2
  */
@@ -221,7 +241,7 @@ export function decodeDistinguishedName(
     options: DnDecodeOptions = {},
 ): DistinguishedName.View {
     const { acceptProfileViolation = false, vidPidFallback = false } = options;
-    const view: DistinguishedName.View = {};
+    const view: Mutable<DistinguishedName.View> = {};
     const unusable = new Set<VidPidAttribute>(options.malformed);
     const matterAttributes = new Set<DistinguishedName.Rdn["type"]>();
 
@@ -273,12 +293,9 @@ export function decodeDistinguishedName(
     }
 
     if (vidPidFallback) {
-        const commonNames = rdns.flatMap(rdn =>
-            rdn.type === "commonName" || rdn.type === "commonNamePs" ? [rdn.value] : [],
-        );
-        const { vendorId, productId } = fallbackVidPid(commonNames);
+        const { vendorId, productId } = fallbackVidPid(commonNamesOf(rdns));
         if (vendorId !== undefined) {
-            view.vendorId = VendorId(vendorId);
+            view.vendorId = VendorId(vendorId, false);
         }
         if (productId !== undefined) {
             view.productId = productId;
@@ -315,9 +332,13 @@ function isMatterAttribute(type: DistinguishedName.Rdn["type"]) {
 /** Maximum number of bytes of a commonName that CHIP searches for `Mvid:` and `Mpid:` (`kMax_CommonNameAttr_Length`). */
 const MAX_FALLBACK_COMMON_NAME_BYTES = 64;
 
+function commonNamesOf(rdns: readonly { type: string; value: unknown }[]) {
+    return rdns.flatMap(({ type, value }) => (type === "commonName" || type === "commonNamePs" ? [String(value)] : []));
+}
+
 /**
- * VendorID and ProductID from the first commonName that carries either one ("fallback method", § 6.2.2.2).  Later
- * commonNames are not read, and the first 64 bytes of a commonName are searched.
+ * VendorID and ProductID from the first commonName that carries a VendorID or ProductID ("fallback method",
+ * § 6.2.2.2).  Later commonNames are not read, and the first 64 bytes of a commonName are searched.
  *
  * The specification does not say how to read more than one commonName.  This follows the CHIP SDK,
  * `ExtractVIDPIDFromAttributeString` in `src/crypto/CHIPCryptoPAL.cpp`, which stops at the first commonName with a
@@ -325,7 +346,7 @@ const MAX_FALLBACK_COMMON_NAME_BYTES = 64;
  *
  * @throws CertificateError if a commonName read has a prefix without a correctly encoded value
  */
-function fallbackVidPid(commonNames: string[]): { vendorId?: number; productId?: number } {
+function fallbackVidPid(commonNames: readonly string[]): { vendorId?: number; productId?: number } {
     for (const commonName of commonNames) {
         const searched = Bytes.toString(
             Bytes.of(Bytes.fromString(commonName)).subarray(0, MAX_FALLBACK_COMMON_NAME_BYTES),
@@ -398,14 +419,13 @@ export function rdnOf(type: string, value: any): DistinguishedName.Rdn | undefin
 
 /**
  * The RDN list a DN built in code encodes to: one RDN per property in property order and one per CAT.  A VendorID or
- * ProductID property is left out when the commonName carries it ("fallback method", § 6.2.2.2).
+ * ProductID property is left out when a commonName carries a VendorID or ProductID ("fallback method", § 6.2.2.2), found by {@link fallbackVidPid}.
  */
 function rdnsOfProperties(dn: DistinguishedName.View) {
-    const commonName = dn.commonName ?? dn.commonNamePs;
-    const usesFallbackVidPid =
-        commonName !== undefined &&
-        (parseMatterFallbackVidPid(commonName, "Mvid:") !== undefined ||
-            parseMatterFallbackVidPid(commonName, "Mpid:") !== undefined);
+    const { vendorId, productId } = fallbackVidPid(
+        commonNamesOf(Object.entries(dn).map(([type, value]) => ({ type, value }))),
+    );
+    const usesFallbackVidPid = vendorId !== undefined || productId !== undefined;
 
     const rdns = new Array<DistinguishedName.Rdn>();
     for (const [name, value] of Object.entries(dn)) {
@@ -532,7 +552,7 @@ function rdnToAsn1(rdn: DistinguishedName.Rdn) {
  * view against `fields`, so mandatory attributes and the maximum number of CATs are enforced as for a tagged list.
  */
 export class DistinguishedNameSchema<F extends TlvFields> extends TlvSchema<
-    TypeFromFields<F> & DistinguishedName.Decoded
+    DistinguishedName.Frozen<TypeFromFields<F>> & DistinguishedName.Decoded
 > {
     readonly #fields: F;
     readonly #properties: ObjectSchema<TlvFields>;
@@ -547,13 +567,13 @@ export class DistinguishedNameSchema<F extends TlvFields> extends TlvSchema<
         }
     }
 
-    override validate(value: TypeFromFields<F> & DistinguishedName.Decoded) {
+    override validate(value: DistinguishedName.Frozen<TypeFromFields<F>> & DistinguishedName.Decoded) {
         this.#properties.validate(value);
     }
 
     override encodeTlvInternal(
         writer: TlvWriter,
-        value: TypeFromFields<F> & DistinguishedName.Decoded,
+        value: DistinguishedName.Frozen<TypeFromFields<F>> & DistinguishedName.Decoded,
         tag?: TlvTag,
         options?: TlvEncodingOptions,
     ) {
@@ -577,7 +597,7 @@ export class DistinguishedNameSchema<F extends TlvFields> extends TlvSchema<
     override decodeTlvInternalValue(
         reader: TlvReader,
         typeLength: TlvTypeLength,
-    ): TypeFromFields<F> & DistinguishedName.Decoded {
+    ): DistinguishedName.Frozen<TypeFromFields<F>> & DistinguishedName.Decoded {
         if (typeLength.type !== TlvType.List) {
             throw new UnexpectedDataError(`Unexpected type ${typeLength.type} (expected ${TlvType.List}).`);
         }
@@ -611,7 +631,9 @@ export class DistinguishedNameSchema<F extends TlvFields> extends TlvSchema<
     }
 
     /** Validates during decode too, even with `decode(bytes, false)`, because the view is built without the field types. */
-    #assertFields(view: DistinguishedName.View): asserts view is DistinguishedName.View & TypeFromFields<F> {
+    #assertFields(
+        view: DistinguishedName.View,
+    ): asserts view is DistinguishedName.View & DistinguishedName.Frozen<TypeFromFields<F>> {
         this.#properties.validate(view);
     }
 }

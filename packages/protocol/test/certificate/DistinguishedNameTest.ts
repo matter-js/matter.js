@@ -4,10 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { CertificateProfileError } from "#certificate/kinds/Certificate.js";
 import { Unsigned } from "#certificate/kinds/common.js";
-import { FabricId_Matter, jsToMatterDate, NocCat_Matter, NodeId_Matter } from "#certificate/kinds/definitions/asn.js";
+import {
+    FabricId_Matter,
+    FirmwareSigningId_Matter,
+    jsToMatterDate,
+    NocCat_Matter,
+    NodeId_Matter,
+    RcacId_Matter,
+    VendorId_Matter,
+} from "#certificate/kinds/definitions/asn.js";
 import { OperationalCertificate } from "#certificate/kinds/definitions/operational.js";
-import { DistinguishedName } from "#certificate/kinds/DistinguishedName.js";
+import {
+    DistinguishedName,
+    distinguishedNameToAsn1,
+    TlvDistinguishedName,
+} from "#certificate/kinds/DistinguishedName.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
 import {
@@ -24,10 +37,29 @@ import {
     RawBytes,
     StandardCrypto,
     Time,
+    UnexpectedDataError,
     X520,
     X962,
 } from "@matter/general";
-import { CaseAuthenticatedTag, FabricId, NodeId, TlvAny, TlvType } from "@matter/types";
+import {
+    CaseAuthenticatedTag,
+    FabricId,
+    NodeId,
+    TlvAny,
+    TlvCaseAuthenticatedTag,
+    TlvField,
+    TlvFabricId,
+    TlvNodeId,
+    TlvOptionalField,
+    TlvOptionalRepeatedField,
+    TlvString,
+    TlvType,
+    TlvUInt64,
+    ValidationDatatypeMismatchError,
+    ValidationMandatoryFieldMissingError,
+    ValidationOutOfBoundsError,
+    VendorId,
+} from "@matter/types";
 
 const crypto = new StandardCrypto();
 
@@ -38,11 +70,13 @@ const CAT_A = CaseAuthenticatedTag(0x0001_0001);
 const CAT_B = CaseAuthenticatedTag(0x0002_0001);
 const CAT_C = CaseAuthenticatedTag(0x0003_0001);
 
+const ISSUER_TAG = 3;
 const SUBJECT_TAG = 6;
+const ISSUER_ELEMENT = 3;
 const SUBJECT_ELEMENT = 5;
 
 /** TLV tags of the DN attributes (Matter Core § 6.5.6.1) */
-const DN_TAG = { commonName: 1, orgUnitName: 8, domainComponent: 16, nodeId: 17, fabricId: 21, cat: 22 };
+const DN_TAG = { commonName: 1, orgUnitName: 8, domainComponent: 16, nodeId: 17, rcacId: 20, fabricId: 21, cat: 22 };
 
 /** domain-component, 0.9.2342.19200300.100.1.25, written out so the test does not use the encoder under test */
 function domainComponent(value: string) {
@@ -124,9 +158,16 @@ function nocCert({ root, node }: Chain): Unsigned<OperationalCertificate.Noc> {
  * A NOC in DER whose subject has the RDNs of `subject` in that order, signed by the root.  The subject is written with
  * the DER codec, not with the DN encoder under test.
  */
-async function nocDer(chain: Chain, subject: Record<string, DerNodeDefinition>) {
+async function nocDer(
+    chain: Chain,
+    subject: Record<string, DerNodeDefinition>,
+    issuer?: Record<string, DerNodeDefinition>,
+) {
     const tbs = DerCodec.decode(new Noc(nocCert(chain)).asUnsignedDer());
     tbs._elements![SUBJECT_ELEMENT] = DerCodec.decode(DerCodec.encode(subject));
+    if (issuer !== undefined) {
+        tbs._elements![ISSUER_ELEMENT] = DerCodec.decode(DerCodec.encode(issuer));
+    }
     const tbsBytes = reencode(tbs);
     const signature = await crypto.signEcdsa(chain.root.key, tbsBytes);
     return DerCodec.encode({
@@ -138,8 +179,12 @@ async function nocDer(chain: Chain, subject: Record<string, DerNodeDefinition>) 
 
 /** The tags of the subject DN entries of a Matter-TLV certificate, in encoded order. */
 function subjectTags(tlv: Bytes) {
+    return dnTags(tlv, SUBJECT_TAG);
+}
+
+function dnTags(tlv: Bytes, dnTag: number) {
     const stream = TlvAny.decode(tlv);
-    const start = stream.findIndex(({ tag }, index) => index > 0 && tag?.id === SUBJECT_TAG);
+    const start = stream.findIndex(({ tag }, index) => index > 0 && tag?.id === dnTag);
     const tags = new Array<number | undefined>();
     for (let index = start + 1; stream[index].typeLength.type !== TlvType.EndOfContainer; index++) {
         tags.push(stream[index].tag?.id);
@@ -289,10 +334,8 @@ describe("Certificate distinguished name", () => {
 
         it("refuses a change in place", async () => {
             const { subject } = await decodedNoc(await chain());
-            expect(() => {
-                subject.orgUnitName = "Changed";
-            }).throws(TypeError);
-            expect(() => subject.caseAuthenticatedTags?.push(CAT_B)).throws(TypeError);
+            expect(() => Object.assign(subject, { orgUnitName: "Changed" })).throws(TypeError);
+            expect(() => Array.prototype.push.call(subject.caseAuthenticatedTags, CAT_B)).throws(TypeError);
             expect(Object.isFrozen(subject.rdns)).true;
         });
 
@@ -305,6 +348,319 @@ describe("Certificate distinguished name", () => {
             expect(subjectTags(tlv)).deep.equals([DN_TAG.cat, DN_TAG.nodeId, DN_TAG.orgUnitName, DN_TAG.fabricId]);
             expect(Noc.fromTlv(tlv).cert.subject.orgUnitName).equals("Changed");
             await verify(tlv, keys);
+        });
+    });
+
+    describe("PrintableString attributes", () => {
+        const PRINTABLE_STRING_ATTRIBUTES = {
+            commonNamePs: X520.CommonName,
+            surNamePs: X520.SurName,
+            serialNumPs: X520.SerialNumber,
+            countryNamePs: X520.CountryName,
+            localityNamePs: X520.LocalityName,
+            stateOrProvinceNamePs: X520.StateOrProvinceName,
+            orgNamePs: X520.OrganisationName,
+            orgUnitNamePs: X520.OrganizationalUnitName,
+            titlePs: X520.Title,
+            namePs: X520.Name,
+            givenNamePs: X520.GivenName,
+            initialsPs: X520.Initials,
+            genQualifierPs: X520.GenerationQualifier,
+            dnQualifierPs: X520.DnQualifier,
+            pseudonymPs: X520.Pseudonym,
+        };
+
+        for (const [name, attribute] of Object.entries(PRINTABLE_STRING_ATTRIBUTES)) {
+            it(`round trips ${name} from DER to TLV to DER`, async () => {
+                const keys = await chain();
+                const der = await nocDer(keys, {
+                    nodeId: NodeId_Matter(NODE_ID),
+                    fabricId: FabricId_Matter(FABRIC_ID),
+                    attribute: attribute("Text", true),
+                });
+
+                const tlv = Noc.fromAsn1(der).asSignedTlv();
+
+                expect(DistinguishedName.rdnsOf(Noc.fromTlv(tlv).cert.subject)?.map(({ type }) => type)).deep.equals([
+                    "nodeId",
+                    "fabricId",
+                    name,
+                ]);
+                expect(Bytes.toHex(Noc.fromTlv(tlv).asSignedDer())).equals(Bytes.toHex(der));
+            });
+        }
+
+        it("round trips a commonNamePs that carries a VendorID and a ProductID", async () => {
+            const keys = await chain();
+            const der = await nocDer(keys, {
+                nodeId: NodeId_Matter(NODE_ID),
+                fabricId: FabricId_Matter(FABRIC_ID),
+                commonName: X520.CommonName("Mvid:FFF1 Mpid:8000", true),
+            });
+
+            const noc = Noc.fromAsn1(der);
+            const tlv = noc.asSignedTlv();
+            const derSubject: DistinguishedName.View = noc.cert.subject;
+            const tlvSubject: DistinguishedName.View = Noc.fromTlv(tlv).cert.subject;
+
+            expect(derSubject.vendorId).equals(0xfff1);
+            expect(tlvSubject.vendorId).undefined;
+            expect(subjectTags(tlv)).deep.equals([DN_TAG.nodeId, DN_TAG.fabricId, 129]);
+            expect(Bytes.toHex(Noc.fromTlv(tlv).asSignedDer())).equals(Bytes.toHex(der));
+        });
+
+        it("reads a PrintableString domainComponent as domainComponent", async () => {
+            const keys = await chain();
+            const der = await nocDer(keys, {
+                nodeId: NodeId_Matter(NODE_ID),
+                fabricId: FabricId_Matter(FABRIC_ID),
+                dc: [
+                    DerObject("0992268993F22C640119", { value: DatatypeOverride(DerType.PrintableString, "example") }),
+                ],
+            });
+
+            const noc = Noc.fromAsn1(der);
+
+            expect(noc.cert.subject.domainComponent).equals("example");
+            expect(subjectTags(noc.asSignedTlv())).deep.equals([
+                DN_TAG.nodeId,
+                DN_TAG.fabricId,
+                DN_TAG.domainComponent,
+            ]);
+        });
+    });
+
+    describe("an issuer", () => {
+        it("round trips repeated attributes and interleaved CATs and verifies the signature", async () => {
+            const keys = await chain();
+            const der = await nocDer(
+                keys,
+                { nodeId: NodeId_Matter(NODE_ID), fabricId: FabricId_Matter(FABRIC_ID) },
+                {
+                    cn1: X520.CommonName("Issuer A"),
+                    catA: NocCat_Matter(CAT_A),
+                    rcacId: RcacId_Matter(ROOT_ID),
+                    ou1: X520.OrganizationalUnitName("Unit"),
+                    catB: NocCat_Matter(CAT_B),
+                    cn2: X520.CommonName("Issuer B"),
+                },
+            );
+            const rootKey = Rcac.fromTlv(keys.rootTlv).publicKey;
+
+            const tlv = Noc.fromAsn1(der).asSignedTlv();
+
+            expect(dnTags(tlv, ISSUER_TAG)).deep.equals([
+                DN_TAG.commonName,
+                DN_TAG.cat,
+                DN_TAG.rcacId,
+                DN_TAG.orgUnitName,
+                DN_TAG.cat,
+                DN_TAG.commonName,
+            ]);
+            expect(Bytes.toHex(Noc.fromTlv(tlv).asSignedDer())).equals(Bytes.toHex(der));
+            expect(Bytes.toHex(Noc.fromTlv(tlv).asSignedTlv())).equals(Bytes.toHex(tlv));
+            await Noc.fromAsn1(der).verifySignature(crypto, rootKey);
+            await Noc.fromTlv(tlv).verifySignature(crypto, rootKey);
+        });
+    });
+
+    describe("a DN built in code", () => {
+        const fiveRdns: DistinguishedName.View = {
+            nodeId: NODE_ID,
+            fabricId: FABRIC_ID,
+            caseAuthenticatedTags: [CAT_A, CAT_B, CAT_C],
+        };
+
+        async function verifyInMemory(subject: Unsigned<OperationalCertificate.Noc>["subject"]) {
+            const keys = await chain();
+            const noc = new Noc({ ...nocCert(keys), subject });
+            await noc.sign(crypto, keys.root.key);
+            await noc.verify(crypto, Rcac.fromTlv(keys.rootTlv));
+        }
+
+        it("counts one RDN per property and per CAT", () => {
+            expect(DistinguishedName.rdnCount(fiveRdns)).equals(5);
+            expect(DistinguishedName.rdnCount({ ...fiveRdns, orgUnitName: "Unit" })).equals(6);
+        });
+
+        it("accepts five RDNs and refuses six when verified", async () => {
+            await verifyInMemory({
+                nodeId: NODE_ID,
+                fabricId: FABRIC_ID,
+                caseAuthenticatedTags: [CAT_A, CAT_B, CAT_C],
+            });
+            await expect(
+                verifyInMemory({
+                    nodeId: NODE_ID,
+                    fabricId: FABRIC_ID,
+                    caseAuthenticatedTags: [CAT_A, CAT_B, CAT_C],
+                    orgUnitName: "Unit",
+                }),
+            ).rejectedWith(CertificateError, /more than 5 RDNs/);
+        });
+
+        it("keeps the CATs in the order given", async () => {
+            const keys = await chain();
+            const noc = new Noc({
+                ...nocCert(keys),
+                subject: { nodeId: NODE_ID, fabricId: FABRIC_ID, caseAuthenticatedTags: [CAT_C, CAT_A, CAT_B] },
+            });
+            await noc.sign(crypto, keys.root.key);
+
+            const decoded = Noc.fromTlv(noc.asSignedTlv());
+
+            expect(Noc.fromAsn1(noc.asSignedDer()).cert.subject.caseAuthenticatedTags).deep.equals([
+                CAT_C,
+                CAT_A,
+                CAT_B,
+            ]);
+            expect(decoded.cert.subject.caseAuthenticatedTags).deep.equals([CAT_C, CAT_A, CAT_B]);
+            expect(
+                decoded.cert.subject.rdns?.flatMap(rdn => (rdn.type === "caseAuthenticatedTag" ? [rdn.value] : [])),
+            ).deep.equals([CAT_C, CAT_A, CAT_B]);
+        });
+
+        it("keeps CATs out of ascending order between other attributes of a decoded DN", async () => {
+            const keys = await chain();
+            const der = await nocDer(keys, {
+                catC: NocCat_Matter(CAT_C),
+                nodeId: NodeId_Matter(NODE_ID),
+                catA: NocCat_Matter(CAT_A),
+                fabricId: FabricId_Matter(FABRIC_ID),
+                catB: NocCat_Matter(CAT_B),
+            });
+
+            const tlv = Noc.fromAsn1(der).asSignedTlv();
+
+            expect(Noc.fromTlv(tlv).cert.subject.caseAuthenticatedTags).deep.equals([CAT_C, CAT_A, CAT_B]);
+            expect(subjectTags(tlv)).deep.equals([DN_TAG.cat, DN_TAG.nodeId, DN_TAG.cat, DN_TAG.fabricId, DN_TAG.cat]);
+            expect(Bytes.toHex(Noc.fromTlv(tlv).asSignedDer())).equals(Bytes.toHex(der));
+        });
+
+        it("leaves out a VendorID that its commonNamePs carries", () => {
+            expect(
+                Object.keys(distinguishedNameToAsn1({ commonNamePs: "Mvid:FFF1", vendorId: VendorId(0xfff1) })),
+            ).deep.equals(["rdn0"]);
+        });
+
+        it("leaves out a VendorID that a later commonName carries", () => {
+            expect(
+                Object.keys(
+                    distinguishedNameToAsn1({
+                        commonName: "Plain",
+                        commonNamePs: "Mvid:FFF1",
+                        vendorId: VendorId(0xfff1),
+                    }),
+                ),
+            ).deep.equals(["rdn0", "rdn1"]);
+        });
+
+        it("keeps a VendorID that no commonName carries", () => {
+            expect(
+                Object.keys(distinguishedNameToAsn1({ commonName: "Plain", vendorId: VendorId(0xfff1) })),
+            ).deep.equals(["rdn0", "rdn1"]);
+        });
+    });
+
+    describe("a DER certificate with a VendorID in its subject", () => {
+        it("cannot be converted to TLV", async () => {
+            const keys = await chain();
+            const der = await nocDer(keys, {
+                nodeId: NodeId_Matter(NODE_ID),
+                fabricId: FabricId_Matter(FABRIC_ID),
+                vendorId: VendorId_Matter(VendorId(0xfff1)),
+            });
+
+            expect(() => Noc.fromAsn1(der).asSignedTlv()).throws(
+                ValidationDatatypeMismatchError,
+                /vendorId.*not defined in the TLV DN schema/,
+            );
+        });
+    });
+
+    describe("a repeated firmware signing ID", () => {
+        it("is refused in DER", async () => {
+            const keys = await chain();
+            const der = await nocDer(keys, {
+                nodeId: NodeId_Matter(NODE_ID),
+                fabricId: FabricId_Matter(FABRIC_ID),
+                fw1: FirmwareSigningId_Matter(1),
+                fw2: FirmwareSigningId_Matter(2),
+            });
+
+            expect(() => Noc.fromAsn1(der)).throws(CertificateError, /firmwareSigningId more than once/);
+            expect(() => Noc.fromAsn1(der)).not.throws(CertificateProfileError);
+        });
+    });
+
+    describe("the TLV schema", () => {
+        const schema = TlvDistinguishedName({
+            commonName: TlvOptionalField(1, TlvString),
+            firmwareSigningId: TlvOptionalField(18, TlvUInt64),
+            nodeId: TlvField(17, TlvNodeId),
+            fabricId: TlvField(21, TlvFabricId),
+            caseAuthenticatedTags: TlvOptionalRepeatedField(22, TlvCaseAuthenticatedTag, { maxLength: 3 }),
+        });
+
+        const u64 = (tagId: number, value: bigint) =>
+            `27${tagId.toString(16).padStart(2, "0")}${value.toString(16).padStart(16, "0").match(/../g)!.reverse().join("")}`;
+        const u32 = (tagId: number, value: number) =>
+            `26${tagId.toString(16).padStart(2, "0")}${value.toString(16).padStart(8, "0").match(/../g)!.reverse().join("")}`;
+        const NODE = u64(17, 0x1234n);
+        const FABRIC = u64(21, 1n);
+        const list = (...entries: string[]) => Bytes.fromHex(`17${entries.join("")}18`);
+
+        it("decodes the entries of a list", () => {
+            const dn = schema.decode(list(NODE, u32(22, CAT_A), FABRIC));
+
+            expect(dn).deep.equals({ nodeId: NODE_ID, fabricId: FABRIC_ID, caseAuthenticatedTags: [CAT_A] });
+            expect(dn.rdns?.map(({ type }) => type)).deep.equals(["nodeId", "caseAuthenticatedTag", "fabricId"]);
+        });
+
+        it("skips an unknown context tag, also one with a container value", () => {
+            const dn = schema.decode(list("246301", NODE, "356324010518", FABRIC));
+
+            expect(dn.rdns?.map(({ type }) => type)).deep.equals(["nodeId", "fabricId"]);
+        });
+
+        for (const validate of [true, false]) {
+            it(`refuses a missing mandatory field when validate is ${validate}`, () => {
+                expect(() => schema.decode(list(NODE), validate)).throws(
+                    ValidationMandatoryFieldMissingError,
+                    /fabricId/,
+                );
+            });
+        }
+
+        it("refuses more than three CATs", () => {
+            expect(() =>
+                schema.decode(list(NODE, FABRIC, u32(22, CAT_A), u32(22, CAT_B), u32(22, CAT_C), u32(22, 0x0004_0001))),
+            ).throws(ValidationOutOfBoundsError);
+        });
+
+        it("refuses a value that is not a list", () => {
+            expect(() => schema.decode(Bytes.fromHex(`15${NODE}${FABRIC}18`))).throws(
+                UnexpectedDataError,
+                /Unexpected type/,
+            );
+        });
+
+        it("refuses an entry with a profile tag", () => {
+            expect(() => schema.decode(list(NODE, FABRIC, "44010001"))).throws(
+                UnexpectedDataError,
+                /should be context-specific/,
+            );
+        });
+
+        it("refuses an entry without a tag", () => {
+            expect(() => schema.decode(list(NODE, FABRIC, "0401"))).throws(UnexpectedDataError, /should have an id/);
+        });
+
+        it("refuses a repeated firmware signing ID", () => {
+            expect(() => schema.decode(list(NODE, FABRIC, u64(18, 1n), u64(18, 2n)))).throws(
+                CertificateError,
+                /firmwareSigningId more than once/,
+            );
         });
     });
 });

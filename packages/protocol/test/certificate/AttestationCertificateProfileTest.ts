@@ -454,7 +454,7 @@ describe("Attestation certificate profile", () => {
         });
 
         // Characterization: a malformed VendorID next to a well-formed one reads as absent.
-        it("reads a VendorID as absent when a malformed one repeats it and a profile violation is accepted", () => {
+        it("reads a VendorID as absent when the first of two VendorIDs is malformed and a profile violation is accepted", () => {
             const dac = editSubject(Bytes.toHex(withRepeatedSubjectAttribute(VALID_DAC, VENDOR_ID_OID)), subject => {
                 attributeOf(subject, VENDOR_ID_OID)._elements![1]._bytes = Bytes.fromString("fff1");
             });
@@ -485,8 +485,8 @@ describe("Attestation certificate profile", () => {
             /** The DAC subject is commonName "Matter Test DAC", then VendorID, then ProductID. */
             const dacWithFallback = (edit: (subject: DerNode) => void) => editSubject(VALID_DAC, edit);
 
-            // CHIP parity (ExtractVIDPIDFromAttributeString): the first commonName with a value supplies both values.
-            it("reads only the first commonName that carries a value", () => {
+            // CHIP parity (ExtractVIDPIDFromAttributeString): the first commonName that carries a VendorID or ProductID supplies both.
+            it("reads only the first commonName that carries a VendorID or ProductID", () => {
                 const dac = dacWithFallback(subject => {
                     asCommonName(subject, VENDOR_ID_OID, "Mvid:FFF1");
                     asCommonName(subject, PRODUCT_ID_OID, "Mvid:FFF2 Mpid:8000");
@@ -496,7 +496,7 @@ describe("Attestation certificate profile", () => {
                 expect(subject.productId).undefined;
             });
 
-            // CHIP parity: a commonName after the one with a value is not read.
+            // CHIP parity: a commonName after the one that carries a VendorID or ProductID is not read.
             it("ignores a malformed prefix in a later commonName", () => {
                 const dac = dacWithFallback(subject => {
                     asCommonName(subject, VENDOR_ID_OID, "Mvid:FFF1 Mpid:8000");
@@ -505,7 +505,7 @@ describe("Attestation certificate profile", () => {
                 expect(Dac.fromAsn1(dac).cert.subject.vendorId).equals(0xfff1);
             });
 
-            // CHIP parity: a commonName before the one with a value is read.
+            // CHIP parity: a commonName before the one that carries a VendorID or ProductID is read.
             it("refuses a malformed prefix in an earlier commonName", () => {
                 const dac = dacWithFallback(subject => {
                     attributeOf(subject, COMMON_NAME_OID)._elements![1]._bytes = Bytes.fromString("Matter Mpid:");
@@ -522,6 +522,44 @@ describe("Attestation certificate profile", () => {
             it("does not read a value beyond the first 64 bytes of a commonName", () => {
                 const dac = dacWithFallback(subject => {
                     asCommonName(subject, VENDOR_ID_OID, `${"x".repeat(60)}Mvid:FFF1`);
+                    subject._elements!.splice(rdnIndexOf(subject, PRODUCT_ID_OID), 1);
+                });
+                expect(Dac.fromAsn1(dac).cert.subject.vendorId).undefined;
+            });
+
+            // The CHIP SDK accepts any uint16 here (ExtractVIDPIDFromAttributeString), also the reserved values.
+            for (const vendorId of [0xfff5, 0xffff]) {
+                it(`reads VendorID 0x${vendorId.toString(16).toUpperCase()}`, () => {
+                    const dac = dacWithFallback(subject => {
+                        asCommonName(subject, VENDOR_ID_OID, `Mvid:${vendorId.toString(16).toUpperCase()} Mpid:8000`);
+                        subject._elements!.splice(rdnIndexOf(subject, PRODUCT_ID_OID), 1);
+                    });
+                    expect(Dac.fromAsn1(dac).cert.subject.vendorId).equals(vendorId);
+                });
+            }
+
+            it("reads a value that ends at byte 64 of a commonName", () => {
+                const dac = dacWithFallback(subject => {
+                    asCommonName(subject, VENDOR_ID_OID, `${"x".repeat(55)}Mvid:FFF1`);
+                    subject._elements!.splice(rdnIndexOf(subject, PRODUCT_ID_OID), 1);
+                });
+                expect(Dac.fromAsn1(dac).cert.subject.vendorId).equals(0xfff1);
+            });
+
+            it("refuses a value that byte 64 of a commonName cuts", () => {
+                const dac = dacWithFallback(subject => {
+                    asCommonName(subject, VENDOR_ID_OID, `${"x".repeat(56)}Mvid:FFF1`);
+                    subject._elements!.splice(rdnIndexOf(subject, PRODUCT_ID_OID), 1);
+                });
+                expect(() => Dac.fromAsn1(dac)).throws(
+                    CertificateError,
+                    /Mvid: not followed by 4 uppercase hex digits/,
+                );
+            });
+
+            it("does not read a prefix that starts after byte 64 of a commonName", () => {
+                const dac = dacWithFallback(subject => {
+                    asCommonName(subject, VENDOR_ID_OID, `${"x".repeat(64)}Mvid:FFF1`);
                     subject._elements!.splice(rdnIndexOf(subject, PRODUCT_ID_OID), 1);
                 });
                 expect(Dac.fromAsn1(dac).cert.subject.vendorId).undefined;
