@@ -761,22 +761,26 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const maxInterval = subscription.maxInterval;
 
         // Then send the subscription response
-        await messenger.send(
-            MessageType.SubscribeResponse,
-            TlvSubscribeResponse.encode({
-                subscriptionId,
-                maxInterval: Seconds.of(maxInterval),
-                interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
-            }),
-            {
-                logContext: {
-                    ...Subscription.diagnosticOf(subscriptionId),
-                    maxInterval: Duration.format(maxInterval),
+        try {
+            await messenger.send(
+                MessageType.SubscribeResponse,
+                TlvSubscribeResponse.encode({
+                    subscriptionId,
+                    maxInterval: Seconds.of(maxInterval),
+                    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+                }),
+                {
+                    logContext: {
+                        ...Subscription.diagnosticOf(subscriptionId),
+                        maxInterval: Duration.format(maxInterval),
+                    },
                 },
-            },
-        );
+            );
+        } catch (error) {
+            await subscription.close();
+            throw error;
+        }
 
-        // When an error occurs while sending the response, the subscription is not yet active and will be cleaned up by GC
         if (subscription.activate()) {
             this.#counters.totalSubscriptionsEstablished++;
         }

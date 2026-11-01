@@ -227,7 +227,6 @@ export class SessionManager {
     readonly #context: SessionManagerContext;
     readonly #unsecuredSessions = new Map<NodeId, UnsecuredSession>();
     readonly #sessions = new BasicSet<NodeSession>();
-    readonly #unconfirmedSessions = new WeakSet<NodeSession>();
     readonly #groupSessions = new Map<NodeId, BasicSet<GroupSession>>();
     #nextSessionId: number;
     #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
@@ -298,14 +297,10 @@ export class SessionManager {
         });
 
         this.#sessions.added.on(session => {
-            if (!this.#unconfirmedSessions.has(session)) {
-                this.#moveSubscriptionsTo(session);
-            }
-
-            // We are the responder, so nothing else reclaims these: an initiator's sessions are swept by the peer
-            // loss its own traffic reports
-            if (!session.isInitiator) {
-                this.#sessionEvictionMutex.run(() => this.#evictExcessSessionsFor(session));
+            if (session.isEstablishing) {
+                session.established.once(() => this.#sessionEstablished(session));
+            } else {
+                this.#sessionEstablished(session);
             }
         });
 
@@ -617,7 +612,7 @@ export class SessionManager {
         // work with broken peers (e.g. CHIP test harness).
         let found: NodeSession | undefined;
         for (const session of this.#sessions) {
-            if (!session.peerIs(address) || session.isClosing || session.isPeerLost) {
+            if (!session.peerIs(address) || session.isEstablishing || session.isClosing || session.isPeerLost) {
                 continue;
             }
 
@@ -663,68 +658,20 @@ export class SessionManager {
     }
 
     /**
-     * Register {@link session}, which the peer has yet to confirm, such as a session we resumed as responder before the
-     * peer's Sigma2Resume success status arrives.
-     *
-     * The session takes messages at once, because the peer may use it before its confirmation reaches us.
-     * Subscriptions of the peer's older sessions move to it only on {@link confirmSession}, so a resumption the peer
-     * abandons leaves them on a session the peer still has.  The CHIP SDK activates a resumed session at the same
-     * point.
+     * Supersede the older sessions {@link newer} replaces, then evict excess sessions of the peer.  Supersession comes
+     * first and is synchronous, so the subscriptions have left a session before eviction can close it.
      */
-    addUnconfirmedSession(session: NodeSession) {
-        this.#unconfirmedSessions.add(session);
-        this.#sessions.add(session);
-    }
-
-    /**
-     * Record that the peer confirmed {@link session}, registered with {@link addUnconfirmedSession}.  A session that
-     * closed in the meantime takes no subscriptions.
-     */
-    confirmSession(session: NodeSession) {
-        this.#unconfirmedSessions.delete(session);
-        if (!session.isClosing) {
-            this.#moveSubscriptionsTo(session);
-        }
-    }
-
-    /**
-     * The session that subscriptions set up on {@link session} belong on: the newest open, confirmed CASE session
-     * established after {@link session} with the same peer, the same role and equal CASE Authenticated Tags, or
-     * {@link session} itself.
-     */
-    subscriptionSessionFor(session: NodeSession) {
-        let newest = session;
-        for (const candidate of this.#sessions) {
-            if (
-                candidate === session ||
-                (!candidate.isClosing &&
-                    !this.#unconfirmedSessions.has(candidate) &&
-                    sharesSubscriptions(candidate, session))
-            ) {
-                newest = candidate;
-            }
-        }
-        return newest;
-    }
-
-    /**
-     * Move the subscriptions of the peer's older CASE sessions to the new CASE session {@link session}, as the CHIP SDK
-     * does in `SecureSessionTable::NewerSessionAvailable`.  A peer that sets up a new session may drop its older ones
-     * without telling us, and reports on a dropped session never arrive.
-     *
-     * Only sessions with the same peer, the same role and equal CASE Authenticated Tags take part, so a moved
-     * subscription keeps the access subject it was set up with.  The CHIP SDK compares only peer and CATs.  matter.js
-     * also compares the role, because a session matter.js initiated stores our own CATs, not the peer's.
-     */
-    #moveSubscriptionsTo(session: NodeSession) {
+    #sessionEstablished(newer: NodeSession) {
         for (const older of this.#sessions) {
-            if (older === session || older.isClosing || !sharesSubscriptions(older, session)) {
-                continue;
+            if (older !== newer && !older.isEstablishing && !older.isClosing && supersedes(newer, older)) {
+                older.superseded.emit(newer);
             }
+        }
 
-            for (const subscription of [...older.subscriptions]) {
-                subscription.moveTo?.(session);
-            }
+        // We are the responder, so nothing else reclaims these: an initiator's sessions are swept by the peer loss its
+        // own traffic reports
+        if (!newer.isInitiator) {
+            this.#sessionEvictionMutex.run(() => this.#evictExcessSessionsFor(newer));
         }
     }
 
@@ -733,7 +680,8 @@ export class SessionManager {
      *
      * Only sessions the peer established are eligible: ones we initiated are ours to manage, and the peer loss our
      * own traffic reports already sweeps them.  {@link added} is excluded so a burst of new sessions cannot evict the
-     * one that prompted the check.
+     * one that prompted the check.  An establishing session neither counts nor is evicted; it becomes established or
+     * closes within its handshake.
      */
     async #evictExcessSessionsFor(added: NodeSession) {
         if (added.isPase || added.isClosing) {
@@ -742,7 +690,7 @@ export class SessionManager {
 
         const address = added.peerAddress;
         const claimsSlot = (session: NodeSession) =>
-            session !== added && !session.isInitiator && session.peerIs(address);
+            session !== added && !session.isInitiator && !session.isEstablishing && session.peerIs(address);
 
         // A session already closing still occupies a slot until it completes, so it counts here but is not evicted
         // again -- otherwise one that parks in deferredClose drops out of the count and the cap stops capping
@@ -1173,12 +1121,18 @@ export class SessionManager {
     }
 }
 
-function sharesSubscriptions(session: NodeSession, other: NodeSession) {
+/**
+ * Whether {@link newer} replaces {@link older} for the peer's subscriptions: both are CASE sessions with the same peer
+ * and equal CASE Authenticated Tags, so a subscription that moves keeps the access subject it was set up with.  This
+ * matches `SecureSessionTable::NewerSessionAvailable` of the CHIP SDK, except for the role check.
+ */
+function supersedes(newer: NodeSession, older: NodeSession) {
     return (
-        !session.isPase &&
-        session.isInitiator === other.isInitiator &&
-        session.peerIs(other.peerAddress) &&
-        hasEqualCats(session, other)
+        !newer.isPase &&
+        newer.peerIs(older.peerAddress) &&
+        hasEqualCats(newer, older) &&
+        // A session we initiated stores our own CATs, not the peer's
+        newer.isInitiator === older.isInitiator
     );
 }
 

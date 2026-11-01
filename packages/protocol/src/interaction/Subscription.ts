@@ -5,7 +5,6 @@
  */
 
 import type { MessageExchange } from "#protocol/MessageExchange.js";
-import type { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
 import { hex } from "@matter/general";
 
@@ -38,14 +37,6 @@ export interface Subscription {
      * subscription, so the node may re-establish it on its next start.
      */
     closeForShutdown(flushViaSession?: Session): Promise<void>;
-
-    /**
-     * Continue the subscription on {@link session}, a newer CASE session with the same peer, the same role and the same
-     * CASE Authenticated Tags.  Reports then go out on {@link session}, and closing the former session no longer ends
-     * the subscription.  A closed subscription ignores the call.  A subscription without this method stays on its
-     * session.
-     */
-    moveTo?(session: NodeSession): void;
 }
 
 export namespace Subscription {

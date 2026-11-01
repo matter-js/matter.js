@@ -184,7 +184,7 @@ export class CaseServer implements ProtocolHandler {
             isResumption: true,
             reportedSessionParameters: cx.peerSessionParams,
             caseAuthenticatedTags,
-            delayManagerRegistration: true, // Session establishment could still fail, so add session ourselves to the manager
+            establishing: true,
         });
 
         // Generate sigma 2 resume
@@ -199,22 +199,19 @@ export class CaseServer implements ProtocolHandler {
                 responderSessionId,
                 responderSessionParams,
             });
+
+            NodeSession.logNew(logger, "Resumed", secureSession, cx.messenger, fabric, peerNodeId);
+
+            // The responder of a resumption has an established session only once the peer's SigmaFinished arrives
+            await cx.messenger.waitForSuccess({ description: "Sigma2Resume-Success" });
         } catch (error) {
-            // If we fail to send the resume message, we destroy the session
-            await secureSession.initiateClose();
+            // Force close: the peer may not hold the session keys, so a CloseSession would only wait for its MRP window
+            await secureSession.initiateForceClose({ cause: asError(error) });
             throw error;
         }
+        secureSession.completeEstablishment();
 
-        // Now we are sure, add the session to the manager
-        NodeSession.logNew(logger, "Resumed", secureSession, cx.messenger, fabric, peerNodeId);
-
-        this.#sessions.addUnconfirmedSession(secureSession);
-
-        cx.resumptionRecord.resumptionId = cx.localResumptionId; /* Update the ID */
-
-        // Wait for success on the peer side
-        await cx.messenger.waitForSuccess({ description: "Sigma2Resume-Success" });
-        this.#sessions.confirmSession(secureSession);
+        cx.resumptionRecord.resumptionId = cx.localResumptionId;
 
         await cx.messenger.close();
         await this.#sessions.saveResumptionRecord(cx.resumptionRecord);
@@ -314,6 +311,7 @@ export class CaseServer implements ProtocolHandler {
             operationalIdentityProtectionKey,
             await crypto.computeHash([cx.bytes, sigma2Bytes, sigma3Bytes]),
         );
+        // Established when SigmaFinished is sent, not when it is acked, as in the CHIP SDK
         const secureSession = await this.#sessions.createSecureSession({
             channel,
             id: responderSessionId,

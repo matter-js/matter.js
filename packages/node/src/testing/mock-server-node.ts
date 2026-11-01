@@ -34,14 +34,13 @@ import { AccessLevel, MatterModel } from "@matter/model";
 import {
     ExchangeManager,
     FabricManager,
-    NodeSession,
     PeerAddress,
     ProtocolMocks,
     Session,
     SessionManager,
     TestFabric,
 } from "@matter/protocol";
-import { FabricIndex, INTERACTION_PROTOCOL_ID, NodeId } from "@matter/types";
+import { FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "./mock-exchange.js";
 
 const logger = Logger.get("MockServerNode");
@@ -256,7 +255,7 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
         exchanges.initiateExchange = address =>
             interceptExchange(address, node.env.get(SessionManager).maybeSessionFor(address));
         exchanges.initiateExchangeForSession = (session, protocolId, options) =>
-            protocolId === INTERACTION_PROTOCOL_ID && NodeSession.is(session)
+            session instanceof ProtocolMocks.NodeSession
                 ? interceptExchange(session.peerAddress, session)
                 : initiateExchangeForSession(session, protocolId, options);
 
@@ -268,8 +267,8 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
     }
 
     /**
-     * Resolves with the next exchange the node initiates towards a peer, by address or as an interaction on a node
-     * session.  Only available on nodes made by {@link createOnline}.
+     * Resolves with the next exchange the node initiates towards a peer, by address or on a mock session such as one
+     * {@link createExchange} creates.  Only available on nodes made by {@link createOnline}.
      */
     async handleExchange(): Promise<MockExchange> {
         return await this.#newExchanges.read();

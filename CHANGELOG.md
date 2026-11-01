@@ -60,7 +60,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
     - Adjustment: `DclCertificateService.addCertificate()` refuses a CD signer certificate that is known to be untrusted because the CSA did not issue it
     - Adjustment: DER certificate parsing requires the basic constraints extension when the required extensions list it
-    - Adjustment: `SessionManager` moves subscriptions to each newer CASE session with the same peer, role and CASE Authenticated Tags through the new optional `Subscription.moveTo()`, and to a resumed session only once the peer confirms it
+    - Enhancement: `NodeSession` has an establishing state and a `superseded` event that names the newer CASE session with the same peer, role and CASE Authenticated Tags
+    - Adjustment: `SessionManager.maybeSessionFor()` and `sessionFor()` skip a session whose handshake is still running
+    - Fix: A session resumed as CASE responder closes when the peer does not confirm the resumption, instead of staying registered
     - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept
     - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: A group message whose key set GroupKeyMap does not map to its destination group fails authentication instead of reaching access control

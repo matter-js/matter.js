@@ -63,6 +63,42 @@ function activeSpanNames(lifetime: Lifetime): string[] {
     return names;
 }
 
+/** An exchange for subscription reports that runs {@link onSend} instead of sending, and the peer answers SUCCESS. */
+class ReportExchange extends ProtocolMocks.Exchange {
+    readonly #onSend: () => Promise<void>;
+
+    constructor(target: PeerAddress | Session, onSend: () => Promise<void> = async () => {}) {
+        super({
+            context: { session: target instanceof Session ? target : undefined },
+            protocolId: INTERACTION_PROTOCOL_ID,
+            maxPayloadSize: 1200,
+        });
+        this.#onSend = onSend;
+    }
+
+    override async send() {
+        await this.#onSend();
+        await this.writeStatus();
+    }
+}
+
+/** An exchange for a subscribe request whose priming report the peer answers and whose SubscribeResponse fails. */
+class SubscribeExchange extends ProtocolMocks.Exchange {
+    readonly sentTypes = new Array<number>();
+
+    constructor(session: NodeSession) {
+        super({ context: { session }, protocolId: INTERACTION_PROTOCOL_ID, maxPayloadSize: 1200 });
+    }
+
+    override async send(messageType: number) {
+        this.sentTypes.push(messageType);
+        if (messageType === MessageType.SubscribeResponse) {
+            throw new SessionClosedError("test: SubscribeResponse not sent");
+        }
+        await this.writeStatus();
+    }
+}
+
 const RootWithLitIcd = MockServerNode.RootEndpoint.with(
     IcdManagementServer.with(
         IcdManagement.Feature.CheckInProtocolSupport,
@@ -1289,85 +1325,64 @@ describe("ServerSubscription", () => {
         await MockTime.resolve(node.close());
     });
 
-    it("moves to a newer session of the peer with equal CATs and reports there after the former session closes", async () => {
-        const node = await MockServerNode.createOnline();
-        const fabric = await node.addFabric();
-        const cat = CaseAuthenticatedTag(0x0001_0001);
-        let nextId = 1;
-        const sessionWith = async (caseAuthenticatedTags: CaseAuthenticatedTag[]) =>
-            (await node.createExchange({ fabric, id: nextId++, peerNodeId: NodeId(0x1234), caseAuthenticatedTags }))
-                .session as NodeSession;
-
-        const former = await sessionWith([cat]);
-        const targets = new Array<PeerAddress | Session>();
-        const subscription = await createSubscription(
-            node,
-            target => {
-                targets.push(target);
-                return {
-                    maxPayloadSize: 1200,
-                    async send() {},
-                    async close() {},
-                } as unknown as MessageExchange;
-            },
-            { session: former },
-        );
-        subscription.activate();
-
-        const newer = await sessionWith([cat]);
-        expect(subscription.session).equals(newer);
-        expect([...former.subscriptions]).deep.equals([]);
-        expect([...newer.subscriptions]).deep.equals([subscription]);
-
-        await former.initiateForceClose({ cause: new SessionClosedError("test") });
-        expect(subscription.isTerminated).false;
-
-        await MockTime.advance(200);
-        expect(targets.length).greaterThan(0);
-        expect(targets.every(target => target === newer)).true;
-
-        await MockTime.resolve(node.close());
-    });
-
-    it("stays on its session when moved after it closed", async () => {
-        const node = await MockServerNode.createOnline();
-        const subscription = await createSubscription(node, () => ({}) as any);
-        const session = subscription.session;
-        subscription.activate();
-        await subscription.close();
-
-        const fabric = await node.addFabric();
-        const other = (await node.createExchange({ fabric })).session as NodeSession;
-        subscription.moveTo(other);
-
-        expect(subscription.session).equals(session);
-        expect([...other.subscriptions]).deep.equals([]);
-
-        await MockTime.resolve(node.close());
-    });
-
-    describe("on newer sessions of its subscriber", () => {
+    describe("on superseded sessions", () => {
         const cat = CaseAuthenticatedTag(0x0001_0001);
 
+        /** Returns a factory for sessions with the same peer and CATs, each superseding the ones before it. */
         async function sessionsOf(node: MockServerNode) {
             const fabric = await node.addFabric();
             let nextId = 1;
-            return async () =>
-                (
-                    await node.createExchange({
-                        fabric,
-                        id: nextId++,
-                        peerNodeId: NodeId(0x1234),
-                        caseAuthenticatedTags: [cat],
-                    })
-                ).session as NodeSession;
+            return async () => {
+                const { session } = await node.createExchange({
+                    fabric,
+                    id: nextId++,
+                    peerNodeId: NodeId(0x1234),
+                    caseAuthenticatedTags: [cat],
+                });
+                NodeSession.assert(session);
+                return session;
+            };
         }
 
-        it("joins a session set up while its initial report was sent", async () => {
+        it("moves to the newer session and reports there after the former session closes", async () => {
             const node = await MockServerNode.createOnline();
             const newSession = await sessionsOf(node);
             const former = await newSession();
-            const subscription = await createSubscription(node, () => ({}) as any, { session: former });
+            const targets = new Array<PeerAddress | Session>();
+            const subscription = await createSubscription(
+                node,
+                target => {
+                    targets.push(target);
+                    return new ReportExchange(target);
+                },
+                { session: former },
+            );
+            subscription.activate();
+
+            const newer = await newSession();
+            expect(subscription.session).equals(newer);
+            expect([...former.subscriptions]).deep.equals([]);
+            expect([...newer.subscriptions]).deep.equals([subscription]);
+            expect(former.superseded.isObserved).false;
+
+            await former.initiateForceClose({ cause: new SessionClosedError("test") });
+            expect(subscription.isTerminated).false;
+
+            for (let i = 0; i < 50 && targets.length < 2; i++) {
+                await MockTime.resolve(MockTime.sleep("wait for report", Millis(10)));
+            }
+            expect(targets.slice(0, 2)).deep.equals([newer, newer]);
+
+            await MockTime.resolve(node.close());
+        });
+
+        it("follows a newer session set up while its initial report is sent", async () => {
+            const node = await MockServerNode.createOnline();
+            const newSession = await sessionsOf(node);
+            const former = await newSession();
+            const subscription = await createSubscription(node, target => new ReportExchange(target), {
+                session: former,
+            });
 
             const newer = await newSession();
             subscription.activate();
@@ -1379,6 +1394,41 @@ describe("ServerSubscription", () => {
             await MockTime.resolve(node.close());
         });
 
+        it("stays on a session that was superseded before the subscription was set up", async () => {
+            const node = await MockServerNode.createOnline();
+            const newSession = await sessionsOf(node);
+            const former = await newSession();
+            await newSession();
+
+            const subscription = await createSubscription(node, target => new ReportExchange(target), {
+                session: former,
+            });
+            subscription.activate();
+
+            expect(subscription.session).equals(former);
+            expect([...former.subscriptions]).deep.equals([subscription]);
+
+            await MockTime.resolve(node.close());
+        });
+
+        it("ignores a newer session once closed", async () => {
+            const node = await MockServerNode.createOnline();
+            const newSession = await sessionsOf(node);
+            const former = await newSession();
+            const subscription = await createSubscription(node, target => new ReportExchange(target), {
+                session: former,
+            });
+            subscription.activate();
+            await subscription.close();
+
+            const newer = await newSession();
+
+            expect(subscription.session).equals(former);
+            expect([...newer.subscriptions]).deep.equals([]);
+
+            await MockTime.resolve(node.close());
+        });
+
         it("moves its lifetime with it while a report is being sent", async () => {
             const node = await MockServerNode.createOnline();
             const newSession = await sessionsOf(node);
@@ -1386,14 +1436,7 @@ describe("ServerSubscription", () => {
             const sent = createPromise<void>();
             const subscription = await createSubscription(
                 node,
-                () =>
-                    ({
-                        maxPayloadSize: 1200,
-                        async send() {
-                            await sent.promise;
-                        },
-                        async close() {},
-                    }) as unknown as MessageExchange,
+                target => new ReportExchange(target, () => sent.promise),
                 { session: former },
             );
             subscription.activate();
@@ -1412,6 +1455,78 @@ describe("ServerSubscription", () => {
             await MockTime.resolve(node.close());
         });
 
+        it("counts failed updates anew on a newer session", async () => {
+            const node = await MockServerNode.createOnline();
+            const newSession = await sessionsOf(node);
+            const former = await newSession();
+            const failedOn = new Array<PeerAddress | Session>();
+            let succeeded = 0;
+            const subscription = await createSubscription(
+                node,
+                target =>
+                    new ReportExchange(target, async () => {
+                        if (failedOn.length >= 3) {
+                            succeeded++;
+                        } else {
+                            failedOn.push(target);
+                            throw new PeerUnresponsiveError(Millis(1000));
+                        }
+                    }),
+                { session: former },
+            );
+            subscription.activate();
+
+            for (let i = 0; i < 50 && failedOn.length < 2; i++) {
+                await MockTime.resolve(MockTime.sleep("wait for failure", Millis(10)));
+            }
+            const newer = await newSession();
+            for (let i = 0; i < 50 && succeeded === 0; i++) {
+                await MockTime.resolve(MockTime.sleep("wait for success", Millis(10)));
+            }
+
+            expect(failedOn).deep.equals([former, former, newer]);
+            expect(succeeded).greaterThan(0);
+            expect(subscription.isTerminated).false;
+
+            await MockTime.resolve(node.close());
+        });
+
+        it("stops following its session when the subscribe response cannot be sent", async () => {
+            const node = await MockServerNode.createOnline();
+            const { session } = await node.createExchange({ fabric: await node.addFabric() });
+            NodeSession.assert(session);
+            const exchange = new SubscribeExchange(session);
+
+            await expect(
+                MockTime.resolve(
+                    node.env.get(InteractionServer).handleSubscribeRequest(
+                        exchange,
+                        {
+                            interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+                            isFabricFiltered: false,
+                            attributeRequests: [
+                                {
+                                    endpointId: EndpointNumber(0),
+                                    clusterId: ClusterId(BasicInformation.id),
+                                    attributeId: AttributeId(BasicInformation.attributes.nodeLabel.id),
+                                },
+                            ],
+                            keepSubscriptions: true,
+                            minIntervalFloorSeconds: 0,
+                            maxIntervalCeilingSeconds: 2,
+                        },
+                        new InteractionServerMessenger(exchange),
+                        interaction.BarelyMockedMessage,
+                    ),
+                ),
+            ).rejectedWith(SessionClosedError);
+
+            expect(exchange.sentTypes).deep.equals([MessageType.ReportData, MessageType.SubscribeResponse]);
+            expect(session.superseded.isObserved).false;
+
+            await MockTime.resolve(node.close());
+        });
+
         it("resends at once on its new session when a send on the session it left fails", async () => {
             const node = await MockServerNode.createOnline();
             const newSession = await sessionsOf(node);
@@ -1424,18 +1539,14 @@ describe("ServerSubscription", () => {
                 target => {
                     targets.push(target);
                     sentAt.push(Time.nowMs);
-                    return {
-                        maxPayloadSize: 1200,
-                        async send() {
-                            // The subscriber sets up a new session while each of the first three sends is under way
-                            if (sessions.length < 4) {
-                                sessions.push(await newSession());
-                                failedAt.push(Time.nowMs);
-                                throw new SessionClosedError("test");
-                            }
-                        },
-                        async close() {},
-                    } as unknown as MessageExchange;
+                    return new ReportExchange(target, async () => {
+                        // The subscriber sets up a new session while each of the first three sends is under way
+                        if (sessions.length < 4) {
+                            sessions.push(await newSession());
+                            failedAt.push(Time.nowMs);
+                            throw new SessionClosedError("test");
+                        }
+                    });
                 },
                 { session: sessions[0] },
             );

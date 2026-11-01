@@ -42,7 +42,6 @@ import {
     Read,
     ReadResult,
     SessionClosedError,
-    SessionManager,
     Subscription,
     TransientPeerCommunicationError,
 } from "@matter/protocol";
@@ -119,7 +118,7 @@ export namespace ServerSubscriptionConfig {
  * Interface between {@link ServerSubscription} and the local Matter environment.
  */
 export interface ServerSubscriptionContext {
-    /** The session the subscription is set up on.  {@link ServerSubscription.session} may move on from it. */
+    /** The session the subscription is set up on.  {@link ServerSubscription.session} changes when it is superseded. */
     session: NodeSession;
     node: ServerNode;
     initiateExchange(addressOrSession: PeerAddress | Session, protocolId: number): MessageExchange;
@@ -178,6 +177,7 @@ export class ServerSubscription implements Subscription {
 
         this.#context = context;
         this.#session = context.session;
+        this.#session.superseded.on(this.#follow);
 
         let maxInterval: Duration;
         let sendInterval: Duration;
@@ -211,7 +211,10 @@ export class ServerSubscription implements Subscription {
         return hex.fixed(this.#id, 8);
     }
 
-    /** The session the subscription reports on.  {@link moveTo} changes it. */
+    /**
+     * The session the subscription reports on.  It changes when a newer session of the subscriber supersedes it, see
+     * {@link NodeSession.superseded}.
+     */
     get session() {
         return this.#session;
     }
@@ -409,14 +412,8 @@ export class ServerSubscription implements Subscription {
         );
     }
 
-    /**
-     * Start reporting.  The subscription joins the newest session of its subscriber it may move to, which is newer than
-     * the session it was set up on if the subscriber set up a session while the initial report was sent.
-     *
-     * @returns true if the subscription became active, false if it was dropped because its session is closing
-     */
+    /** @returns true if the subscription became active, false if it was dropped because its session is closing. */
     activate() {
-        this.#session = this.#context.node.env.get(SessionManager).subscriptionSessionFor(this.#session);
         if (this.session.isClosing) {
             // The owning session is already tearing down and its subscriptions have been swept, so registering here
             // would orphan us on a dead session and spin the update timer against a closing session manager.  Drop the
@@ -819,20 +816,22 @@ export class ServerSubscription implements Subscription {
         await this.#cancel();
     }
 
-    moveTo(session: NodeSession) {
-        if (this.#isClosed) {
-            return;
-        }
-
+    /** Continue on {@link newer}, which superseded the session of the subscription. */
+    readonly #follow = (newer: NodeSession) => {
         const former = this.#session;
-        former.subscriptions.delete(this);
-        this.#session = session;
-        session.subscriptions.add(this);
+        former.superseded.off(this.#follow);
+        newer.superseded.on(this.#follow);
+        this.#session = newer;
+
         if (this.#lifetime !== undefined) {
-            this.#lifetime.owner = session.activate();
+            former.subscriptions.delete(this);
+            newer.subscriptions.add(this);
+            this.#lifetime.owner = newer.activate();
+            // Failures on the former session say nothing about the new one
+            this.#sendUpdateErrorCounter = 0;
         }
-        logger.debug(session.via, "Moved subscription", Diagnostic.strong(this.idStr), "from", former.via);
-    }
+        logger.debug(newer.via, "Subscription", Diagnostic.strong(this.idStr), "moved from", former.via);
+    };
 
     /** Returns false if the subscription was already closed. */
     #markClosed(terminate: boolean) {
@@ -856,6 +855,7 @@ export class ServerSubscription implements Subscription {
 
         this.#sendUpdatesActivated = false;
 
+        this.#session.superseded.off(this.#follow);
         this.#changeHandlers.close();
 
         if (flushViaSession !== undefined) {

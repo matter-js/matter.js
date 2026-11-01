@@ -32,6 +32,7 @@ import {
     Logger,
     MatterFlowError,
     Mutex,
+    Observable,
     Time,
     Timer,
     UnexpectedDataError,
@@ -66,6 +67,9 @@ export class NodeSession extends SecureSession {
     readonly #rolloverClose = new Mutex(this);
     #isPeerLost = false;
     #closingForShutdown = false;
+    #isEstablishing: boolean;
+    readonly #established = Observable<[]>();
+    readonly #superseded = Observable<[newer: NodeSession]>();
 
     // TODO - remove this; subscriptions should be owned by the peer, not the session
     readonly #subscriptions = new BasicSet<Subscription>();
@@ -112,6 +116,7 @@ export class NodeSession extends SecureSession {
             caseAuthenticatedTags,
             isInitiator,
             delayManagerRegistration,
+            establishing,
             suppressPeerLoss = false,
             reportedSessionParameters,
         } = config;
@@ -136,6 +141,7 @@ export class NodeSession extends SecureSession {
         this.#caseAuthenticatedTags = caseAuthenticatedTags ?? [];
         this.#reportedParameters = SessionParameters.reported(reportedSessionParameters);
         this.#isInitiator = isInitiator;
+        this.#isEstablishing = establishing === true;
 
         if (this.maxTcpMessageSize !== undefined && this.#reportedParameters?.maxTcpMessageSize === 0) {
             logger.info(
@@ -194,6 +200,50 @@ export class NodeSession extends SecureSession {
 
     get isInitiator() {
         return this.#isInitiator;
+    }
+
+    /**
+     * Whether the handshake of this session still has to complete.  Only a CASE responder creates a session in this
+     * state: for a resumption, the session is established once the peer's SigmaFinished arrives.
+     *
+     * | State        | Entered by                                         | `SessionManager.maybeSessionFor` | Eviction             | Supersession |
+     * | ------------ | -------------------------------------------------- | -------------------------------- | -------------------- | ------------ |
+     * | establishing | creation with `establishing: true`                 | skips it                         | not counted          | no           |
+     * | established  | creation without it, {@link completeEstablishment} | finds it                         | counted, evictable   | yes          |
+     * | closing      | {@link initiateClose}, {@link initiateForceClose}  | skips it                         | counted, not evicted | no           |
+     *
+     * The session receives messages in every state until it is closed.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.14.2.3.13
+     */
+    get isEstablishing() {
+        return this.#isEstablishing;
+    }
+
+    /** Mark the handshake as complete and emit {@link established}.  Does nothing on a session that is closing. */
+    completeEstablishment() {
+        if (this.isClosing) {
+            return;
+        }
+        this.#isEstablishing = false;
+        this.#established.emit();
+    }
+
+    /** Emits when {@link completeEstablishment} marks the session established. */
+    get established() {
+        return this.#established;
+    }
+
+    /**
+     * Emits when {@link newer}, an established CASE session with the same peer and equal CASE Authenticated Tags,
+     * replaces this session for the peer's subscriptions.  Each subscription on this session then continues on
+     * {@link newer}.  The session itself stays open.
+     *
+     * The CHIP SDK does the same in `SecureSessionTable::NewerSessionAvailable`: a peer that sets up a new session may
+     * drop its older ones without telling us, and reports on a dropped session never arrive.
+     */
+    get superseded() {
+        return this.#superseded;
     }
 
     subjectFor(_message?: Message): Subject {
@@ -497,6 +547,9 @@ export namespace NodeSession {
 
         /** @see {@link NodeSession.suppressPeerLoss} */
         suppressPeerLoss?: boolean;
+
+        /** Create the session in the establishing state, see {@link NodeSession.isEstablishing}. */
+        establishing?: true;
 
         /** @see {@link NodeSession.reportedParameters} */
         reportedSessionParameters?: SessionParameters.Config;

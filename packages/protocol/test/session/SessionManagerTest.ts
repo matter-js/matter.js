@@ -7,7 +7,6 @@
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SessionParameters } from "#index.js";
-import type { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { DuplicateMessageError } from "#protocol/MessageReceptionState.js";
@@ -410,8 +409,9 @@ describe("SessionManager", () => {
         });
     });
 
-    describe("subscriptions on a newer CASE session", () => {
+    describe("session supersession", () => {
         const PEER_NODE_ID = NodeId(0x1234n);
+        const PEER_ADDRESS = PeerAddress({ fabricIndex: FabricIndex.NO_FABRIC, nodeId: PEER_NODE_ID });
         const [CAT_A, CAT_B] = [CaseAuthenticatedTag(0x0001_0001), CaseAuthenticatedTag(0x0002_0001)];
         let sessionManager: SessionManager;
         let nextId: number;
@@ -420,7 +420,6 @@ describe("SessionManager", () => {
             const storage = new MemoryStorageDriver();
             storage.initialize();
             sessionManager = new SessionManager({
-                parameters: {} as SessionParameters,
                 fabrics: new FabricManager(new StandardCrypto()),
                 storage: new StorageContext(storage, ["context"]),
             });
@@ -433,6 +432,7 @@ describe("SessionManager", () => {
                 peerNodeId?: NodeId;
                 caseAuthenticatedTags?: CaseAuthenticatedTag[];
                 isInitiator?: boolean;
+                establishing?: true;
             } = {},
         ) {
             const id = nextId++;
@@ -446,167 +446,163 @@ describe("SessionManager", () => {
                 isInitiator: options.isInitiator ?? false,
                 isResumption: false,
                 caseAuthenticatedTags: options.caseAuthenticatedTags,
+                establishing: options.establishing,
             });
         }
 
-        async function unconfirmedSession() {
-            const id = nextId++;
-            const unconfirmed = await sessionManager.createSecureSession({
-                id,
-                fabric: undefined,
-                peerNodeId: PEER_NODE_ID,
-                peerSessionId: id,
-                sharedSecret: DUMMY_BYTEARRAY,
-                salt: DUMMY_BYTEARRAY,
-                isInitiator: false,
-                isResumption: true,
-                delayManagerRegistration: true,
+        /** The sessions that superseded {@link older}, in order. */
+        function supersessionsOf(older: NodeSession) {
+            const newer = new Array<NodeSession>();
+            older.superseded.on(session => {
+                newer.push(session);
             });
-            sessionManager.addUnconfirmedSession(unconfirmed);
-            return unconfirmed;
+            return newer;
         }
 
-        function subscriptionOn(owner: NodeSession, onClose?: () => void) {
-            const moves = new Array<NodeSession>();
-            const subscription: Subscription = {
-                subscriptionId: nextId,
-                isTerminated: false,
-                async handlePeerCancel() {},
-                async close() {
-                    onClose?.();
-                },
-                async closeForShutdown() {},
-                moveTo(session) {
-                    moves.push(session);
-                    owner.subscriptions.delete(subscription);
-                    owner = session;
-                    session.subscriptions.add(subscription);
-                },
-            };
-            owner.subscriptions.add(subscription);
-            return moves;
-        }
-
-        it("moves them from an older session with the same peer, role and CATs in any order", async () => {
-            const moves = subscriptionOn(await session({ caseAuthenticatedTags: [CAT_A, CAT_B] }));
-            const newer = await session({ caseAuthenticatedTags: [CAT_B, CAT_A] });
-            expect(moves).deep.equals([newer]);
-        });
-
-        it("names a closing session itself for its subscriptions although an older one is open", async () => {
-            await session();
-            const own = await session();
+        /** Start closing {@link session} and keep it in the closing state until the returned function runs. */
+        function holdClosing(session: NodeSession) {
             let release!: () => void;
-            const closed = own.initiateClose(() => new Promise<void>(resolve => (release = resolve)));
+            const closed = session.initiateClose(() => new Promise<void>(resolve => (release = resolve)));
+            return async () => {
+                release();
+                await closed;
+            };
+        }
 
-            expect(sessionManager.subscriptionSessionFor(own)).equals(own);
-
-            release();
-            await closed;
+        it("supersedes an older session with the same peer, role and CATs in any order", async () => {
+            const older = await session({ caseAuthenticatedTags: [CAT_A, CAT_B] });
+            const superseded = supersessionsOf(older);
+            const newer = await session({ caseAuthenticatedTags: [CAT_B, CAT_A, CAT_B] });
+            expect(superseded).deep.equals([newer]);
         });
 
-        it("reports the changed subscriptions of both sessions", async () => {
-            const older = await session();
-            subscriptionOn(older);
-            const changed = new Array<NodeSession>();
-            sessionManager.subscriptionsChanged.on(session => {
-                changed.push(session);
-            });
-
-            const newer = await session();
-            expect(changed).deep.equals([older, newer]);
-        });
-
-        it("leaves them on a session with other CATs", async () => {
-            const moves = subscriptionOn(await session({ caseAuthenticatedTags: [CAT_A] }));
+        it("does not supersede a session with other CATs", async () => {
+            const superseded = supersessionsOf(await session({ caseAuthenticatedTags: [CAT_A] }));
             await session({ caseAuthenticatedTags: [CAT_A, CAT_B] });
             await session({ caseAuthenticatedTags: [CAT_B] });
             await session();
-            expect(moves).deep.equals([]);
+            expect(superseded).deep.equals([]);
         });
 
-        it("leaves them on a session of the other role", async () => {
-            const moves = subscriptionOn(await session());
+        it("does not supersede a session of the other role", async () => {
+            const superseded = supersessionsOf(await session());
             await session({ isInitiator: true });
-            expect(moves).deep.equals([]);
+            expect(superseded).deep.equals([]);
         });
 
-        it("leaves them on a session with another peer", async () => {
-            const moves = subscriptionOn(await session());
+        it("does not supersede a session with another peer", async () => {
+            const superseded = supersessionsOf(await session());
             await session({ peerNodeId: NodeId(0x5678n) });
-            expect(moves).deep.equals([]);
+            expect(superseded).deep.equals([]);
         });
 
-        it("leaves them on a closing session", async () => {
+        it("does not supersede a PASE session", async () => {
+            const superseded = supersessionsOf(await session({ peerNodeId: NodeId.UNSPECIFIED_NODE_ID }));
+            await session({ peerNodeId: NodeId.UNSPECIFIED_NODE_ID });
+            expect(superseded).deep.equals([]);
+        });
+
+        it("does not supersede a closing session", async () => {
             const older = await session();
-            const moves = subscriptionOn(older);
-            let release!: () => void;
-            const closing = older.initiateClose(() => new Promise<void>(resolve => (release = resolve)));
+            const superseded = supersessionsOf(older);
+            const release = holdClosing(older);
             await session();
-            expect(moves).deep.equals([]);
-            release();
-            await closing;
+            expect(superseded).deep.equals([]);
+            await release();
         });
 
-        it("moves them before the new session evicts the older one", async () => {
-            let closed = 0;
+        it("does not supersede a session that is still establishing", async () => {
+            const establishing = await session({ establishing: true });
+            const superseded = supersessionsOf(establishing);
+            await session();
+            expect(superseded).deep.equals([]);
+        });
+
+        it("supersedes nothing while establishing and the older sessions once established", async () => {
             const older = await session();
-            const moves = subscriptionOn(older, () => closed++);
+            const superseded = supersessionsOf(older);
+            const newer = await session({ establishing: true });
+            const ofNewer = supersessionsOf(newer);
+            expect(superseded).deep.equals([]);
+
+            newer.completeEstablishment();
+            expect(superseded).deep.equals([newer]);
+            expect(ofNewer).deep.equals([]);
+        });
+
+        it("orders supersession by completion, not by registration", async () => {
+            const older = await session();
+            const ofOlder = supersessionsOf(older);
+            const resumed = await session({ establishing: true });
+            const ofResumed = supersessionsOf(resumed);
+            const newer = await session();
+            const ofNewer = supersessionsOf(newer);
+
+            resumed.completeEstablishment();
+
+            expect(ofOlder).deep.equals([newer, resumed]);
+            expect(ofNewer).deep.equals([resumed]);
+            expect(ofResumed).deep.equals([]);
+        });
+
+        it("does not establish a session that is closing", async () => {
+            const superseded = supersessionsOf(await session());
+            const establishing = await session({ establishing: true });
+            const release = holdClosing(establishing);
+
+            establishing.completeEstablishment();
+
+            expect(establishing.isEstablishing).true;
+            expect(superseded).deep.equals([]);
+            await release();
+        });
+
+        it("finds an establishing session only once it is established", async () => {
+            const older = await session();
+            const establishing = await session({ establishing: true });
+            establishing.activeTimestamp = Timestamp(older.activeTimestamp + 1);
+
+            expect(sessionManager.maybeSessionFor(PEER_ADDRESS)).equals(older);
+
+            establishing.completeEstablishment();
+            expect(sessionManager.maybeSessionFor(PEER_ADDRESS)).equals(establishing);
+        });
+
+        it("supersedes the least recently used session before it evicts it", async () => {
+            const older = await session();
+            older.timestamp = Timestamp(0);
+            const events = new Array<string>();
+            older.superseded.on(() => {
+                events.push("superseded");
+            });
+            older.closing.on(() => {
+                events.push("closing");
+            });
             for (let i = 0; i < 4; i++) {
                 await session({ caseAuthenticatedTags: [CAT_A] });
             }
-            const newer = await session();
+
+            const newer = await session({ establishing: true });
+            await MockTime.yield3();
+            expect(older.isClosing).false;
+
+            newer.completeEstablishment();
+            await MockTime.yield3();
+            expect(events).deep.equals(["superseded", "closing"]);
+        });
+
+        it("neither counts nor evicts an establishing session for the per-peer cap", async () => {
+            const sessions = new Array<NodeSession>();
+            for (let i = 0; i < 3; i++) {
+                sessions.push(await session());
+            }
+            const establishing = await session({ establishing: true });
+            establishing.timestamp = Timestamp(0);
+            sessions.push(await session());
+            sessions.push(await session());
             await MockTime.yield3();
 
-            expect(older.isClosing).true;
-            expect(moves).deep.equals([newer]);
-            expect(closed).equals(0);
-        });
-
-        it("moves them to an unconfirmed session only once the peer confirms it", async () => {
-            const moves = subscriptionOn(await session());
-            const unconfirmed = await unconfirmedSession();
-            expect(moves).deep.equals([]);
-
-            sessionManager.confirmSession(unconfirmed);
-            expect(moves).deep.equals([unconfirmed]);
-        });
-
-        it("moves nothing to an unconfirmed session that closed before the peer confirmed it", async () => {
-            const moves = subscriptionOn(await session());
-            const unconfirmed = await unconfirmedSession();
-            let release!: () => void;
-            const closed = unconfirmed.initiateClose(() => new Promise<void>(resolve => (release = resolve)));
-
-            sessionManager.confirmSession(unconfirmed);
-            expect(moves).deep.equals([]);
-
-            release();
-            await closed;
-        });
-
-        it("names the newest confirmed session established after the given one for its subscriptions", async () => {
-            const own = await session();
-            const newer = await session();
-            const newest = await session();
-            await session({ caseAuthenticatedTags: [CAT_A] });
-            await unconfirmedSession();
-            const closing = await session();
-            let release!: () => void;
-            const closed = closing.initiateClose(() => new Promise<void>(resolve => (release = resolve)));
-
-            expect(sessionManager.subscriptionSessionFor(own)).equals(newest);
-            expect(sessionManager.subscriptionSessionFor(newer)).equals(newest);
-            expect(sessionManager.subscriptionSessionFor(newest)).equals(newest);
-
-            release();
-            await closed;
-        });
-
-        it("never moves them to a PASE session", async () => {
-            const moves = subscriptionOn(await session({ peerNodeId: NodeId.UNSPECIFIED_NODE_ID }));
-            await session({ peerNodeId: NodeId.UNSPECIFIED_NODE_ID });
-            expect(moves).deep.equals([]);
+            expect([...sessions, establishing].filter(session => session.isClosing)).deep.equals([]);
         });
     });
 
