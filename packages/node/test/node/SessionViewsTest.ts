@@ -142,6 +142,9 @@ interface Consumer {
     pase?: boolean;
     sees: Seen;
 
+    /** What the consumer does with the sessions it sees, when "sees" does not describe it. */
+    outcome?: string;
+
     /** Exercise the consumer and return the sessions of {@link Views.pair} it saw. */
     seen(views: Views): Promise<Iterable<NodeSession | undefined>>;
 }
@@ -174,6 +177,7 @@ const consumers: Consumer[] = [
     {
         name: "SessionManager.findOldestInactiveSession()",
         sees: "establishing",
+        outcome: "picks the oldest of both sessions, which is the establishing one",
         seen: async ({ sessions }) => [sessions.findOldestInactiveSession()],
     },
     {
@@ -234,6 +238,24 @@ const consumers: Consumer[] = [
         },
     },
     {
+        name: "Peer.subscriptions",
+        sees: "both",
+        seen: async ({ node, sessions, established, pair, subscriptions }) => {
+            const { env } = node;
+            const peers = new PeerSet({
+                lifetime: env,
+                sessions,
+                names: env.get(MdnsService).names,
+                networks: env.get(NetworkProfiles),
+            });
+            const peerSubscriptions = new Set(peers.get(established.peerAddress)?.subscriptions);
+            return pair.filter(session => {
+                const subscription = subscriptions.get(session);
+                return subscription !== undefined && peerSubscriptions.has(subscription);
+            });
+        },
+    },
+    {
         name: "SessionsBehavior events opened and closed",
         sees: "established",
         seen: async ({ pair, sessionEvents }) => {
@@ -273,9 +295,16 @@ const consumers: Consumer[] = [
     {
         name: "GeneralDiagnostics DeviceLoadStatus counting subscriptions",
         sees: "both",
-        seen: async ({ node, pair, established }) => {
+        seen: async ({ node, pair, establishing, established }) => {
+            // The establishing session holds 1 subscription and the established one 2, so the count tells which were seen
+            await subscribeOn(node, established, true);
             const { currentSubscriptions } = node.stateOf(GeneralDiagnosticsServer).deviceLoadStatus;
-            return currentSubscriptions === pair.length ? pair : currentSubscriptions === 1 ? [established] : [];
+            const counted = new Map<number, NodeSession[]>([
+                [3, pair],
+                [2, [established]],
+                [1, [establishing]],
+            ]);
+            return counted.get(currentSubscriptions) ?? [];
         },
     },
     {
@@ -306,8 +335,8 @@ describe("SessionViews", () => {
 
     MockForwardFeatures.enable("delay-report-data");
 
-    for (const { name, pase, sees, seen } of consumers) {
-        it(`${name} sees ${sees === "both" ? "both sessions" : `the ${sees} session`}`, async () => {
+    for (const { name, pase, sees, outcome, seen } of consumers) {
+        it(`${name} ${outcome ?? `sees ${sees === "both" ? "both sessions" : `the ${sees} session`}`}`, async () => {
             const fixture = await views({ pase });
             const { node, establishing, established } = fixture;
             try {

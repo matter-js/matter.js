@@ -131,7 +131,8 @@ export interface ExchangeSendOptions {
 
     /**
      * Invoked once, when the first transmission of the message went out and before the wait for its ack starts.  Not
-     * invoked when the first transmission fails or is aborted, and not for retransmissions.
+     * invoked when the first transmission fails or is aborted, and not for standalone acks or retransmissions.  A
+     * callback that throws fails the send.
      */
     onTransmitted?: () => void;
 

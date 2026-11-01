@@ -267,7 +267,7 @@ export class Peer {
 
     get subscriptions() {
         // TODO - this should just be #subscriptions
-        return [...this.#sessions].flatMap(session => [...session.subscriptions]);
+        return this.#context.sessions.sessionsFor(this.address).flatMap(session => [...session.subscriptions]);
     }
 
     get exchangeProvider() {

@@ -46,7 +46,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
     - Fix: AdministratorCommissioning OpenCommissioningWindow answers INVALID_COMMAND to a discriminator above 4095 instead of CONSTRAINT_ERROR
     - Fix: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow answer PAKEParameterError on a session without fabric, as CHIP does, instead of UNSUPPORTED_ACCESS
-    - Adjustment: `ServerSubscriptionContext.initiateExchange()` takes a `Session` instead of a `PeerAddress` or `Session`
+    - Adjustment: `ServerSubscriptionContext.initiateExchange()` takes only a `Session`, no longer a `PeerAddress`
     - Fix: A subscription moves to each newer CASE session of its subscriber
     - Fix: A subscription sends its reports on its own session instead of the most recently active session with its subscriber
     - Fix: A subscription whose SubscribeResponse cannot be sent is closed

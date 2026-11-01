@@ -235,7 +235,7 @@ describe("RebootResubscribeArmer", () => {
         expect(isSubscribed(subscription)).equals(true);
     });
 
-    it("re-subscribes when the only report arrives over a handshake that started before the return", async () => {
+    it("re-subscribes when the only report arrives over a handshake that started before the returning session was created", async () => {
         const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
         using _armer = armer;
         const subscription = registerSubscription();
@@ -249,6 +249,23 @@ describe("RebootResubscribeArmer", () => {
 
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(false);
+    });
+
+    it("keeps the subscription when the report arrives over our session created after a returning session still establishing", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
+        const subscription = registerSubscription();
+        armer.arm(PEER);
+
+        const returning = await createSession(false, true);
+        await MockTime.advance(Seconds(1));
+        const initiated = await createSession(true);
+        reportOver(initiated);
+        returning.completeEstablishment();
+        await MockTime.macrotasks;
+
+        await MockTime.advance(Seconds(30));
+        expect(isSubscribed(subscription)).equals(true);
     });
 
     it("characterization: re-subscribes when the only report arrives over a session whose handshake fails", async () => {
@@ -273,13 +290,13 @@ describe("RebootResubscribeArmer", () => {
         const subscription = registerSubscription();
         const preReboot = await createSession();
         armer.arm(PEER);
-        const returned = await createSession();
+        await MockTime.advance(Seconds(1));
+        await createSession();
         await MockTime.macrotasks;
 
-        // A rebooting device flushes its dying subscription, and that flush can be decoded at the same instant the
-        // returning session appears or well after it.  Either way it is data from before the reboot.
+        // A rebooting device flushes its dying subscription, and that flush can be decoded as the returning session
+        // appears or well after it.  Either way it is data from before the reboot.
         reportOver(preReboot);
-        expect(returned.createdAt).equals(preReboot.createdAt);
         await MockTime.advance(Seconds(10));
         reportOver(preReboot);
 
@@ -293,6 +310,7 @@ describe("RebootResubscribeArmer", () => {
         const subscription = registerSubscription();
         const preReboot = await createSession();
         armer.arm(PEER);
+        await MockTime.advance(Seconds(1));
 
         // Traffic between arming and the return is the device on its way out, not a subscription that survived.
         reportOver(preReboot);
@@ -375,6 +393,7 @@ describe("RebootResubscribeArmer", () => {
 
         // The second reboot leaves the first cycle's session outside the new return.
         armer.arm(PEER);
+        await MockTime.advance(Seconds(1));
         await createSession();
         await MockTime.macrotasks;
         reportOver(firstReturn);

@@ -563,7 +563,7 @@ export class SessionManager {
         return deletedCount > 0;
     }
 
-    /** The session with the least recent traffic among the given {@link sessions} that {@link filter} accepts, if any. */
+    /** The session with the least recent traffic among {@link sessions} that {@link filter} accepts, if any. */
     #leastRecentlyUsedSession(sessions: Iterable<NodeSession>, filter: (session: NodeSession) => boolean) {
         let oldest: NodeSession | undefined;
         for (const session of sessions) {
@@ -702,6 +702,9 @@ export class SessionManager {
     /**
      * Supersede the older sessions {@link newer} replaces, then evict excess sessions of the peer.  Supersession comes
      * first and is synchronous, so the subscriptions have left a session before eviction can close it.
+     *
+     * An older session that is still establishing is not superseded.  Subscriptions exist on such a session only if a
+     * Subscribe arrived before its handshake finished.  If that handshake fails, the subscriptions close with it.
      */
     #sessionEstablished(newer: NodeSession) {
         for (const older of this.#establishedSessions) {

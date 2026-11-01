@@ -43,8 +43,8 @@ interface ArmState {
      */
     returned?: {
         /**
-         * Sessions with the peer from after its return: the one that announced the return, those created no earlier
-         * and still establishing at that time, and every session registered later.
+         * Sessions with the peer from after its return: the sessions created at or after the announcing session, and
+         * every session registered later.
          */
         sessions: Set<SecureSession>;
 
@@ -61,8 +61,8 @@ interface ArmState {
  *
  * Callers arm a peer when they know it is about to reboot and return (e.g. OTA reaching its apply phase).  When the
  * peer's new session appears we (A) close older sessions and (B) start a grace window: if a subscription receives a
- * report within it over a session opened since that return (a persistent device fed it), we leave the subscription
- * alone; otherwise we force re-subscription.
+ * report within it over a session of the returned device (see `ArmState.returned`), a persistent device fed it, we
+ * leave the subscription alone; otherwise we force re-subscription.
  */
 export class RebootResubscribeArmer {
     readonly #sessions: SessionManager;
@@ -149,9 +149,7 @@ export class RebootResubscribeArmer {
 
         const sessions = new Set<SecureSession>([
             session,
-            ...this.#sessions
-                .sessionsFor(peerAddress)
-                .filter(other => other.isEstablishing && other.createdAt >= session.createdAt),
+            ...this.#sessions.sessionsFor(peerAddress).filter(other => other.createdAt >= session.createdAt),
         ]);
         state.returned = {
             sessions,
