@@ -37,8 +37,8 @@ import {
 } from "./definitions/asn.js";
 
 /**
- * Thrown when a DER certificate, such as a DAC, PAI, PAA or VVSC, is well-formed but violates its X.509 profile, including a VendorID or ProductID in
- * the distinguished name that is malformed or repeated.
+ * Thrown when a DER certificate, such as a DAC, PAI, PAA or VVSC, is well-formed but violates its X.509 profile,
+ * including a VendorID or ProductID in the distinguished name that is malformed or repeated.
  *
  * @see {@link MatterSpecification.v161.Core} § 6.2.2.2
  * @see {@link MatterSpecification.v161.Core} § 6.2.2.3
@@ -211,10 +211,12 @@ export interface DnDecodeOptions {
     acceptMalformedVidPid?: boolean;
 
     /**
-     * Read VendorID and ProductID from commonName values ("fallback method").  The DER decoder sets this when the DN
-     * has no matter-oid-vid or matter-oid-pid attribute, counting a malformed one too.
+     * The raw bytes of every commonName of the DN in encoded order.  Setting this reads VendorID and ProductID from
+     * them ("fallback method").  The DER decoder sets it when the DN has no matter-oid-vid or matter-oid-pid
+     * attribute, counting a malformed one too.  The bytes are needed because CHIP cuts the value at 64 bytes before it
+     * decodes the text, and invalid UTF-8 changes the length of the decoded text.
      */
-    vidPidFallback?: boolean;
+    fallbackCommonNames?: readonly Uint8Array[];
 
     /**
      * VendorID or ProductID attributes that were malformed, accepted as a profile violation and left out of the RDN
@@ -231,8 +233,8 @@ export interface DnDecodeOptions {
  *   vvs and noc-cat; § 6.2.2.3 and § 6.2.2.4 for VendorID and ProductID).  A repeated VendorID or ProductID throws
  *   {@link CertificateProfileError} unless `acceptMalformedVidPid` is set, any other repeat {@link CertificateError}.
  * - A standard attribute may repeat.  The object view holds its first value.
- * - With {@link DnDecodeOptions.vidPidFallback}, VendorID and ProductID come from the first commonName that carries
- *   a VendorID or ProductID; see {@link fallbackVidPid}.
+ * - With {@link DnDecodeOptions.fallbackCommonNames}, VendorID and ProductID come from the first commonName that
+ *   carries a VendorID or ProductID; see {@link fallbackVidPid}.
  *
  * @see {@link MatterSpecification.v161.Core} § 6.2.2.2
  */
@@ -240,7 +242,7 @@ export function decodeDistinguishedName(
     rdns: readonly DistinguishedName.Rdn[],
     options: DnDecodeOptions = {},
 ): DistinguishedName.View {
-    const { acceptMalformedVidPid = false, vidPidFallback = false } = options;
+    const { acceptMalformedVidPid = false, fallbackCommonNames } = options;
     const view: Mutable<DistinguishedName.View> = {};
     const unusable = new Set<VidPidAttribute>(options.malformed);
     const matterAttributes = new Set<DistinguishedName.Rdn["type"]>();
@@ -292,8 +294,8 @@ export function decodeDistinguishedName(
         }
     }
 
-    if (vidPidFallback) {
-        const { vendorId, productId } = fallbackVidPid(commonNamesOf(rdns));
+    if (fallbackCommonNames !== undefined) {
+        const { vendorId, productId } = fallbackVidPid(fallbackCommonNames);
         if (vendorId !== undefined) {
             view.vendorId = VendorId(vendorId, false);
         }
@@ -333,7 +335,9 @@ function isMatterAttribute(type: DistinguishedName.Rdn["type"]) {
 const MAX_FALLBACK_COMMON_NAME_BYTES = 64;
 
 function commonNamesOf(rdns: readonly { type: string; value: unknown }[]) {
-    return rdns.flatMap(({ type, value }) => (type === "commonName" || type === "commonNamePs" ? [String(value)] : []));
+    return rdns.flatMap(({ type, value }) =>
+        type === "commonName" || type === "commonNamePs" ? [Bytes.of(Bytes.fromString(String(value)))] : [],
+    );
 }
 
 /**
@@ -346,11 +350,9 @@ function commonNamesOf(rdns: readonly { type: string; value: unknown }[]) {
  *
  * @throws CertificateError if a commonName read has a prefix without a correctly encoded value
  */
-function fallbackVidPid(commonNames: readonly string[]): { vendorId?: number; productId?: number } {
+function fallbackVidPid(commonNames: readonly Uint8Array[]): { vendorId?: number; productId?: number } {
     for (const commonName of commonNames) {
-        const searched = Bytes.toString(
-            Bytes.of(Bytes.fromString(commonName)).subarray(0, MAX_FALLBACK_COMMON_NAME_BYTES),
-        );
+        const searched = Bytes.toString(commonName.subarray(0, MAX_FALLBACK_COMMON_NAME_BYTES));
         const vendorId = parseMatterFallbackVidPid(searched, "Mvid:");
         const productId = parseMatterFallbackVidPid(searched, "Mpid:");
         if (vendorId !== undefined || productId !== undefined) {
@@ -418,18 +420,41 @@ export function rdnOf(type: string, value: any): DistinguishedName.Rdn | undefin
 }
 
 /**
- * The RDN list a DN built in code encodes to: one RDN per property in property order and one per CAT.  A VendorID or
- * ProductID property is left out when a commonName carries a VendorID or ProductID ("fallback method", § 6.2.2.2), found by {@link fallbackVidPid}.
+ * Whether the commonNames of a DN already give exactly its `vendorId` and `productId` properties by the "fallback
+ * method" (§ 6.2.2.2), so that no VendorID or ProductID attribute is needed.
+ *
+ * A decoder skips the fallback for the whole DN when either attribute is present.  So the attributes are left out
+ * only when the fallback gives both properties, including an absent one.  If one property differs, both are written
+ * as attributes, because a lone attribute would hide the other value that the commonName carries.  A commonName
+ * with a malformed prefix counts as not carrying a value, because the decoder does not read it next to an attribute.
+ */
+function commonNameCarriesVidPid(dn: DistinguishedName.View) {
+    if (dn.vendorId === undefined && dn.productId === undefined) {
+        return false;
+    }
+    try {
+        const { vendorId, productId } = fallbackVidPid(
+            commonNamesOf(Object.entries(dn).map(([type, value]) => ({ type, value }))),
+        );
+        return vendorId === dn.vendorId && productId === dn.productId;
+    } catch (error) {
+        if (error instanceof CertificateError) {
+            return false;
+        }
+        throw error;
+    }
+}
+
+/**
+ * The RDN list a DN built in code encodes to: one RDN per property in property order and one per CAT.  The VendorID
+ * and ProductID properties are left out when {@link commonNameCarriesVidPid}.
  */
 function rdnsOfProperties(dn: DistinguishedName.View) {
-    const { vendorId, productId } = fallbackVidPid(
-        commonNamesOf(Object.entries(dn).map(([type, value]) => ({ type, value }))),
-    );
-    const usesFallbackVidPid = vendorId !== undefined || productId !== undefined;
+    const omitVidPid = commonNameCarriesVidPid(dn);
 
     const rdns = new Array<DistinguishedName.Rdn>();
     for (const [name, value] of Object.entries(dn)) {
-        if (value === undefined || (usesFallbackVidPid && (name === "vendorId" || name === "productId"))) {
+        if (value === undefined || (omitVidPid && (name === "vendorId" || name === "productId"))) {
             continue;
         }
         if (name === "caseAuthenticatedTags") {

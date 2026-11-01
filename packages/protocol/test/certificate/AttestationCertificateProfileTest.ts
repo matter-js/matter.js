@@ -551,6 +551,17 @@ describe("Attestation certificate profile", () => {
                 expect(Dac.fromAsn1(dac).cert.subject.vendorId).equals(0xfff1);
             });
 
+            // CHIP cuts the raw bytes, so an invalid UTF-8 byte counts as one byte, not as the 3 bytes of U+FFFD.
+            it("cuts a commonName with invalid UTF-8 at byte 64 of the received bytes", () => {
+                const dac = dacWithFallback(subject => {
+                    const [type, value] = attributeOf(subject, VENDOR_ID_OID)._elements!;
+                    type._bytes = Bytes.fromHex(COMMON_NAME_OID);
+                    value._bytes = Bytes.concat(Uint8Array.of(0xff), Bytes.fromString(`${"x".repeat(54)}Mvid:FFF1`));
+                    subject._elements!.splice(rdnIndexOf(subject, PRODUCT_ID_OID), 1);
+                });
+                expect(Dac.fromAsn1(dac).cert.subject.vendorId).equals(0xfff1);
+            });
+
             it("refuses a value that byte 64 of a commonName cuts", () => {
                 const dac = dacWithFallback(subject => {
                     asCommonName(subject, VENDOR_ID_OID, `${"x".repeat(56)}Mvid:FFF1`);

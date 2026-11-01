@@ -294,7 +294,9 @@ export namespace Certificate {
      *
      * Attributes of an unknown type are left out.  A malformed VendorID or ProductID is left out too with
      * `acceptMalformedVidPid`, and makes that field undefined.  A domainComponent is read whatever its string type,
-     * as the CHIP SDK does, and is encoded as IA5String.
+     * as the CHIP SDK does, and is encoded as IA5String.  Matter TLV has no tag for a PrintableString domainComponent
+     * (§ 6.5.6.1 lists `-ps` tags 129 to 143 only), so it is written with tag 16.  CHIP writes tag 144 for it,
+     * which matter.js reads as an unknown tag and ignores.
      */
     function parseSubjectOrIssuer(node: DerNode, acceptMalformedVidPid: boolean) {
         const { _elements: rdnSequence } = node;
@@ -304,6 +306,7 @@ export namespace Certificate {
 
         const rdns = new Array<DistinguishedName.Rdn>();
         const malformed = new Set<"vendorId" | "productId">();
+        const commonNames = new Array<Uint8Array>();
         let hasVidPidAttribute = false;
 
         for (const rdnSet of rdnSequence) {
@@ -355,6 +358,9 @@ export namespace Certificate {
                         break;
                     default:
                         value = text;
+                        if (field === "commonName") {
+                            commonNames.push(Bytes.of(valueNode._bytes));
+                        }
                         if (valueNode._tag === DerType.PrintableString && field !== "domainComponent") {
                             field += "Ps";
                         }
@@ -369,7 +375,7 @@ export namespace Certificate {
 
         return decodeDistinguishedName(rdns, {
             acceptMalformedVidPid,
-            vidPidFallback: !hasVidPidAttribute,
+            fallbackCommonNames: hasVidPidAttribute ? undefined : commonNames,
             malformed,
         });
     }

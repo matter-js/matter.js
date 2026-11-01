@@ -94,6 +94,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A certificate that repeats a standard DN attribute, such as organizationalUnitName, or has CASE Authenticated Tags between other DN attributes re-encodes in TLV and DER to the bytes its issuer signed
     - Fix: DER certificate parsing reads domainComponent, and the first value of a repeated standard DN attribute instead of the last
     - Fix: DER certificate parsing reads VendorID and ProductID from the first commonName that carries a VendorID or ProductID, within its first 64 bytes, as the CHIP SDK does
+    - Fix: Encoding a subject or issuer built in code keeps a VendorID or ProductID that differs from the one in its commonName
     - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
 
 - @matter/types

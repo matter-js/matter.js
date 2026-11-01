@@ -12,6 +12,7 @@ import {
     jsToMatterDate,
     NocCat_Matter,
     NodeId_Matter,
+    ProductId_Matter,
     RcacId_Matter,
     VendorId_Matter,
 } from "#certificate/kinds/definitions/asn.js";
@@ -562,6 +563,94 @@ describe("Certificate distinguished name", () => {
         });
     });
 
+    describe("a copy of a decoded DN with a VendorID or ProductID", () => {
+        const base = { nodeId: NodeId_Matter(NODE_ID), fabricId: FabricId_Matter(FABRIC_ID) };
+
+        /** Decode `subject` from DER, copy it with spread, encode the copy and decode that again. */
+        async function reencodedCopy(subject: Record<string, DerNodeDefinition>) {
+            const keys = await chain();
+            const decoded: DistinguishedName.View = Noc.fromAsn1(await nocDer(keys, subject)).cert.subject;
+            const copy: DistinguishedName.View = { ...decoded };
+            const asn1 = distinguishedNameToAsn1(copy);
+            const again: DistinguishedName.View = Noc.fromAsn1(await nocDer(keys, asn1)).cert.subject;
+            return { decoded, copy, asn1, again };
+        }
+
+        it("keeps a VendorID attribute that differs from the one in the commonName", async () => {
+            const { decoded, copy, again } = await reencodedCopy({
+                ...base,
+                commonName: X520.CommonName("Matter Mvid:FFF1"),
+                vendorId: VendorId_Matter(VendorId(0xfff2)),
+            });
+
+            expect(decoded.vendorId).equals(0xfff2);
+            expect(copy.rdns).undefined;
+            expect(again.vendorId).equals(0xfff2);
+        });
+
+        it("leaves out the attributes when the commonName gives the same values", async () => {
+            const { asn1, again } = await reencodedCopy({
+                ...base,
+                commonName: X520.CommonName("Matter Mvid:FFF1 Mpid:8000"),
+            });
+
+            expect(Object.keys(asn1)).deep.equals(["rdn0", "rdn1", "rdn2"]);
+            expect(again.vendorId).equals(0xfff1);
+            expect(again.productId).equals(0x8000);
+        });
+
+        it("keeps both attributes when only one of them equals the commonName value", async () => {
+            const { again } = await reencodedCopy({
+                ...base,
+                commonName: X520.CommonName("Matter Mvid:FFF1"),
+                vendorId: VendorId_Matter(VendorId(0xfff1)),
+                productId: ProductId_Matter(0x8000),
+            });
+
+            expect(again.vendorId).equals(0xfff1);
+            expect(again.productId).equals(0x8000);
+        });
+
+        it("keeps a ProductID attribute next to a commonName with another ProductID", async () => {
+            const { again } = await reencodedCopy({
+                ...base,
+                commonName: X520.CommonName("Matter Mvid:FFF1 Mpid:8000"),
+                productId: ProductId_Matter(0x8001),
+            });
+
+            expect(again.vendorId).undefined;
+            expect(again.productId).equals(0x8001);
+        });
+
+        it("encodes a commonName with a malformed prefix next to a VendorID attribute", async () => {
+            const { again } = await reencodedCopy({
+                ...base,
+                commonName: X520.CommonName("Matter Mvid:"),
+                vendorId: VendorId_Matter(VendorId(0xfff1)),
+            });
+
+            expect(again.vendorId).equals(0xfff1);
+        });
+    });
+
+    describe("a DN built in code with a VendorID next to a commonName with a ProductID", () => {
+        it("keeps the VendorID", async () => {
+            const keys = await chain();
+            const subject: DistinguishedName.View = {
+                nodeId: NODE_ID,
+                fabricId: FABRIC_ID,
+                commonName: "X Mpid:8000",
+                vendorId: VendorId(0xfff1),
+            };
+
+            const decoded: DistinguishedName.View = Noc.fromAsn1(await nocDer(keys, distinguishedNameToAsn1(subject)))
+                .cert.subject;
+
+            expect(decoded.vendorId).equals(0xfff1);
+            expect(decoded.productId).undefined;
+        });
+    });
+
     describe("a DER certificate with a VendorID in its subject", () => {
         it("cannot be converted to TLV", async () => {
             const keys = await chain();
@@ -619,6 +708,13 @@ describe("Certificate distinguished name", () => {
 
         it("skips an unknown context tag, also one with a container value", () => {
             const dn = schema.decode(list("246301", NODE, "356324010518", FABRIC));
+
+            expect(dn.rdns?.map(({ type }) => type)).deep.equals(["nodeId", "fabricId"]);
+        });
+
+        // Characterization: CHIP writes a PrintableString domainComponent with tag 144, which the specification does not define.
+        it("skips tag 144 of a PrintableString domainComponent", () => {
+            const dn = schema.decode(list(NODE, "2c9003616263", FABRIC));
 
             expect(dn.rdns?.map(({ type }) => type)).deep.equals(["nodeId", "fabricId"]);
         });
