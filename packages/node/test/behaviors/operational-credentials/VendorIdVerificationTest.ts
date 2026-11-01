@@ -5,12 +5,53 @@
  */
 
 import { VendorIdVerification } from "#behaviors/operational-credentials";
-import { Bytes, Crypto, MATTER_CRYPTO_PRIMITIVES_VERSION, StandardCrypto } from "@matter/general";
-import { CertificateAuthority } from "@matter/protocol";
+import { Bytes, Crypto, MATTER_CRYPTO_PRIMITIVES_VERSION, StandardCrypto, Time } from "@matter/general";
+import { CertificateAuthority, Vvsc } from "@matter/protocol";
 import { FabricId, FabricIndex, NodeId, TlvAny, VendorId } from "@matter/types";
 
 const NODE_ID_TAG = 17;
 const RCAC_ID_TAG = 20;
+const FABRIC_ID_TAG = 21;
+const VVS_ID_TAG = 23;
+
+/** Statement version, fabric binding message, signer SKID and signature, with content the VVSC check never reaches. */
+const STATEMENT = Bytes.concat(Bytes.fromHex("21"), new Uint8Array(76 + 20 + 64));
+
+function matterEpochSeconds(addYears: number) {
+    const date = new Date(Time.now.getTime());
+    date.setUTCFullYear(date.getUTCFullYear() + addYears);
+    return Math.floor((date.getTime() - Date.UTC(2000, 0, 1)) / 1000);
+}
+
+/** A signed VVSC of an unrelated key. */
+async function vvscTlv(crypto: Crypto) {
+    const key = await crypto.createKeyPair();
+    const skid = Bytes.of(await crypto.computeHash(key.publicKey, "SHA-1"));
+    const vvsc = new Vvsc({
+        serialNumber: Bytes.fromHex("01"),
+        signatureAlgorithm: 1,
+        publicKeyAlgorithm: 1,
+        ellipticCurveIdentifier: 1,
+        notBefore: matterEpochSeconds(-1),
+        notAfter: matterEpochSeconds(10),
+        ellipticCurvePublicKey: key.publicKey,
+        issuer: { rcacId: 1 },
+        subject: { vvsId: 3 },
+        extensions: {
+            basicConstraints: { isCa: false },
+            keyUsage: { digitalSignature: true },
+            subjectKeyIdentifier: skid,
+            authorityKeyIdentifier: skid,
+        },
+    });
+    await vvsc.sign(crypto, key);
+    return vvsc.asSignedTlv();
+}
+
+function withoutEntry(tlv: Bytes, tagId: number) {
+    const stream = TlvAny.decode(tlv);
+    return TlvAny.encode(stream.filter(({ tag }) => tag?.id !== tagId));
+}
 
 /** The first DN entry with {@link tagId} occurs twice. */
 function withRepeatedEntry(tlv: Bytes, tagId: number) {
@@ -23,7 +64,10 @@ function withRepeatedEntry(tlv: Bytes, tagId: number) {
 describe("VendorIdVerification", () => {
     describe("verifyData", () => {
         /** Verifies a NOC whose key signed the fabric binding, so the certificates are the first thing that fails. */
-        async function verify(crypto: Crypto, mutate: { noc?: (noc: Bytes) => Bytes; rcac?: (rcac: Bytes) => Bytes }) {
+        async function verify(
+            crypto: Crypto,
+            mutate: { noc?: (noc: Bytes) => Bytes; rcac?: (rcac: Bytes) => Bytes; vvsc?: (vvsc: Bytes) => Bytes },
+        ) {
             const authority = await CertificateAuthority.create(crypto, false);
             const nocKey = await crypto.createKeyPair();
             const noc = await authority.generateNoc(nocKey.publicKey, FabricId(1), NodeId(0x1234n));
@@ -35,7 +79,12 @@ describe("VendorIdVerification", () => {
                 clientChallenge,
                 attChallenge,
                 fabricIndex,
-                fabric: { rootPublicKey: nocKey.publicKey, fabricId: FabricId(1), rootVendorId: VendorId(0xfff1) },
+                fabric: {
+                    rootPublicKey: nocKey.publicKey,
+                    fabricId: FabricId(1),
+                    rootVendorId: VendorId(0xfff1),
+                    vidVerificationStatement: mutate.vvsc ? STATEMENT : undefined,
+                },
             });
             const { bytes: signature } = await crypto.signEcdsa(nocKey, signatureData);
 
@@ -47,7 +96,12 @@ describe("VendorIdVerification", () => {
                     fabricBindingVersion: MATTER_CRYPTO_PRIMITIVES_VERSION,
                     signature,
                 },
-                noc: { noc: mutate.noc?.(noc) ?? noc, icac: null, fabricIndex },
+                noc: {
+                    noc: mutate.noc?.(noc) ?? noc,
+                    icac: null,
+                    vvsc: mutate.vvsc?.(await vvscTlv(crypto)),
+                    fabricIndex,
+                },
                 rcac: mutate.rcac?.(authority.rootCert) ?? authority.rootCert,
                 fabric: {
                     rootPublicKey: nocKey.publicKey,
@@ -55,7 +109,7 @@ describe("VendorIdVerification", () => {
                     fabricId: FabricId(1),
                     nodeId: NodeId(0x1234n),
                     label: "",
-                    vidVerificationStatement: undefined,
+                    vidVerificationStatement: mutate.vvsc ? STATEMENT : undefined,
                     fabricIndex,
                 },
             });
@@ -68,6 +122,16 @@ describe("VendorIdVerification", () => {
         it("returns false for a NOC that repeats a subject attribute", async () => {
             const noc = (tlv: Bytes) => withRepeatedEntry(tlv, NODE_ID_TAG);
             expect(await verify(new StandardCrypto(), { noc })).false;
+        });
+
+        it("returns false for a NOC that lacks a required subject attribute", async () => {
+            const noc = (tlv: Bytes) => withoutEntry(tlv, FABRIC_ID_TAG);
+            expect(await verify(new StandardCrypto(), { noc })).false;
+        });
+
+        it("returns false for a VVSC that repeats a subject attribute", async () => {
+            const vvsc = (tlv: Bytes) => withRepeatedEntry(tlv, VVS_ID_TAG);
+            expect(await verify(new StandardCrypto(), { vvsc })).false;
         });
 
         it("returns false for an RCAC that repeats a subject attribute", async () => {

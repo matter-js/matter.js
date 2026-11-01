@@ -426,16 +426,21 @@ describe("Attestation certificate profile", () => {
                 expect(() => Dac.fromAsn1(dac)).throws(CertificateProfileError);
             });
 
-            it(`parses a DAC with a ${name} when accepting a profile violation, without the value`, () => {
-                const { subject } = Dac.fromAsn1(build(), { acceptProfileViolation: true }).cert;
+            it(`parses a DAC with a ${name} when accepting a malformed VendorID or ProductID, without the value`, () => {
+                const { subject } = Dac.fromAsn1(build(), { acceptMalformedVidPid: true }).cert;
                 const field = name.includes("VendorID") ? "vendorId" : "productId";
                 expect(subject[field]).undefined;
             });
         }
 
+        it("still reports a malformed VendorID when only accepting a profile violation", () => {
+            const dac = withSubjectText(VALID_DAC, VENDOR_ID_OID, "fff1");
+            expect(() => Dac.fromAsn1(dac, { acceptProfileViolation: true })).throws(CertificateProfileError);
+        });
+
         it("keeps the valid one of the two values when only the other is malformed", () => {
             const { subject } = Dac.fromAsn1(withSubjectText(VALID_DAC, VENDOR_ID_OID, "fff1"), {
-                acceptProfileViolation: true,
+                acceptMalformedVidPid: true,
             }).cert;
             expect(subject.productId).equals(0x8000);
         });
@@ -443,13 +448,13 @@ describe("Attestation certificate profile", () => {
         it("reports a malformed VendorID in the issuer of a DAC like one in the subject", () => {
             const dac = withIssuerText(VALID_DAC, VENDOR_ID_OID, "fff1");
             expect(() => Dac.fromAsn1(dac)).throws(CertificateProfileError);
-            expect(Dac.fromAsn1(dac, { acceptProfileViolation: true }).cert.issuer.vendorId).undefined;
+            expect(Dac.fromAsn1(dac, { acceptMalformedVidPid: true }).cert.issuer.vendorId).undefined;
         });
 
         it("reports a PAI with a malformed VendorID as a profile violation", () => {
             const pai = withSubjectText(VALID_PAI, VENDOR_ID_OID, "fff1");
             expect(() => Pai.fromAsn1(pai)).throws(CertificateProfileError);
-            expect(Pai.fromAsn1(pai, { acceptProfileViolation: true }).cert.subject.vendorId).undefined;
+            expect(Pai.fromAsn1(pai, { acceptMalformedVidPid: true }).cert.subject.vendorId).undefined;
         });
 
         it("does not read the common name as VendorID when the OID value is malformed", () => {
@@ -457,7 +462,7 @@ describe("Attestation certificate profile", () => {
             const pai = editSubject(Bytes.toHex(withSubjectText(VALID_PAI, VENDOR_ID_OID, "fff1")), subject => {
                 attributeOf(subject, COMMON_NAME_OID)._elements![1]._bytes = Bytes.fromString("Mvid:FFF2");
             });
-            expect(Pai.fromAsn1(pai, { acceptProfileViolation: true }).cert.subject.vendorId).undefined;
+            expect(Pai.fromAsn1(pai, { acceptMalformedVidPid: true }).cert.subject.vendorId).undefined;
         });
 
         it("starts a device whose own DAC has a malformed VendorID", async () => {

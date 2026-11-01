@@ -263,7 +263,7 @@ function isVidOrPid(field: string) {
 }
 
 /**
- * Thrown when a DAC, PAI or PAA is well-formed but violates its X.509 profile, including a VendorID or ProductID in
+ * Thrown when a DER certificate, such as a DAC, PAI, PAA or VVSC, is well-formed but violates its X.509 profile, including a VendorID or ProductID in
  * the distinguished name that is malformed or repeated.
  *
  * @see {@link MatterSpecification.v161.Core} § 6.2.2.2
@@ -333,7 +333,7 @@ export namespace Certificate {
     /**
      * Parse a subject or issuer field from ASN.1 DER format.
      */
-    function parseSubjectOrIssuer(node: DerNode, acceptProfileViolation: boolean) {
+    function parseSubjectOrIssuer(node: DerNode, acceptMalformedVidPid: boolean) {
         const result: { [field: string]: unknown } = {};
         const seenFields = new Set<string>();
         const unusableFields = new Set<string>();
@@ -368,7 +368,7 @@ export namespace Certificate {
                         if (!isVidOrPid(field)) {
                             throw new CertificateError(message);
                         }
-                        if (!acceptProfileViolation) {
+                        if (!acceptMalformedVidPid) {
                             throw new CertificateProfileError(message);
                         }
                         unusableFields.add(field);
@@ -400,7 +400,7 @@ export namespace Certificate {
                                 parseMatterRdnHex(field, Bytes.toString(valueBytes), 2, CertificateProfileError),
                             );
                         } catch (error) {
-                            if (!acceptProfileViolation || !(error instanceof CertificateProfileError)) {
+                            if (!acceptMalformedVidPid || !(error instanceof CertificateProfileError)) {
                                 throw error;
                             }
                             continue;
@@ -723,9 +723,10 @@ export namespace Certificate {
 
         /**
          * Read a certificate whose VendorID or ProductID is malformed or repeated, leaving the affected field
-         * undefined, instead of throwing {@link CertificateProfileError}.
+         * undefined, instead of throwing {@link CertificateProfileError}.  Other malformed Matter-specific attributes
+         * still throw.
          */
-        acceptProfileViolation?: boolean;
+        acceptMalformedVidPid?: boolean;
     }
 
     /**
@@ -800,7 +801,7 @@ export namespace Certificate {
 
         // Issuer — retain raw DER for exact-match comparisons (CRL revocation lookup)
         const issuerDer = Bytes.of(DerCodec.encode(certElements[idx]));
-        const issuer = parseSubjectOrIssuer(certElements[idx++], options.acceptProfileViolation === true);
+        const issuer = parseSubjectOrIssuer(certElements[idx++], options.acceptMalformedVidPid === true);
 
         // Validity
         const { _elements: validityElements } = certElements[idx++];
@@ -811,7 +812,7 @@ export namespace Certificate {
         const notAfter = parseDate(validityElements[1]);
 
         const subjectDer = Bytes.of(DerCodec.encode(certElements[idx]));
-        const subject = parseSubjectOrIssuer(certElements[idx++], options.acceptProfileViolation === true);
+        const subject = parseSubjectOrIssuer(certElements[idx++], options.acceptMalformedVidPid === true);
 
         // Public key
         const publicKeyNode = certElements[idx++];
