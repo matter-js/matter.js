@@ -7,7 +7,7 @@
 import { Bytes, CertificateError, Crypto, Diagnostic, PublicKey } from "@matter/general";
 import { FabricId } from "@matter/types";
 import { Certificate } from "./Certificate.js";
-import { ExtensionKeyUsageSchema } from "./definitions/base.js";
+import { rawKeyUsage } from "./definitions/base.js";
 import { OperationalCertificate } from "./definitions/operational.js";
 import { OperationalBase } from "./OperationalBase.js";
 
@@ -97,10 +97,10 @@ export class Rcac extends OperationalBase<OperationalCertificate.Rcac> {
 
         // The key usage extension SHALL be encoded with at least two flags: keyCertSign (0x0020) and CRLSign (0x0040)
         // and optionally with digitalSignature (0x0001).
-        const keyUsage = ExtensionKeyUsageSchema.encode(extensions.keyUsage);
+        const keyUsage = rawKeyUsage(extensions.keyUsage);
         if (keyUsage !== 0x0060 && keyUsage !== 0x0061) {
             throw new CertificateError(
-                `Root certificate keyUsage must have keyCertSign and CRLSign and optionally digitalSignature set.`,
+                `Root certificate keyUsage must have keyCertSign and CRLSign and optionally digitalSignature set: 0x${keyUsage.toString(16)}`,
             );
         }
 

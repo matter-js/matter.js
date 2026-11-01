@@ -29,6 +29,7 @@ import {
     NodeId,
     TlvAny,
     TlvField,
+    TlvLength,
     TlvStream,
     TlvTaggedList,
     TlvType,
@@ -304,6 +305,42 @@ function withoutSubjectRdn(der: Bytes, oid: string): Bytes {
     return reencode(cert);
 }
 
+const EXTENSIONS_TAG = 10;
+const KEY_USAGE_TAG = 2;
+const KEY_USAGE_RESERVED_BIT = 0x0200;
+
+/**
+ * Replaces the raw key usage bitmap of a signed Matter-TLV certificate.  The decoder drops bits without a name, so the
+ * verifier rebuilds the same signed bytes and the issuer signature stays valid.
+ */
+function withKeyUsageBitmap(tlv: Bytes, bitmap: number): Bytes {
+    const stream = TlvAny.decode(tlv);
+    let depth = 0;
+    let inExtensions = false;
+    for (const element of stream) {
+        const { tag, typeLength } = element;
+        if (depth === 2 && inExtensions && tag?.id === KEY_USAGE_TAG) {
+            element.typeLength = { type: TlvType.UnsignedInt, length: TlvLength.TwoBytes };
+            element.value = bitmap;
+            return TlvAny.encode(stream);
+        }
+        switch (typeLength.type) {
+            case TlvType.Structure:
+            case TlvType.List:
+            case TlvType.Array:
+                depth++;
+                if (depth === 2) {
+                    inExtensions = tag?.id === EXTENSIONS_TAG;
+                }
+                break;
+            case TlvType.EndOfContainer:
+                depth--;
+                break;
+        }
+    }
+    throw new InternalError("Certificate has no key usage extension");
+}
+
 /** Signs a certificate again after {@link withLeadingDnEntry} added an entry the decoder keeps. */
 async function resignedNoc(tlv: Bytes, issuer: KeyMaterial) {
     const { signature: _signature, ...cert } = OperationalCertificate.TlvNoc.decode(tlv);
@@ -475,6 +512,12 @@ describe("Operational certificate verification", () => {
             await verifyNoc(noc, rootTlv, icaTlv);
         });
 
+        // Characterization: the NOC check reads only digitalSignature. CHIP refuses a bit without a name in any certificate.
+        it("verifies a NOC whose key usage bitmap has a bit that has no name", async () => {
+            const noc = withKeyUsageBitmap(await nocTlv(node, ica), 0x0001 | KEY_USAGE_RESERVED_BIT);
+            await verifyNoc(noc, rootTlv, icaTlv);
+        });
+
         // Characterization: passes without the fix.
         it("refuses a NOC whose key usage lacks digitalSignature", async () => {
             const noc = await nocTlv(node, ica, cert => {
@@ -612,6 +655,22 @@ describe("Operational certificate verification", () => {
         });
     });
 
+    describe("ICAC extensions", () => {
+        it("refuses a key usage bitmap with a bit that has no name", async () => {
+            const icac = withKeyUsageBitmap(await icacTlv(ica, root), 0x0060 | KEY_USAGE_RESERVED_BIT);
+            await expect(verifyIcac(icac, rootTlv)).rejectedWith(CertificateError, /keyUsage/);
+        });
+
+        it("accepts the optional digitalSignature flag", async () => {
+            await verifyIcac(
+                await icacTlv(ica, root, cert => {
+                    cert.extensions.keyUsage = { keyCertSign: true, cRLSign: true, digitalSignature: true };
+                }),
+                rootTlv,
+            );
+        });
+    });
+
     describe("ICAC subject DN", () => {
         // Characterization: passes without the fix.
         it("refuses an RCAC in the ICAC position", async () => {
@@ -710,6 +769,19 @@ describe("Operational certificate verification", () => {
             });
             await expect(verifyRcac(rcac)).rejectedWith(CertificateError, /keyUsage/);
         });
+
+        it("refuses a key usage bitmap with a bit that has no name", async () => {
+            const rcac = withKeyUsageBitmap(await rcacTlv(root), 0x0060 | KEY_USAGE_RESERVED_BIT);
+            await expect(verifyRcac(rcac)).rejectedWith(CertificateError, /keyUsage/);
+        });
+
+        it("accepts the optional digitalSignature flag", async () => {
+            await verifyRcac(
+                await rcacTlv(root, cert => {
+                    cert.extensions.keyUsage = { keyCertSign: true, cRLSign: true, digitalSignature: true };
+                }),
+            );
+        });
     });
 
     describe("VVSC extensions", () => {
@@ -725,6 +797,11 @@ describe("Operational certificate verification", () => {
                 c.extensions.keyUsage = { digitalSignature: true, keyEncipherment: true };
             });
             await expect(new Vvsc(cert).verify(crypto)).rejectedWith(CertificateError, /keyUsage/);
+        });
+
+        it("refuses a VVSC key usage bitmap with a bit that has no name", async () => {
+            const vvsc = withKeyUsageBitmap(await vvscTlv(await keyMaterial(), root), 0x0001 | KEY_USAGE_RESERVED_BIT);
+            await expect(verifyVvsc(vvsc)).rejectedWith(CertificateError, /keyUsage/);
         });
 
         it("refuses a VVSC with an empty key usage", async () => {

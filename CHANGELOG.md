@@ -45,6 +45,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Deleting from a fabric-filtered state list, or setting the length of any state list, requires write access
     - Fix: Thermostat accepts a preset write that sends an existing built-in preset with a null `BuiltIn`
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
+    - Fix: `VendorIdVerification.verifyData` returns false for a VVSC that breaks its certificate profile instead of throwing
     - Fix: AdministratorCommissioning OpenCommissioningWindow answers INVALID_COMMAND to a discriminator above 4095 instead of CONSTRAINT_ERROR
     - Fix: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow answer PAKEParameterError on a session without fabric instead of UNSUPPORTED_ACCESS
 
@@ -84,6 +85,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Device attestation reports a Certification Declaration from the Matter test CD signer as `TrustedAsTestCertificate` when test certificates are not accepted
     - Fix: A VVSC with is-ca false loads
     - Fix: Operational certificate verification refuses a VVSC with is-ca true or a key usage other than digitalSignature
+    - Fix: Operational certificate verification refuses a VVSC, ICAC or RCAC key usage that sets a bit without a name
     - Fix: Operational certificate verification refuses a NOC whose extended key usage lacks serverAuth
     - Fix: Operational certificate verification counts each CASE Authenticated Tag as an RDN, so a DN with more than 5 RDNs is refused
     - Fix: Matter-TLV operational certificates that repeat a single-valued Matter-specific DN attribute, or whose NOC, ICAC or RCAC subject has a matter-vvs-id, are refused with an error that names the attribute
