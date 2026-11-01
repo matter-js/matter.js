@@ -293,10 +293,10 @@ export namespace Certificate {
      * Parse a subject or issuer field from ASN.1 DER format.
      *
      * Attributes of an unknown type are left out.  A malformed VendorID or ProductID is left out too with
-     * `acceptProfileViolation`, and makes that field undefined.  A domainComponent is read whatever its string type,
+     * `acceptMalformedVidPid`, and makes that field undefined.  A domainComponent is read whatever its string type,
      * as the CHIP SDK does, and is encoded as IA5String.
      */
-    function parseSubjectOrIssuer(node: DerNode, acceptProfileViolation: boolean) {
+    function parseSubjectOrIssuer(node: DerNode, acceptMalformedVidPid: boolean) {
         const { _elements: rdnSequence } = node;
         if (!rdnSequence) {
             throw new CertificateError("Invalid subject/issuer structure");
@@ -340,7 +340,7 @@ export namespace Certificate {
                         try {
                             value = Number(parseMatterRdnHex(field, text, 2, CertificateProfileError));
                         } catch (error) {
-                            if (!acceptProfileViolation || !(error instanceof CertificateProfileError)) {
+                            if (!acceptMalformedVidPid || !(error instanceof CertificateProfileError)) {
                                 throw error;
                             }
                             malformed.add(field);
@@ -368,7 +368,7 @@ export namespace Certificate {
         }
 
         return decodeDistinguishedName(rdns, {
-            acceptProfileViolation,
+            acceptMalformedVidPid,
             vidPidFallback: !hasVidPidAttribute,
             malformed,
         });
@@ -641,9 +641,10 @@ export namespace Certificate {
 
         /**
          * Read a certificate whose VendorID or ProductID is malformed or repeated, leaving the affected field
-         * undefined, instead of throwing {@link CertificateProfileError}.
+         * undefined, instead of throwing {@link CertificateProfileError}.  Other malformed Matter-specific attributes
+         * still throw.
          */
-        acceptProfileViolation?: boolean;
+        acceptMalformedVidPid?: boolean;
     }
 
     /**
@@ -718,7 +719,7 @@ export namespace Certificate {
 
         // Issuer — retain raw DER for exact-match comparisons (CRL revocation lookup)
         const issuerDer = Bytes.of(DerCodec.encode(certElements[idx]));
-        const issuer = parseSubjectOrIssuer(certElements[idx++], options.acceptProfileViolation === true);
+        const issuer = parseSubjectOrIssuer(certElements[idx++], options.acceptMalformedVidPid === true);
 
         // Validity
         const { _elements: validityElements } = certElements[idx++];
@@ -729,7 +730,7 @@ export namespace Certificate {
         const notAfter = parseDate(validityElements[1]);
 
         const subjectDer = Bytes.of(DerCodec.encode(certElements[idx]));
-        const subject = parseSubjectOrIssuer(certElements[idx++], options.acceptProfileViolation === true);
+        const subject = parseSubjectOrIssuer(certElements[idx++], options.acceptMalformedVidPid === true);
 
         // Public key
         const publicKeyNode = certElements[idx++];

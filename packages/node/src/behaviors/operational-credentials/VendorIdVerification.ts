@@ -20,7 +20,14 @@ import {
     UnexpectedDataError,
 } from "@matter/general";
 import { Icac, Noc, PeerSet, Rcac, Vvsc } from "@matter/protocol";
-import { FabricId, FabricIndex, ReceivedStatusResponseError, StatusResponse, VendorId } from "@matter/types";
+import {
+    FabricId,
+    FabricIndex,
+    ReceivedStatusResponseError,
+    StatusResponse,
+    ValidationError,
+    VendorId,
+} from "@matter/types";
 import type { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { OperationalCredentialsClient } from "../operational-credentials/OperationalCredentialsClient.js";
 
@@ -163,6 +170,8 @@ export namespace VendorIdVerification {
     /**
      * Verify VendorId ownership using VID Verification protocol on pure data level
      *
+     * Returns `false` when a certificate the peer sent does not decode or its chain does not verify.
+     *
      * @see {@link MatterSpecification.v161.Core} § 6.4.10.1.
      */
     export async function verifyData(
@@ -186,6 +195,7 @@ export namespace VendorIdVerification {
         } = options;
 
         let tbs: Bytes;
+        let vvscCert: Vvsc | undefined;
         try {
             const nocCert = Noc.fromTlv(noc);
             const {
@@ -216,9 +226,13 @@ export namespace VendorIdVerification {
                 await icaCert.verify(crypto, rootCert);
             }
             await nocCert.verify(crypto, rootCert, icaCert);
+
+            if (vidVerificationStatement && vvsc !== undefined) {
+                vvscCert = Vvsc.fromTlv(vvsc);
+            }
         } catch (error) {
-            // TLV the peer sent that does not decode, such as a repeated field, fails the verification
-            if (!(error instanceof UnexpectedDataError)) {
+            // TLV the peer sent that does not decode, such as a repeated or missing field, fails the verification
+            if (!(error instanceof UnexpectedDataError || error instanceof ValidationError)) {
                 CryptoError.accept(error);
             }
             logger.warn("Could not verify VendorId: certificate chain verification failed", error);
@@ -236,10 +250,7 @@ export namespace VendorIdVerification {
                 throw new UnexpectedDataError("VID Verification Statement is missing signature");
             }
 
-            let vvscCert: Vvsc;
-            if (vvsc !== undefined) {
-                vvscCert = Vvsc.fromTlv(vvsc);
-            } else {
+            if (vvscCert === undefined) {
                 // TODO Fetch VVSC from DCL if needed
                 // Otherwise, look up the entry in the Operational Trust Anchors Schema
                 // under the expected VendorID (VID field) being verified whose IsVIDVerificationSigner

@@ -83,7 +83,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Device attestation refuses an official Certification Declaration signed by the Matter test CD signer
     - Fix: Device attestation reports a Certification Declaration from the Matter test CD signer as `TrustedAsTestCertificate` when test certificates are not accepted
     - Fix: A VVSC with is-ca false loads
-    - Fix: Operational certificate verification refuses a VVSC with is-ca true, a key usage other than digitalSignature, or no subject or authority key identifier
+    - Fix: Operational certificate verification refuses a VVSC with is-ca true or a key usage other than digitalSignature
     - Fix: Operational certificate verification refuses a NOC whose extended key usage lacks serverAuth
     - Fix: Operational certificate verification counts each CASE Authenticated Tag as an RDN, so a DN with more than 5 RDNs is refused
     - Fix: Matter-TLV operational certificates that repeat a single-valued Matter-specific DN attribute, or whose NOC, ICAC or RCAC subject has a matter-vvs-id, are refused with an error that names the attribute

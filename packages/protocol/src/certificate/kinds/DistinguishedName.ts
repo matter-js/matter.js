@@ -37,7 +37,7 @@ import {
 } from "./definitions/asn.js";
 
 /**
- * Thrown when a DAC, PAI or PAA is well-formed but violates its X.509 profile, including a VendorID or ProductID in
+ * Thrown when a DER certificate, such as a DAC, PAI, PAA or VVSC, is well-formed but violates its X.509 profile, including a VendorID or ProductID in
  * the distinguished name that is malformed or repeated.
  *
  * @see {@link MatterSpecification.v161.Core} § 6.2.2.2
@@ -207,8 +207,8 @@ type Mutable<T> = { -readonly [K in keyof T]: T[K] extends readonly (infer U)[] 
 type VidPidAttribute = "vendorId" | "productId";
 
 export interface DnDecodeOptions {
-    /** Leave a repeated VendorID or ProductID undefined instead of throwing {@link CertificateProfileError}. */
-    acceptProfileViolation?: boolean;
+    /** Leave a malformed or repeated VendorID or ProductID undefined instead of throwing {@link CertificateProfileError}. */
+    acceptMalformedVidPid?: boolean;
 
     /**
      * Read VendorID and ProductID from commonName values ("fallback method").  The DER decoder sets this when the DN
@@ -229,7 +229,7 @@ export interface DnDecodeOptions {
  *
  * - A Matter-specific attribute other than matter-noc-cat occurs at most once (§ 6.5.6.3 for node, fabric, icac, rcac,
  *   vvs and noc-cat; § 6.2.2.3 and § 6.2.2.4 for VendorID and ProductID).  A repeated VendorID or ProductID throws
- *   {@link CertificateProfileError} unless `acceptProfileViolation` is set, any other repeat {@link CertificateError}.
+ *   {@link CertificateProfileError} unless `acceptMalformedVidPid` is set, any other repeat {@link CertificateError}.
  * - A standard attribute may repeat.  The object view holds its first value.
  * - With {@link DnDecodeOptions.vidPidFallback}, VendorID and ProductID come from the first commonName that carries
  *   a VendorID or ProductID; see {@link fallbackVidPid}.
@@ -240,7 +240,7 @@ export function decodeDistinguishedName(
     rdns: readonly DistinguishedName.Rdn[],
     options: DnDecodeOptions = {},
 ): DistinguishedName.View {
-    const { acceptProfileViolation = false, vidPidFallback = false } = options;
+    const { acceptMalformedVidPid = false, vidPidFallback = false } = options;
     const view: Mutable<DistinguishedName.View> = {};
     const unusable = new Set<VidPidAttribute>(options.malformed);
     const matterAttributes = new Set<DistinguishedName.Rdn["type"]>();
@@ -250,7 +250,7 @@ export function decodeDistinguishedName(
         if (type !== "vendorId" && type !== "productId") {
             throw new CertificateError(message);
         }
-        if (!acceptProfileViolation) {
+        if (!acceptMalformedVidPid) {
             throw new CertificateProfileError(message);
         }
         unusable.add(type);

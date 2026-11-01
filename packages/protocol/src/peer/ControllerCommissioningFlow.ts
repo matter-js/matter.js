@@ -1337,7 +1337,8 @@ export class ControllerCommissioningFlow {
             // Attestation failed but policy accepted it, so the key the validator would have returned is missing
             try {
                 dacPublicKey = PublicKey(
-                    Dac.fromAsn1(deviceAttestation, { acceptProfileViolation: true }).cert.ellipticCurvePublicKey,
+                    Dac.fromAsn1(deviceAttestation, { acceptProfileViolation: true, acceptMalformedVidPid: true }).cert
+                        .ellipticCurvePublicKey,
                 );
             } catch (cause) {
                 throw new CommissioningError(
