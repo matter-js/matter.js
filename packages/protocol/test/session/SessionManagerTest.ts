@@ -928,6 +928,7 @@ describe("SessionManager", () => {
         const CATS = [CaseAuthenticatedTag(0x00010001)];
         const VERSIONED_PEER = NodeId(0x1234);
         const UNVERSIONED_PEER = NodeId(0x5678);
+        const NO_CATS_PEER = NodeId(0x9abc);
 
         class RecordingStorageDriver extends MemoryStorageDriver {
             resumptionRecordWrites = 0;
@@ -953,7 +954,7 @@ describe("SessionManager", () => {
             }
         }
 
-        function storedRecord(peerNodeId: NodeId, version?: number) {
+        function storedRecord(peerNodeId: NodeId, version?: number, caseAuthenticatedTags = CATS) {
             return {
                 ...(version === undefined ? {} : { version }),
                 nodeId: peerNodeId,
@@ -963,7 +964,7 @@ describe("SessionManager", () => {
                 fabricIndex: FabricIndex(1),
                 peerNodeId,
                 sessionParameters: SessionParameters({}),
-                caseAuthenticatedTags: CATS,
+                caseAuthenticatedTags,
             };
         }
 
@@ -994,7 +995,7 @@ describe("SessionManager", () => {
             return stored.map(({ peerNodeId }) => peerNodeId);
         }
 
-        it("drops records stored without a version, which may carry the local node's CATs", async () => {
+        it("drops records stored without a version that carry CATs", async () => {
             const { sessionManager, sessionStorage, fabric } = await sessionManagerWith([
                 storedRecord(UNVERSIONED_PEER),
             ]);
@@ -1003,20 +1004,48 @@ describe("SessionManager", () => {
             expect(await sessionStorage.get("resumptionRecords")).deep.equals([]);
         });
 
-        it("keeps the versioned record and drops the unversioned one when both are stored", async () => {
+        it("keeps records stored without a version and without CATs and stores them with the version", async () => {
+            const { sessionManager, sessionStorage, storage, fabric } = await sessionManagerWith([
+                storedRecord(NO_CATS_PEER, undefined, []),
+            ]);
+
+            expect(
+                sessionManager.findResumptionRecordByAddress(fabric.addressOf(NO_CATS_PEER))?.caseAuthenticatedTags,
+            ).deep.equals([]);
+            expect(storage.resumptionRecordWrites).equals(1);
+            const stored = await sessionStorage.get<{ version?: number; peerNodeId: NodeId }[]>("resumptionRecords");
+            expect(storedPeers(stored)).deep.equals([NO_CATS_PEER]);
+            expect(stored[0].version).equals(1);
+        });
+
+        it("drops only the unversioned records with CATs when versioned and CAT-less records are also stored", async () => {
             const { sessionManager, sessionStorage, fabric } = await sessionManagerWith([
                 storedRecord(UNVERSIONED_PEER),
+                storedRecord(NO_CATS_PEER, undefined, []),
                 storedRecord(VERSIONED_PEER, 1),
             ]);
 
             expect(sessionManager.findResumptionRecordByAddress(fabric.addressOf(UNVERSIONED_PEER))).undefined;
+            expect(sessionManager.findResumptionRecordByAddress(fabric.addressOf(NO_CATS_PEER))).not.undefined;
             expect(
                 sessionManager.findResumptionRecordByAddress(fabric.addressOf(VERSIONED_PEER))?.caseAuthenticatedTags,
             ).deep.equals(CATS);
 
             const stored = await sessionStorage.get<{ version?: number; peerNodeId: NodeId }[]>("resumptionRecords");
-            expect(storedPeers(stored)).deep.equals([VERSIONED_PEER]);
-            expect(stored[0].version).equals(1);
+            expect(storedPeers(stored)).deep.equals([NO_CATS_PEER, VERSIONED_PEER]);
+            expect(stored.map(({ version }) => version)).deep.equals([1, 1]);
+        });
+
+        it("keeps a versioned record with CATs untouched", async () => {
+            const { sessionManager, sessionStorage, storage, fabric } = await sessionManagerWith([
+                storedRecord(VERSIONED_PEER, 1),
+            ]);
+
+            expect(
+                sessionManager.findResumptionRecordByAddress(fabric.addressOf(VERSIONED_PEER))?.caseAuthenticatedTags,
+            ).deep.equals(CATS);
+            expect(storage.resumptionRecordWrites).equals(0);
+            expect((await sessionStorage.get<{ peerNodeId: NodeId }[]>("resumptionRecords")).length).equals(1);
         });
 
         it("does not rewrite storage when every stored record is versioned", async () => {
@@ -1026,7 +1055,7 @@ describe("SessionManager", () => {
             expect(storage.resumptionRecordWrites).equals(0);
         });
 
-        it("keeps records stored with a newer version", async () => {
+        it("keeps records stored with a newer version, also with CATs", async () => {
             const { sessionManager, storage, fabric } = await sessionManagerWith([storedRecord(VERSIONED_PEER, 99)]);
 
             expect(sessionManager.findResumptionRecordByAddress(fabric.addressOf(VERSIONED_PEER))).not.undefined;

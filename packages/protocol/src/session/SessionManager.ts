@@ -96,8 +96,10 @@ export interface ResumptionRecord extends Omit<InternalResumptionRecord, "fabric
 }
 
 /**
- * Format version of stored resumption records.  Records without a version are dropped on load because they may hold
- * the local node's CATs for sessions this node initiated.  Records with a newer version are kept.
+ * Format version of stored resumption records.  Records without a version and with CATs are dropped on load, because
+ * the CATs may be the local node's own instead of the peer's.  Records without a version and without CATs are kept
+ * and stored again with the version: a missing CAT can only give the peer fewer rights, never more.  Records with a
+ * newer version are kept.
  */
 const RESUMPTION_RECORD_VERSION = 1;
 
@@ -953,6 +955,7 @@ export class SessionManager {
         );
 
         let droppedOutdatedRecords = false;
+        let upgradedRecords = false;
         storedResumptionRecords.forEach(
             ({
                 version,
@@ -965,7 +968,8 @@ export class SessionManager {
                 sessionParameters,
                 caseAuthenticatedTags,
             }) => {
-                if ((version ?? 0) < RESUMPTION_RECORD_VERSION) {
+                const outdated = (version ?? 0) < RESUMPTION_RECORD_VERSION;
+                if (outdated && caseAuthenticatedTags !== undefined && caseAuthenticatedTags.length > 0) {
                     droppedOutdatedRecords = true;
                     return;
                 }
@@ -995,18 +999,23 @@ export class SessionManager {
                     sessionParameters: SessionParameters(sessionParameters),
                     caseAuthenticatedTags,
                 });
+                if (outdated) {
+                    upgradedRecords = true;
+                }
             },
         );
 
-        if (droppedOutdatedRecords) {
-            this.#logger.info(
-                "Dropped resumption records stored in an outdated format; the next CASE session with each peer runs in full",
-            );
+        if (droppedOutdatedRecords || upgradedRecords) {
+            if (droppedOutdatedRecords) {
+                this.#logger.info(
+                    "Dropped resumption records stored in an outdated format with CATs; the next CASE session with each of these peers runs in full",
+                );
+            }
             try {
                 await this.#writeResumptionRecords();
             } catch (error) {
                 // The in-memory records are correct, and the next save rewrites storage
-                this.#logger.warn("Could not rewrite resumption records after dropping outdated ones:", error);
+                this.#logger.warn("Could not rewrite resumption records after migrating them:", error);
             }
         }
     }

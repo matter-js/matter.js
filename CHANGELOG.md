@@ -60,7 +60,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `DclCertificateService.addCertificate()` refuses a CD signer certificate that is known to be untrusted because the CSA did not issue it
     - Adjustment: DER certificate parsing requires the basic constraints extension when the required extensions list it
     - Adjustment: `CaseClient.PairOptions.caseAuthenticatedTags` is deprecated and ignored
-    - Adjustment: Stored CASE resumption records without a format version are dropped on load
+    - Adjustment: Stored CASE resumption records without a format version that carry CATs are dropped on load
     - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks
     - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept
     - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
