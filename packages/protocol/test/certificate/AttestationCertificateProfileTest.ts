@@ -167,6 +167,19 @@ function withRepeatedSubjectAttribute(hex: string, oidHex: string) {
     });
 }
 
+/** Turn the subject's attribute `oidHex` into a commonName with `text`. */
+function asCommonName(subject: DerNode, oidHex: string, text: string) {
+    const [type, value] = attributeOf(subject, oidHex)._elements!;
+    type._bytes = Bytes.fromHex(COMMON_NAME_OID);
+    value._bytes = Bytes.fromString(text);
+}
+
+function rdnIndexOf(subject: DerNode, oidHex: string) {
+    return subject._elements!.findIndex(rdn =>
+        rdn._elements?.some(a => Bytes.toHex(a._elements?.[0]._bytes ?? new Uint8Array()) === oidHex),
+    );
+}
+
 const VALID_DAC = AcceptedAttestationVectors.struct_dac_cert_version_v3.dac;
 const VALID_PAI = AcceptedAttestationVectors.struct_dac_cert_version_v3.pai;
 
@@ -440,6 +453,14 @@ describe("Attestation certificate profile", () => {
             expect(subject.productId).equals(0x8000);
         });
 
+        // Characterization: a malformed VendorID next to a well-formed one reads as absent.
+        it("reads a VendorID as absent when a malformed one repeats it and a profile violation is accepted", () => {
+            const dac = editSubject(Bytes.toHex(withRepeatedSubjectAttribute(VALID_DAC, VENDOR_ID_OID)), subject => {
+                attributeOf(subject, VENDOR_ID_OID)._elements![1]._bytes = Bytes.fromString("fff1");
+            });
+            expect(Dac.fromAsn1(dac, { acceptProfileViolation: true }).cert.subject.vendorId).undefined;
+        });
+
         it("reports a malformed VendorID in the issuer of a DAC like one in the subject", () => {
             const dac = withIssuerText(VALID_DAC, VENDOR_ID_OID, "fff1");
             expect(() => Dac.fromAsn1(dac)).throws(CertificateProfileError);
@@ -458,6 +479,78 @@ describe("Attestation certificate profile", () => {
                 attributeOf(subject, COMMON_NAME_OID)._elements![1]._bytes = Bytes.fromString("Mvid:FFF2");
             });
             expect(Pai.fromAsn1(pai, { acceptProfileViolation: true }).cert.subject.vendorId).undefined;
+        });
+
+        describe("in the commonName", () => {
+            /** The DAC subject is commonName "Matter Test DAC", then VendorID, then ProductID. */
+            const dacWithFallback = (edit: (subject: DerNode) => void) => editSubject(VALID_DAC, edit);
+
+            // CHIP parity (ExtractVIDPIDFromAttributeString): the first commonName with a value supplies both values.
+            it("reads only the first commonName that carries a value", () => {
+                const dac = dacWithFallback(subject => {
+                    asCommonName(subject, VENDOR_ID_OID, "Mvid:FFF1");
+                    asCommonName(subject, PRODUCT_ID_OID, "Mvid:FFF2 Mpid:8000");
+                });
+                const { subject } = Dac.fromAsn1(dac).cert;
+                expect(subject.vendorId).equals(0xfff1);
+                expect(subject.productId).undefined;
+            });
+
+            // CHIP parity: a commonName after the one with a value is not read.
+            it("ignores a malformed prefix in a later commonName", () => {
+                const dac = dacWithFallback(subject => {
+                    asCommonName(subject, VENDOR_ID_OID, "Mvid:FFF1 Mpid:8000");
+                    asCommonName(subject, PRODUCT_ID_OID, "Mvid:");
+                });
+                expect(Dac.fromAsn1(dac).cert.subject.vendorId).equals(0xfff1);
+            });
+
+            // CHIP parity: a commonName before the one with a value is read.
+            it("refuses a malformed prefix in an earlier commonName", () => {
+                const dac = dacWithFallback(subject => {
+                    attributeOf(subject, COMMON_NAME_OID)._elements![1]._bytes = Bytes.fromString("Matter Mpid:");
+                    asCommonName(subject, VENDOR_ID_OID, "Mvid:FFF1 Mpid:8000");
+                    subject._elements!.splice(rdnIndexOf(subject, PRODUCT_ID_OID), 1);
+                });
+                expect(() => Dac.fromAsn1(dac)).throws(
+                    CertificateError,
+                    /Mpid: not followed by 4 uppercase hex digits/,
+                );
+            });
+
+            // CHIP parity: CHIP searches the first 64 bytes (kMax_CommonNameAttr_Length).
+            it("does not read a value beyond the first 64 bytes of a commonName", () => {
+                const dac = dacWithFallback(subject => {
+                    asCommonName(subject, VENDOR_ID_OID, `${"x".repeat(60)}Mvid:FFF1`);
+                    subject._elements!.splice(rdnIndexOf(subject, PRODUCT_ID_OID), 1);
+                });
+                expect(Dac.fromAsn1(dac).cert.subject.vendorId).undefined;
+            });
+
+            it("reads the values from a later commonName and keeps the first commonName", () => {
+                const dac = dacWithFallback(subject => {
+                    asCommonName(subject, VENDOR_ID_OID, "Mvid:FFF1 Mpid:8000");
+                    subject._elements!.splice(rdnIndexOf(subject, PRODUCT_ID_OID), 1);
+                });
+                const { subject } = Dac.fromAsn1(dac).cert;
+                expect(subject).deep.equals({ commonName: "Matter Test DAC", vendorId: 0xfff1, productId: 0x8000 });
+            });
+
+            it("reads the values from the first commonName when a later one carries none", () => {
+                const dac = dacWithFallback(subject => {
+                    asCommonName(subject, VENDOR_ID_OID, "Mvid:FFF1 Mpid:8000");
+                    subject._elements!.splice(rdnIndexOf(subject, PRODUCT_ID_OID), 1);
+                    subject._elements!.push(subject._elements!.shift()!);
+                });
+                const { subject } = Dac.fromAsn1(dac).cert;
+                expect(subject).deep.equals({ commonName: "Mvid:FFF1 Mpid:8000", vendorId: 0xfff1, productId: 0x8000 });
+            });
+
+            // Characterization: § 6.2.2.2 skips the fallback method for a DN with a VendorID or ProductID attribute.
+            it("is not read when the DN has a VendorID attribute", () => {
+                const dac = withSubjectText(VALID_DAC, COMMON_NAME_OID, "Matter Test DAC Mvid:FFF2");
+                expect(Dac.fromAsn1(dac).cert.subject.vendorId).equals(0xfff1);
+            });
         });
 
         it("starts a device whose own DAC has a malformed VendorID", async () => {

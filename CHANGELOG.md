@@ -25,6 +25,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `StandardCrypto` encrypts and decrypts AES-CCM plaintext of 65521 to 65535 bytes, which Matter messages reach only with `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: `StandardCrypto` computes the correct AES-CCM tag for AAD of 65280 bytes or more
     - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
+    - Fix: `X520.DomainComponent` encodes the domainComponent OID 0.9.2342.19200300.100.1.25 instead of an invalid OID
 
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
@@ -85,10 +86,15 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Operational certificate verification refuses a VVSC with is-ca true, a key usage other than digitalSignature, or no subject or authority key identifier
     - Fix: Operational certificate verification refuses a NOC whose extended key usage lacks serverAuth
     - Fix: Operational certificate verification counts each CASE Authenticated Tag as an RDN, so a DN with more than 5 RDNs is refused
-    - Fix: Matter-TLV operational certificates that repeat a single-valued DN attribute, or whose NOC, ICAC or RCAC subject has a matter-vvs-id, are refused with an error that names the attribute
+    - Fix: Matter-TLV operational certificates that repeat a single-valued Matter-specific DN attribute, or whose NOC, ICAC or RCAC subject has a matter-vvs-id, are refused with an error that names the attribute
     - Fix: DER certificate parsing refuses Matter-specific DN values that are not exactly twice their octet length in uppercase hexadecimal, and a repeated single-valued Matter-specific DN attribute, with a `CertificateError` (`CertificateProfileError` for VendorID and ProductID)
     - Fix: Device attestation reports a DAC or PAI with a malformed or repeated VendorID or ProductID as `DacFormatInvalid` or `PaiFormatInvalid`
     - Fix: `matter-firmware-signing-id` in an operational certificate holds 64 bits instead of 32
+    - Feature: A decoded certificate subject or issuer carries every RDN in encoded order as `rdns`
+    - Fix: A certificate that repeats a standard DN attribute, such as organizationalUnitName, or has CASE Authenticated Tags between other DN attributes re-encodes in TLV and DER to the bytes its issuer signed
+    - Fix: DER certificate parsing reads domainComponent, and the first value of a repeated standard DN attribute instead of the last
+    - Fix: DER certificate parsing reads VendorID and ProductID from the first commonName that carries either one, within its first 64 bytes, as the CHIP SDK does
+    - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
