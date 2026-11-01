@@ -256,15 +256,12 @@ export class NodeSession extends SecureSession {
     }
 
     /**
-     * Emits when {@link newer}, an established CASE session with the same peer, the same role and equal CASE
-     * Authenticated Tags, replaces this session for the peer's subscriptions.  Each subscription on this session then
-     * continues on {@link newer}, and the session itself stays open.
+     * Emits when {@link newer}, an established CASE session with the same peer and equal CASE Authenticated Tags,
+     * replaces this session for the peer's subscriptions.  The role of either session does not matter.  Each
+     * subscription on this session then continues on {@link newer}, and the session itself stays open.
      *
      * The move matches `SecureSessionTable::NewerSessionAvailable` of the CHIP SDK.  A peer that sets up a new session
      * may drop its older ones without telling us, so reports on an older session may never arrive.
-     *
-     * The role condition is our own addition.  A session we initiated stores our own CASE Authenticated Tags, not the
-     * peer's, so the tags of sessions with different roles cannot be compared.
      */
     get superseded() {
         return this.#superseded;

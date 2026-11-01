@@ -64,7 +64,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `DclCertificateService.addCertificate()` refuses a CD signer certificate that is known to be untrusted because the CSA did not issue it
     - Adjustment: DER certificate parsing requires the basic constraints extension when the required extensions list it
     - Enhancement: `NodeSession` has an establishing state, see `isEstablishing`, `completeEstablishment()` and `established`
-    - Enhancement: `NodeSession.superseded` emits the newer CASE session with the same peer, role and CASE Authenticated Tags
+    - Enhancement: `NodeSession.superseded` emits the newer CASE session with the same peer and CASE Authenticated Tags
     - Adjustment: `SessionManager.sessions` is read-only and holds only established sessions, so its `added` event fires on establishment
     - Enhancement: `SessionManager.registeredSessions` holds every session that receives messages, including those whose handshake still runs
     - Adjustment: `SessionManager.maybeSessionFor()` and `sessionFor()` skip a session whose handshake is still running
@@ -74,6 +74,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `Peer.sessions` holds only established sessions
     - Fix: A CASE responder closes a session whose resumption the peer does not confirm
     - Fix: A CASE responder closes a new session whose SigmaFinished cannot be sent
+    - Adjustment: `Fabric.hasSessionForPeer()` counts only established sessions
     - Adjustment: Stored CASE resumption records without a format version that carry CATs are dropped on load
     - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks
     - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept

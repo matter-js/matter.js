@@ -495,7 +495,7 @@ describe("SessionManager", () => {
             };
         }
 
-        it("supersedes an older session with the same peer, role and CATs in any order", async () => {
+        it("supersedes an older session with the same peer and CATs in any order", async () => {
             const older = await session({ caseAuthenticatedTags: [CAT_A, CAT_B] });
             const superseded = supersessionsOf(older);
             const newer = await session({ caseAuthenticatedTags: [CAT_B, CAT_A, CAT_B] });
@@ -510,10 +510,23 @@ describe("SessionManager", () => {
             expect(superseded).deep.equals([]);
         });
 
-        it("does not supersede a session of the other role", async () => {
-            const superseded = supersessionsOf(await session());
-            await session({ isInitiator: true });
-            expect(superseded).deep.equals([]);
+        it("supersedes a session of the other role with equal CATs", async () => {
+            const initiated = await session({ isInitiator: true, caseAuthenticatedTags: [CAT_A] });
+            const ofInitiated = supersessionsOf(initiated);
+            const responded = await session({ caseAuthenticatedTags: [CAT_A] });
+            const ofResponded = supersessionsOf(responded);
+            const initiatedAgain = await session({ isInitiator: true, caseAuthenticatedTags: [CAT_A] });
+
+            expect(ofInitiated).deep.equals([responded, initiatedAgain]);
+            expect(ofResponded).deep.equals([initiatedAgain]);
+        });
+
+        it("does not supersede a session of the other role with other CATs", async () => {
+            const ofInitiated = supersessionsOf(await session({ isInitiator: true, caseAuthenticatedTags: [CAT_A] }));
+            const ofResponded = supersessionsOf(await session({ caseAuthenticatedTags: [CAT_B] }));
+            await session({ isInitiator: true, caseAuthenticatedTags: [CAT_A, CAT_B] });
+            expect(ofInitiated).deep.equals([]);
+            expect(ofResponded).deep.equals([]);
         });
 
         it("does not supersede a session with another peer", async () => {

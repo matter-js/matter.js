@@ -9,7 +9,7 @@ import { BasicInformationClient, BasicInformationServer } from "#behaviors/basic
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { Bytes, CryptoError, Seconds, UnexpectedDataError } from "@matter/general";
-import { MockSite, subscribedPeer } from "@matter/node/testing";
+import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import {
     CaseServerMessenger,
     ClientSubscriptions,
@@ -22,6 +22,7 @@ import {
     SessionClosedError,
     SessionManager,
 } from "@matter/protocol";
+import { CaseAuthenticatedTag } from "@matter/types";
 
 function openSessionsOf(device: ServerNode) {
     return device.env.get(SessionManager).sessions.filter(session => !session.isClosing);
@@ -590,6 +591,31 @@ describe("ServerSubscriptionSession", () => {
         expect(whileEstablishing).deep.equals([{ newest: formerSession, held: false }]);
         expect(added).deep.equals(established);
         expect(devicePeer.newestSession()).equals(established[0]);
+    });
+
+    it("moves a subscription restored on a session the device initiated to a later session the controller opens", async () => {
+        await using site = new MockSite();
+        const cat = CaseAuthenticatedTag(0x0001_0001);
+        const { controller, device } = await site.addCommissionedPair({
+            controller: { type: MockServerNode.RootEndpoint, controller: { caseAuthenticatedTags: [cat] } },
+        });
+        const peer = await subscribedPeer(controller, "peer1");
+        const address = peer.peerAddress!;
+
+        await MockTime.resolve(device.stop());
+        await MockTime.resolve(device.start());
+        const [initiated] = openSessionsOf(device).filter(session => session.subscriptions.size > 0);
+        expect(initiated?.isInitiator).true;
+        expect(initiated.caseAuthenticatedTags).deep.equals([cat]);
+        const [subscription] = initiated.subscriptions;
+
+        await reconnect(controller, address);
+        const responded = await newSessionOf(device, initiated, session => !session.isInitiator);
+
+        expect(responded?.caseAuthenticatedTags).deep.equals([cat]);
+        expect([...responded!.subscriptions]).deep.equals([subscription]);
+        expect([...initiated.subscriptions]).deep.equals([]);
+        await nodeLabelReachesController(device, peer, "after controller session");
     });
 
     it("does not mark its peer connected by a session whose handshake fails", async () => {

@@ -1203,18 +1203,12 @@ export class SessionManager {
 
 /**
  * Whether {@link newer} replaces {@link older} for the peer's subscriptions: both are CASE sessions with the same peer
- * and equal CASE Authenticated Tags, so a subscription that moves keeps the access subject it was set up with.  This
- * matches `SecureSessionTable::NewerSessionAvailable` of the CHIP SDK, except for the role check.
+ * and equal CASE Authenticated Tags, so a subscription that moves keeps the access subject it was set up with.  The
+ * role does not matter, because both roles store the CATs of the peer's NOC.  This matches
+ * `SecureSessionTable::NewerSessionAvailable` of the CHIP SDK.
  */
 function supersedes(newer: NodeSession, older: NodeSession) {
-    return (
-        !newer.isPase &&
-        !older.isPase &&
-        newer.peerIs(older.peerAddress) &&
-        hasEqualCats(newer, older) &&
-        // A session we initiated stores our own CATs, not the peer's
-        newer.isInitiator === older.isInitiator
-    );
+    return !newer.isPase && !older.isPase && newer.peerIs(older.peerAddress) && hasEqualCats(newer, older);
 }
 
 function hasEqualCats(session: NodeSession, other: NodeSession) {
