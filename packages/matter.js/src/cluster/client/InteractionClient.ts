@@ -125,6 +125,9 @@ export interface PeerConnectionOptions {
 
     /**
      * @deprecated Scheduled for removal in 0.19.  Set CATs on CommissioningBehavior#state
+     *
+     * Stored, but not applied yet. Sessions present the CATs of this node's own NOC in the fabric
+     * (`ControllerBehavior.caseAuthenticatedTags`). The CATs of the peer come from its NOC.
      */
     caseAuthenticatedTags?: CaseAuthenticatedTag[];
 
