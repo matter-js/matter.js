@@ -229,6 +229,16 @@ export namespace VendorIdVerification {
 
             if (vidVerificationStatement && vvsc !== undefined) {
                 vvscCert = Vvsc.fromTlv(vvsc);
+                // TODO Gather and Verify the VVSC cert chain using trusted root
+                // Validate the path of VIDVerificationSignerCertificate using the certificates in the Operational
+                // Trust Anchors Schema under the expected VendorID (VID field) being verified. If
+                // the path is invalid (e.g. any element of the chain missing, any certificate malformed, any
+                // signature verification fails, etc), then the procedure terminates as failed. Only the self-
+                // signed certificates among the set SHALL be considered as trust anchors during certificate
+                // path validation. The path length SHALL NOT be longer than 3. The verifier MAY
+                // apply knowledge of revoked entities obtained from outside the Distributed Compliance
+                // Ledger.
+                await vvscCert.verify(crypto);
             }
         } catch (error) {
             // TLV the peer sent that does not decode, such as a repeated or missing field, fails the verification
@@ -268,17 +278,6 @@ export namespace VendorIdVerification {
                     `VVSC SubjectKeyIdentifier does not match signerSkid in VID Verification Statement`,
                 );
             }
-
-            // TODO Gather and Verify the VVSC cert chain using trusted root
-            // Validate the path of VIDVerificationSignerCertificate using the certificates in the Operational
-            // Trust Anchors Schema under the expected VendorID (VID field) being verified. If
-            // the path is invalid (e.g. any element of the chain missing, any certificate malformed, any
-            // signature verification fails, etc), then the procedure terminates as failed. Only the self-
-            // signed certificates among the set SHALL be considered as trust anchors during certificate
-            // path validation. The path length SHALL NOT be longer than 3. The verifier MAY
-            // apply knowledge of revoked entities obtained from outside the Distributed Compliance
-            // Ledger.
-            await vvscCert.verify(crypto);
 
             const ourStatement = createStatementBytes({
                 version: vidStatementVersion,

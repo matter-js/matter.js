@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, CertificateError, Crypto, Diagnostic } from "@matter/general";
-import { ExtensionKeyUsageSchema } from "./definitions/base.js";
+import { Bytes, CertificateError, Crypto } from "@matter/general";
+import { rawKeyUsage } from "./definitions/base.js";
 import { OperationalCertificate } from "./definitions/operational.js";
 import { OperationalBase } from "./OperationalBase.js";
 
@@ -51,9 +51,10 @@ export class Vvsc extends OperationalBase<OperationalCertificate.Vvsc> {
         } = this.cert;
 
         // The key usage extension SHALL be encoded with exactly one flag: digitalSignature.
-        if (ExtensionKeyUsageSchema.encode(keyUsage) !== KEY_USAGE_DIGITAL_SIGNATURE) {
+        const keyUsageBits = rawKeyUsage(keyUsage);
+        if (keyUsageBits !== KEY_USAGE_DIGITAL_SIGNATURE) {
             throw new CertificateError(
-                `Vvsc certificate keyUsage must have only digitalSignature set: ${Diagnostic.json(keyUsage)}`,
+                `Vvsc certificate keyUsage must have only digitalSignature set: 0x${keyUsageBits.toString(16)}`,
             );
         }
 

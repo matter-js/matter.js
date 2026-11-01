@@ -23,8 +23,10 @@ function matterEpochSeconds(addYears: number) {
     return Math.floor((date.getTime() - Date.UTC(2000, 0, 1)) / 1000);
 }
 
+type VvscKeyUsage = ConstructorParameters<typeof Vvsc>[0]["extensions"]["keyUsage"];
+
 /** A signed VVSC of an unrelated key. */
-async function vvscTlv(crypto: Crypto) {
+async function vvscTlv(crypto: Crypto, keyUsage: VvscKeyUsage) {
     const key = await crypto.createKeyPair();
     const skid = Bytes.of(await crypto.computeHash(key.publicKey, "SHA-1"));
     const vvsc = new Vvsc({
@@ -39,7 +41,7 @@ async function vvscTlv(crypto: Crypto) {
         subject: { vvsId: 3 },
         extensions: {
             basicConstraints: { isCa: false },
-            keyUsage: { digitalSignature: true },
+            keyUsage,
             subjectKeyIdentifier: skid,
             authorityKeyIdentifier: skid,
         },
@@ -66,7 +68,12 @@ describe("VendorIdVerification", () => {
         /** Verifies a NOC whose key signed the fabric binding, so the certificates are the first thing that fails. */
         async function verify(
             crypto: Crypto,
-            mutate: { noc?: (noc: Bytes) => Bytes; rcac?: (rcac: Bytes) => Bytes; vvsc?: (vvsc: Bytes) => Bytes },
+            mutate: {
+                noc?: (noc: Bytes) => Bytes;
+                rcac?: (rcac: Bytes) => Bytes;
+                vvsc?: (vvsc: Bytes) => Bytes;
+                vvscKeyUsage?: VvscKeyUsage;
+            },
         ) {
             const authority = await CertificateAuthority.create(crypto, false);
             const nocKey = await crypto.createKeyPair();
@@ -83,7 +90,7 @@ describe("VendorIdVerification", () => {
                     rootPublicKey: nocKey.publicKey,
                     fabricId: FabricId(1),
                     rootVendorId: VendorId(0xfff1),
-                    vidVerificationStatement: mutate.vvsc ? STATEMENT : undefined,
+                    vidVerificationStatement: mutate.vvsc || mutate.vvscKeyUsage ? STATEMENT : undefined,
                 },
             });
             const { bytes: signature } = await crypto.signEcdsa(nocKey, signatureData);
@@ -99,7 +106,9 @@ describe("VendorIdVerification", () => {
                 noc: {
                     noc: mutate.noc?.(noc) ?? noc,
                     icac: null,
-                    vvsc: mutate.vvsc?.(await vvscTlv(crypto)),
+                    vvsc: mutate.vvsc
+                        ? mutate.vvsc(await vvscTlv(crypto, { digitalSignature: true }))
+                        : mutate.vvscKeyUsage && (await vvscTlv(crypto, mutate.vvscKeyUsage)),
                     fabricIndex,
                 },
                 rcac: mutate.rcac?.(authority.rootCert) ?? authority.rootCert,
@@ -109,7 +118,7 @@ describe("VendorIdVerification", () => {
                     fabricId: FabricId(1),
                     nodeId: NodeId(0x1234n),
                     label: "",
-                    vidVerificationStatement: mutate.vvsc ? STATEMENT : undefined,
+                    vidVerificationStatement: mutate.vvsc || mutate.vvscKeyUsage ? STATEMENT : undefined,
                     fabricIndex,
                 },
             });
@@ -132,6 +141,11 @@ describe("VendorIdVerification", () => {
         it("returns false for a VVSC that repeats a subject attribute", async () => {
             const vvsc = (tlv: Bytes) => withRepeatedEntry(tlv, VVS_ID_TAG);
             expect(await verify(new StandardCrypto(), { vvsc })).false;
+        });
+
+        it("returns false for a VVSC that fails its certificate profile", async () => {
+            const vvscKeyUsage = { digitalSignature: true, keyEncipherment: true };
+            expect(await verify(new StandardCrypto(), { vvscKeyUsage })).false;
         });
 
         it("returns false for an RCAC that repeats a subject attribute", async () => {
