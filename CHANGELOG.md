@@ -46,7 +46,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
     - Fix: AdministratorCommissioning OpenCommissioningWindow answers INVALID_COMMAND to a discriminator above 4095 instead of CONSTRAINT_ERROR
     - Fix: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow answer PAKEParameterError on a session without fabric, as CHIP does, instead of UNSUPPORTED_ACCESS
-    - Fix: A subscription moves to each newer CASE session of its subscriber and sends its reports on its own session, not on the most recently active session of the peer
+    - Fix: A subscription moves to each newer CASE session of its subscriber and sends its reports on its own session
+    - Fix: A subscription whose SubscribeResponse cannot be sent is closed
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
@@ -62,7 +63,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: DER certificate parsing requires the basic constraints extension when the required extensions list it
     - Enhancement: `NodeSession` has an establishing state and a `superseded` event that names the newer CASE session with the same peer, role and CASE Authenticated Tags
     - Adjustment: `SessionManager.maybeSessionFor()` and `sessionFor()` skip a session whose handshake is still running
-    - Fix: A session resumed as CASE responder closes when the peer does not confirm the resumption, instead of staying registered
+    - Enhancement: `ExchangeSendOptions.onTransmitted` runs once the first transmission of a message went out
+    - Adjustment: A new CASE session we respond to is established once our SigmaFinished went out for the first time
+    - Adjustment: `Peer.sessions` holds only established sessions
+    - Fix: A CASE responder closes a session whose resumption the peer does not confirm or whose SigmaFinished cannot be sent
     - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept
     - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: A group message whose key set GroupKeyMap does not map to its destination group fails authentication instead of reaching access control

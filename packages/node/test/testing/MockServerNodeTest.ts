@@ -7,14 +7,14 @@
 import { Bytes } from "@matter/general";
 import { MockExchange, MockServerNode } from "@matter/node/testing";
 import { ExchangeManager, SessionManager } from "@matter/protocol";
-import { INTERACTION_PROTOCOL_ID, NodeId } from "@matter/types";
+import { INTERACTION_PROTOCOL_ID, NodeId, SECURE_CHANNEL_PROTOCOL_ID } from "@matter/types";
 
 describe("MockServerNode", () => {
     before(() => {
         MockTime.init();
     });
 
-    it("hands out exchanges on mock sessions and leaves exchanges on other sessions to the exchange manager", async () => {
+    it("hands out interaction exchanges on mock sessions and leaves other exchanges to the exchange manager", async () => {
         const node = await MockServerNode.createOnline();
         const fabric = await node.addFabric();
         const { session: mockSession } = await node.createExchange({ fabric });
@@ -34,8 +34,16 @@ describe("MockServerNode", () => {
         expect(onRealSession).not.instanceOf(MockExchange);
         await onRealSession.close();
 
+        const secureChannelOnMockSession = exchanges.initiateExchangeForSession(
+            mockSession,
+            SECURE_CHANNEL_PROTOCOL_ID,
+        );
+        expect(secureChannelOnMockSession).not.instanceOf(MockExchange);
+        await secureChannelOnMockSession.close();
+
         const onMockSession = exchanges.initiateExchangeForSession(mockSession, INTERACTION_PROTOCOL_ID);
         expect(onMockSession).instanceOf(MockExchange);
+        expect(onMockSession.session).equals(mockSession);
         expect(await node.handleExchange()).equals(onMockSession);
 
         await MockTime.resolve(node.close());

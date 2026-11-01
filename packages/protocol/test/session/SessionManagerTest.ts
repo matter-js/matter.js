@@ -550,11 +550,26 @@ describe("SessionManager", () => {
             const establishing = await session({ establishing: true });
             const release = holdClosing(establishing);
 
-            establishing.completeEstablishment();
+            expect(establishing.completeEstablishment()).false;
 
             expect(establishing.isEstablishing).true;
             expect(superseded).deep.equals([]);
             await release();
+        });
+
+        it("completes establishment once and shows observers an established session", async () => {
+            const superseded = supersessionsOf(await session());
+            const establishing = await session({ establishing: true });
+            const seenEstablishing = new Array<boolean>();
+            establishing.established.on(() => {
+                seenEstablishing.push(establishing.isEstablishing);
+            });
+
+            expect(establishing.completeEstablishment()).true;
+            expect(establishing.completeEstablishment()).true;
+
+            expect(seenEstablishing).deep.equals([false]);
+            expect(superseded).deep.equals([establishing]);
         });
 
         it("finds an establishing session only once it is established", async () => {

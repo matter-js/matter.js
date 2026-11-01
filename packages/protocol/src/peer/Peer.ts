@@ -256,6 +256,10 @@ export class Peer {
         return this.#descriptor;
     }
 
+    /**
+     * The open sessions with the peer.  The set holds established sessions only, so {@link hasSession},
+     * {@link newestSession} and observers of `sessions.added` never see a session whose handshake still runs.
+     */
     get sessions() {
         return this.#sessions;
     }

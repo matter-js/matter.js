@@ -786,19 +786,12 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         }
     }
 
-    #initiateSubscriptionExchange(addressOrSession: PeerAddress | Session, protocolId: number) {
-        const exchange =
-            addressOrSession instanceof Session
-                ? this.#context.exchangeManager.initiateExchangeForSession(
-                      addressOrSession,
-                      protocolId,
-                      SUBSCRIPTION_EXCHANGE_OPTIONS,
-                  )
-                : this.#context.exchangeManager.initiateExchange(
-                      addressOrSession,
-                      protocolId,
-                      SUBSCRIPTION_EXCHANGE_OPTIONS,
-                  );
+    #initiateSubscriptionExchange(session: Session, protocolId: number) {
+        const exchange = this.#context.exchangeManager.initiateExchangeForSession(
+            session,
+            protocolId,
+            SUBSCRIPTION_EXCHANGE_OPTIONS,
+        );
 
         // Count subscription report messages we push and the acks we receive in response
         this.#countExchangeMessages(exchange);
@@ -817,8 +810,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const context: ServerSubscriptionContext = {
             session,
             node: this.#node,
-            initiateExchange: (addressOrSession, protocolId) =>
-                this.#initiateSubscriptionExchange(addressOrSession, protocolId),
+            initiateExchange: (session, protocolId) => this.#initiateSubscriptionExchange(session, protocolId),
         };
 
         const subscription = new ServerSubscription({
@@ -885,8 +877,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             const context: ServerSubscriptionContext = {
                 session,
                 node: this.#node,
-                initiateExchange: (addressOrSession, protocolId) =>
-                    this.#initiateSubscriptionExchange(addressOrSession, protocolId),
+                initiateExchange: (session, protocolId) => this.#initiateSubscriptionExchange(session, protocolId),
             };
 
             subscription = new ServerSubscription({

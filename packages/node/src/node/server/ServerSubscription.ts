@@ -38,7 +38,6 @@ import {
     EventReadResponse,
     InteractionServerMessenger,
     NumberedOccurrence,
-    PeerAddress,
     Read,
     ReadResult,
     SessionClosedError,
@@ -121,7 +120,7 @@ export interface ServerSubscriptionContext {
     /** The session the subscription is set up on.  {@link ServerSubscription.session} changes when it is superseded. */
     session: NodeSession;
     node: ServerNode;
-    initiateExchange(addressOrSession: PeerAddress | Session, protocolId: number): MessageExchange;
+    initiateExchange(session: Session, protocolId: number): MessageExchange;
 }
 
 /**
@@ -418,6 +417,7 @@ export class ServerSubscription implements Subscription {
             // The owning session is already tearing down and its subscriptions have been swept, so registering here
             // would orphan us on a dead session and spin the update timer against a closing session manager.  Drop the
             // change handlers registered while seeding and stay inert; the controller re-subscribes on reconnect.
+            this.#session.superseded.off(this.#follow);
             this.#changeHandlers.close();
             this.#isClosed = true;
             return false;
@@ -933,9 +933,9 @@ export class ServerSubscription implements Subscription {
         attributeFilter: DirtyState.ForCluster | undefined,
         eventsMinNumber: EventNumber | undefined,
         onlyWithData: boolean,
-        session?: Session,
+        session: Session,
     ) {
-        const exchange = this.#context.initiateExchange(session ?? this.session, INTERACTION_PROTOCOL_ID);
+        const exchange = this.#context.initiateExchange(session, INTERACTION_PROTOCOL_ID);
         if (exchange === undefined) {
             return false;
         }

@@ -16,6 +16,7 @@ import {
     NodeSession,
     PeerAddress,
     PeerSet,
+    RetransmissionLimitReachedError,
     SessionClosedError,
     SessionManager,
 } from "@matter/protocol";
@@ -35,15 +36,54 @@ async function newSessionOf(device: ServerNode, formerSession: NodeSession, acce
     return find();
 }
 
-/** The sessions the device creates in the establishing state, which it does for each resumption as responder. */
-function resumedSessionsOf(device: ServerNode) {
-    const resumed = new Array<NodeSession>();
+/** The sessions the device creates in the establishing state, which it does for each session as CASE responder. */
+function establishingSessionsOf(device: ServerNode) {
+    const establishing = new Array<NodeSession>();
     device.env.get(SessionManager).sessions.added.on(session => {
         if (session.isEstablishing) {
-            resumed.push(session);
+            establishing.push(session);
         }
     });
-    return resumed;
+    return establishing;
+}
+
+/** The sessions the device's peer for {@link address} announces, in order. */
+function peerSessionsAddedOf(device: ServerNode, address: PeerAddress) {
+    const added = new Array<NodeSession>();
+    device.env
+        .get(PeerSet)
+        .get(address)
+        ?.sessions.added.on(session => {
+            added.push(session);
+        });
+    return added;
+}
+
+/** The device's peer for {@link address}. */
+function peerOf(device: ServerNode, address: PeerAddress) {
+    const peer = device.env.get(PeerSet).get(address);
+    expect(peer).not.undefined;
+    return peer!;
+}
+
+/**
+ * Replaces `CaseServerMessenger.prototype.sendSuccess`, which sends SigmaFinished for a new session, with
+ * {@link send} until the returned function restores it.
+ */
+function replaceSendSuccess(
+    send: (
+        this: CaseServerMessenger,
+        original: CaseServerMessenger["sendSuccess"],
+        ...args: Parameters<CaseServerMessenger["sendSuccess"]>
+    ) => Promise<void>,
+) {
+    const { sendSuccess } = CaseServerMessenger.prototype;
+    CaseServerMessenger.prototype.sendSuccess = function (this: CaseServerMessenger, ...args) {
+        return send.call(this, sendSuccess.bind(this), ...args);
+    };
+    return () => {
+        CaseServerMessenger.prototype.sendSuccess = sendSuccess;
+    };
 }
 
 function activeSubscriptionsOf(device: ServerNode, session: NodeSession) {
@@ -101,7 +141,7 @@ describe("ServerSubscriptionSession", () => {
         const address = peer.peerAddress!;
         const [formerSession] = openSessionsOf(device);
         const [subscription] = formerSession.subscriptions;
-        const resumed = resumedSessionsOf(device);
+        const resumed = establishingSessionsOf(device);
         let added = 0;
         device.eventsOf(SessionsBehavior).subscriptionAdded.on(() => {
             added++;
@@ -161,7 +201,7 @@ describe("ServerSubscriptionSession", () => {
         const address = peer.peerAddress!;
         const [formerSession] = openSessionsOf(device);
         const [subscription] = formerSession.subscriptions;
-        const resumed = resumedSessionsOf(device);
+        const resumed = establishingSessionsOf(device);
 
         let refused = 0;
         const { waitForSuccess } = CaseServerMessenger.prototype;
@@ -197,7 +237,7 @@ describe("ServerSubscriptionSession", () => {
         const address = peer.peerAddress!;
         const [formerSession] = openSessionsOf(device);
         const [subscription] = formerSession.subscriptions;
-        const resumed = resumedSessionsOf(device);
+        const resumed = establishingSessionsOf(device);
 
         // Only the first attempt fails, so the controller's next attempt resumes
         let failed = 0;
@@ -225,8 +265,52 @@ describe("ServerSubscriptionSession", () => {
         expect(subscription.isTerminated).false;
     });
 
-    // Characterization: a full CASE session is established when the device sends SigmaFinished, not once it is acked
-    it("moves to a new full CASE session before SigmaFinished is acknowledged", async () => {
+    it("does not complete a resumption whose session closed during the handshake", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const address = peer.peerAddress!;
+        const [formerSession] = openSessionsOf(device);
+        const [subscription] = formerSession.subscriptions;
+        const sessions = device.env.get(SessionManager);
+        const established = establishingSessionsOf(device);
+
+        let saved = 0;
+        const { saveResumptionRecord } = sessions;
+        sessions.saveResumptionRecord = async (...args) => {
+            saved++;
+            return saveResumptionRecord.apply(sessions, args);
+        };
+        const { waitForSuccess } = CaseServerMessenger.prototype;
+        CaseServerMessenger.prototype.waitForSuccess = async function (
+            this: CaseServerMessenger,
+            ...args: Parameters<typeof waitForSuccess>
+        ) {
+            const result = await waitForSuccess.apply(this, args);
+            if (args[0]?.description === "Sigma2Resume-Success" && established.length === 1) {
+                await established[0].initiateForceClose({ cause: new SessionClosedError("test") });
+            }
+            return result;
+        };
+        try {
+            await reconnect(controller, address);
+            await MockTime.yield3();
+        } finally {
+            CaseServerMessenger.prototype.waitForSuccess = waitForSuccess;
+            sessions.saveResumptionRecord = saveResumptionRecord;
+        }
+
+        const [closedSession] = established;
+        expect(closedSession.isEstablishing).true;
+        expect(saved).equals(established.length - 1);
+        expect([
+            ...formerSession.subscriptions,
+            ...established.flatMap(session => [...session.subscriptions]),
+        ]).deep.equals([subscription]);
+        expect(closedSession.subscriptions.size).equals(0);
+    });
+
+    it("moves to a new full CASE session once SigmaFinished went out, before its ack", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
         const peer = await subscribedPeer(controller, "peer1");
@@ -234,27 +318,172 @@ describe("ServerSubscriptionSession", () => {
         const [formerSession] = openSessionsOf(device);
         const [subscription] = formerSession.subscriptions;
         await device.env.get(SessionManager).deleteResumptionRecord(formerSession.peerAddress);
-        const resumed = resumedSessionsOf(device);
+        const established = establishingSessionsOf(device);
+        const holder = () =>
+            device.env.get(SessionManager).sessions.find(session => session.subscriptions.has(subscription));
 
-        const holderAtSigmaFinished = new Array<NodeSession | undefined>();
-        const { sendSuccess } = CaseServerMessenger.prototype;
-        CaseServerMessenger.prototype.sendSuccess = async function (
-            this: CaseServerMessenger,
-            ...args: Parameters<typeof sendSuccess>
-        ) {
-            holderAtSigmaFinished.push(openSessionsOf(device).find(session => session.subscriptions.has(subscription)));
-            return sendSuccess.apply(this, args);
-        };
+        const holders = new Array<{ at: string; session?: NodeSession; unacked?: boolean }>();
+        const restore = replaceSendSuccess(async function (original, abort, onTransmitted) {
+            holders.push({ at: "send", session: holder() });
+            await original(abort, () => {
+                holders.push({ at: "transmitted", session: holder(), unacked: this.exchange.hasUnackedMessage });
+                onTransmitted?.();
+                holders.push({ at: "established", session: holder() });
+            });
+        });
         try {
             await reconnect(controller, address);
         } finally {
-            CaseServerMessenger.prototype.sendSuccess = sendSuccess;
+            restore();
         }
 
-        const newSession = await newSessionOf(device, formerSession);
-        expect(newSession).not.undefined;
-        expect(resumed).length(0);
-        expect(holderAtSigmaFinished).deep.equals([newSession]);
-        expect([...newSession!.subscriptions]).deep.equals([subscription]);
+        expect(established).length(1);
+        const [newSession] = established;
+        expect(holders).deep.equals([
+            { at: "send", session: formerSession },
+            { at: "transmitted", session: formerSession, unacked: true },
+            { at: "established", session: newSession },
+        ]);
+        expect(newSession.isEstablishing).false;
+        expect([...newSession.subscriptions]).deep.equals([subscription]);
+    });
+
+    it("keeps a new full CASE session whose SigmaFinished went out but was not acknowledged", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const address = peer.peerAddress!;
+        const [formerSession] = openSessionsOf(device);
+        const [subscription] = formerSession.subscriptions;
+        const sessions = device.env.get(SessionManager);
+        await sessions.deleteResumptionRecord(formerSession.peerAddress);
+        const established = establishingSessionsOf(device);
+
+        const restore = replaceSendSuccess(async function (original, abort, onTransmitted) {
+            await original(abort, onTransmitted);
+            throw new RetransmissionLimitReachedError("test: no ack for SigmaFinished");
+        });
+        try {
+            await reconnect(controller, address);
+            await MockTime.yield3();
+        } finally {
+            restore();
+        }
+
+        expect(established).length(1);
+        const [newSession] = established;
+        expect(newSession.isClosing).false;
+        expect(sessions.sessions.has(newSession)).true;
+        expect([...newSession.subscriptions]).deep.equals([subscription]);
+        expect(sessions.findResumptionRecordByAddress(formerSession.peerAddress)).not.undefined;
+
+        await nodeLabelReachesController(device, peer, "after missing ack");
+    });
+
+    it("closes a new full CASE session whose SigmaFinished cannot be sent", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const address = peer.peerAddress!;
+        const [formerSession] = openSessionsOf(device);
+        const [subscription] = formerSession.subscriptions;
+        await device.env.get(SessionManager).deleteResumptionRecord(formerSession.peerAddress);
+        const established = establishingSessionsOf(device);
+
+        // Only the first attempt fails, so the controller's next attempt sets up a session
+        let failed = 0;
+        const restore = replaceSendSuccess(async function (original, abort, onTransmitted) {
+            if (failed++ === 0) {
+                throw new UnexpectedDataError("test: SigmaFinished not sent");
+            }
+            await original(abort, onTransmitted);
+        });
+        try {
+            await reconnect(controller, address);
+            await MockTime.yield3();
+        } finally {
+            restore();
+        }
+
+        expect(failed).greaterThan(1);
+        const [failedSession] = established;
+        expect(failedSession.isClosing).true;
+        expect(device.env.get(SessionManager).sessions.has(failedSession)).false;
+        expect(failedSession.subscriptions.size).equals(0);
+        expect(subscription.isTerminated).false;
+    });
+
+    it("adds a resumed session to its peer only once the controller confirms it", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const address = peer.peerAddress!;
+        const [formerSession] = openSessionsOf(device);
+        const devicePeer = peerOf(device, formerSession.peerAddress);
+        const added = peerSessionsAddedOf(device, formerSession.peerAddress);
+        const established = establishingSessionsOf(device);
+
+        const whileEstablishing = new Array<{ newest?: NodeSession; held: boolean }>();
+        const { waitForSuccess } = CaseServerMessenger.prototype;
+        CaseServerMessenger.prototype.waitForSuccess = async function (
+            this: CaseServerMessenger,
+            ...args: Parameters<typeof waitForSuccess>
+        ) {
+            if (args[0]?.description === "Sigma2Resume-Success") {
+                whileEstablishing.push({
+                    newest: devicePeer.newestSession(),
+                    held: established.some(session => devicePeer.sessions.has(session)),
+                });
+            }
+            return waitForSuccess.apply(this, args);
+        };
+        try {
+            await reconnect(controller, address);
+            await MockTime.yield3();
+        } finally {
+            CaseServerMessenger.prototype.waitForSuccess = waitForSuccess;
+        }
+
+        expect(established).length(1);
+        expect(whileEstablishing).deep.equals([{ newest: formerSession, held: false }]);
+        expect(added).deep.equals(established);
+        expect(devicePeer.newestSession()).equals(established[0]);
+    });
+
+    it("does not mark its peer connected by a session whose handshake fails", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const address = peer.peerAddress!;
+        const [formerSession] = openSessionsOf(device);
+        const devicePeer = peerOf(device, formerSession.peerAddress);
+        await MockTime.resolve(devicePeer.disconnect(new SessionClosedError("test")));
+        expect(devicePeer.hasSession).false;
+        const added = peerSessionsAddedOf(device, formerSession.peerAddress);
+        const established = establishingSessionsOf(device);
+
+        const hasSessionWhileEstablishing = new Array<boolean>();
+        const { waitForSuccess } = CaseServerMessenger.prototype;
+        CaseServerMessenger.prototype.waitForSuccess = async function (
+            this: CaseServerMessenger,
+            ...args: Parameters<typeof waitForSuccess>
+        ) {
+            if (args[0]?.description === "Sigma2Resume-Success") {
+                hasSessionWhileEstablishing.push(devicePeer.hasSession);
+                throw new UnexpectedDataError("test: no confirmation of the resumption");
+            }
+            return waitForSuccess.apply(this, args);
+        };
+        try {
+            await reconnect(controller, address);
+            await MockTime.yield3();
+        } finally {
+            CaseServerMessenger.prototype.waitForSuccess = waitForSuccess;
+        }
+
+        const [failedSession] = established;
+        expect(failedSession.isClosing).true;
+        expect(hasSessionWhileEstablishing).deep.equals([false]);
+        expect(added).not.include(failedSession);
     });
 });
