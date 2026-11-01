@@ -314,8 +314,8 @@ export namespace ControllerBehavior {
         adminNodeId?: NodeId = undefined;
 
         /**
-         * Case Authenticated Tags written into this controller's own NOC when the fabric is created. Sessions present
-         * these CATs to every peer.
+         * Only used when this controller creates the fabric; sessions on that fabric present them in the controller's
+         * NOC.
          */
         caseAuthenticatedTags?: CaseAuthenticatedTag[] = undefined;
 

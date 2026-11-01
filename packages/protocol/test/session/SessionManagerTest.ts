@@ -954,7 +954,7 @@ describe("SessionManager", () => {
             }
         }
 
-        function storedRecord(peerNodeId: NodeId, version?: number, caseAuthenticatedTags = CATS) {
+        function storedRecord(peerNodeId: NodeId, version?: number, caseAuthenticatedTags: typeof CATS | null = CATS) {
             return {
                 ...(version === undefined ? {} : { version }),
                 nodeId: peerNodeId,
@@ -964,7 +964,7 @@ describe("SessionManager", () => {
                 fabricIndex: FabricIndex(1),
                 peerNodeId,
                 sessionParameters: SessionParameters({}),
-                caseAuthenticatedTags,
+                ...(caseAuthenticatedTags === null ? {} : { caseAuthenticatedTags }),
             };
         }
 
@@ -1016,6 +1016,48 @@ describe("SessionManager", () => {
             const stored = await sessionStorage.get<{ version?: number; peerNodeId: NodeId }[]>("resumptionRecords");
             expect(storedPeers(stored)).deep.equals([NO_CATS_PEER]);
             expect(stored[0].version).equals(1);
+        });
+
+        it("keeps records stored without a version and without a CAT field and stores them with the version", async () => {
+            const { sessionManager, sessionStorage, storage, fabric } = await sessionManagerWith([
+                storedRecord(NO_CATS_PEER, undefined, null),
+            ]);
+
+            expect(sessionManager.findResumptionRecordByAddress(fabric.addressOf(NO_CATS_PEER))).not.undefined;
+            expect(storage.resumptionRecordWrites).equals(1);
+            const stored = await sessionStorage.get<{ version?: number; peerNodeId: NodeId }[]>("resumptionRecords");
+            expect(storedPeers(stored)).deep.equals([NO_CATS_PEER]);
+            expect(stored[0].version).equals(1);
+        });
+
+        it("skips an unversioned record of an unknown fabric without rewriting storage", async () => {
+            const { sessionManager, storage, fabric } = await sessionManagerWith([
+                { ...storedRecord(NO_CATS_PEER, undefined, []), fabricId: FabricId(BigInt("0x1111")) },
+            ]);
+
+            expect(sessionManager.findResumptionRecordByAddress(fabric.addressOf(NO_CATS_PEER))).undefined;
+            expect(storage.resumptionRecordWrites).equals(0);
+        });
+
+        it("keeps the version of a newer record when another record triggers a rewrite", async () => {
+            const { sessionManager, sessionStorage, storage, fabric } = await sessionManagerWith([
+                storedRecord(NO_CATS_PEER, undefined, []),
+                storedRecord(VERSIONED_PEER, 99),
+            ]);
+
+            expect(storage.resumptionRecordWrites).equals(1);
+            const stored = await sessionStorage.get<{ version?: number; peerNodeId: NodeId }[]>("resumptionRecords");
+            expect(storedPeers(stored)).deep.equals([NO_CATS_PEER, VERSIONED_PEER]);
+            expect(stored.map(({ version }) => version)).deep.equals([1, 99]);
+
+            // A record saved by this build for the same peer carries the current version
+            const record = sessionManager.findResumptionRecordByAddress(fabric.addressOf(VERSIONED_PEER));
+            if (record === undefined) {
+                expect.fail("newer record was not restored");
+            }
+            await sessionManager.saveResumptionRecord(record);
+            const saved = await sessionStorage.get<{ version?: number; peerNodeId: NodeId }[]>("resumptionRecords");
+            expect(saved.map(({ version }) => version)).deep.equals([1, 1]);
         });
 
         it("drops only the unversioned records with CATs when versioned and CAT-less records are also stored", async () => {
