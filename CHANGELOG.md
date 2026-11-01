@@ -74,6 +74,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `Peer.sessions` holds only established sessions
     - Fix: A CASE responder closes a session whose resumption the peer does not confirm
     - Fix: A CASE responder closes a new session whose SigmaFinished cannot be sent
+    - Adjustment: Stored CASE resumption records without a format version that carry CATs are dropped on load
+    - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks
     - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept
     - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: A group message whose key set GroupKeyMap does not map to its destination group fails authentication instead of reaching access control

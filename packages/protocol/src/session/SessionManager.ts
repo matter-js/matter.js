@@ -90,14 +90,33 @@ interface InternalResumptionRecord {
     peerNodeId: NodeId;
     sessionParameters: SessionParameters;
     caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
+
+    /** Version of a record loaded from storage that is newer than {@link RESUMPTION_RECORD_VERSION}. */
+    storedVersion?: number;
 }
 
 /** Resumption record with Fabric reference. */
-export interface ResumptionRecord extends Omit<InternalResumptionRecord, "fabricId" | "fabricIndex"> {
+export interface ResumptionRecord extends Omit<InternalResumptionRecord, "fabricId" | "fabricIndex" | "storedVersion"> {
     fabric: Fabric;
 }
 
+/**
+ * Format version of stored resumption records.
+ *
+ * Records without a version and with CATs are dropped on load, because the CATs may be the local node's own instead
+ * of the peer's.  This includes records that a responder wrote, because a record does not say which role wrote it.
+ *
+ * Records without a version and without CATs are kept and stored again with the version.  Accepted tradeoff: such a
+ * record may lack CATs that the peer's NOC has.  The peer then has fewer rights, never more, until its next full
+ * CASE, because a resumed session carries the CATs of the record forward.
+ *
+ * Records with a newer version are read best effort: the fields known to this build are kept, other fields are lost
+ * when the records are written again.  The newer version number is kept.
+ */
+const RESUMPTION_RECORD_VERSION = 1;
+
 type ResumptionStorageRecord = {
+    version?: number;
     nodeId: NodeId;
     sharedSecret: Bytes;
     resumptionId: Bytes;
@@ -891,7 +910,7 @@ export class SessionManager {
         }
     }
 
-    #asExposedResumptionRecord(record: InternalResumptionRecord): ResumptionRecord {
+    #asExposedResumptionRecord({ storedVersion: _, ...record }: InternalResumptionRecord): ResumptionRecord {
         return { ...record, fabric: this.#fabricForId(record.fabricId, record.fabricIndex) };
     }
 
@@ -928,6 +947,10 @@ export class SessionManager {
 
     async #storeResumptionRecords() {
         await this.#construction;
+        await this.#writeResumptionRecords();
+    }
+
+    async #writeResumptionRecords() {
         await this.#context.storage.set(
             "resumptionRecords",
             [...this.#resumptionRecords].map(
@@ -941,8 +964,10 @@ export class SessionManager {
                         fabricIndex,
                         sessionParameters,
                         caseAuthenticatedTags,
+                        storedVersion,
                     },
                 ]): ResumptionStorageRecord => ({
+                    version: storedVersion ?? RESUMPTION_RECORD_VERSION,
                     nodeId: address.nodeId,
                     sharedSecret,
                     resumptionId,
@@ -988,8 +1013,11 @@ export class SessionManager {
             [],
         );
 
+        let droppedOutdatedRecords = false;
+        let upgradedRecords = false;
         storedResumptionRecords.forEach(
             ({
+                version,
                 nodeId,
                 sharedSecret,
                 resumptionId,
@@ -999,6 +1027,11 @@ export class SessionManager {
                 sessionParameters,
                 caseAuthenticatedTags,
             }) => {
+                const outdated = (version ?? 0) < RESUMPTION_RECORD_VERSION;
+                if (outdated && caseAuthenticatedTags !== undefined && caseAuthenticatedTags.length > 0) {
+                    droppedOutdatedRecords = true;
+                    return;
+                }
                 const fabric = this.#maybeFabricForId(fabricId, fabricIndex);
                 if (!fabric) {
                     this.#logger.warn(
@@ -1024,9 +1057,27 @@ export class SessionManager {
                     // Make sure to initialize default values when restoring an older resumption record
                     sessionParameters: SessionParameters(sessionParameters),
                     caseAuthenticatedTags,
+                    storedVersion: (version ?? 0) > RESUMPTION_RECORD_VERSION ? version : undefined,
                 });
+                if (outdated) {
+                    upgradedRecords = true;
+                }
             },
         );
+
+        if (droppedOutdatedRecords || upgradedRecords) {
+            if (droppedOutdatedRecords) {
+                this.#logger.info(
+                    "Dropped resumption records stored in an outdated format with CATs; the next CASE session with each of these peers runs in full",
+                );
+            }
+            try {
+                await this.#writeResumptionRecords();
+            } catch (error) {
+                // The in-memory records are correct, and the next save rewrites storage
+                this.#logger.warn("Could not rewrite resumption records after migrating them:", error);
+            }
+        }
     }
 
     /**

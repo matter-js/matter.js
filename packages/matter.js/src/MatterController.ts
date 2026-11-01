@@ -924,6 +924,11 @@ export class MatterController {
  * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export namespace MatterController {
+    /**
+     * Options for {@link MatterController.connect}. The inherited `caseAuthenticatedTags` is stored on the peer, but
+     * not applied yet: sessions present the CATs of this node's own NOC in the fabric, and the CATs of the peer come
+     * from its NOC.
+     */
     export interface ConnectOptions extends PeerConnectionOptions {
         allowUnknownPeer?: boolean;
     }

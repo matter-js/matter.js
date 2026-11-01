@@ -54,7 +54,6 @@ export class CaseClient {
     async pair(exchange: MessageExchange, fabric: Fabric, peerNodeId: NodeId, options?: CaseClient.PairOptions) {
         const {
             expectedProcessingTime,
-            caseAuthenticatedTags,
             abort,
             validateSessionParameters,
             maxInitialRetransmissions: maxRetransmissions,
@@ -74,7 +73,6 @@ export class CaseClient {
                 fabric,
                 peerNodeId,
                 localAbort,
-                caseAuthenticatedTags,
                 {
                     maxRetransmissions,
                     maxRetransmissionTime,
@@ -113,7 +111,6 @@ export class CaseClient {
         fabric: Fabric,
         peerNodeId: NodeId,
         abort: Abort,
-        caseAuthenticatedTags?: readonly CaseAuthenticatedTag[],
         initialSendOptions?: ExchangeSendOptions,
         validateSessionParameters?: CaseClient.ValidateSessionParameters,
     ) {
@@ -282,7 +279,11 @@ export class CaseClient {
             });
             const {
                 ellipticCurvePublicKey: peerPublicKey,
-                subject: { fabricId: peerFabricIdNOCert, nodeId: peerNodeIdNOCert },
+                subject: {
+                    fabricId: peerFabricIdNOCert,
+                    nodeId: peerNodeIdNOCert,
+                    caseAuthenticatedTags: peerCaseAuthenticatedTags,
+                },
             } = Noc.fromTlv(peerNoc).cert;
 
             await abort.attempt(
@@ -334,8 +335,6 @@ export class CaseClient {
             const sigma3Bytes = await messenger.sendSigma3({ encrypted }, { abort });
             await abort.attempt(messenger.waitForSuccess({ description: "Sigma3-Success" }));
 
-            // Create a secure session. Configured CATs take precedence over resumption record ones
-            const sessionCaseAuthenticatedTags = caseAuthenticatedTags ?? resumptionRecord?.caseAuthenticatedTags;
             const secureSessionSalt = Bytes.concat(
                 operationalIdentityProtectionKey,
                 await abort.attempt(crypto.computeHash([sigma1Bytes, sigma2Bytes, sigma3Bytes])),
@@ -353,7 +352,7 @@ export class CaseClient {
                     isResumption: false,
                     peerSessionParameters,
                     reportedSessionParameters: responderSessionParams,
-                    caseAuthenticatedTags: sessionCaseAuthenticatedTags,
+                    caseAuthenticatedTags: peerCaseAuthenticatedTags,
                     delayManagerRegistration: true,
                 }),
             );
@@ -364,7 +363,7 @@ export class CaseClient {
                 sharedSecret,
                 resumptionId: peerResumptionId,
                 sessionParameters: secureSession.parameters,
-                caseAuthenticatedTags: sessionCaseAuthenticatedTags,
+                caseAuthenticatedTags: peerCaseAuthenticatedTags,
             };
 
             this.#sessions.registeredSessions.add(secureSession);
@@ -396,6 +395,12 @@ export namespace CaseClient {
 
     export interface PairOptions {
         expectedProcessingTime?: Duration;
+
+        /**
+         * Not applied yet; the option is ignored. The session CATs are the CATs from the peer's NOC of the full CASE
+         * that created the session; a resumed session takes them from the resumption record. The CATs this node
+         * presents are the ones in its own NOC in the fabric (`ControllerBehavior.caseAuthenticatedTags`).
+         */
         caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
         abort?: AbortSignal;
         maxInitialRetransmissions?: number;
