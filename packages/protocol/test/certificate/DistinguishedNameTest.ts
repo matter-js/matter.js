@@ -338,6 +338,7 @@ describe("Certificate distinguished name", () => {
             expect(() => Object.assign(subject, { orgUnitName: "Changed" })).throws(TypeError);
             expect(() => Array.prototype.push.call(subject.caseAuthenticatedTags, CAT_B)).throws(TypeError);
             expect(Object.isFrozen(subject.rdns)).true;
+            expect(subject.rdns?.every(rdn => Object.isFrozen(rdn))).true;
         });
 
         it("encodes a changed copy from its properties", async () => {
@@ -576,6 +577,19 @@ describe("Certificate distinguished name", () => {
             return { decoded, copy, asn1, again };
         }
 
+        it("encodes to TLV when the commonName gives the VendorID and ProductID", async () => {
+            const keys = await chain();
+            const der = await nocDer(keys, { ...base, commonName: X520.CommonName("Matter Mvid:FFF1 Mpid:8000") });
+            const { subject } = Noc.fromAsn1(der).cert;
+
+            const noc = new Noc({ ...nocCert(keys), subject: { ...subject } });
+            await noc.sign(crypto, keys.root.key);
+            const tlv = noc.asSignedTlv();
+
+            expect(subjectTags(tlv)).deep.equals([DN_TAG.nodeId, DN_TAG.fabricId, DN_TAG.commonName]);
+            await verify(tlv, keys);
+        });
+
         it("keeps a VendorID attribute that differs from the one in the commonName", async () => {
             const { decoded, copy, again } = await reencodedCopy({
                 ...base,
@@ -589,12 +603,13 @@ describe("Certificate distinguished name", () => {
         });
 
         it("leaves out the attributes when the commonName gives the same values", async () => {
-            const { asn1, again } = await reencodedCopy({
+            const { copy, asn1, again } = await reencodedCopy({
                 ...base,
                 commonName: X520.CommonName("Matter Mvid:FFF1 Mpid:8000"),
             });
 
             expect(Object.keys(asn1)).deep.equals(["rdn0", "rdn1", "rdn2"]);
+            expect(DistinguishedName.rdnCount(copy)).equals(3);
             expect(again.vendorId).equals(0xfff1);
             expect(again.productId).equals(0x8000);
         });
@@ -732,6 +747,12 @@ describe("Certificate distinguished name", () => {
             expect(() =>
                 schema.decode(list(NODE, FABRIC, u32(22, CAT_A), u32(22, CAT_B), u32(22, CAT_C), u32(22, 0x0004_0001))),
             ).throws(ValidationOutOfBoundsError);
+        });
+
+        it("refuses to encode a decoded DN with two CATs of one identifier to DER", () => {
+            const dn = schema.decode(list(NODE, FABRIC, u32(22, CAT_A), u32(22, 0x0001_0002)));
+
+            expect(() => distinguishedNameToAsn1(dn)).throws(ValidationOutOfBoundsError, /duplicate/);
         });
 
         it("refuses a value that is not a list", () => {

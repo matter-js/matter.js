@@ -93,7 +93,9 @@ export function parseMatterFallbackVidPid(commonName: string, prefix: "Mvid:" | 
  *
  * A decoded DN is frozen, so changing one of its properties throws a `TypeError` instead of encoding a list that no
  * longer matches the properties.  To change a decoded DN, build a new object, for example `{ ...cert.subject, nodeId }`.
- * `rdns` is not enumerable, so such a copy has no RDN list and encodes from its properties.
+ * `rdns` is not enumerable, so such a copy has no RDN list and encodes from its properties.  A certificate built around
+ * such a copy must leave out `tbsDer`, `subjectDer` and `issuerDer` of a parsed certificate, because these hold the
+ * original bytes.
  *
  * @see {@link MatterSpecification.v161.Core} § 6.5.6
  */
@@ -140,13 +142,13 @@ export namespace DistinguishedName {
      * `caseAuthenticatedTag` entry.  `vendorId` and `productId` have no Matter-TLV encoding.
      */
     export type Rdn =
-        | { type: StringAttribute; value: string }
-        | { type: "nodeId"; value: NodeId }
-        | { type: "fabricId"; value: FabricId }
-        | { type: IdentifierAttribute; value: number | bigint }
-        | { type: "caseAuthenticatedTag"; value: CaseAuthenticatedTag }
-        | { type: "vendorId"; value: VendorId }
-        | { type: "productId"; value: number };
+        | { readonly type: StringAttribute; readonly value: string }
+        | { readonly type: "nodeId"; readonly value: NodeId }
+        | { readonly type: "fabricId"; readonly value: FabricId }
+        | { readonly type: IdentifierAttribute; readonly value: number | bigint }
+        | { readonly type: "caseAuthenticatedTag"; readonly value: CaseAuthenticatedTag }
+        | { readonly type: "vendorId"; readonly value: VendorId }
+        | { readonly type: "productId"; readonly value: number };
 
     /** The RDN list a decoder sets on the DN it returns.  It is not enumerable. */
     export interface Decoded {
@@ -182,23 +184,21 @@ export namespace DistinguishedName {
     }
 
     /**
-     * The number of RDNs in a DN: the length of its RDN list, or for a DN built in code one per property and one per
-     * CAT.
+     * The RDNs a DN encodes to: its RDN list, or for a DN built in code one RDN per property in property order and one
+     * per CAT.  The VendorID and ProductID properties are left out when the commonNames already give them by the
+     * fallback method (§ 6.2.2.2).
+     */
+    export function encodedRdnsOf(dn: View): readonly Rdn[] {
+        return rdnsOf(dn) ?? rdnsOfProperties(dn);
+    }
+
+    /**
+     * The number of RDNs a DN encodes to, see {@link encodedRdnsOf}.
      *
      * @see {@link MatterSpecification.v161.Core} § 6.5.6.3
      */
     export function rdnCount(dn: View) {
-        const rdns = rdnsOf(dn);
-        if (rdns !== undefined) {
-            return rdns.length;
-        }
-        let count = 0;
-        for (const value of Object.values(dn)) {
-            if (value !== undefined) {
-                count += Array.isArray(value) ? value.length : 1;
-            }
-        }
-        return count;
+        return encodedRdnsOf(dn).length;
     }
 }
 
@@ -309,7 +309,7 @@ export function decodeDistinguishedName(
     }
 
     // Not enumerable, so a copy made with spread is a DN built in code and encodes from its properties
-    Object.defineProperty(view, "rdns", { value: Object.freeze([...rdns]) });
+    Object.defineProperty(view, "rdns", { value: Object.freeze(rdns.map(rdn => Object.freeze({ ...rdn }))) });
     if (view.caseAuthenticatedTags !== undefined) {
         Object.freeze(view.caseAuthenticatedTags);
     }
@@ -445,10 +445,7 @@ function commonNameCarriesVidPid(dn: DistinguishedName.View) {
     }
 }
 
-/**
- * The RDN list a DN built in code encodes to: one RDN per property in property order and one per CAT.  The VendorID
- * and ProductID properties are left out when {@link commonNameCarriesVidPid}.
- */
+/** See {@link DistinguishedName.encodedRdnsOf}. */
 function rdnsOfProperties(dn: DistinguishedName.View) {
     const omitVidPid = commonNameCarriesVidPid(dn);
 
@@ -458,7 +455,6 @@ function rdnsOfProperties(dn: DistinguishedName.View) {
             continue;
         }
         if (name === "caseAuthenticatedTags") {
-            CaseAuthenticatedTag.validateNocTagList(value);
             for (const tag of value) {
                 rdns.push({ type: "caseAuthenticatedTag", value: tag });
             }
@@ -477,8 +473,11 @@ function rdnsOfProperties(dn: DistinguishedName.View) {
  * list, a DN built in code from its properties.
  */
 export function distinguishedNameToAsn1(dn: DistinguishedName.View): X509.DistinguishedName {
+    if (dn.caseAuthenticatedTags !== undefined) {
+        CaseAuthenticatedTag.validateNocTagList(dn.caseAuthenticatedTags);
+    }
     const asn: X509.DistinguishedName = {};
-    (dn.rdns ?? rdnsOfProperties(dn)).forEach((rdn, index) => {
+    DistinguishedName.encodedRdnsOf(dn).forEach((rdn, index) => {
         asn[`rdn${index}`] = rdnToAsn1(rdn);
     });
     return asn;
@@ -572,9 +571,9 @@ function rdnToAsn1(rdn: DistinguishedName.Rdn) {
 /**
  * TLV schema of a certificate subject or issuer, a TLV list of DN attributes (§ 6.5.6).
  *
- * The decoded value is the frozen object view with the RDN list as `rdns`.  Encoding
- * writes the RDN list when there is one and otherwise the properties in property order.  Validation checks the object
- * view against `fields`, so mandatory attributes and the maximum number of CATs are enforced as for a tagged list.
+ * The decoded value is the frozen object view with the RDN list as `rdns`.  Encoding writes the RDNs of
+ * {@link DistinguishedName.encodedRdnsOf}.  Validation checks the object view against `fields`, so mandatory attributes
+ * and the maximum number of CATs are enforced as for a tagged list.
  */
 export class DistinguishedNameSchema<F extends TlvFields> extends TlvSchema<
     DistinguishedName.Frozen<TypeFromFields<F>> & DistinguishedName.Decoded
@@ -602,19 +601,14 @@ export class DistinguishedNameSchema<F extends TlvFields> extends TlvSchema<
         tag?: TlvTag,
         options?: TlvEncodingOptions,
     ) {
-        const rdns = value.rdns;
-        if (rdns === undefined) {
-            this.#properties.encodeTlvInternal(writer, value, tag, options);
-            return;
-        }
         writer.writeTag({ type: TlvType.List }, tag);
-        for (const { type, value } of rdns) {
+        for (const { type, value: rdnValue } of DistinguishedName.encodedRdnsOf(value)) {
             const name = type === "caseAuthenticatedTag" ? "caseAuthenticatedTags" : type;
             if (!Object.hasOwn(this.#fields, name)) {
                 throw new ValidationDatatypeMismatchError(`Field "${name}" is not defined in the TLV DN schema.`, name);
             }
             const { id, schema } = this.#fields[name];
-            schema.encodeTlvInternal(writer, value, { id }, options);
+            schema.encodeTlvInternal(writer, rdnValue, { id }, options);
         }
         writer.writeTag({ type: TlvType.EndOfContainer });
     }
