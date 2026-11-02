@@ -58,6 +58,11 @@ export class Vvsc extends OperationalBase<OperationalCertificate.Vvsc> {
             );
         }
 
+        // The subject DN SHALL encode exactly one matter-vvs-id attribute.
+        if (subject.vvsId === undefined) {
+            throw new CertificateError("Vvsc certificate must contain a vvsId.");
+        }
+
         // The subject DN SHALL NOT encode any matter-node-id attribute.
         if ("nodeId" in subject) {
             throw new CertificateError(`Vsc certificate must not contain a nodeId.`);

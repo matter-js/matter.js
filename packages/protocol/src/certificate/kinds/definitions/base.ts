@@ -20,15 +20,18 @@ export const ExtensionKeyUsageBitmap = {
 };
 export const ExtensionKeyUsageSchema = BitmapSchema(ExtensionKeyUsageBitmap);
 
+const NAMED_KEY_USAGE_BITS = 0x01ff;
+
 /**
- * The key usage bits of a certificate as it was decoded from Matter TLV, including bits that have no name in
- * {@link ExtensionKeyUsageBitmap}.  {@link ExtensionKeyUsageSchema.encode} drops those bits, so a profile rule that
- * allows no additional flags must compare this value instead.  A certificate that was not decoded from TLV has no
- * unnamed bits, so its flags are encoded.
+ * The key usage bits of a certificate: the current named flags, plus the bits without a name in
+ * {@link ExtensionKeyUsageBitmap} that the certificate had when it was decoded from Matter TLV.
+ * {@link ExtensionKeyUsageSchema.encode} drops the unnamed bits, so a profile rule that allows no additional flags
+ * must compare this value instead.  A certificate that was not decoded from TLV has no unnamed bits.
  */
 export function rawKeyUsage(keyUsage: TypeFromPartialBitSchema<typeof ExtensionKeyUsageBitmap>) {
     const decoded: unknown = Reflect.get(keyUsage, BitmapEncodedValue);
-    return typeof decoded === "number" ? decoded : ExtensionKeyUsageSchema.encode(keyUsage);
+    const unnamed = typeof decoded === "number" ? decoded & ~NAMED_KEY_USAGE_BITS : 0;
+    return ExtensionKeyUsageSchema.encode(keyUsage) | unnamed;
 }
 
 export interface MatterCertificate {
