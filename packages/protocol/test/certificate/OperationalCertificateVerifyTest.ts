@@ -804,6 +804,12 @@ describe("Operational certificate verification", () => {
             await expect(verifyVvsc(vvsc)).rejectedWith(CertificateError, /keyUsage/);
         });
 
+        it("refuses a decoded VVSC whose key usage flags were changed afterwards", async () => {
+            const vvsc = Vvsc.fromTlv(await vvscTlv(await keyMaterial(), root));
+            vvsc.cert.extensions.keyUsage.keyEncipherment = true;
+            await expect(vvsc.verify(crypto)).rejectedWith(CertificateError, /keyUsage/);
+        });
+
         it("refuses a VVSC with an empty key usage", async () => {
             const cert = vvscCert(await keyMaterial(), root, c => {
                 c.extensions.keyUsage = {};
@@ -820,6 +826,13 @@ describe("Operational certificate verification", () => {
     });
 
     describe("VVSC subject DN", () => {
+        it("refuses a VVSC without a matter-vvs-id", async () => {
+            const cert = vvscCert(await keyMaterial(), root, c => {
+                Reflect.deleteProperty(c.subject, "vvsId");
+            });
+            await expect(new Vvsc(cert).verify(crypto)).rejectedWith(CertificateError, /vvsId/);
+        });
+
         it("refuses a second matter-vvs-id", async () => {
             const vvsc = withLeadingDnEntry(
                 await vvscTlv(await keyMaterial(), root),
