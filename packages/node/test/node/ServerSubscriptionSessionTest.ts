@@ -8,12 +8,13 @@ import { SessionsBehavior } from "#behavior/system/sessions/SessionsBehavior.js"
 import { BasicInformationClient, BasicInformationServer } from "#behaviors/basic-information";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { Bytes, CryptoError, Seconds, UnexpectedDataError } from "@matter/general";
+import { Bytes, CryptoError, MockNetwork, Network, Seconds, UnexpectedDataError } from "@matter/general";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import {
     CaseServerMessenger,
     ClientSubscriptions,
     FabricManager,
+    MessageCodec,
     NodeSession,
     PeerAckMissingError,
     PeerAddress,
@@ -22,7 +23,7 @@ import {
     SessionClosedError,
     SessionManager,
 } from "@matter/protocol";
-import { CaseAuthenticatedTag } from "@matter/types";
+import { CaseAuthenticatedTag, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
 
 function openSessionsOf(device: ServerNode) {
     return device.env.get(SessionManager).sessions.filter(session => !session.isClosing);
@@ -99,6 +100,41 @@ async function nodeLabelReachesController(device: ServerNode, peer: ClientNode, 
         await MockTime.resolve(MockTime.sleep("wait for report", Seconds(1)));
     }
     expect(peer.stateOf(BasicInformationClient).nodeLabel).equals(nodeLabel);
+}
+
+/**
+ * Drop the standalone acks the device receives on the unsecured session, which include the controller's ack of
+ * SigmaFinished, until the returned function runs.
+ */
+function dropUnsecuredAcksTo(device: ServerNode) {
+    const network = device.env.get(Network);
+    if (!(network instanceof MockNetwork)) {
+        expect.fail("Device network is not simulated");
+    }
+    let dropping = true;
+    network.simulator.router.intercept((packet, route) => {
+        if (
+            dropping &&
+            packet.kind === "udp" &&
+            packet.destPort === 5540 &&
+            network.shouldReceive(packet.destAddress)
+        ) {
+            const decoded = MessageCodec.decodePacket(packet.payload);
+            if (decoded.header.sessionId === 0) {
+                const { payloadHeader } = MessageCodec.decodePayload(decoded);
+                if (
+                    payloadHeader.protocolId === SECURE_CHANNEL_PROTOCOL_ID &&
+                    payloadHeader.messageType === SecureMessageType.StandaloneAck
+                ) {
+                    return;
+                }
+            }
+        }
+        route(packet);
+    });
+    return () => {
+        dropping = false;
+    };
 }
 
 /** Close the controller's sessions with the device without telling the device. */
@@ -395,17 +431,28 @@ describe("ServerSubscriptionSession", () => {
         await sessions.deleteResumptionRecord(formerSession.peerAddress);
         const established = establishingSessionsOf(device);
 
+        const failures = new Array<unknown>();
         const restore = replaceSendSuccess(async function (original, abort, onTransmitted) {
-            await original(abort, onTransmitted);
-            throw new PeerAckMissingError();
+            try {
+                await original(abort, onTransmitted);
+            } catch (error) {
+                failures.push(error);
+                throw error;
+            }
         });
+        const releaseAcks = dropUnsecuredAcksTo(device);
         try {
             await reconnect(controller, address);
-            await MockTime.yield3();
+            for (let i = 0; i < 60 && failures.length === 0; i++) {
+                await MockTime.resolve(MockTime.sleep("wait for MRP to give up", Seconds(1)));
+            }
         } finally {
+            releaseAcks();
             restore();
         }
 
+        expect(failures).length(1);
+        expect(failures[0]).instanceOf(PeerAckMissingError);
         expect(established).length(1);
         const [newSession] = established;
         expect(newSession.isClosing).false;

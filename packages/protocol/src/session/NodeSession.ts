@@ -68,8 +68,12 @@ export class NodeSession extends SecureSession {
     #isPeerLost = false;
     #closingForShutdown = false;
     #isEstablishing: boolean;
-    readonly #established = Observable<[]>();
-    readonly #superseded = Observable<[newer: NodeSession]>();
+    readonly #established = Observable<[]>(error =>
+        logger.warn(this.via, "Error in an observer of session establishment:", error),
+    );
+    readonly #superseded = Observable<[newer: NodeSession]>(error =>
+        logger.warn(this.via, "Error in an observer of session supersession:", error),
+    );
 
     // TODO - remove this; subscriptions should be owned by the peer, not the session
     readonly #subscriptions = new BasicSet<Subscription>();
@@ -228,8 +232,8 @@ export class NodeSession extends SecureSession {
 
     /**
      * Mark the handshake as complete and emit {@link established}, which also adds the session to
-     * `SessionManager.sessions`.  Observers see {@link isEstablishing} as false.  An observer that throws is logged and
-     * does not change the result, so a caller inside a send is not interrupted.
+     * `SessionManager.sessions`.  Observers see {@link isEstablishing} as false.  An observer that throws is logged, and
+     * the other observers still run, so a caller inside a send is not interrupted.
      *
      * @returns true if the session is established, also when it already was and is closing now; false if it is
      * closing and therefore stays establishing
@@ -242,11 +246,7 @@ export class NodeSession extends SecureSession {
             return false;
         }
         this.#isEstablishing = false;
-        try {
-            this.#established.emit();
-        } catch (error) {
-            logger.warn(this.via, "Error in an observer of session establishment:", error);
-        }
+        this.#established.emit();
         return true;
     }
 

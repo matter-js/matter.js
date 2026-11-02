@@ -727,6 +727,31 @@ describe("SessionManager", () => {
             expect(sessionManager.sessions.has(establishing)).true;
         });
 
+        it("lists a session in sessions when an observer of its establishment throws", async () => {
+            sessionManager.registeredSessions.added.on(added => {
+                added.established.on(() => {
+                    throw new InternalError("test: observer fails");
+                });
+            });
+            const establishing = await session({ establishing: true });
+
+            expect(establishing.completeEstablishment()).true;
+
+            expect(sessionManager.sessions.has(establishing)).true;
+        });
+
+        it("notifies every observer of supersession when one throws", async () => {
+            const older = await session();
+            older.superseded.on(() => {
+                throw new InternalError("test: observer fails");
+            });
+            const superseded = supersessionsOf(older);
+
+            const newer = await session();
+
+            expect(superseded).deep.equals([newer]);
+        });
+
         it("neither counts nor evicts an establishing session for the per-peer cap", async () => {
             const sessions = new Array<NodeSession>();
             for (let i = 0; i < 3; i++) {
