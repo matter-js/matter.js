@@ -76,19 +76,19 @@ export class PeerAddressStore<T extends SupportedStorageTypes> {
                 const fabricContext = this.#storage.createContext(fabricName);
 
                 // keys() and has() list a value the driver cannot decode, but values() has no value for it
-                const readable = await fabricContext.values();
+                const stored = await fabricContext.values();
                 for (const key of await fabricContext.keys()) {
                     if (!NODE_KEY_PATTERN.test(key)) {
                         logger.info(`Ignoring stored key ${key} in ${this}: not a node ID`);
                         continue;
                     }
                     const address = PeerAddress({ fabricIndex, nodeId: NodeId(BigInt(`0x${key}`)) });
-                    if (readable[key] === undefined) {
+                    const value = stored[key] as T | undefined;
+                    if (value === undefined) {
                         logger.warn(`Deleting stored value of ${address} in ${this}: not readable`);
                         await fabricContext.delete(key);
                         continue;
                     }
-                    const value = await fabricContext.get<T>(key);
                     if (keep !== undefined && !keep(address, value)) {
                         await fabricContext.delete(key);
                         continue;
