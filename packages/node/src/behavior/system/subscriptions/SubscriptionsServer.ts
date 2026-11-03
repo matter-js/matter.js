@@ -6,10 +6,10 @@
 
 import { InteractionServer, PeerSubscription } from "#node/server/InteractionServer.js";
 import { ServerSubscription } from "#node/server/ServerSubscription.js";
-import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     causedBy,
     ChannelType,
+    deepCopy,
     Logger,
     MatterAggregateError,
     MatterError,
@@ -27,6 +27,7 @@ import {
     Subscription,
     TransientPeerCommunicationError,
 } from "@matter/protocol";
+import { DatatypeModel, FieldElement } from "@matter/model";
 import { Status, StatusResponseError } from "@matter/types";
 import { Behavior } from "../../Behavior.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
@@ -54,6 +55,82 @@ export class SubscriptionsServer extends Behavior {
         this.reactTo(sessions.events.subscriptionAdded, this.#addSubscription);
     }
 
+    static override readonly schema = new DatatypeModel(
+        {
+            name: "SubscriptionState",
+            type: "struct",
+        },
+        FieldElement(
+            {
+                name: "subscriptions",
+                type: "list",
+                quality: "N",
+                conformance: "M",
+                default: [],
+            },
+            FieldElement(
+                {
+                    name: "entry",
+                    type: "struct",
+                },
+                FieldElement({ name: "subscriptionId", type: "uint32" }),
+                FieldElement(
+                    {
+                        name: "peerAddress",
+                        type: "struct",
+                    },
+                    FieldElement({ name: "fabricIndex", type: "fabric-id" }),
+                    FieldElement({ name: "nodeId", type: "node-id" }),
+                ),
+                FieldElement(
+                    {
+                        name: "attributeRequests",
+                        type: "list",
+                    },
+                    FieldElement(
+                        {
+                            name: "entry",
+                            type: "struct",
+                        },
+                        FieldElement({ name: "enableTagCompression", type: "bool", conformance: "O" }),
+                        FieldElement({ name: "nodeId", type: "node-id", conformance: "O" }),
+                        FieldElement({ name: "endpointId", type: "endpoint-no", conformance: "O" }),
+                        FieldElement({ name: "clusterId", type: "cluster-id", conformance: "O" }),
+                        FieldElement({ name: "attributeId", type: "attrib-id", conformance: "O" }),
+                        FieldElement({ name: "listIndex", type: "uint16", conformance: "O" }),
+                        FieldElement({
+                            name: "wildcardPathFlags",
+                            type: "WildcardPathFlagsBitmap",
+                            conformance: "O",
+                        }),
+                    ),
+                ),
+                FieldElement(
+                    {
+                        name: "eventRequests",
+                        type: "list",
+                    },
+                    FieldElement(
+                        {
+                            name: "entry",
+                            type: "struct",
+                        },
+                        FieldElement({ name: "nodeId", type: "node-id", quality: "O" }),
+                        FieldElement({ name: "endpointId", type: "endpoint-no", quality: "O" }),
+                        FieldElement({ name: "clusterId", type: "cluster-id", quality: "O" }),
+                        FieldElement({ name: "eventId", type: "event-id", quality: "O" }),
+                        FieldElement({ name: "isUrgent", type: "bool", quality: "O" }),
+                    ),
+                ),
+                FieldElement({ name: "isFabricFiltered", type: "bool" }),
+                FieldElement({ name: "maxIntervalCeiling", type: "duration" }),
+                FieldElement({ name: "minIntervalFloor", type: "duration" }),
+                FieldElement({ name: "maxInterval", type: "duration" }),
+                FieldElement({ name: "sendInterval", type: "duration" }),
+            ),
+        ),
+    );
+
     #addSubscription(subscription: Subscription): MaybePromise {
         if (this.state.persistenceEnabled === false || !(subscription instanceof ServerSubscription)) return;
 
@@ -66,7 +143,7 @@ export class SubscriptionsServer extends Behavior {
             maxIntervalCeiling,
             minIntervalFloor,
         } = subscription;
-        const peerAddress = PeerAddress(session.peerAddress);
+        const { peerAddress } = session;
 
         const peerSubscription: PeerSubscription = {
             subscriptionId: id,
@@ -97,7 +174,7 @@ export class SubscriptionsServer extends Behavior {
             return;
         }
 
-        const peerAddress = PeerAddress(subscription.session.peerAddress);
+        const { peerAddress } = subscription.session;
         const recorded = this.internal.subscriptions.get(peerAddress);
         if (recorded === undefined) {
             return;
@@ -147,22 +224,26 @@ export class SubscriptionsServer extends Behavior {
         this.internal.subscriptions.clear();
 
         const store = this.env.get(SubscriptionStore);
-        this.internal.formerSubscriptions = this.state.persistenceEnabled === false ? [] : await store.load();
+        this.internal.formerSubscriptions =
+            this.state.persistenceEnabled === false ? [] : await this.#formerSubscriptionsOf(store);
         await store.clear();
 
-        await this.#eraseLegacyStateList();
+        if (this.state.subscriptions.length) {
+            this.state.subscriptions = [];
+        }
     }
 
     /**
-     * Versions before {@link SubscriptionStore} kept the list in this behavior's state.  Those subscriptions are not
-     * re-established; their controllers subscribe again after their own timeout.  This behavior writes no persistent
-     * state, so nothing else removes the stored list.
+     * The stored subscriptions, plus those of peers the store has none for from {@link SubscriptionsServer.State.subscriptions}, where
+     * versions before {@link SubscriptionStore} kept them.
      */
-    async #eraseLegacyStateList() {
-        const endpointStore = this.env.get(ServerNodeStore).storeForEndpoint(this.endpoint);
-        if (endpointStore.knownBehaviors.has(SubscriptionsServer.id)) {
-            await endpointStore.eraseStoreForBehavior(SubscriptionsServer.id);
-        }
+    async #formerSubscriptionsOf(store: SubscriptionStore) {
+        const stored = await store.load();
+        const storedPeers = new PeerAddressSet(stored.map(({ peerAddress }) => peerAddress));
+        const legacy = deepCopy(this.state.subscriptions)
+            .map(subscription => ({ ...subscription, peerAddress: PeerAddress(subscription.peerAddress) }))
+            .filter(({ peerAddress }) => !storedPeers.has(peerAddress));
+        return [...stored, ...legacy];
     }
 
     async reestablishFormerSubscriptions() {
@@ -190,7 +271,7 @@ export class SubscriptionsServer extends Behavior {
         // Group subscriptions by peer address for parallel processing
         const subscriptionsByPeer = new PeerAddressMap<PeerSubscription[]>();
         for (const subscription of formerSubscriptions) {
-            const peerAddress = PeerAddress(subscription.peerAddress);
+            const { peerAddress } = subscription;
             const existing = subscriptionsByPeer.get(peerAddress);
             if (existing !== undefined) {
                 existing.push(subscription);
@@ -296,6 +377,14 @@ export namespace SubscriptionsServer {
     export class State {
         /** Set to false if persistence of subscriptions should be disabled */
         persistenceEnabled = true;
+
+        /**
+         * Subscriptions as versions before {@link SubscriptionStore} stored them.  {@link SubscriptionsServer.beginRun}
+         * takes them over and sets the list to empty.
+         *
+         * @deprecated Not written anymore.  Will be removed in a future version.
+         */
+        subscriptions: PeerSubscription[] = [];
     }
 
     export class Internal {

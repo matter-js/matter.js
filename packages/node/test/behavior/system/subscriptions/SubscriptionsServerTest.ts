@@ -6,6 +6,7 @@
 
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { SubscriptionStore } from "#behavior/system/subscriptions/SubscriptionStore.js";
+import type { PeerSubscription } from "#node/server/InteractionServer.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { Crypto, Entropy, Environment, Millis, MockCrypto } from "@matter/general";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
@@ -209,8 +210,7 @@ describe("SubscriptionsServer", () => {
         await MockTime.resolve(device.close());
 
         const storage = site.storageFor(device);
-        const { peerAddress: _peerAddress, ...legacy } = live;
-        storage["root.subscriptions"] = { subscriptions: [legacy] };
+        storage["root.subscriptions"] = { subscriptions: [legacyEntryOf(live)] };
 
         const restarted = await MockTime.resolve(
             site.addDevice({ index: 2, subscriptions: { persistenceEnabled: false } }),
@@ -218,7 +218,7 @@ describe("SubscriptionsServer", () => {
 
         expect(activeSubscriptionsOf(restarted)).equals(0);
         expect(await storedIdsOf(restarted)).deep.equals([]);
-        expect(storage["root.subscriptions"]?.subscriptions).undefined;
+        expect(storage["root.subscriptions"].subscriptions).deep.equals([]);
     });
 
     it("starts and deletes a stored entry that is not a list of subscriptions", async () => {
@@ -250,7 +250,7 @@ describe("SubscriptionsServer", () => {
         expect(Object.keys(site.storageFor(device)).filter(key => key.startsWith("subscriptions."))).deep.equals([]);
     });
 
-    it("erases the subscription list that older versions stored in the behavior state", async () => {
+    it("re-establishes the subscriptions that older versions stored in the behavior state", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
         await subscribedPeer(controller, "peer1");
@@ -258,15 +258,38 @@ describe("SubscriptionsServer", () => {
         await MockTime.resolve(device.close());
 
         const storage = site.storageFor(device);
-        const { peerAddress: _peerAddress, ...legacy } = live;
-        storage["root.subscriptions"] = { subscriptions: [{ ...legacy, subscriptionId: live.subscriptionId ^ 1 }] };
+        delete storage[`subscriptions.${live.peerAddress.fabricIndex}`];
+        storage["root.subscriptions"] = { subscriptions: [legacyEntryOf(live)] };
 
         const restarted = await MockTime.resolve(site.addDevice({ index: 2 }));
 
-        expect(storage["root.subscriptions"]?.subscriptions).undefined;
+        expect(storage["root.subscriptions"].subscriptions).deep.equals([]);
+        expect(await storedIdsOf(restarted)).deep.equals([live.subscriptionId]);
+    });
+
+    it("ignores the old state list for a peer the subscription store has subscriptions for", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        await subscribedPeer(controller, "peer1");
+        const [live] = await storedSubscriptionsOf(device);
+        await MockTime.resolve(device.close());
+
+        const storage = site.storageFor(device);
+        storage["root.subscriptions"] = {
+            subscriptions: [{ ...legacyEntryOf(live), subscriptionId: live.subscriptionId ^ 1 }],
+        };
+
+        const restarted = await MockTime.resolve(site.addDevice({ index: 2 }));
+
+        expect(storage["root.subscriptions"].subscriptions).deep.equals([]);
         expect(await storedIdsOf(restarted)).deep.equals([live.subscriptionId]);
     });
 });
+
+/** A subscription as versions before {@link SubscriptionStore} stored it in the behavior state. */
+function legacyEntryOf({ peerAddress: { fabricIndex, nodeId }, ...subscription }: PeerSubscription) {
+    return { ...subscription, peerAddress: { fabricIndex, nodeId } };
+}
 
 function storedSubscriptionsOf(node: ServerNode) {
     return node.env.get(SubscriptionStore).load();

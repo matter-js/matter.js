@@ -44,7 +44,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Deleting from a fabric-filtered state list, or setting the length of any state list, requires write access
     - Fix: Thermostat accepts a preset write that sends an existing built-in preset with a null `BuiltIn`
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
-    - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is removed; subscriptions stored by an older version are not re-established
+    - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is deprecated and stays empty; subscriptions stored there by an older version are taken over at start
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
