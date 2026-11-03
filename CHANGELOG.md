@@ -29,13 +29,15 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
     - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
+    - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is deprecated and stays empty; subscriptions stored there by an older version are taken over at start
     - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
     - Fix: A local write that removes the last GroupKeyMap entry of a fabric also clears the fabric's operational group key map
     - Fix: Groupcast testing reports NoAvailableKey to the fabric under test when only an unmapped key set of another fabric authenticated a group message, instead of reporting nothing
     - Fix: Groupcast testing derives DestinationIpAddress from the fabric that owns the group id and the groups the node joins
-    - Fix: A group that Groupcast JoinGroup creates has no GroupName in the GroupKeyManagement GroupTable, instead of an empty name    - Fix: A list or struct assigned to state is stored as a copy, so a later nested write no longer changes the value it came from
+    - Fix: A group that Groupcast JoinGroup creates has no GroupName in the GroupKeyManagement GroupTable, instead of an empty name
+    - Fix: A list or struct assigned to state is stored as a copy, so a later nested write no longer changes the value it came from
     - Fix: Removing an entry from a fabric-filtered list emits the change and is undone by a rollback
     - Fix: `sort()`, `reverse()`, `unshift()` and `splice()` on a state list no longer duplicate entries or throw when they move them, and `shift()` and `pop()` return the removed entry
     - Fix: Array methods that change a state list apply all of their change or none of it, hand removed entries and `sort()` comparator arguments out as read-only views, and a later nested write to an entry they moved is rolled back with the transaction
@@ -46,6 +48,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
     - Fix: AdministratorCommissioning OpenCommissioningWindow answers INVALID_COMMAND to a discriminator above 4095 instead of CONSTRAINT_ERROR
     - Fix: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow answer PAKEParameterError on a session without fabric, as CHIP does, instead of UNSUPPORTED_ACCESS
+    - Fix: Corrects extension typing of `registerHardwareFault()`, `registerRadioFault()` and `registerNetworkFault()` of a GeneralDiagnostics server
+    - Fix: GeneralDiagnostics registering a fault that is already active no longer emits a fault change event
+    - Fix: GeneralDiagnostics TimeSnapshot `SystemTimeMs` counts from when the node came online, like `UpTime`, instead of from the host boot
+    - Fix: GeneralDiagnostics `TestEventTriggersEnabled` is true exactly when a non-zero `deviceTestEnableKey` is configured, and PayloadTestRequest accepts that key without also setting the attribute
+    - Fix: GeneralDiagnostics test commands compare the EnableKey in constant time and never accept a key that is not 16 bytes, and the node refuses to start with a non-zero `deviceTestEnableKey` of another length
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
@@ -54,12 +61,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
     - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
     - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
-    - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec`, `MessageCodec` and `ExchangeManager`
+    - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec` and `ExchangeManager`
+    - Enhancement: `SessionManager` stores each CASE resumption record under its own key with the new `PeerAddressStore` instead of rewriting all records on every change; after a downgrade each peer establishes a new session once
     - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
     - Adjustment: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
     - Adjustment: `DclCertificateService.addCertificate()` refuses a CD signer certificate that is known to be untrusted because the CSA did not issue it
     - Adjustment: DER certificate parsing requires the basic constraints extension when the required extensions list it
-    - Adjustment: Stored CASE resumption records without a format version that carry CATs are dropped on load
+    - Adjustment: Stored CASE resumption records carry a format version; records without a version that carry CATs and records of another version are deleted on load
     - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks
     - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept
     - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
