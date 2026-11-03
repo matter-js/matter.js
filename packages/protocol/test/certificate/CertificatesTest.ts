@@ -11,6 +11,7 @@ import {
 } from "#certificate/ChipPAAuthorities.js";
 import { Dac, Paa, Pai } from "#certificate/kinds/AttestationCertificates.js";
 import { Certificate, parseMatterFallbackVidPid } from "#certificate/kinds/Certificate.js";
+import { DistinguishedName } from "#certificate/kinds/DistinguishedName.js";
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
@@ -328,6 +329,13 @@ describe("Certificates", () => {
             expect(dac.cert.subject.productId).to.equal(0x00a1);
         });
 
+        it("returns the RDN list of a DAC subject and issuer", () => {
+            const dac = Dac.fromAsn1(NUKI_DAC_ASN1);
+
+            expect(DistinguishedName.rdnsOf(dac.cert.subject)?.map(({ type }) => type)).deep.equals(["commonNamePs"]);
+            expect(DistinguishedName.rdnsOf(dac.cert.issuer)?.map(({ type }) => type)).deep.equals(["commonNamePs"]);
+        });
+
         it("parses fallback VendorID from a PAI commonName", () => {
             const pai = Pai.fromAsn1(NUKI_PAI_ASN1);
 
@@ -428,53 +436,67 @@ describe("Certificates", () => {
                     });
 
                     it("verify operational certificate via ICAC and ROOT with fabricId in root matching", async () => {
-                        const root = Rcac.fromTlv(certs.ROOT.TLV);
-                        const icac = Icac.fromTlv(certs.ICAC.TLV);
+                        let root = Rcac.fromTlv(certs.ROOT.TLV);
+                        let icac = Icac.fromTlv(certs.ICAC.TLV);
                         const noc = Noc.fromTlv(certs.NOC.TLV);
-                        root.cert.subject.fabricId = noc.cert.subject.fabricId;
-                        icac.cert.subject.fabricId = undefined;
+                        root = new Rcac({
+                            ...root.cert,
+                            subject: { ...root.cert.subject, fabricId: noc.cert.subject.fabricId },
+                        });
+                        icac = new Icac({ ...icac.cert, subject: { ...icac.cert.subject, fabricId: undefined } });
                         await noc.verify(crypto, root, icac);
                     });
 
                     it("verify operational certificate via ICAC and ROOT with fabricId in ica matching", async () => {
-                        const root = Rcac.fromTlv(certs.ROOT.TLV);
-                        const icac = Icac.fromTlv(certs.ICAC.TLV);
+                        let root = Rcac.fromTlv(certs.ROOT.TLV);
+                        let icac = Icac.fromTlv(certs.ICAC.TLV);
                         const noc = Noc.fromTlv(certs.NOC.TLV);
-                        root.cert.subject.fabricId = undefined;
-                        icac.cert.subject.fabricId = noc.cert.subject.fabricId;
+                        root = new Rcac({ ...root.cert, subject: { ...root.cert.subject, fabricId: undefined } });
+                        icac = new Icac({
+                            ...icac.cert,
+                            subject: { ...icac.cert.subject, fabricId: noc.cert.subject.fabricId },
+                        });
                         await noc.verify(crypto, root, icac);
                     });
 
                     it("verify operational certificate via ICAC and ROOT with fabricId in all matching", async () => {
-                        const root = Rcac.fromTlv(certs.ROOT.TLV);
-                        const icac = Icac.fromTlv(certs.ICAC.TLV);
+                        let root = Rcac.fromTlv(certs.ROOT.TLV);
+                        let icac = Icac.fromTlv(certs.ICAC.TLV);
                         const noc = Noc.fromTlv(certs.NOC.TLV);
-                        root.cert.subject.fabricId = noc.cert.subject.fabricId;
-                        icac.cert.subject.fabricId = noc.cert.subject.fabricId;
+                        root = new Rcac({
+                            ...root.cert,
+                            subject: { ...root.cert.subject, fabricId: noc.cert.subject.fabricId },
+                        });
+                        icac = new Icac({
+                            ...icac.cert,
+                            subject: { ...icac.cert.subject, fabricId: noc.cert.subject.fabricId },
+                        });
                         await noc.verify(crypto, root, icac);
                     });
 
                     it("verify operational certificate via ICAC and ROOT with fabricId in root not matching", async () => {
-                        const root = Rcac.fromTlv(certs.ROOT.TLV);
-                        const icac = Icac.fromTlv(certs.ICAC.TLV);
+                        let root = Rcac.fromTlv(certs.ROOT.TLV);
+                        let icac = Icac.fromTlv(certs.ICAC.TLV);
                         const noc = Noc.fromTlv(certs.NOC.TLV);
-                        root.cert.subject.fabricId = FabricId(noc.cert.subject.fabricId + 1n);
-                        icac.cert.subject.fabricId = undefined;
+                        const otherFabricId = FabricId(noc.cert.subject.fabricId + 1n);
+                        root = new Rcac({ ...root.cert, subject: { ...root.cert.subject, fabricId: otherFabricId } });
+                        icac = new Icac({ ...icac.cert, subject: { ...icac.cert.subject, fabricId: undefined } });
                         await expect(noc.verify(crypto, root, icac)).to.be.rejectedWith(
                             CertificateError,
-                            `FabricId in NoC certificate does not match the fabricId in the parent certificate. "${root.cert.subject.fabricId.toString()}" !== "${noc.cert.subject.fabricId.toString()}"`,
+                            `FabricId in NoC certificate does not match the fabricId in the parent certificate. "${otherFabricId.toString()}" !== "${noc.cert.subject.fabricId.toString()}"`,
                         );
                     });
 
                     it("verify operational certificate via ICAC and ROOT with fabricId in ica not matching", async () => {
-                        const root = Rcac.fromTlv(certs.ROOT.TLV);
-                        const icac = Icac.fromTlv(certs.ICAC.TLV);
+                        let root = Rcac.fromTlv(certs.ROOT.TLV);
+                        let icac = Icac.fromTlv(certs.ICAC.TLV);
                         const noc = Noc.fromTlv(certs.NOC.TLV);
-                        root.cert.subject.fabricId = undefined;
-                        icac.cert.subject.fabricId = FabricId(noc.cert.subject.fabricId + 1n);
+                        root = new Rcac({ ...root.cert, subject: { ...root.cert.subject, fabricId: undefined } });
+                        const otherFabricId = FabricId(noc.cert.subject.fabricId + 1n);
+                        icac = new Icac({ ...icac.cert, subject: { ...icac.cert.subject, fabricId: otherFabricId } });
                         await expect(noc.verify(crypto, root, icac)).to.be.rejectedWith(
                             CertificateError,
-                            `FabricId in NoC certificate does not match the fabricId in the parent certificate. "${icac.cert.subject.fabricId.toString()}" !== "${noc.cert.subject.fabricId.toString()}"`,
+                            `FabricId in NoC certificate does not match the fabricId in the parent certificate. "${otherFabricId.toString()}" !== "${noc.cert.subject.fabricId.toString()}"`,
                         );
                     });
                 } else {

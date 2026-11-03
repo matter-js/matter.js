@@ -25,6 +25,7 @@ import {
     TlvUInt8,
     TypeFromSchema,
 } from "@matter/types";
+import { TlvDistinguishedName } from "../DistinguishedName.js";
 import { ExtensionKeyUsageBitmap } from "./base.js";
 
 /**
@@ -107,8 +108,7 @@ export namespace OperationalCertificate {
             dnQualifierPs: TlvOptionalField(142, TlvString),
             pseudonymPs: TlvOptionalField(143, TlvString),
         };
-        // Order-preserving: subject/issuer DN sub-lists are part of the certificate's signed bytes; re-encode must reproduce caller order.
-        return TlvTaggedListPreservingOrder(fields);
+        return TlvDistinguishedName(fields);
     };
 
     /**
