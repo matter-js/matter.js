@@ -28,6 +28,6 @@ export class LocalizationConfigurationServer extends LocalizationConfigurationBe
 
 export namespace LocalizationConfigurationServer {
     export declare const ExtensionInterface: {
-        detectedLocale: string;
+        get detectedLocale(): string;
     };
 }
