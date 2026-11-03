@@ -30,6 +30,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
     - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
     - Adjustment: Conformance and enum errors on client-local state of a client node, such as `CommissioningClient`, are refused locally
+    - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is deprecated and stays empty; subscriptions stored there by an older version are taken over at start
     - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
@@ -62,6 +63,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
 
 - @matter/protocol
+    - Enhancement: `SessionManager` stores each CASE resumption record under its own key with the new `PeerAddressStore` instead of rewriting all records on every change; after a downgrade each peer establishes a new session once
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
     - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
     - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
