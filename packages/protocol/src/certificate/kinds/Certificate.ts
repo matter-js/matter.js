@@ -293,8 +293,9 @@ export namespace Certificate {
      * Parse a subject or issuer field from ASN.1 DER format.
      *
      * Attributes of an unknown type are left out.  A malformed VendorID or ProductID is left out too with
-     * `acceptMalformedVidPid`, and makes that field undefined.  A domainComponent is read whatever its string type,
-     * as the CHIP SDK does, and is encoded as IA5String.  Matter TLV has no tag for a PrintableString domainComponent
+     * `acceptMalformedVidPid`, and makes that field undefined.  A domainComponent is read without a check of its DER
+     * string tag, and is encoded as IA5String.  The CHIP SDK refuses a tag other than UTF8String, PrintableString and
+     * IA5String.  Matter TLV has no tag for a PrintableString domainComponent
      * (§ 6.5.6.1 lists `-ps` tags 129 to 143 only), so it is written with tag 16.  CHIP writes tag 144 for it,
      * which matter.js reads as an unknown tag and ignores.
      */

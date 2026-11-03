@@ -92,12 +92,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: DER certificate parsing refuses Matter-specific DN values that are not exactly twice their octet length in uppercase hexadecimal, and a repeated single-valued Matter-specific DN attribute, with a `CertificateError` (`CertificateProfileError` for VendorID and ProductID)
     - Fix: Device attestation reports a DAC or PAI with a malformed or repeated VendorID or ProductID as `DacFormatInvalid` or `PaiFormatInvalid`
     - Fix: `matter-firmware-signing-id` in an operational certificate holds 64 bits instead of 32
-    - Feature: A decoded certificate subject or issuer carries every RDN in encoded order as `rdns`
-    - Fix: A certificate that repeats a standard DN attribute, such as organizationalUnitName, or has CASE Authenticated Tags between other DN attributes re-encodes in TLV and DER to the bytes its issuer signed
+    - Feature: `DistinguishedName.rdnsOf()` returns the RDNs of a decoded certificate subject or issuer in encoded order, one entry per known attribute
+    - Fix: A NOC, ICAC or RCAC that repeats a standard DN attribute, such as organizationalUnitName, or has CASE Authenticated Tags between other DN attributes re-encodes in TLV and DER to the bytes its issuer signed
     - Fix: DER certificate parsing reads domainComponent, and the first value of a repeated standard DN attribute instead of the last
     - Fix: DER certificate parsing reads VendorID and ProductID from the first commonName that carries a VendorID or ProductID, within its first 64 bytes, as the CHIP SDK does
     - Fix: Encoding a subject or issuer built in code keeps a VendorID or ProductID that differs from the one in its commonName
     - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
+    - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once

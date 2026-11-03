@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, CertificateError, InternalError, UnexpectedDataError, X509, X520 } from "@matter/general";
+import {
+    Bytes,
+    CertificateError,
+    ImplementationError,
+    InternalError,
+    UnexpectedDataError,
+    X509,
+    X520,
+} from "@matter/general";
 import {
     CaseAuthenticatedTag,
     FabricId,
@@ -72,7 +80,7 @@ export function parseMatterFallbackVidPid(commonName: string, prefix: "Mvid:" | 
  * |-----------------------------------------|---------------------------------------------------------|--------------|
  * | object (`cert.subject`, `cert.issuer`)  | one property per attribute, the first value of a        | reading      |
  * |                                         | repeated standard attribute, all CATs in an array       |              |
- * | RDN list (`rdns` of a decoded DN)       | every RDN in encoded order, repeats included            | re-encoding  |
+ * | RDN list (`rdnsOf(cert.subject)`)       | every RDN in encoded order, repeats included            | re-encoding  |
  *
  * Standard attributes such as commonName or organizationalUnitName may repeat, as the `Name` structure of X.509 allows.
  * Only the RDN list keeps all of them, and only the RDN list keeps each CAT at its position between other attributes,
@@ -89,13 +97,15 @@ export function parseMatterFallbackVidPid(commonName: string, prefix: "Mvid:" | 
  *
  * Signature verification of a DER certificate uses its original bytes, so only conversion to TLV is affected.
  *
- * A DN built in code has no RDN list and encodes from its properties in property order.
+ * A DN built in code has no RDN list and encodes from its properties in property order.  Each property must be a DN
+ * attribute of the object view, otherwise encoding throws {@link ImplementationError}.
  *
- * A decoded DN is frozen, so changing one of its properties throws a `TypeError` instead of encoding a list that no
+ * The decoders keep the RDN list outside the DN object, keyed by the object.  Only the decoders add a list, and a
+ * decoded DN is frozen, so changing one of its properties throws a `TypeError` instead of encoding a list that no
  * longer matches the properties.  To change a decoded DN, build a new object, for example `{ ...cert.subject, nodeId }`.
- * `rdns` is not enumerable, so such a copy has no RDN list and encodes from its properties.  A certificate built around
- * such a copy must leave out `tbsDer`, `subjectDer` and `issuerDer` of a parsed certificate, because these hold the
- * original bytes.
+ * Such a copy is a new object without an RDN list and encodes from its properties.  A certificate built around such a
+ * copy must leave out `tbsDer`, `subjectDer` and `issuerDer` of a parsed certificate, because these hold the original
+ * bytes.
  *
  * @see {@link MatterSpecification.v161.Core} § 6.5.6
  */
@@ -150,11 +160,6 @@ export namespace DistinguishedName {
         | { readonly type: "vendorId"; readonly value: VendorId }
         | { readonly type: "productId"; readonly value: number };
 
-    /** The RDN list a decoder sets on the DN it returns.  It is not enumerable. */
-    export interface Decoded {
-        readonly rdns?: readonly Rdn[];
-    }
-
     /** The object view of a DN.  A decoded DN is frozen, so its properties are read-only. */
     export type View = { readonly [K in StringAttribute]?: string } & {
         readonly [K in IdentifierAttribute]?: number | bigint;
@@ -164,7 +169,7 @@ export namespace DistinguishedName {
         readonly caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
         readonly vendorId?: VendorId;
         readonly productId?: number;
-    } & Decoded;
+    };
 
     /** The type of a decoded DN whose attributes are the fields of a TLV schema: read-only, arrays included. */
     export type Frozen<T> = {
@@ -176,17 +181,19 @@ export namespace DistinguishedName {
     };
 
     /**
-     * The RDN list of a DN that a decoder returned, or undefined for a DN built in code.  Use this
-     * for a DN whose type does not declare {@link Decoded.rdns}, such as the subject of an attestation certificate.
+     * The RDN list of a DN that a decoder returned, or undefined for a DN built in code, a copy of a decoded DN
+     * included.  The list and its entries are frozen.
      */
-    export function rdnsOf(dn: Decoded): readonly Rdn[] | undefined {
-        return dn.rdns;
+    export function rdnsOf(dn: object): readonly Rdn[] | undefined {
+        return decodedRdns.get(dn);
     }
 
     /**
      * The RDNs a DN encodes to: its RDN list, or for a DN built in code one RDN per property in property order and one
      * per CAT.  The VendorID and ProductID properties are left out when the commonNames already give them by the
      * fallback method (§ 6.2.2.2).
+     *
+     * @throws ImplementationError if a DN built in code has a defined property that is not a DN attribute
      */
     export function encodedRdnsOf(dn: View): readonly Rdn[] {
         return rdnsOf(dn) ?? rdnsOfProperties(dn);
@@ -201,6 +208,9 @@ export namespace DistinguishedName {
         return encodedRdnsOf(dn).length;
     }
 }
+
+/** Written only by {@link decodeDistinguishedName}, so a DN object the caller built or copied has no entry. */
+const decodedRdns = new WeakMap<object, readonly DistinguishedName.Rdn[]>();
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] extends readonly (infer U)[] | undefined ? U[] | undefined : T[K] };
 
@@ -226,11 +236,12 @@ export interface DnDecodeOptions {
 }
 
 /**
- * Build the frozen object view of a DN from its RDN list, with the list as `rdns`.  The TLV and the DER decoder both use
- * this, so these rules hold for either encoding:
+ * Build the frozen object view of a DN from its RDN list and record the list for {@link DistinguishedName.rdnsOf}.
+ * The TLV and the DER decoder both use this, so these rules hold for either encoding:
  *
- * - A Matter-specific attribute other than matter-noc-cat occurs at most once (§ 6.5.6.3 for node, fabric, icac, rcac,
- *   vvs and noc-cat; § 6.2.2.3 and § 6.2.2.4 for VendorID and ProductID).  A repeated VendorID or ProductID throws
+ * - A Matter-specific attribute other than matter-noc-cat occurs at most once (§ 6.5.6.3 for node, fabric, icac, rcac
+ *   and vvs, which also allows up to three matter-noc-cat; matter.js also limits firmware-signing-id to one, which the
+ *   specification does not require; § 6.2.2.3 and § 6.2.2.4 for VendorID and ProductID).  A repeated VendorID or ProductID throws
  *   {@link CertificateProfileError} unless `acceptMalformedVidPid` is set, any other repeat {@link CertificateError}.
  * - A standard attribute may repeat.  The object view holds its first value.
  * - With {@link DnDecodeOptions.fallbackCommonNames}, VendorID and ProductID come from the first commonName that
@@ -308,12 +319,12 @@ export function decodeDistinguishedName(
         delete view[type];
     }
 
-    // Not enumerable, so a copy made with spread is a DN built in code and encodes from its properties
-    Object.defineProperty(view, "rdns", { value: Object.freeze(rdns.map(rdn => Object.freeze({ ...rdn }))) });
     if (view.caseAuthenticatedTags !== undefined) {
         Object.freeze(view.caseAuthenticatedTags);
     }
-    return Object.freeze(view);
+    const decoded = Object.freeze(view);
+    decodedRdns.set(decoded, Object.freeze(rdns.map(rdn => Object.freeze({ ...rdn }))));
+    return decoded;
 }
 
 function isMatterAttribute(type: DistinguishedName.Rdn["type"]) {
@@ -454,16 +465,19 @@ function rdnsOfProperties(dn: DistinguishedName.View) {
         if (value === undefined || (omitVidPid && (name === "vendorId" || name === "productId"))) {
             continue;
         }
-        if (name === "caseAuthenticatedTags") {
-            for (const tag of value) {
+        const { caseAuthenticatedTags } = dn;
+        if (name === "caseAuthenticatedTags" && caseAuthenticatedTags !== undefined) {
+            for (const tag of caseAuthenticatedTags) {
                 rdns.push({ type: "caseAuthenticatedTag", value: tag });
             }
             continue;
         }
-        const rdn = rdnOf(name, value);
-        if (rdn !== undefined) {
-            rdns.push(rdn);
+        // A single CAT is an RDN type, not a property of the object view
+        const rdn = name === "caseAuthenticatedTag" ? undefined : rdnOf(name, value);
+        if (rdn === undefined) {
+            throw new ImplementationError(`Distinguished name property "${name}" is not a DN attribute`);
         }
+        rdns.push(rdn);
     }
     return rdns;
 }
@@ -571,12 +585,12 @@ function rdnToAsn1(rdn: DistinguishedName.Rdn) {
 /**
  * TLV schema of a certificate subject or issuer, a TLV list of DN attributes (§ 6.5.6).
  *
- * The decoded value is the frozen object view with the RDN list as `rdns`.  Encoding writes the RDNs of
- * {@link DistinguishedName.encodedRdnsOf}.  Validation checks the object view against `fields`, so mandatory attributes
- * and the maximum number of CATs are enforced as for a tagged list.
+ * The decoded value is the frozen object view.  {@link DistinguishedName.rdnsOf} returns its RDN list.  Encoding writes
+ * the RDNs of {@link DistinguishedName.encodedRdnsOf}.  Validation checks the object view against `fields`, so mandatory
+ * attributes and the maximum number of CATs are enforced as for a tagged list.
  */
 export class DistinguishedNameSchema<F extends TlvFields> extends TlvSchema<
-    DistinguishedName.Frozen<TypeFromFields<F>> & DistinguishedName.Decoded
+    DistinguishedName.Frozen<TypeFromFields<F>>
 > {
     readonly #fields: F;
     readonly #properties: ObjectSchema<TlvFields>;
@@ -591,13 +605,13 @@ export class DistinguishedNameSchema<F extends TlvFields> extends TlvSchema<
         }
     }
 
-    override validate(value: DistinguishedName.Frozen<TypeFromFields<F>> & DistinguishedName.Decoded) {
+    override validate(value: DistinguishedName.Frozen<TypeFromFields<F>>) {
         this.#properties.validate(value);
     }
 
     override encodeTlvInternal(
         writer: TlvWriter,
-        value: DistinguishedName.Frozen<TypeFromFields<F>> & DistinguishedName.Decoded,
+        value: DistinguishedName.Frozen<TypeFromFields<F>>,
         tag?: TlvTag,
         options?: TlvEncodingOptions,
     ) {
@@ -616,7 +630,7 @@ export class DistinguishedNameSchema<F extends TlvFields> extends TlvSchema<
     override decodeTlvInternalValue(
         reader: TlvReader,
         typeLength: TlvTypeLength,
-    ): DistinguishedName.Frozen<TypeFromFields<F>> & DistinguishedName.Decoded {
+    ): DistinguishedName.Frozen<TypeFromFields<F>> {
         if (typeLength.type !== TlvType.List) {
             throw new UnexpectedDataError(`Unexpected type ${typeLength.type} (expected ${TlvType.List}).`);
         }

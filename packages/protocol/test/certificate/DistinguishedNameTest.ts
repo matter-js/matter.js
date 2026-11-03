@@ -34,6 +34,7 @@ import {
     DerNodeDefinition,
     DerObject,
     DerType,
+    ImplementationError,
     PrivateKey,
     RawBytes,
     StandardCrypto,
@@ -323,22 +324,24 @@ describe("Certificate distinguished name", () => {
 
         it("holds its RDN list", async () => {
             const { subject } = await decodedNoc(await chain());
-            expect(subject.rdns?.map(({ type }) => type)).deep.equals([
+            expect(DistinguishedName.rdnsOf(subject)?.map(({ type }) => type)).deep.equals([
                 "caseAuthenticatedTag",
                 "nodeId",
                 "orgUnitName",
                 "fabricId",
                 "orgUnitName",
             ]);
-            expect(DistinguishedName.rdnsOf(subject)).equals(subject.rdns);
+            expect(Object.hasOwn(subject, "rdns")).false;
         });
 
         it("refuses a change in place", async () => {
             const { subject } = await decodedNoc(await chain());
             expect(() => Object.assign(subject, { orgUnitName: "Changed" })).throws(TypeError);
             expect(() => Array.prototype.push.call(subject.caseAuthenticatedTags, CAT_B)).throws(TypeError);
-            expect(Object.isFrozen(subject.rdns)).true;
-            expect(subject.rdns?.every(rdn => Object.isFrozen(rdn))).true;
+            const rdns = DistinguishedName.rdnsOf(subject);
+            expect(rdns).not.undefined;
+            expect(Object.isFrozen(rdns)).true;
+            expect(rdns?.every(rdn => Object.isFrozen(rdn))).true;
         });
 
         it("encodes a changed copy from its properties", async () => {
@@ -350,6 +353,25 @@ describe("Certificate distinguished name", () => {
             expect(subjectTags(tlv)).deep.equals([DN_TAG.cat, DN_TAG.nodeId, DN_TAG.orgUnitName, DN_TAG.fabricId]);
             expect(Noc.fromTlv(tlv).cert.subject.orgUnitName).equals("Changed");
             await verify(tlv, keys);
+        });
+
+        it("encodes a copy with a forged RDN list from its properties", async () => {
+            const keys = await chain();
+            const cert = await decodedNoc(keys);
+            const subject = { ...cert.subject, orgUnitName: "Changed" };
+            Object.defineProperty(subject, "rdns", { value: DistinguishedName.rdnsOf(cert.subject) });
+
+            const tlv = await resigned(keys, { ...cert, subject });
+
+            expect(subjectTags(tlv)).deep.equals([DN_TAG.cat, DN_TAG.nodeId, DN_TAG.orgUnitName, DN_TAG.fabricId]);
+            expect(Noc.fromTlv(tlv).cert.subject.orgUnitName).equals("Changed");
+        });
+
+        it("refuses to encode a copy with an enumerable RDN list property", async () => {
+            const cert = await decodedNoc(await chain());
+            const subject = { ...cert.subject, rdns: DistinguishedName.rdnsOf(cert.subject) };
+
+            expect(() => distinguishedNameToAsn1(subject)).throws(ImplementationError, /"rdns"/);
         });
     });
 
@@ -518,7 +540,9 @@ describe("Certificate distinguished name", () => {
             ]);
             expect(decoded.cert.subject.caseAuthenticatedTags).deep.equals([CAT_C, CAT_A, CAT_B]);
             expect(
-                decoded.cert.subject.rdns?.flatMap(rdn => (rdn.type === "caseAuthenticatedTag" ? [rdn.value] : [])),
+                DistinguishedName.rdnsOf(decoded.cert.subject)?.flatMap(rdn =>
+                    rdn.type === "caseAuthenticatedTag" ? [rdn.value] : [],
+                ),
             ).deep.equals([CAT_C, CAT_A, CAT_B]);
         });
 
@@ -562,6 +586,38 @@ describe("Certificate distinguished name", () => {
                 Object.keys(distinguishedNameToAsn1({ commonName: "Plain", vendorId: VendorId(0xfff1) })),
             ).deep.equals(["rdn0", "rdn1"]);
         });
+
+        // Characterization: passes without the RDN list too
+        it("encodes its current properties after a change", () => {
+            const dn: { commonName: string; orgUnitName?: string } = { commonName: "Plain" };
+            expect(DistinguishedName.rdnCount(dn)).equals(1);
+
+            dn.orgUnitName = "Unit";
+
+            expect(DistinguishedName.rdnCount(dn)).equals(2);
+            expect(DistinguishedName.rdnsOf(dn)).undefined;
+        });
+
+        it("skips a property whose value is undefined", () => {
+            const dn = { commonName: "Plain", unknown: undefined };
+
+            expect(Object.keys(distinguishedNameToAsn1(dn))).deep.equals(["rdn0"]);
+        });
+
+        for (const name of ["unknown", "caseAuthenticatedTag"]) {
+            it(`refuses to encode a property ${name}`, async () => {
+                const keys = await chain();
+                const subject = { nodeId: NODE_ID, fabricId: FABRIC_ID, [name]: CAT_A };
+                const noc = new Noc({ ...nocCert(keys), subject });
+
+                expect(() => distinguishedNameToAsn1(subject)).throws(ImplementationError, `"${name}"`);
+                expect(() => noc.asUnsignedDer()).throws(ImplementationError, `"${name}"`);
+                expect(() => OperationalCertificate.TlvNoc.encode({ ...noc.cert, signature: Bytes.empty })).throws(
+                    ImplementationError,
+                    `"${name}"`,
+                );
+            });
+        }
     });
 
     describe("a copy of a decoded DN with a VendorID or ProductID", () => {
@@ -598,7 +654,7 @@ describe("Certificate distinguished name", () => {
             });
 
             expect(decoded.vendorId).equals(0xfff2);
-            expect(copy.rdns).undefined;
+            expect(DistinguishedName.rdnsOf(copy)).undefined;
             expect(again.vendorId).equals(0xfff2);
         });
 
@@ -718,20 +774,24 @@ describe("Certificate distinguished name", () => {
             const dn = schema.decode(list(NODE, u32(22, CAT_A), FABRIC));
 
             expect(dn).deep.equals({ nodeId: NODE_ID, fabricId: FABRIC_ID, caseAuthenticatedTags: [CAT_A] });
-            expect(dn.rdns?.map(({ type }) => type)).deep.equals(["nodeId", "caseAuthenticatedTag", "fabricId"]);
+            expect(DistinguishedName.rdnsOf(dn)?.map(({ type }) => type)).deep.equals([
+                "nodeId",
+                "caseAuthenticatedTag",
+                "fabricId",
+            ]);
         });
 
         it("skips an unknown context tag, also one with a container value", () => {
             const dn = schema.decode(list("246301", NODE, "356324010518", FABRIC));
 
-            expect(dn.rdns?.map(({ type }) => type)).deep.equals(["nodeId", "fabricId"]);
+            expect(DistinguishedName.rdnsOf(dn)?.map(({ type }) => type)).deep.equals(["nodeId", "fabricId"]);
         });
 
         // Characterization: CHIP writes a PrintableString domainComponent with tag 144, which the specification does not define.
         it("skips tag 144 of a PrintableString domainComponent", () => {
             const dn = schema.decode(list(NODE, "2c9003616263", FABRIC));
 
-            expect(dn.rdns?.map(({ type }) => type)).deep.equals(["nodeId", "fabricId"]);
+            expect(DistinguishedName.rdnsOf(dn)?.map(({ type }) => type)).deep.equals(["nodeId", "fabricId"]);
         });
 
         for (const validate of [true, false]) {

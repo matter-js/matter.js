@@ -11,6 +11,7 @@ import {
 } from "#certificate/ChipPAAuthorities.js";
 import { Dac, Paa, Pai } from "#certificate/kinds/AttestationCertificates.js";
 import { Certificate, parseMatterFallbackVidPid } from "#certificate/kinds/Certificate.js";
+import { DistinguishedName } from "#certificate/kinds/DistinguishedName.js";
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
@@ -326,6 +327,13 @@ describe("Certificates", () => {
 
             expect(dac.cert.subject.vendorId).to.equal(0x135d);
             expect(dac.cert.subject.productId).to.equal(0x00a1);
+        });
+
+        it("returns the RDN list of a DAC subject and issuer", () => {
+            const dac = Dac.fromAsn1(NUKI_DAC_ASN1);
+
+            expect(DistinguishedName.rdnsOf(dac.cert.subject)?.map(({ type }) => type)).deep.equals(["commonNamePs"]);
+            expect(DistinguishedName.rdnsOf(dac.cert.issuer)?.map(({ type }) => type)).deep.equals(["commonNamePs"]);
         });
 
         it("parses fallback VendorID from a PAI commonName", () => {
