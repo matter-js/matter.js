@@ -30,7 +30,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
     - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
+    - Adjustment: On behavior types derived with `.with()`, `.alter()` or `.enable()`, `LocalizationConfigurationServer.detectedLocale` is declared as a getter, and the extension methods of `GeneralDiagnosticsServer` and `AccessControlServer` as methods, so they can be overridden with `get` or a method that calls `super`; a property override of `detectedLocale` no longer compiles
     - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is deprecated and stays empty; subscriptions stored there by an older version are taken over at start
+    - Fix: `TimeFormatLocalizationServer` `detectedHourFormat` and `detectedCalendarType` have their enum types instead of `string`, so an override can return any value of the enum
     - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
@@ -60,6 +62,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
 
 - @matter/protocol
+    - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
     - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
     - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
@@ -69,6 +72,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
     - Adjustment: `DclCertificateService.addCertificate()` refuses a CD signer certificate that is known to be untrusted because the CSA did not issue it
     - Adjustment: DER certificate parsing requires the basic constraints extension when the required extensions list it
+    - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept
     - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: A group message whose key set GroupKeyMap does not map to its destination group fails authentication instead of reaching access control
@@ -77,8 +81,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Starting an exchange skips exchange ids that are still open on the session, instead of reusing one after the 16-bit counter wraps
     - Fix: An exchange is identified by its session, so a message on another session with the same exchange id no longer reaches or replaces it, nor counts toward its session's exchange limit
     - Fix: A privacy group message with message extensions is decoded with the extensions in the additional authenticated data, as specified in section 4.8.2, instead of refused
-    - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
-    - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Fix: The mDNS responder no longer sends a goodbye for host addresses or shared pointers that another of its services still publishes
     - Fix: The mDNS responder answers a multicast pointer query with the pointer of every service of that type
     - Fix: The mDNS responder multicasts an answer at most once per second and interface, and sends a held-back answer when the second has passed
