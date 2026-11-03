@@ -239,6 +239,9 @@ export class SubscriptionsServer extends Behavior {
      */
     async #formerSubscriptionsOf(store: SubscriptionStore) {
         const stored = await store.load();
+        if (!this.state.subscriptions.length) {
+            return stored;
+        }
         const storedPeers = new PeerAddressSet(stored.map(({ peerAddress }) => peerAddress));
         const legacy = deepCopy(this.state.subscriptions)
             .map(subscription => ({ ...subscription, peerAddress: PeerAddress(subscription.peerAddress) }))
