@@ -71,6 +71,16 @@ function schemaWith(legacyConformance: string, levelMax: number) {
                         conformance: legacyConformance,
                         constraint: `max ${levelMax}`,
                     },
+                    { tag: "field", id: 1, name: "Entry", type: "EntryStruct", conformance: "O" },
+                ],
+            },
+            {
+                tag: "datatype",
+                name: "EntryStruct",
+                type: "struct",
+                children: [
+                    { tag: "field", id: 0, name: "Value", type: "uint8", conformance: "M" },
+                    { tag: "field", id: 0xfe, name: "FabricIndex", type: "fabric-idx", conformance: "M" },
                 ],
             },
             {
@@ -88,11 +98,20 @@ function schemaWith(legacyConformance: string, levelMax: number) {
 
 let configureCalls = 0;
 
+/** The policy for which the device adds a fabric-scoped entry to its response */
+const ENTRY_POLICY = 3;
+
+/** A fabric index the device reports that differs from the controller's fabric index on the device */
+const DEVICE_FABRIC_INDEX = 7;
+
 function behaviorFor(schema: ClusterModel) {
     const behavior = class extends ClusterBehavior.for(ClusterType(schema) as ClusterType.Concrete) {};
     Object.defineProperty(behavior.prototype, "configure", {
         value: ({ policy }: { policy?: number }) => {
             configureCalls++;
+            if (policy === ENTRY_POLICY) {
+                return { legacy: policy, entry: { value: 1, fabricIndex: DEVICE_FABRIC_INDEX } };
+            }
             return { legacy: policy ?? 1 };
         },
         writable: true,
@@ -166,6 +185,28 @@ describe("remote API on a peer", () => {
 
         expect(response.kind).equals("value");
         expect(response.kind === "value" && response.value.js).deep.equals({ legacy: 50 });
+    });
+
+    // Characterization: passes on the code before this change; fails if the fabric index of a response is replaced
+    it("keeps the fabric index the device sent in a command response", async () => {
+        const { site, controller } = await peerSite();
+        await using _site = site;
+
+        const response = await execute(controller, {
+            target: "peers/peer1/1/legacyApi/configure",
+            method: "invoke",
+            parameters: { policy: ENTRY_POLICY },
+        });
+
+        const { fabricIndexOnPeer } = controller.peers.get("peer1")!.state.commissioning;
+        expect(fabricIndexOnPeer).not.undefined;
+        expect(fabricIndexOnPeer).not.equals(DEVICE_FABRIC_INDEX);
+
+        expect(response.kind).equals("value");
+        expect(response.kind === "value" && response.value.js).deep.equals({
+            legacy: ENTRY_POLICY,
+            entry: { value: 1, fabricIndex: DEVICE_FABRIC_INDEX },
+        });
     });
 
     it("declines a command field outside the local bounds (characterization)", async () => {

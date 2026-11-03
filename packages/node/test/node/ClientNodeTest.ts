@@ -2895,8 +2895,8 @@ describe("ClientNode", () => {
     });
 
     describe("writes a fabric-scoped struct attribute via setStateOf", () => {
-        // Matter §7.13.6: callers pass OMIT_FABRIC for the mandatory FabricIndex field; the validator
-        // substitutes the peer's assigned index (or skips on a relaxed remote-write context).
+        // Matter § 7.13.6: a client node replaces the FabricIndex of a written entry with the peer's fabric index;
+        // OMIT_FABRIC is accepted as a placeholder
 
         it("accepts FabricIndex.OMIT_FABRIC as the mandatory placeholder", async () => {
             await using site = new MockSite();
@@ -2931,31 +2931,53 @@ describe("ClientNode", () => {
             expect(cached!.fabricIndex).equals(written!.fabricIndex);
         });
 
-        it("sends FabricIndex.NO_FABRIC (0) and the device stores the entry under the accessing fabric", async () => {
-            // Matter § 7.19: the server ignores the FabricIndex field of a written fabric-scoped struct
-            await using site = new MockSite();
-            const { controller, device } = await site.addCommissionedPair();
-            const peer1 = await subscribedPeer(controller, "peer1");
-            const newSubject = NodeId(BigInt(0x56));
+        // Matter § 7.13.6: the server uses the accessing fabric index whatever FabricIndex the client wrote.  The peer
+        // has no subscription, so no report corrects the cached entry after the write.
+        for (const [label, fabricIndex] of [
+            ["FabricIndex.NO_FABRIC (0)", FabricIndex.NO_FABRIC],
+            ["another fabric's index", FabricIndex(7)],
+        ] as const) {
+            it(`caches the accessing fabric's index for an entry written with ${label}`, async () => {
+                await using site = new MockSite();
+                const { controller, device } = await site.addUncommissionedPair();
+                await controller.start();
+                const { passcode, discriminator } = device.state.commissioning;
+                await MockTime.resolve(
+                    controller.peers.commission({
+                        passcode,
+                        discriminator,
+                        timeout: Seconds(90),
+                        autoSubscribe: false,
+                    }),
+                    { macrotasks: true },
+                );
+                const peer1 = controller.peers.get("peer1")!;
+                const newSubject = NodeId(BigInt(0x56));
 
-            await MockTime.resolve(
-                peer1.setStateOf(AccessControlClient, {
-                    acl: [
-                        {
-                            privilege: AccessControl.AccessControlEntryPrivilege.Administer,
-                            authMode: AccessControl.AccessControlEntryAuthMode.Case,
-                            subjects: [newSubject],
-                            targets: null,
-                            fabricIndex: FabricIndex.NO_FABRIC,
-                        },
-                    ],
-                }),
-            );
+                await MockTime.resolve(
+                    peer1.setStateOf(AccessControlClient, {
+                        acl: [
+                            {
+                                privilege: AccessControl.AccessControlEntryPrivilege.Administer,
+                                authMode: AccessControl.AccessControlEntryAuthMode.Case,
+                                subjects: [newSubject],
+                                targets: null,
+                                fabricIndex,
+                            },
+                        ],
+                    }),
+                    { macrotasks: true },
+                );
 
-            const written = device.state.accessControl.acl.find(entry => entry.subjects?.[0] === newSubject);
-            expect(written, "server-side ACL entry written by peer is missing").to.be.ok;
-            expect(written!.fabricIndex).greaterThan(0);
-        });
+                const written = device.state.accessControl.acl.find(entry => entry.subjects?.[0] === newSubject);
+                expect(written, "server-side ACL entry written by peer is missing").to.be.ok;
+                expect(written!.fabricIndex).equals(peer1.state.commissioning.fabricIndexOnPeer);
+
+                const cached = peer1.stateOf(AccessControlClient).acl.find(entry => entry.subjects?.[0] === newSubject);
+                expect(cached, "local ClientNode cache is missing the written ACL entry").to.be.ok;
+                expect(cached!.fabricIndex).equals(written!.fabricIndex);
+            });
+        }
 
         it("does not relax server-side fabricIndex validation", async () => {
             // Guards against leakage of `underClientNode` onto server-rooted contexts.

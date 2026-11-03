@@ -49,7 +49,8 @@ const logger = Logger.get("ValueValidator");
  * `BitmapManager` throws {@link ConstraintError} from its setter, outside validation, so that error also stays local.
  *
  * Inbound peer reports bypass validation entirely (DatasourceCache.externalSet).  A command response that the Remote
- * API validates on a peer session goes through here, so a response the device sent is accepted as it is.
+ * API validates on a peer session goes through here with {@link forValuesFromDevice}, so a response field that
+ * breaks a model constraint is accepted.
  *
  * A forwarded error is logged at debug.
  */
@@ -70,6 +71,26 @@ export function withPeerForwarding(
             }
         }
     };
+}
+
+/**
+ * The session to validate values the device sent with, such as a command response that the Remote API checks.
+ *
+ * Validation errors are forwarded as for a write, so a value that breaks a model constraint is accepted.  The FabricIndex
+ * of a fabric-scoped struct keeps the device's value and is not replaced with the peer's fabric index.  A session
+ * without a peer context is returned unchanged.
+ */
+export function forValuesFromDevice<S extends ValueSupervisor.Session>(session: S): S {
+    const { clientPeerContext } = session;
+    if (clientPeerContext === undefined) {
+        return session;
+    }
+    return Object.freeze(
+        Object.create(Object.getPrototypeOf(session), {
+            ...Object.getOwnPropertyDescriptors(session),
+            clientPeerContext: { value: { ...clientPeerContext, valuesFromDevice: true }, enumerable: true },
+        }),
+    );
 }
 
 /**

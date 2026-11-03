@@ -34,7 +34,7 @@ import {
 import { astToFunction } from "./conformance-compiler.js";
 import { createConformanceValidator } from "./conformance.js";
 import { createConstraintValidator } from "./constraint.js";
-import { isFabricIndexSentinel } from "./FabricIndexSentinel.js";
+import { isFabricIndexField } from "./FabricIndexField.js";
 import { ValidationLocation } from "./location.js";
 import { withPeerForwarding } from "./peer-forwarding.js";
 
@@ -340,32 +340,35 @@ function createIntegerValidator(schema: ValueModel, supervisor: RootSupervisor, 
 
     const inner = createSimpleValidator(schema, supervisor, assertion);
 
-    // OMIT_FABRIC handling for the fabric-scoped struct FabricIndex sentinel (Matter §7.13.6).  Mutation of
-    // `siblings.fabricIndex` is an intentional bend of the read-only validator contract — covers both the
-    // per-field StructManager setter path AND the ListManager.writeEntry path (which writes raw entry objects
-    // bypassing per-field setters).  One mechanism handles every setStateOf path.
-    if (isFabricIndexSentinel(schema)) {
+    // The device stores a written fabric-scoped struct under the accessing fabric whatever FabricIndex the client
+    // wrote (Matter § 7.13.6), so a client node replaces the value with the peer's index to keep its cache equal to
+    // the device.  Changing `siblings` bends the read-only validator contract on purpose: it covers both the
+    // per-field StructManager setter path and ListManager.writeEntry, which writes raw entry objects.
+    if (isFabricIndexField(schema)) {
         const fieldName = schema.propertyName;
         const fieldId = schema.id;
-        const fabricSentinelOrSubstitute: ValueSupervisor.Validate = (value, session, location) => {
+        const fabricIndexOrSubstitute: ValueSupervisor.Validate = (value, session, location) => {
             const peerContext = session.clientPeerContext;
-            if (value !== FabricIndex.OMIT_FABRIC || peerContext === undefined) {
+            if (peerContext === undefined || peerContext.valuesFromDevice) {
                 inner(value, session, location);
                 return;
             }
             const siblings = location.siblings as Val.Struct | undefined;
             if (siblings !== undefined && peerContext.fabricIndexOnPeer !== undefined) {
-                // Substitute into the slot holding the sentinel — a name-keyed container may hold it under the
+                // Substitute into the slot holding the value — a name-keyed container may hold it under the
                 // field's TLV tag number, and writing another slot would leave two disagreeing fabricIndex values
                 siblings[memberSlotOf(siblings, fieldName, fieldId) ?? fieldName] = peerContext.fabricIndexOnPeer;
                 return;
             }
+            if (value !== FabricIndex.OMIT_FABRIC) {
+                inner(value, session, location);
+            }
             logger.debug(
-                "fabricIndex was not replaced with the peer's fabric index because it is not yet known; local cache will hold the OMIT_FABRIC sentinel (-1) until the peer's subscription delivers the real value at",
+                "fabricIndex was not replaced because the peer's fabric index or the containing struct is not available; the local cache holds the written value until the peer reports the stored one at",
                 location.path,
             );
         };
-        return fabricSentinelOrSubstitute;
+        return fabricIndexOrSubstitute;
     }
 
     return inner;

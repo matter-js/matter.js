@@ -10,11 +10,11 @@ const FIELD_ID = FabricIndexElement.id;
 const FIELD_NAME = FabricIndexElement.name;
 
 /**
- * True when `schema` is the spec-defined fabric-scoped struct FabricIndex sentinel field — same id/name match
+ * True when `schema` is the spec-defined FabricIndex field of a fabric-scoped struct — same id/name match
  * `ObjectSchema.encodeEntryToTlv` uses to gate the wire-level strip.  Per spec the id+name combination is reserved
  * for this purpose; no other struct field can re-use it.
  * @see {@link MatterSpecification.v161.Core} § 7.13.6
  */
-export function isFabricIndexSentinel(schema: ValueModel): boolean {
+export function isFabricIndexField(schema: ValueModel): boolean {
     return schema instanceof FieldModel && schema.id === FIELD_ID && schema.name === FIELD_NAME;
 }

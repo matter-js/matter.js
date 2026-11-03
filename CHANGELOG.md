@@ -51,6 +51,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `TimeFormatLocalizationServer` starts without the CalendarFormat feature
     - Fix: UnitLocalization answers a `TemperatureUnit` write outside `SupportedTemperatureUnits` with CONSTRAINT_ERROR
     - Fix: A client node sends a write that breaks a model constraint to the device instead of refusing it locally, and the Remote API accepts such a value in a command response from the device
+    - Fix: A client node caches the accessing fabric's index for a fabric-scoped struct it writes, whatever FabricIndex the write carried, once the peer's fabric index is known
     - Adjustment: Conformance and enum errors on client-local state of a client node, such as `CommissioningClient`, are refused locally
     - Fix: Corrects extension typing of `registerHardwareFault()`, `registerRadioFault()` and `registerNetworkFault()` of a GeneralDiagnostics server
     - Fix: GeneralDiagnostics registering a fault that is already active no longer emits a fault change event

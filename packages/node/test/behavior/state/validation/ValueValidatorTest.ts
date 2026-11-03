@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
+import { forValuesFromDevice } from "#behavior/state/validation/peer-forwarding.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { GlobalConfig } from "#behavior/supervision/SupervisionConfig.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
@@ -103,7 +105,7 @@ describe("ValueValidator", () => {
         });
     });
 
-    describe("fabricIndex sentinel slot", () => {
+    describe("fabricIndex field of a fabric-scoped struct", () => {
         const memberSchema = new FieldModel(
             { name: "Entry", type: "struct" },
             Field({ id: 1, name: "subject", type: "uint8" }),
@@ -130,6 +132,77 @@ describe("ValueValidator", () => {
             validator(struct, peerSession(FabricIndex(3)), memberPath);
             expect(struct.fabricIndex).equals(3);
             expect(254 in struct).is.false;
+        });
+
+        it("replaces NO_FABRIC and another fabric's index with the peer's fabric index", () => {
+            for (const written of [FabricIndex.NO_FABRIC, FabricIndex(7)]) {
+                const struct: Val.Struct = { subject: 5, fabricIndex: written };
+                validator(struct, peerSession(FabricIndex(3)), memberPath);
+                expect(struct.fabricIndex, `written ${written}`).equals(3);
+            }
+        });
+
+        // Characterization: passes on the code before this change
+        it("validates a FabricIndex value without its struct, as a write to the field alone does", () => {
+            const fieldSchema = memberSchema.children[1];
+            const fieldValidator = RootSupervisor.for(fieldSchema).validate!;
+            const fieldPath = { path: new DataModelPath(fieldSchema.path) };
+            expect(() => fieldValidator(FabricIndex(7), peerSession(FabricIndex(3)), fieldPath)).not.throws();
+        });
+
+        it("keeps a written fabric index while the peer's fabric index is not known", () => {
+            const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex(7) };
+            validator(struct, peerSession(undefined), memberPath);
+            expect(struct.fabricIndex).equals(7);
+        });
+
+        // Characterization: passes on the code before this change
+        it("accepts OMIT_FABRIC while the peer's fabric index is not known", () => {
+            const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex.OMIT_FABRIC };
+            validator(struct, peerSession(undefined), memberPath);
+            expect(struct.fabricIndex).equals(FabricIndex.OMIT_FABRIC);
+        });
+
+        // Characterization: passes on the code before this change
+        it("validates a written fabric index while the peer's fabric index is not known", () => {
+            const struct: Val.Struct = { subject: 5, fabricIndex: 300 };
+            expect(() => validator(struct, peerSession(undefined), memberPath)).throws();
+        });
+
+        it("keeps the device's fabric index in values from the device", () => {
+            const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex(7) };
+            validator(struct, forValuesFromDevice(peerSession(FabricIndex(3))), memberPath);
+            expect(struct.fabricIndex).equals(7);
+        });
+    });
+
+    describe("forValuesFromDevice", () => {
+        it("keeps the prototype of the session, freezes the copy and keeps clientPeerContext enumerable", () => {
+            const session: ValueSupervisor.Session = Object.freeze(
+                Object.create(LocalActorContext.ReadOnly, {
+                    clientPeerContext: { value: { fabricIndexOnPeer: FabricIndex(3) }, enumerable: true },
+                }),
+            );
+            const fromDevice = forValuesFromDevice(session);
+            expect(Object.getPrototypeOf(fromDevice)).equals(LocalActorContext.ReadOnly);
+            expect(Object.isFrozen(fromDevice)).is.true;
+            expect(Object.keys(fromDevice)).contains("clientPeerContext");
+        });
+
+        it("returns a session without a peer context unchanged", () => {
+            expect(forValuesFromDevice(LocalActorContext.ReadOnly)).equals(LocalActorContext.ReadOnly);
+        });
+
+        it("keeps the peer's fabric index and the session's other properties", () => {
+            const session = {
+                ...LocalActorContext.ReadOnly,
+                acceptInvalid: true,
+                clientPeerContext: { fabricIndexOnPeer: FabricIndex(3) },
+            };
+            const fromDevice = forValuesFromDevice(session);
+            expect(fromDevice.acceptInvalid).equals(true);
+            expect(fromDevice.clientPeerContext).deep.equals({ fabricIndexOnPeer: 3, valuesFromDevice: true });
+            expect(session.clientPeerContext).deep.equals({ fabricIndexOnPeer: 3 });
         });
     });
 

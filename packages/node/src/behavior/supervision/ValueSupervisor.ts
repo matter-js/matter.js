@@ -84,14 +84,17 @@ export namespace ValueSupervisor {
         acceptInvalid?: boolean;
 
         /**
-         * Present on contexts rooted at a ClientNode (peer node).  Drives substitution of the
-         * {@link FabricIndex.OMIT_FABRIC} sentinel on fabric-scoped struct writes so the local cache mirrors the
-         * post-write peer state.
+         * Present on contexts rooted at a ClientNode (peer node).  On a fabric-scoped struct write the FabricIndex
+         * field is replaced with {@link fabricIndexOnPeer} when it is known, because the device stores the entry under the accessing
+         * fabric whatever value was written, and the local cache must hold the same value.
          * @see {@link MatterSpecification.v161.Core} § 7.13.6
          */
         clientPeerContext?: {
             /** Fabric index the peer assigned to our identity, when known. */
             fabricIndexOnPeer?: FabricIndex;
+
+            /** The values come from the device, so the FabricIndex field keeps the device's value. */
+            valuesFromDevice?: boolean;
         };
 
         /**
