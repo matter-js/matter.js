@@ -18,12 +18,27 @@ export class TimeFormatLocalizationServer extends TimeFormatLocalizationBehavior
         if (this.state.hourFormat === undefined) {
             this.state.hourFormat = this.detectedHourFormat;
         }
-        if (this.state.activeCalendarType === undefined) {
-            this.state.activeCalendarType = this.detectedCalendarType;
+        if (!this.features.calendarFormat) {
+            return;
         }
-        if (this.state.supportedCalendarTypes === undefined) {
-            this.state.supportedCalendarTypes = [this.state.activeCalendarType];
+        if (this.state.supportedCalendarTypes.length === 0) {
+            const calendarType = this.state.activeCalendarType ?? this.detectedCalendarType;
+            this.state.supportedCalendarTypes = [calendarType];
+            this.state.activeCalendarType = calendarType;
         }
+        const { activeCalendarType, supportedCalendarTypes } = this.state;
+        if (activeCalendarType !== undefined && supportedCalendarTypes.includes(activeCalendarType)) {
+            return;
+        }
+
+        const detected = this.detectedCalendarType;
+        const calendarType = supportedCalendarTypes.includes(detected) ? detected : supportedCalendarTypes[0];
+        if (activeCalendarType !== undefined) {
+            logger.warn(
+                `Active calendar type ${TimeFormatLocalization.CalendarType[activeCalendarType]} is not in supportedCalendarTypes, using ${TimeFormatLocalization.CalendarType[calendarType]}`,
+            );
+        }
+        this.state.activeCalendarType = calendarType;
     }
 
     /** Override this getter with own implementation to detect the hour format of the system. */
@@ -75,7 +90,7 @@ export class TimeFormatLocalizationServer extends TimeFormatLocalizationBehavior
                 return TimeFormatLocalization.CalendarType.Persian;
 
             default:
-                logger.warn(`Unmapped calendar type "${type}"; falling back to Gregorian`);
+                logger.info(`Unmapped calendar type "${type}"; falling back to Gregorian`);
                 return TimeFormatLocalization.CalendarType.Gregorian;
         }
     }

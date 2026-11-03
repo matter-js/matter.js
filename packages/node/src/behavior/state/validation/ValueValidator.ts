@@ -36,26 +36,9 @@ import { createConformanceValidator } from "./conformance.js";
 import { createConstraintValidator } from "./constraint.js";
 import { isFabricIndexSentinel } from "./FabricIndexSentinel.js";
 import { ValidationLocation } from "./location.js";
-import { forwardValidationToPeer } from "./peer-forwarding.js";
+import { withPeerForwarding } from "./peer-forwarding.js";
 
 const logger = Logger.get("ValueValidator");
-
-/**
- * Wrap a datatype validator so peer (client) writes forward datatype violations the device may still accept (see
- * {@link forwardValidationToPeer}).  Conformance violations are forwarded separately in {@link createConformanceValidator}
- * so that datatype validation still runs after a forwarded conformance failure.
- */
-function forwardableForClientPeer(inner: ValueSupervisor.Validate): ValueSupervisor.Validate {
-    return (value, session, location) => {
-        try {
-            inner(value, session, location);
-        } catch (e) {
-            if (!forwardValidationToPeer(session, e)) {
-                throw e;
-            }
-        }
-    };
-}
 
 /**
  * Generate a function that performs data validation.
@@ -65,7 +48,7 @@ function forwardableForClientPeer(inner: ValueSupervisor.Validate): ValueSupervi
  */
 export function ValueValidator(schema: Schema, supervisor: RootSupervisor): ValueSupervisor.Validate | undefined {
     if (schema instanceof ClusterModel) {
-        return forwardableForClientPeer(createStructValidator(schema, supervisor));
+        return withPeerForwarding(supervisor, createStructValidator(schema, supervisor));
     }
 
     let validator: ValueSupervisor.Validate | undefined;
@@ -141,7 +124,8 @@ export function ValueValidator(schema: Schema, supervisor: RootSupervisor): Valu
 
     validator = createNullValidator(schema, validator);
 
-    validator = validator && forwardableForClientPeer(validator);
+    // Catches undefined enum values, reserved bitmap bits and struct-choice conformance errors
+    validator = validator && withPeerForwarding(supervisor, validator);
 
     validator = createConformanceValidator(schema, supervisor, validator);
 
@@ -283,8 +267,6 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
             }
         }
 
-        // The bound stays local, so it runs with the structural checks: a conformance or reserved-bit failure is
-        // forwarded for a peer write, which unwinds the validator before anything after it
         validateMagnitude?.(value, session, location);
 
         // A bit's conformance says whether the bit may be set, never that it must be, because every declared bit is

@@ -47,6 +47,12 @@ export interface ValidationLocation {
     outerResolve?: (name: string) => Val;
 
     /**
+     * Set when a validation error for the value under validation was already forwarded to the peer and logged.  The
+     * following checks of the same value then do not log a forwarded error again.
+     */
+    forwarded?: boolean;
+
+    /**
      * Per-instance validation configuration.  When set, controls which validation phases run for the value and its
      * children.
      */

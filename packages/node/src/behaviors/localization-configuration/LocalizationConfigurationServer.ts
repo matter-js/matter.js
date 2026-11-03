@@ -4,20 +4,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MaybePromise } from "@matter/general";
+import { Logger, MaybePromise } from "@matter/general";
 import { LocalizationConfigurationBehavior } from "./LocalizationConfigurationBehavior.js";
+
+const logger = Logger.get("LocalizationConfigurationServer");
 
 /**
  * This is the default server implementation of {@link LocalizationConfigurationBehavior}.
  */
 export class LocalizationConfigurationServer extends LocalizationConfigurationBehavior {
     override initialize(): MaybePromise {
-        if (this.state.activeLocale === undefined) {
-            this.state.activeLocale = this.detectedLocale;
+        if (this.state.supportedLocales.length === 0) {
+            const locale = this.state.activeLocale ?? this.detectedLocale;
+            this.state.supportedLocales = [locale];
+            this.state.activeLocale = locale;
         }
-        if (this.state.supportedLocales === undefined) {
-            this.state.supportedLocales = [this.state.activeLocale];
+        const { activeLocale, supportedLocales } = this.state;
+        if (activeLocale !== undefined && supportedLocales.includes(activeLocale)) {
+            return;
         }
+
+        const detected = this.detectedLocale;
+        const locale = supportedLocales.includes(detected) ? detected : supportedLocales[0];
+        if (activeLocale !== undefined) {
+            logger.warn(`Active locale "${activeLocale}" is not in supportedLocales, using "${locale}"`);
+        }
+        this.state.activeLocale = locale;
     }
 
     /** Override this getter with own implementation to detect the locale of the system. */
