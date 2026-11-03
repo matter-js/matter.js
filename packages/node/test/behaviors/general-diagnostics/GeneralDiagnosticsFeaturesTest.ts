@@ -8,6 +8,7 @@ import { GeneralDiagnosticsServer } from "#behaviors/general-diagnostics";
 import { ServerNode } from "#node/ServerNode.js";
 import { LogDestination, Logger, LogLevel } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
+import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 
 async function countAdvisories(maxPathsPerInvoke?: number) {
     const captured = new Array<string>();
@@ -30,6 +31,52 @@ async function countAdvisories(maxPathsPerInvoke?: number) {
 }
 
 describe("GeneralDiagnosticsServer features", () => {
+    it("types the fault registration methods of a derived behavior by fault type", () => {
+        // Type-level check only: a failure shows as a build error in this file
+        class FaultReporter extends GeneralDiagnosticsServer.with() {
+            report() {
+                this.registerHardwareFault(GeneralDiagnostics.HardwareFault.Unspecified);
+                this.registerRadioFault(GeneralDiagnostics.RadioFault.Unspecified);
+                this.registerNetworkFault(GeneralDiagnostics.NetworkFault.Unspecified);
+            }
+        }
+        void FaultReporter;
+    });
+
+    it("lets a subclass of a derived type override the extension methods and call super", () => {
+        // Type-level check only: a failure shows as a build error in this file
+        class OverridingDiagnostics extends GeneralDiagnosticsServer.with() {
+            override triggerTestEvent(eventTrigger: number | bigint) {
+                super.triggerTestEvent(eventTrigger);
+            }
+
+            override registerHardwareFault(faultType: GeneralDiagnostics.HardwareFault) {
+                super.registerHardwareFault(faultType);
+            }
+
+            override registerRadioFault(faultType: GeneralDiagnostics.RadioFault) {
+                super.registerRadioFault(faultType);
+            }
+
+            override registerNetworkFault(faultType: GeneralDiagnostics.NetworkFault) {
+                super.registerNetworkFault(faultType);
+            }
+
+            override clearHardwareFault(faultType: GeneralDiagnostics.HardwareFault) {
+                super.clearHardwareFault(faultType);
+            }
+
+            override clearRadioFault(faultType: GeneralDiagnostics.RadioFault) {
+                super.clearRadioFault(faultType);
+            }
+
+            override clearNetworkFault(faultType: GeneralDiagnostics.NetworkFault) {
+                super.clearNetworkFault(faultType);
+            }
+        }
+        void OverridingDiagnostics;
+    });
+
     it("constructs with a feature selection of its own", async () => {
         // State getters must not name this behavior's type; a type naming unselected features is absent
         const node = await MockServerNode.create(ServerNode.RootEndpoint.with(GeneralDiagnosticsServer.with()), {

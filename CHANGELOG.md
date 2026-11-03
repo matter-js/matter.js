@@ -29,6 +29,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
     - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
+    - Adjustment: On behavior types derived with `.with()`, `.alter()` or `.enable()`, `LocalizationConfigurationServer.detectedLocale` is declared as a getter, and the extension methods of `GeneralDiagnosticsServer` and `AccessControlServer` as methods, so they can be overridden with `get` or a method that calls `super`; a property override of `detectedLocale` no longer compiles
+    - Fix: `TimeFormatLocalizationServer` `detectedHourFormat` and `detectedCalendarType` have their enum types instead of `string`, so an override can return any value of the enum
+    - Fix: On behavior types derived with `.with()`, `GeneralDiagnosticsServer.registerHardwareFault()`, `registerRadioFault()` and `registerNetworkFault()` take one fault type instead of two fault lists
     - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
