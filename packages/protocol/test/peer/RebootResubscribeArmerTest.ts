@@ -290,13 +290,13 @@ describe("RebootResubscribeArmer", () => {
         const subscription = registerSubscription();
         const preReboot = await createSession();
         armer.arm(PEER);
-        await MockTime.advance(Seconds(1));
-        await createSession();
+        const returned = await createSession();
         await MockTime.macrotasks;
 
-        // A rebooting device flushes its dying subscription, and that flush can be decoded as the returning session
-        // appears or well after it.  Either way it is data from before the reboot.
+        // A rebooting device flushes its dying subscription, and that flush can be decoded at the same instant the
+        // returning session appears or well after it.  Either way it is data from before the reboot.
         reportOver(preReboot);
+        expect(returned.createdAt).equals(preReboot.createdAt);
         await MockTime.advance(Seconds(10));
         reportOver(preReboot);
 

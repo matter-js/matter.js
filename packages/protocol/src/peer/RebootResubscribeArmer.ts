@@ -43,8 +43,7 @@ interface ArmState {
      */
     returned?: {
         /**
-         * Sessions with the peer from after its return: the sessions created at or after the announcing session, and
-         * every session registered later.
+         * Sessions with the peer from after its return: the announcing session and every session registered after it.
          */
         sessions: Set<SecureSession>;
 
@@ -147,9 +146,10 @@ export class RebootResubscribeArmer {
         state.returnTimer?.stop();
         state.returnTimer = undefined;
 
+        let registeredSinceReturn = false;
         const sessions = new Set<SecureSession>([
             session,
-            ...this.#sessions.sessionsFor(peerAddress).filter(other => other.createdAt >= session.createdAt),
+            ...this.#sessions.sessionsFor(peerAddress).filter(other => (registeredSinceReturn ||= other === session)),
         ]);
         state.returned = {
             sessions,

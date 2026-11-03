@@ -388,7 +388,7 @@ export class SessionManager {
     /**
      * Every secure session that receives messages, including those whose handshake still runs (see
      * {@link NodeSession.isEstablishing}).  A session joins on creation, unless it is created with
-     * `delayManagerRegistration`, and leaves when it closes.
+     * `delayManagerRegistration`, and leaves when it closes.  The set iterates in registration order.
      *
      * Read this set for message routing, session ID allocation, session teardown, peer loss, and for the subscriptions
      * and reports of a peer.  Code that looks for a session to use reads {@link sessions}.
