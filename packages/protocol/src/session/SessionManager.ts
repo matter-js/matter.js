@@ -9,6 +9,7 @@ import { SupportedTransportsSchema } from "#common/SupportedTransportsBitmap.js"
 import { FabricManager } from "#fabric/FabricManager.js";
 import type { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
+import { PeerAddressStore } from "#peer/PeerAddressStore.js";
 import { PeerShutdownError } from "#peer/PeerCommunicationError.js";
 import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
@@ -96,7 +97,6 @@ export interface ResumptionRecord extends Omit<InternalResumptionRecord, "fabric
 }
 
 type ResumptionStorageRecord = {
-    nodeId: NodeId;
     sharedSecret: Bytes;
     resumptionId: Bytes;
     fabricId: FabricId;
@@ -114,6 +114,15 @@ type ResumptionStorageRecord = {
         maxTcpMessageSize?: number;
     };
     caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
+};
+
+/**
+ * Records as stored in one array under {@link LEGACY_RESUMPTION_RECORDS_KEY}; `nodeId` always equals `peerNodeId`.
+ * Records written before 0.15.5 have no `fabricIndex`.
+ */
+type LegacyResumptionStorageRecord = Omit<ResumptionStorageRecord, "fabricIndex"> & {
+    nodeId: NodeId;
+    fabricIndex?: FabricIndex;
 };
 
 export interface ActiveSessionInformation {
@@ -193,6 +202,12 @@ const ID_SPACE_UPPER_BOUND = 0xffff;
  */
 const MAX_SESSIONS_PER_PEER = 5;
 
+/** Sub-context of the session storage context that holds one resumption record per peer. */
+const RESUMPTION_RECORDS_CONTEXT = "resumption";
+
+/** Key of the single array that held all resumption records before they were stored per peer. */
+const LEGACY_RESUMPTION_RECORDS_KEY = "resumptionRecords";
+
 /** Storage key for the node-global Group Encrypted Data Message Counter in the session storage context. */
 const GROUP_DATA_COUNTER_KEY = "groupDataCounter";
 
@@ -229,7 +244,9 @@ export class SessionManager {
     readonly #sessions = new BasicSet<NodeSession>();
     readonly #groupSessions = new Map<NodeId, BasicSet<GroupSession>>();
     #nextSessionId: number;
-    #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
+    readonly #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
+    readonly #resumptionRecordsById = new Map<string, InternalResumptionRecord>();
+    readonly #resumptionStore: PeerAddressStore<ResumptionStorageRecord>;
     readonly #globalUnencryptedMessageCounter;
     #groupDataMessageCounter!: PersistedMessageCounter;
     #sessionParameters: SessionParameters;
@@ -258,6 +275,7 @@ export class SessionManager {
     constructor(context: SessionManagerContext) {
         this.#context = context;
         this.#logger = Logger.get("SessionManager", context.origin);
+        this.#resumptionStore = new PeerAddressStore(context.storage.createContext(RESUMPTION_RECORDS_CONTEXT));
         const {
             fabrics: { crypto },
         } = context;
@@ -491,9 +509,9 @@ export class SessionManager {
     async deleteResumptionRecord(address: PeerAddress) {
         await this.#construction;
 
-        const result = this.#resumptionRecords.delete(address);
+        const result = this.#forgetResumptionRecord(address);
         if (result) {
-            await this.#storeResumptionRecords();
+            await this.#resumptionStore.delete(address);
         }
         return result;
     }
@@ -506,16 +524,14 @@ export class SessionManager {
         await this.#construction;
 
         let deletedCount = 0;
-        for (const address of this.#resumptionRecords.keys()) {
-            if (address.fabricIndex === fabric.fabricIndex) {
-                if (this.#resumptionRecords.delete(address)) {
-                    deletedCount++;
-                }
+        for (const address of [...this.#resumptionRecords.keys()]) {
+            if (address.fabricIndex === fabric.fabricIndex && this.#forgetResumptionRecord(address)) {
+                deletedCount++;
             }
         }
 
         if (deletedCount > 0) {
-            await this.#storeResumptionRecords();
+            await this.#resumptionStore.deleteFabric(fabric.fabricIndex);
         }
         return deletedCount > 0;
     }
@@ -849,9 +865,7 @@ export class SessionManager {
 
     findResumptionRecordById(resumptionId: Bytes) {
         this.#construction.assert();
-        const record = [...this.#resumptionRecords.values()].find(record =>
-            Bytes.areEqual(record.resumptionId, resumptionId),
-        );
+        const record = this.#resumptionRecordsById.get(Bytes.toHex(resumptionId));
         if (record !== undefined) {
             return this.#asExposedResumptionRecord(record);
         }
@@ -874,43 +888,30 @@ export class SessionManager {
             fabricId: fabric.fabricId,
             fabricIndex: fabric.fabricIndex,
         };
-        this.#resumptionRecords.set(fabric.addressOf(resumptionRecord.peerNodeId), record);
-        await this.#storeResumptionRecords();
+        const address = fabric.addressOf(resumptionRecord.peerNodeId);
+        this.#rememberResumptionRecord(address, record);
+        await this.#resumptionStore.set(address, storageRecordOf(record));
     }
 
-    async #storeResumptionRecords() {
-        await this.#construction;
-        await this.#context.storage.set(
-            "resumptionRecords",
-            [...this.#resumptionRecords].map(
-                ([
-                    address,
-                    {
-                        sharedSecret,
-                        resumptionId,
-                        peerNodeId,
-                        fabricId,
-                        fabricIndex,
-                        sessionParameters,
-                        caseAuthenticatedTags,
-                    },
-                ]): ResumptionStorageRecord => ({
-                    nodeId: address.nodeId,
-                    sharedSecret,
-                    resumptionId,
-                    fabricId,
-                    fabricIndex,
-                    peerNodeId,
-                    sessionParameters: {
-                        ...sessionParameters,
-                        supportedTransports: sessionParameters.supportedTransports
-                            ? SupportedTransportsSchema.encode(sessionParameters.supportedTransports)
-                            : undefined,
-                    },
-                    caseAuthenticatedTags,
-                }),
-            ),
-        );
+    #rememberResumptionRecord(address: PeerAddress, record: InternalResumptionRecord) {
+        this.#forgetResumptionRecord(address);
+        this.#resumptionRecords.set(address, record);
+        this.#resumptionRecordsById.set(Bytes.toHex(record.resumptionId), record);
+    }
+
+    #forgetAllResumptionRecords() {
+        this.#resumptionRecords.clear();
+        this.#resumptionRecordsById.clear();
+    }
+
+    #forgetResumptionRecord(address: PeerAddress) {
+        const record = this.#resumptionRecords.get(address);
+        if (record === undefined) {
+            return false;
+        }
+        this.#resumptionRecords.delete(address);
+        this.#resumptionRecordsById.delete(Bytes.toHex(record.resumptionId));
+        return true;
     }
 
     #maybeFabricForId(fabricId: FabricId, fabricIndex?: FabricIndex) {
@@ -935,50 +936,59 @@ export class SessionManager {
 
         this.#groupDataMessageCounter = await this.#createGroupDataMessageCounter();
 
-        const storedResumptionRecords = await this.#context.storage.get<ResumptionStorageRecord[]>(
-            "resumptionRecords",
-            [],
-        );
+        await this.#migrateLegacyResumptionRecords();
 
-        storedResumptionRecords.forEach(
-            ({
-                nodeId,
-                sharedSecret,
-                resumptionId,
-                fabricId,
-                fabricIndex,
-                peerNodeId,
-                sessionParameters,
-                caseAuthenticatedTags,
-            }) => {
-                const fabric = this.#maybeFabricForId(fabricId, fabricIndex);
-                if (!fabric) {
-                    this.#logger.warn(
-                        `Ignoring resumption record for fabric 0x${toHex(fabricId)} and index ${fabricIndex} because we cannot find a matching fabric`,
-                    );
-                    return;
-                }
+        const storedResumptionRecords = await this.#resumptionStore.load((address, { fabricId, fabricIndex }) => {
+            if (this.#maybeFabricForId(fabricId, fabricIndex)?.fabricIndex === address.fabricIndex) {
+                return true;
+            }
+            this.#logger.info(
+                `Deleting resumption record for ${address} because it does not match a fabric (fabric 0x${toHex(fabricId)} with index ${fabricIndex})`,
+            );
+            return false;
+        });
+
+        for (const [address, { sessionParameters, ...record }] of storedResumptionRecords) {
+            this.#logger.debug("Restoring resumption record for", address.toString());
+            this.#rememberResumptionRecord(address, {
+                ...record,
+                // Make sure to initialize default values when restoring an older resumption record
+                sessionParameters: SessionParameters(sessionParameters),
+            });
+        }
+        if (storedResumptionRecords.size) {
+            this.#logger.info(`Restored ${storedResumptionRecords.size} resumption records`);
+        }
+    }
+
+    /**
+     * Move the records of the single legacy array to one key per peer.  The array is authoritative when present because
+     * only a version without per-peer storage writes it.  It is deleted last, so a start interrupted before that moves
+     * it again.  Records of fabrics that no longer exist are dropped.
+     */
+    async #migrateLegacyResumptionRecords() {
+        const storage = this.#context.storage;
+        if (!(await storage.has(LEGACY_RESUMPTION_RECORDS_KEY))) {
+            return;
+        }
+
+        const legacyRecords = await storage.get<LegacyResumptionStorageRecord[]>(LEGACY_RESUMPTION_RECORDS_KEY, []);
+        const records = new Array<[PeerAddress, ResumptionStorageRecord]>();
+        for (const { nodeId, ...record } of legacyRecords) {
+            const fabric = this.#maybeFabricForId(record.fabricId, record.fabricIndex);
+            if (fabric === undefined) {
                 this.#logger.info(
-                    "restoring resumption record for node",
-                    fabric.addressOf(nodeId).toString(),
-                    "and peer node",
-                    fabric.addressOf(peerNodeId).toString(),
-                    "for fabric id",
-                    `0x${toHex(fabric.fabricId)}`,
-                    `(0x${toHex(fabric.rootVendorId)}, "${fabric?.label}")`,
+                    `Dropping resumption record for fabric 0x${toHex(record.fabricId)} and index ${record.fabricIndex} because we cannot find a matching fabric`,
                 );
-                this.#resumptionRecords.set(fabric.addressOf(nodeId), {
-                    sharedSecret,
-                    resumptionId,
-                    fabricId,
-                    fabricIndex: fabric.fabricIndex,
-                    peerNodeId,
-                    // Make sure to initialize default values when restoring an older resumption record
-                    sessionParameters: SessionParameters(sessionParameters),
-                    caseAuthenticatedTags,
-                });
-            },
-        );
+                continue;
+            }
+            records.push([fabric.addressOf(nodeId), { ...record, fabricIndex: fabric.fabricIndex }]);
+        }
+
+        await this.#resumptionStore.replaceAll(records);
+        await storage.delete(LEGACY_RESUMPTION_RECORDS_KEY);
+
+        this.#logger.info(`Moved ${records.length} resumption records to per-peer storage`);
     }
 
     /**
@@ -1052,8 +1062,9 @@ export class SessionManager {
         }
 
         await this.closeAllSessions();
+        await this.#resumptionStore.clear();
         await this.#context.storage.clearAll();
-        this.#resumptionRecords.clear();
+        this.#forgetAllResumptionRecords();
         await this.#groupDataMessageCounter?.close();
         this.#groupDataMessageCounter = await this.#createGroupDataMessageCounter();
     }
@@ -1100,4 +1111,29 @@ export class SessionManager {
         this.#idUpperBound = upperBound;
         this.#nextSessionId = (this.#context.fabrics.crypto.randomUint32 % upperBound) + 1;
     }
+}
+
+function storageRecordOf({
+    sharedSecret,
+    resumptionId,
+    peerNodeId,
+    fabricId,
+    fabricIndex,
+    sessionParameters,
+    caseAuthenticatedTags,
+}: InternalResumptionRecord): ResumptionStorageRecord {
+    return {
+        sharedSecret,
+        resumptionId,
+        fabricId,
+        fabricIndex,
+        peerNodeId,
+        sessionParameters: {
+            ...sessionParameters,
+            supportedTransports: sessionParameters.supportedTransports
+                ? SupportedTransportsSchema.encode(sessionParameters.supportedTransports)
+                : undefined,
+        },
+        caseAuthenticatedTags,
+    };
 }

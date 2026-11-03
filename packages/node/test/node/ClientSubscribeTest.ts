@@ -6,7 +6,7 @@
 
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
-import { SubscriptionsServer } from "#behavior/system/subscriptions/SubscriptionsServer.js";
+import { SubscriptionStore } from "#behavior/system/subscriptions/SubscriptionStore.js";
 import { AccessControlClient } from "#behaviors/access-control";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
@@ -1161,8 +1161,9 @@ describe("ClientSubscribe", () => {
             return failures;
         }
 
-        function storedIdsOf(node: ServerNode) {
-            return node.stateOf(SubscriptionsServer).subscriptions.map(({ subscriptionId }) => subscriptionId);
+        async function storedIdsOf(node: ServerNode) {
+            const subscriptions = await node.env.get(SubscriptionStore).load();
+            return subscriptions.map(({ subscriptionId }) => subscriptionId);
         }
 
         function subscribeRequest(abort: AbortController): ClientSubscribe {
@@ -1177,7 +1178,7 @@ describe("ClientSubscribe", () => {
             await using site = new MockSite();
             const { controller, device } = await site.addCommissionedPair();
             const peer = await subscribedPeer(controller, "peer1");
-            const stored = storedIdsOf(device);
+            const stored = await storedIdsOf(device);
 
             const abort = new AbortController();
             const replies = holdDeviceReplies(device);
@@ -1199,14 +1200,14 @@ describe("ClientSubscribe", () => {
             expect(failures).length(1);
             expect(failures[0]).contains("InvalidSubscription");
             expect(failures[0].startsWith(`${LogLevel.DEBUG} `)).true;
-            expect(storedIdsOf(device)).deep.equals(stored);
+            expect(await storedIdsOf(device)).deep.equals(stored);
         });
 
         it("answers the priming report with INVALID_SUBSCRIPTION when the session signal aborts", async () => {
             await using site = new MockSite();
             const { controller, device } = await site.addCommissionedPair();
             const peer = await subscribedPeer(controller, "peer1");
-            const stored = storedIdsOf(device);
+            const stored = await storedIdsOf(device);
             const address = peer.stateOf(CommissioningClient).peerAddress;
             if (address === undefined) {
                 expect.fail("peer is not commissioned");
@@ -1238,14 +1239,14 @@ describe("ClientSubscribe", () => {
             expect(outcome).instanceOf(AbortedError);
             expect(failures).length(1);
             expect(failures[0]).contains("InvalidSubscription");
-            expect(storedIdsOf(device)).deep.equals(stored);
+            expect(await storedIdsOf(device)).deep.equals(stored);
         });
 
         it("answers the priming report it is processing during the cancel with INVALID_SUBSCRIPTION", async () => {
             await using site = new MockSite();
             const { controller, device } = await site.addCommissionedPair();
             const peer = await subscribedPeer(controller, "peer1");
-            const stored = storedIdsOf(device);
+            const stored = await storedIdsOf(device);
 
             const abort = new AbortController();
             const request = subscribeRequest(abort);
@@ -1269,14 +1270,14 @@ describe("ClientSubscribe", () => {
             expect(outcome).instanceOf(AbortedError);
             expect(failures).length(1);
             expect(failures[0]).contains("InvalidSubscription");
-            expect(storedIdsOf(device)).deep.equals(stored);
+            expect(await storedIdsOf(device)).deep.equals(stored);
         });
 
         it("answers the priming report with INVALID_SUBSCRIPTION when processing fails before reading it", async () => {
             await using site = new MockSite();
             const { controller, device } = await site.addCommissionedPair();
             const peer = await subscribedPeer(controller, "peer1");
-            const stored = storedIdsOf(device);
+            const stored = await storedIdsOf(device);
 
             const request = subscribeRequest(new AbortController());
             request.updated = async () => {
@@ -1297,14 +1298,14 @@ describe("ClientSubscribe", () => {
             expect(outcome).instanceOf(SubscribeRefusedError);
             expect(failures).length(1);
             expect(failures[0]).contains("InvalidSubscription");
-            expect(storedIdsOf(device)).deep.equals(stored);
+            expect(await storedIdsOf(device)).deep.equals(stored);
         });
 
         it("answers the priming report with INVALID_SUBSCRIPTION when processing it fails", async () => {
             await using site = new MockSite();
             const { controller, device } = await site.addCommissionedPair();
             const peer = await subscribedPeer(controller, "peer1");
-            const stored = storedIdsOf(device);
+            const stored = await storedIdsOf(device);
 
             const request = subscribeRequest(new AbortController());
             request.updated = async chunks => {
@@ -1327,7 +1328,7 @@ describe("ClientSubscribe", () => {
             expect(outcome).instanceOf(SubscribeRefusedError);
             expect(failures).length(1);
             expect(failures[0]).contains("InvalidSubscription");
-            expect(storedIdsOf(device)).deep.equals(stored);
+            expect(await storedIdsOf(device)).deep.equals(stored);
         });
     });
 });
