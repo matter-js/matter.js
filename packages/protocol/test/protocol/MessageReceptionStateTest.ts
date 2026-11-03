@@ -11,8 +11,10 @@ import {
     MessageReceptionStateEncryptedWithRollover,
     MessageReceptionStateUnencryptedWithRollover,
 } from "#protocol/MessageReceptionState.js";
+import { InternalError } from "@matter/general";
 
 const MAX_COUNTER_INCREASE_2POW31 = Math.pow(2, 31);
+const MSG_COUNTER_WINDOW_SIZE = 32;
 
 function assertMessageWindowUpdate(
     prototype: any,
@@ -88,6 +90,18 @@ function assertMessageWindowDifference(
     }
     expect(calculatedDiff).equal(expectedDiff);
     expect(isDuplicate).equal(expectedDuplicate);
+}
+
+function expectEachWindowCounterAcceptedOnce(state: MessageReceptionStateEncryptedWithoutRollover, max: number) {
+    for (let offset = 1; offset <= MSG_COUNTER_WINDOW_SIZE; offset++) {
+        const counter = (max - offset) >>> 0;
+        expect(() => state.updateMessageCounter(counter), `first ${counter}`).not.throws();
+    }
+    for (let offset = 1; offset <= MSG_COUNTER_WINDOW_SIZE; offset++) {
+        const counter = (max - offset) >>> 0;
+        expect(() => state.updateMessageCounter(counter), `replay ${counter}`).throws(DuplicateMessageError);
+    }
+    expect(() => state.updateMessageCounter(max)).throws(DuplicateMessageError);
 }
 
 describe("MessageReceptionState", () => {
@@ -297,8 +311,11 @@ describe("MessageReceptionState", () => {
 
             it("rejects out-of-range counter values", () => {
                 const state = new MessageReceptionStateEncryptedWithoutRollover();
-                expect(() => state.updateMessageCounter(-1)).throws("Invalid message counter value");
-                expect(() => state.updateMessageCounter(0x100000000)).throws("Invalid message counter value");
+                expect(() => state.updateMessageCounter(-1)).throws(InternalError, "Invalid message counter value");
+                expect(() => state.updateMessageCounter(0x100000000)).throws(
+                    InternalError,
+                    "Invalid message counter value",
+                );
             });
 
             it("forward jump of exactly the window size clears stale bitmap bits", () => {
@@ -312,6 +329,48 @@ describe("MessageReceptionState", () => {
                 assertMessageWindowUpdate(prototype, state, 132, 0b10000000000000000000000000000000, false, 32);
                 // Counter 126 (= new max - 6) was never received; its stale bit must have been cleared.
                 assertMessageWindowUpdate(prototype, state, 126, 0b10000000000000000000000000100000, false, -6);
+            });
+
+            it("forward jump of window size - 1 keeps the oldest bit at the window edge", () => {
+                const state = new MessageReceptionStateEncryptedWithoutRollover();
+                const prototype = MessageReceptionStateEncryptedWithoutRollover.prototype;
+                state.updateMessageCounter(1);
+                state.updateMessageCounter(100);
+                assertMessageWindowUpdate(prototype, state, 99, 0b1, false, -1);
+                assertMessageWindowUpdate(prototype, state, 131, 0b11000000000000000000000000000000, false, 31);
+                assertMessageWindowDifference(prototype, state, 99, true, -32);
+                assertMessageWindowDifference(prototype, state, 100, true, -31);
+                assertMessageWindowUpdate(prototype, state, 101, 0b11100000000000000000000000000000, false, -30);
+            });
+
+            it("forward jump of window size + 1 clears the whole window", () => {
+                const state = new MessageReceptionStateEncryptedWithoutRollover();
+                const prototype = MessageReceptionStateEncryptedWithoutRollover.prototype;
+                state.updateMessageCounter(1);
+                state.updateMessageCounter(100);
+                assertMessageWindowUpdate(prototype, state, 99, 0b1, false, -1);
+                assertMessageWindowUpdate(prototype, state, 133, 0b0, false, 33);
+                assertMessageWindowDifference(prototype, state, 100, true, -33); // old max is behind the window
+                assertMessageWindowUpdate(prototype, state, 101, 0b10000000000000000000000000000000, false, -32);
+            });
+
+            it("accepts every counter in the window exactly once", () => {
+                const state = new MessageReceptionStateEncryptedWithoutRollover();
+                state.updateMessageCounter(1);
+                state.updateMessageCounter(100);
+                expectEachWindowCounterAcceptedOnce(state, 100);
+                expect(() => state.updateMessageCounter(67)).throws(DuplicateMessageError); // behind the window
+            });
+
+            it("initial state with a non-zero max accepts only counters above max", () => {
+                const state = new MessageReceptionStateEncryptedWithoutRollover(1000);
+                const prototype = MessageReceptionStateEncryptedWithoutRollover.prototype;
+                expect(() => state.updateMessageCounter(1000)).throws(DuplicateMessageError);
+                assertMessageWindowDifference(prototype, state, 999, true, -1);
+                assertMessageWindowDifference(prototype, state, 968, true, -32);
+                assertMessageWindowDifference(prototype, state, 967, true, -33);
+                assertMessageWindowUpdate(prototype, state, 1001, 0b11111111111111111111111111111111, false, 1);
+                assertMessageWindowDifference(prototype, state, 969, true, -32);
             });
         });
     });
@@ -561,6 +620,103 @@ describe("MessageReceptionState", () => {
                 assertMessageWindowUpdate(prototype, state, 132, 0b10000000000000000000000000000000, false, 32);
                 assertMessageWindowUpdate(prototype, state, 126, 0b10000000000000000000000000100000, false, -6);
             });
+
+            it("forward jump of window size - 1 keeps the oldest bit at the window edge", () => {
+                const state = new MessageReceptionStateEncryptedWithRollover();
+                const prototype = MessageReceptionStateEncryptedWithRollover.prototype;
+                state.updateMessageCounter(1);
+                state.updateMessageCounter(100);
+                assertMessageWindowUpdate(prototype, state, 99, 0b1, false, -1);
+                assertMessageWindowUpdate(prototype, state, 131, 0b11000000000000000000000000000000, false, 31);
+                assertMessageWindowDifference(prototype, state, 99, true, -32);
+                assertMessageWindowDifference(prototype, state, 100, true, -31);
+                assertMessageWindowUpdate(prototype, state, 101, 0b11100000000000000000000000000000, false, -30);
+            });
+
+            it("forward jump of window size + 1 clears the whole window", () => {
+                const state = new MessageReceptionStateEncryptedWithRollover();
+                const prototype = MessageReceptionStateEncryptedWithRollover.prototype;
+                state.updateMessageCounter(1);
+                state.updateMessageCounter(100);
+                assertMessageWindowUpdate(prototype, state, 99, 0b1, false, -1);
+                assertMessageWindowUpdate(prototype, state, 133, 0b0, false, 33);
+                assertMessageWindowDifference(prototype, state, 100, true, -33);
+                assertMessageWindowUpdate(prototype, state, 101, 0b10000000000000000000000000000000, false, -32);
+            });
+
+            it("forward jumps of window size - 1, window size and window size + 1 across the 2^32 wrap", () => {
+                const prototype = MessageReceptionStateEncryptedWithRollover.prototype;
+                const start = () => {
+                    const state = new MessageReceptionStateEncryptedWithRollover(MAX_COUNTER_VALUE_32BIT - 40);
+                    state.updateMessageCounter(MAX_COUNTER_VALUE_32BIT - 5); // jump of 35 clears the window
+                    assertMessageWindowUpdate(prototype, state, MAX_COUNTER_VALUE_32BIT - 6, 0b1, false, -1);
+                    return state;
+                };
+
+                let state = start();
+                assertMessageWindowUpdate(prototype, state, 25, 0b11000000000000000000000000000000, false, 31);
+                assertMessageWindowDifference(prototype, state, MAX_COUNTER_VALUE_32BIT - 6, true, -32);
+                assertMessageWindowDifference(prototype, state, MAX_COUNTER_VALUE_32BIT - 5, true, -31);
+                assertMessageWindowUpdate(
+                    prototype,
+                    state,
+                    MAX_COUNTER_VALUE_32BIT - 4,
+                    0b11100000000000000000000000000000,
+                    false,
+                    -30,
+                );
+
+                state = start();
+                assertMessageWindowUpdate(prototype, state, 26, 0b10000000000000000000000000000000, false, 32);
+                assertMessageWindowUpdate(prototype, state, 25, 0b10000000000000000000000000000001, false, -1);
+                assertMessageWindowDifference(prototype, state, MAX_COUNTER_VALUE_32BIT - 5, true, -32);
+
+                state = start();
+                assertMessageWindowUpdate(prototype, state, 27, 0b0, false, 33);
+                assertMessageWindowDifference(prototype, state, MAX_COUNTER_VALUE_32BIT - 5, true, -33);
+                assertMessageWindowUpdate(
+                    prototype,
+                    state,
+                    MAX_COUNTER_VALUE_32BIT - 4,
+                    0b10000000000000000000000000000000,
+                    false,
+                    -32,
+                );
+            });
+
+            it("accepts every counter in the window exactly once", () => {
+                const state = new MessageReceptionStateEncryptedWithRollover();
+                state.updateMessageCounter(1);
+                state.updateMessageCounter(100);
+                expectEachWindowCounterAcceptedOnce(state, 100);
+                expect(() => state.updateMessageCounter(67)).throws(DuplicateMessageError);
+            });
+
+            it("accepts every counter in a window that spans the 2^32 wrap exactly once", () => {
+                const state = new MessageReceptionStateEncryptedWithRollover(MAX_COUNTER_VALUE_32BIT - 40);
+                state.updateMessageCounter(10); // jump of 51 across the wrap clears the window
+                expectEachWindowCounterAcceptedOnce(state, 10);
+                expect(() => state.updateMessageCounter(MAX_COUNTER_VALUE_32BIT - 22)).throws(DuplicateMessageError);
+            });
+
+            it("initial state with a non-zero max accepts only counters above max", () => {
+                const state = new MessageReceptionStateEncryptedWithRollover(1000);
+                const prototype = MessageReceptionStateEncryptedWithRollover.prototype;
+                expect(() => state.updateMessageCounter(1000)).throws(DuplicateMessageError);
+                assertMessageWindowDifference(prototype, state, 999, true, -1);
+                assertMessageWindowDifference(prototype, state, 968, true, -32);
+                assertMessageWindowDifference(prototype, state, 967, true, -33);
+                assertMessageWindowUpdate(prototype, state, 1001, 0b11111111111111111111111111111111, false, 1);
+                assertMessageWindowDifference(prototype, state, 969, true, -32);
+            });
+
+            it("initial state with a small max rejects the window part behind the 2^32 wrap", () => {
+                const state = new MessageReceptionStateEncryptedWithRollover(10);
+                const prototype = MessageReceptionStateEncryptedWithRollover.prototype;
+                assertMessageWindowDifference(prototype, state, MAX_COUNTER_VALUE_32BIT - 21, true, -32);
+                assertMessageWindowDifference(prototype, state, MAX_COUNTER_VALUE_32BIT - 22, true, -33);
+                assertMessageWindowUpdate(prototype, state, 11, 0b11111111111111111111111111111111, false, 1);
+            });
         });
     });
     describe("MessageReceptionStateUnencryptedWithRollover", () => {
@@ -786,6 +942,99 @@ describe("MessageReceptionState", () => {
                 assertMessageWindowUpdate(prototype, state, 94, 0b100000, false, -6);
                 assertMessageWindowUpdate(prototype, state, 132, 0b10000000000000000000000000000000, false, 32);
                 assertMessageWindowUpdate(prototype, state, 126, 0b10000000000000000000000000100000, false, -6);
+            });
+
+            it("forward jump of window size - 1 keeps the oldest bit at the window edge", () => {
+                const state = new MessageReceptionStateUnencryptedWithRollover();
+                const prototype = MessageReceptionStateUnencryptedWithRollover.prototype;
+                state.updateMessageCounter(1);
+                state.updateMessageCounter(100);
+                assertMessageWindowUpdate(prototype, state, 99, 0b1, false, -1);
+                assertMessageWindowUpdate(prototype, state, 131, 0b11000000000000000000000000000000, false, 31);
+                assertMessageWindowDifference(prototype, state, 99, true, -32);
+                assertMessageWindowDifference(prototype, state, 100, true, -31);
+                assertMessageWindowUpdate(prototype, state, 101, 0b11100000000000000000000000000000, false, -30);
+            });
+
+            it("forward jump of window size + 1 clears the whole window", () => {
+                const state = new MessageReceptionStateUnencryptedWithRollover();
+                const prototype = MessageReceptionStateUnencryptedWithRollover.prototype;
+                state.updateMessageCounter(1);
+                state.updateMessageCounter(100);
+                assertMessageWindowUpdate(prototype, state, 99, 0b1, false, -1);
+                assertMessageWindowUpdate(prototype, state, 133, 0b0, false, 33);
+                assertMessageWindowUpdate(prototype, state, 101, 0b10000000000000000000000000000000, false, -32);
+                // Behind the window: new for unencrypted messages, and rolls the window back
+                assertMessageWindowUpdate(prototype, state, 100, 0b0, false, MAX_COUNTER_VALUE_32BIT - 32);
+            });
+
+            it("forward jumps of window size - 1, window size and window size + 1 across the 2^32 wrap", () => {
+                const prototype = MessageReceptionStateUnencryptedWithRollover.prototype;
+                const start = () => {
+                    const state = new MessageReceptionStateUnencryptedWithRollover();
+                    state.updateMessageCounter(MAX_COUNTER_VALUE_32BIT - 5);
+                    assertMessageWindowUpdate(prototype, state, MAX_COUNTER_VALUE_32BIT - 6, 0b1, false, -1);
+                    return state;
+                };
+
+                let state = start();
+                assertMessageWindowUpdate(prototype, state, 25, 0b11000000000000000000000000000000, false, 31);
+                assertMessageWindowDifference(prototype, state, MAX_COUNTER_VALUE_32BIT - 6, true, -32);
+                assertMessageWindowDifference(prototype, state, MAX_COUNTER_VALUE_32BIT - 5, true, -31);
+                assertMessageWindowUpdate(
+                    prototype,
+                    state,
+                    MAX_COUNTER_VALUE_32BIT - 4,
+                    0b11100000000000000000000000000000,
+                    false,
+                    -30,
+                );
+
+                state = start();
+                assertMessageWindowUpdate(prototype, state, 26, 0b10000000000000000000000000000000, false, 32);
+                assertMessageWindowUpdate(prototype, state, 25, 0b10000000000000000000000000000001, false, -1);
+                assertMessageWindowDifference(prototype, state, MAX_COUNTER_VALUE_32BIT - 5, true, -32);
+
+                state = start();
+                assertMessageWindowUpdate(prototype, state, 27, 0b0, false, 33);
+                assertMessageWindowUpdate(
+                    prototype,
+                    state,
+                    MAX_COUNTER_VALUE_32BIT - 4,
+                    0b10000000000000000000000000000000,
+                    false,
+                    -32,
+                );
+                // Behind the window: new for unencrypted messages, and rolls the window back
+                assertMessageWindowUpdate(
+                    prototype,
+                    state,
+                    MAX_COUNTER_VALUE_32BIT - 5,
+                    0b0,
+                    false,
+                    MAX_COUNTER_VALUE_32BIT - 32,
+                );
+            });
+
+            it("accepts every counter in the window exactly once", () => {
+                const state = new MessageReceptionStateUnencryptedWithRollover();
+                state.updateMessageCounter(100);
+                expectEachWindowCounterAcceptedOnce(state, 100);
+            });
+
+            it("accepts every counter in a window that spans the 2^32 wrap exactly once", () => {
+                const state = new MessageReceptionStateUnencryptedWithRollover();
+                state.updateMessageCounter(10);
+                expectEachWindowCounterAcceptedOnce(state, 10);
+            });
+
+            it("initial state with a non-zero max starts with an empty window", () => {
+                const state = new MessageReceptionStateUnencryptedWithRollover(1000);
+                const prototype = MessageReceptionStateUnencryptedWithRollover.prototype;
+                expect(() => state.updateMessageCounter(1000)).throws(DuplicateMessageError);
+                assertMessageWindowUpdate(prototype, state, 999, 0b1, false, -1);
+                assertMessageWindowUpdate(prototype, state, 968, 0b10000000000000000000000000000001, false, -32);
+                assertMessageWindowUpdate(prototype, state, 967, 0b0, false, MAX_COUNTER_VALUE_32BIT - 32);
             });
 
             it("accepts an in-window sub-max counter delivered right after the first counter", () => {
