@@ -586,8 +586,9 @@ function rdnToAsn1(rdn: DistinguishedName.Rdn) {
  * TLV schema of a certificate subject or issuer, a TLV list of DN attributes (§ 6.5.6).
  *
  * The decoded value is the frozen object view.  {@link DistinguishedName.rdnsOf} returns its RDN list.  Encoding writes
- * the RDNs of {@link DistinguishedName.encodedRdnsOf}.  Validation checks the object view against `fields`, so mandatory
- * attributes and the maximum number of CATs are enforced as for a tagged list.
+ * the RDNs of {@link DistinguishedName.encodedRdnsOf}.  Each RDN value is validated with its field schema, so a repeated
+ * value that the TLV decoder would read back differently is refused.  Validation checks the object view against
+ * `fields`, so mandatory attributes and the maximum number of CATs are enforced as for a tagged list.
  */
 export class DistinguishedNameSchema<F extends TlvFields> extends TlvSchema<
     DistinguishedName.Frozen<TypeFromFields<F>>
@@ -622,6 +623,7 @@ export class DistinguishedNameSchema<F extends TlvFields> extends TlvSchema<
                 throw new ValidationDatatypeMismatchError(`Field "${name}" is not defined in the TLV DN schema.`, name);
             }
             const { id, schema } = this.#fields[name];
+            schema.validate(rdnValue);
             schema.encodeTlvInternal(writer, rdnValue, { id }, options);
         }
         writer.writeTag({ type: TlvType.EndOfContainer });

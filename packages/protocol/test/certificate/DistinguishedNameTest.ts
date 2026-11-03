@@ -236,6 +236,18 @@ describe("Certificate distinguished name", () => {
             });
         });
 
+        it("refuses a repeated commonName that the TLV decoder would cut at U+001F", async () => {
+            const keys = await chain();
+            const der = await nocDer(keys, {
+                cn1: X520.CommonName("A"),
+                nodeId: NodeId_Matter(NODE_ID),
+                fabricId: FabricId_Matter(FABRIC_ID),
+                cn2: X520.CommonName("B\u001FC"),
+            });
+
+            expect(() => Noc.fromAsn1(der).asSignedTlv()).throws(ValidationDatatypeMismatchError, /0x1F/);
+        });
+
         it("for CATs between other attributes", async () => {
             const keys = await chain();
             const der = await nocDer(keys, {
