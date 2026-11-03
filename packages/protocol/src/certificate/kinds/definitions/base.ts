@@ -5,7 +5,7 @@
  */
 
 import { Bytes, MlDsa } from "@matter/general";
-import { BitFlag, BitmapSchema, TypeFromPartialBitSchema } from "@matter/types";
+import { BitFlag, BitmapEncodedValue, BitmapSchema, TypeFromPartialBitSchema } from "@matter/types";
 
 export const ExtensionKeyUsageBitmap = {
     digitalSignature: BitFlag(0),
@@ -19,6 +19,20 @@ export const ExtensionKeyUsageBitmap = {
     decipherOnly: BitFlag(8),
 };
 export const ExtensionKeyUsageSchema = BitmapSchema(ExtensionKeyUsageBitmap);
+
+const NAMED_KEY_USAGE_BITS = 0x01ff;
+
+/**
+ * The key usage bits of a certificate: the current named flags, plus the bits without a name in
+ * {@link ExtensionKeyUsageBitmap} that the certificate had when it was decoded from Matter TLV.
+ * {@link ExtensionKeyUsageSchema.encode} drops the unnamed bits, so a profile rule that allows no additional flags
+ * must compare this value instead.  A certificate that was not decoded from TLV has no unnamed bits.
+ */
+export function rawKeyUsage(keyUsage: TypeFromPartialBitSchema<typeof ExtensionKeyUsageBitmap>) {
+    const decoded: unknown = Reflect.get(keyUsage, BitmapEncodedValue);
+    const unnamed = typeof decoded === "number" ? decoded & ~NAMED_KEY_USAGE_BITS : 0;
+    return ExtensionKeyUsageSchema.encode(keyUsage) | unnamed;
+}
 
 export interface MatterCertificate {
     serialNumber: Bytes;
