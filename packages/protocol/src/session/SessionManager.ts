@@ -97,6 +97,8 @@ export interface ResumptionRecord extends Omit<InternalResumptionRecord, "fabric
 }
 
 type ResumptionStorageRecord = {
+    /** Format version, see {@link RESUMPTION_RECORD_VERSION}.  Records written before versioning have none. */
+    version?: number;
     sharedSecret: Bytes;
     resumptionId: Bytes;
     fabricId: FabricId;
@@ -207,6 +209,18 @@ const RESUMPTION_RECORDS_CONTEXT = "resumption";
 
 /** Key of the single array that held all resumption records before they were stored per peer. */
 const LEGACY_RESUMPTION_RECORDS_KEY = "resumptionRecords";
+
+/**
+ * Format version of stored resumption records.  {@link isUsableResumptionRecord} decides on load which stored versions
+ * this version uses:
+ *
+ * | Stored version | On load                                                          |
+ * | -------------- | ---------------------------------------------------------------- |
+ * | none (0)       | with CATs: deleted; without CATs: used, stored with this version |
+ * | current        | used                                                             |
+ * | any other      | deleted                                                          |
+ */
+const RESUMPTION_RECORD_VERSION = 1;
 
 /** Storage key for the node-global Group Encrypted Data Message Counter in the session storage context. */
 const GROUP_DATA_COUNTER_KEY = "groupDataCounter";
@@ -938,23 +952,34 @@ export class SessionManager {
 
         await this.#migrateLegacyResumptionRecords();
 
-        const storedResumptionRecords = await this.#resumptionStore.load((address, { fabricId, fabricIndex }) => {
-            if (this.#maybeFabricForId(fabricId, fabricIndex)?.fabricIndex === address.fabricIndex) {
-                return true;
+        const storedResumptionRecords = await this.#resumptionStore.load((address, record) => {
+            const { fabricId, fabricIndex, version = 0 } = record;
+            if (this.#maybeFabricForId(fabricId, fabricIndex)?.fabricIndex !== address.fabricIndex) {
+                this.#logger.info(
+                    `Deleting resumption record for ${address} because it does not match a fabric (fabric 0x${toHex(fabricId)} with index ${fabricIndex})`,
+                );
+                return false;
             }
-            this.#logger.info(
-                `Deleting resumption record for ${address} because it does not match a fabric (fabric 0x${toHex(fabricId)} with index ${fabricIndex})`,
-            );
-            return false;
+            if (!isUsableResumptionRecord(record)) {
+                this.#logger.info(
+                    `Deleting resumption record for ${address} stored with format version ${version}; the peer establishes a new session`,
+                );
+                return false;
+            }
+            return true;
         });
 
-        for (const [address, { sessionParameters, ...record }] of storedResumptionRecords) {
+        for (const [address, { version, sessionParameters, ...stored }] of storedResumptionRecords) {
             this.#logger.debug("Restoring resumption record for", address.toString());
-            this.#rememberResumptionRecord(address, {
-                ...record,
+            const record = {
+                ...stored,
                 // Make sure to initialize default values when restoring an older resumption record
                 sessionParameters: SessionParameters(sessionParameters),
-            });
+            };
+            this.#rememberResumptionRecord(address, record);
+            if (version !== RESUMPTION_RECORD_VERSION) {
+                await this.#resumptionStore.set(address, storageRecordOf(record));
+            }
         }
         if (storedResumptionRecords.size) {
             this.#logger.info(`Restored ${storedResumptionRecords.size} resumption records`);
@@ -1123,6 +1148,7 @@ function storageRecordOf({
     caseAuthenticatedTags,
 }: InternalResumptionRecord): ResumptionStorageRecord {
     return {
+        version: RESUMPTION_RECORD_VERSION,
         sharedSecret,
         resumptionId,
         fabricId,
@@ -1136,4 +1162,25 @@ function storageRecordOf({
         },
         caseAuthenticatedTags,
     };
+}
+
+/**
+ * Whether this version uses a stored record.  A record without a version that carries CATs is not used: a record does
+ * not say which CASE role wrote it, and versions before {@link RESUMPTION_RECORD_VERSION} stored the local node's own
+ * CATs when they initiated the session.  A peer whose record is not used establishes a full CASE session once.
+ *
+ * Accepted tradeoff: a record without a version and without CATs may lack CATs that the peer's NOC has.  The peer then
+ * has fewer rights, never more, until its next full CASE session.
+ */
+function isUsableResumptionRecord({ version = 0, caseAuthenticatedTags }: ResumptionStorageRecord) {
+    switch (version) {
+        case 0:
+            return !caseAuthenticatedTags?.length;
+
+        case RESUMPTION_RECORD_VERSION:
+            return true;
+
+        default:
+            return false;
+    }
 }
