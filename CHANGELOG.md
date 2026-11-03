@@ -25,6 +25,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `StandardCrypto` encrypts and decrypts AES-CCM plaintext of 65521 to 65535 bytes, which Matter messages reach only with `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: `StandardCrypto` computes the correct AES-CCM tag for AAD of 65280 bytes or more
     - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
+    - Fix: `X520.DomainComponent` encodes the domainComponent OID 0.9.2342.19200300.100.1.25 instead of the emailAddress OID with tag and length bytes in its content
 
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
@@ -53,6 +54,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: GeneralDiagnostics TimeSnapshot `SystemTimeMs` counts from when the node came online, like `UpTime`, instead of from the host boot
     - Fix: GeneralDiagnostics `TestEventTriggersEnabled` is true exactly when a non-zero `deviceTestEnableKey` is configured, and PayloadTestRequest accepts that key without also setting the attribute
     - Fix: GeneralDiagnostics test commands compare the EnableKey in constant time and never accept a key that is not 16 bytes, and the node refuses to start with a non-zero `deviceTestEnableKey` of another length
+    - Fix: `VendorIdVerification.verifyData` returns false for a VVSC that breaks its certificate profile instead of throwing
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
@@ -89,6 +91,24 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Device attestation refuses a Certification Declaration that breaks a rule of its CMS envelope, `format_version` or `certification_type`
     - Fix: Device attestation refuses an official Certification Declaration signed by the Matter test CD signer
     - Fix: Device attestation reports a Certification Declaration from the Matter test CD signer as `TrustedAsTestCertificate` when test certificates are not accepted
+    - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
+    - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
+    - Fix: A VVSC with is-ca false loads
+    - Fix: Operational certificate verification refuses a VVSC with is-ca true or a key usage other than digitalSignature
+    - Fix: Operational certificate verification refuses a VVSC, ICAC or RCAC key usage that sets a bit without a name
+    - Fix: Operational certificate verification refuses a NOC whose extended key usage lacks serverAuth
+    - Fix: Operational certificate verification counts each CASE Authenticated Tag as an RDN, so a DN with more than 5 RDNs is refused
+    - Fix: Matter-TLV operational certificates that repeat a single-valued Matter-specific DN attribute, or whose NOC, ICAC or RCAC subject has a matter-vvs-id, are refused with an error that names the attribute
+    - Fix: DER certificate parsing refuses Matter-specific DN values that are not exactly twice their octet length in uppercase hexadecimal, and a repeated single-valued Matter-specific DN attribute, with a `CertificateError` (`CertificateProfileError` for VendorID and ProductID)
+    - Fix: Device attestation reports a DAC or PAI with a malformed or repeated VendorID or ProductID as `DacFormatInvalid` or `PaiFormatInvalid`
+    - Fix: `matter-firmware-signing-id` in an operational certificate holds 64 bits instead of 32
+    - Fix: A NOC, ICAC or RCAC that repeats a standard DN attribute, such as organizationalUnitName, or has CASE Authenticated Tags between other DN attributes re-encodes in TLV and DER to the bytes its issuer signed
+    - Fix: DER certificate parsing reads domainComponent, and the first value of a repeated standard DN attribute instead of the last
+    - Fix: DER certificate parsing reads VendorID and ProductID from the first commonName that carries a VendorID or ProductID, within its first 64 bytes, as the CHIP SDK does
+    - Fix: Encoding a subject or issuer built in code keeps a VendorID or ProductID that differs from the one in its commonName
+
+- @matter/types
+    - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
 
 ## 0.18.0 (2026-10-20)
 
