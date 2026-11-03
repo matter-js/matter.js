@@ -11,37 +11,37 @@ import { MatterCertificate } from "./base.js";
 export namespace AttestationCertificate {
     export interface Dac extends MatterCertificate {
         issuer: {
-            commonName: string;
-            productId?: number;
-            vendorId: VendorId;
+            readonly commonName: string;
+            readonly productId?: number;
+            readonly vendorId: VendorId;
         };
         subject: {
-            commonName: string;
-            productId: number;
-            vendorId: VendorId;
+            readonly commonName: string;
+            readonly productId: number;
+            readonly vendorId: VendorId;
         };
     }
 
     export interface Pai extends MatterCertificate {
         issuer: {
-            commonName: string;
-            vendorId?: VendorId;
+            readonly commonName: string;
+            readonly vendorId?: VendorId;
         };
         subject: {
-            commonName: string;
-            productId?: number;
-            vendorId: VendorId;
+            readonly commonName: string;
+            readonly productId?: number;
+            readonly vendorId: VendorId;
         };
     }
 
     export interface Paa extends MatterCertificate {
         issuer: {
-            commonName: string;
-            vendorId?: VendorId;
+            readonly commonName: string;
+            readonly vendorId?: VendorId;
         };
         subject: {
-            commonName: string;
-            vendorId?: VendorId;
+            readonly commonName: string;
+            readonly vendorId?: VendorId;
         };
     }
 }
