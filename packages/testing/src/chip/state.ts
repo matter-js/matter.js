@@ -20,6 +20,7 @@ import { afterRun, beforeRun } from "../mocha.js";
 import { TestRunner } from "../runner.js";
 import { RootTestDescriptor, TestDescriptor, TestFileDescriptor } from "../test-descriptor.js";
 import { AccessoryServer } from "./accessory-server.js";
+import { normalizeAppReferences } from "./app-reference.js";
 import { createRegisteredCertTest } from "./cert/cert-test.js";
 import { CERT_BINS_PLATFORM, chipBinsPlatformSupported, prepareChipBins, resolveChipBinsSource } from "./chip-bins.js";
 import type { chip } from "./chip.js";
@@ -583,6 +584,7 @@ async function configureTests() {
         throw new Error(`CHIP test descriptor has no members`);
     }
 
+    normalizeAppReferences(descriptor);
     Values.tests = TestDescriptor.Filesystem(descriptor);
 }
 

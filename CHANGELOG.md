@@ -28,6 +28,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
+    - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
+    - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is deprecated and stays empty; subscriptions stored there by an older version are taken over at start
     - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
@@ -44,7 +46,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Deleting from a fabric-filtered state list, or setting the length of any state list, requires write access
     - Fix: Thermostat accepts a preset write that sends an existing built-in preset with a null `BuiltIn`
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
-    - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is deprecated and stays empty; subscriptions stored there by an older version are taken over at start
+    - Fix: AdministratorCommissioning OpenCommissioningWindow answers INVALID_COMMAND to a discriminator above 4095 instead of CONSTRAINT_ERROR
+    - Fix: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow answer PAKEParameterError on a session without fabric, as CHIP does, instead of UNSUPPORTED_ACCESS
+    - Fix: Corrects extension typing of `registerHardwareFault()`, `registerRadioFault()` and `registerNetworkFault()` of a GeneralDiagnostics server
+    - Fix: GeneralDiagnostics registering a fault that is already active no longer emits a fault change event
+    - Fix: GeneralDiagnostics TimeSnapshot `SystemTimeMs` counts from when the node came online, like `UpTime`, instead of from the host boot
+    - Fix: GeneralDiagnostics `TestEventTriggersEnabled` is true exactly when a non-zero `deviceTestEnableKey` is configured, and PayloadTestRequest accepts that key without also setting the attribute
+    - Fix: GeneralDiagnostics test commands compare the EnableKey in constant time and never accept a key that is not 16 bytes, and the node refuses to start with a non-zero `deviceTestEnableKey` of another length
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
