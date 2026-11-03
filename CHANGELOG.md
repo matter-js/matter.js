@@ -31,7 +31,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
     - Adjustment: On behavior types derived with `.with()`, `.alter()` or `.enable()`, `LocalizationConfigurationServer.detectedLocale` is declared as a getter, and the extension methods of `GeneralDiagnosticsServer` and `AccessControlServer` as methods, so they can be overridden with `get` or a method that calls `super`; a property override of `detectedLocale` no longer compiles
     - Fix: `TimeFormatLocalizationServer` `detectedHourFormat` and `detectedCalendarType` have their enum types instead of `string`, so an override can return any value of the enum
-    - Fix: On behavior types derived with `.with()`, `GeneralDiagnosticsServer.registerHardwareFault()`, `registerRadioFault()` and `registerNetworkFault()` take one fault type instead of two fault lists
     - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
@@ -49,6 +48,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
     - Fix: AdministratorCommissioning OpenCommissioningWindow answers INVALID_COMMAND to a discriminator above 4095 instead of CONSTRAINT_ERROR
     - Fix: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow answer PAKEParameterError on a session without fabric, as CHIP does, instead of UNSUPPORTED_ACCESS
+    - Fix: Corrects extension typing of `registerHardwareFault()`, `registerRadioFault()` and `registerNetworkFault()` of a GeneralDiagnostics server
+    - Fix: GeneralDiagnostics registering a fault that is already active no longer emits a fault change event
+    - Fix: GeneralDiagnostics TimeSnapshot `SystemTimeMs` counts from when the node came online, like `UpTime`, instead of from the host boot
+    - Fix: GeneralDiagnostics `TestEventTriggersEnabled` is true exactly when a non-zero `deviceTestEnableKey` is configured, and PayloadTestRequest accepts that key without also setting the attribute
+    - Fix: GeneralDiagnostics test commands compare the EnableKey in constant time and never accept a key that is not 16 bytes, and the node refuses to start with a non-zero `deviceTestEnableKey` of another length
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp

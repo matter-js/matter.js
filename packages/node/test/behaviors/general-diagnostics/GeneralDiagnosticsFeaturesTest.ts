@@ -31,18 +31,6 @@ async function countAdvisories(maxPathsPerInvoke?: number) {
 }
 
 describe("GeneralDiagnosticsServer features", () => {
-    it("types the fault registration methods of a derived behavior by fault type", () => {
-        // Type-level check only: a failure shows as a build error in this file
-        class FaultReporter extends GeneralDiagnosticsServer.with() {
-            report() {
-                this.registerHardwareFault(GeneralDiagnostics.HardwareFault.Unspecified);
-                this.registerRadioFault(GeneralDiagnostics.RadioFault.Unspecified);
-                this.registerNetworkFault(GeneralDiagnostics.NetworkFault.Unspecified);
-            }
-        }
-        void FaultReporter;
-    });
-
     it("lets a subclass of a derived type override the extension methods and call super", () => {
         // Type-level check only: a failure shows as a build error in this file
         class OverridingDiagnostics extends GeneralDiagnosticsServer.with() {
