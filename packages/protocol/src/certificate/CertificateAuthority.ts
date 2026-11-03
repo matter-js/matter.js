@@ -288,7 +288,7 @@ export class CertificateAuthority {
         publicKey: Bytes,
         fabricId: FabricId,
         nodeId: NodeId,
-        caseAuthenticatedTags?: CaseAuthenticatedTag[],
+        caseAuthenticatedTags?: readonly CaseAuthenticatedTag[],
     ) {
         const now = Time.now;
         const certId = this.#nextCertificateId++;
