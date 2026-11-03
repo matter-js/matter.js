@@ -18,6 +18,7 @@ import {
     NoResponseTimeoutError,
     Seconds,
 } from "@matter/general";
+import { DatatypeModel, FieldElement } from "@matter/model";
 import {
     GroupSession,
     PeerAddress,
@@ -27,7 +28,6 @@ import {
     Subscription,
     TransientPeerCommunicationError,
 } from "@matter/protocol";
-import { DatatypeModel, FieldElement } from "@matter/model";
 import { Status, StatusResponseError } from "@matter/types";
 import { Behavior } from "../../Behavior.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
