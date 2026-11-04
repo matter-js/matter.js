@@ -104,6 +104,13 @@ describe("TimeFormatLocalizationServer", () => {
         expect(node.state.timeFormatLocalization.supportedCalendarTypes).deep.equals([CalendarType.Gregorian]);
     });
 
+    it("treats an explicitly undefined SupportedCalendarTypes as unset", async () => {
+        await using node = await MockServerNode.create(rootWith({ supportedCalendarTypes: undefined }));
+
+        expect(node.state.timeFormatLocalization.activeCalendarType).equals(CalendarType.Gregorian);
+        expect(node.state.timeFormatLocalization.supportedCalendarTypes).deep.equals([CalendarType.Gregorian]);
+    });
+
     // 11.4.6 has no sentence that ties ActiveCalendarType to SupportedCalendarTypes. The membership rule follows CHIP,
     // which answers a write outside the list with CONSTRAINT_ERROR. CHIP keeps its configured default calendar when it
     // is listed and otherwise uses the first supported type. matter.js does the same with the detected calendar.

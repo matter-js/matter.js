@@ -14,7 +14,7 @@ const logger = Logger.get("LocalizationConfigurationServer");
  */
 export class LocalizationConfigurationServer extends LocalizationConfigurationBehavior {
     override initialize(): MaybePromise {
-        if (this.state.supportedLocales.length === 0) {
+        if (!this.state.supportedLocales?.length) {
             const locale = this.state.activeLocale ?? this.detectedLocale;
             this.state.supportedLocales = [locale];
             this.state.activeLocale = locale;

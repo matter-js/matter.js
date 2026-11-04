@@ -21,7 +21,7 @@ export class TimeFormatLocalizationServer extends TimeFormatLocalizationBehavior
         if (!this.features.calendarFormat) {
             return;
         }
-        if (this.state.supportedCalendarTypes.length === 0) {
+        if (!this.state.supportedCalendarTypes?.length) {
             const calendarType = this.state.activeCalendarType ?? this.detectedCalendarType;
             this.state.supportedCalendarTypes = [calendarType];
             this.state.activeCalendarType = calendarType;

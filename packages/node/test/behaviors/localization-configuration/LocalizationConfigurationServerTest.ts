@@ -56,6 +56,13 @@ describe("LocalizationConfigurationServer", () => {
         expect(node.state.localizationConfiguration.supportedLocales).deep.equals(["en-US"]);
     });
 
+    it("treats an explicitly undefined SupportedLocales as unset", async () => {
+        await using node = await MockServerNode.create(rootWith({ supportedLocales: undefined }));
+
+        expect(node.state.localizationConfiguration.activeLocale).equals("en-US");
+        expect(node.state.localizationConfiguration.supportedLocales).deep.equals(["en-US"]);
+    });
+
     // 11.3.4.1: "An attempt to write a value to ActiveLocale that is not present in SupportedLocales SHALL result in a
     // CONSTRAINT_ERROR error."
     // Characterization: passes on the code before this change
