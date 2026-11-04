@@ -6,7 +6,7 @@
 
 import { Bytes, CertificateError, InternalError } from "@matter/general";
 import { Specification } from "@matter/model";
-import { Certificate } from "./Certificate.js";
+import { Certificate, CertificateProfileError } from "./Certificate.js";
 import { Unsigned } from "./common.js";
 import { AttestationCertificate } from "./definitions/attestation.js";
 import { MatterCertificate } from "./definitions/base.js";
@@ -26,14 +26,6 @@ export abstract class AttestationBaseCertificate<CT extends MatterCertificate> e
  */
 export class MlDsaAttestationDisabledError extends CertificateError {}
 
-/**
- * Thrown when a DAC or PAI is well-formed but violates the X.509 profile of its kind.
- *
- * @see {@link MatterSpecification.v161.Core} § 6.2.2.3
- * @see {@link MatterSpecification.v161.Core} § 6.2.2.4
- */
-export class CertificateProfileError extends CertificateError {}
-
 export interface AttestationParseOptions {
     /**
      * Accept a certificate that violates the X.509 profile of its kind, and read an absent basic constraints extension
@@ -41,15 +33,26 @@ export interface AttestationParseOptions {
      * despite a failed device attestation, a device reading its own certificates, or a parser of a certificate in
      * another role, such as a CRL signer.
      *
-     * The PAA profile is not checked either way; for a PAA this option only lets the basic constraints extension be
-     * absent.
+     * The PAA profile is not checked either way; for a PAA this option lets the basic constraints extension be
+     * absent.  A malformed or repeated VendorID or ProductID is not covered; see {@link acceptMalformedVidPid}.
      */
     acceptProfileViolation?: boolean;
+
+    /**
+     * Read a VendorID or ProductID that is malformed or repeated as absent instead of throwing
+     * {@link CertificateProfileError}.  Only for a caller that needs no more than the VendorID and ProductID the
+     * certificate states, such as a device reading its own certificates.  A caller that matches the VendorID against
+     * another source must not set it: an unreadable VendorID would read as "none stated".
+     */
+    acceptMalformedVidPid?: boolean;
 }
 
 /** @throws MlDsaAttestationDisabledError for an ML-DSA certificate while PQC Phase 1 is not enabled */
-function parseAttestationCertificate(asn1: Bytes, requiredExtensions: string[]) {
-    const cert = Certificate.parseAsn1Certificate(asn1, requiredExtensions, { postQuantum: true });
+function parseAttestationCertificate(asn1: Bytes, requiredExtensions: string[], options: AttestationParseOptions) {
+    const cert = Certificate.parseAsn1Certificate(asn1, requiredExtensions, {
+        postQuantum: true,
+        acceptMalformedVidPid: options.acceptMalformedVidPid,
+    });
     const mlDsa = cert.mlDsaSignature ?? cert.mlDsaPublicKey?.parameterSet;
     if (mlDsa !== undefined && !Specification.isForwardFeatureEnabled("pqc-phase-1")) {
         throw new MlDsaAttestationDisabledError(
@@ -81,7 +84,7 @@ export class Paa extends AttestationBaseCertificate<AttestationCertificate.Paa> 
         const required = options.acceptProfileViolation
             ? withoutBasicConstraints(Certificate.REQUIRED_PAA_EXTENSIONS)
             : Certificate.REQUIRED_PAA_EXTENSIONS;
-        const cert = parseAttestationCertificate(asn1, required);
+        const cert = parseAttestationCertificate(asn1, required, options);
         return new Paa(cert as AttestationCertificate.Paa);
     }
 }
@@ -202,7 +205,7 @@ export class Pai extends AttestationBaseCertificate<AttestationCertificate.Pai> 
      * @throws MlDsaAttestationDisabledError for an ML-DSA certificate while PQC Phase 1 is not enabled
      */
     static fromAsn1(asn1: Bytes, options: AttestationParseOptions = {}): Pai {
-        const cert = parseAttestationCertificate(asn1, DAC_PAI_REQUIRED_EXTENSIONS);
+        const cert = parseAttestationCertificate(asn1, DAC_PAI_REQUIRED_EXTENSIONS, options);
         const pai = new Pai(cert as AttestationCertificate.Pai);
         if (!options.acceptProfileViolation) {
             assertPaiProfile(cert);
@@ -221,7 +224,7 @@ export class Dac extends AttestationBaseCertificate<AttestationCertificate.Dac> 
      * @throws MlDsaAttestationDisabledError for an ML-DSA certificate while PQC Phase 1 is not enabled
      */
     static fromAsn1(asn1: Bytes, options: AttestationParseOptions = {}): Dac {
-        const cert = parseAttestationCertificate(asn1, DAC_PAI_REQUIRED_EXTENSIONS);
+        const cert = parseAttestationCertificate(asn1, DAC_PAI_REQUIRED_EXTENSIONS, options);
         const dac = new Dac(cert as AttestationCertificate.Dac);
         if (!options.acceptProfileViolation) {
             assertDacProfile(cert);

@@ -34,7 +34,7 @@ import {
     Time,
     Timestamp,
 } from "@matter/general";
-import { FabricId, FabricIndex, GlobalFabricId, NodeId, VendorId } from "@matter/types";
+import { CaseAuthenticatedTag, FabricId, FabricIndex, GlobalFabricId, NodeId, VendorId } from "@matter/types";
 
 const DUMMY_BYTEARRAY = new Uint8Array();
 
@@ -1043,6 +1043,13 @@ describe("SessionManager", () => {
             storage.set(["sessions"], "resumptionRecords", [
                 legacyRecord,
                 { ...legacyRecord, resumptionId: b$`02`, fabricId: FabricId(0x999), fabricIndex: FabricIndex(9) },
+                {
+                    ...legacyRecord,
+                    resumptionId: b$`04`,
+                    nodeId: NodeId(0x40),
+                    peerNodeId: NodeId(0x40),
+                    caseAuthenticatedTags: [CaseAuthenticatedTag(0x00010001)],
+                },
             ]);
             // Written by an earlier per-peer run before a downgrade; the array written since replaces it
             storage.set(["sessions", "resumption", "1"], "30", { ...legacyRecord, peerNodeId: NodeId(0x30) });
@@ -1054,7 +1061,9 @@ describe("SessionManager", () => {
             expect(sessionManager.findResumptionRecordByAddress(fabric.addressOf(NodeId(0x30)))).undefined;
             expect(storedKeys()).not.include("resumptionRecords");
             expect(storedKeys("resumption", "1")).deep.equal(["10"]);
+            expect(sessionManager.findResumptionRecordById(b$`04`)).undefined;
             expect(storage.get(["sessions", "resumption", "1"], "10")).not.have.property("nodeId");
+            expect(storage.get(["sessions", "resumption", "1"], "10")).have.property("version", 1);
         });
 
         it("deletes a stored record whose fabric no longer exists", async () => {
@@ -1067,6 +1076,84 @@ describe("SessionManager", () => {
 
             expect(storedKeys("resumption", "1")).deep.equal(["10"]);
             expect(storedKeys("resumption", "2")).deep.equal([]);
+        });
+
+        describe("format version", () => {
+            const CATS = [CaseAuthenticatedTag(0x00010001)];
+
+            function store(
+                peerNodeId: NodeId,
+                fields: { version?: number; caseAuthenticatedTags?: CaseAuthenticatedTag[] },
+            ) {
+                storage.set(["sessions", "resumption", "1"], peerNodeId.toString(16), {
+                    sharedSecret: b$`00112233445566778899aabbccddeeff`,
+                    resumptionId: Bytes.fromHex(peerNodeId.toString(16)),
+                    fabricId: fabric.fabricId,
+                    fabricIndex: fabric.fabricIndex,
+                    peerNodeId,
+                    sessionParameters: { ...SessionParameters(), supportedTransports: undefined },
+                    ...fields,
+                });
+            }
+
+            function storedVersionOf(peerNodeId: NodeId) {
+                const stored = storage.get(["sessions", "resumption", "1"], peerNodeId.toString(16));
+                return stored !== null && typeof stored === "object" && "version" in stored
+                    ? stored.version
+                    : undefined;
+            }
+
+            function restored(sessionManager: SessionManager, peerNodeId: NodeId) {
+                return sessionManager.findResumptionRecordByAddress(fabric.addressOf(peerNodeId));
+            }
+
+            it("deletes records without a version that carry CATs", async () => {
+                store(NodeId(0x10), { caseAuthenticatedTags: CATS });
+
+                const sessionManager = await startSessionManager();
+
+                expect(restored(sessionManager, NodeId(0x10))).undefined;
+                expect(storedKeys("resumption", "1")).deep.equal([]);
+            });
+
+            it("uses records without a version and without CATs and stores them with the version", async () => {
+                store(NodeId(0x10), { caseAuthenticatedTags: [] });
+                store(NodeId(0x20), {});
+
+                const sessionManager = await startSessionManager();
+
+                expect(restored(sessionManager, NodeId(0x10))?.caseAuthenticatedTags).deep.equal([]);
+                expect(restored(sessionManager, NodeId(0x20))).not.undefined;
+                expect(storedVersionOf(NodeId(0x10))).equal(1);
+                expect(storedVersionOf(NodeId(0x20))).equal(1);
+            });
+
+            it("uses records of the current version with CATs without storing them again", async () => {
+                store(NodeId(0x10), { version: 1, caseAuthenticatedTags: CATS });
+                storage.writes.length = 0;
+
+                const sessionManager = await startSessionManager();
+
+                expect(restored(sessionManager, NodeId(0x10))?.caseAuthenticatedTags).deep.equal(CATS);
+                expect(storage.writes.filter(key => key.startsWith("sessions.resumption."))).deep.equal([]);
+            });
+
+            it("deletes records of another version", async () => {
+                store(NodeId(0x10), { version: 2 });
+
+                const sessionManager = await startSessionManager();
+
+                expect(restored(sessionManager, NodeId(0x10))).undefined;
+                expect(storedKeys("resumption", "1")).deep.equal([]);
+            });
+
+            it("stores saved records with the version", async () => {
+                const sessionManager = await startSessionManager();
+
+                await sessionManager.saveResumptionRecord(recordFor(NodeId(0x10), b$`01`));
+
+                expect(storedVersionOf(NodeId(0x10))).equal(1);
+            });
         });
     });
 });

@@ -5,6 +5,7 @@
  */
 
 import { LocalizationConfigurationServer } from "#behaviors/localization-configuration";
+import { ServerNode } from "#node/ServerNode.js";
 import { Environment, LogLevel, MockStorageService, StorageService } from "@matter/general";
 import { captureLog, causeMessagesOf, MockServerNode } from "@matter/node/testing";
 import { Write } from "@matter/protocol";
@@ -182,5 +183,19 @@ describe("LocalizationConfigurationServer", () => {
             await using node = await MockServerNode.createOnline(root, { id: "locale", environment });
             expect(node.state.localizationConfiguration.activeLocale).equals("fr-FR");
         }
+    });
+
+    it("lets a subclass of a derived type override the detected locale with a getter", async () => {
+        class FixedLocale extends LocalizationConfigurationServer.with() {
+            override get detectedLocale() {
+                return "de-DE";
+            }
+        }
+
+        await using node = await MockServerNode.create(
+            ServerNode.RootEndpoint.with(FixedLocale.set({ supportedLocales: ["de-DE"] })),
+        );
+
+        expect(node.state.localizationConfiguration.activeLocale).equals("de-DE");
     });
 });

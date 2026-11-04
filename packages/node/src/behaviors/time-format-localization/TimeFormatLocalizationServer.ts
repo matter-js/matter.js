@@ -42,7 +42,7 @@ export class TimeFormatLocalizationServer extends TimeFormatLocalizationBehavior
     }
 
     /** Override this getter with own implementation to detect the hour format of the system. */
-    get detectedHourFormat() {
+    get detectedHourFormat(): TimeFormatLocalization.HourFormat {
         if (Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12) {
             return TimeFormatLocalization.HourFormat["12Hr"];
         }
@@ -50,7 +50,7 @@ export class TimeFormatLocalizationServer extends TimeFormatLocalizationBehavior
     }
 
     /** Override this getter with own implementation to detect the calendar type of the system. */
-    get detectedCalendarType() {
+    get detectedCalendarType(): TimeFormatLocalization.CalendarType {
         const type = Intl.DateTimeFormat().resolvedOptions().calendar;
         switch (type) {
             case "buddhist":
@@ -98,7 +98,7 @@ export class TimeFormatLocalizationServer extends TimeFormatLocalizationBehavior
 
 export namespace TimeFormatLocalizationServer {
     export declare const ExtensionInterface: {
-        detectedHourFormat: string;
-        detectedCalendarType: string;
+        get detectedHourFormat(): TimeFormatLocalization.HourFormat;
+        get detectedCalendarType(): TimeFormatLocalization.CalendarType;
     };
 }

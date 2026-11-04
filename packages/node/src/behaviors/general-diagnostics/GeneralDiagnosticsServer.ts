@@ -299,7 +299,7 @@ export class GeneralDiagnosticsServer extends Base {
 
     /**
      * Register a hardware fault. This convenience method updates the activeHardwareFaults attribute and sends out the
-     * HardwareFaultChanged event. Make sure to clear the fault when it is resolved.
+     * HardwareFaultChange event. Make sure to clear the fault when it is resolved.
      * This method requires that the activeHardwareFaults attribute is activated when the cluster gets initialized.
      *
      * @param faultType The hardware fault to register.
@@ -313,7 +313,7 @@ export class GeneralDiagnosticsServer extends Base {
 
     /**
      * Clear a hardware fault. This convenience method updates the activeHardwareFaults attribute and sends out the
-     * HardwareFaultChanged event.
+     * HardwareFaultChange event.
      *
      * @param faultType The hardware fault to clear.
      */
@@ -337,7 +337,7 @@ export class GeneralDiagnosticsServer extends Base {
 
     /**
      * Register a radio fault. This convenience method updates the activeRadioFaults attribute and sends out the
-     * RadioFaultChanged event. Make sure to clear the fault when it is resolved.
+     * RadioFaultChange event. Make sure to clear the fault when it is resolved.
      * This method requires that the activeRadioFaults attribute is activated when the cluster gets initialized.
      *
      * @param faultType The radio fault to register.
@@ -351,7 +351,7 @@ export class GeneralDiagnosticsServer extends Base {
 
     /**
      * Clear a radio fault. This convenience method updates the activeRadioFaults attribute and sends out the
-     * RadioFaultChanged event.
+     * RadioFaultChange event.
      *
      * @param faultType The radio fault to clear.
      */
@@ -375,7 +375,7 @@ export class GeneralDiagnosticsServer extends Base {
 
     /**
      * Register a network fault. This convenience method updates the activeNetworkFaults attribute and sends out the
-     * NetworkFaultChanged event. Make sure to clear the fault when it is resolved.
+     * NetworkFaultChange event. Make sure to clear the fault when it is resolved.
      * This method requires that the activeNetworkFaults attribute is activated when the cluster gets initialized.
      *
      * @param faultType The network fault to register.
@@ -389,7 +389,7 @@ export class GeneralDiagnosticsServer extends Base {
 
     /**
      * Clear a network fault. This convenience method updates the activeNetworkFaults attribute and sends out the
-     * NetworkFaultChanged event.
+     * NetworkFaultChange event.
      *
      * @param faultType The network fault to clear.
      */
@@ -674,12 +674,12 @@ export namespace GeneralDiagnosticsServer {
     }
 
     export declare const ExtensionInterface: {
-        triggerTestEvent: (eventTrigger: number | bigint) => void;
-        registerHardwareFault: (faultType: GeneralDiagnostics.HardwareFault) => void;
-        registerRadioFault: (faultType: GeneralDiagnostics.RadioFault) => void;
-        registerNetworkFault: (faultType: GeneralDiagnostics.NetworkFault) => void;
-        clearHardwareFault: (faultType: GeneralDiagnostics.HardwareFault) => void;
-        clearRadioFault: (faultType: GeneralDiagnostics.RadioFault) => void;
-        clearNetworkFault: (faultType: GeneralDiagnostics.NetworkFault) => void;
+        triggerTestEvent(eventTrigger: number | bigint): void;
+        registerHardwareFault(faultType: GeneralDiagnostics.HardwareFault): void;
+        registerRadioFault(faultType: GeneralDiagnostics.RadioFault): void;
+        registerNetworkFault(faultType: GeneralDiagnostics.NetworkFault): void;
+        clearHardwareFault(faultType: GeneralDiagnostics.HardwareFault): void;
+        clearRadioFault(faultType: GeneralDiagnostics.RadioFault): void;
+        clearNetworkFault(faultType: GeneralDiagnostics.NetworkFault): void;
     };
 }
