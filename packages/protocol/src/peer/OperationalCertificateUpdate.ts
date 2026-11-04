@@ -34,7 +34,7 @@ import {
 import { CaseAuthenticatedTag, EndpointNumber, FabricIndex, NodeId, StatusResponseError } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
-import { invokeSingleCommand, operationalPublicKeyOfCsr } from "./AdministratorCommands.js";
+import { AdministratorCommands } from "./AdministratorCommands.js";
 import { PeerAddress } from "./PeerAddress.js";
 import { FabricChangedError } from "./PeerCommunicationError.js";
 import { PeerSet } from "./PeerSet.js";
@@ -42,9 +42,6 @@ import { PeerSet } from "./PeerSet.js";
 const logger = Logger.get("OperationalCertificateUpdate");
 
 const RootEndpointNumber = EndpointNumber(0);
-
-/** Default fail-safe for the whole update, including the CASE reconnect with the new certificate. */
-export const DEFAULT_NOC_UPDATE_FAILSAFE = Minutes.one;
 
 /** Fail-safe time kept back so CommissioningComplete can still arrive after the reconnect. */
 const COMMISSIONING_COMPLETE_MARGIN = Seconds(10);
@@ -76,221 +73,237 @@ export class OperationalCertificateUpdateBusyError extends OperationalCertificat
 export class OperationalCertificateUpdateRefusedError extends OperationalCertificateUpdateError {}
 
 /**
- * Dependencies of {@link updateOperationalCertificate}.
+ * Replacement of the node operational certificate of a commissioned peer, see {@link
+ * OperationalCertificateUpdate.update}.
  */
-export interface OperationalCertificateUpdateContext {
-    peers: PeerSet;
-    sessions: SessionManager;
-    exchanges: ExchangeManager;
-    ca: CertificateAuthority;
-    environment: Environment;
-}
-
-/**
- * Options of {@link updateOperationalCertificate}.
- *
- * @see {@link MatterSpecification.v161.Core} § 11.10.7.2
- */
-export interface OperationalCertificateUpdateOptions {
-    /** The peer whose certificate to replace. */
-    address: PeerAddress;
+export namespace OperationalCertificateUpdate {
+    /** Default fail-safe for the whole update, including the CASE reconnect with the new certificate. */
+    export const DEFAULT_FAILSAFE = Minutes.one;
 
     /**
-     * Fail-safe armed for the whole update.  Defaults to {@link DEFAULT_NOC_UPDATE_FAILSAFE}; must lie between 30 s
-     * and 65535 s.  A peer ends the fail-safe early at its `MaxCumulativeFailsafeSeconds`.
+     * Dependencies of {@link update}.
      */
-    failsafe?: Duration;
-
-    /** Aborts waiting for any CASE session the update opens with the peer. */
-    abort?: AbortSignal;
-}
-
-/**
- * Result of {@link updateOperationalCertificate}.
- *
- * @see {@link MatterSpecification.v161.Core} § 11.18.6.10
- */
-export interface OperationalCertificateUpdateResult {
-    /** Fabric index under which the peer stores the updated certificate, if its NOCResponse arrived. */
-    fabricIndexOnPeer?: FabricIndex;
-
-    /** Public key of the new node operational key pair. */
-    operationalPublicKey: Bytes;
-}
-
-/**
- * Replace the node operational certificate (NOC) of a commissioned peer with one for a freshly generated key pair.
- *
- * The node ID, fabric, CASE Authenticated Tags and fabric-scoped data on the peer stay unchanged.  The sequence:
- *
- * ```
- * session 1: ArmFailSafe ─ CertificateChainRequest(DAC) ─ CSRRequest(IsForUpdateNOC) ─ UpdateNOC
- * session 2: CommissioningComplete
- * ```
- *
- * CSRRequest and UpdateNOC must share one secure session.  The peer keeps that session only until the NOCResponse is
- * delivered, so CommissioningComplete uses a new CASE session that authenticates the new NOC.  The DAC check of the
- * CSR signature only proves that the CSR comes from the holder of the DAC the peer reports; the CASE session already
- * authenticates the peer.
- *
- * The update arms its fail-safe with a random non-zero Breadcrumb.  The peer resets Breadcrumb to 0 on a successful
- * CommissioningComplete and on fail-safe expiry or disarm (§ 11.10.7.2, § 11.10.7.6).  The fail-safe is bound to the
- * fabric, not to the session, so any operation of the same fabric may re-arm it and overwrite Breadcrumb.  The update
- * therefore sends CommissioningComplete only over a session on which it has just read its own Breadcrumb, and it does
- * not arm when Breadcrumb is not 0 at the start, because an ArmFailSafe would join the fail-safe of another operation.
- * When it reads a foreign Breadcrumb after UpdateNOC, it disarms, so that no other operation can commit the pending NOC
- * later, and decides from a second read; a disarm without an armed fail-safe has no effect (§ 11.10.7.2).
- *
- * Failure handling:
- *
- * | Situation                                  | Action and result                                   |
- * | ------------------------------------------ | --------------------------------------------------- |
- * | aborted before or while a session is       | send nothing on it; reject with the abort reason    |
- * | obtained                                   |                                                     |
- * | Breadcrumb not 0 before arming             | arm nothing; reject as busy, the caller may retry   |
- * | Breadcrumb or NOCs unreadable before       | arm nothing; reject, nothing changed                |
- * | arming                                     |                                                     |
- * | the reported NOC fails to verify against   | arm nothing; reject as refused, nothing changed     |
- * | the fabric root, node ID or fabric ID      |                                                     |
- * | ArmFailSafe answered with an error code    | nothing armed; reject                               |
- * | a later step before UpdateNOC fails, or    | disarm over session 1; previous NOC kept            |
- * | UpdateNOC is refused                       |                                                     |
- * | after UpdateNOC, on a new CASE session     | read Breadcrumb and NOCs, then by the values read:  |
- * | - Breadcrumb ours, NOCs is the new NOC     | CommissioningComplete: OK → resolve; error code or  |
- * |                                            | status → disarm and read again; no answer →         |
- * |                                            | recovery                                            |
- * | - Breadcrumb 0, NOCs is the previous NOC   | send nothing; report previous NOC (fail-safe ended) |
- * | - anything else                            | disarm and read again                               |
- * | read again, on another new session         | 0 and NOCs is the previous NOC → report previous    |
- * |                                            | NOC; 0 and NOCs is the new NOC after a confirmed    |
- * |                                            | disarm → resolve; else report the outcome as        |
- * |                                            | unknown                                             |
- * | UpdateNOC unanswered; or after a confirmed | recovery, once: the same read and decision on       |
- * | UpdateNOC no CASE session, a read or       | another new CASE session; a failure there or an     |
- * | CommissioningComplete unanswered           | abort reports the outcome as unknown                |
- *
- * "NOCs is" a certificate means the fabric's NOCs list holds exactly that one certificate; the previous NOC is the one
- * verified before arming.  An empty list or a NOC of another rotation counts as anything else.
- *
- * The update never lets another operation commit its new NOC unseen.  For that reason the disarm deliberately also
- * reverts what another operation of the same fabric placed in the shared fail-safe context; that operation's
- * CommissioningComplete then fails with NoFailSafe, and it can retry.  Matter offers no read of who holds the
- * fail-safe, so an arm with Breadcrumb 0 by another operation before the update starts stays undetectable.  Breadcrumb
- * is writable (§ 11.10.6.1), so a stale non-zero value written without a fail-safe makes the update refuse until
- * CommissioningComplete, a fail-safe expiry or a restart of the peer resets it.
- *
- * After UpdateNOC and after a rollback the peer clears our sessions without notice, so we close ours, drop the
- * resumption record and restart subscriptions.
- *
- * Rejects with {@link ImplementationError} for an unknown peer, a fabric whose CA we do not hold or a fail-safe out
- * of range, with the connection error when no CASE session can be established at the start, with
- * {@link OperationalCertificateUpdateBusyError} or {@link OperationalCertificateUpdateRefusedError} when no fail-safe
- * was armed, and with {@link OperationalCertificateUpdateError} for every later failure.
- *
- * @see {@link MatterSpecification.v161.Core} § 11.18.6.9
- * @see {@link MatterSpecification.v161.Core} § 11.10.7.2
- * @see {@link MatterSpecification.v161.Core} § 11.10.6.1
- */
-export async function updateOperationalCertificate(
-    context: OperationalCertificateUpdateContext,
-    { address, failsafe = DEFAULT_NOC_UPDATE_FAILSAFE, abort }: OperationalCertificateUpdateOptions,
-): Promise<OperationalCertificateUpdateResult> {
-    const { peers, ca } = context;
-
-    const peer = peers.get(address);
-    if (peer === undefined) {
-        throw new ImplementationError(`Cannot update the operational certificate of unknown peer ${address}`);
-    }
-    const fabric = peer.fabric;
-    if (!Bytes.areEqual(fabric.rootCert, ca.rootCert)) {
-        throw new ImplementationError(
-            `Cannot update the operational certificate of ${address} because we are not the certificate authority of fabric ${fabric.fabricIndex}`,
-        );
-    }
-    if (failsafe < MIN_FAILSAFE || failsafe > MAX_FAILSAFE) {
-        throw new ImplementationError(
-            `Fail-safe ${Duration.format(failsafe)} for the operational certificate update of ${address} is outside ${Duration.format(MIN_FAILSAFE)} to ${Duration.format(MAX_FAILSAFE)}`,
-        );
+    export interface Context {
+        peers: PeerSet;
+        sessions: SessionManager;
+        exchanges: ExchangeManager;
+        ca: CertificateAuthority;
+        environment: Environment;
     }
 
-    const first = await connectCase(context, address, { abort });
-    const armedAt = Time.nowUs;
-    const failsafeLeft = () => Millis(Math.max(Math.floor(failsafe - (Time.nowUs - armedAt)), 0));
+    /**
+     * Options of {@link update}.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.10.7.2
+     */
+    export interface Options {
+        /** The peer whose certificate to replace. */
+        address: PeerAddress;
 
-    const failsafeArm: FailsafeArm = { failsafe, breadcrumb: randomBreadcrumb(ca.crypto) };
-    let installed: InstalledCertificate;
-    try {
-        installed = await installNewCertificate(context, first, fabric, failsafeArm);
-    } finally {
-        await first.interaction.close();
+        /**
+         * Fail-safe armed for the whole update.  Defaults to {@link DEFAULT_FAILSAFE}; must lie between 30 s
+         * and 65535 s.  A peer ends the fail-safe early at its `MaxCumulativeFailsafeSeconds`.
+         */
+        failsafe?: Duration;
+
+        /** Aborts waiting for any CASE session the update opens with the peer. */
+        abort?: AbortSignal;
     }
 
-    if (installed.kind === "refused") {
-        if (isArmRefusal(installed.cause)) {
-            throw installed.cause;
+    /**
+     * Result of {@link update}.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.6.10
+     */
+    export interface Result {
+        /** Fabric index under which the peer stores the updated certificate, if its NOCResponse arrived. */
+        fabricIndexOnPeer?: FabricIndex;
+
+        /** Public key of the new node operational key pair. */
+        operationalPublicKey: Bytes;
+    }
+
+    /**
+     * Replace the node operational certificate (NOC) of a commissioned peer with one for a freshly generated key pair.
+     *
+     * The node ID, fabric, CASE Authenticated Tags and fabric-scoped data on the peer stay unchanged.  The sequence:
+     *
+     * ```
+     * session 1: ArmFailSafe ─ CertificateChainRequest(DAC) ─ CSRRequest(IsForUpdateNOC) ─ UpdateNOC
+     * session 2: CommissioningComplete
+     * ```
+     *
+     * CSRRequest and UpdateNOC must share one secure session (§ 11.18.6.7.2).  The peer keeps that session only until
+     * the NOCResponse is delivered, so CommissioningComplete uses a new CASE session that authenticates the new NOC.
+     * The update sends its commands through a {@link ClientInteraction} bound to a CASE session it opens itself.  A
+     * `ClientNode` cluster command chooses its session on each invoke, so it cannot keep CSRRequest and UpdateNOC on
+     * one session or follow the session rule for CommissioningComplete below.  The DAC check of the CSR signature only
+     * proves that the CSR comes from the holder of the DAC the peer reports; the CASE session already authenticates the
+     * peer.
+     *
+     * The update arms its fail-safe with a random non-zero Breadcrumb.  The peer resets Breadcrumb to 0 on a successful
+     * CommissioningComplete and on fail-safe expiry or disarm (§ 11.10.7.2, § 11.10.7.6).  The fail-safe is bound to
+     * the fabric, not to the session, so any operation of the same fabric may re-arm it and overwrite Breadcrumb.  The
+     * update therefore sends CommissioningComplete only over a session on which it has just read its own Breadcrumb,
+     * and it does not arm when Breadcrumb is not 0 at the start, because an ArmFailSafe would join the fail-safe of
+     * another operation.  When it reads a foreign Breadcrumb after UpdateNOC, it disarms, so that no other operation
+     * can commit the pending NOC later, and decides from a second read; a disarm without an armed fail-safe has no
+     * effect (§ 11.10.7.2).
+     *
+     * Failure handling:
+     *
+     * | Situation                                  | Action and result                                   |
+     * | ------------------------------------------ | --------------------------------------------------- |
+     * | aborted before or while a session is       | send nothing on it; reject with the abort reason    |
+     * | obtained                                   |                                                     |
+     * | Breadcrumb not 0 before arming             | arm nothing; reject as busy, the caller may retry   |
+     * | Breadcrumb or NOCs unreadable before       | arm nothing; reject, nothing changed                |
+     * | arming                                     |                                                     |
+     * | the reported NOC fails to verify against   | arm nothing; reject as refused, nothing changed     |
+     * | the fabric root, node ID or fabric ID      |                                                     |
+     * | ArmFailSafe answered with an error code    | nothing armed; reject                               |
+     * | a later step before UpdateNOC fails, or    | disarm over session 1; previous NOC kept            |
+     * | UpdateNOC is refused                       |                                                     |
+     * | after UpdateNOC, on a new CASE session     | read Breadcrumb and NOCs, then by the values read:  |
+     * | - Breadcrumb ours, NOCs is the new NOC     | CommissioningComplete: OK → resolve; error code or  |
+     * |                                            | status → disarm and read again; no answer →         |
+     * |                                            | recovery                                            |
+     * | - Breadcrumb 0, NOCs is the previous NOC   | send nothing; report previous NOC (fail-safe ended) |
+     * | - anything else                            | disarm and read again                               |
+     * | read again, on another new session         | 0 and NOCs is the previous NOC → report previous    |
+     * |                                            | NOC; 0 and NOCs is the new NOC after a confirmed    |
+     * |                                            | disarm → resolve; else report the outcome as        |
+     * |                                            | unknown                                             |
+     * | UpdateNOC unanswered; or after a confirmed | recovery, once: the same read and decision on       |
+     * | UpdateNOC no CASE session, a read or       | another new CASE session; a failure there or an     |
+     * | CommissioningComplete unanswered           | abort reports the outcome as unknown                |
+     *
+     * "NOCs is" a certificate means the fabric's NOCs list holds exactly that one certificate; the previous NOC is the
+     * one verified before arming.  An empty list or a NOC of another rotation counts as anything else.
+     *
+     * The update never lets another operation commit its new NOC unseen.  For that reason the disarm deliberately also
+     * reverts what another operation of the same fabric placed in the shared fail-safe context; that operation's
+     * CommissioningComplete then fails with NoFailSafe, and it can retry.  Matter offers no read of who holds the
+     * fail-safe, so an arm with Breadcrumb 0 by another operation before the update starts stays undetectable.
+     * Breadcrumb is writable (§ 11.10.6.1), so a stale non-zero value written without a fail-safe makes the update
+     * refuse until CommissioningComplete, a fail-safe expiry or a restart of the peer resets it.
+     *
+     * After UpdateNOC and after a rollback the peer clears our sessions without notice, so we close ours, drop the
+     * resumption record and restart subscriptions.
+     *
+     * Rejects with {@link ImplementationError} for an unknown peer, a fabric whose CA we do not hold or a fail-safe out
+     * of range, with the connection error when no CASE session can be established at the start, with {@link
+     * OperationalCertificateUpdateBusyError} or {@link OperationalCertificateUpdateRefusedError} when no fail-safe was
+     * armed, and with {@link OperationalCertificateUpdateError} for every later failure.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.6.9
+     * @see {@link MatterSpecification.v161.Core} § 11.10.7.2
+     * @see {@link MatterSpecification.v161.Core} § 11.10.6.1
+     */
+    export async function update(
+        context: Context,
+        { address, failsafe = DEFAULT_FAILSAFE, abort }: Options,
+    ): Promise<Result> {
+        const { peers, ca } = context;
+
+        const peer = peers.get(address);
+        if (peer === undefined) {
+            throw new ImplementationError(`Cannot update the operational certificate of unknown peer ${address}`);
         }
-        throw new OperationalCertificateUpdateError(
-            `Updating the operational certificate of ${address} failed; it keeps its previous certificate`,
-            { cause: installed.cause },
-        );
-    }
+        const fabric = peer.fabric;
+        if (!Bytes.areEqual(fabric.rootCert, ca.rootCert)) {
+            throw new ImplementationError(
+                `Cannot update the operational certificate of ${address} because we are not the certificate authority of fabric ${fabric.fabricIndex}`,
+            );
+        }
+        if (failsafe < MIN_FAILSAFE || failsafe > MAX_FAILSAFE) {
+            throw new ImplementationError(
+                `Fail-safe ${Duration.format(failsafe)} for the operational certificate update of ${address} is outside ${Duration.format(MIN_FAILSAFE)} to ${Duration.format(MAX_FAILSAFE)}`,
+            );
+        }
 
-    let cause = installed.kind === "unconfirmed" ? installed.cause : undefined;
-    let completion: Completion | undefined;
-    if (installed.kind === "installed") {
+        const first = await connectCase(context, address, { abort });
+        const armedAt = Time.nowUs;
+        const failsafeLeft = () => Millis(Math.max(Math.floor(failsafe - (Time.nowUs - armedAt)), 0));
+
+        const failsafeArm: FailsafeArm = { failsafe, breadcrumb: randomBreadcrumb(ca.crypto) };
+        let installed: InstalledCertificate;
         try {
-            completion = await completeUpdate(context, address, installed, failsafeArm, {
-                abort,
-                connectionTimeout: Millis(Math.max(failsafeLeft() - COMMISSIONING_COMPLETE_MARGIN, 0)),
-            });
-        } catch (error) {
-            cause = error;
+            installed = await installNewCertificate(context, first, fabric, failsafeArm);
+        } finally {
+            await first.interaction.close();
         }
-    }
 
-    const recovered = completion === undefined;
-    if (completion === undefined && abort?.aborted) {
-        if (installed.kind === "unconfirmed") {
+        if (installed.kind === "refused") {
+            if (isArmRefusal(installed.cause)) {
+                throw installed.cause;
+            }
+            throw new OperationalCertificateUpdateError(
+                `Updating the operational certificate of ${address} failed; it keeps its previous certificate`,
+                { cause: installed.cause },
+            );
+        }
+
+        let cause = installed.kind === "unconfirmed" ? installed.cause : undefined;
+        let completion: Completion | undefined;
+        if (installed.kind === "installed") {
             try {
-                await forgetSessions(context, address, "Operational certificate update of the peer was aborted");
+                completion = await completeUpdate(context, address, installed, failsafeArm, {
+                    abort,
+                    connectionTimeout: Millis(Math.max(failsafeLeft() - COMMISSIONING_COMPLETE_MARGIN, 0)),
+                });
             } catch (error) {
-                logger.info(`Could not forget the sessions of ${address} after an aborted certificate update:`, error);
+                cause = error;
             }
         }
-        completion = { kind: "unknown" };
-    }
-    if (completion === undefined) {
-        try {
-            completion = await completeUpdate(context, address, installed, failsafeArm, { abort });
-        } catch (error) {
-            logger.info(`Could not complete the operational certificate update of ${address}:`, error);
+
+        const recovered = completion === undefined;
+        if (completion === undefined && abort?.aborted) {
+            if (installed.kind === "unconfirmed") {
+                try {
+                    await forgetSessions(context, address, "Operational certificate update of the peer was aborted");
+                } catch (error) {
+                    logger.info(
+                        `Could not forget the sessions of ${address} after an aborted certificate update:`,
+                        error,
+                    );
+                }
+            }
             completion = { kind: "unknown" };
         }
-    }
+        if (completion === undefined) {
+            try {
+                completion = await completeUpdate(context, address, installed, failsafeArm, { abort });
+            } catch (error) {
+                logger.info(`Could not complete the operational certificate update of ${address}:`, error);
+                completion = { kind: "unknown" };
+            }
+        }
 
-    switch (completion.kind) {
-        case "completed":
-            logger.info(
-                "Updated operational certificate of",
-                address.toString(),
-                ...(recovered ? ["after a recovery"] : []),
-            );
-            return {
-                fabricIndexOnPeer: installed.kind === "installed" ? installed.fabricIndexOnPeer : undefined,
-                operationalPublicKey: installed.operationalPublicKey,
-            };
+        switch (completion.kind) {
+            case "completed":
+                logger.info(
+                    "Updated operational certificate of",
+                    address.toString(),
+                    ...(recovered ? ["after a recovery"] : []),
+                );
+                return {
+                    fabricIndexOnPeer: installed.kind === "installed" ? installed.fabricIndexOnPeer : undefined,
+                    operationalPublicKey: installed.operationalPublicKey,
+                };
 
-        case "reverted":
-            throw new OperationalCertificateUpdateError(
-                `Updating the operational certificate of ${address} failed; it reverted to its previous certificate`,
-                { cause: completion.cause ?? cause },
-            );
+            case "reverted":
+                throw new OperationalCertificateUpdateError(
+                    `Updating the operational certificate of ${address} failed; it reverted to its previous certificate`,
+                    { cause: completion.cause ?? cause },
+                );
 
-        case "unknown":
-            throw new OperationalCertificateUpdateError(
-                `Updating the operational certificate of ${address} failed and its outcome is unknown; the peer reverts to its previous certificate when its fail-safe expires, unless this update or another operation of the same fabric completed that fail-safe`,
-                { cause: completion.cause ?? cause },
-            );
+            case "unknown":
+                throw new OperationalCertificateUpdateError(
+                    `Updating the operational certificate of ${address} failed and its outcome is unknown; the peer reverts to its previous certificate when its fail-safe expires, unless this update or another operation of the same fabric completed that fail-safe`,
+                    { cause: completion.cause ?? cause },
+                );
+        }
     }
 }
 
@@ -315,7 +328,7 @@ interface NewCertificate {
  * the peer, disarms the fail-safe over the same session.
  */
 async function installNewCertificate(
-    { ca }: OperationalCertificateUpdateContext,
+    { ca }: OperationalCertificateUpdate.Context,
     { session, interaction }: AdministratorSession,
     fabric: Fabric,
     failsafeArm: FailsafeArm,
@@ -361,7 +374,7 @@ async function installNewCertificate(
 
     try {
         const { certificate: dac } = responseOf(
-            await invokeSingleCommand(
+            await AdministratorCommands.invoke(
                 interaction,
                 {
                     endpoint: RootEndpointNumber,
@@ -376,7 +389,7 @@ async function installNewCertificate(
         const dacPublicKey = PublicKey(Dac.fromAsn1(dac).cert.ellipticCurvePublicKey);
 
         const csrResponse = responseOf(
-            await invokeSingleCommand(
+            await AdministratorCommands.invoke(
                 interaction,
                 {
                     endpoint: RootEndpointNumber,
@@ -388,7 +401,7 @@ async function installNewCertificate(
             ),
             "CSRRequest",
         );
-        const operationalPublicKey = await operationalPublicKeyOfCsr(ca.crypto, csrResponse, {
+        const operationalPublicKey = await AdministratorCommands.operationalPublicKeyOfCsr(ca.crypto, csrResponse, {
             challenge: session.attestationChallengeKey,
             dacPublicKey,
         });
@@ -410,7 +423,7 @@ async function installNewCertificate(
     let response: OperationalCredentials.NocResponse;
     try {
         response = responseOf(
-            await invokeSingleCommand(
+            await AdministratorCommands.invoke(
                 interaction,
                 {
                     endpoint: RootEndpointNumber,
@@ -471,12 +484,12 @@ interface Disarmed {
 /**
  * Send CommissioningComplete over a new CASE session, but only after reading on that session this update's
  * Breadcrumb and the new NOC pending.  Otherwise, and when CommissioningComplete fails, disarm and decide from a read
- * on another new session; see the table at {@link updateOperationalCertificate}.
+ * on another new session; see the table at {@link OperationalCertificateUpdate.update}.
  *
  * Rejects when the peer cannot be reached, a read fails or CommissioningComplete is not answered.
  */
 async function completeUpdate(
-    context: OperationalCertificateUpdateContext,
+    context: OperationalCertificateUpdate.Context,
     address: PeerAddress,
     certificate: NewCertificate,
     { breadcrumb }: FailsafeArm,
@@ -530,7 +543,7 @@ async function completeUpdate(
 async function commissioningComplete(interaction: ClientInteraction) {
     try {
         return responseOf(
-            await invokeSingleCommand(
+            await AdministratorCommands.invoke(
                 interaction,
                 { endpoint: RootEndpointNumber, cluster: GeneralCommissioning, command: "commissioningComplete" },
                 { useExtendedFailSafeMessageResponseTimeout: true },
@@ -647,7 +660,7 @@ async function certificateState(interaction: ClientInteraction): Promise<Certifi
  * replaced certificate, and re-establish subscriptions instead of waiting for them to time out.
  */
 async function forgetSessions(
-    { peers, sessions, environment }: OperationalCertificateUpdateContext,
+    { peers, sessions, environment }: OperationalCertificateUpdate.Context,
     address: PeerAddress,
     reason: string,
 ) {
@@ -666,7 +679,7 @@ interface AdministratorSession {
 
 /** Obtain a CASE session with the peer and an interaction bound to exactly that session. */
 async function connectCase(
-    { peers, exchanges, environment }: OperationalCertificateUpdateContext,
+    { peers, exchanges, environment }: OperationalCertificateUpdate.Context,
     address: PeerAddress,
     options: { abort?: AbortSignal; connectionTimeout?: Duration },
 ): Promise<AdministratorSession> {
@@ -685,7 +698,7 @@ async function connectCase(
 
 /** Run {@link fn} with a CASE session from {@link connectCase} and close its interaction afterwards. */
 async function withCase<T>(
-    context: OperationalCertificateUpdateContext,
+    context: OperationalCertificateUpdate.Context,
     address: PeerAddress,
     options: { abort?: AbortSignal; connectionTimeout?: Duration },
     fn: (session: AdministratorSession) => Promise<T>,
@@ -708,7 +721,7 @@ function isArmRefusal(cause: unknown) {
 
 async function armFailsafe(interaction: ClientInteraction, { failsafe, breadcrumb }: FailsafeArm) {
     const { errorCode, debugText } = responseOf(
-        await invokeSingleCommand(interaction, {
+        await AdministratorCommands.invoke(interaction, {
             endpoint: RootEndpointNumber,
             cluster: GeneralCommissioning,
             command: "armFailSafe",
@@ -737,7 +750,7 @@ async function disarmFailsafe(interaction: ClientInteraction): Promise<boolean> 
     let failure: unknown;
     try {
         const { errorCode, debugText } = responseOf(
-            await invokeSingleCommand(interaction, {
+            await AdministratorCommands.invoke(interaction, {
                 endpoint: RootEndpointNumber,
                 cluster: GeneralCommissioning,
                 command: "armFailSafe",
@@ -763,7 +776,10 @@ function commissioningErrorText(errorCode: GeneralCommissioning.CommissioningErr
     return `${GeneralCommissioning.CommissioningError[errorCode]} (${errorCode})${debugText ? `, ${debugText}` : ""}`;
 }
 
-/** A response command, which {@link invokeSingleCommand} omits when the peer answers with a bare success status. */
+/**
+ * A response command, which {@link AdministratorCommands.invoke} omits when the peer answers with a bare success
+ * status.
+ */
 function responseOf<T>(response: T | undefined, command: string): T {
     if (response === undefined) {
         throw new UnexpectedDataError(`${command} was answered with a status instead of a response`);

@@ -62,7 +62,7 @@ import {
 import { Dac } from "../certificate/kinds/AttestationCertificates.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { Fabric } from "../fabric/Fabric.js";
-import { invokeSingleCommand, operationalPublicKeyOfCsr } from "./AdministratorCommands.js";
+import { AdministratorCommands } from "./AdministratorCommands.js";
 import { CommissioningError } from "./CommissioningError.js";
 import { PeerAddress } from "./PeerAddress.js";
 
@@ -501,7 +501,7 @@ export class ControllerCommissioningFlow {
         request: Invoke.ConcreteCommandRequest<C>,
         options: Omit<Invoke.Definition, "commands"> = {},
     ) {
-        return invokeSingleCommand(this.interaction, request, options);
+        return AdministratorCommands.invoke(this.interaction, request, options);
     }
 
     /**
@@ -1389,7 +1389,7 @@ export class ControllerCommissioningFlow {
         );
 
         // The DAC public key is only known when the attestation step ran
-        const operationalPublicKey = await operationalPublicKeyOfCsr(
+        const operationalPublicKey = await AdministratorCommands.operationalPublicKeyOfCsr(
             this.ca.crypto,
             { nocsrElements, attestationSignature },
             { challenge: this.commissioningOptions.attestation!.challengeKey, dacPublicKey: this.#dacPublicKey },

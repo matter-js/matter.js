@@ -42,6 +42,7 @@ import {
     ExchangeManager,
     Fabric,
     FabricManager,
+    OperationalCertificateUpdate,
     OperationalCertificateUpdateBusyError,
     OperationalCertificateUpdateError,
     OperationalCertificateUpdateRefusedError,
@@ -49,7 +50,6 @@ import {
     PeerAddress,
     PeerSet,
     SessionManager,
-    updateOperationalCertificate,
 } from "@matter/protocol";
 import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
@@ -793,7 +793,7 @@ describe("OperationalCertificateUpdate", () => {
         const { env } = controller;
 
         await expect(
-            updateOperationalCertificate(
+            OperationalCertificateUpdate.update(
                 {
                     peers: env.get(PeerSet),
                     sessions: env.get(SessionManager),

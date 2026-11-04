@@ -49,7 +49,7 @@ import {
 import { FabricIndex, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
-import { OperationalCertificateUpdateOptions, updateOperationalCertificate } from "./OperationalCertificateUpdate.js";
+import { OperationalCertificateUpdate } from "./OperationalCertificateUpdate.js";
 import { PeerAddress } from "./PeerAddress.js";
 import { CommissioningTransitionError, PeerCommunicationError } from "./PeerCommunicationError.js";
 import { PeerSet } from "./PeerSet.js";
@@ -253,12 +253,12 @@ export class ControllerCommissioner {
     /**
      * Replace the operational certificate of a commissioned peer with one for a new key pair the peer generates.
      *
-     * See {@link updateOperationalCertificate} for the sequence, failure handling and errors.
+     * See {@link OperationalCertificateUpdate.update} for the sequence, failure handling and errors.
      *
      * @see {@link MatterSpecification.v161.Core} § 11.18.6.9
      */
-    async updateOperationalCertificate(options: OperationalCertificateUpdateOptions) {
-        return updateOperationalCertificate(this.#context, options);
+    async updateOperationalCertificate(options: OperationalCertificateUpdate.Options) {
+        return OperationalCertificateUpdate.update(this.#context, options);
     }
 
     /**
