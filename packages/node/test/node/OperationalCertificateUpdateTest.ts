@@ -235,6 +235,45 @@ function dropRequests(clusterId: number, commandId: number) {
     return interceptCommand(clusterId, commandId, { delivered: false, answered: false });
 }
 
+/**
+ * Answer the first request that carries a command with the NoCommandResponse status matter.js reports when an
+ * InvokeResponse lacks the command's entry.  {@link delivered} says whether the device executed the command, which a
+ * faulty peer may skip although it answers.  Returns a restore function.
+ */
+function reportMissingResponse(clusterId: number, commandId: number, { delivered }: { delivered: boolean }) {
+    let faulted = false;
+    const original = ClientInteraction.prototype.invoke;
+    ClientInteraction.prototype.invoke = async function* (
+        this: ClientInteraction,
+        ...args: Parameters<typeof original>
+    ): ReturnType<typeof original> {
+        const [request] = args;
+        const invokeRequest = request.invokeRequests.find(
+            ({ commandPath }) => commandPath.clusterId === clusterId && commandPath.commandId === commandId,
+        );
+        const { endpointId } = invokeRequest?.commandPath ?? {};
+        if (faulted || invokeRequest === undefined || endpointId === undefined) {
+            yield* original.apply(this, args);
+            return;
+        }
+        faulted = true;
+        if (delivered) {
+            for await (const _chunk of original.apply(this, args));
+        }
+        yield [
+            {
+                kind: "cmd-status",
+                path: { ...invokeRequest.commandPath, endpointId },
+                commandRef: invokeRequest.commandRef,
+                status: Status.NoCommandResponse,
+            },
+        ];
+    };
+    return () => {
+        ClientInteraction.prototype.invoke = original;
+    };
+}
+
 function loseUpdateNocResponse(afterDelivery?: () => Promise<void>) {
     return loseResponse(OperationalCredentials.Cluster.id, UPDATE_NOC_COMMAND_ID, afterDelivery);
 }
@@ -1094,7 +1133,8 @@ describe("OperationalCertificateUpdate", () => {
             SessionManager.prototype.deleteResumptionRecord = originalDelete;
         }
 
-        expect(restarts).equals(2);
+        // Before each of the two completion attempts and once for the unknown outcome
+        expect(restarts).equals(3);
     });
 
     it("keeps the CASE Authenticated Tags of the current NOC", async () => {
@@ -1217,7 +1257,8 @@ describe("OperationalCertificateUpdate", () => {
             restoreController();
         }
 
-        expect(cleanups).equals(1);
+        // Before the new session and once for the unknown outcome; a recovery would add one more
+        expect(cleanups).equals(2);
     });
 
     it("forgets the sessions when aborted after a lost UpdateNOC answer", async () => {
@@ -1247,6 +1288,110 @@ describe("OperationalCertificateUpdate", () => {
         }
 
         expect(cleanups).equals(1);
+    });
+
+    it("completes the update in recovery when the answer to UpdateNOC lacks its response", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const before = snapshot(device);
+
+        const restore = reportMissingResponse(OperationalCredentials.Cluster.id, UPDATE_NOC_COMMAND_ID, {
+            delivered: true,
+        });
+        try {
+            await update(controller, device, peer);
+        } finally {
+            restore();
+        }
+
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
+        expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).false;
+    });
+
+    it("tries the recovery when a peer answers CommissioningComplete without its response and without executing it", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const before = snapshot(device);
+
+        const { handled, restore: restoreDevice } = await countCommissioningComplete(device);
+        const restoreController = reportMissingResponse(
+            GeneralCommissioning.Cluster.id,
+            COMMISSIONING_COMPLETE_COMMAND_ID,
+            { delivered: false },
+        );
+        try {
+            await update(controller, device, peer);
+        } finally {
+            restoreController();
+            restoreDevice();
+        }
+
+        expect(handled.count).equals(1);
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
+        expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).false;
+    });
+
+    // Characterization: the read after a disarm also finds the committed NOC
+    it("keeps the new NOC when CommissioningComplete took effect but the answer lacks its response", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const before = snapshot(device);
+
+        const { handled, restore: restoreDevice } = await countCommissioningComplete(device);
+        const restoreController = reportMissingResponse(
+            GeneralCommissioning.Cluster.id,
+            COMMISSIONING_COMPLETE_COMMAND_ID,
+            { delivered: true },
+        );
+        try {
+            await update(controller, device, peer);
+        } finally {
+            restoreController();
+            restoreDevice();
+        }
+
+        expect(handled.count).equals(1);
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
+        expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).false;
+    });
+
+    it("closes the session of an aborted recovery", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        const abort = new AbortController();
+        const { restore: restoreCommissioningComplete } = dropRequests(
+            GeneralCommissioning.Cluster.id,
+            COMMISSIONING_COMPLETE_COMMAND_ID,
+        );
+        const originalConnect = Peer.prototype.connect;
+        const sessions = new Array<Awaited<ReturnType<typeof originalConnect>>>();
+        Peer.prototype.connect = async function (this: Peer, ...args: Parameters<typeof originalConnect>) {
+            const session = await originalConnect.apply(this, args);
+            sessions.push(session);
+            // The first session carries UpdateNOC, the second CommissioningComplete, the third the recovery
+            if (sessions.length === 3) {
+                abort.abort(new FabricChangedError("aborted by test"));
+            }
+            return session;
+        };
+        try {
+            await expect(
+                withEntropy([controller, device], () =>
+                    MockTime.resolve(peer.updateOperationalCertificate({ abort: abort.signal }), { macrotasks: true }),
+                ),
+            ).rejectedWith(OperationalCertificateUpdateError, /outcome is unknown/);
+        } finally {
+            Peer.prototype.connect = originalConnect;
+            restoreCommissioningComplete();
+        }
+
+        expect(sessions.length).equals(3);
+        expect(sessions[2].isClosing || sessions[2].isClosed).true;
     });
 
     it("reports the previous certificate when the fail-safe ended before the update completed", async () => {

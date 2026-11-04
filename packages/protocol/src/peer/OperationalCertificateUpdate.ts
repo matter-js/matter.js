@@ -31,7 +31,14 @@ import {
     Time,
     UnexpectedDataError,
 } from "@matter/general";
-import { CaseAuthenticatedTag, EndpointNumber, FabricIndex, NodeId, StatusResponseError } from "@matter/types";
+import {
+    CaseAuthenticatedTag,
+    EndpointNumber,
+    FabricIndex,
+    NodeId,
+    ReceivedStatusResponseError,
+    StatusResponseError,
+} from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { AdministratorCommands } from "./AdministratorCommands.js";
@@ -161,13 +168,15 @@ export namespace OperationalCertificateUpdate {
      * | arming                                     |                                                     |
      * | the reported NOC fails to verify against   | arm nothing; reject as refused, nothing changed     |
      * | the fabric root, node ID or fabric ID      |                                                     |
-     * | ArmFailSafe answered with an error code    | nothing armed; reject                               |
+     * | ArmFailSafe answered with an error code    | nothing armed; reject as busy or refused            |
+     * | ArmFailSafe answered with a status or not  | disarm over session 1; reject                       |
+     * | answered                                   |                                                     |
      * | a later step before UpdateNOC fails, or    | disarm over session 1; previous NOC kept            |
-     * | UpdateNOC is refused                       |                                                     |
+     * | the peer refuses UpdateNOC                 |                                                     |
      * | after UpdateNOC, on a new CASE session     | read Breadcrumb and NOCs, then by the values read:  |
      * | - Breadcrumb ours, NOCs is the new NOC     | CommissioningComplete: OK → resolve; error code or  |
-     * |                                            | status → disarm and read again; no answer →         |
-     * |                                            | recovery                                            |
+     * |                                            | error status of the peer → disarm and read again;   |
+     * |                                            | no answer or no response → recovery                 |
      * | - Breadcrumb 0, NOCs is the previous NOC   | send nothing; report previous NOC (fail-safe ended) |
      * | - anything else                            | disarm and read again                               |
      * | read again, on another new session         | 0 and NOCs is the previous NOC → report previous    |
@@ -189,12 +198,14 @@ export namespace OperationalCertificateUpdate {
      * refuse until CommissioningComplete, a fail-safe expiry or a restart of the peer resets it.
      *
      * After UpdateNOC and after a rollback the peer clears our sessions without notice, so we close ours, drop the
-     * resumption record and restart subscriptions.
+     * resumption record and restart subscriptions.  An unknown outcome does the same, because the peer may still roll
+     * back.
      *
      * Rejects with {@link ImplementationError} for an unknown peer, a fabric whose CA we do not hold or a fail-safe out
      * of range, with the connection error when no CASE session can be established at the start, with {@link
-     * OperationalCertificateUpdateBusyError} or {@link OperationalCertificateUpdateRefusedError} when no fail-safe was
-     * armed, and with {@link OperationalCertificateUpdateError} for every later failure.
+     * OperationalCertificateUpdateBusyError} or {@link OperationalCertificateUpdateRefusedError} when the update armed no
+     * fail-safe because of the Breadcrumb, the reported NOC or the ArmFailSafe error code, and with {@link
+     * OperationalCertificateUpdateError} for every other failure.
      *
      * @see {@link MatterSpecification.v161.Core} § 11.18.6.9
      * @see {@link MatterSpecification.v161.Core} § 11.10.7.2
@@ -259,16 +270,6 @@ export namespace OperationalCertificateUpdate {
 
         const recovered = completion === undefined;
         if (completion === undefined && abort?.aborted) {
-            if (installed.kind === "unconfirmed") {
-                try {
-                    await forgetSessions(context, address, "Operational certificate update of the peer was aborted");
-                } catch (error) {
-                    logger.info(
-                        `Could not forget the sessions of ${address} after an aborted certificate update:`,
-                        error,
-                    );
-                }
-            }
             completion = { kind: "unknown" };
         }
         if (completion === undefined) {
@@ -299,6 +300,11 @@ export namespace OperationalCertificateUpdate {
                 );
 
             case "unknown":
+                try {
+                    await forgetSessions(context, address, "Outcome of the operational certificate update is unknown");
+                } catch (error) {
+                    logger.info(`Could not forget the sessions of ${address} after an unknown update outcome:`, error);
+                }
                 throw new OperationalCertificateUpdateError(
                     `Updating the operational certificate of ${address} failed and its outcome is unknown; the peer reverts to its previous certificate when its fail-safe expires, unless this update or another operation of the same fabric completed that fail-safe`,
                     { cause: completion.cause ?? cause },
@@ -436,12 +442,12 @@ async function installNewCertificate(
             "UpdateNOC",
         );
     } catch (cause) {
-        if (cause instanceof StatusResponseError) {
+        if (cause instanceof ReceivedStatusResponseError) {
             await disarmFailsafe(interaction);
             return { kind: "refused", cause };
         }
 
-        // The peer may have applied UpdateNOC and then dropped the session before its NOCResponse arrived
+        // The peer may have applied UpdateNOC and then dropped the session or its NOCResponse
         return { kind: "unconfirmed", cause, ...certificate };
     }
 
@@ -539,7 +545,11 @@ async function completeUpdate(
     return { kind: "unknown", cause: step.cause };
 }
 
-/** Send CommissioningComplete; resolves to the error when the peer answers with a status instead of a response. */
+/**
+ * Send CommissioningComplete; resolves to the error when the peer answers with an error status instead of a response.
+ * Rejects when no answer of the peer arrives, when the answer lacks the command (matter.js then reports
+ * NoCommandResponse itself) and when the peer answers with a bare success status.
+ */
 async function commissioningComplete(interaction: ClientInteraction) {
     try {
         return responseOf(
@@ -551,7 +561,7 @@ async function commissioningComplete(interaction: ClientInteraction) {
             "CommissioningComplete",
         );
     } catch (error) {
-        if (error instanceof StatusResponseError) {
+        if (error instanceof ReceivedStatusResponseError) {
             return error;
         }
         throw error;
