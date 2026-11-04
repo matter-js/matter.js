@@ -56,8 +56,7 @@ export interface IndexedSet<T> {
 }
 
 /**
- * A generic set implementation supporting all interfaces in this module.  It iterates in insertion order, like
- * {@link Set}.
+ * A generic set implementation supporting all interfaces in this module.
  *
  * Unused features have minimal performance impact.
  */

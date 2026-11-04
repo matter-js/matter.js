@@ -56,7 +56,7 @@ export abstract class Session {
     /** Last message sent or received, on the clock of {@link Time.nowUs}. */
     timestamp = Time.nowUs;
 
-    /** Creation time on the clock of {@link Time.nowUs}, like {@link PeerLossContext.asOf}. */
+    /** Creation time on the clock of {@link Time.nowUs}. */
     readonly createdAt = Time.nowUs;
 
     /**

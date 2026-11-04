@@ -59,7 +59,7 @@ interface ArmState {
  * Speeds up controller re-subscription after a peer reboot for devices that do NOT persist subscriptions.
  *
  * Callers arm a peer when they know it is about to reboot and return (e.g. OTA reaching its apply phase).  When the
- * peer's new session appears we (A) close older sessions and (B) start a grace window: if a subscription receives a
+ * peer's new session appears we (A) close the sessions registered before it and (B) start a grace window: if a subscription receives a
  * report within it over a session of the returned device (see `ArmState.returned`), a persistent device fed it, we
  * leave the subscription alone; otherwise we force re-subscription.
  */
@@ -146,11 +146,7 @@ export class RebootResubscribeArmer {
         state.returnTimer?.stop();
         state.returnTimer = undefined;
 
-        let registeredSinceReturn = false;
-        const sessions = new Set<SecureSession>([
-            session,
-            ...this.#sessions.sessionsFor(peerAddress).filter(other => (registeredSinceReturn ||= other === session)),
-        ]);
+        const sessions = new Set<SecureSession>([session, ...this.#sessions.sessionsRegisteredSince(session)]);
         state.returned = {
             sessions,
             reported: [...sessions].some(returning => state.reportedBeforeReturn.has(returning)),
@@ -159,7 +155,7 @@ export class RebootResubscribeArmer {
 
         // Mechanism A — drop the dead pre-reboot sessions so probe/re-subscribe cannot pick them.
         this.#sessions
-            .handlePeerShutdown(peerAddress, session.createdAt)
+            .handlePeerShutdown(peerAddress, session)
             .catch(error => logger.warn(peerAddress, "Failed to close older sessions", error));
         state.graceTimer = Time.getTimer("Reboot resubscribe grace", DEFAULT_REBOOT_RESUBSCRIBE_GRACE, () =>
             this.#onGraceExpired(peerAddress),

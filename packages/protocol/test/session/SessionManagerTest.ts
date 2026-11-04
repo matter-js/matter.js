@@ -425,7 +425,6 @@ describe("SessionManager", () => {
 
             await sessionManager.handlePeerLoss(PEER_ADDRESS, {
                 cause: new Error("unresponsive"),
-                asOf: Timestamp(Number.MAX_SAFE_INTEGER),
                 currentExchange,
             });
 
@@ -1123,6 +1122,120 @@ describe("SessionManager", () => {
 
             expect(sessionManager.sessionParameters.idleInterval).equal(Millis(1000));
             expect(sessionManager.sessionParameters.activeInterval).equal(Millis(600));
+        });
+    });
+
+    describe("peer loss by registration order", () => {
+        const PEER_NODE_ID = NodeId(0x1234n);
+        const PEER_ADDRESS = PeerAddress({ fabricIndex: FabricIndex(0), nodeId: PEER_NODE_ID });
+
+        let sessionManager: SessionManager;
+
+        beforeEach(async () => {
+            MockTime.reset();
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            sessionManager = new SessionManager({
+                parameters: {} as SessionParameters,
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["context"]),
+            });
+            await sessionManager.construction.ready;
+        });
+
+        function aSession(id: number, delayManagerRegistration?: true) {
+            return sessionManager.createSecureSession({
+                id,
+                fabric: undefined,
+                peerNodeId: PEER_NODE_ID,
+                peerSessionId: id,
+                sharedSecret: DUMMY_BYTEARRAY,
+                salt: DUMMY_BYTEARRAY,
+                isInitiator: delayManagerRegistration === true,
+                isResumption: false,
+                delayManagerRegistration,
+            });
+        }
+
+        it("keeps the session given to peer shutdown and every session registered after it", async () => {
+            const older = await aSession(0x0100);
+            const kept = await aSession(0x0200);
+            const newer = await aSession(0x0300);
+            expect(older.createdAt).equals(kept.createdAt);
+
+            await sessionManager.handlePeerShutdown(PEER_ADDRESS, kept);
+
+            expect(older.isPeerLost).true;
+            expect(kept.isPeerLost).false;
+            expect(newer.isPeerLost).false;
+        });
+
+        it("keeps a session that registers after the given registration count although it was created before", async () => {
+            const lost = await aSession(0x0100);
+            const establishing = await aSession(0x0200, true);
+            const registeredBefore = sessionManager.registrationCount;
+            await MockTime.advance(Seconds(1));
+            sessionManager.registeredSessions.add(establishing);
+
+            await sessionManager.handlePeerLoss(PEER_ADDRESS, {
+                cause: new NetworkError("unresponsive"),
+                registeredBefore,
+            });
+
+            expect(lost.isPeerLost).true;
+            expect(establishing.isPeerLost).false;
+        });
+
+        it("keeps a session registered while the peer loss runs", async () => {
+            const lost = await aSession(0x0100);
+            let registeredDuringLoss: NodeSession | undefined;
+            lost.subscriptions.add({
+                subscriptionId: 1,
+                isTerminated: false,
+                async handlePeerCancel() {},
+                async close() {
+                    registeredDuringLoss = await aSession(0x0200);
+                },
+                async closeForShutdown() {},
+            });
+
+            await sessionManager.handlePeerLoss(PEER_ADDRESS, { cause: new NetworkError("unresponsive") });
+
+            expect(lost.isPeerLost).true;
+            expect(registeredDuringLoss?.isPeerLost).equals(false);
+        });
+
+        it("keeps the sessions created at or after a deprecated timestamp given to peer shutdown", async () => {
+            const older = await aSession(0x0100);
+            await MockTime.advance(Seconds(1));
+            const kept = await aSession(0x0200);
+
+            await sessionManager.handlePeerShutdown(PEER_ADDRESS, kept.createdAt);
+
+            expect(older.isPeerLost).true;
+            expect(kept.isPeerLost).false;
+        });
+
+        it("returns the sessions of the peer registered at or after a session", async () => {
+            const older = await aSession(0x0100);
+            const since = await aSession(0x0200);
+            const establishing = await aSession(0x0300, true);
+            const newer = await aSession(0x0400);
+            sessionManager.registeredSessions.add(establishing);
+
+            expect(sessionManager.sessionsRegisteredSince(since)).have.members([since, newer, establishing]);
+            expect(sessionManager.sessionsRegisteredSince(establishing)).have.members([establishing]);
+            expect(sessionManager.sessionsRegisteredSince(older)).have.members([older, since, newer, establishing]);
+        });
+
+        it("treats a session that never registered as keeping nothing", async () => {
+            const registered = await aSession(0x0100);
+            const unregistered = await aSession(0x0200, true);
+
+            expect(sessionManager.sessionsRegisteredSince(unregistered)).deep.equals([]);
+            await sessionManager.handlePeerShutdown(PEER_ADDRESS, unregistered);
+
+            expect(registered.isPeerLost).true;
         });
     });
 
