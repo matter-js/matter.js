@@ -341,7 +341,7 @@ async function installNewCertificate(
         return { kind: "refused", cause };
     }
 
-    let previous: { noc: Bytes; caseAuthenticatedTags?: CaseAuthenticatedTag[] };
+    let previous: { noc: Bytes; caseAuthenticatedTags?: readonly CaseAuthenticatedTag[] };
     try {
         previous = await verifiedCurrentNoc(nocs, fabric, interaction.address.nodeId);
     } catch (cause) {

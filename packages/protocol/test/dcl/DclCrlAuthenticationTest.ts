@@ -33,6 +33,7 @@ const crypto = new StandardCrypto();
 const REVOKED = "01AB";
 const OTHER_REVOKED = "02CD";
 const DAY_MS = 86_400_000;
+const VENDOR_ID_OID = "2b0601040182a27c0201";
 
 /** A generated certificate with its key, in the forms the tests need. */
 interface Issued {
@@ -40,14 +41,17 @@ interface Issued {
     key: PrivateKey;
     skid: Bytes;
     name: string;
-    ids: { vendorId?: number; productId?: number };
+    ids: { vendorId?: number; productId?: number; vendorIdText?: string };
     crlSigner: TestCrlSigner;
 }
 
-function nameOf(commonName: string, ids: { vendorId?: number; productId?: number } = {}) {
+function nameOf(commonName: string, ids: { vendorId?: number; productId?: number; vendorIdText?: string } = {}) {
     return {
         commonName: X520.CommonName(commonName),
         ...(ids.vendorId === undefined ? {} : { vendorId: VendorId_Matter(VendorId(ids.vendorId)) }),
+        ...(ids.vendorIdText === undefined
+            ? {}
+            : { vendorId: [DerObject(VENDOR_ID_OID, { value: ids.vendorIdText })] }),
         ...(ids.productId === undefined ? {} : { productId: ProductId_Matter(ids.productId) }),
     };
 }
@@ -68,6 +72,8 @@ async function issue(
         signingKey?: PrivateKey;
         vendorId?: number;
         productId?: number;
+        /** State a VendorID as this text instead of a valid one, e.g. in lowercase */
+        vendorIdText?: string;
         /** Omit the cRLSign key usage */
         withoutCrlSign?: boolean;
         /** Omit the keyCertSign key usage of a CA */
@@ -75,6 +81,8 @@ async function issue(
         /** State another issuer name than the issuer's */
         issuerName?: string;
         serialNumber?: string;
+        /** Omit the basic constraints extension */
+        withoutBasicConstraints?: boolean;
     },
 ): Promise<Issued> {
     const key = options.key ?? (await crypto.createKeyPair());
@@ -94,7 +102,13 @@ async function issue(
             validity: { notBefore: new Date(now.getTime() - DAY_MS), notAfter: new Date(now.getTime() + DAY_MS) },
             publicKey: X962.PublicKeyEcPrime256v1(key.publicKey),
             extensions: {
-                basicConstraints: options.ca ? { isCa: true, pathLen: issuer === undefined ? 1 : 0 } : { isCa: false },
+                ...(options.withoutBasicConstraints
+                    ? {}
+                    : {
+                          basicConstraints: options.ca
+                              ? { isCa: true, pathLen: issuer === undefined ? 1 : 0 }
+                              : { isCa: false },
+                      }),
                 keyUsage: options.ca
                     ? { keyCertSign: !options.withoutKeyCertSign, cRLSign: !options.withoutCrlSign }
                     : { cRLSign: !options.withoutCrlSign, digitalSignature: options.withoutCrlSign },
@@ -108,7 +122,7 @@ async function issue(
         key,
         skid,
         name,
-        ids: { vendorId: options.vendorId, productId: options.productId },
+        ids: { vendorId: options.vendorId, productId: options.productId, vendorIdText: options.vendorIdText },
         crlSigner: { key, subjectKeyId: skid, subjectDer: Bytes.of(DerCodec.encode(nameOf(name, options))) },
     };
 }
@@ -188,11 +202,36 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
         });
         fetchMock.install();
 
-        service = new DclCertificateService(environment, { updateInterval: null });
+        // addCertificate() refuses a CD signer the CSA did not issue, so such an entry arrives as a seed, unverified
+        const cdSigners = trusted.flatMap(entry =>
+            !Bytes.isBytes(entry) && entry.kind === "CDSigner"
+                ? [
+                      {
+                          subjectKeyId: hexOf(Paa.fromAsn1(entry.der).cert.extensions.subjectKeyIdentifier),
+                          derHex: Bytes.toHex(entry.der),
+                          kind: "production" as const,
+                      },
+                  ]
+                : [],
+        );
+        service = new DclCertificateService(environment, {
+            updateInterval: null,
+            seed: {
+                cdSigners: {
+                    builtAt: new Date(0).toISOString(),
+                    expectedCount: cdSigners.length,
+                    entries: (async function* () {
+                        yield* cdSigners;
+                    })(),
+                },
+            },
+        });
         await service.construction;
         for (const entry of trusted) {
             const { der, kind } = Bytes.isBytes(entry) ? { der: entry, kind: "PAA" as const } : entry;
-            await service.addCertificate(der, kind, { isProduction: false });
+            if (kind === "PAA") {
+                await service.addCertificate(der, kind, { isProduction: false });
+            }
         }
         return service;
     }
@@ -255,6 +294,25 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
                 .false;
         });
 
+        it("accepts a PAA-delegated signer without basic constraints", async () => {
+            const delegate = await issue("PAA CRL signer", { issuer: paa, ca: false, withoutBasicConstraints: true });
+            expect(await revoked(paa.skid, [{ signer: delegate, isPAA: true, crl: await crlBy(delegate.crlSigner) }]))
+                .true;
+        });
+
+        it("ignores a PAA-delegated signer whose PAA may not sign certificates", async () => {
+            const restrictedPaa = await issue("Restricted PAA", { ca: true, withoutKeyCertSign: true });
+            const delegate = await issue("PAA CRL signer", { issuer: restrictedPaa, ca: false });
+            expect(
+                await revoked(
+                    restrictedPaa.skid,
+                    [{ signer: delegate, isPAA: true, crl: await crlBy(delegate.crlSigner) }],
+                    REVOKED,
+                    [restrictedPaa.der],
+                ),
+            ).false;
+        });
+
         it("accepts a PAA-delegated signer that shares its PAA's name", async () => {
             const delegate = await issue(paa.name, { issuer: paa, ca: false });
             expect(await revoked(paa.skid, [{ signer: delegate, isPAA: true, crl: await crlBy(delegate.crlSigner) }]))
@@ -309,6 +367,11 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             expect(await revoked(pai.skid, [{ signer: pai, isPAA: false, crl: await crlBy(pai.crlSigner) }])).true;
         });
 
+        it("ignores a PAI signing its own CRL that violates the PAI profile", async () => {
+            const pai = await issue("Test PAI", { issuer: paa, ca: true, vendorId: 0xfff1, withoutKeyCertSign: true });
+            expect(await revoked(pai.skid, [{ signer: pai, isPAA: false, crl: await crlBy(pai.crlSigner) }])).false;
+        });
+
         it("ignores a PAI that does not chain to an approved PAA", async () => {
             const strangerPaa = await issue("Stranger PAA", { ca: true });
             const pai = await issue("Test PAI", { issuer: strangerPaa, ca: true, vendorId: 0xfff1 });
@@ -332,6 +395,16 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             ).true;
         });
 
+        it("accepts a signer a PAI delegated without basic constraints", async () => {
+            const pai = await issue("Test PAI", { issuer: paa, ca: true, vendorId: 0xfff1 });
+            const delegate = await issue("PAI CRL signer", { issuer: pai, ca: false, withoutBasicConstraints: true });
+            expect(
+                await revoked(pai.skid, [
+                    { signer: delegate, delegator: pai, isPAA: false, crl: await crlBy(delegate.crlSigner) },
+                ]),
+            ).true;
+        });
+
         it("ignores a PAI-delegated signer given without its delegator", async () => {
             const pai = await issue("Test PAI", { issuer: paa, ca: true, vendorId: 0xfff1 });
             const delegate = await issue("PAI CRL signer", { issuer: pai, ca: false });
@@ -339,7 +412,7 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
                 .false;
         });
 
-        it("ignores a delegator that is not a PAI", async () => {
+        it("ignores a delegator that violates the PAI profile by not being a CA", async () => {
             // Issued by the approved PAA, so only its missing CA flag disqualifies it
             const notPai = await issue("Not a PAI", { issuer: paa, ca: false, vendorId: 0xfff1 });
             const delegate = await issue("PAI CRL signer", { issuer: notPai, ca: false });
@@ -350,7 +423,7 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             ).false;
         });
 
-        it("ignores a delegator that may not sign certificates", async () => {
+        it("ignores a delegator that violates the PAI profile by lacking keyCertSign", async () => {
             const pai = await issue("Test PAI", { issuer: paa, ca: true, vendorId: 0xfff1, withoutKeyCertSign: true });
             const delegate = await issue("PAI CRL signer", { issuer: pai, ca: false });
             expect(
@@ -382,6 +455,22 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
                     REVOKED,
                     [vendorPaa.der],
                 ),
+            ).false;
+        });
+
+        it("ignores a PAA-delegated signer whose VendorID is malformed", async () => {
+            const delegate = await issue("PAA CRL signer", { issuer: paa, ca: false, vendorIdText: "fff1" });
+            expect(
+                await revoked(paa.skid, [
+                    { signer: delegate, isPAA: true, vid: 0xfff1, crl: await crlBy(delegate.crlSigner) },
+                ]),
+            ).false;
+        });
+
+        it("ignores a PAI signer whose VendorID is malformed", async () => {
+            const pai = await issue("Test PAI", { issuer: paa, ca: true, vendorIdText: "fff1" });
+            expect(
+                await revoked(pai.skid, [{ signer: pai, isPAA: false, vid: 0xfff1, crl: await crlBy(pai.crlSigner) }]),
             ).false;
         });
 

@@ -44,6 +44,17 @@ Each pilot's own section further down is written chronologically (what was found
 that TC), which is also a reasonable reading order: source lookup → single-device reads → invoking
 commands → a smaller invoke-only variant → multi-controller → the python-wrapped escape hatch.
 
+## Test cases deliberately not automated
+
+- **TC-APPOBSERVER-13.1** (Content App Message, DUT as client): skipped. The plan's only step has the DUT send
+  ContentAppMessage, and its note 1 defers argument values and the DUT state to "manufacturer provided instructions",
+  so no generic case can define what the DUT should send. CHIP's tv-app TH also logs "NOT returning ContentApp
+  delegate" for it.
+- **TC-SC-4.4** (re-discovery after the TH's IP address changes): postponed. Step 3 changes the TH's address "by any
+  means within the same network", which needs a TH whose address the harness can change and whose old address then
+  becomes unreachable. Restarting the TH on a new port exercises the same DUT re-resolution, but it is not the step
+  the plan describes.
+
 ## App → chip binary mapping
 
 `certTest()`'s `app` option (and `devices`' per-role app names) is the string chip's own example
@@ -57,7 +68,7 @@ to an app this way:
 | `IDM`, `CADMIN`, most generic/core  | `all-clusters` | `chip-all-clusters-app`   | yes (`AllClustersTestInstance`) |
 | `ACT`, `BR`                         | `bridge`     | `chip-bridge-app`          | yes (`BridgeTestInstance`) |
 | `KEYPADINPUT`, `TGTNAV`, other media client TCs | `tv` | `chip-tv-app` | yes (`TvTestInstance`) |
-| `DRLK`                              | `lock`       | `chip-lock-app`             | no — no matterjs lock `TestInstance` exists in this package yet |
+| `DRLK`                              | `lock`       | `chip-lock-app`             | yes (`LockTestInstance`) |
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
 | `TBRM`                              | `network-manager` | `matter-network-manager-app` | no — the case declares `flavors: ["chip-local"]`, which skips it before registration |
@@ -3530,6 +3541,42 @@ of one prompt, and a handler answers on the line it matched. `statedInPrompt` (i
 reads the earlier lines back out of what the script has printed, because a handler cannot wait for
 more output — the loop reading it is suspended for the handler's whole duration.
 
+## Refusal vectors, and proving the TH presented them (`TC-DA-1.4`)
+
+`TC-DA-1.4` restarts the TH once per vector of the plan's table, as `TC-DA-1.8` does, and requires the DUT to
+refuse each one. Three things are not obvious.
+
+**chip's DAC provider falls back silently to its default certificates.** When it cannot open or parse the vector
+file, it logs `Error opening json file` or `Error parsing json file` and keeps the development DAC, PAI and CD.
+`ResolveDeviceAttestationCredentialsProvider` runs before `Server::Init`, so that line comes before
+`Server initialization complete`. The case checks the lines between the restart and that ready line. A refusal
+also proves nothing on its own, because a refusal is what the case expects. So every vector names the attestation
+check the refusal must carry, and the case matches it in the `Device attestation refused: <Type>: …` text that both
+matter.js controllers put in the error. The default certificates commission at product id 32768. At product id 177
+the DUT refuses them as `CertificationDeclarationFieldMismatch`, which no product id 177 vector expects. A timeout,
+a commissioning that fails before attestation, and a refusal for another check all count as not refused.
+
+**One vector cannot reach the DUT's judgement.** `struct_dac_sig_curve_secp256k1` carries a secp256k1 DAC key.
+chip's provider loads the key as a P-256 key pair to sign the AttestationResponse. `EC_POINT_oct2point` refuses
+that point, so the TH answers the AttestationRequest with an error
+(`OpCreds: Failed AttestationRequest request`). The DUT asks for the DAC and PAI before that request and judges
+them only after it, so it never receives attestation information to judge. The case accepts that line from the TH
+with a failed commissioning for this vector only.
+
+**Step 4, "Commissionee is not yet certified", is the TH's default CD.** That CD has certification_type 0
+(development and test). A cert controller accepts test certificates, or no vector could be judged on its own
+defect, so it commissions this TH. It reports the CD through its attestation policy callback as the
+`CertificationTypeTest` finding. The step reads that finding from the DUT's log as the indication "within its error
+handling APIs" that the plan asks for.
+
+The plan's table does not list every vector of the directory. CHIP generates the table with
+`gen_commissioner_dut_test_plan_table.py`, which skips five on purpose: `struct_cd_cert_id_mismatch`,
+`struct_cd_device_type_id_mismatch`, `struct_cd_version_number_wrong`, `struct_cd_security_level_wrong` and
+`struct_cd_security_info_wrong`. The first two need DCL compliance data. For the other three, § 6.3.1 says
+commissioners do not interpret or ignore the field. A commissioner accepts all five. Six more are newer than the
+plan's table: `struct_cd_official_cd`, `struct_cd_provisional_cd` and the four `struct_{dac,pai}_fuzzed_*`
+vectors. The case runs the plan's table only.
+
 ## The SU block, where the DUT is the OTA provider (`TC-SU-3.1`–`TC-SU-3.4`)
 
 The Software Update plans give their 3.x cases a provider DUT, which here is the controller — the
@@ -4202,7 +4249,7 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl.
   and the two record commands need ElectronicGuide and RecordProgram, so `TestChannelServer` declares both. Its guide
   is empty. chip filters its seeded programs by the window, and the case's window matches none of them.
 - **StartTime and EndTime are `epoch-s`.** The case gives Unix-epoch seconds. Every DUT sends Matter-epoch seconds,
-  which chip prints, and matter.js prints the Unix-epoch value it decodes. `tvCommandPayload` builds both lines.
+  which chip prints, and matter.js prints the Unix-epoch value it decodes. `commandPayload` builds both lines.
 - **chip's AccountLogin is on the content app endpoint 3** with one Setup PIN, `tempPin123`, for every account. A
   Login with a PIN shorter than 8 characters answers CONSTRAINT_ERROR, and any other wrong PIN UNSUPPORTED_ACCESS
   (`account-login-server.cpp`). `TestAccountLoginServer` on `ep3` uses the same PIN. All three commands are timed;
@@ -4228,7 +4275,8 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl.
   `exampleid` to the content app installed and loaded at startup for vendor 1 (`AppTv.cpp`, `main.cpp`). Only the
   matter.js TH needs the catalog in its CatalogList, so `TV_KNOWN_APPLICATION` uses 123, which both list. chip checks
   a LaunchURL `ContentType` (not in the 1.6.1 model) against AcceptHeader.
-- **`tvCommandPayload` renders integer, enum, string and boolean fields, and structs and lists of them.** chip prints
+- **`commandPayload` (`tc-command-payload.ts`) renders integer, enum, string, boolean, octet string, bitmap and null
+  fields, and structs and lists of them** (the door lock case below covers the last three). chip prints
   a struct as its `0x<id> = ` line, `{`, its members and `},`; a list as `0x<id> = [`, a line without text, its
   entries and `],`, each struct entry without an id (`CheckIMPayload` in `MessageDefHelper.cpp`). A boolean has no
   type name. matter.js prints a top-level string unquoted but a nested one JSON-quoted, and a struct as
@@ -4291,3 +4339,26 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl.
   `matter-js-pics.properties` does not override them. The three controller overlays declare them anyway, as for the
   other client cases, to state each controller's own client surface. matterjs-server's step 11 settles as the
   `noc-update` gap through the capability mechanism.
+
+## The door lock client case (`TC-DRLK-3.2`)
+
+The DUT sends every DoorLock command of the plan to endpoint 1 of the `lock` TH, and the TH's log shows each payload.
+Each step goes through `sendCommand` with `commandPayload`, and a command with the timed quality is sent timed.
+
+- **The THs.** chip's all-clusters app has had no DoorLock since 2023, so the chip legs use `chip-lock-app`: cert-bins
+  ships it, and this project's image builds it too. The own-built chip legs copy it out of the published image
+  (`chip-cert-tests.yml`), so they need an image that carries it.
+  `LockTestInstance` copies the lock-app's DoorLock: its features except Aliro, 10 users and 10 schedules of each
+  kind, PINs of 6 to 8 digits, and RequirePINforRemoteOperation off. matter.js's all-clusters lock requires a PIN for a
+  remote lock or unlock, and chip's lock-app refuses a PIN that no credential holds (`LockEndpoint::setLockState`), so
+  no PIN value works on both.
+- **A user exists before step 4.** The plan's precondition is "Steps 4–12 need a User added to the lock"; step `0b`
+  has the DUT add user 1, as CHIP's worked step 4 does. Steps 13 to 15 add, read and clear user 2. Step 16 adds a PIN
+  credential to user 1, which § 5.2.10.20 requires with a null UserStatus and UserType.
+- **`commandPayload` also renders an octet string** (chip's three-line byte list, matter.js's hex), **a bitmap** given
+  as its set bits (chip's number, matter.js's object with every bit) **and a null** (chip prints `0x<id> = NULL` with
+  no comma, matter.js `null`).
+- **The year-day and holiday steps are gated on `DRLK.C.F04` (WDSCH)**, as in the plan and in CHIP's yaml, although
+  the commands belong to YDSCH and HDSCH (`F0a`, `F0b`). CHIP's PICS file answers those two 0 for a client.
+- **PICS:** CHIP's file answers every key the case uses 1; all three overlays declare them anyway, as the controller's
+  client surface.

@@ -45,4 +45,41 @@ describe("TimeFormatLocalizationServer", () => {
             'Validating node0.timeFormatLocalization.state: Constraint "in supportedCalendarTypes": Value 4 is not one of the values allowed by "in" constraint (135)',
         );
     });
+
+    it("lets a subclass of the class itself override the detected formats with any enum value", () => {
+        // Type-level check only: a failure shows as a build error in this file
+        class ActiveLocaleFormats extends TimeFormatLocalizationServer {
+            override get detectedHourFormat() {
+                return TimeFormatLocalization.HourFormat.UseActiveLocale;
+            }
+
+            override get detectedCalendarType() {
+                return TimeFormatLocalization.CalendarType.UseActiveLocale;
+            }
+        }
+        void ActiveLocaleFormats;
+    });
+
+    it("uses the overridden detected formats of a derived type", async () => {
+        // The runtime assertions also pass on the old declarations; the compile of the overrides is the check
+        class FixedFormats extends TimeFormatLocalizationServer.with("CalendarFormat") {
+            override get detectedHourFormat() {
+                return TimeFormatLocalization.HourFormat["12Hr"];
+            }
+            override get detectedCalendarType() {
+                return TimeFormatLocalization.CalendarType.Buddhist;
+            }
+        }
+
+        await using node = await MockServerNode.create(
+            ServerNode.RootEndpoint.with(
+                FixedFormats.set({ supportedCalendarTypes: [TimeFormatLocalization.CalendarType.Buddhist] }),
+            ),
+        );
+
+        expect(node.state.timeFormatLocalization.hourFormat).equals(TimeFormatLocalization.HourFormat["12Hr"]);
+        expect(node.state.timeFormatLocalization.activeCalendarType).equals(
+            TimeFormatLocalization.CalendarType.Buddhist,
+        );
+    });
 });

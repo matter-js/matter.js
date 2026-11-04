@@ -1311,7 +1311,10 @@ export class ControllerCommissioningFlow {
         if (dacPublicKey === undefined) {
             // Attestation failed but policy accepted it, so the key the validator would have returned is missing
             try {
-                dacPublicKey = PublicKey(Dac.fromAsn1(deviceAttestation).cert.ellipticCurvePublicKey);
+                dacPublicKey = PublicKey(
+                    Dac.fromAsn1(deviceAttestation, { acceptProfileViolation: true, acceptMalformedVidPid: true }).cert
+                        .ellipticCurvePublicKey,
+                );
             } catch (cause) {
                 throw new CommissioningError(
                     "Device attestation was accepted but the DAC cannot be parsed, so the CSR signature cannot be verified",

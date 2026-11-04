@@ -608,7 +608,6 @@ export async function PeerConnection(
                 const { session } = await caseClient.pair(exchange, fabric, peer.address.nodeId, {
                     ...options,
                     abort: localAbort,
-                    caseAuthenticatedTags: peer.descriptor.caseAuthenticatedTags,
                     ...attempt.sendOptions,
                     validateSessionParameters: isTcp
                         ? params => {
