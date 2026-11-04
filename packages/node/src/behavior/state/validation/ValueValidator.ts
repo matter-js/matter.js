@@ -15,7 +15,14 @@ import {
     Metatype,
     ValueModel,
 } from "@matter/model";
-import { ConformanceError, DatatypeError, hasLocalActor, SchemaImplementationError, Val } from "@matter/protocol";
+import {
+    ConformanceError,
+    DatatypeError,
+    hasLocalActor,
+    SchemaImplementationError,
+    Val,
+    ValidateError,
+} from "@matter/protocol";
 import { BitmapEncodedValue, FabricIndex, Status } from "@matter/types";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import { maybeConfigOf } from "../../supervision/SupervisionConfig.js";
@@ -341,9 +348,9 @@ function createIntegerValidator(schema: ValueModel, supervisor: RootSupervisor, 
     const inner = createSimpleValidator(schema, supervisor, assertion);
 
     // The device stores a written fabric-scoped struct under the accessing fabric whatever FabricIndex the client
-    // wrote (Matter § 7.13.6), so a client node replaces the value with the peer's index to keep its cache equal to
-    // the device.  Changing `siblings` bends the read-only validator contract on purpose: it covers both the
-    // per-field StructManager setter path and ListManager.writeEntry, which writes raw entry objects.
+    // wrote (Matter § 7.13.6), so a client node refuses another index and caches its own one in the written struct.
+    // Changing `siblings` bends the read-only validator contract on purpose: it covers both the per-field
+    // StructManager setter path and ListManager.writeEntry, which writes raw entry objects.
     if (isFabricIndexField(schema)) {
         const fieldName = schema.propertyName;
         const fieldId = schema.id;
@@ -353,11 +360,22 @@ function createIntegerValidator(schema: ValueModel, supervisor: RootSupervisor, 
                 inner(value, session, location);
                 return;
             }
+            const { fabricIndexOnPeer } = peerContext;
+            if (
+                value === FabricIndex.NO_FABRIC ||
+                (fabricIndexOnPeer !== undefined && value !== FabricIndex.OMIT_FABRIC && value !== fabricIndexOnPeer)
+            ) {
+                throw new ValidateError(
+                    location,
+                    `Cannot write fabricIndex ${String(value)}: the device stores the entry under our fabric, so write ${fabricIndexOnPeer === undefined ? "our fabric index on the peer" : `our fabric index on the peer (${fabricIndexOnPeer})`} or FabricIndex.OMIT_FABRIC, and do not write back entries of other fabrics from a list read without fabric filtering`,
+                    Status.ConstraintError,
+                );
+            }
             const siblings = location.siblings as Val.Struct | undefined;
-            if (siblings !== undefined && peerContext.fabricIndexOnPeer !== undefined) {
+            if (siblings !== undefined && fabricIndexOnPeer !== undefined) {
                 // Substitute into the slot holding the value — a name-keyed container may hold it under the
                 // field's TLV tag number, and writing another slot would leave two disagreeing fabricIndex values
-                siblings[memberSlotOf(siblings, fieldName, fieldId) ?? fieldName] = peerContext.fabricIndexOnPeer;
+                siblings[memberSlotOf(siblings, fieldName, fieldId) ?? fieldName] = fabricIndexOnPeer;
                 return;
             }
             if (value !== FabricIndex.OMIT_FABRIC) {

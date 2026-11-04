@@ -31,6 +31,7 @@ import {
     Subject,
     UnknownEnumValueError,
     Val,
+    ValidateError,
 } from "@matter/protocol";
 import { BitmapEncodedValue, FabricIndex, NodeId } from "@matter/types";
 
@@ -134,20 +135,31 @@ describe("ValueValidator", () => {
             expect(254 in struct).is.false;
         });
 
-        it("replaces NO_FABRIC and another fabric's index with the peer's fabric index", () => {
+        it("refuses NO_FABRIC and another fabric's index", () => {
             for (const written of [FabricIndex.NO_FABRIC, FabricIndex(7)]) {
                 const struct: Val.Struct = { subject: 5, fabricIndex: written };
-                validator(struct, peerSession(FabricIndex(3)), memberPath);
-                expect(struct.fabricIndex, `written ${written}`).equals(3);
+                expect(() => validator(struct, peerSession(FabricIndex(3)), memberPath), `written ${written}`).throws(
+                    ValidateError,
+                    `Cannot write fabricIndex ${written}`,
+                );
+                expect(struct.fabricIndex, `written ${written}`).equals(written);
             }
         });
 
-        // Characterization: passes on the code before this change
-        it("validates a FabricIndex value without its struct, as a write to the field alone does", () => {
+        it("refuses another fabric's index written to the field alone", () => {
             const fieldSchema = memberSchema.children[1];
             const fieldValidator = RootSupervisor.for(fieldSchema).validate!;
             const fieldPath = { path: new DataModelPath(fieldSchema.path) };
-            expect(() => fieldValidator(FabricIndex(7), peerSession(FabricIndex(3)), fieldPath)).not.throws();
+            expect(() => fieldValidator(FabricIndex(7), peerSession(FabricIndex(3)), fieldPath)).throws(ValidateError);
+            expect(() => fieldValidator(FabricIndex(3), peerSession(FabricIndex(3)), fieldPath)).not.throws();
+        });
+
+        it("refuses NO_FABRIC while the peer's fabric index is not known", () => {
+            const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex.NO_FABRIC };
+            expect(() => validator(struct, peerSession(undefined), memberPath)).throws(
+                ValidateError,
+                "Cannot write fabricIndex 0",
+            );
         });
 
         it("keeps a written fabric index while the peer's fabric index is not known", () => {

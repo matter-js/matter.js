@@ -55,7 +55,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: LocalizationConfiguration, TimeFormatLocalization and UnitLocalization start with a value from their supported list when the detected, default or stored value is not in it
     - Fix: `TimeFormatLocalizationServer` starts without the CalendarFormat feature
     - Fix: UnitLocalization answers a `TemperatureUnit` write outside `SupportedTemperatureUnits` with CONSTRAINT_ERROR
-    - Fix: A client node caches the accessing fabric's index for a fabric-scoped struct it writes, whatever FabricIndex the write carried, once the peer's fabric index is known
+    - Adjustment: A client node refuses a fabric-scoped struct write whose FabricIndex is neither its fabric index on the peer nor `FabricIndex.OMIT_FABRIC`, and caches its own fabric index for the written entry
     - Fix: A client node sends a write that breaks a model constraint to the device instead of refusing it locally, and the Remote API accepts such a value in a command response from the device
     - Fix: Corrects extension typing of `registerHardwareFault()`, `registerRadioFault()` and `registerNetworkFault()` of a GeneralDiagnostics server
     - Fix: GeneralDiagnostics registering a fault that is already active no longer emits a fault change event

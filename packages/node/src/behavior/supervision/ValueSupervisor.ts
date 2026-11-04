@@ -6,7 +6,7 @@
 
 import type { AsyncObservable, Transaction } from "@matter/general";
 import { DataModelPath, Schema } from "@matter/model";
-import type { AccessControl, InteractionSettings, Val } from "@matter/protocol";
+import type { AccessControl, InteractionSettings, Val, ValidateError } from "@matter/protocol";
 import type { FabricIndex } from "@matter/types";
 import type { ValReference } from "../state/managed/ValReference.js";
 import type { ValidationLocation } from "../state/validation/location.js";
@@ -84,9 +84,12 @@ export namespace ValueSupervisor {
         acceptInvalid?: boolean;
 
         /**
-         * Present on contexts rooted at a ClientNode (peer node).  On a fabric-scoped struct write the FabricIndex
-         * field is replaced with {@link fabricIndexOnPeer} when it is known, because the device stores the entry under the accessing
-         * fabric whatever value was written, and the local cache must hold the same value.
+         * Present on contexts rooted at a ClientNode (peer node).  The device stores a written fabric-scoped struct
+         * under the accessing fabric whatever FabricIndex was written.  A write therefore throws a
+         * {@link ValidateError} with CONSTRAINT_ERROR and does not send the value for `FabricIndex.NO_FABRIC`
+         * and, once {@link fabricIndexOnPeer} is known, for any index other than that one.  A struct written with an
+         * accepted value or `FabricIndex.OMIT_FABRIC` holds {@link fabricIndexOnPeer} in the local cache once it is
+         * known.
          * @see {@link MatterSpecification.v161.Core} § 7.13.6
          */
         clientPeerContext?: {
