@@ -40,7 +40,6 @@ import {
     ObserverGroup,
     StorageContext,
     StorageManager,
-    Time,
     Timestamp,
     toHex,
     Transport,
@@ -388,7 +387,7 @@ export class SessionManager {
     /**
      * Every secure session that receives messages, including those whose handshake still runs (see
      * {@link NodeSession.isEstablishing}).  A session joins on creation, unless it is created with
-     * `delayManagerRegistration`, and leaves when it closes.  The set iterates in registration order.
+     * `delayManagerRegistration`, and leaves when it closes.
      *
      * Read this set for message routing, session ID allocation, session teardown, peer loss, and for the subscriptions
      * and reports of a peer.  Code that looks for a session to use reads {@link sessions}.
@@ -399,6 +398,29 @@ export class SessionManager {
      */
     get registeredSessions(): BasicSet<NodeSession> {
         return this.#registeredSessions;
+    }
+
+    /**
+     * The number of registrations in {@link registeredSessions} so far.  A session registered from now on gets this
+     * value or a higher one as its registration position, so the value marks "sessions registered after this point"
+     * for {@link PeerLossContext.registeredBefore}.
+     */
+    get registrationCount() {
+        return this.#registeredSessions.count;
+    }
+
+    /**
+     * The open sessions with the peer of {@link session} that registered at or after it.  {@link handlePeerShutdown}
+     * keeps these sessions when it receives {@link session}.  For a session that never registered, the result is empty.
+     */
+    sessionsRegisteredSince(session: NodeSession) {
+        const position = this.#registeredSessions.positionOf(session);
+        if (position === undefined) {
+            return [];
+        }
+        return this.sessionsFor(session.peerAddress).filter(
+            other => !this.#registeredSessions.isRegisteredBefore(other, position),
+        );
     }
 
     /**
@@ -691,23 +713,38 @@ export class SessionManager {
      * sessions close.  Our own subscriptions to the peer belong to the peer, not to a session, so a peer that persists
      * subscriptions can refresh them after its restart.
      *
-     * @param asOf sessions created at or after this instant are kept; on the clock of {@link Time.nowUs} like
-     * {@link Session.createdAt}, not a wall-clock time.  Defaults to now.
+     * Sessions that register while the shutdown runs are kept.
+     *
+     * @param keep this session and the sessions registered after it are kept.  Without it, or for a session that never
+     * registered, every session registered now is removed.  A {@link Timestamp} is deprecated: then only the sessions
+     * created before that instant are removed, and a session created in the same instant counts as newer.
      */
-    handlePeerShutdown(address: PeerAddress, asOf?: Timestamp) {
-        return this.#handlePeerLoss({
+    handlePeerShutdown(address: PeerAddress, keep?: NodeSession | Timestamp) {
+        const context = {
             address,
             cause: new PeerShutdownError(),
-            asOf: asOf ?? Time.nowUs,
             keepSubscriptions: true,
-        });
+            registeredBefore: this.registrationCount,
+        };
+        if (typeof keep === "number") {
+            return this.#handlePeerLoss({ ...context, asOf: keep });
+        }
+
+        const keepPosition = keep === undefined ? undefined : this.#registeredSessions.positionOf(keep);
+        return this.#handlePeerLoss({ ...context, registeredBefore: keepPosition ?? context.registeredBefore });
     }
 
     /**
-     * Removes all Peer sessions and closes subscriptions.
+     * Removes all Peer sessions and closes subscriptions.  Only the sessions registered before
+     * {@link PeerLossContext.registeredBefore} are affected; by default every session registered now.  A given
+     * {@link PeerLossContext.asOf} applies in addition.
      */
     async handlePeerLoss(address: PeerAddress, context: PeerLossContext) {
-        return await this.#handlePeerLoss({ ...context, address, asOf: context.asOf ?? Time.nowUs });
+        return await this.#handlePeerLoss({
+            ...context,
+            address,
+            registeredBefore: context.registeredBefore ?? this.registrationCount,
+        });
     }
 
     /**
@@ -779,9 +816,16 @@ export class SessionManager {
     ) {
         await this.#construction;
 
-        const { address, asOf } = context;
+        const { address, asOf, registeredBefore } = context;
         for (const session of this.#registeredSessions) {
             if (!session.peerIs(address)) {
+                continue;
+            }
+
+            if (
+                registeredBefore !== undefined &&
+                !this.#registeredSessions.isRegisteredBefore(session, registeredBefore)
+            ) {
                 continue;
             }
 
@@ -1211,6 +1255,8 @@ function hasEqualCats(session: NodeSession, other: NodeSession) {
  */
 class RegisteredSessions extends BasicSet<NodeSession> {
     readonly #established: BasicSet<NodeSession>;
+    readonly #positions = new WeakMap<NodeSession, number>();
+    #count = 0;
 
     constructor(established: BasicSet<NodeSession>) {
         super();
@@ -1222,6 +1268,7 @@ class RegisteredSessions extends BasicSet<NodeSession> {
             return;
         }
 
+        this.#positions.set(session, this.#count++);
         super.add(session);
 
         if (session.isEstablishing) {
@@ -1234,6 +1281,20 @@ class RegisteredSessions extends BasicSet<NodeSession> {
         } else {
             this.#established.add(session);
         }
+    }
+
+    get count() {
+        return this.#count;
+    }
+
+    /** The position of {@link session} in the registration order; kept after it leaves.  Undefined if never added. */
+    positionOf(session: NodeSession) {
+        return this.#positions.get(session);
+    }
+
+    isRegisteredBefore(session: NodeSession, position: number) {
+        const own = this.#positions.get(session);
+        return own !== undefined && own < position;
     }
 }
 

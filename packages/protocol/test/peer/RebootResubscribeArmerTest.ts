@@ -133,6 +133,20 @@ describe("RebootResubscribeArmer", () => {
         expect(sessionLives(returned)).equals(true);
     });
 
+    it("closes an older session created in the same instant as the returning session", async () => {
+        const { armer, createSession, sessionLives, whenClosed } = await setup();
+        using _armer = armer;
+        const older = await createSession();
+        armer.arm(PEER);
+        const olderClosed = whenClosed(older);
+        const returned = await createSession();
+        await MockTime.resolve(olderClosed);
+
+        expect(returned.createdAt).equals(older.createdAt);
+        expect(sessionLives(older)).equals(false);
+        expect(sessionLives(returned)).equals(true);
+    });
+
     it("does not take a session whose handshake fails as the return", async () => {
         const { armer, createSession, sessionLives } = await setup();
         using _armer = armer;

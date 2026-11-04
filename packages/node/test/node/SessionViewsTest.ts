@@ -8,7 +8,7 @@ import { SessionsBehavior } from "#behavior/system/sessions/SessionsBehavior.js"
 import { GeneralDiagnosticsServer } from "#behaviors/general-diagnostics";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import { ServerSubscription } from "#node/server/ServerSubscription.js";
-import { InternalError, Millis, Timestamp } from "@matter/general";
+import { InternalError, Timestamp } from "@matter/general";
 import { Specification } from "@matter/model";
 import { interaction, MockServerNode } from "@matter/node/testing";
 import {
@@ -184,8 +184,6 @@ const consumers: Consumer[] = [
         name: "SessionManager.handlePeerLoss()",
         sees: "both",
         seen: async ({ sessions, established, pair }) => {
-            // Peer loss spares sessions created at or after its instant
-            await MockTime.advance(Millis(1));
             await MockTime.resolve(
                 sessions.handlePeerLoss(established.peerAddress, { cause: new SessionClosedError("test") }),
             );

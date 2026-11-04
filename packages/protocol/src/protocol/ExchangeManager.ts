@@ -40,7 +40,6 @@ import {
     Logger,
     MatterFlowError,
     ObserverGroup,
-    Time,
     Transport,
     TransportClosedError,
     TransportSet,
@@ -611,7 +610,7 @@ export class ExchangeManager implements Transport.Provider {
     }
 
     #messageExchangeContextFor(session: Session): MessageExchangeContext {
-        const createdAt = Time.nowUs;
+        const registeredBefore = this.#sessions.registrationCount;
         return {
             session,
             localSessionParameters: this.#sessions.sessionParameters,
@@ -638,7 +637,7 @@ export class ExchangeManager implements Transport.Provider {
                 // Report peer loss to the session manager; this notifies all (relevant) sessions for the peer
                 await this.#sessions.handlePeerLoss(session.peerAddress, {
                     cause,
-                    asOf: createdAt,
+                    registeredBefore,
                     currentExchange: exchange,
                 });
             },
