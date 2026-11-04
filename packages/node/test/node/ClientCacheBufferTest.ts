@@ -228,41 +228,36 @@ describe("ClientCacheBuffer", () => {
         await MockTime.resolve(Promise.all([flushing, erasing]), { macrotasks: true });
     }
 
-    it("does not restore the values of an erased endpoint from a flush that writes during the erase", async () => {
+    it("does not restore the values of an endpoint of an erased peer from a flush that writes during the erase", async () => {
         await using site = bufferingSite();
-        const { controller, peer, ep1, onOff } = await peerWithBufferedToggle(site);
+        const { controller, peer, onOff } = await peerWithBufferedToggle(site);
 
-        await eraseWhileFlushWrites(controller, peer, () => ep1.erase());
+        await eraseWhileFlushWrites(controller, peer, () => peer.erase());
 
         expect(await onOff.keys()).deep.equals([]);
     });
 
-    for (const [what, eraseOf] of [
-        ["endpoint", (peer: ClientNode) => peer.endpoints.require(1).erase()],
-        ["peer", (peer: ClientNode) => peer.erase()],
-    ] as const) {
-        it(`does not restore the cache of an erased ${what} from a flush that commits during the erase`, async () => {
-            let driver: CommittingStorageDriver | undefined;
-            await using site = new MockSite({
-                createStorageDriver: store => (driver ??= new CommittingStorageDriver(store)),
-            });
-            const { controller, peer, onOff } = await peerWithBufferedToggle(site);
-            const committing = createPromise<void>();
-            const commit = createPromise<void>();
-            driver!.commitHold = { committing: committing.resolver, commit: commit.promise };
-
-            const flushing = controller.env.get(ClientCacheBuffer).flush();
-            await MockTime.resolve(committing.promise);
-            const erasing = eraseOf(peer);
-            await MockTime.resolve(Time.sleep("erase runs", Seconds(1)), { macrotasks: true });
-            commit.resolver();
-            await MockTime.resolve(Promise.all([flushing, erasing]), { macrotasks: true });
-
-            expect(await onOff.keys()).not.contains(OnOff.Cluster.attributes.onOff.id.toString());
+    it("does not restore the cache of an erased peer from a flush that commits during the erase", async () => {
+        let driver: CommittingStorageDriver | undefined;
+        await using site = new MockSite({
+            createStorageDriver: store => (driver ??= new CommittingStorageDriver(store)),
         });
-    }
+        const { controller, peer, onOff } = await peerWithBufferedToggle(site);
+        const committing = createPromise<void>();
+        const commit = createPromise<void>();
+        driver!.commitHold = { committing: committing.resolver, commit: commit.promise };
 
-    it("does not restore the values of an erased endpoint from an immediate persist that writes during the erase", async () => {
+        const flushing = controller.env.get(ClientCacheBuffer).flush();
+        await MockTime.resolve(committing.promise);
+        const erasing = peer.erase();
+        await MockTime.resolve(Time.sleep("erase runs", Seconds(1)), { macrotasks: true });
+        commit.resolver();
+        await MockTime.resolve(Promise.all([flushing, erasing]), { macrotasks: true });
+
+        expect(await onOff.keys()).not.contains(OnOff.Cluster.attributes.onOff.id.toString());
+    });
+
+    it("does not restore the values of an endpoint of an erased peer from an immediate persist that writes during the erase", async () => {
         const hold = new WriteHold(`endpoints.1.${OnOff.Cluster.id}`);
         await using site = new MockSite({ createStorageDriver: store => new HoldingStorageDriver(store, hold) });
         const { controller } = await site.addCommissionedPair();
@@ -276,13 +271,10 @@ describe("ClientCacheBuffer", () => {
             .createContext("1")
             .createContext(OnOff.Cluster.id.toString());
 
-        // The erase reads the part again, which persists the values of the peer anew
-        peer.interaction.read = async function* () {};
-
         hold.arm();
         await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
         await MockTime.resolve(hold.writing.promise);
-        const erasing = ep1.erase();
+        const erasing = peer.erase();
         await MockTime.resolve(Time.sleep("erase runs", Seconds(1)), { macrotasks: true });
         hold.write.resolver();
         await MockTime.resolve(erasing, { macrotasks: true });

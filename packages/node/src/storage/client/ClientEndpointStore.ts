@@ -6,6 +6,7 @@
 
 import { EndpointStore } from "#storage/EndpointStore.js";
 import { DatasourceStore } from "#storage/server/DatasourceStore.js";
+import { namingStoreFailure } from "#storage/StoreLifecycle.js";
 import { ImplementationError, StorageContext, StorageDriver } from "@matter/general";
 import type { Val } from "@matter/protocol";
 import type { EndpointNumber } from "@matter/types";
@@ -88,20 +89,23 @@ export class ClientEndpointStore extends EndpointStore {
 
     /**
      * Erase the values cached from the peer, keep the state of behaviors that do not track a remote cluster, and close
-     * the store.  A new store over the same storage loads what remains.
+     * the store.  A new store over the same storage loads what remains.  A failure to clear the storage rejects with a
+     * `StorageError` that names the store.
      *
      * A context counts as cached if {@link isCacheKey} accepts its key.  Anything else stays, so local state such as
      * commissioning survives even if its behavior did not start.
      */
     async eraseCaches() {
         await this.closeWith(() =>
-            this.clearStorage(async () => {
-                for (const behaviorId of await this.storage.contexts()) {
-                    if (ClientEndpointStore.isCacheKey(behaviorId)) {
-                        await this.storage.createContext(behaviorId).clearAll();
+            this.clearStorage(() =>
+                namingStoreFailure(this, "erase the cache of", async () => {
+                    for (const behaviorId of await this.storage.contexts()) {
+                        if (ClientEndpointStore.isCacheKey(behaviorId)) {
+                            await this.storage.createContext(behaviorId).clearAll();
+                        }
                     }
-                }
-            }),
+                }),
+            ),
         );
     }
 

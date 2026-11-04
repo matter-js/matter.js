@@ -5,9 +5,9 @@
  */
 
 import type { Datasource } from "#behavior/state/managed/Datasource.js";
-import { MaybePromise, StorageContext, StorageDriver, SupportedStorageTypes } from "@matter/general";
+import { MaybePromise, StorageContext, StorageDriver, StorageError, SupportedStorageTypes } from "@matter/general";
 import { Val } from "@matter/protocol";
-import { StoreLifecycle } from "./StoreLifecycle.js";
+import { namingStoreFailure, StoreLifecycle } from "./StoreLifecycle.js";
 
 /**
  * Persistence for state values associated with a specific endpoint.
@@ -22,6 +22,7 @@ export class EndpointStore {
     #lifecycle = new StoreLifecycle(this);
 
     #knownBehaviors = new Set<string>();
+    #loadedValues = false;
 
     constructor(storage: StorageContext) {
         this.#storage = storage;
@@ -136,6 +137,13 @@ export class EndpointStore {
     }
 
     /**
+     * Whether {@link load} found a persisted value.
+     */
+    get loadedValues() {
+        return this.#loadedValues;
+    }
+
+    /**
      * Load the store with persisted values.
      */
     async load() {
@@ -150,6 +158,7 @@ export class EndpointStore {
             for (const [key, value] of Object.entries(storedValues)) {
                 if (value !== undefined) {
                     behaviorValues[key] = value;
+                    this.#loadedValues = true;
                 }
             }
         }
@@ -158,13 +167,12 @@ export class EndpointStore {
     /**
      * Remove all persisted information for the {@link Endpoint} and forget the values loaded from it.  Waits for the
      * writes that are running.  The store is erased afterwards, also if clearing the storage fails; a later erase or
-     * close behaves as {@link StoreLifecycle} describes.
+     * close behaves as {@link StoreLifecycle} describes.  A failure to clear the storage rejects with a
+     * {@link StorageError} that names the store.
      */
     async erase() {
         await this.#lifecycle.erase(async () => {
-            await this.clearStorage(async () => {
-                await this.storage.clearAll();
-            });
+            await this.clearStorage(() => namingStoreFailure(this, "erase", () => this.storage.clearAll()));
             this.initialValues.clear();
             this.#knownBehaviors = new Set();
         });

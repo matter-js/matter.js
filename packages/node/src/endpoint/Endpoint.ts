@@ -22,6 +22,7 @@ import {
     Environment,
     Immutable,
     ImplementationError,
+    InternalError,
     Lifecycle,
     Lifetime,
     Logger,
@@ -819,7 +820,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         } catch (e) {
             // If endpoint is essential do not allow it to be added
             if (endpoint.lifecycle.isEssential) {
-                await endpoint.close();
+                await endpoint.#close("failed-construction");
             }
 
             // For non-essential endpoints just log the error
@@ -1028,15 +1029,17 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * Erase all persisted data of the endpoint and its parts and restart them with their default values and the
      * options they were created with.
      *
-     * The endpoint keeps its ID and number and stays in the PartsList of its parent.  An endpoint that was not started
-     * stays down.  On a server node the ConfigurationVersion increases when an endpoint below the node is erased; erasing
-     * a `ServerNode` is a factory reset.  A {@link close} or {@link delete} called meanwhile runs once the erase is done
-     * and the erase skips the restart; if the delete was requested before the erase began, the erase does nothing and
-     * the delete wipes the data.
+     * The endpoint restarts with the structure its owner defines: the code for a server node, the peer for a client
+     * node (see `ClientNode.erase()`).  The endpoint keeps its ID and number and stays in the PartsList of its parent.
+     * An endpoint that was not started stays down.  On a server node the ConfigurationVersion increases when an
+     * endpoint below the node is erased; erasing a `ServerNode` is a factory reset.  A {@link close} or {@link delete}
+     * called meanwhile runs once the erase is done and the erase skips the restart; if the delete was requested before
+     * the erase began, the erase does nothing and the delete wipes the data.
      *
      * Throws {@link DestroyedDependencyError} once a delete or close of the endpoint or of an ancestor of the same node
-     * was requested.  Rejects with a {@link MatterAggregateError} if a step fails.  A failed reset does not stop the
-     * erase; a failed wipe leaves the endpoint crashed.
+     * was requested.  Throws {@link ImplementationError} for an endpoint below a client node other than a group, as it
+     * mirrors the peer; erase the node instead.  Rejects with a {@link MatterAggregateError} if a step fails.  A failed
+     * reset does not stop the erase; a failed wipe leaves the endpoint crashed.
      *
      * @see {@link MatterSpecification.v161.Core} § 7.7.2
      */
@@ -1046,6 +1049,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             return await joined;
         }
         this.#assertInNode("erased");
+        this.#assertAdmitted("erase");
         await this.#begin("erasing", () =>
             this.#withErasure("erasing", async prepared => {
                 // A delete requested before the erase began wipes the data itself
@@ -1168,6 +1172,13 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         while (this.construction.status === Lifecycle.Status.Initializing) {
             await nextEmitOf(this.construction.change);
         }
+    }
+
+    /**
+     * Let the {@link EndpointInitializer} of the node refuse {@link verb} before the verb changes any state.
+     */
+    #assertAdmitted(verb: EndpointInitializer.Verb) {
+        this.env.maybeGet(EndpointInitializer)?.assertVerbAdmitted(this, verb);
     }
 
     #assertInNode(action: string) {
@@ -1332,6 +1343,17 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     }
 
     /**
+     * Whether a delete or close was requested that destroys this endpoint, of this endpoint or of a
+     * {@link terminalAncestor}.  Unlike {@link EndpointLifecycle.isTerminal} this is true for a part from the moment
+     * the verb on an ancestor in the same node begins, before the part itself begins to close.
+     *
+     * @internal
+     */
+    get isDestructionRequested() {
+        return this.terminalCause !== undefined;
+    }
+
+    /**
      * The ancestor whose delete or close was requested and that destroys this endpoint, if any.  Defaults to the
      * nearest such ancestor sharing the tree mutex of this endpoint, as it destroys this endpoint once its turn on the
      * mutex comes.
@@ -1365,12 +1387,13 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      *
      * Every step runs even when an earlier one fails; failures reject with a {@link MatterAggregateError}.  Throws
      * {@link DestroyedDependencyError} once a close of the endpoint or a delete or close of an ancestor of the same node
-     * was requested, and {@link ImplementationError} for an endpoint that was never added to a node.
+     * was requested, and {@link ImplementationError} for an endpoint that was never added to a node and for an
+     * endpoint below a client node other than a group, as it mirrors the peer; delete the node instead.
      *
      * @see {@link MatterSpecification.v161.Core} § 9.2.11
      */
     async delete() {
-        await this.#delete(false);
+        await this.#delete("verb");
     }
 
     /**
@@ -1378,15 +1401,28 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * so a delete or close requested for that owner does not refuse it.
      */
     protected async deleteDespiteOwnerTeardown() {
-        await this.#delete(true);
+        await this.#delete("despite-owner-teardown");
     }
 
-    async #delete(despiteOwnerTeardown: boolean) {
-        const joined = this.#joinOrThrow("deleting", despiteOwnerTeardown);
+    /**
+     * Perform {@link delete} for an endpoint of a client node that the peer no longer reports.  Unlike {@link delete}
+     * this is not refused for such an endpoint, so only the structure of the client node may call it.
+     *
+     * @internal
+     */
+    async deleteDroppedByPeer() {
+        await this.#delete("dropped-by-peer");
+    }
+
+    async #delete(entry: "verb" | "despite-owner-teardown" | "dropped-by-peer") {
+        const joined = this.#joinOrThrow("deleting", entry === "despite-owner-teardown");
         if (joined !== undefined) {
             return await joined;
         }
         this.#assertInNode("deleted");
+        if (entry !== "dropped-by-peer") {
+            this.#assertAdmitted("delete");
+        }
         await this.#begin("deleting", () => this.#withErasure("deleting", prepared => this.deleteWithMutex(prepared)));
     }
 
@@ -1445,13 +1481,22 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * ancestor of the same node is being deleted or closed runs in turn; the ancestor may already have destroyed this
      * endpoint by then.
      *
-     * Every teardown step runs even when an earlier one fails.  A failed deactivation rejects with a
-     * {@link MatterAggregateError}; failures while destroying the endpoint, its parts and its behaviors are logged.
+     * Throws {@link ImplementationError} for an endpoint below a client node other than a group, as it mirrors the
+     * peer; close the node instead.  Every teardown step runs even when an earlier one fails.  A failed deactivation
+     * rejects with a {@link MatterAggregateError}; failures while destroying the endpoint, its parts and its behaviors
+     * are logged.
      */
     async close() {
+        await this.#close("verb");
+    }
+
+    async #close(entry: "verb" | "failed-construction") {
         const joined = this.#joinOrThrow("closing");
         if (joined !== undefined) {
             return await joined;
+        }
+        if (entry === "verb") {
+            this.#assertAdmitted("close");
         }
         await this.#begin("closing", () =>
             this.withLifecycleMutex(
@@ -1469,11 +1514,10 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     }
 
     async #destroy() {
+        // Destruction detaches the endpoint from its owner, which provides the environment
+        const initializer = this.env.maybeGet(EndpointInitializer);
         await MatterAggregateError.settleSeries(
-            [
-                () => this.env.maybeGet(EndpointInitializer)?.deactivateDescendant(this),
-                () => this.#construction.close(),
-            ],
+            [() => this.#construction.close(), () => initializer?.deactivateDescendant(this)],
             `Error closing ${this}`,
         );
     }
@@ -1508,6 +1552,41 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     *#closePartTasks(parts: Iterable<Endpoint>): Generator<() => Promise<void>> {
         for (const part of parts) {
             yield () => part.#begin("closing", () => part.#destroy());
+        }
+    }
+
+    /**
+     * Delete every part of the endpoint like {@link delete} while holding the tree mutex of the endpoint, which the
+     * parts share.  Every part is deleted even when another one fails; failures reject with a
+     * {@link MatterAggregateError}.  A close or delete of a part called once its delete began joins that delete.  A
+     * delete of a part that waits for the mutex finds the part destroyed and does nothing.
+     *
+     * The {@link EndpointInitializer} of the node must prepare deletes without an
+     * {@link EndpointInitializer.Erasure.finish}, as no finish can run while the caller holds the mutex.
+     */
+    protected async deletePartsWithMutex() {
+        await MatterAggregateError.settleSeries(
+            this.#deletePartTasks([...this.parts]),
+            `Error deleting parts of ${this}`,
+        );
+    }
+
+    *#deletePartTasks(parts: Endpoint[]): Generator<() => Promise<void>> {
+        for (const part of parts) {
+            yield async () => {
+                if (part.construction.status === Lifecycle.Status.Destroyed) {
+                    return;
+                }
+                await part.#begin("deleting", () =>
+                    part.deleteWithMutex(erasure => {
+                        if (erasure.finish !== undefined) {
+                            throw new InternalError(
+                                `Cannot finish the delete of ${part} while ${this} holds its mutex`,
+                            );
+                        }
+                    }),
+                );
+            };
         }
     }
 

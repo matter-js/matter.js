@@ -276,6 +276,15 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
     }
 
     /**
+     * Whether {@link discard} or {@link erase} ended the cache.
+     *
+     * @internal
+     */
+    get isDiscarded() {
+        return this.#discarded;
+    }
+
+    /**
      * {@link discard} the cache and erase its stored values in a job of the buffer, after the flushes queued before.
      */
     async erase() {

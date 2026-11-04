@@ -9,7 +9,7 @@ import type { ClientNode } from "#node/ClientNode.js";
 import { InternalError, MatterAggregateError, StorageContext, StorageContextFactory } from "@matter/general";
 import { EndpointNumber } from "@matter/types";
 import { NodeStore } from "../NodeStore.js";
-import { StoreLifecycle } from "../StoreLifecycle.js";
+import { namingStoreFailure, StoreClosedError, StoreLifecycle } from "../StoreLifecycle.js";
 import type { ClientCacheBuffer } from "./ClientCacheBuffer.js";
 import { ClientEndpointStore } from "./ClientEndpointStore.js";
 import type { RemoteWriter } from "./RemoteWriter.js";
@@ -178,16 +178,25 @@ export class ClientNodeStore extends NodeStore {
     }
 
     /**
-     * Erase the values cached from the peer and end the store.  The state of behaviors that do not track a remote
-     * cluster stays; see {@link ClientEndpointStore.eraseCaches}.  Use {@link ClientNodeStores.eraseCaches}, which
-     * hands out a new store that loads what remains.
+     * Erase the values cached from the peer, including the recorded fabric filter of the cache, and end the store.  The
+     * state of behaviors that do not track a remote cluster and the disabled flag stay; see
+     * {@link ClientEndpointStore.eraseCaches}.  Use {@link ClientNodeStores.eraseCaches}, which hands out a new store
+     * that loads what remains.
      */
     async eraseCaches() {
         const stores = [...this.#stores.values()];
         await this.#lifecycle.close(async () => {
             try {
                 await MatterAggregateError.settleSeries(
-                    stores.map(store => () => store.eraseCaches()),
+                    [
+                        ...stores.map(store => () => store.eraseCaches()),
+                        async () => {
+                            this.#cacheFabricFiltered = undefined;
+                            await namingStoreFailure(this, "erase the cache fabric filter of", async () => {
+                                await this.#cacheStorage?.clearAll();
+                            });
+                        },
+                    ],
                     `Error while erasing the cache of ${this}`,
                 );
             } finally {
@@ -227,6 +236,13 @@ export class ClientNodeStore extends NodeStore {
         }
     }
 
+    /**
+     * The store of {@link endpoint}, created on first use.
+     *
+     * Throws `StoreClosedError` for an endpoint that holds no store once a delete or close that destroys it was
+     * requested, also one of an ancestor, as the delete may have erased the store already: an endpoint that is being
+     * destroyed persists nothing new.
+     */
     override storeForEndpoint(endpoint: Endpoint) {
         const { number } = endpoint;
 
@@ -237,6 +253,9 @@ export class ClientNodeStore extends NodeStore {
 
         let store = this.#stores.get(number);
         if (store === undefined) {
+            if (endpoint.isDestructionRequested) {
+                throw new StoreClosedError(`Cannot hand out a new store for ${endpoint}, which is being destroyed`);
+            }
             store = new ClientEndpointStore(this, number, this.#storage.createContext(number.toString()));
             this.#stores.set(number, store);
         }
@@ -265,6 +284,11 @@ export class ClientNodeStore extends NodeStore {
 
             const store = new ClientEndpointStore(this, number, this.#storage.createContext(id));
             await store.load();
+
+            // A driver may still list the context of an endpoint whose store was erased
+            if (!store.loadedValues) {
+                continue;
+            }
             this.#stores.set(number, store);
         }
 

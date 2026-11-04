@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClosedError } from "@matter/general";
+import { ClosedError, MaybePromise, StorageError } from "@matter/general";
 
 /**
  * Thrown when a store that is erased or closed, or is ending, is asked to write, to erase or to hand out a store for a
@@ -12,6 +12,18 @@ import { ClosedError } from "@matter/general";
  * node is erased, so it is a {@link ClosedError}, not an error of the caller.
  */
 export class StoreClosedError extends ClosedError {}
+
+/**
+ * Run {@link step}, and reject with a {@link StorageError} that names {@link store} and has the failure as its cause if
+ * the step fails, so failures of several stores can be told apart.
+ */
+export async function namingStoreFailure(store: object, action: string, step: () => MaybePromise<void>) {
+    try {
+        await step();
+    } catch (cause) {
+        throw new StorageError(`Cannot ${action} ${store}`, { cause });
+    }
+}
 
 /**
  * The lifecycle of a store: it is active until it is erased or closed, and then never touches storage again.

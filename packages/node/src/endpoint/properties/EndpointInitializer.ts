@@ -30,6 +30,16 @@ export abstract class EndpointInitializer {
     initializeDescendant(_endpoint: Endpoint) {}
 
     /**
+     * Throw to refuse the call of the lifecycle verb {@link verb} on {@link endpoint}.  Runs synchronously before the
+     * verb changes any state, so a refusal emits no lifecycle change.  Admits every call by default.
+     *
+     * Not consulted when an endpoint closes or deletes its parts itself, as a node does in its teardown or erase, when
+     * {@link Endpoint.add} closes a part that failed to initialize, nor for an endpoint the peer of a client node no
+     * longer reports.
+     */
+    assertVerbAdmitted(_endpoint: Endpoint, _verb: EndpointInitializer.Verb) {}
+
+    /**
      * Prepare {@link Endpoint.erase} of an endpoint and its parts.  Runs before the endpoint resets; the endpoint may
      * have crashed.  The wipe keeps the endpoint numbers.
      */
@@ -42,7 +52,8 @@ export abstract class EndpointInitializer {
     abstract prepareDeleteDescendant(_endpoint: Endpoint): Promise<EndpointInitializer.Erasure>;
 
     /**
-     * Invoked when a {@link Endpoint} closes; its storage and number reservation stay
+     * Invoked once an {@link Endpoint} that closes or is deleted is destroyed.  A close keeps its storage and number
+     * reservation.
      */
     abstract deactivateDescendant(_endpoint: Endpoint): Promise<void>;
 
@@ -73,6 +84,11 @@ export abstract class EndpointInitializer {
 }
 
 export namespace EndpointInitializer {
+    /**
+     * A lifecycle verb of an {@link Endpoint} that {@link EndpointInitializer.assertVerbAdmitted} may refuse.
+     */
+    export type Verb = "erase" | "delete" | "close";
+
     /**
      * The storage side of {@link Endpoint.erase} and {@link Endpoint.delete}.
      */

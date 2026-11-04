@@ -17,6 +17,7 @@ import {
     MatterAggregateError,
     MemoryStorageDriver,
     Seconds,
+    StorageError,
     StorageManager,
 } from "@matter/general";
 import { EndpointNumber } from "@matter/types";
@@ -120,7 +121,10 @@ describe("ClientNodeStore", () => {
             throw new ImplementationError("Clear refused for test");
         };
 
-        await expect(store.eraseEndpointStore(EndpointNumber(1))).rejectedWith("Clear refused for test");
+        await expect(store.eraseEndpointStore(EndpointNumber(1))).rejectedWith(
+            StorageError,
+            /^Cannot erase storage:.*endpoints\.1$/,
+        );
         driver.clearAll = clearAll;
 
         expect(() => store.storeForEndpointNumber(EndpointNumber(1))).throws(InternalError, /No endpoint store/);

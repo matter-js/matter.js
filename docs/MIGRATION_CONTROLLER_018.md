@@ -394,13 +394,17 @@ Repair them once and record that you did, so the user's later choices stay. Set 
 online:
 
 ```ts
-for (const peer of serverNode.peers.commissioned) {
-    await peer.set({ network: { autoSubscribe: true } });
-}
-await serverNode.start();
-for (const peer of serverNode.peers.commissioned) {
-    if (peer.isDisabled && appConsidersEnabled(peer)) {
-        await peer.enable();
+// enabledInApp: the node IDs your application lists as enabled
+async function repairLegacyPeers(serverNode: ServerNode, enabledInApp: Set<NodeId>) {
+    for (const peer of serverNode.peers.commissioned) {
+        await peer.set({ network: { autoSubscribe: true } });
+    }
+    await serverNode.start();
+    for (const peer of serverNode.peers.commissioned) {
+        const nodeId = peer.peerAddress?.nodeId;
+        if (peer.isDisabled && nodeId !== undefined && enabledInApp.has(nodeId)) {
+            await peer.enable();
+        }
     }
 }
 ```
@@ -726,7 +730,8 @@ Legacy `initialized` / `localInitializationDone` / `remoteInitializationDone` �
 (the peer's structure has been read: BasicInformation present and every endpoint the root's PartsList names
 installed, which includes a peer with only its root endpoint; a node built by hand without a root PartsList needs an
 endpoint beyond the root), with
-`lifecycle.seeded` emitting once on the false→true transition.
+`lifecycle.seeded` emitting on the false→true transition. An erase of the node sets `isSeeded` back to false, and
+`seeded` emits again once the node read the peer's structure (see "Erasing a client node" below).
 
 `await lifecycle.seeded` never resolves for a peer that is offline, so bound the wait — legacy
 `await node.events.initialized` had the same hang. Race it against a timeout and abort the command on
@@ -744,6 +749,36 @@ try {
     observers.close();
 }
 ```
+
+---
+
+## Erasing a client node
+
+`clientNode.erase()` drops what the controller learned from the device and reads it again, so the node looks like a
+newly commissioned one. It keeps the commissioning state (such as the peer address), the network settings (including
+the last event number seen, so old events are not delivered again), the ICD state and the disabled flag. It drops the
+endpoints below the root with their stored data, the cluster data of the root, and the fabric filter recorded for
+that data.
+
+The endpoint objects below the root are destroyed. The next read of the device's structure creates new objects, so
+look up endpoints by number after an erase instead of keeping references. `lifecycle.isSeeded` is false until that
+read is done, and `lifecycle.seeded` then emits again.
+
+| Situation when you call `erase()` | What happens |
+| --- | --- |
+| Node online, `autoSubscribe` on | It reconnects; the subscription reads the endpoints again |
+| Node online, `autoSubscribe` off | It reconnects; the endpoints come back with the next read your application does |
+| Node offline or disabled | It stays offline with only its root endpoint; the endpoints come back once it is online again and has read the device |
+| Server node offline | The node stays offline |
+| `close()` or `delete()` of an endpoint below the node | Refused, unless that endpoint is already being deleted; then the call waits for that delete |
+| `close()` or `delete()` of the node | Runs after the erase; the node does not restart |
+| The stored data of the root or of an endpoint fails to erase | The endpoints below the root are still removed; the node crashes and stays offline until you call `start()`, and `erase()` rejects with the failures |
+
+Endpoints of a client node mirror the device, so their own `erase()`, `delete()` and `close()` reject with
+`ImplementationError`. Erase, delete or close the node instead.
+
+A `ClientGroup` is different: your application adds its endpoints, for example through bindings. `erase()` of a group
+keeps its endpoints and drops only their cached data, and the endpoints of a group accept `erase()`, `delete()` and `close()`.
 
 ---
 

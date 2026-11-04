@@ -338,6 +338,11 @@ export namespace Datasource {
          * Discard the store's values, including any persisted copy.
          */
         erase?(): MaybePromise<void>;
+
+        /**
+         * Whether the store ended: it applies, announces and persists nothing anymore, so a new store must replace it.
+         */
+        readonly isDiscarded?: boolean;
     }
 
     export namespace ExternallyMutableStore {

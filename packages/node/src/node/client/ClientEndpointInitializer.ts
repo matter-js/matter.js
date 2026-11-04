@@ -14,8 +14,7 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { PeerBehavior } from "#node/client/PeerBehavior.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
-import { MatterAggregateError } from "@matter/general";
-import { type ClientRead, Read } from "@matter/protocol";
+import { ImplementationError, MatterAggregateError } from "@matter/general";
 import { ClientEventEmitter } from "./ClientEventEmitter.js";
 import { ClientStructure } from "./ClientStructure.js";
 
@@ -23,64 +22,41 @@ export class ClientEndpointInitializer extends EndpointInitializer {
     #node: ClientNode;
     #store: ClientNodeStore;
     #structure?: ClientStructure;
+    #endpointsMirrorPeer: boolean;
 
     /**
      * @param store the store this initialization of {@link node} loaded; it serves the behaviors of that
      * initialization only
      */
-    constructor(node: ClientNode, store: ClientNodeStore) {
+    constructor(node: ClientNode, store: ClientNodeStore, options: ClientEndpointInitializer.Options) {
         super();
         this.#node = node;
         this.#store = store;
+        this.#endpointsMirrorPeer = options.endpointsMirrorPeer;
     }
 
     /**
-     * The erase of a part restarts the part and its parts with empty caches, and its finish reads their clusters from
-     * the peer again.  A failed read rejects the erase.
+     * Throw {@link ImplementationError} for an erase, delete or close of an endpoint below a node whose endpoints
+     * mirror the peer.  The structure of the node removes an endpoint the peer drops, and a verb of the node covers its
+     * endpoints.  Every verb is admitted for the endpoints of a group.
      */
+    override assertVerbAdmitted(endpoint: Endpoint, verb: EndpointInitializer.Verb) {
+        if (this.#endpointsMirrorPeer && endpoint !== this.#node) {
+            throw new ImplementationError(
+                `Cannot ${verb} ${endpoint} because the endpoint mirrors the peer; ${verb} the node ${this.#node} instead`,
+            );
+        }
+    }
+
     async prepareEraseDescendant(endpoint: Endpoint): Promise<EndpointInitializer.Erasure> {
-        const subtree = this.#subtreeOf(endpoint);
-        return {
-            wipe: () =>
-                MatterAggregateError.settleSeries(
-                    [
-                        () => this.#eraseStores(subtree),
-                        () => {
-                            for (const endpoint of subtree) {
-                                this.#structure?.renewStores(endpoint);
-                            }
-                        },
-                    ],
-                    `Error erasing ${subtree[0]}`,
-                ),
-            finish: () => this.#readAgain(subtree),
-        };
-    }
-
-    /**
-     * Read every cluster of {@link subtree} from the peer without data version filters, so the erased endpoints show
-     * the values of the peer without waiting for the peer to change them.  An offline node reads them when it
-     * reconnects, as its stores no longer hold a data version.
-     */
-    async #readAgain(subtree: Endpoint[]) {
-        if (!this.#node.lifecycle.isOnline) {
-            return;
-        }
-        const request: ClientRead = {
-            ...Read({
-                fabricFilter: this.structure.cacheFabricFiltered,
-                attributes: subtree
-                    .filter(endpoint => endpoint.lifecycle.hasNumber)
-                    .map(endpoint => ({ endpointId: endpoint.number })),
-            }),
-            includeKnownVersions: true,
-        };
-        for await (const chunk of this.#node.interaction.read(request)) {
-            for await (const _report of chunk);
-        }
+        return this.#erasureOf(endpoint);
     }
 
     async prepareDeleteDescendant(endpoint: Endpoint): Promise<EndpointInitializer.Erasure> {
+        return this.#erasureOf(endpoint);
+    }
+
+    #erasureOf(endpoint: Endpoint): EndpointInitializer.Erasure {
         const subtree = this.#subtreeOf(endpoint);
         return {
             wipe: () => this.#eraseStores(subtree),
@@ -105,8 +81,8 @@ export class ClientEndpointInitializer extends EndpointInitializer {
         );
     }
 
-    async deactivateDescendant(_endpoint: Endpoint) {
-        // nothing to do
+    async deactivateDescendant(endpoint: Endpoint) {
+        this.#structure?.forget(endpoint);
     }
 
     override createBacking(endpoint: Endpoint, type: Behavior.Type): BehaviorBacking {
@@ -136,5 +112,14 @@ export class ClientEndpointInitializer extends EndpointInitializer {
             this.#structure.eventEmitter = ClientEventEmitter(this.#node as ClientNode, this.#structure);
         }
         return this.#structure;
+    }
+}
+
+export namespace ClientEndpointInitializer {
+    export interface Options {
+        /**
+         * Whether the endpoints below the root mirror the peer, which refuses their own lifecycle verbs.
+         */
+        endpointsMirrorPeer: boolean;
     }
 }

@@ -245,6 +245,18 @@ describe("Endpoint.erase", () => {
         expect(rootVersion(node)).equals(before + 1);
     });
 
+    // Characterization: the finish of an erasure runs after the lifecycle mutexes are released
+    it("lets a reaction to its ConfigurationVersion increase delete another endpoint", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const light = await node.add(OnOffLightDevice, { id: "light" });
+        const other = await node.add(OnOffLightDevice, { id: "other" });
+        node.eventsOf(BasicInformationServer).configurationVersion$Changed.once(() => other.delete());
+
+        await MockTime.resolve(light.erase());
+
+        expect(other.construction.status).equals(Lifecycle.Status.Destroyed);
+    });
+
     it("increases the ConfigurationVersion of every bridged endpoint below", async () => {
         await using node = await MockServerNode.createOnline(undefined, { device: undefined });
         const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });

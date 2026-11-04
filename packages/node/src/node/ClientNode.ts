@@ -106,6 +106,14 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     override readonly nodeType: "client" | "group" = "client";
 
     /**
+     * Whether the endpoints below the root mirror the peer.  The structure of such a node adds and removes them as the
+     * peer reports them, so only the verbs of the node erase, delete or close them.
+     */
+    protected get endpointsMirrorPeer() {
+        return true;
+    }
+
+    /**
      * Model of Matter semantics understood by this node.
      *
      * Matter elements missing from this model will not support all functionality.
@@ -143,7 +151,9 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         this.#stores = this.env.get(ServerNodeStore).clientStores;
         const store = this.openStore(this.#stores);
 
-        const initializer = new ClientEndpointInitializer(this, store);
+        const initializer = new ClientEndpointInitializer(this, store, {
+            endpointsMirrorPeer: this.endpointsMirrorPeer,
+        });
         this.env.set(EndpointInitializer, initializer);
         this.env.set(ClientStructure, initializer.structure);
 
@@ -325,17 +335,50 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     /**
-     * Erase the data cached from the peer and initialize the node again if it was started.  Commissioning and
-     * connection settings stay.  If its network was running it reconnects and reads the peer again.
+     * Erase what the node learned from the peer, so it reads the peer again like a newly commissioned node.  The node
+     * initializes again if it was started, and reconnects if its network was running.
      *
-     * Rejects with a {@link MatterAggregateError} if a step fails.  A failed reset still erases the cache and
-     * initializes the node again.  The node crashes if it cannot disconnect first, in which case nothing is erased, if
-     * the cache erase fails, or if it cannot reconnect for another reason than its server node being offline.  If
-     * its server node is offline by then, the node stays offline instead.  Throws `DestroyedDependencyError` once a
-     * close or delete of the node or of its server node was requested.
+     * | kept                                                      | dropped                                     |
+     * |-----------------------------------------------------------|---------------------------------------------|
+     * | commissioning state, such as the peer address             | the endpoints below the root and their data |
+     * | network settings, including the last event number seen    | the cluster data of the root                |
+     * | ICD state                                                 | the fabric filter recorded for that data    |
+     * | the disabled flag                                         |                                             |
+     *
+     * The endpoint instances below the root are destroyed.  The read of the peer's structure creates new instances,
+     * so find endpoints by number after an erase instead of keeping references.  `lifecycle.isSeeded` is false until
+     * that read completes, and `lifecycle.seeded` then emits again.  Events the node received before are not
+     * delivered again.
+     *
+     * | case                                     | outcome                                                       |
+     * |------------------------------------------|---------------------------------------------------------------|
+     * | online with `autoSubscribe`              | reconnects; the subscription reads the endpoints again        |
+     * | online without `autoSubscribe`           | reconnects; endpoints return with the next read of the app    |
+     * | offline or disabled                      | stays offline; endpoints return once it is online and reads   |
+     * | server node offline                      | stays offline                                                 |
+     * | `close()`/`delete()` of an endpoint      | refused, unless its delete began; then waits for that delete  |
+     * | `close()` or `delete()` of the node      | runs after the erase, which then skips the restart            |
+     * | an endpoint's storage fails to erase     | endpoint destroyed, node crashed until `start()`, rejects     |
+     *
+     * A `ClientGroup` keeps its endpoints, as the application adds them; the erase drops their data and restarts them.
+     *
+     * Rejects with a {@link MatterAggregateError} that lists every failure at one level if a step fails, a failed
+     * reconnect included.  A storage failure is a `StorageError` that names the store, with the error of the storage
+     * driver as its cause.  A failed reset still erases the storage and initializes the node again.  The node crashes if it cannot disconnect first,
+     * in which case nothing is erased, if the storage of the root or of an endpoint fails to erase, or if it cannot
+     * reconnect for another reason than its server node being offline.  A crashed node stays offline until
+     * {@link start}.  If its server node is offline by then, the node stays offline instead.  Throws
+     * `DestroyedDependencyError` once a close or delete of the node or of its server node was requested.
      */
-    override erase() {
-        return super.erase();
+    override async erase() {
+        try {
+            await super.erase();
+        } catch (e) {
+            if (e instanceof MatterAggregateError) {
+                throw new MatterAggregateError(leafErrorsOf(e), `Error erasing ${this}`);
+            }
+            throw e;
+        }
     }
 
     /**
@@ -538,11 +581,32 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     /**
-     * Erase drops what the node cached from the peer and keeps its commissioning and connection settings.
+     * Erase drops what the root cached from the peer and keeps its commissioning and connection settings.  If the
+     * endpoints mirror the peer, it deletes the endpoints below the root, and the read of the peer creates them again.
+     * The delete runs before the root resets, as the reset clears the index of the node, without which the endpoints
+     * report no "delete" change.  A failed delete fails the wipe, so the node crashes as after a failed cache erase.
      */
     protected override async prepareErase(): Promise<EndpointInitializer.Erasure> {
+        const failures = new Array<unknown>();
+        if (this.endpointsMirrorPeer) {
+            try {
+                await this.deletePartsWithMutex();
+            } catch (e) {
+                failures.push(e);
+            }
+        }
+
         return {
-            wipe: async () => this.#stores?.eraseCaches(this.id),
+            wipe: async () => {
+                try {
+                    await this.#stores?.eraseCaches(this.id);
+                } catch (e) {
+                    failures.push(e);
+                }
+                if (failures.length) {
+                    throw new MatterAggregateError(failures, `Error erasing the storage of ${this}`);
+                }
+            },
         };
     }
 
@@ -558,6 +622,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
     protected override async resetWithMutex() {
         this.#cachedPeerAddress = undefined;
+        this.lifecycle.resetSeeded();
         await super.resetWithMutex();
     }
 
@@ -689,6 +754,13 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         // client
         logger.info(Diagnostic.strong(this.toString()), message);
     }
+}
+
+/**
+ * The errors in {@link error} that are not aggregates, so nested aggregates report at one level.
+ */
+function leafErrorsOf(error: unknown): unknown[] {
+    return error instanceof MatterAggregateError ? error.errors.flatMap(leafErrorsOf) : [error];
 }
 
 export namespace ClientNode {

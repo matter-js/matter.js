@@ -4,12 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
 import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { DiscoveryError } from "#behavior/system/controller/discovery/DiscoveryError.js";
+import { IcdClient } from "#behavior/system/icd/IcdClient.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { AccessControlClient } from "#behaviors/access-control";
 import { BasicInformationBehavior, BasicInformationClient, BasicInformationServer } from "#behaviors/basic-information";
@@ -30,6 +32,7 @@ import { WindowCoveringDevice } from "#devices/window-covering";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { IdentityConflictError } from "#endpoint/errors.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
+import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import type { ClientEndpointInitializer } from "#node/client/ClientEndpointInitializer.js";
 import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
@@ -64,7 +67,6 @@ import {
     InternalError,
     Lifecycle,
     MatterAggregateError,
-    NetworkError,
     MaybePromise,
     MemoryStorageDriver,
     Millis,
@@ -74,6 +76,7 @@ import {
     Network,
     Observable,
     Seconds,
+    StorageError,
     StorageManager,
     ServerAddress,
     ServerAddressIp,
@@ -113,6 +116,7 @@ import {
     AttributeId,
     ClusterId,
     EndpointNumber,
+    EventNumber,
     FabricIndex,
     NodeId,
     ReceivedStatusResponseError,
@@ -1239,22 +1243,115 @@ describe("ClientNode", () => {
         return { site, controller, device, peer1 };
     }
 
-    it("reconnects and reads the peer again after erase", async () => {
+    it("refuses erase, delete and close of an endpoint of the peer", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const ep1 = peer1.parts.get("ep1")!;
+        const changes = new Array<string>();
+        ep1.lifecycle.changed.on(type => void changes.push(type));
+
+        for (const verb of [() => ep1.erase(), () => ep1.delete(), () => ep1.close()]) {
+            await expect(verb()).rejectedWith(ImplementationError, /mirrors the peer/);
+        }
+
+        expect(changes).deep.equals([]);
+        expect(ep1.construction.status).equals(Lifecycle.Status.Active);
+        expect(peer1.lifecycle.isOnline).equals(true);
+    });
+
+    it("rejects with the construction error and keeps no part when an added part fails to initialize", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        class FailingBehavior extends Behavior {
+            static override readonly id = "failing";
+            static override readonly early = true;
+
+            override initialize() {
+                throw new ImplementationError("Initialization refused for test");
+            }
+        }
+        const FailingEndpoint = MutableEndpoint({ name: "Failing", deviceType: 1, deviceRevision: 1 }).with(
+            FailingBehavior,
+        );
+
+        const error = await peer1.add(FailingEndpoint, { id: "failing", number: 9 }).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        const messagesOf = (e: unknown): string[] => {
+            if (!(e instanceof Error)) {
+                return [String(e)];
+            }
+            const nested = e instanceof AggregateError ? e.errors : e.cause === undefined ? [] : [e.cause];
+            return [e.message, ...nested.flatMap(messagesOf)];
+        };
+        expect(error).not.instanceOf(ImplementationError);
+        expect(messagesOf(error)).contains("Initialization refused for test");
+
+        expect([...peer1.parts].map(part => part.id)).deep.equals(["ep1"]);
+    });
+
+    it("rebuilds the endpoints of the peer as new instances after erase and keeps its settings", async () => {
         const { site, controller, peer1 } = await peerWithLightOn();
         await using _site = site;
+        const ep1 = peer1.parts.get("ep1")!;
         const address = peer1.state.commissioning.peerAddress;
-        expect(address).not.undefined;
+        const { maxEventNumber } = peer1.state.network;
+        expect(maxEventNumber).not.equals(EventNumber(0));
+        let partsAtReset: number | undefined;
+        peer1.lifecycle.reset.once(() => {
+            partsAtReset = peer1.parts.size;
+        });
 
         await MockTime.resolve(peer1.erase());
+
+        expect(partsAtReset).equals(0);
+        expect(ep1.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(peer1.state.network.maxEventNumber).equals(maxEventNumber);
+        expect(peer1.isDisabled).equals(false);
+
         await subscribedPeer(controller, "peer1");
 
         expect(peer1.state.commissioning.peerAddress).deep.equals(address);
         expect(peer1.lifecycle.isOnline).equals(true);
         expect(peer1.parts.size).equals(1);
-        expect(peer1.parts.get("ep1")!.stateOf("onOff").onOff).equals(true);
+        const rebuilt = peer1.parts.get("ep1")!;
+        expect(rebuilt).not.equals(ep1);
+        expect(rebuilt.stateOf(OnOffClient).onOff).equals(true);
     });
 
-    it("reconnects after erase without IdentityConflictError when the driver keeps listing emptied contexts", async () => {
+    it("keeps only the commissioning, network and ICD state of the root and the settings after erase", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await MockTime.resolve(peer1.stop());
+        const icd = controller.env
+            .get(StorageManager)
+            .createContext("nodes")
+            .createContext(peer1.id)
+            .createContext("endpoints")
+            .createContext("0")
+            .createContext(IcdClient.id);
+        await icd.set("key", "registration kept for test");
+        await MockTime.resolve(peer1.disable());
+        const storage = site.storageFor(controller.id);
+        expect(storage[`nodes.${peer1.id}.cache`]).not.undefined;
+
+        await MockTime.resolve(peer1.erase());
+
+        const prefix = `nodes.${peer1.id}.`;
+        const kept = storedKeysOf(site, controller, peer1).map(key => key.slice(prefix.length));
+        expect(kept.sort()).deep.equals([
+            "endpoints.0.commissioning",
+            "endpoints.0.icd",
+            "endpoints.0.network",
+            "settings",
+        ]);
+        expect(storage[`nodes.${peer1.id}.endpoints.0.icd`]).deep.equals({ key: "registration kept for test" });
+        expect(storage[`nodes.${peer1.id}.settings`]).deep.equals({ isDisabled: true });
+    });
+
+    it("rebuilds one endpoint after erase when the driver keeps listing emptied contexts", async () => {
         const { site, controller, peer1 } = await peerWithLightOn();
         await using _site = site;
         const driver = controller.env.get(StorageManager).driver;
@@ -1271,23 +1368,29 @@ describe("ClientNode", () => {
         };
         await driver.contexts(["nodes", peer1.id, "endpoints"]);
         const ep1 = peer1.parts.get("ep1");
+        await MockTime.resolve(peer1.stop());
 
         const errors = await captureErrorsOf(async () => {
             await MockTime.resolve(peer1.erase());
+            expect(peer1.parts.size).equals(0);
+            const store = peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
+            expect([...store.endpointStores].map(endpointStore => endpointStore.number)).deep.equals([0]);
+
+            await MockTime.resolve(peer1.start());
             await subscribedPeer(controller, "peer1");
         });
 
         expect(errors).deep.equals([]);
         expect(peer1.parts.size).equals(1);
-        expect(peer1.parts.get("ep1")).equals(ep1);
-        expect(peer1.env.get(ClientStructure).endpointFor(EndpointNumber(1))).equals(ep1);
-        expect(ep1!.stateOf(OnOffClient).onOff).equals(true);
+        const rebuilt = peer1.parts.get("ep1")!;
+        expect(rebuilt).not.equals(ep1);
+        expect(peer1.env.get(ClientStructure).endpointFor(EndpointNumber(1))).equals(rebuilt);
+        expect(rebuilt.stateOf(OnOffClient).onOff).equals(true);
     });
 
-    it("requires an endpoint the node holds while an erase resets the node", async () => {
+    it("uses an endpoint required while an erase resets the node for the endpoint the peer reports", async () => {
         const { site, controller, peer1 } = await peerWithLightOn();
         await using _site = site;
-        const ep1 = peer1.parts.get("ep1");
         let required: Endpoint | undefined;
         peer1.lifecycle.reset.once(() => {
             required = peer1.endpoints.require(1);
@@ -1299,87 +1402,77 @@ describe("ClientNode", () => {
         });
 
         expect(errors).deep.equals([]);
-        expect(required).equals(ep1);
         expect(peer1.parts.size).equals(1);
+        expect(peer1.env.get(ClientStructure).endpointFor(EndpointNumber(1))).equals(required);
+        for (let wait = 0; required!.maybeStateOf("onOff")?.onOff !== true && wait < 100; wait++) {
+            await MockTime.resolve(MockTime.sleep("report pending", Millis(100)));
+        }
+        expect(required!.stateOf(OnOffClient).onOff).equals(true);
     });
 
-    it("refuses an endpoint added with a held number while an erase resets the node", async () => {
+    it("emits seeded again once it read the structure of the peer after erase", async () => {
         const { site, controller, peer1 } = await peerWithLightOn();
         await using _site = site;
-        const ep1 = peer1.parts.require("ep1");
-        let refusal: unknown;
+        expect(peer1.lifecycle.isSeeded).equals(true);
+        let seededAtReset: boolean | undefined;
         peer1.lifecycle.reset.once(() => {
-            try {
-                peer1.parts.add(new Endpoint({ id: "duplicate1", number: 1, type: ep1.type }));
-            } catch (error) {
-                refusal = error;
-            }
+            seededAtReset = peer1.lifecycle.isSeeded;
         });
+        let seeded = 0;
+        peer1.lifecycle.seeded.on(() => void seeded++);
 
-        const errors = await captureErrorsOf(async () => {
-            await MockTime.resolve(peer1.erase());
-            await subscribedPeer(controller, "peer1");
-        });
-
-        expect(refusal).instanceOf(IdentityConflictError);
-        expect(errors).deep.equals([]);
-        expect([...peer1.parts]).deep.equals([ep1]);
-    });
-
-    it("receives reports for a part after the part is erased", async () => {
-        const { site, device, peer1 } = await peerWithLightOn();
-        await using _site = site;
-        const ep1 = peer1.parts.get("ep1")!;
-
-        await MockTime.resolve(ep1.erase());
-
-        const reported = new Array<boolean>();
-        for (const onOff of [false, true]) {
-            await MockTime.resolve(device.parts.get(1)!.setStateOf("onOff", { onOff }));
-            for (let wait = 0; ep1.maybeStateOf("onOff")?.onOff !== onOff && wait < 100; wait++) {
-                await MockTime.resolve(MockTime.sleep("report pending", Millis(100)));
-            }
-            reported.push(ep1.stateOf(OnOffClient).onOff);
+        await MockTime.resolve(peer1.erase());
+        await subscribedPeer(controller, "peer1");
+        for (let wait = 0; !peer1.lifecycle.isSeeded && wait < 100; wait++) {
+            await MockTime.resolve(MockTime.sleep("structure read pending", Millis(100)));
         }
 
-        expect(reported).deep.equals([false, true]);
+        expect(seededAtReset).equals(false);
+        expect(peer1.lifecycle.isSeeded).equals(true);
+        expect(seeded).equals(1);
     });
 
-    it("a part erased on a client node exposes its attributes again after the re-read", async () => {
+    it("keeps an offline peer offline and commissioned with only its root after erase", async () => {
         const { site, peer1 } = await peerWithLightOn();
         await using _site = site;
-        const ep1 = peer1.parts.get("ep1")!;
+        const address = peer1.state.commissioning.peerAddress;
+        await MockTime.resolve(peer1.disable());
 
-        await MockTime.resolve(ep1.erase());
+        await MockTime.resolve(peer1.erase());
 
-        expect(ep1.stateOf(OnOffClient).onOff).equals(true);
-        expect(await MockTime.resolve(ep1.getStateOf(OnOffClient, ["onOff"]))).deep.equals({ onOff: true });
+        expect(peer1.lifecycle.isOnline).equals(false);
+        expect(peer1.lifecycle.isCommissioned).equals(true);
+        expect(peer1.isDisabled).equals(true);
+        expect(peer1.state.commissioning.peerAddress).deep.equals(address);
+        expect(peer1.parts.size).equals(0);
+        const store = peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
+        expect([...store.endpointStores].map(endpointStore => endpointStore.number)).deep.equals([0]);
     });
 
-    it("elements refresh when attributeList is reported after a part erase whose re-read failed", async () => {
+    // Characterization: without a subscription only a read of the app brings the endpoints back
+    it("reconnects without subscription after erase and rebuilds the endpoints on the next read", async () => {
         const { site, peer1 } = await peerWithLightOn();
         await using _site = site;
-        const ep1 = peer1.parts.get("ep1")!;
-        const interaction = peer1.interaction;
-        const read = interaction.read.bind(interaction);
-        let refusals = 1;
-        interaction.read = async function* (request, context): ReadResult {
-            if (refusals-- > 0) {
-                throw new NetworkError("Read refused for test");
-            }
-            yield* read(request, context);
-        };
+        await MockTime.resolve(peer1.set({ network: { autoSubscribe: false } }));
+        expect(peer1.lifecycle.isOnline).equals(true);
 
-        await expect(MockTime.resolve(ep1.erase())).rejectedWith(MatterAggregateError);
-        expect(ep1.behaviors.elementsOf(OnOffClient).attributes.has("onOff")).equals(false);
+        await MockTime.resolve(peer1.erase());
 
-        const reread = interaction.read(Read({ fabricFilter: true }, Read.Attribute({ endpoint: ep1.number })));
-        for await (const chunk of reread) {
-            for await (const _report of chunk);
-        }
+        expect(peer1.lifecycle.isOnline).equals(true);
+        expect(peer1.behaviors.internalsOf(NetworkClient).activeSubscription).undefined;
+        expect(peer1.parts.size).equals(0);
 
-        expect(ep1.behaviors.elementsOf(OnOffClient).attributes.has("onOff")).equals(true);
-        expect(await MockTime.resolve(ep1.getStateOf(OnOffClient, ["onOff"]))).deep.equals({ onOff: true });
+        const reading = peer1.interaction.read(Read({ fabricFilter: true, attributes: [{}] }));
+        await MockTime.resolve(
+            (async () => {
+                for await (const chunk of reading) {
+                    for await (const _report of chunk);
+                }
+            })(),
+        );
+
+        expect(peer1.parts.size).equals(1);
+        expect(peer1.parts.get("ep1")!.stateOf(OnOffClient).onOff).equals(true);
     });
 
     async function peerWithChildLightOn() {
@@ -1400,97 +1493,288 @@ describe("ClientNode", () => {
             await MockTime.resolve(MockTime.sleep("report pending", Millis(100)));
         }
         expect(child()!.stateOf(OnOffClient).onOff).equals(true);
-        return { site, controller, light, peer1, part: peer1.parts.get("ep1")!, child: child()! };
+        return { site, controller, device, light, peer1, part: peer1.parts.get("ep1")!, child: child()! };
     }
 
-    it("erases the cache of the child of an erased part and receives its reports", async () => {
-        const { site, controller, light, peer1, part, child } = await peerWithChildLightOn();
+    it("lets a close of an endpoint join its delete by the structure while an erase of the node waits", async () => {
+        const { site, controller, device, peer1, part } = await peerWithChildLightOn();
         await using _site = site;
         const store = controller.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
         const eraseEndpointStore = store.eraseEndpointStore.bind(store);
-        const erased = new Array<number>();
-        store.eraseEndpointStore = async number => {
-            erased.push(number);
-            await eraseEndpointStore(number);
-        };
-
-        await MockTime.resolve(part.erase());
-
-        await MockTime.resolve(light.setStateOf("onOff", { onOff: false }));
-        await MockTime.resolve(light.setStateOf("onOff", { onOff: true }));
-        for (let wait = 0; child.stateOf(OnOffClient).onOff !== true && wait < 100; wait++) {
-            await MockTime.resolve(MockTime.sleep("report pending", Millis(100)));
-        }
-
-        expect(erased).contains(child.number);
-        expect(child.stateOf(OnOffClient).onOff).equals(true);
-    });
-
-    it("erases a part whose re-read makes the structure delete another endpoint", async () => {
-        const { site, peer1, part, child } = await peerWithChildLightOn();
-        await using _site = site;
-        const structure = peer1.env.get(ClientStructure);
-        const interaction = peer1.interaction;
-        const read = interaction.read.bind(interaction);
-        let reReads = 1;
-        interaction.read = async function* (request, context): ReadResult {
-            yield* read(request, context);
-            if (reReads-- > 0) {
-                const rootPartsList: ReadResult.Report = {
-                    kind: "attr-value",
-                    path: {
-                        endpointId: EndpointNumber(0),
-                        clusterId: Descriptor.id,
-                        attributeId: Descriptor.attributes.partsList.id,
-                    },
-                    value: [part.number],
-                    version: 0xffff_fff0,
-                    tlv: TlvAny,
-                };
-                async function* droppingChild(): ReadResult {
-                    yield [rootPartsList];
-                }
-                yield* structure.mutate(request, droppingChild());
-            }
-        };
-
-        await MockTime.resolve(part.erase());
-
-        expect(child.construction.status).equals(Lifecycle.Status.Destroyed);
-    });
-
-    it("gives the child of a part new cluster stores when the store of the part failed to erase", async () => {
-        const { site, controller, peer1, part, child } = await peerWithChildLightOn();
-        await using _site = site;
-        const store = controller.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
-        const eraseEndpointStore = store.eraseEndpointStore.bind(store);
+        const gate = createPromise<void>();
+        let reached = false;
         store.eraseEndpointStore = async number => {
             if (number === part.number) {
-                throw new ImplementationError("Endpoint erase refused for test");
+                reached = true;
+                await gate.promise;
             }
             await eraseEndpointStore(number);
         };
-        const structure = peer1.env.get(ClientStructure);
-        const erased = structure.storeForRemote(child, OnOffClient);
 
-        await expect(MockTime.resolve(part.erase())).rejected;
+        await MockTime.resolve(device.parts.get("aggregator")!.delete());
+        for (let wait = 0; !reached && wait < 100; wait++) {
+            await MockTime.resolve(MockTime.sleep("structure drop pending", Millis(100)));
+        }
+        expect(reached).equals(true);
 
-        expect(structure.storeForRemote(child, OnOffClient)).not.equals(erased);
+        let partDestroyedAtErase: boolean | undefined;
+        const erasing = peer1.erase().then(() => {
+            partDestroyedAtErase = part.construction.status === Lifecycle.Status.Destroyed;
+        });
+        const closing = outcomeOf(part.close());
+        await MockTime.resolve(MockTime.sleep("erase waits", Millis(100)));
+        expect(partDestroyedAtErase).undefined;
+
+        gate.resolver();
+        await MockTime.resolve(erasing);
+
+        expect(await closing).equals("ok");
+        expect(partDestroyedAtErase).equals(true);
+        expect(peer1.parts.size).equals(0);
     });
 
-    it("deletes the storage of the child of a deleted part", async () => {
-        const { site, controller, peer1, part } = await peerWithChildLightOn();
+    it("crashes without reconnecting and rejects when the storage of an endpoint fails to erase", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const ep1 = peer1.parts.get("ep1")!;
+        const store = controller.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
+        store.storeForEndpointNumber(EndpointNumber(1)).erase = async () => {
+            throw new ImplementationError("Endpoint erase refused for test");
+        };
+        let goingOnline = 0;
+        peer1.lifecycle.online.on(() => {
+            goingOnline++;
+        });
+
+        const error = await MockTime.resolve(peer1.erase()).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+        await MockTime.resolve(MockTime.sleep("reconnect window", Millis(10_000)));
+
+        expect(error).instanceOf(MatterAggregateError);
+        const errors = (error as MatterAggregateError).errors;
+        expect(errors.some(e => e instanceof MatterAggregateError)).equals(false);
+        expect(errors.map(e => (e instanceof Error ? e.message : String(e)))).deep.equals([
+            "Endpoint erase refused for test",
+        ]);
+        expect(ep1.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(peer1.parts.size).equals(0);
+        expect(peer1.construction.status).equals(Lifecycle.Status.Crashed);
+        expect(peer1.lifecycle.isOnline).equals(false);
+        expect(goingOnline).equals(0);
+    });
+
+    it("reports the failures of an endpoint and of the root at one level when an erase fails", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const store = controller.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
+        store.storeForEndpointNumber(EndpointNumber(1)).erase = async () => {
+            throw new ImplementationError("Endpoint erase refused for test");
+        };
+        store.eraseCaches = async () => {
+            throw new ImplementationError("Cache erase refused for test");
+        };
+
+        const error = await MockTime.resolve(peer1.erase()).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(error).instanceOf(MatterAggregateError);
+        const errors = (error as MatterAggregateError).errors;
+        expect(errors.some(e => e instanceof MatterAggregateError)).equals(false);
+        expect(errors.map(e => (e instanceof Error ? e.message : String(e)))).deep.equals([
+            "Endpoint erase refused for test",
+            "Cache erase refused for test",
+        ]);
+        expect(peer1.construction.status).equals(Lifecycle.Status.Crashed);
+    });
+
+    it("names the store of each storage failure when an erase fails", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const driver = controller.env.get(StorageManager).driver;
+        const clearAll = driver.clearAll.bind(driver);
+        const endpoints = `nodes.${peer1.id}.endpoints`;
+        driver.clearAll = contexts => {
+            const path = contexts.join(".");
+            if (path === `${endpoints}.1` || path.startsWith(`${endpoints}.0.`) || path === `nodes.${peer1.id}.cache`) {
+                throw new StorageError("Clear refused for test");
+            }
+            return clearAll(contexts);
+        };
+
+        const error = await MockTime.resolve(peer1.erase()).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+        driver.clearAll = clearAll;
+
+        expect(error).instanceOf(MatterAggregateError);
+        const errors = (error as MatterAggregateError).errors;
+        expect(errors.map(e => (e instanceof StorageError ? e.message : String(e)))).deep.equals([
+            `Cannot erase storage:${endpoints}.1`,
+            `Cannot erase the cache of storage:${endpoints}.0`,
+            `Cannot erase the cache fabric filter of client-node-store#${peer1.id}`,
+        ]);
+        for (const e of errors) {
+            expect(e instanceof Error ? e.cause : undefined).instanceOf(StorageError);
+        }
+    });
+
+    it("reports a failed reconnect at one level with the other failures of an erase", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const peers = peer1.env.get(PeerSet);
+        const get = peers.get.bind(peers);
+        peer1.lifecycle.reset.on(() => {
+            peers.get = () => undefined;
+            throw new ImplementationError("Reset refused for test");
+        });
+
+        const error = await MockTime.resolve(peer1.erase()).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+        peers.get = get;
+
+        expect(error).instanceOf(MatterAggregateError);
+        const errors = (error as MatterAggregateError).errors;
+        expect(errors.some(e => e instanceof MatterAggregateError)).equals(false);
+        const messages = errors.map(e => (e instanceof Error ? e.message : String(e)));
+        expect(messages.length).equals(2);
+        expect(messages[0]).equals("Reset refused for test");
+        expect(messages[1]).match(/^Commissioned node .* has no peer .* installed$/);
+    });
+
+    it("deletes an endpoint the peer drops and the storage of it and its parts", async () => {
+        const { site, controller, device, peer1, part, child } = await peerWithChildLightOn();
         await using _site = site;
         const endpoints = controller.env
             .get(StorageManager)
             .createContext("nodes")
             .createContext(peer1.id)
             .createContext("endpoints");
+        expect(await endpoints.contexts()).contains("1");
         expect(await endpoints.contexts()).contains("2");
 
-        await MockTime.resolve(part.delete());
+        await MockTime.resolve(device.parts.get("aggregator")!.delete());
+        for (let wait = 0; part.construction.status !== Lifecycle.Status.Destroyed && wait < 100; wait++) {
+            await MockTime.resolve(MockTime.sleep("structure drop pending", Millis(100)));
+        }
 
+        expect(part.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(child.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(await endpoints.contexts()).not.contains("1");
         expect(await endpoints.contexts()).not.contains("2");
+    });
+
+    /**
+     * Report one attribute value of {@link peer} to its structure as a separate interaction would.
+     */
+    function reporterOf(peer: ClientNode) {
+        const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+        const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
+        const report = (endpointId: EndpointNumber, clusterId: ClusterId, attributeId: number, value: unknown) => {
+            async function* result(): ReadResult {
+                yield [
+                    {
+                        kind: "attr-value",
+                        path: { endpointId, clusterId, attributeId: attributeId as AttributeId },
+                        value,
+                        version: 1000,
+                        tlv: TlvAny,
+                    },
+                ];
+            }
+            return MockTime.resolve(
+                (async () => {
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    for await (const _ of structure.mutate(request, result())) {
+                    }
+                })(),
+                { macrotasks: true },
+            );
+        };
+        return { structure, report };
+    }
+
+    /**
+     * Hold the destruction of {@link endpoint} once it begins, until the returned release resolves.
+     */
+    function holdDestruction(endpoint: Endpoint) {
+        const destroying = createPromise<void>();
+        const released = createPromise<void>();
+        const { construction } = endpoint;
+        const close = construction.close.bind(construction);
+        construction.close = async () => {
+            destroying.resolver();
+            await released.promise;
+            await close();
+        };
+        return { destroying: destroying.promise, release: released.resolver };
+    }
+
+    function endpointStorageOf(controller: ServerNode, peer: ClientNode) {
+        return controller.env
+            .get(StorageManager)
+            .createContext("nodes")
+            .createContext(peer.id)
+            .createContext("endpoints");
+    }
+
+    it("persists no data another interaction reports for an endpoint while the peer's drop deletes it", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const { structure, report } = reporterOf(peer1);
+        const endpoints = endpointStorageOf(controller, peer1);
+        const ep1 = peer1.parts.get("ep1")!;
+        const EP1 = EndpointNumber(1);
+        const { destroying, release } = holdDestruction(ep1);
+
+        const dropping = report(EndpointNumber(0), Descriptor.id, Descriptor.attributes.partsList.id, []);
+        await MockTime.resolve(destroying);
+        const resolvedWhileDestroying = structure.endpointFor(EP1);
+        const reporting = report(EP1, OnOff.id, OnOff.attributes.onOff.id, false);
+        await MockTime.resolve(Time.sleep("report reaches the endpoint", Seconds(1)), { macrotasks: true });
+        release();
+        await Promise.all([dropping, reporting]);
+        await MockTime.resolve(Time.sleep("persist pending", Seconds(1)), { macrotasks: true });
+
+        expect(resolvedWhileDestroying).equals(ep1);
+        expect(ep1.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(structure.endpointFor(EP1)).undefined;
+        expect(await endpoints.contexts()).not.contains("1");
+
+        await report(EP1, OnOff.id, OnOff.attributes.onOff.id, true);
+        expect(structure.endpointFor(EP1)).not.undefined.and.not.equals(ep1);
+    });
+
+    it("persists no data another interaction reports for a part while the peer's drop deletes its owner", async () => {
+        const { site, controller, peer1, part, child } = await peerWithChildLightOn();
+        await using _site = site;
+        const { structure, report } = reporterOf(peer1);
+        const endpoints = endpointStorageOf(controller, peer1);
+        const EP2 = EndpointNumber(2);
+        const { destroying, release } = holdDestruction(part);
+
+        const dropping = report(EndpointNumber(0), Descriptor.id, Descriptor.attributes.partsList.id, []);
+        await MockTime.resolve(destroying);
+        const reporting = report(EP2, OnOff.id, OnOff.attributes.onOff.id, false);
+        await MockTime.resolve(Time.sleep("report reaches the part", Seconds(1)), { macrotasks: true });
+        release();
+        await Promise.all([dropping, reporting]);
+        await MockTime.resolve(Time.sleep("persist pending", Seconds(1)), { macrotasks: true });
+
+        expect(child.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(structure.endpointFor(EP2)).undefined;
+        expect(await endpoints.contexts()).not.contains("2");
+        const nodeStore = peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
+        expect([...nodeStore.endpointStores].map(store => store.number)).not.contains(EP2);
+
+        await report(EP2, OnOff.id, OnOff.attributes.onOff.id, true);
+        expect(structure.endpointFor(EP2)).not.undefined.and.not.equals(child);
     });
 
     it("reconnects after an erase while it has no session", async () => {
@@ -1510,22 +1794,6 @@ describe("ClientNode", () => {
         }
 
         expect(peer1.lifecycle.isOnline).equals(true);
-    });
-
-    it("keeps an offline peer offline and commissioned after erase and drops its cache", async () => {
-        const { site, peer1 } = await peerWithLightOn();
-        await using _site = site;
-        const address = peer1.state.commissioning.peerAddress;
-        await MockTime.resolve(peer1.disable());
-
-        await MockTime.resolve(peer1.erase());
-
-        expect(peer1.lifecycle.isOnline).equals(false);
-        expect(peer1.state.commissioning.peerAddress).deep.equals(address);
-        const ep1Store = [...peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1).endpointStores].find(
-            store => store.number === 1,
-        );
-        expect(ep1Store?.knownBehaviors.has("onOff") ?? false).equals(false);
     });
 
     it("hands out a new store once it erases the cache of a peer", async () => {
@@ -6432,6 +6700,7 @@ describe("ClientNode", () => {
             await drain(structure.mutate(request, readResult(descriptorServerListWithNeoReport(10), neoReports(10))));
             const before = neoType();
             expect(before, "NEO should be active initially").not.undefined;
+            const attributesBefore = structure.endpointFor(EP1)!.behaviors.elementsOf(before!).attributes.size;
 
             // Same featureMap, but the attribute list (and data) now include attribute 2.
             await drain(
@@ -6443,6 +6712,9 @@ describe("ClientNode", () => {
             const after = neoType();
             expect(after, "NEO should remain active").not.undefined;
             expect(after, "behavior must be rebuilt to reflect the new attribute set").not.equals(before);
+            expect(structure.endpointFor(EP1)!.behaviors.elementsOf(after!).attributes.size).equals(
+                attributesBefore + 1,
+            );
         });
 
         it("rebuilds a cluster when the peer changes its revision without a feature change", async () => {
@@ -6601,6 +6873,7 @@ describe("ClientNode", () => {
             await drain(structure.mutate(request, readResult(descriptorServerListWithNeoReport(10), neoReports(10))));
             const before = neoType();
             expect(before, "NEO should be active initially").not.undefined;
+            const commandsBefore = structure.endpointFor(EP1)!.behaviors.elementsOf(before!).commands.size;
 
             // Same featureMap and attribute list, but a new accepted command appears.
             await drain(
@@ -6612,6 +6885,7 @@ describe("ClientNode", () => {
             const after = neoType();
             expect(after, "NEO should remain active").not.undefined;
             expect(after, "behavior must be rebuilt to reflect the new command set").not.equals(before);
+            expect(structure.endpointFor(EP1)!.behaviors.elementsOf(after!).commands.size).equals(commandsBefore + 1);
         });
     });
 

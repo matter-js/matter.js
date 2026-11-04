@@ -9,7 +9,6 @@ import type { ClusterBehaviorType } from "#behavior/cluster/ClusterBehaviorType.
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { memberValueOf } from "#behavior/state/managed/MemberKeys.js";
 import { memberKeyFor } from "#behavior/state/managed/MemberKeys.js";
-import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { RootEndpoint } from "#endpoints/root";
@@ -264,20 +263,6 @@ export class ClientStructure {
 
         this.#emitPendingStructureEvents();
         this.#announceApplied();
-    }
-
-    /**
-     * Give the clusters of {@link endpoint} new stores once its cache is erased.  An erased store ignores the values the
-     * peer reports.
-     */
-    renewStores(endpoint: Endpoint) {
-        const structure = this.#endpoints.get(endpoint.number);
-        if (structure === undefined) {
-            return;
-        }
-        for (const [key, cluster] of structure.clusters) {
-            cluster.store = this.#storeFactory(endpoint, key.toString());
-        }
     }
 
     /**
@@ -1167,9 +1152,12 @@ export class ClientStructure {
             return endpoint;
         }
 
+        // An endpoint created with ClientNodeEndpoints.require() already holds this number
+        const existing = this.#node.endpoints.has(number) ? this.#node.endpoints.for(number) : undefined;
+
         endpoint = {
             endpoint:
-                IndexBehavior.holderOf(this.#node, number) ??
+                existing ??
                 new Endpoint({
                     id: `ep${number}`,
                     number,
@@ -1189,6 +1177,10 @@ export class ClientStructure {
     #clusterFor(endpoint: EndpointStructure, id: ClusterId) {
         let cluster = endpoint.clusters.get(id);
         if (cluster) {
+            // An erase of the endpoint storage ends the store; the cluster continues in a new one
+            if (cluster.store.isDiscarded) {
+                cluster.store = this.#storeFactory(endpoint.endpoint, id.toString());
+            }
             return cluster;
         }
 
@@ -1259,6 +1251,34 @@ export class ClientStructure {
     }
 
     /**
+     * Drop the structure of {@link endpoint} once it closes or is deleted, so its endpoint number no longer resolves to
+     * the destroyed instance.  A later endpoint with that number gets a new structure with new stores.
+     *
+     * Runs synchronously and takes no lock, as it runs while an apply that holds the lock deletes the endpoint.
+     */
+    forget(endpoint: Endpoint) {
+        const { maybeNumber } = endpoint;
+        const structure = maybeNumber === undefined ? undefined : this.#endpoints.get(maybeNumber);
+        if (structure?.endpoint === endpoint) {
+            this.#forget(structure);
+        }
+    }
+
+    #forget(structure: EndpointStructure) {
+        this.#endpoints.delete(structure.endpoint.number);
+        this.#pendingChanges.delete(structure);
+        this.#partClaims.delete(structure);
+        this.#partsListOf.delete(structure);
+        this.#composition.delete(structure);
+        for (const [part, claimants] of this.#partClaims) {
+            claimants.delete(structure);
+            if (claimants.size === 0) {
+                this.#partClaims.delete(part);
+            }
+        }
+    }
+
+    /**
      * Erase an endpoint that disappeared from the peer.
      */
     async #erase(structure: EndpointStructure) {
@@ -1270,19 +1290,8 @@ export class ClientStructure {
             "because it is no longer present on the peer",
         );
 
-        this.#endpoints.delete(endpoint.number);
-        this.#partClaims.delete(structure);
-        this.#partsListOf.delete(structure);
-        this.#composition.delete(structure);
-        for (const [part, claimants] of this.#partClaims) {
-            claimants.delete(structure);
-            if (claimants.size === 0) {
-                this.#partClaims.delete(part);
-            }
-        }
-
         try {
-            await endpoint.delete();
+            await endpoint.deleteDroppedByPeer();
         } catch (e) {
             // The endpoint is closed already, or it, the node or an ancestor is closing or being deleted
             if (e instanceof DestroyedDependencyError) {

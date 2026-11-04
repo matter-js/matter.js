@@ -64,9 +64,9 @@ export class ClientNodeLifecycle extends NodeLifecycle<ClientNodeLifecycle.Inten
     }
 
     /**
-     * True once the node's structure has been read at least once: BasicInformation is present and every endpoint the
-     * root endpoint's PartsList names is installed.  A node with only its root endpoint qualifies.  A node built by hand
-     * without a root PartsList needs an endpoint beyond the root.
+     * True once the node's structure has been read since the node was created or last erased: BasicInformation is
+     * present and every endpoint the root endpoint's PartsList names is installed.  A node with only its root endpoint
+     * qualifies.  A node built by hand without a root PartsList needs an endpoint beyond the root.
      *
      * @see {@link MatterSpecification.v161.Core} § 9.2, § 9.5.6.4
      */
@@ -75,14 +75,14 @@ export class ClientNodeLifecycle extends NodeLifecycle<ClientNodeLifecycle.Inten
     }
 
     /**
-     * Emits the first time the node becomes {@link isSeeded}.
+     * Emits when the node becomes {@link isSeeded}: once after the node is created and once after each erase.
      */
     get seeded() {
         return this.#seeded;
     }
 
     /**
-     * Transitions the node to seeded. No-op if already seeded, so {@link seeded} emits at most once.
+     * Transitions the node to seeded. No-op if already seeded, so {@link seeded} emits once until {@link resetSeeded}.
      */
     markSeeded(context: ActionContext) {
         if (this.#isSeeded) {
@@ -90,6 +90,15 @@ export class ClientNodeLifecycle extends NodeLifecycle<ClientNodeLifecycle.Inten
         }
         this.#isSeeded = true;
         this.#seeded.emit(context);
+    }
+
+    /**
+     * Forget that the structure was read, as an erase drops it.
+     *
+     * @internal
+     */
+    resetSeeded() {
+        this.#isSeeded = false;
     }
 
     /**

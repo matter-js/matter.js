@@ -22,19 +22,23 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Breaking: `erase()` on an endpoint restarts it with its default values and options and keeps its endpoint number; on a server node the ConfigurationVersion increases
-    - Breaking: `erase()` of an endpoint or node rejects with a `MatterAggregateError` when a step fails; a failed storage erase leaves the endpoint or node crashed, and so does a node that cannot go offline before or online after the erase; a peer whose server node is offline stays offline instead
+    - Adjustment: `erase()` of an endpoint or node rejects with a `MatterAggregateError` when a step fails; a failed storage erase leaves the endpoint or node crashed, and so does a node that cannot go offline before or online after the erase; a peer whose server node is offline stays offline instead
     - Breaking: `ServerNode.delete()` erases the node's storage and closes the node; it no longer restarts the node first
-    - Breaking: `ClientNode.erase()` keeps the commissioning state and reconnects when it was started, unless its server node is offline
+    - Breaking: `ClientNode.erase()` keeps commissioning, network settings, ICD state and the disabled flag, reconnects when it was started, and rebuilds its endpoints from the peer as new instances
+    - Breaking: `erase()`, `delete()` and `close()` of an endpoint of a `ClientNode` that is not a `ClientGroup` reject with `ImplementationError`; erase, delete or close the node instead
     - Breaking: `Endpoint.reset()`, `Node.reset()` and `EndpointContainer.reset()` are removed; `erase()` resets and also wipes the persisted data
     - Breaking: Changing the `owner` of an endpoint that already has one, also by adding it to another endpoint, throws; an endpoint cannot move, so close or delete it and add a new one
     - Breaking: `EndpointInitializer.eraseDescendant()` is replaced by `prepareEraseDescendant()` and `prepareDeleteDescendant()`
+    - Enhancement: `EndpointInitializer.assertVerbAdmitted()` lets a node refuse an erase, delete or close of one of its endpoints
+    - Adjustment: `EndpointInitializer.deactivateDescendant()` runs once the endpoint is destroyed, on close and on delete
     - Breaking: `erase()` and `delete()` throw `DestroyedDependencyError` once a close of the endpoint, or a close or delete of an ancestor of the same node, was requested
     - Breaking: `erase()` also throws `DestroyedDependencyError` once a delete of the endpoint was requested
     - Breaking: `erase()` and `delete()` of a `ClientNode` also throw `DestroyedDependencyError` once a close or delete of its server node was requested
-    - Breaking: `delete()` removes the endpoint and releases its number also when the storage erase fails; the failure still rejects
-    - Breaking: `start()` of a node whose close or delete was requested throws `DestroyedDependencyError` instead of `MutexClosedError`
-    - Breaking: `stop()` of a node whose close or delete was requested does nothing instead of throwing `MutexClosedError`
-    - Breaking: `ClientNode.start()` rejects with the new `NodeDisabledError`, `NodeUncommissionedError` or `ServerNodeOfflineError`
+    - Adjustment: `delete()` removes the endpoint and releases its number also when the storage erase fails; the failure still rejects
+    - Adjustment: `start()` of a node whose close or delete was requested throws `DestroyedDependencyError` instead of `MutexClosedError`
+    - Adjustment: `stop()` of a node whose close or delete was requested does nothing instead of throwing `MutexClosedError`
+    - Adjustment: `ClientNode.start()` of a disabled or uncommissioned node rejects with the new `NodeDisabledError` or `NodeUncommissionedError`
+    - Breaking: `ClientNode.start()` rejects with the new `ServerNodeOfflineError` when its server node is offline at the turn of the start
     - Breaking: `ClientNode.enable()` also brings a node that is not disabled online, like `start()`
     - Breaking: The option `network: { isDisabled }` has no effect when a node is created; call `ClientNode.disable()` instead
     - Breaking: The `NodeLifecycle.targetState` setter is removed
@@ -53,6 +57,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `ClientNode.isDisabled` tells whether the node is disabled
     - Enhancement: `Peers.erase()` takes an optional storage erase, which runs before `forAddress()` can add a node again
     - Adjustment: The `Destroying` lifecycle change is emitted when `close()` or `delete()` is called, so a node emits it before it goes offline
+    - Adjustment: `ClientNodeLifecycle.seeded` emits again after an erase, once the node read the structure of the peer
     - Adjustment: A `ClientNode` that should be online but is not commissioned, or whose server node is offline or closing, reports `Disconnected` instead of `Reconnecting`
     - Adjustment: A disabled flag stored in the `NetworkClient` state of a `ClientNode` migrates
     - Adjustment: A `start()`, `stop()`, `enable()` or `disable()` of a node that a later call reversed resolves without taking effect
@@ -71,9 +76,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A factory reset of a server node no longer hangs when one of its peers starts meanwhile
     - Fix: `start()` and `stop()` of a node take effect in call order; `start()` no longer returns at once while another start is in progress
     - Fix: `enable()` and `disable()` of a `ClientNode` take effect in call order, also mixed with `start()` and `stop()`
-    - Fix: `erase()` and `delete()` of an endpoint of a peer also erase the cached data of its parts
-    - Fix: Erasing an endpoint of a peer waits for a running cache flush, so the flush no longer writes the erased values back
-    - Fix: A cache write or a commit that runs while a peer or one of its endpoints is erased or deleted no longer writes its values back, so a deleted peer no longer returns on the next start
+    - Fix: Erasing a peer waits for a running cache flush, so the flush no longer writes the erased values back
+    - Fix: A cache write or a commit that runs while a peer is erased or deleted, or while an endpoint the peer dropped is deleted, no longer writes its values back, so a deleted peer no longer returns on the next start
     - Fix: With a storage driver that writes at once, such as SQLite, the values that several peers report at the same time persist one after another and no longer fail with "Transaction is in progress"
     - Fix: A node that `Peers.forAddress()` adds during a factory reset keeps its store
     - Fix: A value that a server node commits while it is erased no longer returns after the erase
@@ -81,8 +85,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A second erase of a removed peer no longer clears the storage of a new peer with the same ID
     - Fix: Logging a deleted peer that has no address no longer creates a store for it
     - Fix: A cache flush that keeps failing warns once until a flush succeeds, not on every resubscribe
-    - Fix: Erasing an endpoint of an online peer reads the endpoint and its parts again, so they no longer show default values until the device changes something; the erase rejects if that read fails
-    - Fix: `ClientNode.endpoints.require()` returns the endpoint the node holds also while an erase resets the node, instead of failing with `IdentityConflictError` or adding a second endpoint with the same number
     - Fix: A `start()` right after a failed start waits for the old network runtime to close instead of failing with "Handler for protocol 1 already registered"
     - Fix: A peer whose network start fails no longer logs an unhandled error when it closes its network runtime
 

@@ -16,7 +16,7 @@ import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { DeviceTypeConformanceError } from "#node/server/DeviceTypeConformanceError.js";
 import { DeviceTypeConformanceService } from "#node/server/DeviceTypeConformanceService.js";
 import { DeviceTypeValidation } from "#node/server/DeviceTypeValidation.js";
-import { Environment, ImplementationError, ObserverGroup } from "@matter/general";
+import { Environment, ImplementationError, Lifecycle, ObserverGroup } from "@matter/general";
 import {
     ClusterModel,
     ConditionModel,
@@ -1302,10 +1302,10 @@ describe("device type validation after construction", () => {
 
             using recording = recordingChecks();
             const logged = await captureLogOf(async () => {
-                await endpoint.close();
                 await peer.close();
             });
 
+            expect(endpoint.construction.status).equals(Lifecycle.Status.Destroyed);
             expect(recording.judged).deep.equals([]);
             expect(logged).deep.equals([]);
 
