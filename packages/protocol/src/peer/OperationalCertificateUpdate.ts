@@ -23,6 +23,7 @@ import {
     ImplementationError,
     isObject,
     Logger,
+    MatterAggregateError,
     MatterError,
     Millis,
     Minutes,
@@ -300,11 +301,7 @@ export namespace OperationalCertificateUpdate {
                 );
 
             case "unknown":
-                try {
-                    await forgetSessions(context, address, "Outcome of the operational certificate update is unknown");
-                } catch (error) {
-                    logger.info(`Could not forget the sessions of ${address} after an unknown update outcome:`, error);
-                }
+                await forgetSessions(context, address, "Outcome of the operational certificate update is unknown");
                 throw new OperationalCertificateUpdateError(
                     `Updating the operational certificate of ${address} failed and its outcome is unknown; the peer reverts to its previous certificate when its fail-safe expires, unless this update or another operation of the same fabric completed that fail-safe`,
                     { cause: completion.cause ?? cause },
@@ -492,7 +489,8 @@ interface Disarmed {
  * Breadcrumb and the new NOC pending.  Otherwise, and when CommissioningComplete fails, disarm and decide from a read
  * on another new session; see the table at {@link OperationalCertificateUpdate.update}.
  *
- * Rejects when the peer cannot be reached, a read fails or CommissioningComplete is not answered.
+ * Rejects when the peer cannot be reached, a read fails or CommissioningComplete is not answered.  When the read after
+ * a refused CommissioningComplete fails, rejects with a {@link MatterAggregateError} of the refusal and the read error.
  */
 async function completeUpdate(
     context: OperationalCertificateUpdate.Context,
@@ -534,7 +532,18 @@ async function completeUpdate(
     }
 
     await forgetSessions(context, address, "Peer may have reverted to its previous operational certificate");
-    const state = await withCase(context, address, options, ({ interaction }) => certificateState(interaction));
+    let state: CertificateState;
+    try {
+        state = await withCase(context, address, options, ({ interaction }) => certificateState(interaction));
+    } catch (error) {
+        if (step.cause === undefined) {
+            throw error;
+        }
+        throw new MatterAggregateError(
+            [step.cause, error],
+            `CommissioningComplete failed and the certificate state of ${address} could not be read again`,
+        );
+    }
     const held = heldNoc(state, certificate);
     if (state.breadcrumb === 0n && held === "previous") {
         return { kind: "reverted", cause: step.cause };
@@ -668,6 +677,9 @@ async function certificateState(interaction: ClientInteraction): Promise<Certifi
 /**
  * Close our sessions with a peer that cleared them without notice, drop the resumption record that belongs to the
  * replaced certificate, and re-establish subscriptions instead of waiting for them to time out.
+ *
+ * Logs a failed step and continues, so a cleanup failure never decides the outcome of the update.  A session the peer
+ * cleared fails on its next use, and a resumption record the peer no longer knows leads to a full CASE handshake.
  */
 async function forgetSessions(
     { peers, sessions, environment }: OperationalCertificateUpdate.Context,
@@ -676,10 +688,15 @@ async function forgetSessions(
 ) {
     try {
         await peers.for(address).disconnect(new FabricChangedError(reason));
-        await sessions.deleteResumptionRecord(address);
-    } finally {
-        environment.maybeGet(ClientSubscriptions)?.closeForPeer(address);
+    } catch (error) {
+        logger.info(`Could not close the sessions of ${address}:`, error);
     }
+    try {
+        await sessions.deleteResumptionRecord(address);
+    } catch (error) {
+        logger.info(`Could not drop the resumption record of ${address}:`, error);
+    }
+    environment.maybeGet(ClientSubscriptions)?.closeForPeer(address);
 }
 
 interface AdministratorSession {

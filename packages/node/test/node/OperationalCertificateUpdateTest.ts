@@ -22,6 +22,7 @@ import {
     ImplementationError,
     isObject,
     Lifetime,
+    MatterAggregateError,
     MockCrypto,
     Seconds,
     StorageError,
@@ -592,6 +593,49 @@ describe("OperationalCertificateUpdate", () => {
         await nodeLabelReachesController(device, peer, "after failed completion");
     });
 
+    it("keeps the CommissioningComplete refusal in the cause when the read after the disarm fails", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        const restoreDevice = await patchDeviceCommand(
+            device,
+            GeneralCommissioningServer,
+            "commissioningComplete",
+            () => async () => ({
+                errorCode: GeneralCommissioning.CommissioningError.ValueOutsideRange,
+                debugText: "test refusal",
+            }),
+        );
+        const originalConnect = Peer.prototype.connect;
+        let connects = 0;
+        Peer.prototype.connect = async function (this: Peer, ...args: Parameters<typeof originalConnect>) {
+            // The first two sessions carry UpdateNOC and CommissioningComplete; every later one fails
+            if (++connects > 2) {
+                throw new PeerUnresponsiveError(Seconds(30));
+            }
+            return originalConnect.apply(this, args);
+        };
+        let caught: unknown;
+        try {
+            await withEntropy([controller, device], () =>
+                MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
+            );
+        } catch (error) {
+            caught = error;
+        } finally {
+            Peer.prototype.connect = originalConnect;
+            restoreDevice();
+        }
+
+        expect(caught).instanceOf(OperationalCertificateUpdateError);
+        const { cause } = caught as OperationalCertificateUpdateError;
+        expect(cause).instanceOf(MatterAggregateError);
+        expect((cause as MatterAggregateError).errors.map(error => (error as Error).message).join("\n")).contains(
+            "ValueOutsideRange",
+        );
+    });
+
     it("keeps the new NOC when CommissioningComplete took effect but its answer is lost", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
@@ -1107,10 +1151,11 @@ describe("OperationalCertificateUpdate", () => {
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
     });
 
-    it("restarts subscriptions although dropping the resumption record fails", async () => {
+    it("completes the update and restarts subscriptions although dropping the resumption record fails", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
         const peer = await subscribedPeer(controller, "peer1");
+        const before = snapshot(device);
 
         const originalDelete = SessionManager.prototype.deleteResumptionRecord;
         SessionManager.prototype.deleteResumptionRecord = async function () {
@@ -1123,18 +1168,14 @@ describe("OperationalCertificateUpdate", () => {
             return originalClose.call(this, address);
         };
         try {
-            await expect(
-                withEntropy([controller, device], () =>
-                    MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
-                ),
-            ).rejectedWith(OperationalCertificateUpdateError, /outcome is unknown/);
+            await update(controller, device, peer);
         } finally {
             ClientSubscriptions.prototype.closeForPeer = originalClose;
             SessionManager.prototype.deleteResumptionRecord = originalDelete;
         }
 
-        // Before each of the two completion attempts and once for the unknown outcome
-        expect(restarts).equals(3);
+        expect(restarts).equals(1);
+        expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).false;
     });
 
     it("keeps the CASE Authenticated Tags of the current NOC", async () => {
@@ -1668,7 +1709,7 @@ describe("OperationalCertificateUpdate", () => {
         expect(device.stateOf(GeneralCommissioningServer).breadcrumb).equal(0);
     });
 
-    it("completes the update in recovery when dropping the resumption record fails after UpdateNOC", async () => {
+    it("completes the update when dropping the resumption record fails once after UpdateNOC", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
         const peer = await subscribedPeer(controller, "peer1");
