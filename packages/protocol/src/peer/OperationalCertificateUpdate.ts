@@ -124,8 +124,8 @@ export namespace OperationalCertificateUpdate {
      * @see {@link MatterSpecification.v161.Core} § 11.18.6.10
      */
     export interface Result {
-        /** Fabric index under which the peer stores the updated certificate, if its NOCResponse arrived. */
-        fabricIndexOnPeer?: FabricIndex;
+        /** Fabric index of our fabric on the peer, read before the update and confirmed by the NOCResponse. */
+        fabricIndexOnPeer: FabricIndex;
 
         /** Public key of the new node operational key pair. */
         operationalPublicKey: Bytes;
@@ -165,8 +165,8 @@ export namespace OperationalCertificateUpdate {
      * | aborted before or while a session is       | send nothing on it; reject with the abort reason    |
      * | obtained                                   |                                                     |
      * | Breadcrumb not 0 before arming             | arm nothing; reject as busy, the caller may retry   |
-     * | Breadcrumb or NOCs unreadable before       | arm nothing; reject, nothing changed                |
-     * | arming                                     |                                                     |
+     * | Breadcrumb, NOCs or CurrentFabricIndex     | arm nothing; reject, nothing changed                |
+     * | unreadable before arming                   |                                                     |
      * | the reported NOC fails to verify against   | arm nothing; reject as refused, nothing changed     |
      * | the fabric root, node ID or fabric ID, or  |                                                     |
      * | its CATs differ from the CASE session's    |                                                     |
@@ -175,6 +175,8 @@ export namespace OperationalCertificateUpdate {
      * | answered                                   |                                                     |
      * | a later step before UpdateNOC fails, or    | disarm over session 1; previous NOC kept            |
      * | the peer refuses UpdateNOC                 |                                                     |
+     * | UpdateNOC answered OK with another or no   | never send CommissioningComplete: disarm on a new   |
+     * | FabricIndex than CurrentFabricIndex        | session, read again and report the outcome          |
      * | after UpdateNOC, on a new CASE session     | read Breadcrumb and NOCs, then by the values read:  |
      * | - Breadcrumb ours, NOCs is the new NOC     | CommissioningComplete: OK → resolve; error code or  |
      * |                                            | error status of the peer → disarm and read again;   |
@@ -290,8 +292,14 @@ export namespace OperationalCertificateUpdate {
                     address.toString(),
                     ...(recovered ? ["after a recovery"] : []),
                 );
+                if (installed.refusal !== undefined) {
+                    throw new OperationalCertificateUpdateError(
+                        `Updating the operational certificate of ${address} failed; the new certificate is in place, because another operation of the same fabric completed the fail-safe`,
+                        { cause: installed.refusal },
+                    );
+                }
                 return {
-                    fabricIndexOnPeer: installed.kind === "installed" ? installed.fabricIndexOnPeer : undefined,
+                    fabricIndexOnPeer: installed.fabricIndex,
                     operationalPublicKey: installed.operationalPublicKey,
                 };
 
@@ -315,7 +323,7 @@ export namespace OperationalCertificateUpdate {
 type InstalledCertificate =
     | { kind: "refused"; cause: unknown }
     | ({ kind: "unconfirmed"; cause: unknown } & NewCertificate)
-    | ({ kind: "installed"; fabricIndexOnPeer?: FabricIndex } & NewCertificate);
+    | ({ kind: "installed" } & NewCertificate);
 
 interface NewCertificate {
     nocValue: Bytes;
@@ -323,10 +331,16 @@ interface NewCertificate {
 
     /** The verified NOC the peer held before the update. */
     previousNoc: Bytes;
+
+    /** The peer's CurrentFabricIndex for our fabric, read before arming. */
+    fabricIndex: FabricIndex;
+
+    /** Why the update must not commit this certificate; CommissioningComplete is then never sent. */
+    refusal?: OperationalCertificateUpdateError;
 }
 
 /**
- * Read Breadcrumb and the current NOC, then run ArmFailSafe, CertificateChainRequest, CSRRequest and UpdateNOC over
+ * Read Breadcrumb, CurrentFabricIndex and the current NOC, then run ArmFailSafe, CertificateChainRequest, CSRRequest and UpdateNOC over
  * {@link session}.  The new NOC keeps the CASE Authenticated Tags of the current one.  Does not arm when Breadcrumb is
  * not 0 or the current NOC cannot be read or does not verify.  On a failure after arming and before UpdateNOC reached
  * the peer, disarms the fail-safe over the same session.
@@ -339,8 +353,9 @@ async function installNewCertificate(
 ): Promise<InstalledCertificate> {
     let breadcrumb: bigint;
     let nocs: OperationalCertificate[];
+    let fabricIndex: FabricIndex;
     try {
-        ({ breadcrumb, nocs } = await readStartState(interaction));
+        ({ breadcrumb, nocs, fabricIndex } = await readStartState(interaction));
     } catch (cause) {
         return { kind: "refused", cause };
     }
@@ -412,6 +427,7 @@ async function installNewCertificate(
         certificate = {
             operationalPublicKey,
             previousNoc: previous.noc,
+            fabricIndex,
             nocValue: await ca.generateNoc(
                 operationalPublicKey,
                 fabric.fabricId,
@@ -449,7 +465,7 @@ async function installNewCertificate(
         return { kind: "unconfirmed", cause, ...certificate };
     }
 
-    const { statusCode, debugText, fabricIndex } = response;
+    const { statusCode, debugText } = response;
     if (statusCode !== OperationalCredentials.NodeOperationalCertStatus.Ok) {
         await disarmFailsafe(interaction);
         return {
@@ -460,7 +476,18 @@ async function installNewCertificate(
         };
     }
 
-    return { kind: "installed", fabricIndexOnPeer: fabricIndex, ...certificate };
+    // § 11.18.6.9: an OK NOCResponse carries the index of the updated fabric, which UpdateNOC never changes
+    if (response.fabricIndex !== certificate.fabricIndex) {
+        return {
+            kind: "installed",
+            ...certificate,
+            refusal: new OperationalCertificateUpdateError(
+                `UpdateNOC answered OK for fabric index ${response.fabricIndex ?? "none"} instead of ${certificate.fabricIndex}, the CurrentFabricIndex read before`,
+            ),
+        };
+    }
+
+    return { kind: "installed", ...certificate };
 }
 
 /** The fail-safe this update arms and the Breadcrumb that marks it. */
@@ -505,6 +532,9 @@ async function completeUpdate(
         const state = await certificateState(interaction);
         const held = heldNoc(state, certificate);
         if (state.breadcrumb === breadcrumb && held === "new") {
+            if (certificate.refusal !== undefined) {
+                return { kind: "disarmed", cause: certificate.refusal, disarmed: await disarmFailsafe(interaction) };
+            }
             const response = await commissioningComplete(interaction);
             if (
                 !(response instanceof StatusResponseError) &&
@@ -590,6 +620,9 @@ interface CertificateState {
 
     /** The NOCs of the accessing fabric, if the peer reported the NOCs attribute. */
     nocs?: OperationalCertificate[];
+
+    /** The CurrentFabricIndex attribute, if the peer reported it. */
+    fabricIndex?: number;
 }
 
 /**
@@ -610,16 +643,19 @@ function heldNoc({ nocs }: CertificateState, { nocValue, previousNoc }: NewCerti
     return undefined;
 }
 
-/** Read Breadcrumb and the NOCs of the accessing fabric; rejects when the peer does not report both. */
+/** Read Breadcrumb, the NOCs and CurrentFabricIndex of the accessing fabric; rejects when one is missing or invalid. */
 async function readStartState(interaction: ClientInteraction) {
-    const { breadcrumb, nocs } = await certificateState(interaction);
+    const { breadcrumb, nocs, fabricIndex } = await certificateState(interaction);
     if (breadcrumb === undefined) {
         throw new UnexpectedDataError(`${interaction.address} reported no Breadcrumb value`);
     }
     if (nocs === undefined) {
         throw new UnexpectedDataError(`${interaction.address} reported no NOCs value`);
     }
-    return { breadcrumb, nocs };
+    if (!FabricIndex.isValid(fabricIndex)) {
+        throw new UnexpectedDataError(`${interaction.address} reported CurrentFabricIndex ${fabricIndex ?? "none"}`);
+    }
+    return { breadcrumb, nocs, fabricIndex };
 }
 
 /**
@@ -655,14 +691,18 @@ async function verifiedCurrentNoc(
     return { noc, caseAuthenticatedTags: subject.caseAuthenticatedTags };
 }
 
-/** Read Breadcrumb and the NOCs of the accessing fabric in one request. */
+/** Read Breadcrumb, the NOCs and CurrentFabricIndex of the accessing fabric in one request. */
 async function certificateState(interaction: ClientInteraction): Promise<CertificateState> {
     const state: CertificateState = {};
     for await (const chunk of interaction.read(
         Read(
             { fabricFilter: true },
             Read.Attribute({ endpoint: RootEndpointNumber, cluster: GeneralCommissioning, attributes: "breadcrumb" }),
-            Read.Attribute({ endpoint: RootEndpointNumber, cluster: OperationalCredentials, attributes: "nocs" }),
+            Read.Attribute({
+                endpoint: RootEndpointNumber,
+                cluster: OperationalCredentials,
+                attributes: ["nocs", "currentFabricIndex"],
+            }),
         ),
     )) {
         for await (const report of chunk) {
@@ -674,6 +714,10 @@ async function certificateState(interaction: ClientInteraction): Promise<Certifi
                 if (typeof value === "number" || typeof value === "bigint") {
                     state.breadcrumb = BigInt(value);
                 }
+                continue;
+            }
+            if (typeof value === "number") {
+                state.fabricIndex = value;
                 continue;
             }
             if (Array.isArray(value)) {

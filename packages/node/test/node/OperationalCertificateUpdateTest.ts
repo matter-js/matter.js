@@ -306,6 +306,9 @@ const NOCS_ATTRIBUTE_ID = 0x0000;
 /** The Breadcrumb attribute is attribute 0x0000 of the General Commissioning cluster (§ 11.10.6). */
 const BREADCRUMB_ATTRIBUTE_ID = 0x0000;
 
+/** CurrentFabricIndex attribute of Operational Credentials (§ 11.18.5). */
+const CURRENT_FABRIC_INDEX_ATTRIBUTE_ID = 0x0005;
+
 async function* withoutAttribute(chunk: ReadResult.Chunk, clusterId: number, attributeId: number) {
     for await (const report of chunk) {
         if (
@@ -801,6 +804,62 @@ describe("OperationalCertificateUpdate", () => {
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
     });
 
+    it("arms nothing when the node reports no CurrentFabricIndex value", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        const restore = dropAttributeReports(OperationalCredentials.Cluster.id, CURRENT_FABRIC_INDEX_ATTRIBUTE_ID);
+        let caught: unknown;
+        try {
+            await withEntropy([controller, device], () =>
+                MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
+            );
+        } catch (error) {
+            caught = error;
+        } finally {
+            restore();
+        }
+
+        expect(caught).instanceOf(OperationalCertificateUpdateError);
+        expect((caught as Error).message).match(/keeps its previous certificate/);
+        expect(String((caught as OperationalCertificateUpdateError).cause)).contains(
+            "reported CurrentFabricIndex none",
+        );
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
+    });
+
+    // § 11.18.6.9: UpdateNOC answers OK with the index of the updated fabric, which the update never changes
+    it("rolls back without CommissioningComplete when UpdateNOC answers OK for another fabric index", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const before = snapshot(device);
+        const knownIndex = peer.stateOf(CommissioningClient).fabricIndexOnPeer;
+
+        const { handled, restore: restoreCount } = await countCommissioningComplete(device);
+        const restoreUpdateNoc = await patchDeviceCommand(
+            device,
+            OperationalCredentialsServer,
+            "updateNoc",
+            original =>
+                async function (this: unknown, ...args: unknown[]) {
+                    const response = await original.apply(this, args);
+                    return isObject(response) ? { ...response, fabricIndex: FabricIndex(200) } : response;
+                },
+        );
+        try {
+            await rejectedUpdate(controller, device, peer, /reverted to its previous certificate/);
+        } finally {
+            restoreUpdateNoc();
+            restoreCount();
+        }
+
+        expect(handled.count).equals(0);
+        expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
+        expect(peer.stateOf(CommissioningClient).fabricIndexOnPeer).equals(knownIndex);
+    });
+
     it("refuses an uncommissioned node", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
@@ -817,6 +876,19 @@ describe("OperationalCertificateUpdate", () => {
         const { controller, device } = await site.addCommissionedPair();
         const peer = await subscribedPeer(controller, "peer1");
         await peer.setStateOf(CommissioningClient, { fabricIndexOnPeer: undefined });
+
+        await update(controller, device, peer);
+
+        expect(peer.stateOf(CommissioningClient).fabricIndexOnPeer).equals(
+            FabricIndex(deviceFabric(device).fabricIndex),
+        );
+    });
+
+    it("replaces a wrong stored fabric index with the CurrentFabricIndex read before the update", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        await peer.setStateOf(CommissioningClient, { fabricIndexOnPeer: FabricIndex(200) });
 
         await update(controller, device, peer);
 

@@ -508,7 +508,13 @@ export class CommissioningClient extends Behavior {
             address: ProtocolPeerAddress(peerAddress),
         });
 
-        if (fabricIndexOnPeer !== undefined && fabricIndexOnPeer !== this.state.fabricIndexOnPeer) {
+        const known = this.state.fabricIndexOnPeer;
+        if (fabricIndexOnPeer !== known) {
+            if (known !== undefined) {
+                logger.warn(
+                    `${this.endpoint} reports fabric index ${fabricIndexOnPeer} for our fabric, but ${known} was stored; using the reported one`,
+                );
+            }
             this.state.fabricIndexOnPeer = fabricIndexOnPeer;
         }
     }
