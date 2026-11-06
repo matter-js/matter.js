@@ -9,15 +9,15 @@ import { SupportedTransportsSchema } from "#common/SupportedTransportsBitmap.js"
 import { FabricManager } from "#fabric/FabricManager.js";
 import type { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
+import { PeerAddressStore } from "#peer/PeerAddressStore.js";
 import { PeerShutdownError } from "#peer/PeerCommunicationError.js";
 import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
-import { GroupSession, GroupSessionDecodeError, GroupSessionNoKeyError } from "#session/GroupSession.js";
+import { GroupMessageRejection, GroupSession, GroupSessionDecodeError } from "#session/GroupSession.js";
 import {
     Diagnostic,
     BasicSet,
     Bytes,
-    causedBy,
     Channel,
     ClosedError,
     Construction,
@@ -25,6 +25,7 @@ import {
     Duration,
     Environment,
     Environmental,
+    hex,
     ImplementationError,
     InternalError,
     Lifecycle,
@@ -49,7 +50,7 @@ import type { ExposedFabricInformation, Fabric } from "../fabric/Fabric.js";
 import { MessageCounter, PersistedMessageCounter } from "../protocol/MessageCounter.js";
 import { NodeSession } from "./NodeSession.js";
 import { SecureSession } from "./SecureSession.js";
-import type { Session } from "./Session.js";
+import { Session } from "./Session.js";
 import { SessionIntervals } from "./SessionIntervals.js";
 import { SessionParameters } from "./SessionParameters.js";
 import { UnsecuredSession } from "./UnsecuredSession.js";
@@ -96,7 +97,8 @@ export interface ResumptionRecord extends Omit<InternalResumptionRecord, "fabric
 }
 
 type ResumptionStorageRecord = {
-    nodeId: NodeId;
+    /** Format version, see {@link RESUMPTION_RECORD_VERSION}.  Records written before versioning have none. */
+    version?: number;
     sharedSecret: Bytes;
     resumptionId: Bytes;
     fabricId: FabricId;
@@ -116,6 +118,15 @@ type ResumptionStorageRecord = {
     caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
 };
 
+/**
+ * Records as stored in one array under {@link LEGACY_RESUMPTION_RECORDS_KEY}; `nodeId` always equals `peerNodeId`.
+ * Records written before 0.15.5 have no `fabricIndex`.
+ */
+type LegacyResumptionStorageRecord = Omit<ResumptionStorageRecord, "fabricIndex"> & {
+    nodeId: NodeId;
+    fabricIndex?: FabricIndex;
+};
+
 export interface ActiveSessionInformation {
     name: string;
     nodeId: NodeId;
@@ -128,24 +139,18 @@ export interface ActiveSessionInformation {
     numberOfActiveSubscriptions: number;
 }
 
-/**
- * Metadata about a received group message, emitted via {@link SessionManager.onGroupMessage} for Groupcast testing.
- * Uses {@link Groupcast.GroupcastTestResult} directly so consumers can forward the value without mapping.
- */
-export interface GroupMessageEventInfo {
-    result: Groupcast.GroupcastTestResult;
-    fabric?: Fabric;
-
-    /** Authenticated group id.  Only set when the message decoded successfully for a known fabric. */
-    groupId?: GroupId;
-
-    /**
-     * Group id taken from the unauthenticated wire header of a message that failed decode.  Suitable to derive the
-     * multicast destination address for reporting, but must not be reported as the authenticated GroupID.
-     */
-    headerGroupId?: GroupId;
-
+interface GroupMessageEventBase {
     sourceIp?: string;
+}
+
+/** A received group message that a key of {@link fabric} authenticated. */
+export interface GroupMessageAuthenticatedInfo extends GroupMessageEventBase {
+    kind: "authenticated";
+
+    /** FailedAuth here means GroupKeyMap or the key set changed between decode and dispatch. */
+    result: Groupcast.GroupcastTestResult;
+    fabric: Fabric;
+    groupId?: GroupId;
     endpointId?: EndpointNumber;
     clusterId?: ClusterId;
     elementId?: number;
@@ -153,6 +158,17 @@ export interface GroupMessageEventInfo {
     /** Whether the ACL granted access for the dispatched command (only set for Success). */
     accessAllowed?: boolean;
 }
+
+/** A received group message for which no candidate key passed, see {@link GroupMessageRejection}. */
+export interface GroupMessageUnauthenticatedInfo extends GroupMessageEventBase, GroupMessageRejection {
+    kind: "unauthenticated";
+}
+
+/**
+ * Metadata about a received group message, emitted via {@link SessionManager.onGroupMessage} for Groupcast testing.
+ * An unauthenticated message names no fabric to report on; {@link GroupMessageRejection.resultFor} gives its result.
+ */
+export type GroupMessageEventInfo = GroupMessageAuthenticatedInfo | GroupMessageUnauthenticatedInfo;
 
 /**
  * Interfaces {@link SessionManager} with other components.
@@ -187,6 +203,24 @@ const ID_SPACE_UPPER_BOUND = 0xffff;
  * repeatedly accumulates them.  Per peer rather than global so one noisy peer cannot evict another's.
  */
 const MAX_SESSIONS_PER_PEER = 5;
+
+/** Sub-context of the session storage context that holds one resumption record per peer. */
+const RESUMPTION_RECORDS_CONTEXT = "resumption";
+
+/** Key of the single array that held all resumption records before they were stored per peer. */
+const LEGACY_RESUMPTION_RECORDS_KEY = "resumptionRecords";
+
+/**
+ * Format version of stored resumption records.  {@link isUsableResumptionRecord} decides on load which stored versions
+ * this version uses:
+ *
+ * | Stored version | On load                                                          |
+ * | -------------- | ---------------------------------------------------------------- |
+ * | none (0)       | with CATs: deleted; without CATs: used, stored with this version |
+ * | current        | used                                                             |
+ * | any other      | deleted                                                          |
+ */
+const RESUMPTION_RECORD_VERSION = 1;
 
 /** Storage key for the node-global Group Encrypted Data Message Counter in the session storage context. */
 const GROUP_DATA_COUNTER_KEY = "groupDataCounter";
@@ -224,7 +258,9 @@ export class SessionManager {
     readonly #sessions = new BasicSet<NodeSession>();
     readonly #groupSessions = new Map<NodeId, BasicSet<GroupSession>>();
     #nextSessionId: number;
-    #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
+    readonly #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
+    readonly #resumptionRecordsById = new Map<string, InternalResumptionRecord>();
+    readonly #resumptionStore: PeerAddressStore<ResumptionStorageRecord>;
     readonly #globalUnencryptedMessageCounter;
     #groupDataMessageCounter!: PersistedMessageCounter;
     #sessionParameters: SessionParameters;
@@ -253,6 +289,7 @@ export class SessionManager {
     constructor(context: SessionManagerContext) {
         this.#context = context;
         this.#logger = Logger.get("SessionManager", context.origin);
+        this.#resumptionStore = new PeerAddressStore(context.storage.createContext(RESUMPTION_RECORDS_CONTEXT));
         const {
             fabrics: { crypto },
         } = context;
@@ -400,7 +437,10 @@ export class SessionManager {
     }
 
     /**
-     * Emits for each received group message (success or failure).  Observers remain inactive until at least one
+     * Emits for a received group message whose keys are tried: when no candidate key passes, when the message is a
+     * replay, and when the Interaction Model processes a group invoke request.  A datagram the codec refuses and a
+     * message with the R or A flag emit nothing.  Any other message, such as a group write or a message for an
+     * unsupported protocol, emits only MessageReplay for a replayed copy.  Observers remain inactive until at least one
      * listener attaches, so fabrics not under test incur no emission overhead.
      */
     get onGroupMessage() {
@@ -483,9 +523,9 @@ export class SessionManager {
     async deleteResumptionRecord(address: PeerAddress) {
         await this.#construction;
 
-        const result = this.#resumptionRecords.delete(address);
+        const result = this.#forgetResumptionRecord(address);
         if (result) {
-            await this.#storeResumptionRecords();
+            await this.#resumptionStore.delete(address);
         }
         return result;
     }
@@ -498,16 +538,14 @@ export class SessionManager {
         await this.#construction;
 
         let deletedCount = 0;
-        for (const address of this.#resumptionRecords.keys()) {
-            if (address.fabricIndex === fabric.fabricIndex) {
-                if (this.#resumptionRecords.delete(address)) {
-                    deletedCount++;
-                }
+        for (const address of [...this.#resumptionRecords.keys()]) {
+            if (address.fabricIndex === fabric.fabricIndex && this.#forgetResumptionRecord(address)) {
+                deletedCount++;
             }
         }
 
         if (deletedCount > 0) {
-            await this.#storeResumptionRecords();
+            await this.#resumptionStore.deleteFabric(fabric.fabricIndex);
         }
         return deletedCount > 0;
     }
@@ -756,9 +794,11 @@ export class SessionManager {
     }
 
     /**
-     * Obtain a Group session for an incoming packet.
+     * Obtain a Group session for an incoming packet, with the decoded message and the facts decode established.
      *
-     * The session ID is determined by decrypting the packet with possible keys.
+     * The session ID is determined by decrypting the packet with possible keys.  Returns `undefined` when no candidate
+     * key passes; the message is then reported via {@link onGroupMessage} and must be dropped.  Also returns
+     * `undefined`, without a report, for a group data message with the R or A flag.
      *
      * Note that the resulting session is non-operational in the sense that attempting outbound communication will
      * result in an error.
@@ -767,43 +807,30 @@ export class SessionManager {
         this.#construction.assert();
         let decoded;
         try {
-            decoded = GroupSession.decode(this.#context.fabrics, packet, aad);
+            decoded = GroupSession.decodeWithCandidateKeys(this.#context.fabrics, packet, aad);
         } catch (error) {
-            // Per the Groupcast spec a failed decode reports only the result, never a group id.  The header group id is passed
-            // separately so the listener can derive the multicast address: from the plain wire header, or — when
-            // privacy obfuscates the header — from a key set that authenticated the message but is not mapped to any
-            // group, which also names that key set's fabric.
-            const headerGroupId =
-                !packet.header.hasPrivacyEnhancements && packet.header.destGroupId !== undefined
-                    ? GroupId(packet.header.destGroupId)
-                    : undefined;
-            if (causedBy(error, GroupSessionNoKeyError)) {
-                const noKey = error instanceof GroupSessionNoKeyError ? error : undefined;
-                this.#onGroupMessage.emit({
-                    result: Groupcast.GroupcastTestResult.NoAvailableKey,
-                    fabric: noKey?.fabric,
-                    headerGroupId: headerGroupId ?? noKey?.groupId,
-                    sourceIp,
-                });
-            } else if (causedBy(error, GroupSessionDecodeError)) {
-                this.#onGroupMessage.emit({
-                    result: Groupcast.GroupcastTestResult.FailedAuth,
-                    headerGroupId,
-                    sourceIp,
-                });
-            }
-            throw error;
+            GroupSessionDecodeError.accept(error);
+            const { candidateFabrics, group } = error;
+            this.#logger.debug(
+                `Dropping group message for session ${Session.idStrOf(packet)} from ${sourceIp ?? "unknown address"}:`,
+                error.message,
+                Diagnostic.dict({ candidateFabrics: candidateFabrics.size }),
+            );
+            this.#onGroupMessage.emit({ kind: "unauthenticated", candidateFabrics, group, sourceIp });
+            return undefined;
         }
 
-        const { message, key, privacyKey, sessionId, sourceNodeId, keySetId, fabric } = decoded;
+        const { message, key, privacyKey, sessionId, sourceNodeId, groupId, keySetId, fabric } = decoded;
 
-        // The group id is only authoritative after decode, since privacy obfuscates it in the wire header.
-        const rawGroupId = message.packetHeader.destGroupId;
-        if (rawGroupId === undefined) {
-            throw new UnexpectedDataError("Group ID is required for GroupSession fromPacket.");
+        // Spec 4.12.5.2 step 1: drop a group data message with the R or A flag; the codec refuses control messages.
+        // As CHIP does for the R flag, this runs before counter processing, though spec 4.7.2 orders the counter first
+        const { requiresAck, ackedMessageId } = message.payloadHeader;
+        if (requiresAck || ackedMessageId !== undefined) {
+            this.#logger.debug(
+                `Dropping group message ${hex.fixed(message.packetHeader.messageId, 8)} for session ${Session.idStrOf(packet)} with the ${requiresAck ? "R" : "A"} flag`,
+            );
+            return undefined;
         }
-        const groupId = GroupId(rawGroupId);
-        GroupId.assertGroupId(groupId);
 
         let session = this.#groupSessions.get(sourceNodeId)?.find(s => s.matches(fabric.fabricIndex, sessionId, key));
         if (session === undefined) {
@@ -820,11 +847,11 @@ export class SessionManager {
             });
         }
 
-        return { session, message, key };
+        return { session, message, key, sourceNodeId, groupId };
     }
 
-    /** Report a group message event (used by ExchangeManager for replay and InteractionServer for dispatch). */
-    emitGroupMessage(info: GroupMessageEventInfo) {
+    /** Report an authenticated group message (used by ExchangeManager for replay and InteractionServer for dispatch). */
+    emitGroupMessage(info: GroupMessageAuthenticatedInfo) {
         this.#onGroupMessage.emit(info);
     }
 
@@ -852,9 +879,7 @@ export class SessionManager {
 
     findResumptionRecordById(resumptionId: Bytes) {
         this.#construction.assert();
-        const record = [...this.#resumptionRecords.values()].find(record =>
-            Bytes.areEqual(record.resumptionId, resumptionId),
-        );
+        const record = this.#resumptionRecordsById.get(Bytes.toHex(resumptionId));
         if (record !== undefined) {
             return this.#asExposedResumptionRecord(record);
         }
@@ -877,43 +902,30 @@ export class SessionManager {
             fabricId: fabric.fabricId,
             fabricIndex: fabric.fabricIndex,
         };
-        this.#resumptionRecords.set(fabric.addressOf(resumptionRecord.peerNodeId), record);
-        await this.#storeResumptionRecords();
+        const address = fabric.addressOf(resumptionRecord.peerNodeId);
+        this.#rememberResumptionRecord(address, record);
+        await this.#resumptionStore.set(address, storageRecordOf(record));
     }
 
-    async #storeResumptionRecords() {
-        await this.#construction;
-        await this.#context.storage.set(
-            "resumptionRecords",
-            [...this.#resumptionRecords].map(
-                ([
-                    address,
-                    {
-                        sharedSecret,
-                        resumptionId,
-                        peerNodeId,
-                        fabricId,
-                        fabricIndex,
-                        sessionParameters,
-                        caseAuthenticatedTags,
-                    },
-                ]): ResumptionStorageRecord => ({
-                    nodeId: address.nodeId,
-                    sharedSecret,
-                    resumptionId,
-                    fabricId,
-                    fabricIndex,
-                    peerNodeId,
-                    sessionParameters: {
-                        ...sessionParameters,
-                        supportedTransports: sessionParameters.supportedTransports
-                            ? SupportedTransportsSchema.encode(sessionParameters.supportedTransports)
-                            : undefined,
-                    },
-                    caseAuthenticatedTags,
-                }),
-            ),
-        );
+    #rememberResumptionRecord(address: PeerAddress, record: InternalResumptionRecord) {
+        this.#forgetResumptionRecord(address);
+        this.#resumptionRecords.set(address, record);
+        this.#resumptionRecordsById.set(Bytes.toHex(record.resumptionId), record);
+    }
+
+    #forgetAllResumptionRecords() {
+        this.#resumptionRecords.clear();
+        this.#resumptionRecordsById.clear();
+    }
+
+    #forgetResumptionRecord(address: PeerAddress) {
+        const record = this.#resumptionRecords.get(address);
+        if (record === undefined) {
+            return false;
+        }
+        this.#resumptionRecords.delete(address);
+        this.#resumptionRecordsById.delete(Bytes.toHex(record.resumptionId));
+        return true;
     }
 
     #maybeFabricForId(fabricId: FabricId, fabricIndex?: FabricIndex) {
@@ -938,50 +950,70 @@ export class SessionManager {
 
         this.#groupDataMessageCounter = await this.#createGroupDataMessageCounter();
 
-        const storedResumptionRecords = await this.#context.storage.get<ResumptionStorageRecord[]>(
-            "resumptionRecords",
-            [],
-        );
+        await this.#migrateLegacyResumptionRecords();
 
-        storedResumptionRecords.forEach(
-            ({
-                nodeId,
-                sharedSecret,
-                resumptionId,
-                fabricId,
-                fabricIndex,
-                peerNodeId,
-                sessionParameters,
-                caseAuthenticatedTags,
-            }) => {
-                const fabric = this.#maybeFabricForId(fabricId, fabricIndex);
-                if (!fabric) {
-                    this.#logger.warn(
-                        `Ignoring resumption record for fabric 0x${toHex(fabricId)} and index ${fabricIndex} because we cannot find a matching fabric`,
-                    );
-                    return;
-                }
+        const storedResumptionRecords = await this.#resumptionStore.load((address, record) => {
+            const { fabricId, fabricIndex, version = 0 } = record;
+            if (this.#maybeFabricForId(fabricId, fabricIndex)?.fabricIndex !== address.fabricIndex) {
                 this.#logger.info(
-                    "restoring resumption record for node",
-                    fabric.addressOf(nodeId).toString(),
-                    "and peer node",
-                    fabric.addressOf(peerNodeId).toString(),
-                    "for fabric id",
-                    `0x${toHex(fabric.fabricId)}`,
-                    `(0x${toHex(fabric.rootVendorId)}, "${fabric?.label}")`,
+                    `Deleting resumption record for ${address} because it does not match a fabric (fabric 0x${toHex(fabricId)} with index ${fabricIndex})`,
                 );
-                this.#resumptionRecords.set(fabric.addressOf(nodeId), {
-                    sharedSecret,
-                    resumptionId,
-                    fabricId,
-                    fabricIndex: fabric.fabricIndex,
-                    peerNodeId,
-                    // Make sure to initialize default values when restoring an older resumption record
-                    sessionParameters: SessionParameters(sessionParameters),
-                    caseAuthenticatedTags,
-                });
-            },
-        );
+                return false;
+            }
+            if (!isUsableResumptionRecord(record)) {
+                this.#logger.info(
+                    `Deleting resumption record for ${address} stored with format version ${version}; the peer establishes a new session`,
+                );
+                return false;
+            }
+            return true;
+        });
+
+        for (const [address, { version, sessionParameters, ...stored }] of storedResumptionRecords) {
+            this.#logger.debug("Restoring resumption record for", address.toString());
+            const record = {
+                ...stored,
+                // Make sure to initialize default values when restoring an older resumption record
+                sessionParameters: SessionParameters(sessionParameters),
+            };
+            this.#rememberResumptionRecord(address, record);
+            if (version !== RESUMPTION_RECORD_VERSION) {
+                await this.#resumptionStore.set(address, storageRecordOf(record));
+            }
+        }
+        if (storedResumptionRecords.size) {
+            this.#logger.info(`Restored ${storedResumptionRecords.size} resumption records`);
+        }
+    }
+
+    /**
+     * Move the records of the single legacy array to one key per peer.  The array is authoritative when present because
+     * only a version without per-peer storage writes it.  It is deleted last, so a start interrupted before that moves
+     * it again.  Records of fabrics that no longer exist are dropped.
+     */
+    async #migrateLegacyResumptionRecords() {
+        const storage = this.#context.storage;
+        if (!(await storage.has(LEGACY_RESUMPTION_RECORDS_KEY))) {
+            return;
+        }
+
+        const legacyRecords = await storage.get<LegacyResumptionStorageRecord[]>(LEGACY_RESUMPTION_RECORDS_KEY, []);
+        const records = new Array<[PeerAddress, ResumptionStorageRecord]>();
+        for (const { nodeId, ...record } of legacyRecords) {
+            const fabric = this.#maybeFabricForId(record.fabricId, record.fabricIndex);
+            if (fabric === undefined) {
+                this.#logger.info(
+                    `Dropping resumption record for fabric 0x${toHex(record.fabricId)} and index ${record.fabricIndex} because we cannot find a matching fabric`,
+                );
+                continue;
+            }
+            records.push([fabric.addressOf(nodeId), { ...record, fabricIndex: fabric.fabricIndex }]);
+        }
+
+        await this.#resumptionStore.replaceAll(records);
+        await storage.delete(LEGACY_RESUMPTION_RECORDS_KEY);
+
+        this.#logger.info(`Moved ${records.length} resumption records to per-peer storage`);
     }
 
     /**
@@ -1055,8 +1087,9 @@ export class SessionManager {
         }
 
         await this.closeAllSessions();
+        await this.#resumptionStore.clear();
         await this.#context.storage.clearAll();
-        this.#resumptionRecords.clear();
+        this.#forgetAllResumptionRecords();
         await this.#groupDataMessageCounter?.close();
         this.#groupDataMessageCounter = await this.#createGroupDataMessageCounter();
     }
@@ -1102,5 +1135,52 @@ export class SessionManager {
     compressIdRange(upperBound: number) {
         this.#idUpperBound = upperBound;
         this.#nextSessionId = (this.#context.fabrics.crypto.randomUint32 % upperBound) + 1;
+    }
+}
+
+function storageRecordOf({
+    sharedSecret,
+    resumptionId,
+    peerNodeId,
+    fabricId,
+    fabricIndex,
+    sessionParameters,
+    caseAuthenticatedTags,
+}: InternalResumptionRecord): ResumptionStorageRecord {
+    return {
+        version: RESUMPTION_RECORD_VERSION,
+        sharedSecret,
+        resumptionId,
+        fabricId,
+        fabricIndex,
+        peerNodeId,
+        sessionParameters: {
+            ...sessionParameters,
+            supportedTransports: sessionParameters.supportedTransports
+                ? SupportedTransportsSchema.encode(sessionParameters.supportedTransports)
+                : undefined,
+        },
+        caseAuthenticatedTags,
+    };
+}
+
+/**
+ * Whether this version uses a stored record.  A record without a version that carries CATs is not used: a record does
+ * not say which CASE role wrote it, and versions before {@link RESUMPTION_RECORD_VERSION} stored the local node's own
+ * CATs when they initiated the session.  A peer whose record is not used establishes a full CASE session once.
+ *
+ * Accepted tradeoff: a record without a version and without CATs may lack CATs that the peer's NOC has.  The peer then
+ * has fewer rights, never more, until its next full CASE session.
+ */
+function isUsableResumptionRecord({ version = 0, caseAuthenticatedTags }: ResumptionStorageRecord) {
+    switch (version) {
+        case 0:
+            return !caseAuthenticatedTags?.length;
+
+        case RESUMPTION_RECORD_VERSION:
+            return true;
+
+        default:
+            return false;
     }
 }

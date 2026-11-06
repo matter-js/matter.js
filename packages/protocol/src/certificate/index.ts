@@ -5,6 +5,7 @@
  */
 
 export * from "./AttestationCertificateManager.js";
+export * from "./CdSigners.js";
 export * from "./CertificateAuthority.js";
 export * from "./ChipPAAuthorities.js";
 export * from "./DeviceAttestationValidator.js";

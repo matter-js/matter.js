@@ -445,6 +445,16 @@ describe("Presets local write", () => {
         expect(storedPresets(deviceEp).length).equals(1);
     });
 
+    it("keeps a built-in preset that a write sends with a null builtIn", async () => {
+        const builtIn = newPreset({ presetHandle: new Uint8Array(16).fill(7), builtIn: true });
+        await using ctx = await thermostat(5, [builtIn]);
+        const { deviceEp } = ctx;
+
+        await writePresets(deviceEp, [{ ...builtIn, builtIn: null }]);
+
+        expect(storedPresets(deviceEp)[0].builtIn).equals(true);
+    });
+
     it("refuses to remove a preset the application marked built-in", async () => {
         const builtIn = newPreset({ presetHandle: new Uint8Array(16).fill(7), builtIn: true });
         await using ctx = await thermostat(5, [builtIn]);

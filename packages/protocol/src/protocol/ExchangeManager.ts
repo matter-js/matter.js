@@ -4,20 +4,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DecodedMessage, Message, MessageCodec, SessionType } from "#codec/MessageCodec.js";
+import {
+    DecodedMessage,
+    Message,
+    MessageCodec,
+    SessionType,
+    UNICAST_UNSECURE_SESSION_ID,
+} from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { ExchangeIdsExhaustedError } from "#protocol/errors.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
 import { SessionManager, ShutdownError } from "#session/SessionManager.js";
-import { UNICAST_UNSECURE_SESSION_ID, UnsecuredSession } from "#session/UnsecuredSession.js";
+import { UnsecuredSession } from "#session/UnsecuredSession.js";
 import {
     asError,
     BasicMultiplex,
     Bytes,
     causedBy,
     Channel,
+    CryptoDecryptError,
     ChannelType,
     Diagnostic,
     Entropy,
@@ -25,6 +33,7 @@ import {
     Environmental,
     hex,
     ImplementationError,
+    InternalError,
     isConnectionOrientedTransport,
     isIpNetworkChannel,
     Lifetime,
@@ -38,7 +47,7 @@ import {
     UdpTransport,
     UnexpectedDataError,
 } from "@matter/general";
-import { FabricIndex, GroupId, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
+import { FabricIndex, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
 import { Groupcast } from "@matter/types/clusters/groupcast";
 import { MessageExchange, MessageExchangeContext } from "./MessageExchange.js";
 import { DuplicateMessageError } from "./MessageReceptionState.js";
@@ -70,13 +79,29 @@ export interface ExchangeManagerContext {
     sessions: SessionManager;
 }
 
+/**
+ * Whether an error comes from the content of a received datagram: a header the codec refuses, a payload outside the
+ * AES-CCM limits that the session refuses before it decrypts, a payload that does not decrypt with the session's key,
+ * or a decrypted payload that does not parse.
+ */
+function isCausedByPeerData(error: unknown): error is UnexpectedDataError | CryptoDecryptError {
+    return error instanceof UnexpectedDataError || error instanceof CryptoDecryptError;
+}
+
 export class ExchangeManager implements Transport.Provider {
     readonly #logger: Logger;
     readonly #lifetime: Lifetime;
     readonly #transports: TransportSet;
     readonly #sessions: SessionManager;
     readonly #exchangeCounter: ExchangeCounter;
-    readonly #exchanges = new Map<number, MessageExchange>();
+    /**
+     * Open exchanges per session, by exchange index.  The index is the exchange id, with bit 16 set for exchanges this
+     * node initiated, so an exchange is identified by its session, its id and its role.  A session has an entry exactly
+     * while it has an open exchange; only the `closed` handler of an exchange removes it.  An exchange is added only at
+     * an index that is free on its session, so an index never holds more than one open exchange.
+     */
+    readonly #exchanges = new Map<Session, Map<number, MessageExchange>>();
+    readonly #sessionsWithAuthenticationFailure = new WeakSet<Session>();
     readonly #protocols = new Map<number, ProtocolHandler>();
     readonly #listeners = new Map<Transport, Transport.Listener>();
     readonly #disconnectListeners = new Map<Transport, Transport.Listener>();
@@ -143,7 +168,7 @@ export class ExchangeManager implements Transport.Provider {
     }
 
     initiateExchangeForSession(session: Session, protocolId: number, options?: MessageExchange.Options) {
-        const exchangeId = this.#exchangeCounter.getIncrementedCounter();
+        const exchangeId = this.#freeExchangeIdFor(session);
         const exchangeIndex = exchangeId | 0x10000; // Ensure initiated and received exchange index are different, since the exchangeID can be the same
         const exchange = MessageExchange.initiate(
             this.#messageExchangeContextFor(session),
@@ -151,8 +176,25 @@ export class ExchangeManager implements Transport.Provider {
             protocolId,
             options,
         );
-        this.#addExchange(exchangeIndex, exchange);
+        this.#addExchange(session, exchangeIndex, exchange);
         return exchange;
+    }
+
+    /**
+     * The next exchange counter value that no open exchange this node started on the session uses.
+     *
+     * @throws ExchangeIdsExhaustedError when every one of the 65536 exchange ids is used by an open exchange this node
+     *   started on the session
+     */
+    #freeExchangeIdFor(session: Session) {
+        const openExchanges = this.#exchanges.get(session);
+        for (let attempt = 0; attempt <= 0xffff; attempt++) {
+            const exchangeId = this.#exchangeCounter.getIncrementedCounter();
+            if (!openExchanges?.has(exchangeId | 0x10000)) {
+                return exchangeId;
+            }
+        }
+        throw new ExchangeIdsExhaustedError(`Every exchange id is in use on session ${session.via}`);
     }
 
     async close() {
@@ -166,7 +208,7 @@ export class ExchangeManager implements Transport.Provider {
 
         const exchangesClosed = new BasicMultiplex();
 
-        for (const exchange of this.#exchanges.values()) {
+        for (const exchange of [...this.#exchanges.values()].flatMap(exchanges => [...exchanges.values()])) {
             exchangesClosed.add(exchange.close(new ShutdownError("Exchange closed by node shutdown")));
         }
 
@@ -187,8 +229,6 @@ export class ExchangeManager implements Transport.Provider {
             using _closing = closing.join("workers");
             await this.#workers;
         }
-
-        this.#exchanges.clear();
 
         // Clean up any remaining session observers (safety net for shutdown ordering)
         for (const observers of this.#sessionObservers.values()) {
@@ -217,22 +257,44 @@ export class ExchangeManager implements Transport.Provider {
         }
     }
 
+    /**
+     * Log a failure that the content of a received datagram caused at debug level, because any sender can cause it
+     * repeatedly.  Rethrow any other error, so it reaches the error log.
+     */
+    #dropPeerDataFailure(error: unknown, ...context: unknown[]) {
+        if (!isCausedByPeerData(error)) {
+            throw error;
+        }
+        this.#logger.debug(...context, error.message);
+    }
+
+    /**
+     * Report once per session that a message failed authentication, because a peer that keeps sending such messages
+     * does not get through.  Every occurrence is logged at debug level as well.
+     */
+    #noticeAuthenticationFailure(session: Session) {
+        if (this.#sessionsWithAuthenticationFailure.has(session)) {
+            return;
+        }
+        this.#sessionsWithAuthenticationFailure.add(session);
+        this.#logger.notice(session.via, "Received a message that fails authentication with the session key");
+    }
+
     async #receiveMessage(
         channel: Channel<Bytes>,
         messageBytes: Bytes,
         inbound: { unsecuredSession?: UnsecuredSession },
         lifetime: Lifetime,
     ) {
-        const packet = MessageCodec.decodePacket(messageBytes);
-        const bytes = Bytes.of(messageBytes);
-        const aad = bytes.slice(0, bytes.length - packet.applicationPayload.byteLength); // Header+Extensions
-
-        // Privacy enhancements are only defined for group messages; a unicast message with the privacy flag is invalid
-        // and dropped, matching the CHIP SDK.
-        if (packet.header.hasPrivacyEnhancements && packet.header.sessionType !== SessionType.Group) {
-            this.#logger.info("Dropping unicast message with privacy flag set");
+        let packet;
+        try {
+            packet = MessageCodec.decodePacket(messageBytes);
+        } catch (error) {
+            this.#dropPeerDataFailure(error, `Dropping malformed datagram from ${channel.name}:`);
             return;
         }
+        const bytes = Bytes.of(messageBytes);
+        const aad = bytes.slice(0, bytes.length - packet.applicationPayload.byteLength); // Header+Extensions
 
         let isDuplicate: boolean;
         let session: Session | undefined;
@@ -243,8 +305,10 @@ export class ExchangeManager implements Transport.Provider {
 
                 // Responses include our ephemeral initiator nodeId as destNodeId and no sourceNodeId
                 // Initiating requests include their sourceNodeId but no destNodeId
-                const initiatorNodeId =
-                    packet.header.destNodeId ?? packet.header.sourceNodeId ?? NodeId.UNSPECIFIED_NODE_ID;
+                const initiatorNodeId = packet.header.destNodeId ?? packet.header.sourceNodeId;
+                if (initiatorNodeId === undefined) {
+                    throw new InternalError("Unsecured message without node id although the packet decoder refuses it");
+                }
                 session = this.#sessions.getUnsecuredSession(initiatorNodeId);
                 if (session === undefined) {
                     if (packet.header.destNodeId !== undefined) {
@@ -268,7 +332,7 @@ export class ExchangeManager implements Transport.Provider {
             }
 
             if (session === undefined) {
-                this.#logger.warn(
+                this.#logger.debug(
                     Diagnostic.via(
                         `@${packet.header.sourceNodeId === undefined ? "?" : hex(packet.header.sourceNodeId)}:?${Mark.SESSION}${Session.idStrOf(packet)}`,
                     ),
@@ -277,7 +341,15 @@ export class ExchangeManager implements Transport.Provider {
                 return;
             }
 
-            message = session.decode(packet, aad);
+            try {
+                message = session.decode(packet, aad);
+            } catch (error) {
+                this.#dropPeerDataFailure(error, session.via, "Dropping message that does not decode:");
+                if (error instanceof CryptoDecryptError) {
+                    this.#noticeAuthenticationFailure(session);
+                }
+                return;
+            }
 
             try {
                 session.updateMessageCounter(message.packetHeader.messageId);
@@ -294,18 +366,13 @@ export class ExchangeManager implements Transport.Provider {
             if (this.#isClosing) return;
 
             const sourceIp = isIpNetworkChannel(channel) ? channel.networkAddress.ip : undefined;
-            const {
-                session: groupSession,
-                message: groupMessage,
-                key,
-            } = this.#sessions.groupSessionFromPacket(packet, aad, sourceIp);
+            const received = this.#sessions.groupSessionFromPacket(packet, aad, sourceIp);
+            if (received === undefined) {
+                return;
+            }
+            const { session: groupSession, message: groupMessage, key, sourceNodeId, groupId } = received;
             session = groupSession;
             message = { ...groupMessage, receivedFrom: sourceIp };
-
-            const sourceNodeId = message.packetHeader.sourceNodeId;
-            if (sourceNodeId === undefined) {
-                throw new UnexpectedDataError("Group session message must include a source NodeId");
-            }
 
             try {
                 session.updateMessageCounter(message.packetHeader.messageId, sourceNodeId, key);
@@ -315,12 +382,10 @@ export class ExchangeManager implements Transport.Provider {
                 isDuplicate = true;
                 // Report replay for Groupcast testing — observable is a no-op without listeners.
                 this.#sessions.emitGroupMessage({
+                    kind: "authenticated",
                     result: Groupcast.GroupcastTestResult.MessageReplay,
                     fabric: groupSession.fabric,
-                    groupId:
-                        message.packetHeader.destGroupId !== undefined
-                            ? GroupId(message.packetHeader.destGroupId)
-                            : undefined,
+                    groupId,
                     sourceIp,
                 });
             }
@@ -333,14 +398,7 @@ export class ExchangeManager implements Transport.Provider {
         const exchangeIndex = message.payloadHeader.isInitiatorMessage
             ? message.payloadHeader.exchangeId
             : message.payloadHeader.exchangeId | 0x10000;
-        let exchange = this.#exchanges.get(exchangeIndex);
-
-        if (
-            exchange !== undefined &&
-            (exchange.session.id !== session.id || exchange.isInitiator === message.payloadHeader.isInitiatorMessage) // Should always be ok, but just in case
-        ) {
-            exchange = undefined;
-        }
+        const exchange = this.#exchanges.get(session)?.get(exchangeIndex);
 
         const isStandaloneAck = SecureMessageType.isStandaloneAck(
             message.payloadHeader.protocolId,
@@ -356,15 +414,12 @@ export class ExchangeManager implements Transport.Provider {
         if (exchange !== undefined) {
             try {
                 lifetime.details.exchange = exchange.idStr;
-                if (exchange.session.id !== packet.header.sessionId || (exchange.considerClosed && !isStandaloneAck)) {
+                if (exchange.considerClosed && !isStandaloneAck) {
                     this.#logger.debug(
                         exchange.via,
                         "Ignore",
                         Mark.INBOUND,
-                        "message because",
-                        exchange.considerClosed
-                            ? "exchange is closing"
-                            : `session ID mismatch (header session is ${Session.idStrOf(packet)}`,
+                        "message because exchange is closing",
                         messageDiagnostics,
                     );
 
@@ -431,7 +486,7 @@ export class ExchangeManager implements Transport.Provider {
                 }
 
                 lifetime.details.exchange = exchange.idStr;
-                this.#addExchange(exchangeIndex, exchange);
+                this.#addExchange(session, exchangeIndex, exchange);
                 try {
                     await exchange.onMessageReceived(message);
                     await protocolHandler.onNewExchange(exchange, message);
@@ -441,7 +496,7 @@ export class ExchangeManager implements Transport.Provider {
             } else if (message.payloadHeader.requiresAck) {
                 const exchange = MessageExchange.fromInitialMessage(this.#messageExchangeContextFor(session), message);
                 lifetime.details.exchange = exchange.idStr;
-                this.#addExchange(exchangeIndex, exchange);
+                this.#addExchange(session, exchangeIndex, exchange);
 
                 try {
                     await exchange.sendStandaloneAckForMessage(message);
@@ -452,7 +507,13 @@ export class ExchangeManager implements Transport.Provider {
                 }
             } else {
                 if (protocolHandler === undefined) {
-                    throw new MatterFlowError(`Unsupported protocol ${message.payloadHeader.protocolId}`);
+                    this.#logger.debug(
+                        "Ignore",
+                        Mark.INBOUND,
+                        "message for an unsupported protocol",
+                        messageDiagnostics,
+                    );
+                    return;
                 }
                 if (isDuplicate) {
                     if (message.packetHeader.destGroupId === undefined) {
@@ -462,7 +523,7 @@ export class ExchangeManager implements Transport.Provider {
                     return;
                 }
                 if (!isStandaloneAck) {
-                    this.#logger.info(
+                    this.#logger.debug(
                         "Discard",
                         Mark.INBOUND,
                         "unexpected message",
@@ -487,34 +548,39 @@ export class ExchangeManager implements Transport.Provider {
         this.#logger.warn(Message.via(exchange, message), "Unhandled error handling incoming message:", error);
     }
 
-    deleteExchange(exchangeIndex: number) {
-        this.#exchanges.delete(exchangeIndex);
-    }
-
-    #addExchange(exchangeIndex: number, exchange: MessageExchange) {
-        // A peer reuses exchange IDs, so only drop the index while it still maps to this exchange
+    #addExchange(session: Session, exchangeIndex: number, exchange: MessageExchange) {
+        const exchanges = this.#exchangesOf(session);
         exchange.closed.once(() => {
-            if (this.#exchanges.get(exchangeIndex) === exchange) {
-                this.deleteExchange(exchangeIndex);
+            exchanges.delete(exchangeIndex);
+            if (exchanges.size === 0) {
+                this.#exchanges.delete(session);
             }
         });
-        this.#exchanges.set(exchangeIndex, exchange);
+        exchanges.set(exchangeIndex, exchange);
 
         // The spec recommends a maximum of 5 concurrent exchanges over a unicast session to avoid exhausting the
         // peer's message counter window; we allow MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION as a practical
-        // upper bound and evict the least-recently-active exchange once exceeded.
-        // TODO Make sure Group sessions are handled differently
-        this.#cleanupSessionExchanges(exchange.session.id);
+        // upper bound and evict the least-recently-active exchange once exceeded.  Each group session object counts on
+        // its own.
+        this.#cleanupSessionExchanges(session, exchanges);
     }
 
-    #cleanupSessionExchanges(sessionId: number) {
-        if (sessionId === UNICAST_UNSECURE_SESSION_ID) {
+    /** The open exchanges of the session, by exchange index; creates the entry when the session has none yet. */
+    #exchangesOf(session: Session) {
+        let exchanges = this.#exchanges.get(session);
+        if (exchanges === undefined) {
+            exchanges = new Map();
+            this.#exchanges.set(session, exchanges);
+        }
+        return exchanges;
+    }
+
+    #cleanupSessionExchanges(session: Session, exchanges: Map<number, MessageExchange>) {
+        if (!session.isSecure) {
             // PASE/CASE exchanges are not relevant for this limit
             return;
         }
-        const sessionExchanges = Array.from(this.#exchanges.values()).filter(
-            exchange => exchange.session.id === sessionId && !exchange.considerClosed,
-        );
+        const sessionExchanges = Array.from(exchanges.values()).filter(exchange => !exchange.considerClosed);
         if (sessionExchanges.length <= MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION) {
             return;
         }
@@ -522,11 +588,10 @@ export class ExchangeManager implements Transport.Provider {
         const exchangeToClose = sessionExchanges.reduce((leastRecentlyActive, exchange) =>
             exchange.lastActive < leastRecentlyActive.lastActive ? exchange : leastRecentlyActive,
         );
-        this.#logger.info(
+        this.#logger.debug(
             exchangeToClose.via,
             `Closing least-recently-active exchange for session because of too many concurrent exchanges. Ensure to not send that many parallel messages to one peer.`,
         );
-        this.#logger.debug(exchangeToClose.via, "Closing least-recently-active exchange");
         this.#workers.add(exchangeToClose.close());
     }
 
@@ -588,7 +653,7 @@ export class ExchangeManager implements Transport.Provider {
             netInterface,
             netInterface.onData((socket, data) => {
                 if (udpInterface && data.byteLength > socket.maxPayloadSize) {
-                    this.#logger.warn(
+                    this.#logger.debug(
                         `Received UDP message from ${socket.name} with size ${data.byteLength}, which is larger than the maximum allowed size of ${socket.maxPayloadSize}`,
                     );
                 }

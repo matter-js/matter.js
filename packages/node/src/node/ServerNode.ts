@@ -12,6 +12,7 @@ import { ServerNetworkRuntime } from "#behavior/system/network/ServerNetworkRunt
 import { ProductDescriptionServer } from "#behavior/system/product-description/ProductDescriptionServer.js";
 import { SessionsBehavior } from "#behavior/system/sessions/SessionsBehavior.js";
 import { SubscriptionsServer } from "#behavior/system/subscriptions/SubscriptionsServer.js";
+import { SubscriptionStore } from "#behavior/system/subscriptions/SubscriptionStore.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
@@ -248,6 +249,7 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
                 () => this.env.get(SessionManager).clear(),
                 () => this.env.get(FabricManager).clear(),
                 () => this.env.get(OccurrenceManager).clear(),
+                () => this.env.get(SubscriptionStore).clear(),
                 () => ServerEnvironment.eraseCredentials(this),
                 () => this.env.get(ServerNodeStore).erase(),
             ],

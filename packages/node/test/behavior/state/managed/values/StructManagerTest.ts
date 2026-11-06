@@ -8,7 +8,7 @@ import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
-import { MaybePromise, MockCrypto } from "@matter/general";
+import { isObject, MaybePromise, MockCrypto } from "@matter/general";
 import {
     ClusterModel,
     DataModelPath,
@@ -21,7 +21,7 @@ import {
 import { MockExchange } from "@matter/node/testing";
 import { ConstraintError, Val } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
-import { aclEndpoint, rawValuesOf, structOf, TestStruct } from "./value-utils.js";
+import { aclEndpoint, listOf, rawValuesOf, structOf, TestStruct } from "./value-utils.js";
 
 export type Nested = {
     substruct: {
@@ -787,6 +787,131 @@ describe("StructManager", () => {
 
                 expect(() => (struct.alive = false)).throws(ConstraintError);
             });
+        });
+    });
+
+    describe("assigned container", () => {
+        type Entry = { value: number };
+        type Lists = { a: Entry[]; b: Entry[] };
+
+        function twoLists() {
+            const entry = structOf({ value: "uint8" });
+            return TestStruct({ a: listOf(entry), b: listOf(entry) }, { a: [{ value: 1 }], b: [] });
+        }
+
+        it("copies a list read from the same state", async () => {
+            const struct = twoLists();
+
+            await LocalActorContext.act("test", async cx => {
+                const ref = struct.reference(cx) as Lists;
+                ref.b = ref.a;
+                ref.b.push({ value: 2 });
+                ref.b[0].value = 3;
+                expect(ref.a).deep.equals([{ value: 1 }]);
+                await cx.transaction.rollback();
+            });
+
+            struct.expect({ a: [{ value: 1 }], b: [] });
+        });
+
+        it("copies a list read from the view", async () => {
+            const struct = twoLists();
+
+            await LocalActorContext.act("test", async cx => {
+                const ref = struct.reference(cx) as Lists;
+                ref.b = (struct.fields as Lists).a;
+                ref.b[0].value = 3;
+            });
+
+            struct.expect({ a: [{ value: 1 }], b: [{ value: 3 }] });
+        });
+
+        it("copies a list entry read from the same list", async () => {
+            const struct = twoLists();
+
+            await LocalActorContext.act("test", async cx => {
+                const ref = struct.reference(cx) as Lists;
+                ref.a[1] = ref.a[0];
+                ref.a[1].value = 3;
+            });
+
+            struct.expect({ a: [{ value: 1 }, { value: 3 }], b: [] });
+        });
+
+        it("copies a caller's list of structs", async () => {
+            const struct = twoLists();
+            const callerList = [{ value: 2 }];
+
+            await LocalActorContext.act("test", async cx => {
+                const ref = struct.reference(cx) as Lists;
+                ref.b = callerList;
+                ref.b[0].value = 3;
+            });
+
+            callerList.push({ value: 4 });
+
+            expect(callerList).deep.equals([{ value: 2 }, { value: 4 }]);
+            struct.expect({ a: [{ value: 1 }], b: [{ value: 3 }] });
+        });
+
+        it("copies a caller's struct", async () => {
+            const struct = TestStruct({ member: structOf({ value: "uint8" }) }, { member: { value: 1 } });
+            const callerStruct = { value: 2 };
+
+            await LocalActorContext.act("test", async cx => {
+                const ref = struct.reference(cx) as { member: { value: number } };
+                ref.member = callerStruct;
+                ref.member.value = 3;
+            });
+
+            expect(callerStruct).deep.equals({ value: 2 });
+            struct.expect({ member: { value: 3 } });
+        });
+
+        it("copies a caller's nested struct", async () => {
+            const struct = TestStruct(
+                { member: structOf({ inner: structOf({ value: "uint8" }) }) },
+                { member: { inner: { value: 1 } } },
+            );
+            const callerStruct = { inner: { value: 2 } };
+
+            await LocalActorContext.act("test", async cx => {
+                const ref = struct.reference(cx) as { member: { inner: { value: number } } };
+                ref.member = callerStruct;
+                ref.member.inner.value = 3;
+            });
+
+            expect(callerStruct).deep.equals({ inner: { value: 2 } });
+            struct.expect({ member: { inner: { value: 3 } } });
+        });
+
+        it("keeps the symbol-keyed properties of a caller's struct", async () => {
+            const struct = TestStruct({ member: structOf({ value: "uint8" }) }, { member: { value: 1 } });
+            const marker = Symbol("marker");
+            const callerStruct = { value: 2, [marker]: "kept" };
+
+            await LocalActorContext.act("test", async cx => {
+                const ref = struct.reference(cx) as { member: { value: number } };
+                ref.member = callerStruct;
+            });
+
+            const stored = rawValuesOf(struct.fields).member;
+            expect(stored).not.equals(callerStruct);
+            expect(isObject(stored) && Reflect.get(stored, marker)).equals("kept");
+        });
+
+        it("copies a caller's list of primitives", async () => {
+            const struct = TestStruct({ list: listOf("uint8") }, { list: [] });
+            const callerList = [1];
+
+            await LocalActorContext.act("test", async cx => {
+                const ref = struct.reference(cx) as { list: number[] };
+                ref.list = callerList;
+                ref.list.push(2);
+            });
+
+            expect(callerList).deep.equals([1]);
+            struct.expect({ list: [1, 2] });
         });
     });
 });

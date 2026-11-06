@@ -21,7 +21,7 @@ type Container = Record<string | number, Val>;
 /**
  * ManagedReference manages a reference to a container property of another reference.
  *
- * The ManagedReference detects when the value changes and clones the container if it is the original copy.
+ * The ManagedReference clones the container on write unless the transaction already owns it.
  *
  * This serves the following purposes:
  *
@@ -33,11 +33,11 @@ type Container = Record<string | number, Val>;
  *
  * A reference stays bound to its member for its whole life and follows whatever container the parent holds there:
  *
- * | State   | Cause                                          | {@link value}      | Writes                   |
- * |---------|------------------------------------------------|--------------------|--------------------------|
- * | live    | the member holds a container                   | that container     | allowed                  |
- * | absent  | the member, or a container above it, is absent | `undefined`/`null` | `PhantomReferenceError`  |
- * | expired | the owning context exited                      | last value seen    | `ExpiredReferenceError`  |
+ * | State   | Cause                                               | {@link value}      | Writes                  |
+ * |---------|-----------------------------------------------------|--------------------|-------------------------|
+ * | live    | the member holds a container                        | that container     | allowed                 |
+ * | absent  | the member, or a container above it, is absent      | `undefined`/`null` | `PhantomReferenceError` |
+ * | expired | the owning context exited, or a parent is read-only | last value seen    | `ExpiredReferenceError` |
  *
  * "absent" returns to "live" when a container is assigned again.  "expired" is final.
  */
@@ -127,33 +127,37 @@ export class ManagedReference implements ValReference {
         this.#location = loc;
     }
 
-    get original() {
-        if (!this.parent.original) {
-            return undefined;
-        }
-        if (this.#dynamicContainer !== undefined) {
-            const origProperties = (this.parent.original as Val.Dynamic)[Val.properties](
-                this.parent.rootOwner,
-                this.#session,
-            );
-            return memberValueOf(origProperties as Container, this.#key, this.#fallbackKey);
-        }
-        return memberValueOf(this.parent.original as Container, this.#key, this.#readFallbackKey);
+    /**
+     * A container a `Val.properties` provider serves, and every container below it, is never owned, even when the
+     * provider serves a container the transaction cloned for another member.  The provider keeps the value its setter
+     * accepted, so a later change must clone it again instead of changing it in place.
+     */
+    owns(container: Val) {
+        return this.#dynamicContainer === undefined && this.parent.owns(container);
     }
 
+    adopt(container: Val) {
+        this.parent.adopt(container);
+    }
+
+    /**
+     * Clones the container unless the transaction {@link owns} it, runs {@link mutator}, then stores the container in
+     * the parent.  A dynamic provider's setter therefore receives the container after every change, with the change
+     * applied.
+     */
     change(mutator: () => void) {
         ValReference.writableContainerOf(this);
 
         this.parent.change(() => {
-            // In transactions, clone the value if we haven't done so yet
-            if (this.#value === this.original) {
-                const newValue = this.#clone(this.#value);
-                this.#writeTo(this.#dynamicContainer ?? (this.parent.value as Container), newValue);
-                this.#replaceValue(newValue);
+            if (!this.owns(this.#value)) {
+                const clone = this.#clone(this.#value);
+                this.adopt(clone);
+                this.#replaceValue(clone);
             }
 
-            // Apply changes
             mutator();
+
+            this.#writeTo(this.#dynamicContainer ?? (this.parent.value as Container), this.#value);
         }, this.#key);
     }
 

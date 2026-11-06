@@ -56,6 +56,7 @@ describe("EventReadResponse", () => {
                             number: 1n,
                             priority: 2,
                             timestamp: -1,
+                            resolvedTimestamp: -1,
                             tlv: {},
                             value: { softwareVersion: 0 },
                         },
@@ -92,6 +93,7 @@ describe("EventReadResponse", () => {
                             number: 3n,
                             priority: 1,
                             timestamp: -1,
+                            resolvedTimestamp: -1,
                             tlv: {},
                             value: { fabricIndex: FabricIndex(4) },
                         },
@@ -125,6 +127,7 @@ describe("EventReadResponse", () => {
                             number: 3n,
                             priority: 2,
                             timestamp: -1,
+                            resolvedTimestamp: -1,
                             tlv: {},
                             value: undefined,
                         },
@@ -202,6 +205,7 @@ describe("EventReadResponse", () => {
                             number: 3n,
                             priority: 1,
                             timestamp: -1,
+                            resolvedTimestamp: -1,
                             tlv: {},
                             value: {
                                 messageId: Bytes.fromHex("0011223344556677889900aabbccddeeff"),
@@ -239,6 +243,7 @@ describe("EventReadResponse", () => {
                     number: 1n,
                     priority: 2,
                     timestamp: -1,
+                    resolvedTimestamp: -1,
                     tlv: {},
                     value: { softwareVersion: 0 },
                 },
@@ -470,7 +475,9 @@ export async function readEvRaw(node: MockServerNode, data: Partial<Read.Events>
             const epoch = MockTime.epoch.getTime();
             for (const ev of chunks as ReadResult.EventValue[]) {
                 if (typeof ev.timestamp === "number" && ev.timestamp - epoch <= Seconds(2)) {
+                    expect(ev.resolvedTimestamp).equals(ev.timestamp);
                     ev.timestamp = -1;
+                    ev.resolvedTimestamp = -1;
                 }
             }
 

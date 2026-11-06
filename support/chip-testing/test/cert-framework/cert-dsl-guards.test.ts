@@ -788,6 +788,18 @@ describe("certTest under a controller that serves only the DUT role", () => {
         expect(underMatterJs.active).to.have.lengthOf(1);
     });
 
+    it("skips an attestation case where the DUT controller cannot judge attestation", () => {
+        const declare = (tc: string) => certTest(tc, { plan: "n/a", pics: [], app: "all-clusters", attestation: true });
+
+        const underChipTool = withController("chip-tool", () => collect(() => declare("TC-CAPABILITY-SKIP-2.0")));
+        expect(underChipTool.active).to.have.lengthOf(1);
+        expect(underChipTool.active[0].name).to.contain('controller "chip-tool" lacks attestation');
+
+        withController("matterjs", () => {
+            expect(unmetControllerCapabilities({ attestation: true, controllers: { dut: "dut" } })).equal(undefined);
+        });
+    });
+
     it("finds what a test's controllers lack from its declaration and its transport", () => {
         withController("matterjs-server", () => {
             const dut = { dut: "dut" } as const;

@@ -22,13 +22,8 @@ export interface ValReference<T extends Val = Val> {
     readonly value: T | undefined | null;
 
     /**
-     * The current canonical value of the referenced property.
-     */
-    readonly original: T;
-
-    /**
-     * When true, the reference is no longer usable because the owning context has exited.  Final, and true for every
-     * reference below an expired one.
+     * When true, the reference no longer tracks live state: the owning context has exited, or the reference is a
+     * read-only view.  Final, and true for every reference below an expired one.
      */
     readonly expired: boolean;
 
@@ -43,9 +38,10 @@ export interface ValReference<T extends Val = Val> {
     subrefs?: Record<number | string, ValReference>;
 
     /**
-     * Mutates data.  Clones the container and updates metadata when called on an unmodified transactional reference.
+     * Mutates data.  A nested reference first clones its container unless the transaction {@link owns} it.
      *
-     * Then runs the specified mutator to make the actual changes.
+     * Then runs the specified mutator to make the actual changes.  A nested reference then stores the changed
+     * container in its parent, so the mutator changes state only through this reference or references below it.
      *
      * @param mutator the mutation logic, may freely modify {@link value}
      * @param member the key of the member of {@link value} the mutation assigns.  The root reference records it as
@@ -58,6 +54,17 @@ export interface ValReference<T extends Val = Val> {
      * Refresh any internal cache from the referenced container.
      */
     refresh(): void;
+
+    /**
+     * Whether the transaction cloned {@link container} since its last commit or rollback.  A nested write may change
+     * an owned container in place; any other container may be shared with committed state.
+     */
+    owns(container: Val): boolean;
+
+    /**
+     * Record {@link container}, a clone this transaction made, as owned until the transaction commits or rolls back.
+     */
+    adopt(container: Val): void;
 
     /**
      * How this container keys its own members.  Only a datasource root may key by element ID; every nested container
@@ -101,7 +108,7 @@ export namespace ValReference {
      * owning context exited still serves the last container it saw.
      *
      * @throws PhantomReferenceError when the property, or a container above it, is absent
-     * @throws ExpiredReferenceError when the container is absent and the owning context has exited, or when
+     * @throws ExpiredReferenceError when the container is absent and the reference is expired, or when
      * {@link reference} is a root reference whose owning context has exited
      */
     export function containerOf<T extends Val>(reference: ValReference<T>): NonNullable<T> {
@@ -118,7 +125,8 @@ export namespace ValReference {
     /**
      * The container {@link reference} points to, for a manager that writes its members.
      *
-     * @throws ExpiredReferenceError when the owning context has exited, whether or not the container is present
+     * @throws ExpiredReferenceError when the reference is {@link ValReference.expired}, whether or not the container is
+     * present
      * @throws PhantomReferenceError when the property, or a container above it, is absent
      */
     export function writableContainerOf<T extends Val>(reference: ValReference<T>): NonNullable<T> {

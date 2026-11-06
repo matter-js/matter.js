@@ -33,6 +33,7 @@ import { clientStructureOf, MockSite, settled, subscribedPeer } from "@matter/no
 import {
     ClientRead,
     ClientSubscribe,
+    InputChunk,
     Read,
     ReadResult,
     SessionManager,
@@ -48,6 +49,7 @@ import {
     EventNumber,
     Priority,
     TlvAny,
+    TlvOfModel,
 } from "@matter/types";
 import { Switch } from "@matter/types/clusters/switch";
 
@@ -156,6 +158,7 @@ describe("Client Event Notification", () => {
             expect(ClusterBehavior.is(occurrence.behavior) && occurrence.behavior.cluster.name).equals("Switch");
             expect(occurrence.payload).deep.equals({ newPosition: 1 });
             expect(occurrence.timestampKind).equals("epoch");
+            expect(occurrence.resolvedTimestamp).equals(occurrence.timestamp);
         });
 
         it("emits EventOccurrence for MS, MSR and MSM events", async () => {
@@ -221,9 +224,11 @@ describe("Client Event Notification", () => {
             const emit = (initializer as ClientEndpointInitializer).structure.eventEmitter!;
 
             const kinds = new Array<ChangeNotificationService.TimestampKind>();
+            const resolved = new Array<number | undefined>();
             controller.env.get(ChangeNotificationService).change.on(change => {
                 if (change.kind === "event") {
                     kinds.push(change.timestampKind);
+                    resolved.push(change.resolvedTimestamp);
                 }
             });
 
@@ -244,12 +249,77 @@ describe("Client Event Notification", () => {
                 };
             }
 
-            await MockTime.resolve(emit(reported(1, { epochTimestamp: 1000 })));
-            await MockTime.resolve(emit(reported(2, { systemTimestamp: 2000 })));
-            await MockTime.resolve(emit(reported(3, { deltaEpochTimestamp: 3000 })));
+            await MockTime.resolve(emit(reported(1, { epochTimestamp: 1000, resolvedTimestamp: 1000 })));
+            await MockTime.resolve(emit(reported(2, { systemTimestamp: 2000, resolvedTimestamp: 2000 })));
+            await MockTime.resolve(emit(reported(3, { deltaEpochTimestamp: 3000, resolvedTimestamp: 4000 })));
             await MockTime.resolve(emit(reported(4, { deltaSystemTimestamp: 4000 })));
+            await MockTime.resolve(
+                emit(reported(5, { epochTimestamp: 5000, systemTimestamp: 5, resolvedTimestamp: 5000 })),
+            );
 
-            expect(kinds).deep.equals(["epoch", "system", "epoch-delta", "system-delta"]);
+            expect(kinds).deep.equals(["epoch", "system", "epoch-delta", "system-delta", "epoch"]);
+            expect(resolved).deep.equals([1000, 2000, 4000, undefined, 5000]);
+        });
+
+        it("delivers the timestamps the report decoder resolved", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint.with(
+                        SwitchServer.with(Switch.Feature.MomentarySwitch, Switch.Feature.MomentarySwitchRelease),
+                    ),
+                },
+            });
+            const peer = controller.peers.get("peer1")!;
+
+            const initializer = peer.env.get(EndpointInitializer);
+            expect(initializer).instanceof(ClientEndpointInitializer);
+            const emit = (initializer as ClientEndpointInitializer).structure.eventEmitter!;
+
+            const occurrences = new Array<ChangeNotificationService.EventOccurrence>();
+            controller.env.get(ChangeNotificationService).change.on(change => {
+                if (change.kind === "event") {
+                    occurrences.push(change);
+                }
+            });
+
+            const TlvInitialPress = TlvOfModel(Switch.events.initialPress);
+            const path = {
+                endpointId: EndpointNumber(0),
+                clusterId: Switch.id,
+                eventId: EventId(Switch.events.initialPress.id),
+            };
+            const report = {
+                eventReports: [{ systemTimestamp: 1000 }, { deltaSystemTimestamp: 4 }, { deltaSystemTimestamp: 1 }].map(
+                    (timestamp, i) => ({
+                        eventData: {
+                            path,
+                            eventNumber: EventNumber(i + 1),
+                            priority: Priority.Info,
+                            ...timestamp,
+                            data: TlvInitialPress.encodeTlv({ newPosition: 1 }),
+                        },
+                    }),
+                ),
+            };
+
+            for await (const chunk of InputChunk(report)) {
+                if (chunk.kind === "event-value") {
+                    await MockTime.resolve(emit(chunk));
+                }
+            }
+
+            expect(
+                occurrences.map(({ timestampKind, timestamp, resolvedTimestamp }) => ({
+                    timestampKind,
+                    timestamp,
+                    resolvedTimestamp,
+                })),
+            ).deep.equals([
+                { timestampKind: "system", timestamp: 1000, resolvedTimestamp: 1000 },
+                { timestampKind: "system-delta", timestamp: 4, resolvedTimestamp: 1004 },
+                { timestampKind: "system-delta", timestamp: 1, resolvedTimestamp: 1005 },
+            ]);
         });
     });
 

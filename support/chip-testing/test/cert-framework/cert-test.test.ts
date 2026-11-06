@@ -555,7 +555,7 @@ describe("CertTest", () => {
                     text: "Step whose outcome depends on PICS",
                     run: async cx => {
                         await passes(cx);
-                        for (const expression of ["CADMIN.C", "CADMIN.C.C00.Tx", "!CADMIN.C.C00.Tx", "CADMIN.S"]) {
+                        for (const expression of ["CADMIN.C", "CADMIN.C.C03.Tx", "!CADMIN.C.C03.Tx", "CADMIN.S"]) {
                             answers.push(cx.picsMet(expression));
                         }
                     },
@@ -566,7 +566,7 @@ describe("CertTest", () => {
         const cx: CertStepWiring = { controllers: {}, devices: {}, recorder: stubRecorder() };
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
 
-        await test.invoke(stubSubject(new PicsFile(["CADMIN.C=1", "CADMIN.C.C00.Tx=0"])), () => {}, [], false);
+        await test.invoke(stubSubject(new PicsFile(["CADMIN.C=1", "CADMIN.C.C03.Tx=0"])), () => {}, [], false);
 
         expect(answers).deep.equal([true, false, true, false]);
     });
@@ -2655,8 +2655,8 @@ describe("CertTest", () => {
             app: "all-clusters",
             controllers: { dut: "dut" },
             steps: [
-                { number: 1, text: "Step the device does not declare", pics: "CADMIN.C.C00.Tx", run: passes },
-                { number: 2, text: "Another such step", pics: "CADMIN.C.C00.Tx", run: passes },
+                { number: 1, text: "Step the device does not declare", pics: "CADMIN.C.C03.Tx", run: passes },
+                { number: 2, text: "Another such step", pics: "CADMIN.C.C03.Tx", run: passes },
                 { number: 3, text: "Step the device declares", pics: "CADMIN.C", run: passes },
             ],
         };
@@ -2679,7 +2679,7 @@ describe("CertTest", () => {
         };
 
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
-        await test.invoke(stubSubject(new PicsFile(["CADMIN.C=1", "CADMIN.C.C00.Tx=0"])), () => {}, [], false);
+        await test.invoke(stubSubject(new PicsFile(["CADMIN.C=1", "CADMIN.C.C03.Tx=0"])), () => {}, [], false);
 
         expect(endStepVerdicts).deep.equal([
             { number: 1, verdict: "skipped" },

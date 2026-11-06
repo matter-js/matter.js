@@ -29,35 +29,75 @@ import {
     UnexpectedDataError,
 } from "@matter/general";
 import { FabricIndex, GroupId, NodeId } from "@matter/types";
+import { Groupcast } from "@matter/types/clusters/groupcast";
 import { SecureSession } from "./SecureSession.js";
 import { Session } from "./Session.js";
 import { SessionManager } from "./SessionManager.js";
 
-/** Thrown by {@link GroupSession.decode} when no installed key can be a candidate for the received group message. */
-export class GroupSessionNoKeyError extends MatterFlowError {
+/**
+ * What is known about a received group message for which no candidate passed: none authenticated it for its
+ * destination group with a payload that parses.
+ * Groupcast testing reports it from these facts.
+ */
+export interface GroupMessageRejection {
     /**
-     * Group id of the message, when a key set decrypted it successfully but is not usable because no group maps to it.
-     * The id is authenticated in that case, so Groupcast testing may derive the arrival address from it.
+     * Fabrics with at least one candidate key: a key with the message's session id whose key set GroupKeyMap maps to a
+     * group.  Empty when no key was found.
      */
-    readonly groupId?: GroupId;
+    readonly candidateFabrics: ReadonlySet<FabricIndex>;
 
-    /** The fabric of the key set that authenticated the message, set together with {@link groupId} */
-    readonly fabric?: Fabric;
+    /**
+     * The group id the message names, to derive the address the message arrived on.  It must not be reported as the
+     * GroupID.  Unset when no candidate authenticated the message and the decoded header has no `destGroupId`, as for
+     * a privacy message.
+     */
+    readonly group?: GroupMessageRejection.Group;
+}
 
-    constructor(
-        message = "No key candidate found for group session decryption",
-        authenticated?: { groupId: GroupId; fabric: Fabric },
-    ) {
-        super(message);
-        this.groupId = authenticated?.groupId;
-        this.fabric = authenticated?.fabric;
+export namespace GroupMessageRejection {
+    export interface Group {
+        readonly groupId: GroupId;
+
+        /**
+         * The fabric whose candidate key authenticated the id, so it owns the id; it is not the fabric to report on.
+         * Unset for an id from a plain header that no candidate authenticated.
+         */
+        readonly fabricIndex?: FabricIndex;
+    }
+
+    /**
+     * The Groupcast testing result of a rejected message for the given fabric: FailedAuth when a key of the fabric was a
+     * candidate, NoAvailableKey otherwise.  The CHIP SDK decides the same way.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.27.7.6.3
+     */
+    export function resultFor(
+        { candidateFabrics }: GroupMessageRejection,
+        fabricIndex: FabricIndex,
+    ): Groupcast.GroupcastTestResult.FailedAuth | Groupcast.GroupcastTestResult.NoAvailableKey {
+        return candidateFabrics.has(fabricIndex)
+            ? Groupcast.GroupcastTestResult.FailedAuth
+            : Groupcast.GroupcastTestResult.NoAvailableKey;
     }
 }
 
-/** Thrown by {@link GroupSession.decode} when decryption failed with all candidate keys. */
-export class GroupSessionDecodeError extends MatterFlowError {
-    constructor(message = "Failed to decode group message with any key candidate") {
-        super(message);
+/**
+ * Thrown by {@link GroupSession.decodeWithCandidateKeys} when no candidate passed for a received group message: none
+ * authenticated it for its destination group with a payload that parses, or there was no candidate at all.  Any sender
+ * can cause it, so it is routine.
+ */
+export class GroupSessionDecodeError extends MatterFlowError implements GroupMessageRejection {
+    readonly candidateFabrics: ReadonlySet<FabricIndex>;
+    readonly group?: GroupMessageRejection.Group;
+
+    constructor({ candidateFabrics, group }: GroupMessageRejection) {
+        super(
+            candidateFabrics.size === 0
+                ? "No key candidate found for group message"
+                : "No candidate key passed for the group message",
+        );
+        this.candidateFabrics = candidateFabrics;
+        this.group = group;
     }
 }
 
@@ -288,7 +328,20 @@ export class GroupSession extends SecureSession {
         throw new InternalError("GroupSession does not support decode on instance.");
     }
 
-    static decode(
+    /**
+     * Find the key that authenticates a received group message and decode the message with it.  Every key of a mapped
+     * key set with the message's session id is a candidate, across all fabrics.  A candidate fails when it does not
+     * authenticate the message, when GroupKeyMap does not map the message's destination group to a key set holding it,
+     * or when the authenticated payload does not parse.  The first candidate that passes wins.
+     *
+     * The message counter is not processed here.  The packet must come from {@link MessageCodec.decodePacket}, which
+     * guarantees a destination group id and a source node id.  A payload that cannot be decrypted with Matter's AES-CCM
+     * parameters fails every candidate.
+     *
+     * @throws GroupSessionDecodeError when no candidate passes
+     * @see {@link MatterSpecification.v161.Core} § 4.17.3.6
+     */
+    static decodeWithCandidateKeys(
         fabrics: FabricManager,
         { header, applicationPayload, messageExtension, privacyHeader }: DecodedPacket,
         aad: Bytes,
@@ -298,133 +351,114 @@ export class GroupSession extends SecureSession {
         privacyKey?: Bytes;
         sessionId: number;
         sourceNodeId: NodeId;
+        groupId: GroupId;
         keySetId: number;
         fabric: Fabric;
     } {
         if (header.hasMessageExtensions) {
-            logger.info(
+            logger.debug(
                 `Message extensions are not supported. Ignoring ${messageExtension ? Bytes.toHex(messageExtension) : undefined}`,
             );
         }
 
+        type CandidateKey = { key: Bytes; privacyKey?: Bytes; keySetId: number; fabric: Fabric };
         const sessionId = header.sessionId;
-        const mappedKeys = new Array<{ key: Bytes; privacyKey?: Bytes; keySetId: number; fabric: Fabric }>();
-        const unmappedKeys = new Array<{ key: Bytes; privacyKey?: Bytes; keySetId: number; fabric: Fabric }>();
+        const candidates = new Array<CandidateKey>();
         for (const fabric of fabrics) {
             const sessions = fabric.groups.sessions.get(sessionId);
             if (sessions?.length) {
                 for (const session of sessions) {
-                    // A key set is only usable for group communication while a group maps to it in GroupKeyMap.
-                    // Unmapped key sets do not participate in decryption; they only recover the group id for
-                    // Groupcast testing when nothing is usable.
+                    // As in the CHIP SDK, a key set that no group maps to is never tried
                     if (fabric.groups.isKeySetMapped(session.keySetId)) {
-                        mappedKeys.push({ ...session, fabric });
-                    } else {
-                        unmappedKeys.push({ ...session, fabric });
+                        candidates.push({ ...session, fabric });
                     }
                 }
             }
         }
 
-        const messageFlags = Bytes.of(aad)[0];
         const mic = Bytes.of(applicationPayload).slice(-CRYPTO_AEAD_MIC_LENGTH_BYTES);
 
-        const tryDecrypt = (candidate: { key: Bytes; privacyKey?: Bytes; keySetId: number; fabric: Fabric }) => {
-            try {
-                let packetHeader = header;
-                let decryptAad = aad;
-                if (header.hasPrivacyEnhancements) {
-                    if (privacyHeader === undefined || candidate.privacyKey === undefined) {
-                        logger.debug(`No privacy key for group session candidate ${candidate.keySetId}, skipping`);
-                        return undefined;
-                    }
-                    const privacyNonce = MessagePrivacy.buildNonce(sessionId, mic);
-                    const deobfuscated = MessagePrivacy.obfuscate(
-                        candidate.fabric.crypto,
-                        candidate.privacyKey,
-                        privacyHeader,
-                        privacyNonce,
-                    );
-                    packetHeader = {
-                        ...header,
-                        ...MessageCodec.decodeObfuscatedHeaderFields(messageFlags, deobfuscated),
-                    };
-                    decryptAad = Bytes.concat(Bytes.of(aad).slice(0, 4), deobfuscated);
+        /** Deobfuscate the header and decrypt the payload with the key; `undefined` when the key does not authenticate. */
+        const authenticate = ({ key, privacyKey, keySetId, fabric }: CandidateKey) => {
+            let packetHeader = header;
+            let decryptAad = aad;
+            if (header.hasPrivacyEnhancements) {
+                if (privacyHeader === undefined || privacyKey === undefined) {
+                    logger.debug(`No privacy key for group session candidate ${keySetId}, skipping`);
+                    return undefined;
                 }
-
-                if (packetHeader.sourceNodeId === undefined) {
-                    throw new UnexpectedDataError("Source Node ID is required for GroupSession decode.");
-                }
-                const nonce = Session.generateNonce(
-                    packetHeader.securityFlags,
-                    packetHeader.messageId,
-                    packetHeader.sourceNodeId,
+                const privacyNonce = MessagePrivacy.buildNonce(sessionId, mic);
+                const deobfuscated = MessagePrivacy.obfuscate(fabric.crypto, privacyKey, privacyHeader, privacyNonce);
+                packetHeader = {
+                    ...header,
+                    ...MessageCodec.decodeObfuscatedHeaderFields(header.messageFlags, deobfuscated),
+                };
+                decryptAad = Bytes.concat(
+                    Bytes.of(aad).slice(0, 4),
+                    deobfuscated,
+                    Bytes.of(aad).slice(4 + deobfuscated.byteLength),
                 );
-                const message = MessageCodec.decodePayload({
-                    header: packetHeader,
-                    applicationPayload: candidate.fabric.crypto.decrypt(
-                        candidate.key,
-                        applicationPayload,
-                        nonce,
-                        decryptAad,
-                    ),
-                });
-                return { message, packetHeader };
+            }
+
+            const { sourceNodeId, destGroupId } = packetHeader;
+            if (sourceNodeId === undefined) {
+                throw new InternalError("Source node id missing although the packet decoder guarantees it");
+            }
+            if (destGroupId === undefined) {
+                throw new InternalError("Destination group id missing although the packet decoder guarantees it");
+            }
+            const nonce = Session.generateNonce(packetHeader.securityFlags, packetHeader.messageId, sourceNodeId);
+            try {
+                const payload = fabric.crypto.decrypt(key, applicationPayload, nonce, decryptAad);
+                return { packetHeader, payload, sourceNodeId, groupId: GroupId(destGroupId) };
             } catch (error) {
-                // A wrong key (including a wrong privacy key, whose garbage header yields a different nonce) fails AEAD
-                // decryption; skip to the next candidate. Genuine parse errors on an authenticated payload propagate.
+                // A wrong key (including a wrong privacy key, whose garbage header yields a different nonce) fails here
                 CryptoDecryptError.accept(error);
             }
         };
 
-        /** Group id and fabric of the message when an unusable key set authenticates it, for Groupcast testing. */
-        const unmappedAuthentication = () => {
-            for (const candidate of unmappedKeys) {
-                const decrypted = tryDecrypt(candidate);
-                if (decrypted?.packetHeader.destGroupId !== undefined) {
-                    return { groupId: GroupId(decrypted.packetHeader.destGroupId), fabric: candidate.fabric };
-                }
-            }
-        };
-
-        // Matching the CHIP SDK, only mapped key sets count as available: without any, the result is "no key found",
-        // even if an unmapped key set could authenticate the message
-        if (mappedKeys.length === 0) {
-            throw new GroupSessionNoKeyError(undefined, unmappedAuthentication());
-        }
-
-        let message: DecodedMessage | undefined;
-        let key: Bytes | undefined;
-        let privacyKey: Bytes | undefined;
-        let fabric: Fabric | undefined;
-        let keySetId: number | undefined;
-        let sourceNodeId: NodeId | undefined;
-        let found = false;
-        for (const candidate of mappedKeys) {
-            const decrypted = tryDecrypt(candidate);
-            if (decrypted === undefined) {
+        let group: GroupMessageRejection.Group | undefined;
+        // A payload that no key can decrypt fails every candidate; the candidates still count for the report
+        const tried = SecureSession.undecryptablePayloadReason(applicationPayload, aad) === undefined ? candidates : [];
+        for (const candidate of tried) {
+            const authenticated = authenticate(candidate);
+            if (authenticated === undefined) {
                 continue;
             }
-            message = decrypted.message;
-            key = candidate.key;
-            privacyKey = candidate.privacyKey;
-            keySetId = candidate.keySetId;
-            fabric = candidate.fabric;
-            sourceNodeId = decrypted.packetHeader.sourceNodeId;
-            found = true;
-            break;
-        }
-        if (!found || !message || !key || keySetId === undefined || !fabric || sourceNodeId === undefined) {
-            throw new GroupSessionDecodeError();
+            const { packetHeader, payload, sourceNodeId, groupId } = authenticated;
+            group ??= { groupId, fabricIndex: candidate.fabric.fabricIndex };
+
+            if (!candidate.fabric.groups.mappingAllows(groupId, candidate.key)) {
+                continue;
+            }
+
+            let message: DecodedMessage;
+            try {
+                message = MessageCodec.decodePayload({ header: packetHeader, applicationPayload: payload });
+            } catch (error) {
+                // As in the CHIP SDK, an authenticated payload that does not parse fails the candidate
+                UnexpectedDataError.accept(error);
+                continue;
+            }
+
+            if (message.payloadHeader.hasSecuredExtension) {
+                logger.debug(
+                    `Secured extensions are not supported. Ignoring ${message.securityExtension ? Bytes.toHex(message.securityExtension) : undefined}`,
+                );
+            }
+
+            const { key, privacyKey, keySetId, fabric } = candidate;
+            return { message, key, privacyKey, sessionId, sourceNodeId, groupId, keySetId, fabric };
         }
 
-        if (message.payloadHeader.hasSecuredExtension) {
-            logger.info(
-                `Secured extensions are not supported. Ignoring ${message.securityExtension ? Bytes.toHex(message.securityExtension) : undefined}`,
-            );
+        if (group === undefined && header.destGroupId !== undefined) {
+            group = { groupId: GroupId(header.destGroupId) };
         }
 
-        return { message, key, privacyKey, sessionId, sourceNodeId, keySetId, fabric };
+        throw new GroupSessionDecodeError({
+            candidateFabrics: new Set(candidates.map(({ fabric }) => fabric.fabricIndex)),
+            group,
+        });
     }
 
     override async close() {
