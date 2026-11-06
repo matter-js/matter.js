@@ -40,21 +40,18 @@ export function createConformanceValidator(
 
         // A forwarded conformance failure must still fall through to datatype validation below, so a wrong-typed
         // value cannot slip onto the wire
-        let nextLocation = location;
         if (cfg?.conformance !== false) {
             try {
                 conformance?.(value, session, location);
             } catch (e) {
-                const forwarded = forwarding ? forwardToPeer(session, location, e) : undefined;
-                if (forwarded === undefined) {
+                if (!forwarding || !forwardToPeer(session, e)) {
                     throw e;
                 }
-                nextLocation = forwarded;
             }
         }
 
         if (value !== undefined) {
-            nextValidator?.(value, session, nextLocation);
+            nextValidator?.(value, session, location);
         }
     };
 }

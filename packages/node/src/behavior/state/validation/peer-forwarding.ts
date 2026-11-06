@@ -16,7 +16,6 @@ import {
 import { Status } from "@matter/types";
 import type { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import type { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
-import type { ValidationLocation } from "./location.js";
 
 const logger = Logger.get("ValueValidator");
 
@@ -66,7 +65,7 @@ export function withPeerForwarding(
         try {
             validate(value, session, location);
         } catch (e) {
-            if (!forwardToPeer(session, location, e)) {
+            if (!forwardToPeer(session, e)) {
                 throw e;
             }
         }
@@ -101,26 +100,17 @@ export function isPeerForwarding(supervisor: RootSupervisor) {
 }
 
 /**
- * Decide whether a validation error of a peer write is forwarded, and log it once per value.
+ * Decide whether a validation error of a peer write is forwarded, and log it at debug if so.  Each forwarded check logs
+ * its own line, so a value that breaks several checks logs several lines.
  *
- * A caller that continues with further checks of the same value after a forwarded error passes the returned location
- * on, so the following check does not log the same value again.
- *
- * @returns the location to use for the following checks, or undefined if the error is not forwarded
+ * @returns true if the error is forwarded, false if the caller rethrows it
  */
-export function forwardToPeer(
-    session: ValueSupervisor.Session,
-    location: ValidationLocation,
-    error: unknown,
-): ValidationLocation | undefined {
+export function forwardToPeer(session: ValueSupervisor.Session, error: unknown): boolean {
     if (session.clientPeerContext === undefined || !isForwardable(error)) {
-        return undefined;
-    }
-    if (location.forwarded) {
-        return location;
+        return false;
     }
     logger.debug("Sending a value the local model refuses; the device decides:", Diagnostic.errorMessage(error));
-    return { ...location, forwarded: true };
+    return true;
 }
 
 function isForwardable(error: unknown): error is ValidateError {

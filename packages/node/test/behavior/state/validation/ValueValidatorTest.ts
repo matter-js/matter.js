@@ -585,12 +585,16 @@ describe("ValueValidator", () => {
             expect(() => bitmapValidator(reservedBitmap(), server, bitmapPath)).throws(DatatypeError);
         });
 
-        it("logs a forwarded undefined enum value once", () => {
+        it("logs each forwarded check of an undefined enum value at debug", () => {
             using log = captureLog(LogLevel.DEBUG);
 
             enumValidator({ test: 99 }, peer, enumPath);
 
-            expect(log.messages.filter(message => message.includes("the local model refuses"))).length(1);
+            const lines = log.messages.filter(message => message.includes("the local model refuses"));
+            expect(lines).length(2);
+            for (const line of lines) {
+                expect(line).contains(" DEBUG ");
+            }
         });
 
         it("forwards reserved bitmap bits on a client peer write", () => {
@@ -622,7 +626,7 @@ describe("ValueValidator", () => {
             expect(() => boundedIntValidator(20, peer, boundedIntPath)).not.throws();
         });
 
-        it("logs a forwarded error once at debug", () => {
+        it("logs a forwarded error at debug", () => {
             using log = captureLog(LogLevel.DEBUG);
 
             boundedIntValidator(20, peer, boundedIntPath);
