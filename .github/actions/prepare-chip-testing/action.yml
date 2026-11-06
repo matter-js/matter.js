@@ -40,10 +40,13 @@ runs:
       run: |
         mkdir bin
 
-    - name: Get current date
+    - name: Get current date and OS release
       id: date
       shell: bash
-      run: echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+      run: |
+        echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+        # Host-built binaries and the Python environment in the caches work only on the OS release that built them
+        echo "OS_RELEASE=$(. /etc/os-release && echo "$ID$VERSION_ID")" >> $GITHUB_ENV
 
     - name: Cache Bin files
       id: cache-bin
@@ -52,7 +55,7 @@ runs:
         cache-name: chip-bin
       with:
         path: ./bin
-        key: ${{ inputs.runner-os }}-build-yaml-${{ env.cache-name }}-${{ inputs.connectedhomeip-tag }}-${{ env.DATE }}
+        key: ${{ inputs.runner-os }}-${{ env.OS_RELEASE }}-build-yaml-${{ env.cache-name }}-${{ inputs.connectedhomeip-tag }}-${{ env.DATE }}
 
     - name: Checkout Matter SDK
       id: checkout-sdk
@@ -69,7 +72,7 @@ runs:
         cache-name: chip-env
       with:
         path: ./connectedhomeip/.environment
-        key: ${{ inputs.runner-os }}-env-${{ env.cache-name }}-${{ inputs.connectedhomeip-tag }}-${{ env.DATE }}
+        key: ${{ inputs.runner-os }}-${{ env.OS_RELEASE }}-env-${{ env.cache-name }}-${{ inputs.connectedhomeip-tag }}-${{ env.DATE }}
 
     - name: Cache Chip out files
       id: cache-out
@@ -78,7 +81,7 @@ runs:
         cache-name: chip-out
       with:
         path: ./connectedhomeip/out/
-        key: ${{ inputs.runner-os }}-out-${{ env.cache-name }}-${{ inputs.connectedhomeip-tag }}-${{ env.DATE }}
+        key: ${{ inputs.runner-os }}-${{ env.OS_RELEASE }}-out-${{ env.cache-name }}-${{ inputs.connectedhomeip-tag }}-${{ env.DATE }}
 
     # Only build if cache is not hit or if the commit message contains '[rebuild-chip]'
     - if: ${{ steps.cache-env.outputs.cache-hit != 'true' || steps.cache-out.outputs.cache-hit != 'true' || inputs.rebuild-chip-tool == 'true' }}
