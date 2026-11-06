@@ -1014,6 +1014,53 @@ describe("OperationalCertificateUpdate", () => {
         await expectForgedNocsRefused(controller, device, peer, forgedNocs(forgedNoc));
     });
 
+    it("refuses a reported NOC whose CASE Authenticated Tags differ from the NOC the node authenticated with", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const fabric = deviceFabric(device);
+
+        // An older NOC our CA issued to the same node verifies against the fabric root, node ID and fabric ID
+        const olderNoc = await controller.env
+            .get(CertificateAuthority)
+            .generateNoc(fabric.publicKey, fabric.fabricId, fabric.nodeId, [CaseAuthenticatedTag(0xfffd_0001)]);
+
+        await expectForgedNocsRefused(controller, device, peer, forgedNocs(olderNoc));
+    });
+
+    it("refuses a reported NOC with other CASE Authenticated Tags of the same count", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addUncommissionedPair();
+        await controller.start();
+        const ca = controller.env.get(CertificateAuthority);
+        const generateNoc = ca.generateNoc;
+        ca.generateNoc = (publicKey, fabricId, nodeId, caseAuthenticatedTags) =>
+            generateNoc.call(
+                ca,
+                publicKey,
+                fabricId,
+                nodeId,
+                caseAuthenticatedTags ?? [CaseAuthenticatedTag(0x1234_0001)],
+            );
+        try {
+            await withEntropy([controller, device], async () => {
+                const { passcode, discriminator } = device.state.commissioning;
+                await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+                    macrotasks: true,
+                });
+            });
+        } finally {
+            ca.generateNoc = generateNoc;
+        }
+        const peer = await subscribedPeer(controller, "peer1");
+        const fabric = deviceFabric(device);
+        const otherNoc = await ca.generateNoc(fabric.publicKey, fabric.fabricId, fabric.nodeId, [
+            CaseAuthenticatedTag(0xfffd_0001),
+        ]);
+
+        await expectForgedNocsRefused(controller, device, peer, forgedNocs(otherNoc));
+    });
+
     it("refuses a reported NOC for another fabric", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();

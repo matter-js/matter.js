@@ -168,7 +168,8 @@ export namespace OperationalCertificateUpdate {
      * | Breadcrumb or NOCs unreadable before       | arm nothing; reject, nothing changed                |
      * | arming                                     |                                                     |
      * | the reported NOC fails to verify against   | arm nothing; reject as refused, nothing changed     |
-     * | the fabric root, node ID or fabric ID      |                                                     |
+     * | the fabric root, node ID or fabric ID, or  |                                                     |
+     * | its CATs differ from the CASE session's    |                                                     |
      * | ArmFailSafe answered with an error code    | nothing armed; reject as busy or refused            |
      * | ArmFailSafe answered with a status or not  | disarm over session 1; reject                       |
      * | answered                                   |                                                     |
@@ -346,7 +347,7 @@ async function installNewCertificate(
 
     let previous: { noc: Bytes; caseAuthenticatedTags?: readonly CaseAuthenticatedTag[] };
     try {
-        previous = await verifiedCurrentNoc(nocs, fabric, interaction.address.nodeId);
+        previous = await verifiedCurrentNoc(nocs, fabric, interaction.address.nodeId, session.caseAuthenticatedTags);
     } catch (cause) {
         return {
             kind: "refused",
@@ -624,9 +625,16 @@ async function readStartState(interaction: ClientInteraction) {
 /**
  * The one NOC the peer reports for the accessing fabric, and its CASE Authenticated Tags.  The NOCs value is peer data,
  * so the NOC must chain to the root of {@link fabric} and name {@link nodeId} and the fabric ID before our CA copies
- * its tags; otherwise a peer could obtain tags it never held.  Rejects when any of this fails.
+ * its tags; otherwise a peer could obtain tags it never held.  Its tags must also equal {@link sessionTags}, the tags of
+ * the NOC the peer proved to hold in CASE, because an older NOC our CA issued to the same node also verifies and may
+ * carry tags a later rotation removed.  Rejects when any of this fails.
  */
-async function verifiedCurrentNoc(nocs: OperationalCertificate[], fabric: Fabric, nodeId: NodeId) {
+async function verifiedCurrentNoc(
+    nocs: OperationalCertificate[],
+    fabric: Fabric,
+    nodeId: NodeId,
+    sessionTags: readonly CaseAuthenticatedTag[],
+) {
     if (nocs.length !== 1) {
         throw new UnexpectedDataError(`Peer reported ${nocs.length} NOCs for its fabric instead of one`);
     }
@@ -636,6 +644,12 @@ async function verifiedCurrentNoc(nocs: OperationalCertificate[], fabric: Fabric
     if (subject.nodeId !== nodeId || subject.fabricId !== fabric.fabricId) {
         throw new UnexpectedDataError(
             `Reported NOC is for node ${NodeId.strOf(subject.nodeId)} of fabric ${subject.fabricId}, not node ${NodeId.strOf(nodeId)} of fabric ${fabric.fabricId}`,
+        );
+    }
+    const tags = subject.caseAuthenticatedTags ?? [];
+    if (tags.length !== sessionTags.length || tags.some(tag => !sessionTags.includes(tag))) {
+        throw new UnexpectedDataError(
+            `Reported NOC carries CASE Authenticated Tags ${tags.join(", ") || "none"}, not ${sessionTags.join(", ") || "none"} of the NOC the node authenticated with`,
         );
     }
     return { noc, caseAuthenticatedTags: subject.caseAuthenticatedTags };
