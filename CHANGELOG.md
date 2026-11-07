@@ -114,6 +114,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
 
+- @project-chip/matter.js
+    - Fix: `PairedNode.reconnect()` waits for concurrent network state updates when re-enabling the subscription, so a lock conflict no longer leaves the node unsubscribed
+
 ## 0.18.0 (2026-10-20)
 
 - Breaking: Matter 1.6.1 brings specification changes that may require code adjustments
