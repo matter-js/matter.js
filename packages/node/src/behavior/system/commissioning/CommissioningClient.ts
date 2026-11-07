@@ -1018,9 +1018,9 @@ export namespace CommissioningClient {
         commissionedAt?: Timestamp;
 
         /**
-         * Fabric index the peer assigned to our identity (from the AddNoc response).  Substituted for the
-         * {@link FabricIndex.OMIT_FABRIC} sentinel on fabric-scoped struct writes so the local cache mirrors
-         * the value the peer will store.
+         * Fabric index the peer assigned to our identity (from the AddNoc response).  Replaces the FabricIndex of a
+         * fabric-scoped struct this node writes, because the peer stores the entry under the accessing fabric, so the
+         * local cache holds the value the peer stores.
          *
          * Distinct from {@link peerAddress.fabricIndex} which is our local fabric index.
          */
