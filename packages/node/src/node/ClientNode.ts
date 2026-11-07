@@ -189,6 +189,20 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     /**
+     * Replace this peer's operational certificate (NOC) with one for a new key pair, keeping node ID, fabric and ACLs.
+     *
+     * See {@link CommissioningClient.updateOperationalCertificate}.  Rejects with `FabricOperationInProgressError` if a
+     * commission, decommission or certificate update of this node is already in progress.
+     */
+    async updateOperationalCertificate(options?: CommissioningClient.OperationalCertificateUpdateOptions) {
+        await this.#peers.runOperationalCertificateUpdate(this, () =>
+            this.act("updateOperationalCertificate", agent =>
+                agent.commissioning.updateOperationalCertificate(options),
+            ),
+        );
+    }
+
+    /**
      * Open a Basic Commissioning Window on this peer (uses the passcode originally printed on the device).
      *
      * This is an optional feature and not all devices support it; use {@link openEnhancedCommissioningWindow} unless

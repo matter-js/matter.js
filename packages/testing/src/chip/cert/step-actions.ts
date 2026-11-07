@@ -61,6 +61,7 @@ const NODE: Classified<CertNodeApi> = {
     scriptOtaProvider: "none",
     openCommissioningWindow: "action",
     decommission: "action",
+    updateOperationalCertificate: "action",
     operationalMdnsInstanceName: "none",
 };
 
