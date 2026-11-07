@@ -550,23 +550,125 @@ export class SqliteStorageDriver extends FilesystemStorageDriver implements Clon
     }
 
     override begin(): StorageTransaction {
-        return new SqliteStorageDriverTransaction(this);
+        return new SqliteStorageDriverTransaction(this, {
+            commit: writes => this.withAnyTransaction(() => applyWrites(writes)),
+            read: (writes, read) => this.#readWithWrites(writes, read),
+        });
+    }
+
+    /**
+     * Run {@link read} on the stored data with {@link writes} applied, then discard the writes.
+     *
+     * This runs synchronously, so no other operation can see the temporary state.
+     */
+    #readWithWrites<T>(writes: readonly PendingWrite[], read: () => T): T {
+        const nested = this.#inTransaction;
+        this.#database.exec(nested ? "SAVEPOINT pending_writes" : "BEGIN");
+        this.#inTransaction = true;
+        try {
+            applyWrites(writes);
+            return read();
+        } finally {
+            if (nested) {
+                this.#database.exec("ROLLBACK TO pending_writes");
+                this.#database.exec("RELEASE pending_writes");
+            } else {
+                this.#database.exec("ROLLBACK");
+                this.#inTransaction = false;
+            }
+        }
     }
 }
 
+type PendingWrite = () => void;
+
+interface PendingWriteStore {
+    commit(writes: readonly PendingWrite[]): void;
+    read<T>(writes: readonly PendingWrite[], read: () => T): T;
+}
+
+function applyWrites(writes: readonly PendingWrite[]) {
+    for (const write of writes) {
+        write();
+    }
+}
+
+/**
+ * A transaction that buffers its writes and applies them in one SQLite transaction on commit.
+ *
+ * Several transactions may be open at the same time.  Reads in a transaction see its own buffered writes but not the
+ * buffered writes of other open transactions.
+ */
 class SqliteStorageDriverTransaction extends StorageTransaction {
-    constructor(private readonly sqliteStorage: SqliteStorageDriver) {
-        super(sqliteStorage);
-        sqliteStorage.transaction(Transaction.BEGIN);
+    readonly #driver: SqliteStorageDriver;
+    readonly #store: PendingWriteStore;
+    readonly #writes = new Array<PendingWrite>();
+
+    constructor(driver: SqliteStorageDriver, store: PendingWriteStore) {
+        super(driver);
+        this.#driver = driver;
+        this.#store = store;
+    }
+
+    override get(contexts: string[], key: string) {
+        return this.#read(() => this.#driver.get(contexts, key));
+    }
+
+    override has(contexts: string[], key: string) {
+        return this.#read(() => this.#driver.has(contexts, key));
+    }
+
+    override keys(contexts: string[]) {
+        return this.#read(() => this.#driver.keys(contexts));
+    }
+
+    override values(contexts: string[]) {
+        return this.#read(() => this.#driver.values(contexts));
+    }
+
+    override contexts(contexts: string[]) {
+        return this.#read(() => this.#driver.contexts(contexts));
+    }
+
+    override set(contexts: string[], values: Record<string, SupportedStorageTypes>): void;
+    override set(contexts: string[], key: string, value: SupportedStorageTypes): void;
+    override set(
+        contexts: string[],
+        keyOrValues: string | Record<string, SupportedStorageTypes>,
+        value?: SupportedStorageTypes,
+    ) {
+        this.assertActive();
+        if (typeof keyOrValues === "string") {
+            this.#writes.push(() => this.#driver.set(contexts, keyOrValues, value!));
+        } else {
+            this.#writes.push(() => this.#driver.set(contexts, keyOrValues));
+        }
+    }
+
+    override delete(contexts: string[], key: string) {
+        this.assertActive();
+        this.#writes.push(() => this.#driver.delete(contexts, key));
+    }
+
+    override clearAll(contexts: string[]) {
+        this.assertActive();
+        this.#writes.push(() => this.#driver.clearAll(contexts));
     }
 
     override commit() {
         this.assertActive();
-        this.sqliteStorage.transaction(Transaction.COMMIT);
+        this.#store.commit(this.#writes);
         super.commit();
     }
 
     protected override rollback() {
-        this.sqliteStorage.transaction(Transaction.ROLLBACK);
+        this.#writes.length = 0;
+    }
+
+    #read<T>(read: () => T) {
+        if (this.#writes.length === 0) {
+            return read();
+        }
+        return this.#store.read(this.#writes, read);
     }
 }

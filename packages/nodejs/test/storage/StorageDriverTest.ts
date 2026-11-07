@@ -318,6 +318,29 @@ describe("StorageDrivers", () => {
                     },
                 );
             });
+
+            it("commits overlapping transactions", async () => {
+                const first = await storage.begin();
+                const second = await storage.begin();
+                await first.set(CONTEXTx1, "first", "value1");
+                await second.set(CONTEXTx1, "second", "value2");
+                await first.commit();
+                await second.commit();
+
+                assert.deepEqual(await storage.values(CONTEXTx1), { first: "value1", second: "value2" });
+            });
+
+            it("reads its own writes in a transaction", async () => {
+                await storage.set(CONTEXTx1, "kept", "value1");
+                await storage.set(CONTEXTx2, "removed", "value2");
+                using tx = await storage.begin();
+                await tx.set(CONTEXTx1, "added", "value3");
+                await tx.clearAll(CONTEXTx2);
+
+                assert.equal(await tx.get(CONTEXTx1, "added"), "value3");
+                assert.deepEqual((await tx.keys(CONTEXTx1)).sort(), ["added", "kept"]);
+                assert.deepEqual(await tx.contexts(CONTEXTx1), []);
+            });
         });
     }
 
@@ -336,6 +359,39 @@ describe("StorageDrivers", () => {
                 await storage.close();
                 await rm(freshRoot, { recursive: true, force: true });
             }
+        });
+    }
+
+    if (supportsSqlite()) {
+        describe("sqlite driver transactions", () => {
+            let storage: SqliteStorageDriver;
+
+            beforeEach(async () => {
+                storage = new SqliteStorageDriver({ namespaceOrPath: resolve(storageRoot, "transactions.db") });
+                await storage.initialize();
+            });
+            afterEach(async () => {
+                await storage?.close();
+                await rm(resolve(storageRoot, "transactions.db"), { force: true });
+            });
+
+            it("keeps writes invisible outside the transaction until commit", async () => {
+                const tx = storage.begin();
+                tx.set(CONTEXTx1, "key", "value");
+
+                assert.equal(storage.get(CONTEXTx1, "key"), undefined);
+                tx.commit();
+                assert.equal(storage.get(CONTEXTx1, "key"), "value");
+            });
+
+            it("discards writes on rollback", async () => {
+                {
+                    using tx = storage.begin();
+                    tx.set(CONTEXTx1, "key", "value");
+                }
+
+                assert.equal(storage.get(CONTEXTx1, "key"), undefined);
+            });
         });
     }
 
