@@ -31,12 +31,20 @@ const MAX_APPLY_DELAY = Hours(24);
 
 interface ArmState {
     /**
+     * Sessions that carried a report before the peer returned.  A returning device may send its priming report before
+     * the session that announces its return is established.
+     */
+    reportedBeforeReturn: Set<SecureSession>;
+
+    /**
      * Present once the peer has returned.  Evidence must name the sessions it came from: a device flushes its
      * subscription as it reboots, so only a report over a session from after the return says the subscription
      * survived.
      */
     returned?: {
-        /** Sessions with the peer opened since it returned, starting with the one that announced the return. */
+        /**
+         * Sessions with the peer from after its return: the announcing session and every session registered after it.
+         */
         sessions: Set<SecureSession>;
 
         /** Whether a report has arrived over one of them. */
@@ -51,9 +59,9 @@ interface ArmState {
  * Speeds up controller re-subscription after a peer reboot for devices that do NOT persist subscriptions.
  *
  * Callers arm a peer when they know it is about to reboot and return (e.g. OTA reaching its apply phase).  When the
- * peer's new session appears we (A) close older sessions and (B) start a grace window: if a subscription receives a
- * report within it over a session opened since that return (a persistent device fed it), we leave the subscription
- * alone; otherwise we force re-subscription.
+ * peer's new session appears we (A) close the sessions registered before it and (B) start a grace window: if a subscription receives a
+ * report within it over a session of the returned device (see `ArmState.returned`), a persistent device fed it, we
+ * leave the subscription alone; otherwise we force re-subscription.
  */
 export class RebootResubscribeArmer {
     readonly #sessions: SessionManager;
@@ -64,6 +72,7 @@ export class RebootResubscribeArmer {
     constructor(sessions: SessionManager, subscriptions: ClientSubscriptions) {
         this.#sessions = sessions;
         this.#subscriptions = subscriptions;
+        this.#observers.on(sessions.registeredSessions.added, session => this.#onSessionRegistered(session));
         this.#observers.on(sessions.sessions.added, session => this.#onSessionAdded(session));
         this.#observers.on(subscriptions.reportStarted, session => this.#onReportStarted(session));
     }
@@ -81,6 +90,7 @@ export class RebootResubscribeArmer {
         previous?.returnTimer?.stop();
 
         const state: ArmState = {
+            reportedBeforeReturn: new Set(),
             returned: undefined,
             graceTimer: undefined,
             returnTimer: undefined,
@@ -114,17 +124,16 @@ export class RebootResubscribeArmer {
         this.#armed.delete(peerAddress);
     }
 
+    #onSessionRegistered(session: NodeSession) {
+        // A device opens further sessions for its own reasons, so one after the return is not a second reboot: the
+        // session carries the peer's data and the grace window it is running in stands.
+        this.#armed.get(session.peerAddress)?.returned?.sessions.add(session);
+    }
+
     #onSessionAdded(session: NodeSession) {
         const peerAddress = PeerAddress(session.peerAddress);
         const state = this.#armed.get(peerAddress);
-        if (state === undefined) {
-            return;
-        }
-
-        if (state.returned !== undefined) {
-            // The peer is already back.  A device opens further sessions for its own reasons, so one is not a
-            // second reboot: the session carries the peer's data and the grace window it is running in stands.
-            state.returned.sessions.add(session);
+        if (state === undefined || state.returned !== undefined) {
             return;
         }
 
@@ -137,11 +146,16 @@ export class RebootResubscribeArmer {
         state.returnTimer?.stop();
         state.returnTimer = undefined;
 
-        state.returned = { sessions: new Set([session]), reported: false };
+        const sessions = new Set<SecureSession>([session, ...this.#sessions.sessionsRegisteredSince(session)]);
+        state.returned = {
+            sessions,
+            reported: [...sessions].some(returning => state.reportedBeforeReturn.has(returning)),
+        };
+        state.reportedBeforeReturn.clear();
 
         // Mechanism A — drop the dead pre-reboot sessions so probe/re-subscribe cannot pick them.
         this.#sessions
-            .handlePeerShutdown(peerAddress, session.createdAt)
+            .handlePeerShutdown(peerAddress, session)
             .catch(error => logger.warn(peerAddress, "Failed to close older sessions", error));
         state.graceTimer = Time.getTimer("Reboot resubscribe grace", DEFAULT_REBOOT_RESUBSCRIBE_GRACE, () =>
             this.#onGraceExpired(peerAddress),
@@ -164,11 +178,18 @@ export class RebootResubscribeArmer {
 
     #onReportStarted(session: SecureSession) {
         const state = this.#armed.get(session.peerAddress);
-        if (state?.returned?.sessions.has(session) !== true) {
+        if (state === undefined) {
             return;
         }
 
-        state.returned.reported = true;
+        if (state.returned === undefined) {
+            state.reportedBeforeReturn.add(session);
+            return;
+        }
+
+        if (state.returned.sessions.has(session)) {
+            state.returned.reported = true;
+        }
     }
 
     #onReturnTimeout(peerAddress: PeerAddress) {
