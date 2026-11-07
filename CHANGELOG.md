@@ -28,6 +28,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `X520.DomainComponent` encodes the domainComponent OID 0.9.2342.19200300.100.1.25 instead of the emailAddress OID with tag and length bytes in its content
 
 - @matter/node
+    - Feature: (@RaHehl) `ZoneManagementServer` implements the zone and trigger commands and refuses requests the specification does not allow
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
     - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
     - Adjustment: On behavior types derived with `.with()`, `.alter()` or `.enable()`, `LocalizationConfigurationServer.detectedLocale` is declared as a getter, and the extension methods of `GeneralDiagnosticsServer` and `AccessControlServer` as methods, so they can be overridden with `get` or a method that calls `super`; a property override of `detectedLocale` no longer compiles
