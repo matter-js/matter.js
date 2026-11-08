@@ -61,6 +61,8 @@
 # their script spawns for itself, and the TC-WEBRTCR cases only where MATTER_CERT_CAMERA_APP_PATH names
 # one, so each self-skips elsewhere. TC-DA-1.9 also skips wherever the controller is chip-tool, which
 # cannot be told what is revoked while it runs.
+# Runners are pinned to ubuntu-24.04: on ubuntu-26.04 the CHIP apps miss the libevent runtime and the CHIP test
+# runner fails to start on Python 3.14.
 
 name: Chip Certification Controller Tests
 
@@ -112,7 +114,7 @@ jobs:
   # Resolve the four trigger paths into a single set of inputs the rest of the workflow consumes.
   prepare:
     if: github.repository == 'matter-js/matter.js'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       should-run: ${{ steps.resolve.outputs.should-run }}
@@ -232,14 +234,14 @@ jobs:
             [
               {
                 "controller": "matterjs", "device": "matterjs",
-                "runner": "ubuntu-latest", "chip-platform": "linux/amd64",
+                "runner": "ubuntu-24.04", "chip-platform": "linux/amd64",
                 "chip-bins-source": "", "cert-controller": "matterjs", "cert-device": "matterjs",
                 "app-dir": "", "th-server-app-path": "", "camera-app-path": "",
                 "apt-packages": ""
               },
               {
                 "controller": "matterjs", "device": "own-built",
-                "runner": "ubuntu-latest", "chip-platform": "linux/amd64",
+                "runner": "ubuntu-24.04", "chip-platform": "linux/amd64",
                 "chip-bins-source": "", "cert-controller": "matterjs", "cert-device": "chip-local",
                 "app-dir": "/tmp/cert-app-dir", "th-server-app-path": "/bin/chip-all-clusters-app-nlfaultinject",
                 "camera-app-path": "/bin/chip-camera-app",
@@ -325,7 +327,7 @@ jobs:
   test-cert-framework:
     needs: prepare
     if: needs.prepare.outputs.should-run == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Check out matter.js
