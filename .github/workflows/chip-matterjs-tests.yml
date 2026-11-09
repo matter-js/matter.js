@@ -82,17 +82,6 @@ jobs:
         with:
           rebuild-chip-tool: 'false'
 
-      - name: Patch Test runner interface-id
-        uses: actions/github-script@v9
-        with:
-          result-encoding: string
-          script: |
-            const fs = require("fs");
-            let file= fs.readFileSync("./connectedhomeip/scripts/tests/chiptest/linux.py", "utf8");
-            // Patch the test runner to execute controller and app on same network interface
-            file = file.replaceAll("'ip netns exec tool'", "'ip netns exec app'");
-            fs.writeFileSync("./connectedhomeip/scripts/tests/chiptest/linux.py", file);
-
       - name: Patch Matter Yaml Files and PICS values
         shell: bash
         run: |

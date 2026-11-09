@@ -498,30 +498,6 @@ jobs:
           echo "TRACE_TEST_JSON: out/trace_data/test-{SCRIPT_BASE_NAME}" >> /tmp/test_env.yaml
           echo "TRACE_TEST_PERFETTO: out/trace_data/test-{SCRIPT_BASE_NAME}" >> /tmp/test_env.yaml
 
-      # Remove once https://github.com/project-chip/connectedhomeip/pull/38788 got merged + 1 day
-      - name: Patch Test runner backchannel waiting times
-        uses: actions/github-script@v9
-        with:
-          result-encoding: string
-          script: |
-            const fs = require("fs");
-            let file= fs.readFileSync("./connectedhomeip/src/python_testing/matter_testing_infrastructure/matter/testing/matter_testing.py", "utf8");
-            // Patch the test runner to execute controller and app on same network interface
-            file = file.replaceAll("sleep(0.001)", "sleep(0.05)");
-            fs.writeFileSync("./connectedhomeip/src/python_testing/matter_testing_infrastructure/matter/testing/matter_testing.py", file);
-
-      # remove once https://github.com/project-chip/connectedhomeip/issues/33735 is clarified
-      - name: Patch ACE 2.2 testcase
-        uses: actions/github-script@v9
-        with:
-          result-encoding: string
-          script: |
-            const fs = require("fs");
-            let file= fs.readFileSync("./connectedhomeip/src/python_testing/TC_AccessChecker.py", "utf8");
-            // Patch the test runner to execute controller and app on same network interface
-            file = file.replace("if resp[0].Status != Status.UnsupportedWrite:", "if (resp[0].Status != Status.UnsupportedWrite and resp[0].Status != Status.UnsupportedAccess):");
-            fs.writeFileSync("./connectedhomeip/src/python_testing/TC_AccessChecker.py", file);
-
       - name: Run Tests
         id: python-tests-08
         shell: bash
