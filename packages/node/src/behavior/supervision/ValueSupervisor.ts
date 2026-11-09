@@ -6,7 +6,7 @@
 
 import type { AsyncObservable, Transaction } from "@matter/general";
 import { DataModelPath, Schema } from "@matter/model";
-import type { AccessControl, InteractionSettings, Val, ValidateError } from "@matter/protocol";
+import type { AccessControl, InteractionSettings, Val } from "@matter/protocol";
 import type { FabricIndex } from "@matter/types";
 import type { ValReference } from "../state/managed/ValReference.js";
 import type { ValidationLocation } from "../state/validation/location.js";
@@ -84,21 +84,19 @@ export namespace ValueSupervisor {
         acceptInvalid?: boolean;
 
         /**
-         * Present on contexts rooted at a ClientNode (peer node).  The device stores a written fabric-scoped struct
-         * under the accessing fabric whatever FabricIndex was written.  A write therefore throws a
-         * {@link ValidateError} with CONSTRAINT_ERROR and does not send the value for `FabricIndex.NO_FABRIC`
-         * and, once {@link fabricIndexOnPeer} is known, for any index other than that one.  A struct written with an
-         * accepted value or `FabricIndex.OMIT_FABRIC` holds {@link fabricIndexOnPeer} in the local cache once it is
-         * known.
+         * Present on contexts rooted at a ClientNode (peer node).  The state of a cluster on a client node is managed
+         * with this context in every session except the read-only view (`endpoint.state`), with
+         * {@link ClientPeerContext.fabricIndexOnPeer} read from the node when the session first accesses that state.
+         *
+         * The device stores a written fabric-scoped struct under the accessing fabric whatever FabricIndex was written.
+         * A struct written with `FabricIndex.OMIT_FABRIC` therefore holds {@link ClientPeerContext.fabricIndexOnPeer}
+         * in the local cache once it is known.  Any other FabricIndex stays as written; the remote writer of the
+         * client node decides which entries of a fabric-scoped list it sends.
+         *
          * @see {@link MatterSpecification.v161.Core} § 7.13.6
+         * @see {@link MatterSpecification.v161.Core} § 7.19.1.9.1
          */
-        clientPeerContext?: {
-            /** Fabric index the peer assigned to our identity, when known. */
-            fabricIndexOnPeer?: FabricIndex;
-
-            /** The values come from the device, so the FabricIndex field keeps the device's value. */
-            valuesFromDevice?: boolean;
-        };
+        clientPeerContext?: ClientPeerContext;
 
         /**
          * Controls how per-instance supervision config is scoped.
@@ -113,6 +111,18 @@ export namespace ValueSupervisor {
          * when implementing the Matter protocol where ID is the only value necessary.
          */
         protocol?: boolean;
+    }
+
+    /**
+     * What a session that acts on a client node knows about the peer; see
+     * {@link SupervisionSettings.clientPeerContext}.
+     */
+    export interface ClientPeerContext {
+        /** Fabric index the peer assigned to our identity, when known. */
+        fabricIndexOnPeer?: FabricIndex;
+
+        /** The values come from the device, so the FabricIndex field keeps the device's value. */
+        valuesFromDevice?: boolean;
     }
 
     /**

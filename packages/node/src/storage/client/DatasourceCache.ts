@@ -9,6 +9,7 @@ import { InternalError, Logger, MaybePromise, StorageDriver, Transaction } from 
 import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 import type { ClientCacheBuffer } from "./ClientCacheBuffer.js";
+import { withEntriesOfOtherFabrics } from "./fabric-scoped-writes.js";
 import type { LocalWriter } from "./LocalWriter.js";
 import { RemoteWriteParticipant } from "./RemoteWriteParticipant.js";
 import type { RemoteWriter } from "./RemoteWriter.js";
@@ -111,12 +112,17 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
         (participant as RemoteWriteParticipant).set(this.#endpointNumber, this.#behaviorId, values, this, this.#epoch);
     }
 
-    async settleAccepted(values: Val.Struct, epoch: number): Promise<RemoteWriteParticipant.Settled> {
+    async settleAccepted(
+        values: Val.Struct,
+        epoch: number,
+        ownEntries?: RemoteWriter.OwnEntries,
+    ): Promise<RemoteWriteParticipant.Settled> {
         const accepted = new Map<string, Val>();
         for (const id in values) {
-            if ((this.#settledAt.get(id) ?? -1) <= epoch) {
-                accepted.set(id, values[id]);
+            if ((this.#settledAt.get(id) ?? -1) > epoch) {
+                continue;
             }
+            accepted.set(id, this.#writtenValue(id, values[id], ownEntries));
         }
         if (!accepted.size) {
             return { release: nothingToRelease, persistFailure: undefined };
@@ -134,6 +140,16 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             await this.#drain();
         };
         return { release, persistFailure };
+    }
+
+    /**
+     * The value to cache for attribute {@link id} after the peer accepted a write of {@link value}.
+     */
+    #writtenValue(id: string, value: Val, ownEntries: RemoteWriter.OwnEntries | undefined) {
+        if (ownEntries === undefined || !(id in ownEntries.lists)) {
+            return value;
+        }
+        return withEntriesOfOtherFabrics(this.currentValues?.[id], ownEntries.lists[id], ownEntries.fabricIndex);
     }
 
     async externalSet(values: Val.StructMap): Promise<Datasource.ExternallyMutableStore.Applied> {

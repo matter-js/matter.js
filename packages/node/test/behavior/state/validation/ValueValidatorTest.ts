@@ -31,7 +31,6 @@ import {
     Subject,
     UnknownEnumValueError,
     Val,
-    ValidateError,
 } from "@matter/protocol";
 import { BitmapEncodedValue, FabricIndex, NodeId } from "@matter/types";
 
@@ -135,31 +134,25 @@ describe("ValueValidator", () => {
             expect(254 in struct).is.false;
         });
 
-        it("refuses NO_FABRIC and another fabric's index", () => {
-            for (const written of [FabricIndex.NO_FABRIC, FabricIndex(7)]) {
-                const struct: Val.Struct = { subject: 5, fabricIndex: written };
-                expect(() => validator(struct, peerSession(FabricIndex(3)), memberPath), `written ${written}`).throws(
-                    ValidateError,
-                    `Cannot write fabricIndex ${written}`,
-                );
-                expect(struct.fabricIndex, `written ${written}`).equals(written);
-            }
+        // Matter § 7.19.1.8.2: the device ignores an entry of another fabric or of no fabric in a write, so the client
+        // keeps it unchanged and the writer leaves it out
+        it("keeps another fabric's index", () => {
+            const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex(7) };
+            validator(struct, peerSession(FabricIndex(3)), memberPath);
+            expect(struct.fabricIndex).equals(7);
         });
 
-        it("refuses another fabric's index written to the field alone", () => {
+        it("leaves NO_FABRIC unchanged; only the model constraint refuses it", () => {
+            const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex.NO_FABRIC };
+            expect(() => validator(struct, peerSession(FabricIndex(3)), memberPath)).throws(ConstraintError);
+            expect(struct.fabricIndex).equals(FabricIndex.NO_FABRIC);
+        });
+
+        it("accepts another fabric's index written to the field alone", () => {
             const fieldSchema = memberSchema.children[1];
             const fieldValidator = RootSupervisor.for(fieldSchema).validate!;
             const fieldPath = { path: new DataModelPath(fieldSchema.path) };
-            expect(() => fieldValidator(FabricIndex(7), peerSession(FabricIndex(3)), fieldPath)).throws(ValidateError);
-            expect(() => fieldValidator(FabricIndex(3), peerSession(FabricIndex(3)), fieldPath)).not.throws();
-        });
-
-        it("refuses NO_FABRIC while the peer's fabric index is not known", () => {
-            const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex.NO_FABRIC };
-            expect(() => validator(struct, peerSession(undefined), memberPath)).throws(
-                ValidateError,
-                "Cannot write fabricIndex 0",
-            );
+            expect(() => fieldValidator(FabricIndex(7), peerSession(FabricIndex(3)), fieldPath)).not.throws();
         });
 
         it("keeps a written fabric index while the peer's fabric index is not known", () => {
@@ -181,10 +174,17 @@ describe("ValueValidator", () => {
             expect(() => validator(struct, peerSession(undefined), memberPath)).throws();
         });
 
-        it("keeps the device's fabric index in values from the device", () => {
-            const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex(7) };
-            validator(struct, forValuesFromDevice(peerSession(FabricIndex(3))), memberPath);
-            expect(struct.fabricIndex).equals(7);
+        it("does not substitute OMIT_FABRIC in values from the device", () => {
+            const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex.OMIT_FABRIC };
+            expect(() => validator(struct, forValuesFromDevice(peerSession(FabricIndex(3))), memberPath)).throws();
+            expect(struct.fabricIndex).equals(FabricIndex.OMIT_FABRIC);
+        });
+
+        it("keeps OMIT_FABRIC written to the field alone, as no struct holds it", () => {
+            const fieldSchema = memberSchema.children[1];
+            const fieldValidator = RootSupervisor.for(fieldSchema).validate!;
+            const fieldPath = { path: new DataModelPath(fieldSchema.path) };
+            expect(() => fieldValidator(FabricIndex.OMIT_FABRIC, peerSession(FabricIndex(3)), fieldPath)).not.throws();
         });
     });
 

@@ -268,6 +268,13 @@ export namespace Datasource {
          * Optional callback, invoked when properties change.
          */
         onChange?: (attrs: string[]) => MaybePromise<void>;
+
+        /**
+         * Derives the session that manages and validates the values a session accesses, from that session.  Invoked
+         * when the session first accesses the datasource, and on every access in a snapshot transaction.  Without it,
+         * and for the read-only {@link Datasource.view}, the session itself is used.
+         */
+        supervisionSessionFor?: (session: ValueSupervisor.Session) => ValueSupervisor.Session;
     }
 
     /**
@@ -429,6 +436,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     store?: Datasource.Store | Datasource.ExternallyMutableStore;
     owner?: any;
     onChange?: (attrs: string[]) => MaybePromise<void>;
+    supervisionSessionFor?: (session: ValueSupervisor.Session) => ValueSupervisor.Session;
 
     // Computed state
     primaryKey: ValReference.PrimaryKey;
@@ -480,6 +488,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         this.mirrorsRemote = Datasource.ExternallyMutableStore.is(options.store);
         this.owner = options.owner;
         this.onChange = options.onChange;
+        this.supervisionSessionFor = options.supervisionSessionFor;
         this.primaryKey = options.primaryKey === "id" ? "id" : "name";
         this.events = options.events ?? {};
 
@@ -645,7 +654,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     reference(session: ValueSupervisor.Session) {
         let ref = this.sessions?.get(session);
         if (!ref) {
-            ref = createReference(this, this, session);
+            ref = createReference(this, this, session, this.supervisionSessionFor?.(session));
         }
         return ref.managed as InstanceType<StateType>;
     }
@@ -959,14 +968,25 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     #expired = false;
     #internals: DatasourceImpl;
     #session: ValueSupervisor.Session;
+    #supervisionSession: ValueSupervisor.Session;
     #resource: Transaction.Resource;
     #fields: Set<string>;
     #context!: SessionContext;
 
-    constructor(resource: Transaction.Resource, internals: DatasourceImpl, session: ValueSupervisor.Session) {
+    /**
+     * @param supervisionSession the session that manages the values, by default {@link session}; see
+     * {@link Datasource.Options.supervisionSessionFor}
+     */
+    constructor(
+        resource: Transaction.Resource,
+        internals: DatasourceImpl,
+        session: ValueSupervisor.Session,
+        supervisionSession = session,
+    ) {
         this.#resource = resource;
         this.#internals = internals;
         this.#session = session;
+        this.#supervisionSession = supervisionSession;
         this.#values = internals.values;
         this.#fields = internals.supervisor.memberNames;
         this.primaryKey = internals.primaryKey;
@@ -1007,7 +1027,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         const transaction = session.transaction;
 
         this.#context = {
-            managed: internals.supervisor.manage(this, session) as Val.Struct,
+            managed: internals.supervisor.manage(this, this.#supervisionSession) as Val.Struct,
 
             onChange: (oldValues: Val.Struct) => {
                 if (this.#values === oldValues) {
@@ -1495,7 +1515,12 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     }
 }
 
-function createReference(resource: Transaction.Resource, internals: DatasourceImpl, session: ValueSupervisor.Session) {
-    const ref = new RootReference(resource, internals, session);
+function createReference(
+    resource: Transaction.Resource,
+    internals: DatasourceImpl,
+    session: ValueSupervisor.Session,
+    supervisionSession?: ValueSupervisor.Session,
+) {
+    const ref = new RootReference(resource, internals, session, supervisionSession);
     return ref.initialize();
 }

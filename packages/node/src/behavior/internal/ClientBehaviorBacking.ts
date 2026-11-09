@@ -6,6 +6,7 @@
 
 import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { withClientPeerContext } from "#behavior/state/validation/peer-forwarding.js";
 import { SupportedElements } from "#endpoint/properties/Behaviors.js";
 import { MaybePromise } from "@matter/general";
 import { ClusterModel } from "@matter/model";
@@ -53,6 +54,16 @@ export class ClientBehaviorBacking extends BehaviorBacking {
     protected override get datasourceOptions() {
         const options = super.datasourceOptions;
         options.primaryKey = "id";
+        options.supervisionSessionFor = session => {
+            const peer = this.endpoint.clientPeerContext;
+            if (peer === undefined) {
+                return session;
+            }
+            return withClientPeerContext(session, {
+                ...session.clientPeerContext,
+                fabricIndexOnPeer: peer.fabricIndexOnPeer ?? session.clientPeerContext?.fabricIndexOnPeer,
+            });
+        };
         return options;
     }
 
