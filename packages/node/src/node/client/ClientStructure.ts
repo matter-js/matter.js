@@ -998,7 +998,8 @@ export class ClientStructure {
             | undefined;
         if (Array.isArray(deviceTypeList)) {
             this.#noteComposition(structure, deviceTypeList);
-            if (!endpoint.number) {
+            // The behavior's state holds an empty list until the peer reports one
+            if (!endpoint.number && structure.reportedLists?.has(DEVICE_TYPE_LIST_ATTR_ID)) {
                 this.#checkRootDeviceTypes(deviceTypeList);
             }
 

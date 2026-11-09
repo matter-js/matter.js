@@ -543,6 +543,18 @@ describe("ClientNode with a root that reports no device type", () => {
         expect(warnings).deep.equals([]);
     });
 
+    it("does not warn about a root that has not reported its DeviceTypeList", async () => {
+        await using site = new MockSite();
+        const warnings = captureMissingRootDeviceTypeWarnings();
+        const { peer } = await unreadPeer(site);
+
+        await applyRead(peer, descriptorReports(0, undefined, [], 10));
+        await applyRead(peer, descriptorReports(0, undefined, [], 11));
+
+        expect(peer.maybeStateOf(DescriptorClient)?.deviceTypeList).deep.equals([]);
+        expect(warnings).deep.equals([]);
+    });
+
     it("does not warn about a root that reports Root Node", async () => {
         await using site = new MockSite();
         const warnings = captureMissingRootDeviceTypeWarnings();
