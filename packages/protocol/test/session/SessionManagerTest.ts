@@ -8,6 +8,7 @@ import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SessionParameters } from "#index.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { SessionClosedError } from "#protocol/errors.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { DuplicateMessageError } from "#protocol/MessageReceptionState.js";
 import { NodeSession } from "#session/NodeSession.js";
@@ -18,6 +19,7 @@ import {
     Environment,
     Hours,
     ImplementationError,
+    InternalError,
     Key,
     Lifetime,
     Logger,
@@ -423,11 +425,342 @@ describe("SessionManager", () => {
 
             await sessionManager.handlePeerLoss(PEER_ADDRESS, {
                 cause: new Error("unresponsive"),
-                asOf: Timestamp(Number.MAX_SAFE_INTEGER),
                 currentExchange,
             });
 
             expect(received[0]).equals(currentExchange);
+        });
+    });
+
+    describe("session supersession", () => {
+        const PEER_NODE_ID = NodeId(0x1234n);
+        const PEER_ADDRESS = PeerAddress({ fabricIndex: FabricIndex.NO_FABRIC, nodeId: PEER_NODE_ID });
+        const [CAT_A, CAT_B] = [CaseAuthenticatedTag(0x0001_0001), CaseAuthenticatedTag(0x0002_0001)];
+        let sessionManager: SessionManager;
+        let nextId: number;
+
+        beforeEach(async () => {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            sessionManager = new SessionManager({
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["context"]),
+            });
+            await sessionManager.construction.ready;
+            nextId = 0x0100;
+        });
+
+        function session(
+            options: {
+                peerNodeId?: NodeId;
+                caseAuthenticatedTags?: CaseAuthenticatedTag[];
+                isInitiator?: boolean;
+                establishing?: true;
+            } = {},
+        ) {
+            const id = nextId++;
+            return sessionManager.createSecureSession({
+                id,
+                fabric: undefined,
+                peerNodeId: options.peerNodeId ?? PEER_NODE_ID,
+                peerSessionId: id,
+                sharedSecret: DUMMY_BYTEARRAY,
+                salt: DUMMY_BYTEARRAY,
+                isInitiator: options.isInitiator ?? false,
+                isResumption: false,
+                caseAuthenticatedTags: options.caseAuthenticatedTags,
+                establishing: options.establishing,
+            });
+        }
+
+        /** The sessions that superseded {@link older}, in order. */
+        function supersessionsOf(older: NodeSession) {
+            const newer = new Array<NodeSession>();
+            older.superseded.on(session => {
+                newer.push(session);
+            });
+            return newer;
+        }
+
+        /** Start closing {@link session} and keep it in the closing state until the returned function runs. */
+        function holdClosing(session: NodeSession) {
+            let release!: () => void;
+            const closed = session.initiateClose(() => new Promise<void>(resolve => (release = resolve)));
+            return async () => {
+                release();
+                await closed;
+            };
+        }
+
+        it("supersedes an older session with the same peer and CATs in any order", async () => {
+            const older = await session({ caseAuthenticatedTags: [CAT_A, CAT_B] });
+            const superseded = supersessionsOf(older);
+            const newer = await session({ caseAuthenticatedTags: [CAT_B, CAT_A, CAT_B] });
+            expect(superseded).deep.equals([newer]);
+        });
+
+        it("does not supersede a session with other CATs", async () => {
+            const superseded = supersessionsOf(await session({ caseAuthenticatedTags: [CAT_A] }));
+            await session({ caseAuthenticatedTags: [CAT_A, CAT_B] });
+            await session({ caseAuthenticatedTags: [CAT_B] });
+            await session();
+            expect(superseded).deep.equals([]);
+        });
+
+        it("supersedes a session of the other role with equal CATs", async () => {
+            const initiated = await session({ isInitiator: true, caseAuthenticatedTags: [CAT_A] });
+            const ofInitiated = supersessionsOf(initiated);
+            const responded = await session({ caseAuthenticatedTags: [CAT_A] });
+            const ofResponded = supersessionsOf(responded);
+            const initiatedAgain = await session({ isInitiator: true, caseAuthenticatedTags: [CAT_A] });
+
+            expect(ofInitiated).deep.equals([responded, initiatedAgain]);
+            expect(ofResponded).deep.equals([initiatedAgain]);
+        });
+
+        it("does not supersede a session of the other role with other CATs", async () => {
+            const ofInitiated = supersessionsOf(await session({ isInitiator: true, caseAuthenticatedTags: [CAT_A] }));
+            const ofResponded = supersessionsOf(await session({ caseAuthenticatedTags: [CAT_B] }));
+            await session({ isInitiator: true, caseAuthenticatedTags: [CAT_A, CAT_B] });
+            expect(ofInitiated).deep.equals([]);
+            expect(ofResponded).deep.equals([]);
+        });
+
+        it("does not supersede a session with another peer", async () => {
+            const superseded = supersessionsOf(await session());
+            await session({ peerNodeId: NodeId(0x5678n) });
+            expect(superseded).deep.equals([]);
+        });
+
+        it("does not supersede a PASE session", async () => {
+            const superseded = supersessionsOf(await session({ peerNodeId: NodeId.UNSPECIFIED_NODE_ID }));
+            await session({ peerNodeId: NodeId.UNSPECIFIED_NODE_ID });
+            expect(superseded).deep.equals([]);
+        });
+
+        it("does not supersede a closing session", async () => {
+            const older = await session();
+            const superseded = supersessionsOf(older);
+            const release = holdClosing(older);
+            await session();
+            expect(superseded).deep.equals([]);
+            await release();
+        });
+
+        it("does not supersede a session that is still establishing", async () => {
+            const establishing = await session({ establishing: true });
+            const superseded = supersessionsOf(establishing);
+            await session();
+            expect(superseded).deep.equals([]);
+        });
+
+        it("supersedes nothing while establishing and the older sessions once established", async () => {
+            const older = await session();
+            const superseded = supersessionsOf(older);
+            const newer = await session({ establishing: true });
+            const ofNewer = supersessionsOf(newer);
+            expect(superseded).deep.equals([]);
+
+            newer.completeEstablishment();
+            expect(superseded).deep.equals([newer]);
+            expect(ofNewer).deep.equals([]);
+        });
+
+        it("orders supersession by completion, not by registration", async () => {
+            const older = await session();
+            const ofOlder = supersessionsOf(older);
+            const resumed = await session({ establishing: true });
+            const ofResumed = supersessionsOf(resumed);
+            const newer = await session();
+            const ofNewer = supersessionsOf(newer);
+
+            resumed.completeEstablishment();
+
+            expect(ofOlder).deep.equals([newer, resumed]);
+            expect(ofNewer).deep.equals([resumed]);
+            expect(ofResumed).deep.equals([]);
+        });
+
+        it("does not establish a session that is closing", async () => {
+            const superseded = supersessionsOf(await session());
+            const establishing = await session({ establishing: true });
+            const release = holdClosing(establishing);
+
+            expect(establishing.completeEstablishment()).false;
+
+            expect(establishing.isEstablishing).true;
+            expect(superseded).deep.equals([]);
+            await release();
+        });
+
+        it("completes establishment once and shows observers an established session", async () => {
+            const superseded = supersessionsOf(await session());
+            const establishing = await session({ establishing: true });
+            const seenEstablishing = new Array<boolean>();
+            establishing.established.on(() => {
+                seenEstablishing.push(establishing.isEstablishing);
+            });
+
+            expect(establishing.completeEstablishment()).true;
+            expect(establishing.completeEstablishment()).true;
+
+            expect(seenEstablishing).deep.equals([false]);
+            expect(superseded).deep.equals([establishing]);
+        });
+
+        it("finds an establishing session only once it is established", async () => {
+            const older = await session();
+            const establishing = await session({ establishing: true });
+            establishing.activeTimestamp = Timestamp(older.activeTimestamp + 1);
+
+            expect(sessionManager.maybeSessionFor(PEER_ADDRESS)).equals(older);
+
+            establishing.completeEstablishment();
+            expect(sessionManager.maybeSessionFor(PEER_ADDRESS)).equals(establishing);
+        });
+
+        it("supersedes the least recently used session before it evicts it", async () => {
+            const older = await session();
+            older.timestamp = Timestamp(0);
+            const events = new Array<string>();
+            older.superseded.on(() => {
+                events.push("superseded");
+            });
+            older.closing.on(() => {
+                events.push("closing");
+            });
+            for (let i = 0; i < 4; i++) {
+                await session({ caseAuthenticatedTags: [CAT_A] });
+            }
+
+            const newer = await session({ establishing: true });
+            await MockTime.yield3();
+            expect(older.isClosing).false;
+
+            newer.completeEstablishment();
+            await MockTime.yield3();
+            expect(events).deep.equals(["superseded", "closing"]);
+        });
+
+        it("lists an establishing session in sessions only once it is established", async () => {
+            const added = new Array<NodeSession>();
+            sessionManager.sessions.added.on(session => {
+                added.push(session);
+            });
+
+            const establishing = await session({ establishing: true });
+
+            expect(sessionManager.sessions.has(establishing)).false;
+            expect(sessionManager.registeredSessions.has(establishing)).true;
+            expect(sessionManager.getSession(establishing.id)).equals(establishing);
+            expect(added).deep.equals([]);
+
+            establishing.completeEstablishment();
+
+            expect(sessionManager.sessions.has(establishing)).true;
+            expect(added).deep.equals([establishing]);
+        });
+
+        it("lists a session in sessions only after every observer of registeredSessions saw it", async () => {
+            const events = new Array<string>();
+            sessionManager.sessions.added.on(() => {
+                events.push("sessions");
+            });
+            sessionManager.registeredSessions.added.on(() => {
+                events.push("registeredSessions");
+            });
+
+            await session();
+
+            expect(events).deep.equals(["registeredSessions", "sessions"]);
+        });
+
+        it("never lists a session whose handshake fails", async () => {
+            const events = new Array<string>();
+            sessionManager.sessions.added.on(() => {
+                events.push("added");
+            });
+            sessionManager.sessions.deleted.on(() => {
+                events.push("deleted");
+            });
+            const establishing = await session({ establishing: true });
+
+            await establishing.initiateForceClose({ cause: new SessionClosedError("test") });
+
+            expect(establishing.completeEstablishment()).false;
+            expect(sessionManager.registeredSessions.has(establishing)).false;
+            expect(sessionManager.sessions.has(establishing)).false;
+            expect(events).deep.equals([]);
+        });
+
+        it("characterization: does not list a session that establishes after it was disposed", async () => {
+            const establishing = await session({ establishing: true });
+
+            await establishing[Symbol.asyncDispose]();
+            expect(establishing.completeEstablishment()).true;
+
+            expect(sessionManager.registeredSessions.has(establishing)).false;
+            expect(sessionManager.sessions.has(establishing)).false;
+        });
+
+        it("reports an established session that is closing as established", async () => {
+            const established = await session();
+            const release = holdClosing(established);
+
+            expect(established.completeEstablishment()).true;
+
+            await release();
+        });
+
+        it("completes establishment when an observer of sessions throws", async () => {
+            sessionManager.sessions.added.on(() => {
+                throw new InternalError("test: observer fails");
+            });
+            const establishing = await session({ establishing: true });
+
+            expect(establishing.completeEstablishment()).true;
+
+            expect(establishing.isEstablishing).false;
+            expect(sessionManager.sessions.has(establishing)).true;
+        });
+
+        it("lists a session in sessions when an observer of its establishment throws", async () => {
+            sessionManager.registeredSessions.added.on(added => {
+                added.established.on(() => {
+                    throw new InternalError("test: observer fails");
+                });
+            });
+            const establishing = await session({ establishing: true });
+
+            expect(establishing.completeEstablishment()).true;
+
+            expect(sessionManager.sessions.has(establishing)).true;
+        });
+
+        it("notifies every observer of supersession when one throws", async () => {
+            const older = await session();
+            older.superseded.on(() => {
+                throw new InternalError("test: observer fails");
+            });
+            const superseded = supersessionsOf(older);
+
+            const newer = await session();
+
+            expect(superseded).deep.equals([newer]);
+        });
+
+        it("neither counts nor evicts an establishing session for the per-peer cap", async () => {
+            const sessions = new Array<NodeSession>();
+            for (let i = 0; i < 3; i++) {
+                sessions.push(await session());
+            }
+            const establishing = await session({ establishing: true });
+            establishing.timestamp = Timestamp(0);
+            sessions.push(await session());
+            sessions.push(await session());
+            await MockTime.yield3();
+
+            expect([...sessions, establishing].filter(session => session.isClosing)).deep.equals([]);
         });
     });
 
@@ -789,6 +1122,120 @@ describe("SessionManager", () => {
 
             expect(sessionManager.sessionParameters.idleInterval).equal(Millis(1000));
             expect(sessionManager.sessionParameters.activeInterval).equal(Millis(600));
+        });
+    });
+
+    describe("peer loss by registration order", () => {
+        const PEER_NODE_ID = NodeId(0x1234n);
+        const PEER_ADDRESS = PeerAddress({ fabricIndex: FabricIndex(0), nodeId: PEER_NODE_ID });
+
+        let sessionManager: SessionManager;
+
+        beforeEach(async () => {
+            MockTime.reset();
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            sessionManager = new SessionManager({
+                parameters: {} as SessionParameters,
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["context"]),
+            });
+            await sessionManager.construction.ready;
+        });
+
+        function aSession(id: number, delayManagerRegistration?: true) {
+            return sessionManager.createSecureSession({
+                id,
+                fabric: undefined,
+                peerNodeId: PEER_NODE_ID,
+                peerSessionId: id,
+                sharedSecret: DUMMY_BYTEARRAY,
+                salt: DUMMY_BYTEARRAY,
+                isInitiator: delayManagerRegistration === true,
+                isResumption: false,
+                delayManagerRegistration,
+            });
+        }
+
+        it("keeps the session given to peer shutdown and every session registered after it", async () => {
+            const older = await aSession(0x0100);
+            const kept = await aSession(0x0200);
+            const newer = await aSession(0x0300);
+            expect(older.createdAt).equals(kept.createdAt);
+
+            await sessionManager.handlePeerShutdown(PEER_ADDRESS, kept);
+
+            expect(older.isPeerLost).true;
+            expect(kept.isPeerLost).false;
+            expect(newer.isPeerLost).false;
+        });
+
+        it("keeps a session that registers after the given registration count although it was created before", async () => {
+            const lost = await aSession(0x0100);
+            const establishing = await aSession(0x0200, true);
+            const registeredBefore = sessionManager.registrationCount;
+            await MockTime.advance(Seconds(1));
+            sessionManager.registeredSessions.add(establishing);
+
+            await sessionManager.handlePeerLoss(PEER_ADDRESS, {
+                cause: new NetworkError("unresponsive"),
+                registeredBefore,
+            });
+
+            expect(lost.isPeerLost).true;
+            expect(establishing.isPeerLost).false;
+        });
+
+        it("keeps a session registered while the peer loss runs", async () => {
+            const lost = await aSession(0x0100);
+            let registeredDuringLoss: NodeSession | undefined;
+            lost.subscriptions.add({
+                subscriptionId: 1,
+                isTerminated: false,
+                async handlePeerCancel() {},
+                async close() {
+                    registeredDuringLoss = await aSession(0x0200);
+                },
+                async closeForShutdown() {},
+            });
+
+            await sessionManager.handlePeerLoss(PEER_ADDRESS, { cause: new NetworkError("unresponsive") });
+
+            expect(lost.isPeerLost).true;
+            expect(registeredDuringLoss?.isPeerLost).equals(false);
+        });
+
+        it("keeps the sessions created at or after a deprecated timestamp given to peer shutdown", async () => {
+            const older = await aSession(0x0100);
+            await MockTime.advance(Seconds(1));
+            const kept = await aSession(0x0200);
+
+            await sessionManager.handlePeerShutdown(PEER_ADDRESS, kept.createdAt);
+
+            expect(older.isPeerLost).true;
+            expect(kept.isPeerLost).false;
+        });
+
+        it("returns the sessions of the peer registered at or after a session", async () => {
+            const older = await aSession(0x0100);
+            const since = await aSession(0x0200);
+            const establishing = await aSession(0x0300, true);
+            const newer = await aSession(0x0400);
+            sessionManager.registeredSessions.add(establishing);
+
+            expect(sessionManager.sessionsRegisteredSince(since)).have.members([since, newer, establishing]);
+            expect(sessionManager.sessionsRegisteredSince(establishing)).have.members([establishing]);
+            expect(sessionManager.sessionsRegisteredSince(older)).have.members([older, since, newer, establishing]);
+        });
+
+        it("treats a session that never registered as keeping nothing", async () => {
+            const registered = await aSession(0x0100);
+            const unregistered = await aSession(0x0200, true);
+
+            expect(sessionManager.sessionsRegisteredSince(unregistered)).deep.equals([]);
+            await sessionManager.handlePeerShutdown(PEER_ADDRESS, unregistered);
+
+            expect(registered.isPeerLost).true;
         });
     });
 

@@ -33,6 +33,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
     - Adjustment: On behavior types derived with `.with()`, `.alter()` or `.enable()`, `LocalizationConfigurationServer.detectedLocale` is declared as a getter, and the extension methods of `GeneralDiagnosticsServer` and `AccessControlServer` as methods, so they can be overridden with `get` or a method that calls `super`; a property override of `detectedLocale` no longer compiles
     - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is deprecated and stays empty; subscriptions stored there by an older version are taken over at start
+    - Adjustment: `ServerSubscriptionContext.initiateExchange()` takes only a `Session`, no longer a `PeerAddress`
+    - Adjustment: `SessionsBehavior` events `opened` and `closed` no longer fire for a session whose handshake fails
     - Fix: `TimeFormatLocalizationServer` `detectedHourFormat` and `detectedCalendarType` have their enum types instead of `string`, so an override can return any value of the enum
     - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
@@ -55,6 +57,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
     - Fix: AdministratorCommissioning OpenCommissioningWindow answers INVALID_COMMAND to a discriminator above 4095 instead of CONSTRAINT_ERROR
     - Fix: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow answer PAKEParameterError on a session without fabric, as CHIP does, instead of UNSUPPORTED_ACCESS
+    - Fix: A subscription moves to each newer CASE session of its subscriber
+    - Fix: A subscription sends its reports on its own session instead of the most recently active session with its subscriber
+    - Fix: A subscription whose SubscribeResponse cannot be sent is closed
     - Fix: Corrects extension typing of `registerHardwareFault()`, `registerRadioFault()` and `registerNetworkFault()` of a GeneralDiagnostics server
     - Fix: GeneralDiagnostics registering a fault that is already active no longer emits a fault change event
     - Fix: GeneralDiagnostics TimeSnapshot `SystemTimeMs` counts from when the node came online, like `UpTime`, instead of from the host boot
@@ -72,13 +77,27 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
     - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec` and `ExchangeManager`
     - Enhancement: `SessionManager` stores each CASE resumption record under its own key with the new `PeerAddressStore` instead of rewriting all records on every change; after a downgrade each peer establishes a new session once
+    - Enhancement: `NodeSession` has an establishing state, see `isEstablishing`, `completeEstablishment()` and `established`
+    - Enhancement: `NodeSession.superseded` emits the newer CASE session with the same peer and CASE Authenticated Tags
+    - Enhancement: `SessionManager.registeredSessions` holds every session that receives messages, including those whose handshake still runs
+    - Enhancement: `ExchangeSendOptions.onTransmitted` runs once the first transmission of a message went out
+    - Enhancement: `SecureChannelMessenger.sendSuccess()` takes an optional `onTransmitted` callback
+    - Adjustment: Peer loss and peer shutdown compare sessions by registration order instead of creation time; `PeerLossContext.asOf` is deprecated for `registeredBefore`
     - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
     - Adjustment: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
     - Adjustment: `DclCertificateService.addCertificate()` refuses a CD signer certificate that is known to be untrusted because the CSA did not issue it
     - Adjustment: DER certificate parsing requires the basic constraints extension when the required extensions list it
     - Adjustment: Stored CASE resumption records carry a format version; records without a version that carry CATs and records of another version are deleted on load
+    - Adjustment: `SessionManager.sessions` is read-only and holds only established sessions
+    - Adjustment: `SecureSession` subclasses implement the new abstract `isEstablishing`
+    - Adjustment: `SessionManager.maybeSessionFor()` and `sessionFor()` skip a session whose handshake is still running
+    - Adjustment: A new CASE session we respond to is established once our SigmaFinished went out for the first time
+    - Adjustment: `Peer.sessions` holds only established sessions
+    - Adjustment: `Fabric.hasSessionForPeer()` counts only established sessions
     - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks
+    - Fix: A CASE responder closes a session whose resumption the peer does not confirm
+    - Fix: A CASE responder closes a new session whose SigmaFinished cannot be sent
     - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept
     - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: A group message whose key set GroupKeyMap does not map to its destination group fails authentication instead of reaching access control
