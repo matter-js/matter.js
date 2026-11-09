@@ -12,8 +12,10 @@ import {
     DnsRecordClass,
     DnsRecordType,
     Millis,
+    Minutes,
     MockCrypto,
     Seconds,
+    Time,
 } from "@matter/general";
 import { Specification } from "@matter/model";
 import { MockSite } from "@matter/node/testing";
@@ -328,6 +330,22 @@ describe("Peer descriptor", () => {
                 undefined,
             ]);
         });
+    });
+
+    it("removes a discovered address once its TTL has passed", async () => {
+        await using site = new MockSite();
+        const { controller } = await commissionedPeer(site);
+        const peer = controller.peers.get("peer1")!;
+        const [address] = peer.stateOf(CommissioningClient).addresses!;
+        if (!("port" in address) || address.port === undefined) {
+            expect.fail("Expected an IP address");
+        }
+        const expiring = { ...address, port: address.port + 1, discoveredAt: Time.nowMs, ttl: Seconds(120) };
+        await peer.setStateOf(CommissioningClient, { addresses: [address, expiring] });
+
+        await MockTime.resolve(Time.sleep("address expiry", Minutes(5)), { macrotasks: true });
+
+        expect(peer.stateOf(CommissioningClient).addresses).deep.equals([address]);
     });
 
     it("keeps a peer marked TCP-unsupported across a restart until a session reports TCP support", async () => {

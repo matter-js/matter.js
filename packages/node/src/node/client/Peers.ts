@@ -43,7 +43,6 @@ import {
     Minutes,
     Mutex,
     Observable,
-    Seconds,
     Time,
     Timestamp,
     UninitializedDependencyError,
@@ -992,11 +991,11 @@ class Factory extends ClientNodeFactory {
     }
 }
 
-function expirationOf<T extends { discoveredAt?: Timestamp; ttl?: Duration | number }>(
+function expirationOf<T extends { discoveredAt?: Timestamp; ttl?: Duration }>(
     lifespan: T,
 ): T extends { discoveredAt: Timestamp } ? Timestamp : Timestamp | undefined {
     if (lifespan.discoveredAt !== undefined) {
-        return Timestamp(lifespan.discoveredAt + (Seconds(lifespan.ttl) ?? DEFAULT_TTL));
+        return Timestamp(lifespan.discoveredAt + (lifespan.ttl ?? DEFAULT_TTL));
     }
     return undefined as unknown as Timestamp;
 }

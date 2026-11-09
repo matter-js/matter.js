@@ -41,6 +41,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `RemoteDescriptor.legacyRecordToLongForm()` converts a peer record of the legacy controller storage
     - Fix: (@cmatte) A peer whose stored discovery TTL is invalid loads again
     - Fix: (@cmatte) A peer that fails to load no longer makes address lookups of the other peers fail
+    - Fix: A discovered peer address expires after its TTL instead of after 1000 times its TTL
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
     - Fix: A local write that removes the last GroupKeyMap entry of a fabric also clears the fabric's operational group key map
