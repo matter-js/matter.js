@@ -47,8 +47,8 @@
         "@matter/testing": "*",
         "@types/ws": "^8.18.2",
         "chai": "^6.3.0",
-        "node-datachannel": "^0.33.4",
-        "ws": "^8.22.0"
+        "node-datachannel": "^0.33.6",
+        "ws": "^8.22.1"
     },
     "engines": {
         "node": ">=22.13.0"
