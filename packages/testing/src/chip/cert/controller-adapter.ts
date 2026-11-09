@@ -65,6 +65,7 @@ export interface CommissioningTarget {
      * `writeAttribute`, `subscribe` and `decommission`. The controller's copy of the peer starts empty and holds
      * only what direct calls read, so the calls that answer from it — `clientEndpoints`, `clientAttribute`, event
      * observation, `openCommissioningWindow`, the ICD and OTA helpers — answer wrongly or fail.
+     * `openCommissioningWindow` works once the caller has read the node's root endpoint (endpoint 0, every cluster).
      *
      * Advisory. An adapter whose controller holds no such subscription has nothing to do.
      */
@@ -1187,6 +1188,23 @@ export interface ControllerAdapter {
      */
     parseManualPairingCode(code: string): Promise<ManualPairingCodeFields>;
 
+    /**
+     * The commissionable nodes the controller finds through DNS-SD, without commissioning any of them.
+     *
+     * Each controller looks for as long as its own discovery does, and reports what it found then: matter.js for a
+     * fixed window, matterjs-server for the window its `discover_commissionable_nodes` command uses, chip-tool until
+     * the first node that matches. A filter narrows the search where the controller can apply one; a controller that
+     * cannot reports every node it found, so a caller still selects the node it is looking for. Where the controller
+     * found nothing, resolves with an empty list, or rejects where the controller reports such a search as a failure
+     * (chip-tool).
+     *
+     * Present where the controller can discover without commissioning; a step that needs it declares
+     * `commissionable-discovery` (see {@link ControllerCapability}).
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.3.1
+     */
+    discoverCommissionableNodes?(filter?: CommissionableNodeFilter): Promise<DiscoveredCommissionableNode[]>;
+
     node(ref: CertNodeRef): CertNodeApi;
 
     /**
@@ -1289,6 +1307,33 @@ export interface ManualPairingCodeFields {
     /** Present only in the 21-digit form, which sets `VID_PID_PRESENT`. */
     vendorId?: number;
     productId?: number;
+}
+
+/** What {@link ControllerAdapter.discoverCommissionableNodes} asks the controller to look for. */
+export interface CommissionableNodeFilter {
+    /** The 12-bit discriminator of the `_L` commissioning subtype (§ 4.3.1.3). */
+    longDiscriminator?: number;
+}
+
+/**
+ * A commissionable node as {@link ControllerAdapter.discoverCommissionableNodes} reports it: the values of its DNS-SD
+ * advertisement, as the controller read them.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 4.3.1
+ */
+export interface DiscoveredCommissionableNode {
+    /** The DNS-SD service instance name. */
+    instanceName: string;
+
+    /** The `D` TXT key (§ 4.3.1.5). */
+    longDiscriminator: number;
+
+    /** From the `VP` TXT key (§ 4.3.1.6); absent where the node states none. */
+    vendorId?: number;
+    productId?: number;
+
+    /** The `CM` TXT key (§ 4.3.1.7). */
+    commissioningMode: number;
 }
 
 /**
@@ -1507,6 +1552,7 @@ export type ControllerRoleKind = "dut" | "helper";
  *
  * - `onboarding-payload-parse` — {@link ControllerAdapter.parseQrPayload} and
  *   {@link ControllerAdapter.parseManualPairingCode}
+ * - `commissionable-discovery` — {@link ControllerAdapter.discoverCommissionableNodes}
  * - `multi-path-write` — {@link CertNodeApi.writeAttributes} with several entries or a data version
  * - `mixed-version-write` — {@link CertNodeApi.writeAttributes} in which some entries carry a data version and others
  *   do not
@@ -1549,6 +1595,7 @@ export type ControllerRoleKind = "dut" | "helper";
  */
 export type ControllerCapability =
     | "onboarding-payload-parse"
+    | "commissionable-discovery"
     | "multi-path-write"
     | "mixed-version-write"
     | "typed-list-write-with-others"

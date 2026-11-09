@@ -5,7 +5,7 @@
  */
 
 import { Message, MessageCodec } from "#codec/MessageCodec.js";
-import { Bytes } from "@matter/general";
+import { Bytes, UnexpectedDataError } from "@matter/general";
 import { NodeId } from "@matter/types";
 
 const ENCODED = Bytes.fromHex(
@@ -31,6 +31,7 @@ const DECODED = {
         hasPrivacyEnhancements: false,
         isControlMessage: false,
         hasMessageExtensions: false,
+        messageFlags: 0x04,
         securityFlags: 0,
     },
     payloadHeader: {
@@ -63,6 +64,7 @@ const DECODED_2 = {
         hasPrivacyEnhancements: false,
         isControlMessage: false,
         hasMessageExtensions: false,
+        messageFlags: 0x01,
         securityFlags: 0,
     },
     payloadHeader: {
@@ -166,10 +168,69 @@ describe("MessageCodec", () => {
             expect(packet.applicationPayload.byteLength).equals(22);
         });
 
-        it("rejects a privacy-enhanced packet truncated below the MIC length", () => {
+        it("leaves a privacy-enhanced payload truncated below the MIC length to the session", () => {
             // Same CHIP vector but truncated to an 18-byte header + only 8 payload bytes (< 16-byte MIC).
             const wire = Bytes.fromHex("067ddb81d926afce24c8a0981bdd44f4e7302b2f915a66c95962");
-            expect(() => MessageCodec.decodePacket(wire)).throws(/too short to contain a MIC/);
+            expect(MessageCodec.decodePacket(wire).applicationPayload.byteLength).equals(8);
+        });
+
+        describe("refuses malformed headers", () => {
+            const counter = "01000000";
+            const nodeId = "0102030405060708";
+            const mic = "00".repeat(16);
+
+            for (const [what, hex, message] of [
+                ["a unicast message with the privacy flag", `00010080${counter}${mic}`, /not supported on unicast/],
+                [
+                    "a unicast message with a destination group id",
+                    `06010000${counter}${nodeId}0100${mic}`,
+                    /cannot have destination group id/,
+                ],
+                ["both destination flags", `07010001${counter}${nodeId}${nodeId}${mic}`, /destination group and node/],
+                [
+                    "a group message to a destination node",
+                    `05010001${counter}${nodeId}${nodeId}${mic}`,
+                    /must have destination group id/,
+                ],
+                ["a group message without source node id", `02010001${counter}0100${mic}`, /must have source node id/],
+                ["an unsupported header version", `14000000${counter}${nodeId}`, /Unsupported header version/],
+                ["a control message", `04000040${counter}${nodeId}`, /Control Messages not supported/],
+                [
+                    "an unsecured message with source and destination node id",
+                    `05000000${counter}${nodeId}${nodeId}`,
+                    /either a source or a destination node id/,
+                ],
+                ["an unsecured message without node id", `00000000${counter}`, /either a source or a destination/],
+                ["a header cut short", `040000`, /out of bounds|exceeds|Read/],
+                [
+                    "a privacy message cut inside its obfuscated header",
+                    `06010081${"00".repeat(13)}`,
+                    /exceeds the 17 byte buffer/,
+                ],
+                [
+                    "message extensions longer than the datagram",
+                    `04000020${counter}${nodeId}ff00`,
+                    /Message extension length/,
+                ],
+            ] satisfies [string, string, RegExp][]) {
+                it(`refuses ${what}`, () => {
+                    expect(() => MessageCodec.decodePacket(Bytes.fromHex(hex))).throws(UnexpectedDataError, message);
+                });
+            }
+
+            it("leaves a secured payload shorter than the MIC to the session", () => {
+                expect(
+                    MessageCodec.decodePacket(Bytes.fromHex(`00010000${counter}0102`)).applicationPayload,
+                ).deep.equal(Bytes.fromHex("0102"));
+            });
+
+            it("splits the message extensions off a privacy message", () => {
+                const packet = MessageCodec.decodePacket(Bytes.fromHex(`060100a1${"00".repeat(14)}0200abcd${mic}`));
+
+                expect(packet.header.hasMessageExtensions).equal(true);
+                expect(packet.messageExtension).deep.equal(Bytes.fromHex("abcd"));
+                expect(packet.applicationPayload).deep.equal(Bytes.fromHex(mic));
+            });
         });
 
         it("decodes obfuscated header fields once deobfuscated", () => {
@@ -178,7 +239,6 @@ describe("MessageCodec", () => {
             const fields = MessageCodec.decodeObfuscatedHeaderFields(messageFlags, region);
             expect(fields.messageId).equals(0x12345679);
             expect(fields.sourceNodeId).equals(NodeId(1n));
-            expect(fields.destNodeId).equals(undefined);
             expect(fields.destGroupId).equals(2);
         });
     });

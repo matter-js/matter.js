@@ -6,7 +6,7 @@
 
 import { Message } from "#codec/MessageCodec.js";
 import type { Session } from "#session/Session.js";
-import { ImplementationError, MatterError, NoResponseTimeoutError } from "@matter/general";
+import { ImplementationError, MatterError, MatterFlowError, NoResponseTimeoutError } from "@matter/general";
 import { Status, StatusResponseError } from "@matter/types";
 
 /**
@@ -36,6 +36,12 @@ export class UnexpectedMessageError extends MatterError {
  * @see {@link MatterSpecification.v161.Core} § 4.15.2.3
  */
 export class MessageTooLargeError extends ImplementationError {}
+
+/**
+ * Thrown when this node starts an exchange on a session on which every exchange id is used by an open exchange this
+ * node started on that session.
+ */
+export class ExchangeIdsExhaustedError extends MatterFlowError {}
 
 /**
  * Thrown for communication attempts on closed sessions.

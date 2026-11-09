@@ -36,16 +36,12 @@ describe("SC", () => {
     chip("SC/3.4/run1");
     chip("SC/3.4/run2");
     chip("SC/5.1/run1");
-    chip("SC/5.2/run1");
+    chip("SC/5.2/run2");
 
     chip("SC/*").exclude(
         // These require additional configuration below
         "SC/4.1/*",
         "SC/7.1",
-
-        // Needs a second CHIP app as the test harness server (--string-arg th_server_app_path), which we do not
-        // provide.  Our descriptor generator passes the app placeholder through unexpanded and the run errors
-        "SC/4.7",
     );
 
     // SC/4.1 needs MDNS cleared.  run1 has the wrong manual code; run2 has a pairing code that works.  Not sure what's
