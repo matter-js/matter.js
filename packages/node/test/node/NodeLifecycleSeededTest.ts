@@ -8,6 +8,7 @@ import { BasicInformationClient } from "#behaviors/basic-information";
 import { DescriptorClient } from "#behaviors/descriptor";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ClientNode } from "#node/ClientNode.js";
 import { ClientNodeLifecycle } from "#node/ClientNodeLifecycle.js";
@@ -391,6 +392,24 @@ describe("NodeLifecycle#isSeeded/seeded", () => {
         const peer = restarted.peers.get("peer1")!;
         expect(peer.endpoints.size).equals(1);
         expect(peer.lifecycle.isSeeded).true;
+    });
+
+    it("places an aggregator's devices reported before the root's PartsList once the root names it", async () => {
+        await using site = new MockSite();
+        const { peer, seededCount } = await unreadPeer(site);
+
+        await applyRead(
+            peer,
+            descriptorReports(1, [AggregatorEndpoint.deviceType], [2], 10),
+            descriptorReports(2, [OnOffLightDevice.deviceType], [], 10),
+        );
+        expect([...peer.endpoints].map(endpoint => endpoint.number)).deep.equals([0]);
+
+        await applyRead(peer, descriptorReports(0, [ROOT_NODE], [1], 10));
+
+        expect([...peer.endpoints].map(endpoint => endpoint.number).sort()).deep.equals([0, 1, 2]);
+        expect(peer.lifecycle.isSeeded).true;
+        expect(seededCount()).equals(1);
     });
 
     it("does not wait for a PartsList entry that is no endpoint number", async () => {
