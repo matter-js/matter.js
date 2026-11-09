@@ -68,6 +68,7 @@ jobs:
         with:
           rebuild-chip-tool: "false"
           build-matter-js: "false"
+          python-venv: "false"
 
   matterjs-all-chip-apps:
     needs: [prepare-chip-build]
@@ -81,6 +82,7 @@ jobs:
         uses: ./.github/actions/prepare-chip-testing
         with:
           rebuild-chip-tool: 'false'
+          python-venv: "false"
 
       - name: Patch Test runner interface-id
         uses: actions/github-script@v9
@@ -103,10 +105,6 @@ jobs:
       - name: Chip-Apps execution with matter.js controller
         id: test-execution-matterjs-chip
         shell: bash
-        env:
-          # The TSAN builds of the CHIP apps allocate in their stop signal handler, which TSAN reports and turns into
-          # exit code 66 on every app restart
-          TSAN_OPTIONS: report_signal_unsafe=0
         run: |
           sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0
           sudo sysctl -w net.ipv4.conf.all.forwarding=1
