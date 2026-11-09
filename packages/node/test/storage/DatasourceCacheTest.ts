@@ -8,7 +8,7 @@ import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import { createPromise } from "@matter/general";
 import { Val } from "@matter/protocol";
-import { EndpointNumber } from "@matter/types";
+import { EndpointNumber, FabricIndex } from "@matter/types";
 import { attrs, createCache, gatedWriter, recordingConsumer, trackingWriter } from "./cache-test-helpers.js";
 
 describe("DatasourceCache settlement order", () => {
@@ -22,6 +22,41 @@ describe("DatasourceCache settlement order", () => {
         await cache.settleAccepted({ "1": "earlier" }, 0);
 
         expect(integrated).deep.equals([{ "1": "later" }]);
+    });
+
+    it("keeps the cached entries of other fabrics as reported when it settles our entries of a list", async () => {
+        const cache = createCache();
+        const { integrated, consumer } = recordingConsumer();
+        cache.consumer = consumer;
+        await cache.externalSet(
+            attrs({
+                "1": [
+                    { fabricIndex: 1, value: 1 },
+                    { fabricIndex: 2, value: 2 },
+                ],
+            }),
+        );
+        await cache.externalSet(
+            attrs({
+                "1": [
+                    { fabricIndex: 2, value: 3 },
+                    { fabricIndex: 1, value: 1 },
+                ],
+            }),
+        );
+
+        const written = [{ fabricIndex: 1, value: 4 }];
+        await cache.settleAccepted({ "1": [{ fabricIndex: 2, value: 2 }, ...written] }, 2, {
+            fabricIndex: FabricIndex(1),
+            lists: { "1": written },
+        });
+
+        expect(integrated.at(-1)).deep.equals({
+            "1": [
+                { fabricIndex: 2, value: 3 },
+                { fabricIndex: 1, value: 4 },
+            ],
+        });
     });
 
     it("applies an accepted value at once and announces it, and what follows, on release", async () => {
@@ -85,7 +120,7 @@ describe("DatasourceCache settlement order", () => {
         await Promise.all([accepted, report]);
 
         const restarted = new DatasourceCache({
-            writer: async () => [],
+            writer: async () => ({ statuses: [], ownEntries: new Map() }),
             nodeId: "test-peer",
             endpointNumber: EndpointNumber(1),
             behaviorId: "test",

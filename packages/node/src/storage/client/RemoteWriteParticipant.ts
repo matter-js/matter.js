@@ -36,7 +36,6 @@ function ordinalFor(writer: RemoteWriter) {
  * notifications are released when the transaction concludes, so no observer runs inside the commit.
  */
 export class RemoteWriteParticipant implements Transaction.Participant {
-    #request: RemoteWriter.Request = [];
     #writer: RemoteWriter;
     #name: string;
     #pending = new Map<string, RemoteWriteParticipant.PendingWrite>();
@@ -68,21 +67,26 @@ export class RemoteWriteParticipant implements Transaction.Participant {
             throw new InternalError(`${this} received a second write for ${key} in one commit`);
         }
 
-        this.#request.push({ number: endpointNumber, behaviorId, values });
-        this.#pending.set(key, { receiver, epoch, values });
+        this.#pending.set(key, {
+            receiver,
+            epoch,
+            update: { number: endpointNumber, behaviorId, values, cached: undefined },
+        });
     }
 
     async commit1() {
-        if (!this.#request.length) {
+        if (!this.#pending.size) {
             return;
         }
 
-        const request = this.#request;
         const pending = this.#pending;
-        this.#request = [];
         this.#pending = new Map();
 
-        const statuses = await this.#writer(request);
+        const request = [...pending.values()].map(({ update, receiver }) => {
+            update.cached = receiver.currentValues;
+            return update;
+        });
+        const { statuses, ownEntries } = await this.#writer(request);
 
         const failedByCluster = new Map<string, Set<string>>();
         for (const { status, path } of statuses) {
@@ -98,11 +102,15 @@ export class RemoteWriteParticipant implements Transaction.Participant {
             ids.add(String(path.attributeId));
         }
 
-        for (const [key, { receiver, values, epoch }] of pending) {
+        for (const [key, { receiver, update, epoch }] of pending) {
             const failed = failedByCluster.get(key);
-            const accepted = Object.fromEntries(Object.entries(values).filter(([id]) => !failed?.has(id)));
+            const accepted = Object.fromEntries(Object.entries(update.values).filter(([id]) => !failed?.has(id)));
             try {
-                const { release, persistFailure } = await receiver.settleAccepted(accepted, epoch);
+                const { release, persistFailure } = await receiver.settleAccepted(
+                    accepted,
+                    epoch,
+                    ownEntries.get(update),
+                );
                 this.#releases.push(release);
                 if (persistFailure !== undefined) {
                     logger.warn(
@@ -132,7 +140,6 @@ export class RemoteWriteParticipant implements Transaction.Participant {
     }
 
     rollback() {
-        this.#request = [];
         this.#pending = new Map();
     }
 
@@ -156,11 +163,19 @@ export namespace RemoteWriteParticipant {
      */
     export interface Receiver {
         /**
+         * The cached values of the cluster.
+         */
+        readonly currentValues: Val.Struct | undefined;
+
+        /**
          * Settle {@link values}, except for an attribute the peer settled after {@link epoch}: what the device
          * reported while the write was in flight outranks the write.  The values apply in memory even when persisting
          * them fails.
+         *
+         * For a fabric-scoped list in {@link ownEntries} the device replaced only our entries.  The cached entries of
+         * other fabrics stay as they are when this settles, and our cached entries become those sent.
          */
-        settleAccepted(values: Val.Struct, epoch: number): Promise<Settled>;
+        settleAccepted(values: Val.Struct, epoch: number, ownEntries?: RemoteWriter.OwnEntries): Promise<Settled>;
     }
 
     /**
@@ -188,6 +203,6 @@ export namespace RemoteWriteParticipant {
     export interface PendingWrite {
         receiver: Receiver;
         epoch: number;
-        values: Val.Struct;
+        update: RemoteWriter.EndpointUpdateRequest;
     }
 }

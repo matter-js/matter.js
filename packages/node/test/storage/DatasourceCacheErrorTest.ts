@@ -8,8 +8,9 @@ import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import { RemoteWriteParticipant } from "#storage/client/RemoteWriteParticipant.js";
+import type { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { InternalError, Lifetime, MemoryStorageDriver, Seconds, StorageDriver, Transaction } from "@matter/general";
-import { Val } from "@matter/protocol";
+import { Val, WriteResult } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber, Status, StatusResponseError } from "@matter/types";
 import { captureWarningsOf } from "../endpoint/validation/validation-helpers.js";
 import { attrs, createCache, gatedWriter, recordingConsumer, trackingWriter } from "./cache-test-helpers.js";
@@ -218,25 +219,31 @@ describe("DatasourceCache error handling", () => {
     });
 });
 
+function withStatuses(statuses: WriteResult.AttributeStatus[]): RemoteWriter.Result {
+    return { statuses, ownEntries: new Map() };
+}
+
 describe("settlement errors", () => {
     it("runs every release at conclusion and logs one that fails", async () => {
         const participant = new RemoteWriteParticipant(
-            async () => [
-                {
-                    kind: "attr-status",
-                    path: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), attributeId: AttributeId(0) },
-                    status: Status.Success,
-                },
-                {
-                    kind: "attr-status",
-                    path: { endpointId: EndpointNumber(1), clusterId: ClusterId(8), attributeId: AttributeId(0) },
-                    status: Status.Success,
-                },
-            ],
+            async () =>
+                withStatuses([
+                    {
+                        kind: "attr-status",
+                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), attributeId: AttributeId(0) },
+                        status: Status.Success,
+                    },
+                    {
+                        kind: "attr-status",
+                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(8), attributeId: AttributeId(0) },
+                        status: Status.Success,
+                    },
+                ]),
             "peer1",
         );
         const released = new Array<string>();
         const receiver = (name: string, fail: boolean) => ({
+            currentValues: undefined,
             settleAccepted: async () => ({
                 release: async () => {
                     if (fail) {
@@ -356,8 +363,8 @@ describe("settlement errors", () => {
     });
 
     it("refuses a second write of the same cluster in one commit", () => {
-        const participant = new RemoteWriteParticipant(async () => [], "peer1");
-        const receiver = { settleAccepted: async () => ({ release: async () => {} }) };
+        const participant = new RemoteWriteParticipant(async () => withStatuses([]), "peer1");
+        const receiver = { currentValues: undefined, settleAccepted: async () => ({ release: async () => {} }) };
         participant.set(EndpointNumber(1), "6", { "0": true }, receiver, 0);
 
         expect(() => participant.set(EndpointNumber(1), "6", { "0": false }, receiver, 0)).throws(InternalError);
@@ -365,18 +372,19 @@ describe("settlement errors", () => {
 
     it("logs a value it failed to settle and still fails a declined write", async () => {
         const participant = new RemoteWriteParticipant(
-            async () => [
-                {
-                    kind: "attr-status",
-                    path: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), attributeId: AttributeId(0) },
-                    status: Status.Success,
-                },
-                {
-                    kind: "attr-status",
-                    path: { endpointId: EndpointNumber(1), clusterId: ClusterId(8), attributeId: AttributeId(0) },
-                    status: Status.ConstraintError,
-                },
-            ],
+            async () =>
+                withStatuses([
+                    {
+                        kind: "attr-status",
+                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), attributeId: AttributeId(0) },
+                        status: Status.Success,
+                    },
+                    {
+                        kind: "attr-status",
+                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(8), attributeId: AttributeId(0) },
+                        status: Status.ConstraintError,
+                    },
+                ]),
             "peer1",
         );
         const settled = new Array<Val.Struct>();
@@ -385,6 +393,7 @@ describe("settlement errors", () => {
             "6",
             { "0": true },
             {
+                currentValues: undefined,
                 settleAccepted: async () => {
                     throw new Error("settle failure");
                 },
@@ -396,6 +405,7 @@ describe("settlement errors", () => {
             "8",
             { "0": 1 },
             {
+                currentValues: undefined,
                 settleAccepted: async values => {
                     settled.push(values);
                     return { release: async () => {} };
@@ -419,13 +429,14 @@ describe("settlement errors", () => {
 
     it("logs an accepted value it failed to persist and still succeeds", async () => {
         const participant = new RemoteWriteParticipant(
-            async () => [
-                {
-                    kind: "attr-status",
-                    path: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), attributeId: AttributeId(0) },
-                    status: Status.Success,
-                },
-            ],
+            async () =>
+                withStatuses([
+                    {
+                        kind: "attr-status",
+                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), attributeId: AttributeId(0) },
+                        status: Status.Success,
+                    },
+                ]),
             "peer1",
         );
         participant.set(
@@ -433,6 +444,7 @@ describe("settlement errors", () => {
             "6",
             { "0": true },
             {
+                currentValues: undefined,
                 settleAccepted: async () => ({
                     release: async () => {},
                     persistFailure: new Error("persist failure"),

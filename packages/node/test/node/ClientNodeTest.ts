@@ -96,6 +96,7 @@ import {
     SessionManager,
     Val,
     ValidateError,
+    WriteError,
 } from "@matter/protocol";
 import {
     AttributeId,
@@ -2895,8 +2896,8 @@ describe("ClientNode", () => {
     });
 
     describe("writes a fabric-scoped struct attribute via setStateOf", () => {
-        // Matter § 7.13.6: the device stores a written entry under the accessing fabric, so a client node accepts only
-        // its own fabric index or the OMIT_FABRIC placeholder and caches its own index
+        // Matter § 7.13.6: the device stores a written entry under the accessing fabric, so a client node caches its
+        // own index for the OMIT_FABRIC placeholder
 
         it("accepts FabricIndex.OMIT_FABRIC as the mandatory placeholder", async () => {
             await using site = new MockSite();
@@ -2988,12 +2989,20 @@ describe("ClientNode", () => {
                 const newSubject = NodeId(BigInt(0x56));
 
                 const caught = await captureRejection(() =>
-                    peer1.setStateOf(AccessControlClient, { acl: [aclEntry(newSubject, fabricIndex)] }),
+                    peer1.setStateOf(AccessControlClient, {
+                        acl: [...peer1.stateOf(AccessControlClient).acl, aclEntry(newSubject, fabricIndex)],
+                    }),
                 );
 
-                expect(caught).instanceOf(ValidateError);
-                expect((caught as ValidateError).code).equals(Status.ConstraintError);
-                expect((caught as Error).message).contains(`Cannot write fabricIndex ${fabricIndex}`);
+                if (!(caught instanceof WriteError)) {
+                    expect.fail(`Expected a WriteError, got ${String(caught)}`);
+                }
+                expect(caught.code).equals(Status.ConstraintError);
+                expect(caught.message).contains(
+                    fabricIndex === FabricIndex.NO_FABRIC
+                        ? "Cannot write an entry of no fabric (FabricIndex.NO_FABRIC)"
+                        : `Cannot write an entry with fabricIndex ${fabricIndex}`,
+                );
                 expect(device.state.accessControl.acl.find(entry => entry.subjects?.[0] === newSubject)).undefined;
                 expect(peer1.stateOf(AccessControlClient).acl.find(entry => entry.subjects?.[0] === newSubject))
                     .undefined;

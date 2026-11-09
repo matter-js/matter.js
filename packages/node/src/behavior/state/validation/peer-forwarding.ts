@@ -84,10 +84,20 @@ export function forValuesFromDevice<S extends ValueSupervisor.Session>(session: 
     if (clientPeerContext === undefined) {
         return session;
     }
+    return withClientPeerContext(session, { ...clientPeerContext, valuesFromDevice: true });
+}
+
+/**
+ * A frozen copy of {@link session} with {@link clientPeerContext} as its peer context.
+ */
+export function withClientPeerContext<S extends ValueSupervisor.Session>(
+    session: S,
+    clientPeerContext: ValueSupervisor.ClientPeerContext,
+): S {
     return Object.freeze(
         Object.create(Object.getPrototypeOf(session), {
             ...Object.getOwnPropertyDescriptors(session),
-            clientPeerContext: { value: { ...clientPeerContext, valuesFromDevice: true }, enumerable: true },
+            clientPeerContext: { value: clientPeerContext, enumerable: true },
         }),
     );
 }

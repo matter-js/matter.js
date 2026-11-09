@@ -477,8 +477,10 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
         if (!isObject(entry)) {
             return false;
         }
-        const { fabricIndex } = entry as { fabricIndex?: number };
-        return !fabricIndex || fabricIndex === this.session.fabric;
+        const { fabricIndex } = entry;
+        // An entry of no fabric is visible only to a session without fabric, such as PASE; entries are scoped "to a
+        // particular fabric or no fabric" (Matter § 7.19.1.8.1)
+        return fabricIndex === undefined || fabricIndex === this.session.fabric;
     }
 
     #mapScopedToActual(index: number, reading: boolean) {
@@ -611,6 +613,8 @@ function createProxy(config: ListConfig, reference: ValReference<Val.List>, sess
         config.manageEntries &&
         config.fabricScoped &&
         hasRemoteActor(session) &&
+        // The session's fabric belongs to our server node, not to the peer, so it does not filter the list
+        session.clientPeerContext === undefined &&
         // Fabric-sensitive lists are filtered for reads and writes; command handlers see all entries, as data access
         // rules do not apply to them
         (session.fabricFiltered || (config.fabricSensitive && !session.command));

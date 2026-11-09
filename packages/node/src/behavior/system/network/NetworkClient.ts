@@ -623,6 +623,15 @@ export namespace NetworkClient {
          *
          * The node's cache follows this subscription's fabric filter; changing the filter makes the cache forget its
          * data versions.  The default subscription updates automatically if you change this property.
+         *
+         * Without fabric filtering the cache holds the entries of every fabric in a fabric-scoped list such as `acl`,
+         * and every view of the client node's state shows all of them.  A write to such a list replaces only the
+         * entries of our fabric on the device.  So it sends only our entries, leaves out the entries of other fabrics
+         * as they are cached, and refuses any other entry whose FabricIndex is not ours.  After a write the cache keeps
+         * the entries of other fabrics as last reported.  Whatever the fabric filter, a write to a fabric-scoped list
+         * is refused while our fabric index on the peer is unknown.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 7.19.1.8.2
          */
         defaultSubscription?: Subscribe | Subscribe.Options;
 

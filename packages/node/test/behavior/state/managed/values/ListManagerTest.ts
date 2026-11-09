@@ -6,6 +6,8 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
+import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
+import { withClientPeerContext } from "#behavior/state/validation/peer-forwarding.js";
 import { MaybePromise } from "@matter/general";
 import { MockExchange } from "@matter/node/testing";
 import { ConformanceError, ExpiredReferenceError, Val, WriteError } from "@matter/protocol";
@@ -291,6 +293,67 @@ describe("ListManager", () => {
                 expect([...secrets].sort()).deep.equals([3, undefined]);
             },
         );
+    });
+
+    describe("fabric-scoped list attribute read by a remote actor", () => {
+        const entries = [
+            { fabricIndex: FabricIndex.NO_FABRIC, value: 0 },
+            { fabricIndex: 1, value: 1 },
+            { fabricIndex: undefined, value: 2 },
+            { fabricIndex: 2, value: 3 },
+        ];
+
+        function scopedList() {
+            return TestCluster(
+                {
+                    list: {
+                        type: "list",
+                        access: "RW F",
+                        children: [fieldOf("entry", structOf({ fabricIndex: "fabric-idx", value: "uint8" }))],
+                    },
+                },
+                { list: entries },
+            );
+        }
+
+        const fabric1 = {
+            fabricFiltered: true,
+            exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+            node: aclEndpoint(),
+        };
+
+        function entriesIn(list: Val) {
+            if (!Array.isArray(list)) {
+                expect.fail("Expected a list");
+            }
+            return [...list];
+        }
+
+        // Matter § 7.19.1.8.1: an entry is scoped to a particular fabric or no fabric
+        it("hides an entry of FabricIndex.NO_FABRIC and keeps it when the list is replaced", async () => {
+            const struct = scopedList();
+            await struct.online(fabric1, async (ref, cx) => {
+                expect(entriesIn(ref.list)).deep.equals([
+                    { fabricIndex: 1, value: 1 },
+                    { fabricIndex: undefined, value: 2 },
+                ]);
+                ref.list = [];
+                await cx.transaction.commit();
+            });
+
+            expect(rawValuesOf(struct.fields).list).deep.equals([
+                { fabricIndex: FabricIndex.NO_FABRIC, value: 0 },
+                { fabricIndex: 2, value: 3 },
+            ]);
+        });
+
+        it("shows every entry of a client node's list, which a session with a peer context manages", async () => {
+            const struct = scopedList();
+            await RemoteActorContext(fabric1).act(cx => {
+                const { list } = struct.reference(withClientPeerContext(cx, { fabricIndexOnPeer: FabricIndex(1) }));
+                expect(entriesIn(list)).deep.equals(entries);
+            });
+        });
     });
 
     describe("fabric-sensitive list attribute", () => {
