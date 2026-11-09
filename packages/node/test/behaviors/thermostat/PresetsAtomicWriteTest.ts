@@ -209,7 +209,10 @@ describe("Presets atomic write", () => {
         await using ctx = await commissionedThermostat();
         const { device, deviceEp, ep1 } = ctx;
 
-        deviceEp.events.thermostat.persistedPresets$Changing.on((presets: Thermostat.Preset[]) => {
+        deviceEp.events.thermostat.persistedPresets$Changing.on(presets => {
+            if (presets === undefined) {
+                return;
+            }
             for (const preset of presets) {
                 preset.presetHandle = null;
             }

@@ -29,6 +29,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
+    - Adjustment: The Thermostat `persistedPresets$Changing` and `persistedPresets$Changed` events type `value` and `oldValue` as `Thermostat.Preset[] | undefined`; `oldValue` is `undefined` when the presets are first stored
     - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
     - Adjustment: On behavior types derived with `.with()`, `.alter()` or `.enable()`, `LocalizationConfigurationServer.detectedLocale` is declared as a getter, and the extension methods of `GeneralDiagnosticsServer` and `AccessControlServer` as methods, so they can be overridden with `get` or a method that calls `super`; a property override of `detectedLocale` no longer compiles
     - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is deprecated and stays empty; subscriptions stored there by an older version are taken over at start
@@ -52,6 +53,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Deleting from a fabric-filtered state list, or setting the length of any state list, requires write access
     - Fix: A ClientNode whose root endpoint reports an empty DeviceTypeList installs its other endpoints, gets seeded and logs one warning per node each time it starts
     - Fix: Thermostat accepts a preset write that sends an existing built-in preset with a null `BuiltIn`
+    - Fix: A held proxy for a state list entry expires when its transaction moves, removes or replaces that entry, also by assigning the whole list, instead of serving the entry now at its index
+    - Fix: The property descriptors of a state list's entries and length carry the managed entry and the visible length instead of the raw stored values
+    - Fix: Thermostat rejects clearing `persistedPresets` after initialization with an `ImplementationError` instead of failing with a `TypeError`
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
     - Fix: AdministratorCommissioning OpenCommissioningWindow answers INVALID_COMMAND to a discriminator above 4095 instead of CONSTRAINT_ERROR
     - Fix: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow answer PAKEParameterError on a session without fabric, as CHIP does, instead of UNSUPPORTED_ACCESS
@@ -131,6 +135,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: DER certificate parsing reads domainComponent, and the first value of a repeated standard DN attribute instead of the last
     - Fix: DER certificate parsing reads VendorID and ProductID from the first commonName that carries a VendorID or ProductID, within its first 64 bytes, as the CHIP SDK does
     - Fix: Encoding a subject or issuer built in code keeps a VendorID or ProductID that differs from the one in its commonName
+    - Fix: (@quasistatic-setup) Commissioning over BLE ends PASE as soon as the BLE connection closes, instead of waiting up to 35 seconds for a reply the device can no longer send, and continues with the device's other addresses
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
