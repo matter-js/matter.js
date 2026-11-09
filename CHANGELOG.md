@@ -14,6 +14,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/general
     - Feature: `Network.interfacesChanged` reports interface and address changes, checked every 60 seconds while observed
     - Enhancement: WAL storage logs at notice level when an open restores entries from its log and when it has saved the restored state, with the time each took
+    - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
     - Adjustment: Removed the unused WAL storage history API (`WalStorageDriver.snapshotAtTime()`/`snapshotAtCommit()`, the `headSnapshot` and `cleanInterval` options) and the `WalSnapshot` export
     - Fix: WAL storage deletes old log segments after each periodic snapshot instead of only on close, and restores from the previous snapshot when the current one is unreadable
     - Fix: WAL storage loads its data when it opens, so a write during the first reads after opening is no longer lost
@@ -24,14 +25,15 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Both crypto implementations throw `CryptoInputError` for AES-CCM input outside the limits in `CryptoConstants`, where the Node.js implementation threw `RangeError` or `TypeError`
     - Fix: `StandardCrypto` encrypts and decrypts AES-CCM plaintext of 65521 to 65535 bytes, which Matter messages reach only with `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: `StandardCrypto` computes the correct AES-CCM tag for AAD of 65280 bytes or more
-    - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
     - Fix: `X520.DomainComponent` encodes the domainComponent OID 0.9.2342.19200300.100.1.25 instead of the emailAddress OID with tag and length bytes in its content
 
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
+    - Adjustment: The Thermostat `persistedPresets$Changing` and `persistedPresets$Changed` events type `value` and `oldValue` as `Thermostat.Preset[] | undefined`; `oldValue` is `undefined` when the presets are first stored
     - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
     - Adjustment: On behavior types derived with `.with()`, `.alter()` or `.enable()`, `LocalizationConfigurationServer.detectedLocale` is declared as a getter, and the extension methods of `GeneralDiagnosticsServer` and `AccessControlServer` as methods, so they can be overridden with `get` or a method that calls `super`; a property override of `detectedLocale` no longer compiles
     - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is deprecated and stays empty; subscriptions stored there by an older version are taken over at start
+    - Adjustment: A ClientNode reads its root's PartsList as listing every endpoint, whatever device types the root reports
     - Adjustment: `ServerSubscriptionContext.initiateExchange()` takes only a `Session`, no longer a `PeerAddress`
     - Adjustment: `SessionsBehavior` events `opened` and `closed` no longer fire for a session whose handshake fails
     - Fix: `TimeFormatLocalizationServer` `detectedHourFormat` and `detectedCalendarType` have their enum types instead of `string`, so an override can return any value of the enum
@@ -49,7 +51,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Iterating a fabric-filtered state list yields managed entries, so a change to an entry is tracked and rolled back
     - Fix: A state list write that would leave a gap, an `undefined` entry, an invalid length or an index above 65535 throws `WriteError`
     - Fix: Deleting from a fabric-filtered state list, or setting the length of any state list, requires write access
+    - Fix: A ClientNode whose root endpoint reports an empty DeviceTypeList installs its other endpoints, gets seeded and logs one warning per node each time it starts
     - Fix: Thermostat accepts a preset write that sends an existing built-in preset with a null `BuiltIn`
+    - Fix: A held proxy for a state list entry expires when its transaction moves, removes or replaces that entry, also by assigning the whole list, instead of serving the entry now at its index
+    - Fix: The property descriptors of a state list's entries and length carry the managed entry and the visible length instead of the raw stored values
+    - Fix: Thermostat rejects clearing `persistedPresets` after initialization with an `ImplementationError` instead of failing with a `TypeError`
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
     - Fix: AdministratorCommissioning OpenCommissioningWindow answers INVALID_COMMAND to a discriminator above 4095 instead of CONSTRAINT_ERROR
     - Fix: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow answer PAKEParameterError on a session without fabric, as CHIP does, instead of UNSUPPORTED_ACCESS
@@ -91,6 +97,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `Peer.sessions` holds only established sessions
     - Adjustment: `Fabric.hasSessionForPeer()` counts only established sessions
     - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
+    - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
+    - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
     - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks
     - Fix: A CASE responder closes a session whose resumption the peer does not confirm
     - Fix: A CASE responder closes a new session whose SigmaFinished cannot be sent
@@ -114,8 +122,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Device attestation refuses a Certification Declaration that breaks a rule of its CMS envelope, `format_version` or `certification_type`
     - Fix: Device attestation refuses an official Certification Declaration signed by the Matter test CD signer
     - Fix: Device attestation reports a Certification Declaration from the Matter test CD signer as `TrustedAsTestCertificate` when test certificates are not accepted
-    - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
-    - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
     - Fix: A VVSC with is-ca false loads
     - Fix: Operational certificate verification refuses a VVSC with is-ca true or a key usage other than digitalSignature
     - Fix: Operational certificate verification refuses a VVSC, ICAC or RCAC key usage that sets a bit without a name
@@ -129,6 +135,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: DER certificate parsing reads domainComponent, and the first value of a repeated standard DN attribute instead of the last
     - Fix: DER certificate parsing reads VendorID and ProductID from the first commonName that carries a VendorID or ProductID, within its first 64 bytes, as the CHIP SDK does
     - Fix: Encoding a subject or issuer built in code keeps a VendorID or ProductID that differs from the one in its commonName
+    - Fix: (@quasistatic-setup) Commissioning over BLE ends PASE as soon as the BLE connection closes, instead of waiting up to 35 seconds for a reply the device can no longer send, and continues with the device's other addresses
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once

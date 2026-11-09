@@ -169,14 +169,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
         if (length > this.getListLength()) {
             throw new WriteError(this.reference.location, `Length ${length} would leave a gap after the last entry`);
         }
-        this.truncate(length);
-    }
-
-    /**
-     * Remove the visible entries from `length` on.
-     */
-    protected truncate(length: number) {
-        this.reference.change(() => (this.writeVal().length = length), "length");
+        this.storeEntries(this.visibleEntries().slice(0, length));
     }
 
     protected hasEntry(index: number) {
@@ -206,7 +199,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
             let subref = this.reference.subrefs?.[index];
 
             if (subref === undefined) {
-                subref = new ManagedReference(this.reference, index, undefined, cloneEntry, this.session);
+                subref = new ManagedReference(this.reference, index, undefined, cloneEntry, this.session, "entry");
 
                 this.config.manageEntry(subref, this.session);
             }
@@ -271,8 +264,9 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
      * Replace the entries {@link visibleEntries} returns with `entries` in a single change.  Throws {@link WriteError}
      * when the list would exceed {@link MAX_LIST_LENGTH}.
      *
-     * An entry that `entries` holds more than once is stored as a copy from its second slot on.  The transaction may
-     * own the entry, and a nested write changes an owned entry in place (see {@link ValReference.owns}).
+     * An entry that `entries` holds more than once is stored once and copied into its other slots, because the
+     * transaction may own the entry and a nested write changes an owned entry in place (see {@link ValReference.owns}).
+     * The original stays at the slot that already holds it, so the reference held for that slot stays live.
      */
     protected storeEntries(entries: Val[]) {
         if (entries.length > MAX_LIST_LENGTH) {
@@ -282,17 +276,22 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
             );
         }
 
-        const seen = new Set<Val>();
-        const placed = entries.map(entry => {
+        const current = this.readVal();
+        const originalSlot = new Map<Val, number>();
+        entries.forEach((entry, index) => {
             if (typeof entry !== "object" || entry === null) {
-                return entry;
+                return;
             }
-            if (seen.has(entry)) {
-                return Internal.copy(entry);
+            const slot = originalSlot.get(entry);
+            if (slot === undefined || current[index] === entry) {
+                originalSlot.set(entry, index);
             }
-            seen.add(entry);
-            return entry;
         });
+        const placed = entries.map((entry, index) =>
+            typeof entry === "object" && entry !== null && originalSlot.get(entry) !== index
+                ? Internal.copy(entry)
+                : entry,
+        );
 
         this.reference.change(() => {
             const list = this.writeVal();
@@ -304,8 +303,8 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     /**
      * Apply an array method that changes entries, and return its result.
      *
-     * The method runs on a plain array of the visible entries, because entry proxies follow their index.  A stored
-     * entry keeps its value.  Every other value is new: it is copied, prepared and validated before anything is
+     * The method runs on a plain array of the visible entries, so it moves entry objects rather than entry proxies.  A
+     * stored entry keeps its value.  Every other value is new: it is copied, prepared and validated before anything is
      * stored.  The result is stored in a single change, so a rejected entry leaves the list unchanged.
      *
      * A stored entry leaves this method only as a read-only view (see {@link ReadOnlyReference}): the entries `pop`,
@@ -463,8 +462,30 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
         return Reflect.ownKeys(this.readVal());
     }
 
+    /**
+     * The descriptors of the entries and of `length` carry what {@link get} returns: the managed entry and the length
+     * this session sees.
+     */
     getOwnPropertyDescriptor(_target: Val.List, key: PropertyKey) {
-        return Reflect.getOwnPropertyDescriptor(this.readVal(), key);
+        const index = entryIndexFor(key);
+        if (index === undefined) {
+            const descriptor = Reflect.getOwnPropertyDescriptor(this.readVal(), key);
+            if (key === "length" && descriptor !== undefined) {
+                descriptor.value = this.getListLength();
+            }
+            return descriptor;
+        }
+        if (index >= this.getListLength()) {
+            return undefined;
+        }
+
+        this.#sublocation.path.id = index;
+        return {
+            value: this.readEntry(index, this.#sublocation),
+            writable: true,
+            enumerable: true,
+            configurable: true,
+        };
     }
 }
 
@@ -580,10 +601,6 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
         return this.visibleEntries().length;
     }
 
-    protected override truncate(length: number) {
-        this.storeEntries(this.visibleEntries().slice(0, length));
-    }
-
     override ownKeys() {
         const length = this.getListLength();
 
@@ -594,15 +611,6 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
             const index = entryIndexFor(k);
             return index === undefined || index < length;
         });
-    }
-
-    override getOwnPropertyDescriptor(_target: Val.List, key: PropertyKey) {
-        key = entryIndexFor(key) ?? key;
-        if (typeof key !== "number") {
-            return Reflect.getOwnPropertyDescriptor(this.readVal(), key);
-        }
-
-        return Reflect.getOwnPropertyDescriptor(this.readVal(), this.#mapScopedToActual(key, true));
     }
 }
 
