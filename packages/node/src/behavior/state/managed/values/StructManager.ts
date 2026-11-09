@@ -215,9 +215,9 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                         if (fabricScopedList || validate) {
                             // A dynamic member's previous value lives in the provider, not the container slot;
                             // read it only when rollback or the fabric-scoped merge check may consume it, as the
-                            // provider's getter may be costly.  Copy in case the provider serves a managed value —
+                            // provider's getter may be costly.  Unwrap in case the provider serves a managed value —
                             // rollback must not plant a proxy that expires with this session
-                            previousValue = Internal.copy(properties[name]);
+                            previousValue = Internal.rawOf(properties[name]);
                         }
                     } else {
                         target = struct;
@@ -250,7 +250,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                         }
 
                         // The direct write above bypasses the cached reference; the merge below reads through it
-                        this[Internal.reference].subrefs?.[memberKeyFor(pk, name, id)]?.refresh();
+                        this[Internal.reference].subrefs?.[memberKeyFor(pk, name, id)]?.refresh("session");
                     }
 
                     // In the case of fabric-scoped write to established list we use the managed proxy to perform update
@@ -399,6 +399,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 id,
                 cloneContainer,
                 this[Internal.session],
+                "member",
             );
 
             ref.owner = manage(ref, this[Internal.session]);

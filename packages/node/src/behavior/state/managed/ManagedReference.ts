@@ -31,13 +31,18 @@ type Container = Record<string | number, Val>;
  *
  *   - Preserves metadata regarding the state of the value
  *
- * A reference stays bound to its member for its whole life and follows whatever container the parent holds there:
+ * A member reference follows whatever container the parent holds at its key.  A list entry reference is bound to one
+ * entry instead, because an index does not identify an entry (see {@link ManagedReference.Binding}):
  *
  * | State   | Cause                                               | {@link value}      | Writes                  |
  * |---------|-----------------------------------------------------|--------------------|-------------------------|
  * | live    | the member holds a container                        | that container     | allowed                 |
- * | absent  | the member, or a container above it, is absent      | `undefined`/`null` | `PhantomReferenceError` |
- * | expired | the owning context exited, or a parent is read-only | last value seen    | `ExpiredReferenceError` |
+ * | absent  | the member, or a container above it, is absent;     | `undefined`/`null` | `PhantomReferenceError` |
+ * |         | for an entry, only after another transaction's      |                    |                         |
+ * |         | commit                                              |                    |                         |
+ * | expired | the owning context exited, a parent is read-only,   | last container     | `ExpiredReferenceError` |
+ * |         | or a change in this session moved, removed or       |                    |                         |
+ * |         | replaced this entry                                 |                    |                         |
  *
  * "absent" returns to "live" when a container is assigned again.  "expired" is final.
  */
@@ -58,6 +63,10 @@ export class ManagedReference implements ValReference {
     #value: unknown;
     #dynamicContainer: Val.Struct | undefined;
     #dynamicSource: Val | undefined;
+    #binding: ManagedReference.Binding;
+    #entry: unknown;
+    #copies?: WeakSet<object>;
+    #detached = false;
 
     /**
      * @param parent a reference to the container we reference
@@ -65,6 +74,7 @@ export class ManagedReference implements ValReference {
      * @param id the lookup ID, used when {@link parent} keys its members by ID
      * @param clone clones the container prior to write
      * @param session the access control session
+     * @param binding what the reference stays bound to when the parent changes
      */
     constructor(
         parent: ValReference<Val.Collection>,
@@ -72,10 +82,12 @@ export class ManagedReference implements ValReference {
         id: number | undefined,
         clone: (container: Val) => Val,
         session: AccessControl.Session,
+        binding: ManagedReference.Binding,
     ) {
         this.parent = parent;
         this.#clone = clone;
         this.#session = session;
+        this.#binding = binding;
 
         this.#location = {
             ...parent.location,
@@ -94,6 +106,7 @@ export class ManagedReference implements ValReference {
             this.#dynamicContainer === undefined
                 ? memberValueOf(parent.value as Container, key, readFallbackKey)
                 : memberValueOf(this.#dynamicContainer as Container, key, fallbackKey);
+        this.#entry = this.#value;
 
         // Propagate supervision config from parent
         if (parent.supervisionConfig) {
@@ -116,7 +129,7 @@ export class ManagedReference implements ValReference {
     }
 
     get expired() {
-        return this.parent.expired;
+        return this.#detached || this.parent.expired;
     }
 
     get location() {
@@ -149,10 +162,16 @@ export class ManagedReference implements ValReference {
         ValReference.writableContainerOf(this);
 
         this.parent.change(() => {
+            // The parent's change may refresh this reference and expire it
+            ValReference.writableContainerOf(this);
+
             if (!this.owns(this.#value)) {
                 const clone = this.#clone(this.#value);
                 this.adopt(clone);
-                this.#replaceValue(clone);
+                if (this.#binding === "entry" && typeof clone === "object" && clone !== null) {
+                    (this.#copies ??= new WeakSet()).add(clone);
+                }
+                this.#replaceValue(clone, "session");
             }
 
             mutator();
@@ -161,13 +180,13 @@ export class ManagedReference implements ValReference {
         }, this.#key);
     }
 
-    refresh() {
+    refresh(cause: ValReference.RefreshCause) {
         if (this.expired) {
             return;
         }
 
         if (this.parent.value === undefined || this.parent.value === null) {
-            this.#replaceValue(undefined);
+            this.#follow(undefined, cause);
             return;
         }
 
@@ -185,7 +204,43 @@ export class ManagedReference implements ValReference {
                 ? memberValueOf(this.parent.value as Container, this.#key, this.#readFallbackKey)
                 : memberValueOf(this.#dynamicContainer as Container, this.#key, this.#fallbackKey);
 
-        this.#replaceValue(value);
+        this.#follow(value, cause);
+    }
+
+    /**
+     * Take `value` as the referenced value.  An entry reference expires instead when a change in this session put
+     * another entry at its index.  It accepts its entry and every copy it made of that entry, because only a rollback
+     * puts an earlier copy back.  After another transaction's commit, an entry reference follows its index like a
+     * member reference and binds to the entry now there.
+     */
+    #follow(value: unknown, cause: ValReference.RefreshCause) {
+        if (this.#binding === "entry") {
+            if (cause === "external") {
+                this.#entry = value;
+                this.#copies = undefined;
+            } else if (!this.#holds(value)) {
+                this.#detach();
+                return;
+            }
+        }
+
+        this.#replaceValue(value, cause);
+    }
+
+    #holds(value: unknown) {
+        if (value === this.#entry) {
+            return true;
+        }
+        return typeof value === "object" && value !== null && !!this.#copies?.has(value);
+    }
+
+    /**
+     * Stop following the entry.  The reference keeps its last value and is {@link expired}.  It leaves the parent's
+     * subrefs, so the next read at its index creates a reference for the entry now there.
+     */
+    #detach() {
+        this.#detached = true;
+        delete this.parent.subrefs?.[this.#key];
     }
 
     /**
@@ -220,14 +275,27 @@ export class ManagedReference implements ValReference {
         }
     }
 
-    #replaceValue(newValue: Val) {
+    #replaceValue(newValue: Val, cause: ValReference.RefreshCause) {
         this.#value = newValue;
 
         const subrefs = this.subrefs;
         if (subrefs) {
             for (const key in subrefs) {
-                subrefs[key].refresh();
+                subrefs[key].refresh(cause);
             }
         }
     }
+}
+
+export namespace ManagedReference {
+    /**
+     * What a reference stays bound to when its parent changes.
+     *
+     * - `member`: the key.  A struct member is identified by its name, so the reference follows the container the
+     *   parent holds there.
+     * - `entry`: the entry it was read for, or the entry another transaction's commit put at its index.  An index does
+     *   not identify a list entry: a list method, a length change, an assignment at the index or of the whole list puts
+     *   another entry there.
+     */
+    export type Binding = "member" | "entry";
 }

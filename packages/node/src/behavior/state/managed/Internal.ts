@@ -20,6 +20,18 @@ export namespace Internal {
     }
 
     /**
+     * The raw value behind a managed proxy, or `value` itself.  Unlike {@link copy}, the result is the stored object,
+     * so a list entry reference bound to one of its entries stays live when the value is stored back.
+     */
+    export function rawOf(value: Val): Val {
+        if (value === null || value === undefined || typeof value !== "object") {
+            return value;
+        }
+        const ref = (value as Collection)[reference];
+        return ref ? ref.value : value;
+    }
+
+    /**
      * Copy an incoming value tree into raw data for a manager to store.
      *
      * A managed proxy is replaced by a copy of its raw value, including the entries of other fabrics.  Every array and
