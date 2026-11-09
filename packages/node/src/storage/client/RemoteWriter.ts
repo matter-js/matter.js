@@ -4,17 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { isFabricScopedList } from "#behavior/state/managed/values/ListManager.js";
 import { ClientStructure } from "#node/client/ClientStructure.js";
 import type { ClientNode } from "#node/ClientNode.js";
-import { InternalError, isObject, Logger } from "@matter/general";
-import { AttributeModel } from "@matter/model";
-import { Write, WriteError, WriteResult, type Val } from "@matter/protocol";
-import { AttributeId, FabricIndex, Status, type ClusterId, type ClusterType, type EndpointNumber } from "@matter/types";
+import { InternalError } from "@matter/general";
+import { AttributeModel, type DataModelPath } from "@matter/model";
+import { Write, WriteResult, type Val } from "@matter/protocol";
+import {
+    AttributeId,
+    Status,
+    type ClusterId,
+    type ClusterType,
+    type EndpointNumber,
+    type FabricIndex,
+} from "@matter/types";
 import type { ClientNodeStore } from "./ClientNodeStore.js";
-import { fabricScopedWriteOf } from "./fabric-scoped-writes.js";
-
-const logger = Logger.get("RemoteWriter");
+import { FabricScopedListWrite } from "./FabricScopedListWrite.js";
 
 /**
  * Persistence handler for {@link ClientNodeStore}.
@@ -22,33 +26,30 @@ const logger = Logger.get("RemoteWriter");
  * A remote writer conveys updates to the remote node.  This performs actual persistence for client nodes where the
  * local store is just a cache and the source of truth is on the remote device.
  *
- * Resolves once the peer answered, with a status per attribute in {@link RemoteWriter.Result.statuses}, including those
- * declined locally because the peer's cluster type cannot express them; when every attribute is declined locally,
- * nothing is sent.  Rejects when the peer does not answer, as then nothing is known to have been applied.
- *
- * The device replaces only the entries of our fabric in a fabric-scoped list, stores every written entry under our
- * fabric and ignores the entries of other fabrics.  So for a client peer node the writer sends only our entries of
- * such a list:
- *
- * | Entry of a written fabric-scoped list                                    | Write                 |
- * | ------------------------------------------------------------------------ | --------------------- |
- * | FabricIndex ours or `FabricIndex.OMIT_FABRIC`                            | sent                  |
- * | no FabricIndex                                                           | sent, as ours         |
- * | other FabricIndex (`NO_FABRIC` included), equal to an entry of the cache | left out              |
- * | other FabricIndex (`NO_FABRIC` included), not in the cache               | whole request refused |
- * | not a struct                                                             | whole request refused |
- * | any, while our fabric index on the peer is unknown                       | whole request refused |
- *
- * A refused request rejects with a {@link WriteError} (CONSTRAINT_ERROR) before anything is sent, so the transaction
- * that wrote the list fails.  {@link RemoteWriter.Result.ownEntries} holds the entries sent.  A group node sends its
- * lists as written; its interaction decides.
- *
- * @see {@link MatterSpecification.v161.Core} § 7.13.6
- * @see {@link MatterSpecification.v161.Core} § 7.19.1.8.2
- * @see {@link MatterSpecification.v161.Core} § 7.19.1.9.1
+ * The datasource has a write prepared per cluster in the transaction's settled step, before any participant commits,
+ * so a refusal rejects the transaction before any Write Request goes out.  The prepared writes of the node's clusters
+ * are then sent in one Write Request.
  */
 export interface RemoteWriter {
-    (request: RemoteWriter.Request): Promise<RemoteWriter.Result>;
+    /**
+     * Decide whether {@link proposal} may go to the remote node, and prepare it for {@link send}.  Synchronous, and
+     * writes nothing.
+     *
+     * A peer receives only our entries of a fabric-scoped list; see {@link FabricScopedListWrite}.  Every write of a
+     * fabric-scoped list to a peer needs our fabric index on the peer, also one of a value that is not a list.
+     *
+     * @throws WriteError with CONSTRAINT_ERROR to refuse a fabric-scoped list
+     */
+    prepare(proposal: RemoteWriter.Proposal): RemoteWriter.PreparedWrite;
+
+    /**
+     * Send {@link writes} in one Write Request.
+     *
+     * Resolves with a status per attribute once the peer answered, including those declined locally because the peer's
+     * cluster type cannot express them; when every attribute is declined locally, nothing is sent.  Rejects when the
+     * peer does not answer, as then nothing is known to have been applied.
+     */
+    send(writes: RemoteWriter.PreparedWrite[]): Promise<WriteResult.AttributeStatus[]>;
 }
 
 const attrCache = new WeakMap<object, Record<string, ClusterType.Attribute>>();
@@ -57,20 +58,24 @@ const attrCache = new WeakMap<object, Record<string, ClusterType.Attribute>>();
 const ID_KEY = /^(0|[1-9]\d*)$/;
 
 export function RemoteWriter(node: ClientNode, structure: ClientStructure): RemoteWriter {
-    return async function writeRemote(request: RemoteWriter.Request) {
-        const attrWrites = Array<Write.Attribute>();
-        const declined = Array<WriteResult.AttributeStatus>();
-        const ownEntries = new Map<RemoteWriter.EndpointUpdateRequest, RemoteWriter.OwnEntries>();
-        const peerContext = node.clientPeerContext;
+    function clusterFor(number: EndpointNumber, behaviorId: string) {
+        const clusterId = Number.parseInt(behaviorId) as ClusterId;
+        const cluster = structure.clusterFor(number, clusterId);
+        if (cluster === undefined) {
+            throw new InternalError(`Cannot remote write to non-cluster behavior ${behaviorId}`);
+        }
+        return { clusterId, cluster };
+    }
 
-        for (const update of request) {
-            const { number, behaviorId, values, cached } = update;
-            const clusterId = Number.parseInt(behaviorId) as ClusterId;
-            const cluster = structure.clusterFor(number, clusterId);
-            if (cluster === undefined) {
-                throw new InternalError(`Cannot remote write to non-cluster behavior ${behaviorId}`);
-            }
+    return {
+        prepare({ number, behaviorId, values, cached, path }) {
+            const { clusterId, cluster } = clusterFor(number, behaviorId);
             const attrs = attrsFor(cluster);
+            const attributes = new Array<Write.Attribute>();
+            const declined = new Array<WriteResult.AttributeStatus>();
+            const sent: Val.Struct = {};
+            let cacheMerges: Map<string, (cached: Val) => Val> | undefined;
+            let fabricIndex: FabricIndex | undefined;
 
             for (const id in values) {
                 if (id.startsWith("__")) {
@@ -84,43 +89,29 @@ export function RemoteWriter(node: ClientNode, structure: ClientStructure): Remo
                 }
 
                 let value = values[id];
-                if (peerContext !== undefined && isFabricScopedList(attr.schema)) {
-                    const { fabricIndexOnPeer: fabricIndex } = peerContext;
-                    if (fabricIndex === undefined) {
-                        throw new WriteError(
-                            { path: `${node}.${number}.${cluster.name}.${attr.name}` },
-                            "Cannot write a fabric-scoped list: our fabric index on the peer " +
-                                "(commissioning.fabricIndexOnPeer or operationalCredentials.currentFabricIndex) " +
-                                "is not known yet; read operationalCredentials.currentFabricIndex first",
-                            Status.ConstraintError,
-                        );
-                    }
+
+                if (attr.schema.fabricScopedList) {
+                    // Every write of a fabric-scoped list needs our index, also one of a value that is not a list
+                    const attributePath = path.at(attr.schema.propertyName);
+                    fabricIndex ??= FabricScopedListWrite.requireFabricIndex(node.fabricIndexOnPeer, attributePath);
                     if (Array.isArray(value)) {
-                        const { own, unchanged, misused } = fabricScopedWriteOf(value, cached?.[id], fabricIndex);
-                        if (misused !== undefined) {
-                            throw new WriteError(
-                                { path: `${node}.${number}.${cluster.name}.${attr.name}` },
-                                misuseMessage(misused, cached?.[id], fabricIndex),
-                                Status.ConstraintError,
-                            );
-                        }
-                        if (unchanged) {
-                            logger.debug(
-                                `Leaving ${unchanged} entries not of our fabric out of the write of ` +
-                                    `${node}.${number}.${cluster.name}.${attr.name}; the device keeps them`,
-                            );
-                        }
-                        value = own;
-                        let lists = ownEntries.get(update);
-                        if (lists === undefined) {
-                            lists = { fabricIndex, lists: {} };
-                            ownEntries.set(update, lists);
-                        }
-                        lists.lists[id] = own;
+                        const entries = FabricScopedListWrite.entriesToSend(
+                            value,
+                            cached?.[id],
+                            fabricIndex,
+                            attributePath,
+                            entrySchemaOf(attr.schema, attributePath),
+                        );
+                        const index = fabricIndex;
+                        (cacheMerges ??= new Map<string, (cached: Val) => Val>()).set(id, cachedList =>
+                            FabricScopedListWrite.cachedAfterWrite(cachedList, entries, index),
+                        );
+                        value = entries;
                     }
                 }
 
-                attrWrites.push(
+                sent[id] = value;
+                attributes.push(
                     Write.Attribute({
                         endpoint: number,
                         cluster: cluster as any,
@@ -129,85 +120,82 @@ export function RemoteWriter(node: ClientNode, structure: ClientStructure): Remo
                     }),
                 );
             }
-        }
 
-        // Remote statuses first so a device error, not one of ours, is the error a single-failure write surfaces
-        const result = attrWrites.length
-            ? ((await node.interaction.write(Write(...attrWrites))) as WriteResult.AttributeStatus[])
-            : [];
-        result.push(...declined);
+            return { number, behaviorId, values: sent, attributes, declined, cacheMerges };
+        },
 
-        return { statuses: result, ownEntries };
+        async send(writes) {
+            const attributes = writes.flatMap(write => write.attributes);
+
+            // Remote statuses first so a device error, not one of ours, is the error a single-failure write surfaces
+            const result = attributes.length
+                ? ((await node.interaction.write(Write(...attributes))) as WriteResult.AttributeStatus[])
+                : [];
+            result.push(...writes.flatMap(write => write.declined));
+
+            return result;
+        },
     };
 }
 
+function entrySchemaOf(schema: AttributeModel, path: DataModelPath) {
+    const entrySchema = schema.listEntry;
+    if (entrySchema === undefined) {
+        throw new InternalError(`Fabric-scoped list ${path} has no entry schema`);
+    }
+    return entrySchema;
+}
+
 export namespace RemoteWriter {
-    export interface EndpointUpdateRequest {
+    /**
+     * The values a transaction proposes for one cluster of the remote node.
+     */
+    export interface Proposal {
         number: EndpointNumber;
         behaviorId: string;
         values: Val.Struct;
 
         /**
-         * The cached values of the cluster when the request is sent, against which the entries of other fabrics in a
-         * fabric-scoped list are checked.
+         * The cached values of the cluster, against which an entry of another fabric in a fabric-scoped list is
+         * checked.
          */
         cached: Val.Struct | undefined;
-    }
-
-    export interface Request extends Array<EndpointUpdateRequest> {}
-
-    export interface Result {
-        /**
-         * A status per attribute of the request.
-         */
-        statuses: WriteResult.AttributeStatus[];
 
         /**
-         * Our entries the request sent, for each request entry that held a fabric-scoped list value.
+         * The path of the values, for a refusal.
          */
-        ownEntries: Map<EndpointUpdateRequest, OwnEntries>;
+        path: DataModelPath;
     }
 
     /**
-     * Our entries of the fabric-scoped lists one request entry sent.  When the device accepts the write, it replaces
-     * its entries of {@link fabricIndex} with them and keeps the entries of other fabrics.
+     * The values to send for one cluster, as {@link RemoteWriter.prepare} decided.
      */
-    export interface OwnEntries {
-        /**
-         * Our fabric index on the peer when the request was sent.
-         */
-        fabricIndex: FabricIndex;
+    export interface PreparedWrite {
+        number: EndpointNumber;
+        behaviorId: string;
 
         /**
-         * The entries sent, by attribute ID.
+         * The values sent, by attribute ID.  A fabric-scoped list holds only our entries.
          */
-        lists: Record<string, Val.List>;
-    }
-}
+        values: Val.Struct;
 
-const MAY_HAVE_CHANGED = "may have changed since the list was read, so read it again and retry";
+        /**
+         * The attribute writes of {@link values} for the Write Request.
+         */
+        attributes: Write.Attribute[];
 
-/**
- * The reason a write of a fabric-scoped list with {@link misused} is refused, for its {@link WriteError}.
- */
-function misuseMessage(misused: Val, cached: Val, fabricIndexOnPeer: FabricIndex) {
-    if (!isObject(misused)) {
-        return `Cannot write an entry that is not a struct (our fabric index on the peer is ${fabricIndexOnPeer})`;
+        /**
+         * The statuses of the attributes declined locally because the peer's cluster type cannot express them.
+         */
+        declined: WriteResult.AttributeStatus[];
+
+        /**
+         * For an attribute whose cached value does not simply become the value sent, the value to cache once the peer
+         * accepted the write, from the value cached then.  For a fabric-scoped list the device replaced only our
+         * entries, so the cached entries of other fabrics stay.
+         */
+        cacheMerges?: ReadonlyMap<string, (cached: Val) => Val>;
     }
-    const written = misused.fabricIndex;
-    const what =
-        written === FabricIndex.NO_FABRIC
-            ? "an entry of no fabric (FabricIndex.NO_FABRIC)"
-            : `an entry with fabricIndex ${String(written)}`;
-    const message =
-        `Cannot write ${what}: our fabric index on the peer is ${fabricIndexOnPeer}, ` +
-        "so write that index or FabricIndex.OMIT_FABRIC";
-    const cachesWritten =
-        Array.isArray(cached) && cached.some(entry => isObject(entry) && entry.fabricIndex === written);
-    if (!cachesWritten) {
-        return message;
-    }
-    return `${message}; the cached entries of that fabric ${MAY_HAVE_CHANGED}`;
 }
 
 /**

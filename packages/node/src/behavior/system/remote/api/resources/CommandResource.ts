@@ -5,7 +5,6 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { forValuesFromDevice } from "#behavior/state/validation/peer-forwarding.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { camelize, decamelize, ImplementationError, NotImplementedError } from "@matter/general";
 import { CommandModel } from "@matter/model";
@@ -64,7 +63,7 @@ export class CommandResource extends ApiResource {
         }
 
         // Validate input
-        input.validate(this.session);
+        input.validate(this.session, this.outbound);
 
         // Invoke
         const result = await method.call(this.#behavior, input.js);
@@ -78,7 +77,7 @@ export class CommandResource extends ApiResource {
         // Create and validate result
         const output = new Envelope({ supervisor: this.supervisorFor(responseSchema), js: result });
         try {
-            output.validate(forValuesFromDevice(this.session));
+            output.validate(this.session, this.inbound);
         } catch (e) {
             // If output validation fails it is an internal error
             const error = new ImplementationError("Command output validation failed");

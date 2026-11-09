@@ -8,7 +8,7 @@ import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueModel } from "@matter/model";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { astToFunction } from "./conformance-compiler.js";
-import { forwardToPeer, isPeerForwarding } from "./peer-forwarding.js";
+import { leaveToRemote, mayLeaveToRemote } from "./remote-validation.js";
 
 /**
  * Creates a function that validates a field based on its conformance definition.
@@ -27,7 +27,7 @@ export function createConformanceValidator(
         return undefined;
     }
 
-    const forwarding = isPeerForwarding(supervisor);
+    const remoteDecides = mayLeaveToRemote(supervisor);
 
     return (value, session, location) => {
         const cfg = location.config?.supervision;
@@ -38,13 +38,13 @@ export function createConformanceValidator(
             return;
         }
 
-        // A forwarded conformance failure must still fall through to datatype validation below, so a wrong-typed
-        // value cannot slip onto the wire
+        // A conformance failure left to the device must still fall through to datatype validation below, so a
+        // wrong-typed value cannot slip onto the wire
         if (cfg?.conformance !== false) {
             try {
                 conformance?.(value, session, location);
             } catch (e) {
-                if (!forwarding || !forwardToPeer(session, e)) {
+                if (!remoteDecides || !leaveToRemote(location, e)) {
                     throw e;
                 }
             }

@@ -7,8 +7,9 @@
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
+import type { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { createPromise } from "@matter/general";
-import { Val } from "@matter/protocol";
+import { Val, WriteResult } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 
 export function createCache(options?: {
@@ -19,13 +20,31 @@ export function createCache(options?: {
     };
 }) {
     return new DatasourceCache({
-        writer: (() => {}) as any,
+        writer: sendingWriter([]),
         nodeId: "test-peer",
         endpointNumber: EndpointNumber(1),
         behaviorId: "test",
         localWriter: options?.localWriter as any,
         buffer: options?.buffer,
     });
+}
+
+/**
+ * A remote writer that prepares every proposal as it is and answers every write with {@link statuses}.
+ */
+export function sendingWriter(statuses: WriteResult.AttributeStatus[]): RemoteWriter {
+    return {
+        prepare: ({ number, behaviorId, values }) => preparedWrite(number, behaviorId, values),
+        send: async () => statuses,
+    };
+}
+
+export function preparedWrite(
+    number: EndpointNumber,
+    behaviorId: string,
+    values: Val.Struct,
+): RemoteWriter.PreparedWrite {
+    return { number, behaviorId, values, attributes: [], declined: [] };
 }
 
 export function attrs(entries: Record<string, unknown>): Val.StructMap {

@@ -6,10 +6,10 @@
 
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { InternalError, Logger, MaybePromise, StorageDriver, Transaction } from "@matter/general";
+import type { DataModelPath } from "@matter/model";
 import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 import type { ClientCacheBuffer } from "./ClientCacheBuffer.js";
-import { withEntriesOfOtherFabrics } from "./fabric-scoped-writes.js";
 import type { LocalWriter } from "./LocalWriter.js";
 import { RemoteWriteParticipant } from "./RemoteWriteParticipant.js";
 import type { RemoteWriter } from "./RemoteWriter.js";
@@ -103,26 +103,38 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
         return this.#consumer && !this.#reclaimed ? this.#consumer.snapshot() : this.initialValues;
     }
 
-    async set(transaction: Transaction, values: Val.Struct) {
+    prepare(values: Val.Struct, path: DataModelPath): Datasource.ExternallyMutableStore.Send {
+        const write = this.#writer.prepare({
+            number: this.#endpointNumber,
+            behaviorId: this.#behaviorId,
+            values,
+            cached: this.currentValues,
+            path,
+        });
+        return transaction => this.#propose(transaction, write);
+    }
+
+    #propose(transaction: Transaction, write: RemoteWriter.PreparedWrite) {
         let participant = transaction.getParticipant(this.#writer);
         if (participant === undefined) {
             participant = new RemoteWriteParticipant(this.#writer, this.#nodeId);
             transaction.addParticipants(participant);
         }
-        (participant as RemoteWriteParticipant).set(this.#endpointNumber, this.#behaviorId, values, this, this.#epoch);
+        (participant as RemoteWriteParticipant).set(write, this, this.#epoch);
     }
 
     async settleAccepted(
         values: Val.Struct,
         epoch: number,
-        ownEntries?: RemoteWriter.OwnEntries,
+        cacheMerges?: RemoteWriter.PreparedWrite["cacheMerges"],
     ): Promise<RemoteWriteParticipant.Settled> {
         const accepted = new Map<string, Val>();
         for (const id in values) {
             if ((this.#settledAt.get(id) ?? -1) > epoch) {
                 continue;
             }
-            accepted.set(id, this.#writtenValue(id, values[id], ownEntries));
+            const merge = cacheMerges?.get(id);
+            accepted.set(id, merge === undefined ? values[id] : merge(this.currentValues?.[id]));
         }
         if (!accepted.size) {
             return { release: nothingToRelease, persistFailure: undefined };
@@ -140,16 +152,6 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             await this.#drain();
         };
         return { release, persistFailure };
-    }
-
-    /**
-     * The value to cache for attribute {@link id} after the peer accepted a write of {@link value}.
-     */
-    #writtenValue(id: string, value: Val, ownEntries: RemoteWriter.OwnEntries | undefined) {
-        if (ownEntries === undefined || !(id in ownEntries.lists)) {
-            return value;
-        }
-        return withEntriesOfOtherFabrics(this.currentValues?.[id], ownEntries.lists[id], ownEntries.fabricIndex);
     }
 
     async externalSet(values: Val.StructMap): Promise<Datasource.ExternallyMutableStore.Applied> {

@@ -153,6 +153,19 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
     }
 
     /**
+     * Whether the value is a list whose entries a session of one fabric may see filtered by its fabric: a list with
+     * fabric-scoped (`F`) access.  An `AttributeModel` also counts fabric-sensitive (`S`) access, which on a
+     * struct field only hides that field from other fabrics.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 7.6.4.1
+     * @see {@link MatterSpecification.v161.Core} § 7.6.5.1
+     * @see {@link MatterSpecification.v161.Core} § 7.19.1.8.1
+     */
+    get fabricScopedList() {
+        return this.effectiveAccess.fabric === Access.Fabric.Scoped && this.effectiveMetatype === Metatype.array;
+    }
+
+    /**
      * Get the entry type for lists, if any.
      */
     get listEntry() {

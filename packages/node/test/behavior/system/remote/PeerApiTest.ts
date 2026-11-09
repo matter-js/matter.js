@@ -6,13 +6,14 @@
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { Api } from "#behavior/system/remote/api/Api.js";
+import { ApiPath } from "#behavior/system/remote/api/ApiPath.js";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { Environment } from "@matter/general";
+import { Environment, ImplementationError } from "@matter/general";
 import { ClusterModel, Matter, MatterModel } from "@matter/model";
 import { MockSite, subscribedPeer } from "@matter/node/testing";
-import { ClusterType, Status } from "@matter/types";
+import { ClusterType, FabricIndex, Status } from "@matter/types";
 
 const CLUSTER_ID = 0xfff1_fc20;
 
@@ -209,6 +210,36 @@ describe("remote API on a peer", () => {
         });
     });
 
+    it("refuses a command response whose fabric-scoped struct arrived without FabricIndex", async () => {
+        const { site, controller } = await peerSite();
+        await using _site = site;
+
+        const caught = await MockTime.resolve(
+            controller.act(async agent => {
+                // A struct decoded without its FabricIndex holds OMIT_FABRIC there
+                const endpoint = controller.peers.get("peer1")!.parts.get(1)!;
+                const client = endpoint.agentFor(agent.context).get(endpoint.behaviors.supported.legacyApi);
+                Object.defineProperty(client, "configure", {
+                    value: () => ({ legacy: 1, entry: { value: 1, fabricIndex: FabricIndex.OMIT_FABRIC } }),
+                });
+                const item = await Api.resourceFor(agent, new ApiPath("peers/peer1/1/legacyApi/configure"));
+                if (item === undefined) {
+                    expect.fail("Expected the configure command of the peer");
+                }
+                return item.invoke({ js: { policy: 1 } }).then(
+                    () => undefined,
+                    (e: unknown) => e,
+                );
+            }),
+            { macrotasks: true },
+        );
+
+        if (!(caught instanceof ImplementationError)) {
+            expect.fail(`Expected an ImplementationError, got ${String(caught)}`);
+        }
+        expect(caught.message).equals("Command output validation failed");
+    });
+
     it("declines a command field outside the local bounds (characterization)", async () => {
         // The request is checked against its TLV bounds when the invoke request is built, after model validation
         // forwarded it
@@ -256,6 +287,24 @@ describe("remote API on a peer", () => {
         expect(deviceState(device, "level")).equals(50);
     });
 
+    it("patches a value outside the local bounds that the device accepts", async () => {
+        const { site, controller, device } = await peerSite();
+        await using _site = site;
+
+        await MockTime.resolve(
+            controller.act(async agent => {
+                const item = await Api.resourceFor(agent, new ApiPath("peers/peer1/1/legacyApi/level"));
+                if (item === undefined) {
+                    expect.fail("Expected the level attribute of the peer");
+                }
+                item.patch({ js: 50 });
+            }),
+            { macrotasks: true },
+        );
+
+        expect(deviceState(device, "level")).equals(50);
+    });
+
     it("declines a value of the wrong type without sending it (characterization)", async () => {
         const { site, controller, device } = await peerSite();
         await using _site = site;
@@ -268,6 +317,18 @@ describe("remote API on a peer", () => {
 
         expect(response.kind).equals("error");
         expect(deviceState(device, "level")).equals(0);
+    });
+
+    it("validates a value of a local endpoint as a local value", async () => {
+        const { site, device } = await peerSite();
+        await using _site = site;
+
+        const isRemote = await device.parts.get(1)!.act(async agent => {
+            const item = await Api.resourceFor(agent, new ApiPath(""));
+            return item?.isRemote;
+        });
+
+        expect(isRemote).false;
     });
 
     describe("on a local endpoint", () => {

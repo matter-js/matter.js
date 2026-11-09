@@ -83,6 +83,11 @@ export interface ValReference<T extends Val = Val> {
     rootOwner?: any;
 
     /**
+     * Whether the root datasource holds a copy of a remote node's values.
+     */
+    readonly mirrorsRemote: boolean;
+
+    /**
      * The parent of this reference, if any.
      */
     parent?: ValReference;

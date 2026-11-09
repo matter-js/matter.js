@@ -457,7 +457,9 @@ describe("ManagedReference", () => {
                 this.initialValues = initialValues;
             }
 
-            async set() {}
+            prepare() {
+                return async () => {};
+            }
 
             async forgetVersion() {}
 

@@ -23,7 +23,6 @@ import {
 } from "../MemberKeys.js";
 import { NameResolver } from "../NameResolver.js";
 import { ValReference } from "../ValReference.js";
-import { isFabricScopedList } from "./ListManager.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
 
 /**
@@ -140,7 +139,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
     const { access, manage, validate } = supervisor.get(schema);
 
-    const fabricScopedList = isFabricScopedList(schema) && schema.effectiveMetatype === Metatype.array;
+    const fabricScopedList = schema.fabricScopedList;
 
     // We generally do not deal with default values.  If the schema defines a default it is assigned before the manager
     // is created.  The one exception is for field references.  These we must look up dynamically at runtime because the
@@ -290,6 +289,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                             path: this[Internal.reference].location.path,
                             siblings: struct,
                             owner: this[Internal.reference].rootOwner,
+                            remote: this[Internal.reference].mirrorsRemote ? "outbound" : undefined,
                         });
                     } catch (e) {
                         undo();

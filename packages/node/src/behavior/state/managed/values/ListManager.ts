@@ -6,7 +6,7 @@
 
 import { InternalError, isObject, serialize } from "@matter/general";
 import type { Schema } from "@matter/model";
-import { Access, AttributeModel, DataModelPath, ValueModel } from "@matter/model";
+import { AttributeModel, DataModelPath, ValueModel } from "@matter/model";
 import { AccessControl, hasRemoteActor, ReadError, SchemaImplementationError, Val, WriteError } from "@matter/protocol";
 import { Status } from "@matter/types";
 import type { RootSupervisor } from "../../../supervision/RootSupervisor.js";
@@ -46,18 +46,6 @@ export function ListManager(owner: RootSupervisor, schema: Schema): ValueSupervi
     };
 }
 
-/**
- * Whether a list holds fabric-scoped entries that a remote actor may see filtered by fabric: `F` access, or an attribute
- * with `S` access.  `S` on a struct field only hides that field from other fabrics.
- */
-export function isFabricScopedList(schema: Schema) {
-    return schema.effectiveAccess.fabric === Access.Fabric.Scoped || isFabricSensitiveList(schema);
-}
-
-function isFabricSensitiveList(schema: Schema) {
-    return schema instanceof AttributeModel && schema.fabricSensitive;
-}
-
 function createConfig(owner: RootSupervisor, schema: Schema): ListConfig {
     const entry = schema instanceof ValueModel ? schema.listEntry : undefined;
     if (entry === undefined) {
@@ -67,12 +55,10 @@ function createConfig(owner: RootSupervisor, schema: Schema): ListConfig {
     const entryManager = owner.get(entry);
 
     const access = AccessControl(schema);
-    const fabricSensitive = isFabricSensitiveList(schema);
-
     return {
         schema,
-        fabricScoped: fabricSensitive || schema.effectiveAccess.fabric === Access.Fabric.Scoped,
-        fabricSensitive,
+        fabricScoped: schema instanceof ValueModel && schema.fabricScopedList,
+        fabricSensitive: schema instanceof AttributeModel && schema.fabricSensitive,
         manageEntries: entryManager.manage !== PrimitiveManager,
         manageEntry: entryManager.manage,
         validateEntry: entryManager.validate,
@@ -146,6 +132,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
             ...reference.location,
             path: reference.location.path.at(-1),
             owner: reference.rootOwner,
+            remote: reference.mirrorsRemote ? "outbound" : undefined,
         };
     }
 
@@ -363,7 +350,12 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
                 }
 
                 const location = { ...this.reference.location, path: this.reference.location.path.at(index) };
-                const reference = new ReadOnlyReference(entry, location, this.reference.rootOwner);
+                const reference = new ReadOnlyReference(
+                    entry,
+                    location,
+                    this.reference.rootOwner,
+                    this.reference.mirrorsRemote,
+                );
                 this.config.manageEntry(reference, this.session);
                 view = reference.owner;
                 views.set(entry, view);
@@ -477,10 +469,8 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
         if (!isObject(entry)) {
             return false;
         }
-        const { fabricIndex } = entry;
-        // An entry of no fabric is visible only to a session without fabric, such as PASE; entries are scoped "to a
-        // particular fabric or no fabric" (Matter § 7.19.1.8.1)
-        return fabricIndex === undefined || fabricIndex === this.session.fabric;
+        const { fabricIndex } = entry as { fabricIndex?: number };
+        return !fabricIndex || fabricIndex === this.session.fabric;
     }
 
     #mapScopedToActual(index: number, reading: boolean) {
@@ -613,8 +603,9 @@ function createProxy(config: ListConfig, reference: ValReference<Val.List>, sess
         config.manageEntries &&
         config.fabricScoped &&
         hasRemoteActor(session) &&
-        // The session's fabric belongs to our server node, not to the peer, so it does not filter the list
-        session.clientPeerContext === undefined &&
+        // The session's fabric belongs to our server node, not to the remote node, so it does not filter a copy of
+        // that node's list
+        !reference.mirrorsRemote &&
         // Fabric-sensitive lists are filtered for reads and writes; command handlers see all entries, as data access
         // rules do not apply to them
         (session.fabricFiltered || (config.fabricSensitive && !session.command));

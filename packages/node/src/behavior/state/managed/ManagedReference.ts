@@ -110,6 +110,10 @@ export class ManagedReference implements ValReference {
         return this.parent.rootOwner;
     }
 
+    get mirrorsRemote() {
+        return this.parent.mirrorsRemote;
+    }
+
     get value() {
         // Authorization is unnecessary here because the reference would not exist if access is unauthorized
         return this.#value;

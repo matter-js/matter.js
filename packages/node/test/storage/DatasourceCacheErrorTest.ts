@@ -4,16 +4,37 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import { RemoteWriteParticipant } from "#storage/client/RemoteWriteParticipant.js";
 import type { RemoteWriter } from "#storage/client/RemoteWriter.js";
-import { InternalError, Lifetime, MemoryStorageDriver, Seconds, StorageDriver, Transaction } from "@matter/general";
-import { Val, WriteResult } from "@matter/protocol";
+import {
+    InternalError,
+    Lifetime,
+    MemoryStorageDriver,
+    MockCrypto,
+    Seconds,
+    StorageDriver,
+    Transaction,
+} from "@matter/general";
+import { AttributeElement, ClusterModel, DataModelPath } from "@matter/model";
+import { Val, WriteError } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber, Status, StatusResponseError } from "@matter/types";
 import { captureWarningsOf } from "../endpoint/validation/validation-helpers.js";
-import { attrs, createCache, gatedWriter, recordingConsumer, trackingWriter } from "./cache-test-helpers.js";
+import {
+    attrs,
+    createCache,
+    gatedWriter,
+    preparedWrite,
+    recordingConsumer,
+    sendingWriter,
+    trackingWriter,
+} from "./cache-test-helpers.js";
+
+const PATH = new DataModelPath("peer1");
 
 /** A localWriter that always throws */
 function failingWriter(message = "No endpoint store for endpoint 1") {
@@ -195,8 +216,8 @@ describe("DatasourceCache error handling", () => {
     describe("remote write participants", () => {
         it("registers same-named peers of different controllers in one transaction", async () => {
             const transaction = Transaction.open("test", Lifetime.mock, "rw");
-            await createCache().set(transaction, { onOff: true });
-            await createCache().set(transaction, { onOff: false });
+            await createCache().prepare({ onOff: true }, PATH)(transaction);
+            await createCache().prepare({ onOff: false }, PATH)(transaction);
 
             expect([...transaction.participants]).length(2);
 
@@ -204,13 +225,13 @@ describe("DatasourceCache error handling", () => {
         });
 
         it("reuses one participant for the same peer", async () => {
-            const writer = (() => {}) as any;
+            const writer = sendingWriter([]);
             const cacheFor = (behaviorId: string) =>
                 new DatasourceCache({ writer, nodeId: "peer1", endpointNumber: EndpointNumber(1), behaviorId });
 
             const transaction = Transaction.open("test", Lifetime.mock, "rw");
-            await cacheFor("6").set(transaction, { onOff: true });
-            await cacheFor("8").set(transaction, { currentLevel: 1 });
+            await cacheFor("6").prepare({ onOff: true }, PATH)(transaction);
+            await cacheFor("8").prepare({ currentLevel: 1 }, PATH)(transaction);
 
             expect([...transaction.participants]).length(1);
 
@@ -219,31 +240,25 @@ describe("DatasourceCache error handling", () => {
     });
 });
 
-function withStatuses(statuses: WriteResult.AttributeStatus[]): RemoteWriter.Result {
-    return { statuses, ownEntries: new Map() };
-}
-
 describe("settlement errors", () => {
     it("runs every release at conclusion and logs one that fails", async () => {
         const participant = new RemoteWriteParticipant(
-            async () =>
-                withStatuses([
-                    {
-                        kind: "attr-status",
-                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), attributeId: AttributeId(0) },
-                        status: Status.Success,
-                    },
-                    {
-                        kind: "attr-status",
-                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(8), attributeId: AttributeId(0) },
-                        status: Status.Success,
-                    },
-                ]),
+            sendingWriter([
+                {
+                    kind: "attr-status",
+                    path: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), attributeId: AttributeId(0) },
+                    status: Status.Success,
+                },
+                {
+                    kind: "attr-status",
+                    path: { endpointId: EndpointNumber(1), clusterId: ClusterId(8), attributeId: AttributeId(0) },
+                    status: Status.Success,
+                },
+            ]),
             "peer1",
         );
         const released = new Array<string>();
         const receiver = (name: string, fail: boolean) => ({
-            currentValues: undefined,
             settleAccepted: async () => ({
                 release: async () => {
                     if (fail) {
@@ -254,8 +269,8 @@ describe("settlement errors", () => {
                 persistFailure: undefined,
             }),
         });
-        participant.set(EndpointNumber(1), "6", { "0": true }, receiver("first", true), 0);
-        participant.set(EndpointNumber(1), "8", { "0": 1 }, receiver("second", false), 0);
+        participant.set(preparedWrite(EndpointNumber(1), "6", { "0": true }), receiver("first", true), 0);
+        participant.set(preparedWrite(EndpointNumber(1), "8", { "0": 1 }), receiver("second", false), 0);
 
         await participant.commit1();
         const warnings = await captureWarningsOf(() => participant.conclusion());
@@ -362,38 +377,57 @@ describe("settlement errors", () => {
         expect(integrated).deep.equals([]);
     });
 
-    it("refuses a second write of the same cluster in one commit", () => {
-        const participant = new RemoteWriteParticipant(async () => withStatuses([]), "peer1");
-        const receiver = { currentValues: undefined, settleAccepted: async () => ({ release: async () => {} }) };
-        participant.set(EndpointNumber(1), "6", { "0": true }, receiver, 0);
+    it("sends nothing it held before a rollback", async () => {
+        const sent = new Array<RemoteWriter.PreparedWrite[]>();
+        const participant = new RemoteWriteParticipant(
+            {
+                prepare: ({ number, behaviorId, values }) => preparedWrite(number, behaviorId, values),
+                send: async writes => {
+                    sent.push(writes);
+                    return [];
+                },
+            },
+            "peer1",
+        );
+        const receiver = { settleAccepted: async () => ({ release: async () => {} }) };
+        participant.set(preparedWrite(EndpointNumber(1), "6", { "0": true }), receiver, 0);
 
-        expect(() => participant.set(EndpointNumber(1), "6", { "0": false }, receiver, 0)).throws(InternalError);
+        participant.rollback();
+        await participant.commit1();
+
+        expect(sent).deep.equals([]);
+    });
+
+    it("refuses a second write of the same cluster in one commit", () => {
+        const participant = new RemoteWriteParticipant(sendingWriter([]), "peer1");
+        const receiver = { settleAccepted: async () => ({ release: async () => {} }) };
+        participant.set(preparedWrite(EndpointNumber(1), "6", { "0": true }), receiver, 0);
+
+        expect(() => participant.set(preparedWrite(EndpointNumber(1), "6", { "0": false }), receiver, 0)).throws(
+            InternalError,
+        );
     });
 
     it("logs a value it failed to settle and still fails a declined write", async () => {
         const participant = new RemoteWriteParticipant(
-            async () =>
-                withStatuses([
-                    {
-                        kind: "attr-status",
-                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), attributeId: AttributeId(0) },
-                        status: Status.Success,
-                    },
-                    {
-                        kind: "attr-status",
-                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(8), attributeId: AttributeId(0) },
-                        status: Status.ConstraintError,
-                    },
-                ]),
+            sendingWriter([
+                {
+                    kind: "attr-status",
+                    path: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), attributeId: AttributeId(0) },
+                    status: Status.Success,
+                },
+                {
+                    kind: "attr-status",
+                    path: { endpointId: EndpointNumber(1), clusterId: ClusterId(8), attributeId: AttributeId(0) },
+                    status: Status.ConstraintError,
+                },
+            ]),
             "peer1",
         );
         const settled = new Array<Val.Struct>();
         participant.set(
-            EndpointNumber(1),
-            "6",
-            { "0": true },
+            preparedWrite(EndpointNumber(1), "6", { "0": true }),
             {
-                currentValues: undefined,
                 settleAccepted: async () => {
                     throw new Error("settle failure");
                 },
@@ -401,11 +435,8 @@ describe("settlement errors", () => {
             0,
         );
         participant.set(
-            EndpointNumber(1),
-            "8",
-            { "0": 1 },
+            preparedWrite(EndpointNumber(1), "8", { "0": 1 }),
             {
-                currentValues: undefined,
                 settleAccepted: async values => {
                     settled.push(values);
                     return { release: async () => {} };
@@ -429,22 +460,18 @@ describe("settlement errors", () => {
 
     it("logs an accepted value it failed to persist and still succeeds", async () => {
         const participant = new RemoteWriteParticipant(
-            async () =>
-                withStatuses([
-                    {
-                        kind: "attr-status",
-                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), attributeId: AttributeId(0) },
-                        status: Status.Success,
-                    },
-                ]),
+            sendingWriter([
+                {
+                    kind: "attr-status",
+                    path: { endpointId: EndpointNumber(1), clusterId: ClusterId(6), attributeId: AttributeId(0) },
+                    status: Status.Success,
+                },
+            ]),
             "peer1",
         );
         participant.set(
-            EndpointNumber(1),
-            "6",
-            { "0": true },
+            preparedWrite(EndpointNumber(1), "6", { "0": true }),
             {
-                currentValues: undefined,
                 settleAccepted: async () => ({
                     release: async () => {},
                     persistFailure: new Error("persist failure"),
@@ -456,6 +483,89 @@ describe("settlement errors", () => {
         const warnings = await captureWarningsOf(() => participant.commit1());
 
         expect(warnings.map(({ text }) => text).join("\n")).contains("persist failure");
+    });
+});
+
+describe("remote write preparation", () => {
+    class PreparedState {
+        foo?: number;
+    }
+
+    const supervisor = RootSupervisor.for(
+        new ClusterModel({
+            id: 0xfff1_fc98,
+            name: "Prepared",
+            children: [AttributeElement({ id: 1, name: "Foo", type: "uint8", access: "RW" })],
+        }),
+    );
+
+    /**
+     * The mirror of one cluster of a peer, whose writer refuses with {@link refusal} if given and records what it
+     * sends.
+     */
+    function mirrorOf(name: string, refusal?: Error) {
+        const sent = new Array<RemoteWriter.PreparedWrite[]>();
+        const writer: RemoteWriter = {
+            prepare: ({ number, behaviorId, values }) => {
+                if (refusal !== undefined) {
+                    throw refusal;
+                }
+                return preparedWrite(number, behaviorId, values);
+            },
+            send: async writes => {
+                sent.push(writes);
+                return [];
+            },
+        };
+        const datasource = Datasource({
+            entropy: MockCrypto(),
+            type: PreparedState,
+            supervisor,
+            location: { endpoint: EndpointNumber(1), path: new DataModelPath(name) },
+            primaryKey: "id",
+            store: new DatasourceCache({ writer, nodeId: name, endpointNumber: EndpointNumber(1), behaviorId: "1" }),
+        });
+        return { name, sent, datasource };
+    }
+
+    for (const refusedFirst of [false, true]) {
+        const order = refusedFirst ? "first" : "last";
+
+        it(`sends nothing to any peer when one refuses, with the refusing peer ${order}`, async () => {
+            const refusal = new WriteError({ path: "refused" }, "refused by the peer's writer", Status.ConstraintError);
+            const accepting = mirrorOf("accepting");
+            const refusing = mirrorOf("refusing", refusal);
+
+            let caught: unknown;
+            try {
+                await LocalActorContext.act("two peers", context => {
+                    for (const { datasource } of refusedFirst ? [refusing, accepting] : [accepting, refusing]) {
+                        datasource.reference(context).foo = 1;
+                    }
+                });
+            } catch (e) {
+                caught = e;
+            }
+
+            expect(caught).equals(refusal);
+            expect(accepting.sent).deep.equals([]);
+            expect(refusing.sent).deep.equals([]);
+        });
+    }
+
+    it("sends to every peer when none refuses", async () => {
+        const mirrors = [mirrorOf("first"), mirrorOf("second")];
+
+        await LocalActorContext.act("two peers", context => {
+            for (const { datasource } of mirrors) {
+                datasource.reference(context).foo = 1;
+            }
+        });
+
+        expect(mirrors.map(({ sent }) => sent)).deep.equals([
+            [[{ number: 1, behaviorId: "1", values: { 1: 1 }, attributes: [], declined: [] }]],
+            [[{ number: 1, behaviorId: "1", values: { 1: 1 }, attributes: [], declined: [] }]],
+        ]);
     });
 });
 

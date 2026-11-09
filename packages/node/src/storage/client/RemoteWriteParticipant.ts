@@ -42,36 +42,27 @@ export class RemoteWriteParticipant implements Transaction.Participant {
     #releases = new Array<() => Promise<void>>();
 
     /**
-     * There is one participant for each transaction/writer pair.  We use the writer function itself as the dedup key.
+     * There is one participant for each transaction/writer pair.  We use the writer itself as the dedup key.
      */
     get role() {
         return this.#writer;
     }
 
     /**
-     * Add an attribute update to the write request.
+     * Add the write of one cluster to the write request.
      *
+     * @param write the write {@link RemoteWriter.prepare} prepared
      * @param receiver settles the values the peer accepts
      * @param epoch the receiver's epoch when this write is queued, so it can tell a value the peer settled afterwards
      * from one that predates the write
      */
-    set(
-        endpointNumber: EndpointNumber,
-        behaviorId: string,
-        values: Val.Struct,
-        receiver: RemoteWriteParticipant.Receiver,
-        epoch: number,
-    ) {
-        const key = writeKey(endpointNumber, behaviorId);
+    set(write: RemoteWriter.PreparedWrite, receiver: RemoteWriteParticipant.Receiver, epoch: number) {
+        const key = writeKey(write.number, write.behaviorId);
         if (this.#pending.has(key)) {
             throw new InternalError(`${this} received a second write for ${key} in one commit`);
         }
 
-        this.#pending.set(key, {
-            receiver,
-            epoch,
-            update: { number: endpointNumber, behaviorId, values, cached: undefined },
-        });
+        this.#pending.set(key, { receiver, epoch, write });
     }
 
     async commit1() {
@@ -82,11 +73,7 @@ export class RemoteWriteParticipant implements Transaction.Participant {
         const pending = this.#pending;
         this.#pending = new Map();
 
-        const request = [...pending.values()].map(({ update, receiver }) => {
-            update.cached = receiver.currentValues;
-            return update;
-        });
-        const { statuses, ownEntries } = await this.#writer(request);
+        const statuses = await this.#writer.send([...pending.values()].map(({ write }) => write));
 
         const failedByCluster = new Map<string, Set<string>>();
         for (const { status, path } of statuses) {
@@ -102,15 +89,11 @@ export class RemoteWriteParticipant implements Transaction.Participant {
             ids.add(String(path.attributeId));
         }
 
-        for (const [key, { receiver, update, epoch }] of pending) {
+        for (const [key, { receiver, write, epoch }] of pending) {
             const failed = failedByCluster.get(key);
-            const accepted = Object.fromEntries(Object.entries(update.values).filter(([id]) => !failed?.has(id)));
+            const accepted = Object.fromEntries(Object.entries(write.values).filter(([id]) => !failed?.has(id)));
             try {
-                const { release, persistFailure } = await receiver.settleAccepted(
-                    accepted,
-                    epoch,
-                    ownEntries.get(update),
-                );
+                const { release, persistFailure } = await receiver.settleAccepted(accepted, epoch, write.cacheMerges);
                 this.#releases.push(release);
                 if (persistFailure !== undefined) {
                     logger.warn(
@@ -163,19 +146,18 @@ export namespace RemoteWriteParticipant {
      */
     export interface Receiver {
         /**
-         * The cached values of the cluster.
-         */
-        readonly currentValues: Val.Struct | undefined;
-
-        /**
          * Settle {@link values}, except for an attribute the peer settled after {@link epoch}: what the device
          * reported while the write was in flight outranks the write.  The values apply in memory even when persisting
          * them fails.
          *
-         * For a fabric-scoped list in {@link ownEntries} the device replaced only our entries.  The cached entries of
-         * other fabrics stay as they are when this settles, and our cached entries become those sent.
+         * @param cacheMerges per attribute, the value to cache from the value cached when this settles; see
+         * {@link RemoteWriter.PreparedWrite.cacheMerges}
          */
-        settleAccepted(values: Val.Struct, epoch: number, ownEntries?: RemoteWriter.OwnEntries): Promise<Settled>;
+        settleAccepted(
+            values: Val.Struct,
+            epoch: number,
+            cacheMerges?: RemoteWriter.PreparedWrite["cacheMerges"],
+        ): Promise<Settled>;
     }
 
     /**
@@ -203,6 +185,6 @@ export namespace RemoteWriteParticipant {
     export interface PendingWrite {
         receiver: Receiver;
         epoch: number;
-        update: RemoteWriter.EndpointUpdateRequest;
+        write: RemoteWriter.PreparedWrite;
     }
 }
