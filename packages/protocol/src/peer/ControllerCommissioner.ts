@@ -470,23 +470,20 @@ export class ControllerCommissioner {
         const unsecuredBleClose =
             paseChannel instanceof BleChannel ? this.#closeOnBleLoss(unsecuredSession, paseChannel) : undefined;
 
+        let paseSession: NodeSession;
+        let paseBleClose: (() => Promise<void> | undefined) | undefined;
         try {
-            const paseSession = await this.#paseClient.pair(
+            paseSession = await this.#paseClient.pair(
                 this.#context.sessions.sessionParameters,
                 paseExchange,
                 paseChannel,
                 passcode,
                 { abort: signal, suppressPeerLoss, onPbkdfParamResponse },
             );
-            await unsecuredSession.detachChannel()?.release();
             if (paseChannel instanceof BleChannel) {
-                const paseBleClose = this.#closeOnBleLoss(paseSession, paseChannel);
-                if (paseChannel.isClosed) {
-                    await paseBleClose();
-                    throw new BleChannelClosedError(`BLE transport closed while PASE completed on ${paseSession.via}`);
-                }
+                paseBleClose = this.#closeOnBleLoss(paseSession, paseChannel);
             }
-            return paseSession;
+            await unsecuredSession.detachChannel()?.release();
         } catch (e) {
             // Close the exchange and rethrow
             if (causedBy(e, ChannelStatusResponseError)) {
@@ -501,6 +498,14 @@ export class ControllerCommissioner {
                 cause: new CommissioningTransitionError("PASE session has transitioned to CASE"),
             });
         }
+
+        // Keep after the last await: a session the BLE watch closed must not win the candidate race
+        const bleClosing = paseBleClose?.();
+        if (bleClosing !== undefined) {
+            await bleClosing;
+            throw new BleChannelClosedError(`BLE transport closed while PASE completed on ${paseSession.via}`);
+        }
+        return paseSession;
     }
 
     /**
