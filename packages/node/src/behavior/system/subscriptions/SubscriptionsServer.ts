@@ -26,12 +26,12 @@ import {
     PeerAddressSet,
     PeerSet,
     Subscription,
-    SubscriptionId,
     TransientPeerCommunicationError,
 } from "@matter/protocol";
 import { Status, StatusResponseError } from "@matter/types";
 import { Behavior } from "../../Behavior.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
+import { SubscriptionStore } from "./SubscriptionStore.js";
 const logger = Logger.get("SubscriptionsBehavior");
 
 /** Timeout in seconds to wait for responses or discovery of the peer node when trying to re-establish a subscription. */
@@ -52,7 +52,7 @@ export class SubscriptionsServer extends Behavior {
 
     override initialize() {
         const sessions = this.agent.get(SessionsBehavior);
-        this.reactTo(sessions.events.subscriptionAdded, this.#addSubscription, { lock: true });
+        this.reactTo(sessions.events.subscriptionAdded, this.#addSubscription);
     }
 
     static override readonly schema = new DatatypeModel(
@@ -131,7 +131,7 @@ export class SubscriptionsServer extends Behavior {
         ),
     );
 
-    #addSubscription(subscription: Subscription) {
+    #addSubscription(subscription: Subscription): MaybePromise {
         if (this.state.persistenceEnabled === false || !(subscription instanceof ServerSubscription)) return;
 
         const {
@@ -144,11 +144,10 @@ export class SubscriptionsServer extends Behavior {
             minIntervalFloor,
         } = subscription;
         const { peerAddress } = session;
-        const { fabricIndex, nodeId } = peerAddress;
 
         const peerSubscription: PeerSubscription = {
             subscriptionId: id,
-            peerAddress: { fabricIndex, nodeId },
+            peerAddress,
             maxIntervalCeiling,
             minIntervalFloor,
             attributeRequests,
@@ -159,23 +158,32 @@ export class SubscriptionsServer extends Behavior {
         };
         this.reactTo(subscription.cancelled, this.#subscriptionCancelled);
 
-        const existingIndex = this.state.subscriptions.findIndex(({ subscriptionId }) => id === subscriptionId);
-        if (existingIndex !== -1) {
-            // Should normally never happen
-            this.state.subscriptions[existingIndex] = peerSubscription;
-            return;
-        }
-        this.state.subscriptions.push(peerSubscription);
+        const recorded = this.internal.subscriptions.get(peerAddress) ?? [];
+        return this.#record(peerAddress, [
+            ...recorded.filter(({ subscriptionId }) => subscriptionId !== id),
+            peerSubscription,
+        ]);
     }
 
     #subscriptionCancelled(subscription: Subscription): MaybePromise {
-        if (subscription.isTerminated && this.state.persistenceEnabled !== false) {
-            return this.#removeSubscription(subscription.subscriptionId);
+        if (
+            !subscription.isTerminated ||
+            this.state.persistenceEnabled === false ||
+            !(subscription instanceof ServerSubscription)
+        ) {
+            return;
         }
-    }
 
-    async #removeSubscription(id: SubscriptionId) {
-        await this.#updateStored(subscriptions => subscriptions.filter(({ subscriptionId }) => subscriptionId !== id));
+        const { peerAddress } = subscription.session;
+        const recorded = this.internal.subscriptions.get(peerAddress);
+        if (recorded === undefined) {
+            return;
+        }
+        const { subscriptionId: id } = subscription;
+        return this.#record(
+            peerAddress,
+            recorded.filter(({ subscriptionId }) => subscriptionId !== id),
+        );
     }
 
     /**
@@ -187,18 +195,21 @@ export class SubscriptionsServer extends Behavior {
         const orderOf = ({ subscriptionId }: PeerSubscription) =>
             formerIndex.get(subscriptionId) ?? formerSubscriptions.length;
 
-        await this.#updateStored(subscriptions => [...subscriptions].sort((a, b) => orderOf(a) - orderOf(b)));
+        for (const [peerAddress, recorded] of this.internal.subscriptions) {
+            const ordered = [...recorded].sort((a, b) => orderOf(a) - orderOf(b));
+            if (ordered.some((subscription, index) => subscription !== recorded[index])) {
+                await this.#record(peerAddress, ordered);
+            }
+        }
     }
 
-    /**
-     * Change the stored subscriptions outside a locked reactor.  The list is read only under the lock, because adds
-     * and removals of other subscriptions commit while this waits for it.
-     */
-    async #updateStored(update: (subscriptions: readonly PeerSubscription[]) => PeerSubscription[]) {
-        await this.context.transaction.addResources(this);
-        await this.context.transaction.begin();
-        this.state.subscriptions = update(this.state.subscriptions);
-        await this.context.transaction.commit();
+    #record(peerAddress: PeerAddress, subscriptions: PeerSubscription[]) {
+        if (subscriptions.length) {
+            this.internal.subscriptions.set(peerAddress, subscriptions);
+        } else {
+            this.internal.subscriptions.delete(peerAddress);
+        }
+        return this.env.get(SubscriptionStore).save(peerAddress, subscriptions);
     }
 
     /**
@@ -209,9 +220,33 @@ export class SubscriptionsServer extends Behavior {
      *
      * @internal
      */
-    beginRun() {
-        this.internal.formerSubscriptions = deepCopy(this.state.subscriptions);
-        this.state.subscriptions = [];
+    async beginRun() {
+        this.internal.subscriptions.clear();
+
+        const store = this.env.get(SubscriptionStore);
+        this.internal.formerSubscriptions =
+            this.state.persistenceEnabled === false ? [] : await this.#formerSubscriptionsOf(store);
+        await store.clear();
+
+        if (this.state.subscriptions.length) {
+            this.state.subscriptions = [];
+        }
+    }
+
+    /**
+     * The stored subscriptions, plus those of peers the store has none for from {@link SubscriptionsServer.State.subscriptions}, where
+     * versions before {@link SubscriptionStore} kept them.
+     */
+    async #formerSubscriptionsOf(store: SubscriptionStore) {
+        const stored = await store.load();
+        if (!this.state.subscriptions.length) {
+            return stored;
+        }
+        const storedPeers = new PeerAddressSet(stored.map(({ peerAddress }) => peerAddress));
+        const legacy = deepCopy(this.state.subscriptions)
+            .map(subscription => ({ ...subscription, peerAddress: PeerAddress(subscription.peerAddress) }))
+            .filter(({ peerAddress }) => !storedPeers.has(peerAddress));
+        return [...stored, ...legacy];
     }
 
     async reestablishFormerSubscriptions() {
@@ -239,7 +274,7 @@ export class SubscriptionsServer extends Behavior {
         // Group subscriptions by peer address for parallel processing
         const subscriptionsByPeer = new PeerAddressMap<PeerSubscription[]>();
         for (const subscription of formerSubscriptions) {
-            const peerAddress = PeerAddress(subscription.peerAddress);
+            const { peerAddress } = subscription;
             const existing = subscriptionsByPeer.get(peerAddress);
             if (existing !== undefined) {
                 existing.push(subscription);
@@ -347,13 +382,18 @@ export namespace SubscriptionsServer {
         persistenceEnabled = true;
 
         /**
-         * List of subscriptions. This list is collected automatically.
-         * The state value should not be initialized by the developer.
+         * Subscriptions as versions before {@link SubscriptionStore} stored them.  {@link SubscriptionsServer.beginRun}
+         * takes them over and sets the list to empty.
+         *
+         * @deprecated Not written anymore.  Will be removed in a future version.
          */
         subscriptions: PeerSubscription[] = [];
     }
 
     export class Internal {
+        /** Subscriptions recorded in this run of the node, in creation order per peer. */
+        subscriptions = new PeerAddressMap<PeerSubscription[]>();
+
         /**
          * Subscriptions that were established on the former device run.  {@link SubscriptionsServer.beginRun} sets
          * them from the recorded subscriptions and they are then used to re-establish the subscriptions.

@@ -203,8 +203,9 @@ export type CommissioningControllerNodeOptions = {
     readonly stateInformationCallback?: (nodeId: NodeId, state: NodeStateInformation) => void;
 
     /**
-     * Optional Case Authenticated Tags (CATs) to be used when establishing CASE sessions with the node.
-     * These tags provide additional authentication context for the operational session.
+     * Optional Case Authenticated Tags (CATs) intended for CASE sessions with the node.
+     * Stored, but not applied yet. Sessions present the CATs of this node's own NOC in the fabric
+     * (`ControllerBehavior.caseAuthenticatedTags`). The CATs of the peer come from its NOC.
      */
     readonly caseAuthenticatedTags?: CaseAuthenticatedTag[];
 };
