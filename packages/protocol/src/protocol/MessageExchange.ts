@@ -129,6 +129,13 @@ export interface ExchangeSendOptions {
      */
     ackWaitAbort?: AbortSignal;
 
+    /**
+     * Invoked once, when the first transmission of the message went out and before the wait for its ack starts.  Not
+     * invoked when the first transmission fails or is aborted, and not for standalone acks or retransmissions.  A
+     * callback that throws fails the send.
+     */
+    onTransmitted?: () => void;
+
     /** Number of MRP transmissions, the first one included (default: MRP.MAX_TRANSMISSIONS) */
     maxRetransmissions?: number;
 
@@ -674,6 +681,7 @@ export class MessageExchange {
             ackWaitAbort,
             expectedProcessingTime = MRP.DEFAULT_EXPECTED_PROCESSING_TIME,
             logContext = {},
+            onTransmitted,
         } = this.#sendOptions;
 
         using abort = new Abort(this.#sendOptions);
@@ -809,6 +817,7 @@ export class MessageExchange {
             await abort.attempt(
                 this.channel.send(message, { exchange: this, logContext, addressOverride: this.#addressOverride }),
             );
+            onTransmitted?.();
         }
         if (waiting.aborted) {
             this.#endAckWait();

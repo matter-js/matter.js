@@ -32,6 +32,7 @@ import {
     Logger,
     MatterFlowError,
     Mutex,
+    Observable,
     Time,
     Timer,
     UnexpectedDataError,
@@ -66,6 +67,13 @@ export class NodeSession extends SecureSession {
     readonly #rolloverClose = new Mutex(this);
     #isPeerLost = false;
     #closingForShutdown = false;
+    #isEstablishing: boolean;
+    readonly #established = Observable<[]>(error =>
+        logger.warn(this.via, "Error in an observer of session establishment:", error),
+    );
+    readonly #superseded = Observable<[newer: NodeSession]>(error =>
+        logger.warn(this.via, "Error in an observer of session supersession:", error),
+    );
 
     // TODO - remove this; subscriptions should be owned by the peer, not the session
     readonly #subscriptions = new BasicSet<Subscription>();
@@ -112,6 +120,7 @@ export class NodeSession extends SecureSession {
             caseAuthenticatedTags,
             isInitiator,
             delayManagerRegistration,
+            establishing,
             suppressPeerLoss = false,
             reportedSessionParameters,
         } = config;
@@ -136,6 +145,7 @@ export class NodeSession extends SecureSession {
         this.#caseAuthenticatedTags = caseAuthenticatedTags ?? [];
         this.#reportedParameters = SessionParameters.reported(reportedSessionParameters);
         this.#isInitiator = isInitiator;
+        this.#isEstablishing = establishing === true;
 
         if (this.maxTcpMessageSize !== undefined && this.#reportedParameters?.maxTcpMessageSize === 0) {
             logger.info(
@@ -151,7 +161,7 @@ export class NodeSession extends SecureSession {
         );
 
         if (!delayManagerRegistration) {
-            manager?.sessions.add(this);
+            manager?.registeredSessions.add(this);
         }
         fabric?.addSession(this);
     }
@@ -194,6 +204,67 @@ export class NodeSession extends SecureSession {
 
     get isInitiator() {
         return this.#isInitiator;
+    }
+
+    /**
+     * Whether the handshake of this session still has to complete.  Only a CASE responder creates a session in this
+     * state.  A resumed session is established once the peer's SigmaFinished arrives, a new one once our SigmaFinished
+     * went out for the first time.
+     *
+     * | State        | Entered by                                         | `SessionManager.sessions` | Eviction             | Supersession             |
+     * | ------------ | -------------------------------------------------- | ------------------------- | -------------------- | ------------------------ |
+     * | establishing | creation with `establishing: true`                 | absent                    | not counted          | neither side             |
+     * | established  | creation without it, {@link completeEstablishment} | present                   | counted, evictable   | supersedes, superseded   |
+     *
+     * Closing ({@link isClosing}) is a flag on top of both states.  A closing session is skipped by `maybeSessionFor`,
+     * is never superseded and is not evicted again.  A closing established session still counts for eviction, a
+     * closing establishing session does not.  Eviction counts only sessions the peer initiated (we are the responder).
+     *
+     * The session is in `SessionManager.registeredSessions` and receives messages in every state until it is closed.
+     * Unlike the CHIP SDK, which drops messages on a session before it is established, we process them: our
+     * controller starts interactions right after it sent SigmaFinished, before the device acknowledged it.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.14.2.3.13
+     */
+    get isEstablishing() {
+        return this.#isEstablishing;
+    }
+
+    /**
+     * Mark the handshake as complete and emit {@link established}, which also adds the session to
+     * `SessionManager.sessions`.  Observers see {@link isEstablishing} as false.  An observer that throws is logged, and
+     * the other observers still run, so a caller inside a send is not interrupted.
+     *
+     * @returns true if the session is established, also when it already was and is closing now; false if it is
+     * closing and therefore stays establishing
+     */
+    completeEstablishment() {
+        if (!this.#isEstablishing) {
+            return true;
+        }
+        if (this.isClosing) {
+            return false;
+        }
+        this.#isEstablishing = false;
+        this.#established.emit();
+        return true;
+    }
+
+    /** Emits once, when {@link completeEstablishment} marks the session established. */
+    get established() {
+        return this.#established;
+    }
+
+    /**
+     * Emits when {@link newer}, an established CASE session with the same peer and equal CASE Authenticated Tags,
+     * replaces this session for the peer's subscriptions.  The role of either session does not matter.  Each
+     * subscription on this session then continues on {@link newer}, and the session itself stays open.
+     *
+     * The move matches `SecureSessionTable::NewerSessionAvailable` of the CHIP SDK.  A peer that sets up a new session
+     * may drop its older ones without telling us, so reports on an older session may never arrive.
+     */
+    get superseded() {
+        return this.#superseded;
     }
 
     subjectFor(_message?: Message): Subject {
@@ -429,7 +500,7 @@ export class NodeSession extends SecureSession {
         this.#fabric?.deleteSession(this);
         await super.close();
 
-        this.manager?.sessions.delete(this);
+        this.manager?.registeredSessions.delete(this);
     }
 
     /**
@@ -497,6 +568,9 @@ export namespace NodeSession {
 
         /** @see {@link NodeSession.suppressPeerLoss} */
         suppressPeerLoss?: boolean;
+
+        /** Create the session in the establishing state, see {@link NodeSession.isEstablishing}. */
+        establishing?: true;
 
         /** @see {@link NodeSession.reportedParameters} */
         reportedSessionParameters?: SessionParameters.Config;
