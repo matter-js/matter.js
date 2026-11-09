@@ -127,25 +127,19 @@ export class CommissioningClient extends Behavior {
      * Older versions stored a peer's session parameters under `sessionParameters`: the full effective set once a
      * session existed, otherwise only the DNS-SD intervals.  The first becomes the reported set, the second the
      * advertised intervals.  Values already under the new keys win.
+     *
+     * Stored discovery TTLs are dropped, so the default TTL applies.  Versions before 0.16.11 stored TTLs inflated by
+     * powers of 1000 or `null`, which fail validation or keep an address from expiring.  Current discovery stores no
+     * TTL.
      */
     static override migrate(values: Val.Struct) {
         super.migrate(values);
 
-        // Versions 0.15.4 to 0.16.10 multiplied the stored discovery TTL by 1000 on each round trip through
-        // storage, so older storage holds TTLs of years up to Infinity, which JSON persists as `null`.  A null TTL,
-        // or an inflated one on an address, fails validation and the peer cannot load at all; an inflated TTL on the
-        // state loads but never expires.  Drop a TTL that is null or out of range.  Without one the default TTL
-        // applies, as for peers stored by later versions, which do not persist a TTL.  A null timestamp gets the
-        // value initialize() would assign
-        dropInvalidTtl(values);
-        if (values.discoveredAt === null) {
-            values.discoveredAt = Time.nowMs;
-        }
+        delete values.ttl;
         if (Array.isArray(values.addresses)) {
             for (const address of values.addresses) {
                 if (isObject(address)) {
-                    dropInvalidTtl(address);
-                    dropNull(address, "discoveredAt");
+                    delete address.ttl;
                 }
             }
         }
@@ -961,7 +955,7 @@ export namespace CommissioningClient {
             if (address.peripheralAddress !== undefined) {
                 this.peripheralAddress = address.peripheralAddress;
             }
-            if (address.ttl !== undefined && address.ttl !== null) {
+            if (address.ttl !== undefined) {
                 this.ttl = address.ttl;
             }
             if (address.discoveredAt !== undefined) {
@@ -1047,7 +1041,7 @@ export namespace CommissioningClient {
         fabricIndexOnPeer?: FabricIndex;
 
         /**
-         * The TTL of the discovery record if applicable (in seconds).
+         * The TTL of the discovery record if applicable.
          */
         @field(duration, nonvolatile)
         ttl?: Duration;
@@ -1393,34 +1387,5 @@ export namespace CommissioningClient {
         }
 
         return opts;
-    }
-}
-
-/**
- * The largest TTL we keep, in milliseconds.  A stored address TTL is a uint32, so anything above fails validation, and
- * no mDNS record lives anywhere near 49 days.
- */
-const MAX_TTL_MS = 0xffff_ffff;
-
-function dropInvalidTtl(values: Record<string, unknown>) {
-    const { ttl } = values;
-    if (ttl === null) {
-        delete values.ttl;
-        return;
-    }
-    if (typeof ttl !== "number" && typeof ttl !== "bigint") {
-        return;
-    }
-    const ms = Number(ttl);
-    if (!Number.isFinite(ms) || ms < 0 || ms > MAX_TTL_MS) {
-        delete values.ttl;
-    }
-}
-
-function dropNull(values: Record<string, unknown>, ...keys: string[]) {
-    for (const key of keys) {
-        if (values[key] === null) {
-            delete values[key];
-        }
     }
 }

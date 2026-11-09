@@ -164,11 +164,6 @@ export class Peers extends EndpointContainer<ClientNode> {
     async #nodeOnline() {
         if (this.owner.stateOf(NetworkServer).autoStartCommissionedPeers) {
             for (const peer of this) {
-                // A peer that failed to load reports why when it loaded; reading its state here would throw and stop
-                // the peers after it from starting
-                if (peer.construction.status === Lifecycle.Status.Crashed) {
-                    continue;
-                }
                 if (!peer.lifecycle.isCommissioned || peer.maybeStateOf("network")?.isDisabled) {
                     continue;
                 }
@@ -418,8 +413,9 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     /**
-     * Look up a peer by numeric/string id or {@link PeerAddress}. A {@link PeerAddress} matches the commissioned
-     * peer whose {@link CommissioningClient} peer address equals it; otherwise the container's id lookup is used.
+     * Look up a peer by numeric/string id or {@link PeerAddress}. A {@link PeerAddress} matches the peer whose
+     * {@link ClientNode.peerAddress} equals it, also a peer that failed to load; otherwise the container's id lookup is
+     * used.
      *
      * Look up by {@link PeerAddress} for anything held while a peer is commissioned: a local id may be reissued to a
      * different device once the peer it named is gone, so the same string can resolve to a peer that never saw the
@@ -431,8 +427,6 @@ export class Peers extends EndpointContainer<ClientNode> {
         if (typeof id !== "string" && typeof id !== "number") {
             const address = PeerAddress(id);
             for (const node of this) {
-                // ClientNode.peerAddress falls back to storage when the node's state is unavailable, so a peer that
-                // failed to load still answers for its own address and cannot hide the peers after it
                 const nodeAddress = node.peerAddress;
                 if (nodeAddress !== undefined && PeerAddress.is(nodeAddress, address)) {
                     return node;

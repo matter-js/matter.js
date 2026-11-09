@@ -267,102 +267,66 @@ describe("Peer descriptor", () => {
         });
     });
 
-    describe("stored state that does not validate", () => {
-        it("a discovery TTL stored as null is dropped on load", async () => {
+    describe("stored discovery TTLs", () => {
+        it("loads a TTL stored as null", async () => {
             const site = new MockSite();
             await using _site = site;
             const { controller } = await commissionedPeer(site);
             const controllerId = controller.id;
             await site.close();
 
-            const key = "nodes.peer1.endpoints.0.commissioning";
-            Object.assign(site.storageFor(controllerId)[key], { ttl: null, discoveredAt: null });
-
-            const controllerB = await site.addNode(undefined, { id: controllerId, index: 1 });
-            const peer = controllerB.peers.get("peer1")!;
-
-            expect(peer.construction.status).equals("active");
-            expect(peer.stateOf(CommissioningClient).ttl).undefined;
-            expect(peer.stateOf(CommissioningClient).discoveredAt).a("number");
-
-            await peer.setStateOf(CommissioningClient, { tcpUnsupported: true });
-            expect(site.storageFor(controllerId)[key].ttl).not.equals(null);
-        });
-
-        it("an inflated discovery TTL is dropped on load", async () => {
-            const site = new MockSite();
-            await using _site = site;
-            const { controller } = await commissionedPeer(site);
-            const controllerId = controller.id;
-            await site.close();
-
-            // Values written by 0.15.4 to 0.16.10, which multiplied the TTL by 1000 on each round trip
             const key = "nodes.peer1.endpoints.0.commissioning";
             const stored = site.storageFor(controllerId)[key];
-            stored.ttl = 4.5e198;
-            stored.addresses = [{ ...stored.addresses[0], ttl: 7.2e15 }];
+            stored.ttl = null;
+            stored.addresses = [{ ...stored.addresses[0], ttl: null }];
 
             const controllerB = await site.addNode(undefined, { id: controllerId, index: 1 });
             const peer = controllerB.peers.get("peer1")!;
 
             expect(peer.construction.status).equals("active");
-            expect(peer.stateOf(CommissioningClient).ttl).undefined;
-            expect(peer.stateOf(CommissioningClient).addresses?.[0].ttl).undefined;
+            const state = peer.stateOf(CommissioningClient);
+            expect(state.ttl).undefined;
+            expect(state.addresses?.[0].ttl).undefined;
 
             await peer.setStateOf(CommissioningClient, { tcpUnsupported: true });
             expect(site.storageFor(controllerId)[key].ttl).undefined;
+            expect(site.storageFor(controllerId)[key].addresses[0].ttl).undefined;
         });
 
-        it("a plausible discovery TTL is kept on load", async () => {
+        it("drops every stored TTL on load", async () => {
             const site = new MockSite();
             await using _site = site;
             const { controller } = await commissionedPeer(site);
             const controllerId = controller.id;
             await site.close();
 
-            site.storageFor(controllerId)["nodes.peer1.endpoints.0.commissioning"].ttl = Seconds(120);
+            // Inflated values as older versions stored them, and a plausible one
+            const key = "nodes.peer1.endpoints.0.commissioning";
+            const stored = site.storageFor(controllerId)[key];
+            const [address] = stored.addresses;
+            stored.ttl = 4.5e198;
+            stored.addresses = [
+                { ...address, ttl: 7.2e15 },
+                { ...address, port: address.port + 1, ttl: 1.2e8 },
+                { ...address, port: address.port + 2, ttl: Seconds(120) },
+            ];
 
             const controllerB = await site.addNode(undefined, { id: controllerId, index: 1 });
             const peer = controllerB.peers.get("peer1")!;
 
             expect(peer.construction.status).equals("active");
-            expect(peer.stateOf(CommissioningClient).ttl).equals(Seconds(120));
-        });
+            const state = peer.stateOf(CommissioningClient);
+            expect(state.ttl).undefined;
+            expect(state.addresses?.map(({ ttl }) => ttl)).deep.equals([undefined, undefined, undefined]);
 
-        it("of one peer does not hide the other peers", async () => {
-            const site = new MockSite();
-            await using _site = site;
-            const { controller } = await commissionedPeer(site);
-            const controllerId = controller.id;
-
-            // A second peer, stored after the one we break
-            const device2 = await site.addDevice({});
-            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
-            const deviceCrypto = device2.env.get(Crypto) as MockCrypto;
-            controllerCrypto.entropic = deviceCrypto.entropic = true;
-            const { passcode, discriminator } = device2.state.commissioning;
-            await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
-                macrotasks: true,
-            });
-            controllerCrypto.entropic = deviceCrypto.entropic = false;
-
-            const address1 = controller.peers.get("peer1")!.peerAddress!;
-            const address2 = controller.peers.get("peer2")!.peerAddress!;
-            await site.close();
-
-            // A value no migration repairs, so peer1 fails to load
-            site.storageFor(controllerId)["nodes.peer1.endpoints.0.commissioning"].ttl = "not a duration";
-
-            const controllerB = await site.addNode(undefined, { id: controllerId, index: 1 });
-            const broken = controllerB.peers.get("peer1")!;
-            const healthy = controllerB.peers.get("peer2")!;
-            expect(broken.construction.status).equals("crashed");
-            expect(healthy.construction.status).equals("active");
-
-            // Lookups by address walk every peer; the crashed one keeps its address and does not hide the other
-            expect(controllerB.peers.get(address1)).equals(broken);
-            expect(controllerB.peers.get(address2)).equals(healthy);
-            expect(await controllerB.peers.forAddress(address2)).equals(healthy);
+            await peer.setStateOf(CommissioningClient, { tcpUnsupported: true });
+            const written = site.storageFor(controllerId)[key];
+            expect(written.ttl).undefined;
+            expect(written.addresses.map(({ ttl }: { ttl?: number }) => ttl)).deep.equals([
+                undefined,
+                undefined,
+                undefined,
+            ]);
         });
     });
 

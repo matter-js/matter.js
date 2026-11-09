@@ -875,12 +875,7 @@ export class MatterController {
                 }
             }
 
-            const commissioning = RemoteDescriptor.toLongForm({
-                // Fallback discoveredAt in case discoveryData doesn't have one
-                discoveredAt: Time.nowMs,
-                ...discoveryData,
-                addresses: operationalAddress ? [operationalAddress] : [],
-            });
+            const commissioning = RemoteDescriptor.legacyRecordToLongForm(discoveryData, operationalAddress);
             logger.debug(
                 `Initialize node store for migrated node ${peerAddress.toString()}`,
                 Diagnostic.dict({ maxEventNumber, ...commissioning }),

@@ -38,8 +38,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `SessionsBehavior` events `opened` and `closed` no longer fire for a session whose handshake fails
     - Fix: `TimeFormatLocalizationServer` `detectedHourFormat` and `detectedCalendarType` have their enum types instead of `string`, so an override can return any value of the enum
     - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
-    - Fix: (@cmatte) A peer whose stored discovery TTL is null or out of range loads again; stored TTLs are dropped on load and the default TTL applies until the next discovery
-    - Fix: (@cmatte) A peer that fails to load no longer makes address lookups and the automatic start of the other peers fail
+    - Enhancement: `RemoteDescriptor.legacyRecordToLongForm()` converts a peer record of the legacy controller storage
+    - Fix: (@cmatte) A peer whose stored discovery TTL is invalid loads again
+    - Fix: (@cmatte) A peer that fails to load no longer makes address lookups of the other peers fail
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
     - Fix: A local write that removes the last GroupKeyMap entry of a fabric also clears the fabric's operational group key map
@@ -72,6 +73,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `VendorIdVerification.verifyData` returns false for a VVSC that breaks its certificate profile instead of throwing
 
 - @matter/nodejs-shell
+    - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
 
 - @matter/protocol
@@ -141,6 +143,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
+
+- @project-chip/matter.js
+    - Fix: Migrating a legacy controller's peers no longer fails on a stored discovery TTL that is invalid
 
 ## 0.18.0 (2026-10-20)
 
