@@ -305,8 +305,16 @@ export namespace OperationalCertificateUpdate {
             try {
                 completion = await completeUpdate(context, address, installed, failsafeArm, { abort });
             } catch (error) {
-                logger.info(`Could not complete the operational certificate update of ${address}:`, error);
-                completion = { kind: "unknown" };
+                completion = {
+                    kind: "unknown",
+                    cause:
+                        cause === undefined
+                            ? error
+                            : new MatterAggregateError(
+                                  [cause, error],
+                                  `Recovering the operational certificate update of ${address} failed after an earlier step failed`,
+                              ),
+                };
             }
         }
 

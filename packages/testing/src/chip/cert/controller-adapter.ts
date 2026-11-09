@@ -1118,8 +1118,10 @@ export interface CertNodeApi {
      *
      * Over CASE, the controller arms the fail-safe, sends CSRRequest with IsForUpdateNOC set, issues a NOC for the
      * returned CSR, sends UpdateNOC, opens a new CASE session and sends CommissioningComplete. Resolves once
-     * CommissioningComplete answered with success. Rejects where any of these steps fails; the node then returns to
-     * its previous certificate when the fail-safe ends, which the controller tries to cause at once.
+     * CommissioningComplete answered with success, or once a later read shows that a CommissioningComplete whose answer
+     * was lost took effect. Rejects where any of these steps fails. A rejection does not prove that the node holds its
+     * previous certificate: another operation of the same fabric may have committed the new one, or the outcome may be
+     * unknown.
      *
      * Present where the controller can issue a certificate for a node it commissioned; a step that needs it declares
      * `noc-update` (see {@link ControllerCapability}).

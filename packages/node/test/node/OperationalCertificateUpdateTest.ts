@@ -144,6 +144,14 @@ function expectCauseFabricIndexReported(failure: OperationalCertificateUpdateErr
     expect(cause.fabricIndexOnPeer).equals(FabricIndex(deviceFabric(device).fabricIndex));
 }
 
+/** The messages of {@link error} and, for an aggregate, of every error it holds. */
+function messagesOf(error: unknown): string[] {
+    if (error instanceof MatterAggregateError) {
+        return error.errors.flatMap(messagesOf);
+    }
+    return [error instanceof Error ? error.message : String(error)];
+}
+
 /** Memory storage that fails every write of {@link failing}.index as `fabricIndexOnPeer`. */
 class FabricIndexFailingStorage extends MemoryStorageDriver {
     constructor(
@@ -740,12 +748,11 @@ describe("OperationalCertificateUpdate", () => {
             restoreDevice();
         }
 
-        expect(caught).instanceOf(OperationalCertificateUpdateError);
-        const { cause } = caught as OperationalCertificateUpdateError;
-        expect(cause).instanceOf(MatterAggregateError);
-        expect((cause as MatterAggregateError).errors.map(error => (error as Error).message).join("\n")).contains(
-            "ValueOutsideRange",
-        );
+        if (!(caught instanceof OperationalCertificateUpdateError)) {
+            expect.fail(`Expected an OperationalCertificateUpdateError, got ${caught}`);
+        }
+        expect(caught.cause).instanceOf(MatterAggregateError);
+        expect(messagesOf(caught.cause).join("\n")).contains("ValueOutsideRange");
     });
 
     it("keeps the new NOC when CommissioningComplete took effect but its answer is lost", async () => {
@@ -1085,6 +1092,13 @@ describe("OperationalCertificateUpdate", () => {
         expect(failure.message).match(/outcome is unknown/);
         expect(failure.fabricIndexOnPeer).equals(fabricIndex);
         expect(peer.stateOf(CommissioningClient).fabricIndexOnPeer).equals(fabricIndex);
+
+        // Both the lost UpdateNOC answer and the failed recovery
+        const { cause } = failure;
+        if (!(cause instanceof MatterAggregateError)) {
+            expect.fail(`Expected a MatterAggregateError as cause, got ${cause}`);
+        }
+        expect(cause.errors).length(2);
     });
 
     it("reports the CurrentFabricIndex when another operation completed the fail-safe of a refused NOCResponse", async () => {
