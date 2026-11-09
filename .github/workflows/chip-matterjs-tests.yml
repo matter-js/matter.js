@@ -103,6 +103,10 @@ jobs:
       - name: Chip-Apps execution with matter.js controller
         id: test-execution-matterjs-chip
         shell: bash
+        env:
+          # The TSAN builds of the CHIP apps allocate in their stop signal handler, which TSAN reports and turns into
+          # exit code 66 on every app restart
+          TSAN_OPTIONS: report_signal_unsafe=0
         run: |
           sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0
           sudo sysctl -w net.ipv4.conf.all.forwarding=1

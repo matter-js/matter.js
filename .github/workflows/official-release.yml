@@ -22,7 +22,8 @@ on:
 jobs:
   publish-config:
     if: github.repository == 'matter-js/matter.js'
-    runs-on: ubuntu-latest
+    # CHIP's test runner and Pigweed bootstrap do not work on ubuntu-26.04 (Python 3.14) yet
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Maximize build space
@@ -33,6 +34,8 @@ jobs:
           remove-dotnet: 'true'
           remove-android: 'true'
           remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
 
       - name: Checkout code
         uses: actions/checkout@v7
