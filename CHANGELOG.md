@@ -73,6 +73,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: GeneralDiagnostics test commands compare the EnableKey in constant time and never accept a key that is not 16 bytes, and the node refuses to start with a non-zero `deviceTestEnableKey` of another length
     - Fix: `VendorIdVerification.verifyData` returns false for a VVSC that breaks its certificate profile instead of throwing
 
+- @matter/nodejs
+    - Fix: (@delu999) SQLite storage accepts overlapping transactions instead of failing with "Transaction is in progress", so concurrent node state writes are no longer lost
+
 - @matter/nodejs-shell
     - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
@@ -141,6 +144,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: DER certificate parsing reads VendorID and ProductID from the first commonName that carries a VendorID or ProductID, within its first 64 bytes, as the CHIP SDK does
     - Fix: Encoding a subject or issuer built in code keeps a VendorID or ProductID that differs from the one in its commonName
     - Fix: (@quasistatic-setup) Commissioning over BLE ends PASE as soon as the BLE connection closes, instead of waiting up to 35 seconds for a reply the device can no longer send, and continues with the device's other addresses
+    - Fix: A PASE session over BLE, also one returned by `ControllerCommissioner.establishPase()`, closes at once when the BLE connection closes, also when it closed while PASE completed
+    - Fix: A BLE connection that cannot be opened during commissioning no longer cancels the device's other addresses
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once

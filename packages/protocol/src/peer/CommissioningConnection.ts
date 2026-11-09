@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BleDisconnectedError } from "#ble/Ble.js";
+import { BleError } from "#ble/Ble.js";
 import { CommissionableDevice } from "#common/Scanner.js";
 import { CommissioningError, PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
 import { NodeSession } from "#session/NodeSession.js";
@@ -177,13 +177,7 @@ export async function CommissioningConnection(
                         );
                         lastNonRetryableError = asErr;
                     } else if (
-                        causedBy(
-                            asErr,
-                            NoResponseTimeoutError,
-                            TransientPeerCommunicationError,
-                            NetworkError,
-                            BleDisconnectedError,
-                        )
+                        causedBy(asErr, NoResponseTimeoutError, TransientPeerCommunicationError, NetworkError, BleError)
                     ) {
                         lastError = asErr;
                         logger.warn(
