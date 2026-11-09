@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BleChannelClosedError } from "#ble/Ble.js";
+import { BleChannelClosedError, BleError } from "#ble/Ble.js";
 import { CommissionableDevice } from "#common/Scanner.js";
 import { CommissioningConnection } from "#peer/CommissioningConnection.js";
 import { PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
@@ -557,37 +557,42 @@ describe("CommissioningConnection", () => {
             expect(result.discoveryData.deviceIdentifier).equals("a");
         });
 
-        it("keeps trying the other addresses when the BLE connection closes during PASE", async () => {
-            const order = new Array<string>();
-            const winnerGate = deferred<void>();
-            const ble: ServerAddressBle = { type: "ble", peripheralAddress: "00:11:22:33:44:55" };
+        for (const { failure, error } of [
+            { failure: "the BLE connection closes during PASE", error: new BleChannelClosedError("BLE closed") },
+            { failure: "the BLE connection cannot be opened", error: new BleError("Timeout while connecting") },
+        ]) {
+            it(`keeps trying the other addresses when ${failure}`, async () => {
+                const order = new Array<string>();
+                const winnerGate = deferred<void>();
+                const ble: ServerAddressBle = { type: "ble", peripheralAddress: "00:11:22:33:44:55" };
 
-            const p = CommissioningConnection({
-                devices: [{ ...device("a", [udp("fd00::1")]), addresses: [ble, udp("fd00::1")] }],
-                timeout: Seconds(60),
-                delayBeforeNextAddress: Seconds(5),
-                establishSession: async (address, _discoveryData, { signal }) => {
-                    if (ServerAddress.isBle(address)) {
-                        order.push("ble");
-                        throw new BleChannelClosedError("BLE transport closed during PASE");
-                    }
-                    order.push("udp");
-                    await new Promise<void>((resolve, reject) => {
-                        void winnerGate.promise.then(resolve);
-                        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
-                    });
-                    return {} as any;
-                },
+                const p = CommissioningConnection({
+                    devices: [{ ...device("a", [udp("fd00::1")]), addresses: [ble, udp("fd00::1")] }],
+                    timeout: Seconds(60),
+                    delayBeforeNextAddress: Seconds(5),
+                    establishSession: async (address, _discoveryData, { signal }) => {
+                        if (ServerAddress.isBle(address)) {
+                            order.push("ble");
+                            throw error;
+                        }
+                        order.push("udp");
+                        await new Promise<void>((resolve, reject) => {
+                            void winnerGate.promise.then(resolve);
+                            signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+                        });
+                        return {} as any;
+                    },
+                });
+
+                await MockTime.yield3();
+                await MockTime.yield3();
+                expect(order).deep.equals(["ble", "udp"]);
+
+                winnerGate.resolve();
+                const result = await p;
+                expect(result.discoveryData.deviceIdentifier).equals("a");
             });
-
-            await MockTime.yield3();
-            await MockTime.yield3();
-            expect(order).deep.equals(["ble", "udp"]);
-
-            winnerGate.resolve();
-            const result = await p;
-            expect(result.discoveryData.deviceIdentifier).equals("a");
-        });
+        }
 
         it("gives a third address an attempt within the default 30s timeout", async () => {
             const order = new Array<string>();

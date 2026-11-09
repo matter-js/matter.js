@@ -22,6 +22,7 @@ import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js"
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { PaseClient } from "#session/pase/PaseClient.js";
+import { Session } from "#session/Session.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import {
@@ -466,21 +467,11 @@ export class ControllerCommissioner {
             SECURE_CHANNEL_PROTOCOL_ID,
         );
 
-        // PaseClient otherwise waits out its response timeout for a reply a closed BTP transport cannot deliver
-        let bleClose: Promise<void> | undefined;
-        const onBleClosed = () => {
-            bleClose = unsecuredSession
-                .initiateForceClose({
-                    cause: new BleChannelClosedError(`BLE transport closed during PASE on ${unsecuredSession.via}`),
-                })
-                .catch(error => logger.warn("Error while force-closing PASE session on BLE close", error));
-        };
-        if (paseChannel instanceof BleChannel) {
-            paseChannel.closed.once(onBleClosed);
-        }
+        const unsecuredBleClose =
+            paseChannel instanceof BleChannel ? this.#closeOnBleLoss(unsecuredSession, paseChannel) : undefined;
 
         try {
-            const caseSession = await this.#paseClient.pair(
+            const paseSession = await this.#paseClient.pair(
                 this.#context.sessions.sessionParameters,
                 paseExchange,
                 paseChannel,
@@ -488,7 +479,14 @@ export class ControllerCommissioner {
                 { abort: signal, suppressPeerLoss, onPbkdfParamResponse },
             );
             await unsecuredSession.detachChannel()?.release();
-            return caseSession;
+            if (paseChannel instanceof BleChannel) {
+                const paseBleClose = this.#closeOnBleLoss(paseSession, paseChannel);
+                if (paseChannel.isClosed) {
+                    await paseBleClose();
+                    throw new BleChannelClosedError(`BLE transport closed while PASE completed on ${paseSession.via}`);
+                }
+            }
+            return paseSession;
         } catch (e) {
             // Close the exchange and rethrow
             if (causedBy(e, ChannelStatusResponseError)) {
@@ -498,14 +496,48 @@ export class ControllerCommissioner {
             }
             throw e;
         } finally {
-            if (paseChannel instanceof BleChannel) {
-                paseChannel.closed.off(onBleClosed);
-            }
-            await bleClose;
+            await unsecuredBleClose?.();
             await unsecuredSession.initiateForceClose({
                 cause: new CommissioningTransitionError("PASE session has transitioned to CASE"),
             });
         }
+    }
+
+    /**
+     * Force-closes `session` with a {@link BleChannelClosedError} once `channel` closes, so its pending exchanges reject
+     * at once instead of waiting out PASE response or MRP timeouts.  A channel that already closed closes the session
+     * immediately.  The watch ends when the session starts closing.
+     *
+     * {@link ControllerCommissioningFlow} treats the resulting `BleDisconnectedError` as a commissioning-channel
+     * drop, so a non-concurrent device that leaves BLE after ConnectNetwork continues over its operational network.
+     *
+     * @returns a function returning the force-close a channel loss started, or `undefined`; that promise never rejects
+     */
+    #closeOnBleLoss(session: Session, channel: BleChannel) {
+        let forceClose: Promise<void> | undefined;
+        const stopWatching = () => {
+            channel.closed.off(onChannelClosed);
+            session.closing.off(onSessionClosing);
+        };
+        const onSessionClosing = (closing: boolean) => {
+            if (closing) {
+                stopWatching();
+            }
+        };
+        const onChannelClosed = () => {
+            stopWatching();
+            forceClose = session
+                .initiateForceClose({ cause: new BleChannelClosedError(`BLE transport closed on ${session.via}`) })
+                .catch(error => logger.warn(session.via, "Error while force-closing PASE session on BLE close", error));
+        };
+
+        if (channel.isClosed) {
+            onChannelClosed();
+        } else {
+            channel.closed.on(onChannelClosed);
+            session.closing.on(onSessionClosing);
+        }
+        return () => forceClose;
     }
 
     /** Validate if a Peer Address is already known and commissioned */
@@ -650,22 +682,6 @@ export class ControllerCommissioner {
         const address = this.#determineAddress(fabric, commissioningOptions.nodeId);
         logger.info(`Start commissioning of node ${address.toString()} into fabric ${fabric.fabricId}`);
         const exchangeProvider = new DedicatedChannelExchangeProvider(this.#context.exchanges, ephemeralSession);
-
-        // BLE-only: BTP MRP retrans blocks pending invokes for ~45s when a non-concurrent device
-        // drops BLE after connectNetwork.  Force-close on BLE-lost so the awaited invoke rejects
-        // immediately and the commissioning flow can flip to the non-concurrent CASE path.
-        if (!ephemeralSession.isClosed) {
-            const paseChannel = ephemeralSession.channel.transportChannel;
-            if (paseChannel instanceof BleChannel) {
-                paseChannel.closed.once(() => {
-                    ephemeralSession
-                        .initiateForceClose({
-                            cause: new BleChannelClosedError(`BLE transport closed on ${ephemeralSession.via}`),
-                        })
-                        .catch(error => logger.warn("Error while force-closing PASE session on BLE close", error));
-                });
-            }
-        }
 
         await using commissioner = new commissioningFlowImpl(
             new ClientInteraction({
