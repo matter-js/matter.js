@@ -403,7 +403,7 @@ export class ControllerCommissioner {
                 options.retryFailureAsPeerCommunication !== undefined &&
                 causedBy(error, PairRetransmissionLimitReachedError)
             ) {
-                throw new PeerCommunicationError(options.retryFailureAsPeerCommunication);
+                throw new PeerCommunicationError(options.retryFailureAsPeerCommunication, { cause: error });
             }
             throw error;
         }
@@ -467,8 +467,9 @@ export class ControllerCommissioner {
         );
 
         // PaseClient otherwise waits out its response timeout for a reply a closed BTP transport cannot deliver
+        let bleClose: Promise<void> | undefined;
         const onBleClosed = () => {
-            unsecuredSession
+            bleClose = unsecuredSession
                 .initiateForceClose({
                     cause: new BleChannelClosedError(`BLE transport closed during PASE on ${unsecuredSession.via}`),
                 })
@@ -500,6 +501,7 @@ export class ControllerCommissioner {
             if (paseChannel instanceof BleChannel) {
                 paseChannel.closed.off(onBleClosed);
             }
+            await bleClose;
             await unsecuredSession.initiateForceClose({
                 cause: new CommissioningTransitionError("PASE session has transitioned to CASE"),
             });

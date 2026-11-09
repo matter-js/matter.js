@@ -9,11 +9,15 @@ import { Bytes, causedBy, ChannelType, Seconds, Time, Transport, TransportSet } 
 import { MockSite } from "@matter/node/testing";
 import { BleChannel, BleChannelClosedError, ControllerCommissioner, FabricAuthority } from "@matter/protocol";
 
-/** A peripheral that accepts the first PASE message, never answers and then loses the link. */
+/**
+ * A peripheral that accepts the first PASE message, never answers and then loses the link.  Releasing the link takes
+ * one second.
+ */
 class SilentBleChannel extends BleChannel<Bytes> {
     readonly name = "ble://silent";
     lostAt?: number;
     closedAt?: number;
+    released = false;
 
     async send() {
         if (this.lostAt === undefined) {
@@ -25,6 +29,8 @@ class SilentBleChannel extends BleChannel<Bytes> {
     async close() {
         this.closedAt ??= Time.nowMs;
         this.emitClosed();
+        await Time.sleep("BLE release", Seconds(1));
+        this.released = true;
     }
 
     onClose(): Transport.Listener {
@@ -41,7 +47,7 @@ describe("PASE over BLE", () => {
         MockTime.init();
     });
 
-    it("ends the PASE session as soon as its BLE channel closes", async () => {
+    it("ends the PASE session as soon as its BLE channel closes and fails after the channel is released", async () => {
         await using site = new MockSite();
         const controller = await site.addController();
         await controller.start();
@@ -50,6 +56,7 @@ describe("PASE over BLE", () => {
         const fabric = await controller.env.get(FabricAuthority).defaultFabric(fabricConfig);
 
         const channel = new SilentBleChannel();
+        let releasedAtFailure: boolean | undefined;
         controller.env.get(TransportSet).add({
             onData: () => ({ close: async () => {} }),
             close: async () => {},
@@ -68,12 +75,16 @@ describe("PASE over BLE", () => {
                 })
                 .then(
                     () => undefined,
-                    error => error,
+                    error => {
+                        releasedAtFailure = channel.released;
+                        return error;
+                    },
                 ),
             { macrotasks: true },
         );
 
         expect(causedBy(error, BleChannelClosedError)).true;
         expect(channel.closedAt! - channel.lostAt!).lessThan(Seconds(5));
+        expect(releasedAtFailure).true;
     });
 });
