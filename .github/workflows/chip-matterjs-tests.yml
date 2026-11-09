@@ -68,6 +68,7 @@ jobs:
         with:
           rebuild-chip-tool: "false"
           build-matter-js: "false"
+          python-venv: "false"
 
   matterjs-all-chip-apps:
     needs: [prepare-chip-build]
@@ -81,17 +82,7 @@ jobs:
         uses: ./.github/actions/prepare-chip-testing
         with:
           rebuild-chip-tool: 'false'
-
-      - name: Patch Test runner interface-id
-        uses: actions/github-script@v9
-        with:
-          result-encoding: string
-          script: |
-            const fs = require("fs");
-            let file= fs.readFileSync("./connectedhomeip/scripts/tests/chiptest/linux.py", "utf8");
-            // Patch the test runner to execute controller and app on same network interface
-            file = file.replaceAll("'ip netns exec tool'", "'ip netns exec app'");
-            fs.writeFileSync("./connectedhomeip/scripts/tests/chiptest/linux.py", file);
+          python-venv: "false"
 
       - name: Patch Matter Yaml Files and PICS values
         shell: bash
@@ -103,10 +94,6 @@ jobs:
       - name: Chip-Apps execution with matter.js controller
         id: test-execution-matterjs-chip
         shell: bash
-        env:
-          # The TSAN builds of the CHIP apps allocate in their stop signal handler, which TSAN reports and turns into
-          # exit code 66 on every app restart
-          TSAN_OPTIONS: report_signal_unsafe=0
         run: |
           sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0
           sudo sysctl -w net.ipv4.conf.all.forwarding=1
