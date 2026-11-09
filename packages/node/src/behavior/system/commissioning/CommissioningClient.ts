@@ -983,7 +983,10 @@ export namespace CommissioningClient {
         peerAddress?: PeerAddress;
 
         /**
-         * Case Authenticated Tags (CATs)
+         * Case Authenticated Tags (CATs) intended for sessions with this node.
+         *
+         * Stored, but not applied yet. Sessions present the CATs of this node's own NOC in the fabric
+         * (`ControllerBehavior.caseAuthenticatedTags`). The CATs of the peer come from its NOC.
          *
          * See {@link PeerDescriptor}
          */
@@ -1244,7 +1247,10 @@ export namespace CommissioningClient {
         autoStateInitialize?: boolean;
 
         /**
-         * Case Authenticated Tags (CATs)
+         * Case Authenticated Tags (CATs) intended for sessions with this node.
+         *
+         * Stored, but not applied yet. Sessions present the CATs of this node's own NOC in the fabric
+         * (`ControllerBehavior.caseAuthenticatedTags`). The CATs of the peer come from its NOC.
          */
         caseAuthenticatedTags?: CaseAuthenticatedTag[];
 

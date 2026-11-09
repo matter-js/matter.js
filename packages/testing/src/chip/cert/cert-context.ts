@@ -346,6 +346,8 @@ export interface CertTestDefinition {
      * here; every other test keeps the transport its evidence and timing were written against.
      */
     transport?: ControllerTransport;
+    /** Whether the test's controllers judge device attestation (see `cert-dsl.ts`'s `CertTestOptions`). */
+    attestation?: boolean;
     /** Role name → controller kind (see `cert-dsl.ts`'s `CertTestOptions`). */
     controllers: Readonly<Record<string, ControllerRoleKind>>;
     /** What every step of this test needs of its controllers (see `cert-dsl.ts`'s `CertTestOptions`). */

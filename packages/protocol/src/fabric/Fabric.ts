@@ -411,12 +411,17 @@ export class Fabric {
         this.#sessions.delete(session);
     }
 
+    /**
+     * Whether an established session with {@link peerNodeId} exists in this fabric, closing sessions included.  A
+     * session whose handshake still runs does not count.
+     */
     hasSessionForPeer(peerNodeId: NodeId) {
         for (const session of this.#sessions) {
-            if (session.peerNodeId === peerNodeId) {
+            if (session.peerNodeId === peerNodeId && !session.isEstablishing) {
                 return true;
             }
         }
+        return false;
     }
 
     set persistCallback(callback: ((isUpdate?: boolean) => MaybePromise<void>) | undefined) {

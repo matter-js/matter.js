@@ -12,18 +12,135 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/general
+    - Feature: `Network.interfacesChanged` reports interface and address changes, checked every 60 seconds while observed
     - Enhancement: WAL storage logs at notice level when an open restores entries from its log and when it has saved the restored state, with the time each took
+    - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
     - Adjustment: Removed the unused WAL storage history API (`WalStorageDriver.snapshotAtTime()`/`snapshotAtCommit()`, the `headSnapshot` and `cleanInterval` options) and the `WalSnapshot` export
     - Fix: WAL storage deletes old log segments after each periodic snapshot instead of only on close, and restores from the previous snapshot when the current one is unreadable
     - Fix: WAL storage loads its data when it opens, so a write during the first reads after opening is no longer lost
     - Fix: WAL storage starts a new log segment on every open, so a write after a crash that cut off the last log line is no longer lost
     - Fix: WAL storage snapshots right after an open that replayed its log, and refuses to open when its log is incomplete instead of opening with partial data
+    - Fix: The Node.js implementation (`NodeJsStyleCrypto`) refuses AES-CCM nonces of 7 to 11 bytes, which Node.js accepted
+    - Fix: The Node.js implementation (`NodeJsStyleCrypto`) refuses AES-CCM AAD over 65535 bytes, which Node.js accepted
+    - Fix: Both crypto implementations throw `CryptoInputError` for AES-CCM input outside the limits in `CryptoConstants`, where the Node.js implementation threw `RangeError` or `TypeError`
+    - Fix: `StandardCrypto` encrypts and decrypts AES-CCM plaintext of 65521 to 65535 bytes, which Matter messages reach only with `network.tcp.maxMessageSize` raised above its 64000-byte default
+    - Fix: `StandardCrypto` computes the correct AES-CCM tag for AAD of 65280 bytes or more
+    - Fix: `X520.DomainComponent` encodes the domainComponent OID 0.9.2342.19200300.100.1.25 instead of the emailAddress OID with tag and length bytes in its content
 
 - @matter/node
-    - Fix: A peer whose stored discovery TTL is null loads again; the null is dropped when the stored state is read
-    - Fix: A peer that fails to load no longer makes address lookups and the automatic start of the other peers fail
+    - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
+    - Adjustment: The Thermostat `persistedPresets$Changing` and `persistedPresets$Changed` events type `value` and `oldValue` as `Thermostat.Preset[] | undefined`; `oldValue` is `undefined` when the presets are first stored
+    - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
+    - Adjustment: On behavior types derived with `.with()`, `.alter()` or `.enable()`, `LocalizationConfigurationServer.detectedLocale` is declared as a getter, and the extension methods of `GeneralDiagnosticsServer` and `AccessControlServer` as methods, so they can be overridden with `get` or a method that calls `super`; a property override of `detectedLocale` no longer compiles
+    - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is deprecated and stays empty; subscriptions stored there by an older version are taken over at start
+    - Adjustment: A ClientNode reads its root's PartsList as listing every endpoint, whatever device types the root reports
+    - Adjustment: `ServerSubscriptionContext.initiateExchange()` takes only a `Session`, no longer a `PeerAddress`
+    - Adjustment: `SessionsBehavior` events `opened` and `closed` no longer fire for a session whose handshake fails
+    - Fix: `TimeFormatLocalizationServer` `detectedHourFormat` and `detectedCalendarType` have their enum types instead of `string`, so an override can return any value of the enum
+    - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
+    - Fix: (@cmatte) A peer whose stored discovery TTL is null or out of range loads again; stored TTLs are dropped on load and the default TTL applies until the next discovery
+    - Fix: (@cmatte) A peer that fails to load no longer makes address lookups and the automatic start of the other peers fail
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
+    - Fix: A local write that removes the last GroupKeyMap entry of a fabric also clears the fabric's operational group key map
+    - Fix: Groupcast testing reports NoAvailableKey to the fabric under test when only an unmapped key set of another fabric authenticated a group message, instead of reporting nothing
+    - Fix: Groupcast testing derives DestinationIpAddress from the fabric that owns the group id and the groups the node joins
+    - Fix: A group that Groupcast JoinGroup creates has no GroupName in the GroupKeyManagement GroupTable, instead of an empty name
+    - Fix: A list or struct assigned to state is stored as a copy, so a later nested write no longer changes the value it came from
+    - Fix: Removing an entry from a fabric-filtered list emits the change and is undone by a rollback
+    - Fix: `sort()`, `reverse()`, `unshift()` and `splice()` on a state list no longer duplicate entries or throw when they move them, and `shift()` and `pop()` return the removed entry
+    - Fix: Array methods that change a state list apply all of their change or none of it, hand removed entries and `sort()` comparator arguments out as read-only views, and a later nested write to an entry they moved is rolled back with the transaction
+    - Fix: Iterating a fabric-filtered state list yields managed entries, so a change to an entry is tracked and rolled back
+    - Fix: A state list write that would leave a gap, an `undefined` entry, an invalid length or an index above 65535 throws `WriteError`
+    - Fix: Deleting from a fabric-filtered state list, or setting the length of any state list, requires write access
+    - Fix: A ClientNode whose root endpoint reports an empty DeviceTypeList installs its other endpoints, gets seeded and logs one warning per node each time it starts
+    - Fix: Thermostat accepts a preset write that sends an existing built-in preset with a null `BuiltIn`
+    - Fix: A held proxy for a state list entry expires when its transaction moves, removes or replaces that entry, also by assigning the whole list, instead of serving the entry now at its index
+    - Fix: The property descriptors of a state list's entries and length carry the managed entry and the visible length instead of the raw stored values
+    - Fix: Thermostat rejects clearing `persistedPresets` after initialization with an `ImplementationError` instead of failing with a `TypeError`
+    - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
+    - Fix: AdministratorCommissioning OpenCommissioningWindow answers INVALID_COMMAND to a discriminator above 4095 instead of CONSTRAINT_ERROR
+    - Fix: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow answer PAKEParameterError on a session without fabric, as CHIP does, instead of UNSUPPORTED_ACCESS
+    - Fix: A subscription moves to each newer CASE session of its subscriber
+    - Fix: A subscription sends its reports on its own session instead of the most recently active session with its subscriber
+    - Fix: A subscription whose SubscribeResponse cannot be sent is closed
+    - Fix: Corrects extension typing of `registerHardwareFault()`, `registerRadioFault()` and `registerNetworkFault()` of a GeneralDiagnostics server
+    - Fix: GeneralDiagnostics registering a fault that is already active no longer emits a fault change event
+    - Fix: GeneralDiagnostics TimeSnapshot `SystemTimeMs` counts from when the node came online, like `UpTime`, instead of from the host boot
+    - Fix: GeneralDiagnostics `TestEventTriggersEnabled` is true exactly when a non-zero `deviceTestEnableKey` is configured, and PayloadTestRequest accepts that key without also setting the attribute
+    - Fix: GeneralDiagnostics test commands compare the EnableKey in constant time and never accept a key that is not 16 bytes, and the node refuses to start with a non-zero `deviceTestEnableKey` of another length
+    - Fix: `VendorIdVerification.verifyData` returns false for a VVSC that breaks its certificate profile instead of throwing
+
+- @matter/nodejs-shell
+    - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
+
+- @matter/protocol
+    - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
+    - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
+    - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
+    - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
+    - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec` and `ExchangeManager`
+    - Enhancement: `SessionManager` stores each CASE resumption record under its own key with the new `PeerAddressStore` instead of rewriting all records on every change; after a downgrade each peer establishes a new session once
+    - Enhancement: `NodeSession` has an establishing state, see `isEstablishing`, `completeEstablishment()` and `established`
+    - Enhancement: `NodeSession.superseded` emits the newer CASE session with the same peer and CASE Authenticated Tags
+    - Enhancement: `SessionManager.registeredSessions` holds every session that receives messages, including those whose handshake still runs
+    - Enhancement: `ExchangeSendOptions.onTransmitted` runs once the first transmission of a message went out
+    - Enhancement: `SecureChannelMessenger.sendSuccess()` takes an optional `onTransmitted` callback
+    - Adjustment: Peer loss and peer shutdown compare sessions by registration order instead of creation time; `PeerLossContext.asOf` is deprecated for `registeredBefore`
+    - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
+    - Adjustment: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
+    - Adjustment: `DclCertificateService.addCertificate()` refuses a CD signer certificate that is known to be untrusted because the CSA did not issue it
+    - Adjustment: DER certificate parsing requires the basic constraints extension when the required extensions list it
+    - Adjustment: Stored CASE resumption records carry a format version; records without a version that carry CATs and records of another version are deleted on load
+    - Adjustment: `SessionManager.sessions` is read-only and holds only established sessions
+    - Adjustment: `SecureSession` subclasses implement the new abstract `isEstablishing`
+    - Adjustment: `SessionManager.maybeSessionFor()` and `sessionFor()` skip a session whose handshake is still running
+    - Adjustment: A new CASE session we respond to is established once our SigmaFinished went out for the first time
+    - Adjustment: `Peer.sessions` holds only established sessions
+    - Adjustment: `Fabric.hasSessionForPeer()` counts only established sessions
+    - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
+    - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
+    - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
+    - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks
+    - Fix: A CASE responder closes a session whose resumption the peer does not confirm
+    - Fix: A CASE responder closes a new session whose SigmaFinished cannot be sent
+    - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept
+    - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
+    - Fix: A group message whose key set GroupKeyMap does not map to its destination group fails authentication instead of reaching access control
+    - Fix: A group message whose payload is too short, too long or does not parse fails every candidate key and is reported to Groupcast testing as FailedAuth or NoAvailableKey
+    - Fix: Groupcast testing reports a group message for which only another fabric had a candidate key as NoAvailableKey instead of FailedAuth
+    - Fix: Starting an exchange skips exchange ids that are still open on the session, instead of reusing one after the 16-bit counter wraps
+    - Fix: An exchange is identified by its session, so a message on another session with the same exchange id no longer reaches or replaces it, nor counts toward its session's exchange limit
+    - Fix: A privacy group message with message extensions is decoded with the extensions in the additional authenticated data, as specified in section 4.8.2, instead of refused
+    - Fix: The mDNS responder no longer sends a goodbye for host addresses or shared pointers that another of its services still publishes
+    - Fix: The mDNS responder answers a multicast pointer query with the pointer of every service of that type
+    - Fix: The mDNS responder multicasts an answer at most once per second and interface, and sends a held-back answer when the second has passed
+    - Fix: Advertisements that announce in the same event-loop turn share one mDNS announcement
+    - Fix: `MdnsServer.close()` still sends goodbyes that are already waiting
+    - Fix: The mDNS responder sends a failed goodbye again until it leaves or peers drop the records
+    - Fix: The mDNS responder sends a goodbye for every record a refresh removes or replaces, such as the vendor pointer when a commissioning window becomes privacy masked
+    - Fix: The mDNS responder announces a service in the same message as the goodbye for a record that one of its records replaces, such as after a host name change
+    - Fix: The mDNS responder follows interface address changes: it withdraws the addresses an interface lost and announces the current ones
+    - Fix: Device attestation refuses a Certification Declaration that breaks a rule of its CMS envelope, `format_version` or `certification_type`
+    - Fix: Device attestation refuses an official Certification Declaration signed by the Matter test CD signer
+    - Fix: Device attestation reports a Certification Declaration from the Matter test CD signer as `TrustedAsTestCertificate` when test certificates are not accepted
+    - Fix: A VVSC with is-ca false loads
+    - Fix: Operational certificate verification refuses a VVSC with is-ca true or a key usage other than digitalSignature
+    - Fix: Operational certificate verification refuses a VVSC, ICAC or RCAC key usage that sets a bit without a name
+    - Fix: Operational certificate verification refuses a NOC whose extended key usage lacks serverAuth
+    - Fix: Operational certificate verification counts each CASE Authenticated Tag as an RDN, so a DN with more than 5 RDNs is refused
+    - Fix: Matter-TLV operational certificates that repeat a single-valued Matter-specific DN attribute, or whose NOC, ICAC or RCAC subject has a matter-vvs-id, are refused with an error that names the attribute
+    - Fix: DER certificate parsing refuses Matter-specific DN values that are not exactly twice their octet length in uppercase hexadecimal, and a repeated single-valued Matter-specific DN attribute, with a `CertificateError` (`CertificateProfileError` for VendorID and ProductID)
+    - Fix: Device attestation reports a DAC or PAI with a malformed or repeated VendorID or ProductID as `DacFormatInvalid` or `PaiFormatInvalid`
+    - Fix: `matter-firmware-signing-id` in an operational certificate holds 64 bits instead of 32
+    - Fix: A NOC, ICAC or RCAC that repeats a standard DN attribute, such as organizationalUnitName, or has CASE Authenticated Tags between other DN attributes re-encodes in TLV and DER to the bytes its issuer signed
+    - Fix: DER certificate parsing reads domainComponent, and the first value of a repeated standard DN attribute instead of the last
+    - Fix: DER certificate parsing reads VendorID and ProductID from the first commonName that carries a VendorID or ProductID, within its first 64 bytes, as the CHIP SDK does
+    - Fix: Encoding a subject or issuer built in code keeps a VendorID or ProductID that differs from the one in its commonName
+    - Fix: (@quasistatic-setup) Commissioning over BLE ends PASE as soon as the BLE connection closes, instead of waiting up to 35 seconds for a reply the device can no longer send, and continues with the device's other addresses
+
+- @matter/types
+    - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
 
 ## 0.18.0 (2026-10-20)
 

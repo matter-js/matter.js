@@ -36,7 +36,7 @@ describe("Peers#instrumentBasicInformation", () => {
             structureEvents.emitCluster(peer1, BasicInformationClient);
             structureEvents.emitCluster(peer1, BasicInformationClient);
 
-            // startUp preserves the live session (asOf = its own createdAt), so unlike shutDown/leave the guards in
+            // startUp preserves the live session, so unlike shutDown/leave the guards in
             // #onStartUp do not self-invalidate after the first duplicate call, letting the accumulation surface.
             // Observable#emit chains async observers sequentially, awaiting each before invoking the next, so the
             // returned promise must be awaited to observe all of them.

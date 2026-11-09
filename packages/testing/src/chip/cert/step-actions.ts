@@ -91,6 +91,7 @@ const CONTROLLER: Classified<ControllerAdapter> = {
     commission: "action",
     parseQrPayload: "none",
     parseManualPairingCode: "none",
+    discoverCommissionableNodes: "none",
     node: { handle: NODE },
     group: { handle: GROUP },
     webRtcRequestor: { handle: WEB_RTC_REQUESTOR },

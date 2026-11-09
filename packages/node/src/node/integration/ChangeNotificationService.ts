@@ -273,17 +273,32 @@ export namespace ChangeNotificationService {
     }
 
     /**
-     * The wire timestamp variant {@link OccurrenceProperties.timestamp} carries. Matter Core §10.7 defines exactly
+     * The wire timestamp variant {@link OccurrenceProperties.timestamp} carries. Matter Core §10.6.9 defines exactly
      * four and an event sets exactly one: an absolute time against the Posix epoch or against device system (uptime)
-     * time, or, on either clock, a delta from the preceding event of the same priority. A consumer forwarding the
-     * occurrence must not guess which, as neither the clock nor absolute-vs-delta is recoverable from the value.
+     * time, or, on either clock, a delta from the prior event (§10.7.3.1). A consumer forwarding the occurrence must
+     * not guess which, as neither the clock nor absolute-vs-delta is recoverable from the value.
      */
     export type TimestampKind = "epoch" | "system" | "epoch-delta" | "system-delta";
 
     export interface OccurrenceProperties {
         number: EventNumber;
+
+        /**
+         * The timestamp as the peer sent it, or the local epoch time for an event of this node. For a delta
+         * {@link timestampKind} this is the delta; use {@link resolvedTimestamp} for the absolute time.
+         */
         timestamp: Timestamp;
+
         timestampKind: TimestampKind;
+
+        /**
+         * Absolute time of the occurrence in milliseconds, on the clock {@link timestampKind} names: Posix epoch for
+         * `"epoch"` and `"epoch-delta"`, device system time for `"system"` and `"system-delta"`. Undefined when the
+         * absolute time cannot be determined, see `ReadResult.EventValue.resolvedTimestamp` in
+         * `@matter/protocol`.
+         */
+        resolvedTimestamp?: number;
+
         priority: Priority;
         payload?: Val.Struct;
     }

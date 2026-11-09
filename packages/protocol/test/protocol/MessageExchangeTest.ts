@@ -38,6 +38,21 @@ function makeThrowingSession(config?: ProtocolMocks.NodeSession.Config): Protoco
 }
 
 /**
+ * Creates a NodeSession whose channel records each message it sends.  The channel is unreliable unless
+ * {@link isReliable} is set, so sends use MRP.
+ */
+function mrpSession(isReliable = false) {
+    const channel = new ProtocolMocks.NetworkChannel({ index: 1 });
+    channel.isReliable = isReliable;
+    const session = new ProtocolMocks.NodeSession({ channel });
+    const sent = new Array<Message>();
+    session.channel.send = async (message: Message) => {
+        sent.push(message);
+    };
+    return { session, sent };
+}
+
+/**
  * Creates a MessageExchange with a trackable peerLost spy.
  */
 function createExchange(session: ProtocolMocks.NodeSession, protocolId: number = SECURE_CHANNEL_PROTOCOL_ID) {
@@ -869,17 +884,6 @@ describe("MessageExchange", () => {
     describe("ackWaitAbort", () => {
         before(() => MockTime.enable());
 
-        function mrpSession() {
-            const channel = new ProtocolMocks.NetworkChannel({ index: 1 });
-            channel.isReliable = false;
-            const session = new ProtocolMocks.NodeSession({ channel });
-            const sent = new Array<Message>();
-            (session.channel as any).send = async (message: Message) => {
-                sent.push(message);
-            };
-            return { session, sent };
-        }
-
         it("transmits once despite an abort that already fired and does not wait for the ack", async () => {
             const { session, sent } = mrpSession();
             const { exchange } = createExchange(session);
@@ -967,6 +971,73 @@ describe("MessageExchange", () => {
             await expect(exchange.send(1, Bytes.empty, { abort: abort.signal })).rejectedWith(AbortedError);
 
             expect(sent.length).equals(0);
+        });
+    });
+
+    describe("onTransmitted", () => {
+        before(() => MockTime.enable());
+
+        it("runs once, after the first transmission and before the ack, not for retransmissions or acks", async () => {
+            const { session, sent } = mrpSession();
+            const { exchange } = createExchange(session);
+            const transmittedAt = new Array<number>();
+
+            const sending = exchange.send(1, Bytes.empty, { onTransmitted: () => transmittedAt.push(sent.length) });
+            for (let i = 0; i < 10 && !transmittedAt.length; i++) {
+                await MockTime.yield3();
+            }
+            expect(transmittedAt).deep.equals([1]);
+            expect(exchange.hasUnackedMessage).true;
+
+            await exchange.sendStandaloneAckForMessage(fakeInboundMessage({ messageId: 7, requiresAck: true }));
+            for (let i = 0; i < 20; i++) {
+                await MockTime.advance(Seconds(3));
+            }
+            await expect(sending).rejected;
+
+            expect(sent.filter(({ payloadHeader: { messageType } }) => messageType === 1).length).greaterThan(1);
+            expect(transmittedAt).deep.equals([1]);
+        });
+
+        it("runs on a reliable channel, which sends without MRP", async () => {
+            const { session, sent } = mrpSession(true);
+            const { exchange } = createExchange(session);
+            const transmittedAt = new Array<number>();
+
+            await exchange.send(1, Bytes.empty, { onTransmitted: () => transmittedAt.push(sent.length) });
+
+            expect(session.usesMrp).false;
+            expect(transmittedAt).deep.equals([1]);
+        });
+
+        it("runs when the ack wait was aborted before the send", async () => {
+            const { session, sent } = mrpSession();
+            const { exchange } = createExchange(session);
+            const abort = new AbortController();
+            abort.abort();
+            const transmittedAt = new Array<number>();
+
+            await exchange.send(1, Bytes.empty, {
+                ackWaitAbort: abort.signal,
+                onTransmitted: () => transmittedAt.push(sent.length),
+            });
+
+            expect(transmittedAt).deep.equals([1]);
+        });
+
+        it("does not run when the first transmission fails", async () => {
+            const { exchange } = createExchange(makeThrowingSession());
+            let transmitted = 0;
+
+            await expect(
+                exchange.send(1, Bytes.empty, {
+                    onTransmitted: () => {
+                        transmitted++;
+                    },
+                }),
+            ).rejectedWith(NetworkError);
+
+            expect(transmitted).equals(0);
         });
     });
 });

@@ -60,7 +60,7 @@ export const TvApp = App(TvTestInstance);
 export const RvcApp = App(RvcTestInstance);
 export const LitIcdApp = App(IcdTestInstance);
 
-// chip-test-header app names (after generate-test-descriptor normalization: strip ${...},
+// chip-test-header app names (in the harness form chipAppName() produces: strip ${...},
 // CHIP_/_APP affixes, lower-kebab-case) → factory. When a python test descriptor names an
 // app via chip header `app: ${FOO_APP}`, the framework dispatches to the matching factory.
 chip.subjectFor("all-clusters", AllClustersApp);

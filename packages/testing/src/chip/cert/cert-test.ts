@@ -770,7 +770,7 @@ function undeclaredRefusal(
     const declared =
         stepDef.controllerCapabilities?.includes(capability) ||
         definition.controllerCapabilities?.includes(capability) ||
-        capabilitiesFor({ transport: definition.transport }).includes(capability);
+        capabilitiesFor({ transport: definition.transport, attestation: definition.attestation }).includes(capability);
     const cause = declared
         ? `controller "${refusal.controller}" refused ${capability}, which its registration declares neither as a gap nor out of scope`
         : `the step needs ${capability} and neither it nor its test case declares it`;

@@ -4,24 +4,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, Duration, Millis, ObserverGroup, Timestamp } from "@matter/general";
+import { Diagnostic, Duration, Millis, ObserverGroup } from "@matter/general";
 import { ChangeNotificationService, ClientNode, ClusterBehavior, NodeConnectionState, ServerNode } from "@matter/node";
 import { Priority } from "@matter/types";
 
-function occurredAt(timestamp: Timestamp, kind: ChangeNotificationService.TimestampKind) {
-    switch (kind) {
-        case "epoch": {
-            // The wire type is a uint64 while Date spans ±8.64e15 ms, so a peer can report a time no date renders
-            const date = Timestamp.dateOf(timestamp);
-            return Number.isNaN(date.getTime()) ? `epoch + ${timestamp} ms` : date.toISOString();
-        }
+function occurredAt({ timestamp, timestampKind, resolvedTimestamp }: ChangeNotificationService.OccurrenceProperties) {
+    switch (timestampKind) {
+        case "epoch":
+            return resolvedTimestamp === undefined ? "no timestamp" : epochTime(resolvedTimestamp);
         case "system":
-            return `${Duration.format(Millis(timestamp))} device uptime`;
+            return resolvedTimestamp === undefined ? "no timestamp" : uptime(resolvedTimestamp);
         case "epoch-delta":
-            return `${Duration.format(Millis(timestamp))} after the previous event`;
+            return resolvedTimestamp === undefined
+                ? `${Duration.format(Millis(timestamp))} after the previous event`
+                : epochTime(resolvedTimestamp);
         case "system-delta":
-            return `${Duration.format(Millis(timestamp))} after the previous event, on the device clock`;
+            return resolvedTimestamp === undefined
+                ? `${Duration.format(Millis(timestamp))} after the previous event, on the device clock`
+                : uptime(resolvedTimestamp);
     }
+}
+
+function epochTime(ms: number) {
+    // The wire type is a uint64 while Date spans ±8.64e15 ms, so a peer can report a time no date renders
+    const date = new Date(ms);
+    return Number.isNaN(date.getTime()) ? `epoch + ${ms} ms` : date.toISOString();
+}
+
+function uptime(ms: number) {
+    return `${Duration.format(Millis(ms))} device uptime`;
 }
 
 /** The web UI matches the first word of these labels (shell/webassets/index.html). */
@@ -105,11 +116,11 @@ function logChange(change: ChangeNotificationService.Change) {
             break;
         }
         case "event": {
-            const { behavior, event, number, timestamp, timestampKind, priority, payload } = change;
+            const { behavior, event, number, priority, payload } = change;
             if (!ClusterBehavior.is(behavior)) {
                 break;
             }
-            const when = occurredAt(timestamp, timestampKind);
+            const when = occurredAt(change);
             console.log(
                 `Node ${nodeId}: Event ${nodeId}/${endpoint.number}/${behavior.cluster.id}/${event.propertyName} (#${number}, priority ${Priority[priority]}, at ${when}) triggered with ${Diagnostic.json(payload)}`,
             );

@@ -332,6 +332,72 @@ describe("MatterServerControllerAdapter", () => {
         });
     });
 
+    describe("commissionable discovery", () => {
+        /** One `CommissionableNodeData` entry as `#handleDiscoverCommissionableNodes` maps a discovered peer. */
+        function serverNode(overrides: Record<string, unknown> = {}) {
+            return {
+                instance_name: "5E6B9D0C1A2F3B4C",
+                host_name: "000000000000",
+                port: 5540,
+                long_discriminator: 3840,
+                vendor_id: 65521,
+                product_id: 32769,
+                commissioning_mode: 1,
+                device_type: 0,
+                device_name: "",
+                pairing_instruction: "",
+                pairing_hint: 33,
+                supports_tcp: false,
+                addresses: ["fe80::1"],
+                rotating_id: "",
+                ...overrides,
+            };
+        }
+
+        it("reports every node discover_commissionable_nodes answers, whatever the filter", async () => {
+            replies.discover_commissionable_nodes = {
+                result: [serverNode(), serverNode({ instance_name: "OTHER", long_discriminator: 1234 })],
+            };
+
+            expect(await adapter.discoverCommissionableNodes({ longDiscriminator: 3840 })).deep.equals([
+                {
+                    instanceName: "5E6B9D0C1A2F3B4C",
+                    longDiscriminator: 3840,
+                    vendorId: 65521,
+                    productId: 32769,
+                    commissioningMode: 1,
+                },
+                {
+                    instanceName: "OTHER",
+                    longDiscriminator: 1234,
+                    vendorId: 65521,
+                    productId: 32769,
+                    commissioningMode: 1,
+                },
+            ]);
+            expect(sent()).deep.equals([{ command: "discover_commissionable_nodes", args: {} }]);
+        });
+
+        it("reports a vendor and product the server sent as -1 as absent", async () => {
+            replies.discover_commissionable_nodes = { result: [serverNode({ vendor_id: -1, product_id: -1 })] };
+
+            const [discovered] = await adapter.discoverCommissionableNodes();
+            expect(discovered.vendorId).undefined;
+            expect(discovered.productId).undefined;
+        });
+
+        it("rejects an answer that is no list, or a node missing a field it relies on", async () => {
+            replies.discover_commissionable_nodes = { result: {} };
+            expect(await rejectionOf(adapter.discoverCommissionableNodes())).instanceOf(UnexpectedDataError);
+
+            replies.discover_commissionable_nodes = { result: [42] };
+            expect(await rejectionOf(adapter.discoverCommissionableNodes())).instanceOf(UnexpectedDataError);
+
+            replies.discover_commissionable_nodes = { result: [serverNode({ long_discriminator: undefined })] };
+            expect(await rejectionOf(adapter.discoverCommissionableNodes())).instanceOf(UnexpectedDataError);
+        });
+    });
+
     describe("onboarding payload parsing", () => {
         /** The `parse_onboarding_payload` result matterjs-server builds from the matter.js codec for `code`. */
         function serverParseOf(code: string): FakeServerReply {

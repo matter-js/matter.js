@@ -145,13 +145,15 @@ export class ClientStructure {
     #partsListOf = new Map<EndpointStructure, Set<EndpointNumber>>();
 
     /**
-     * How each endpoint composes its `PartsList`, for the endpoints that have said.
+     * How each endpoint composes its `PartsList`, for the endpoints that have said. Read it through
+     * {@link #compositionOf}, which does not use the root's entry.
      *
      * Absent means the endpoint has not reported its device types yet, which is not the same as
      * composing a tree: a list from an endpoint whose composition is unknown says nothing about who
      * owns what, so claims from it wait rather than being read as a parent's.
      */
     #composition = new Map<EndpointStructure, EndpointComposition>();
+    #warnedRootWithoutDeviceType = false;
     #events: ClientStructureEvents;
     #changed = Observable<[void]>();
     #applying = 0;
@@ -996,6 +998,10 @@ export class ClientStructure {
             | undefined;
         if (Array.isArray(deviceTypeList)) {
             this.#noteComposition(structure, deviceTypeList);
+            // The behavior's state holds an empty list until the peer reports one
+            if (!endpoint.number && structure.reportedLists?.has(DEVICE_TYPE_LIST_ATTR_ID)) {
+                this.#checkRootDeviceTypes(deviceTypeList);
+            }
 
             const endpointType = endpoint.type;
             for (const dt of deviceTypeList) {
@@ -1520,7 +1526,7 @@ export class ClientStructure {
             // What a list means depends on how its endpoint composes one, so a claimant that has not
             // said cannot be weighed against the others yet. Deciding without it would place the part
             // under a parent that a later report cannot correct.
-            if (!this.#composition.has(claimant)) {
+            if (this.#compositionOf(claimant) === undefined) {
                 return undefined;
             }
 
@@ -1661,9 +1667,37 @@ export class ClientStructure {
         }
     }
 
+    /**
+     * How `structure` composes its `PartsList`, or `undefined` while it has not said.
+     *
+     * The root's `PartsList` lists every endpoint on the node (Matter Core § 9.2.8), so its composition is known
+     * whatever device types it reports.
+     */
+    #compositionOf(structure: EndpointStructure) {
+        if (structure.endpoint.maybeNumber === 0) {
+            return EndpointComposition.FullFamily;
+        }
+        return this.#composition.get(structure);
+    }
+
     /** Whether `structure`'s `PartsList` names every descendant rather than its own children. */
     #isFullFamily(structure: EndpointStructure) {
-        return this.#composition.get(structure) === EndpointComposition.FullFamily;
+        return this.#compositionOf(structure) === EndpointComposition.FullFamily;
+    }
+
+    /**
+     * Warn once per node when the root reports no device type, although its DeviceTypeList needs at least one entry
+     * (Matter Core § 9.5.6.1). Placing the endpoints does not depend on it; see {@link #compositionOf}.
+     */
+    #checkRootDeviceTypes(deviceTypeList: Descriptor.DeviceType[]) {
+        if (this.#warnedRootWithoutDeviceType || deviceTypeList.some(dt => typeof dt?.deviceType === "number")) {
+            return;
+        }
+        this.#warnedRootWithoutDeviceType = true;
+        logger.warn(
+            `Peer ${this.#node} reports no device type on its root endpoint, although Matter requires at least one;`,
+            "its PartsList is read as listing every endpoint on the node",
+        );
     }
 
     /**

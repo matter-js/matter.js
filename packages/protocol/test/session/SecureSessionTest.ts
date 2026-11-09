@@ -4,19 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Message, MessageCodec, SessionType } from "#codec/MessageCodec.js";
+import { DecodedPacket, Message, MessageCodec, SessionType } from "#codec/MessageCodec.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { MessageCounter } from "#protocol/MessageCounter.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
-import { GroupSession, GroupSessionNoKeyError } from "#session/GroupSession.js";
+import { GroupMessageRejection, GroupSession, GroupSessionDecodeError } from "#session/GroupSession.js";
 import { NodeSession } from "#session/NodeSession.js";
+import { SecureSession } from "#session/SecureSession.js";
 import { GroupMessageEventInfo, SessionManager } from "#session/SessionManager.js";
-import { MIN_TCP_SPEC_VERSION, SessionParameters } from "#session/SessionParameters.js";
+import { MIN_TCP_SPEC_VERSION } from "#session/SessionParameters.js";
 import {
     b$,
     Bytes,
+    CryptoDecryptError,
     Diagnostic,
+    InternalError,
     Key,
     LogFormat,
     Logger,
@@ -25,9 +28,17 @@ import {
     PrivateKey,
     StandardCrypto,
     StorageContext,
+    UnexpectedDataError,
 } from "@matter/general";
 import { FabricId, FabricIndex, GlobalFabricId, GroupId, NodeId, VendorId } from "@matter/types";
 import { Groupcast } from "@matter/types/clusters/groupcast";
+import {
+    groupDatagram,
+    groupDatagramWithPlaintext,
+    privacyGroupDatagramWithExtensions,
+    receivedPacket,
+    UNPARSABLE_GROUP_PAYLOAD,
+} from "./group-datagrams.js";
 
 const TEST_ROOT_PUBLIC_KEY = Bytes.fromHex(
     "044a9f42b1ca4840d37292bbc7f6a7e11e22200c976fc900dbc98a7a383a641cb8254a2e56d4e295a847943b4e3897c4a773e930277b4d9fbede8a052686bfacfa",
@@ -177,6 +188,39 @@ describe("SecureSession", () => {
         });
     });
 
+    describe("AES-CCM limits of a received payload", () => {
+        const header = Bytes.of(ENCRYPTED_MESSAGE).slice(0, 8);
+
+        for (const [what, payload, aad, reason] of [
+            ["a payload as long as the MIC", 16, 8, undefined],
+            ["a payload shorter than the MIC", 15, 8, /shorter than the MIC/],
+            // Literals, not the constants, so a wrong constant fails here
+            ["the largest payload", 0x1000f, 8, undefined],
+            ["a payload one byte too long", 0x10010, 8, /exceeds/],
+            ["the largest header", 16, 0xffff, undefined],
+            ["a header one byte too long", 16, 0x10000, /header .* exceeds/],
+        ] satisfies [string, number, number, RegExp | undefined][]) {
+            it(`${reason === undefined ? "accepts" : "refuses"} ${what}`, () => {
+                const result = SecureSession.undecryptablePayloadReason(new Uint8Array(payload), new Uint8Array(aad));
+                if (reason === undefined) {
+                    expect(result).equals(undefined);
+                } else {
+                    expect(result).match(reason);
+                }
+            });
+        }
+
+        it("refuses a unicast payload over the limit before it decrypts", () => {
+            const packet = MessageCodec.decodePacket(Bytes.concat(header, new Uint8Array(0x10010)));
+            expect(() => secureSession().decode(packet, header)).throws(UnexpectedDataError, /exceeds/);
+        });
+
+        it("passes the largest unicast payload on to decryption", () => {
+            const packet = MessageCodec.decodePacket(Bytes.concat(header, new Uint8Array(0x1000f)));
+            expect(() => secureSession().decode(packet, header)).throws(CryptoDecryptError);
+        });
+    });
+
     describe("encrypt", () => {
         it("encrypts a message", () => {
             const result = secureSession().encode(MESSAGE);
@@ -281,10 +325,9 @@ describe("SecureSession", () => {
                 payload: b$`00112233`,
             });
             const wire = MessageCodec.encodePacket(packet);
-            const decodedPacket = MessageCodec.decodePacket(wire);
-            const aad = Bytes.of(wire).slice(0, wire.byteLength - decodedPacket.applicationPayload.byteLength);
+            const { decodedPacket, aad } = receivedPacket(wire);
 
-            const result = GroupSession.decode(fabricManager, decodedPacket, aad);
+            const result = GroupSession.decodeWithCandidateKeys(fabricManager, decodedPacket, aad);
 
             expect(result.sourceNodeId).equals(NodeId(2));
             expect(Bytes.toHex(result.message.payload)).equals("00112233");
@@ -328,10 +371,11 @@ describe("SecureSession", () => {
             });
 
             const wire = MessageCodec.encodePacket(session.encode(message(NodeId(7))));
-            const decodedPacket = MessageCodec.decodePacket(wire);
-            const aad = Bytes.of(wire).slice(0, wire.byteLength - decodedPacket.applicationPayload.byteLength);
+            const { decodedPacket, aad } = receivedPacket(wire);
 
-            expect(GroupSession.decode(fabricManager, decodedPacket, aad).sourceNodeId).equals(NodeId(7));
+            expect(GroupSession.decodeWithCandidateKeys(fabricManager, decodedPacket, aad).sourceNodeId).equals(
+                NodeId(7),
+            );
         });
 
         it("round-trips a group message with privacy enabled", async () => {
@@ -377,32 +421,22 @@ describe("SecureSession", () => {
 
             expect(Bytes.of(wire)[3] & 0x80).equals(0x80);
 
-            const decodedPacket = MessageCodec.decodePacket(wire);
-            const aad = Bytes.of(wire).slice(0, wire.byteLength - decodedPacket.applicationPayload.byteLength);
-            const result = GroupSession.decode(fabricManager, decodedPacket, aad);
+            const { decodedPacket, aad } = receivedPacket(wire);
+            const result = GroupSession.decodeWithCandidateKeys(fabricManager, decodedPacket, aad);
 
             expect(Bytes.toHex(result.message.payload)).equals("00112233");
             expect(result.sourceNodeId).equals(fabric.nodeId);
             expect(result.message.packetHeader.destGroupId).equals(groupId);
             expect(result.message.packetHeader.messageId).equals(0x12345679);
 
-            // A key set without a GroupKeyMap link is not usable for decryption, but since the message
-            // authenticated, the group id is reported for Groupcast testing
+            // A key set without a GroupKeyMap link is never tried, so the obfuscated header reveals no group
             fabric.groups.groupKeyIdMap = new Map();
-            let noKeyError: unknown;
-            try {
-                GroupSession.decode(fabricManager, decodedPacket, aad);
-            } catch (error) {
-                noKeyError = error;
-            }
-            expect(noKeyError).instanceOf(GroupSessionNoKeyError);
-            if (noKeyError instanceof GroupSessionNoKeyError) {
-                expect(noKeyError.groupId).equals(groupId);
-                expect(noKeyError.fabric).equals(fabric);
-            }
+            const failure = decodeFailure(fabricManager, decodedPacket, aad);
+            expect(failure.candidateFabrics.size).equals(0);
+            expect(failure.group).equals(undefined);
         });
 
-        it("round-trips a group message without privacy and reports the unmapped group id", async () => {
+        it("round-trips a group message without privacy and reports the plain header group id", async () => {
             const { fabric, fabricManager } = await groupFabric();
             const current = fabric.groups.keySets.currentKeyForId(1);
             const groupId = 2;
@@ -446,32 +480,21 @@ describe("SecureSession", () => {
             // No privacy flag on the wire
             expect(Bytes.of(wire)[3] & 0x80).equals(0);
 
-            const decodedPacket = MessageCodec.decodePacket(wire);
-            const aad = Bytes.of(wire).slice(0, wire.byteLength - decodedPacket.applicationPayload.byteLength);
-            const result = GroupSession.decode(fabricManager, decodedPacket, aad);
+            const { decodedPacket, aad } = receivedPacket(wire);
+            const result = GroupSession.decodeWithCandidateKeys(fabricManager, decodedPacket, aad);
 
             expect(Bytes.toHex(result.message.payload)).equals("00112233");
             expect(result.message.packetHeader.destGroupId).equals(groupId);
 
-            // Unmapped key set reports the group id from the plain header as well
+            // A key set without a GroupKeyMap link is never tried; the plain header names the group without a fabric
             fabric.groups.groupKeyIdMap = new Map();
-            let noKeyError: unknown;
-            try {
-                GroupSession.decode(fabricManager, decodedPacket, aad);
-            } catch (error) {
-                noKeyError = error;
-            }
-            expect(noKeyError).instanceOf(GroupSessionNoKeyError);
-            if (noKeyError instanceof GroupSessionNoKeyError) {
-                expect(noKeyError.groupId).equals(groupId);
-                expect(noKeyError.fabric).equals(fabric);
-            }
+            const failure = decodeFailure(fabricManager, decodedPacket, aad);
+            expect(failure.candidateFabrics.size).equals(0);
+            expect(failure.group).deep.equals({ groupId: GroupId(groupId) });
 
-            // The testing event names the fabric that authenticated the message, so only that fabric reports it
             const storage = new MemoryStorageDriver();
             storage.initialize();
             const sessions = new SessionManager({
-                parameters: {} as SessionParameters,
                 fabrics: fabricManager,
                 storage: new StorageContext(storage, ["context"]),
             });
@@ -480,10 +503,16 @@ describe("SecureSession", () => {
             sessions.onGroupMessage.on(info => {
                 emitted.push(info);
             });
-            expect(() => sessions.groupSessionFromPacket(decodedPacket, aad)).throws(GroupSessionNoKeyError);
-            expect(emitted.length).equals(1);
-            expect(emitted[0].result).equals(Groupcast.GroupcastTestResult.NoAvailableKey);
-            expect(emitted[0].fabric).equals(fabric);
+            expect(sessions.groupSessionFromPacket(decodedPacket, aad)).equals(undefined);
+            expect(emitted).deep.equals([
+                {
+                    kind: "unauthenticated",
+                    candidateFabrics: new Set(),
+                    group: { groupId: GroupId(groupId) },
+                    sourceIp: undefined,
+                },
+            ]);
+            await sessions.close();
         });
         it("names where it sends, address and port together", async () => {
             const { fabric } = await groupFabric();
@@ -528,6 +557,328 @@ describe("SecureSession", () => {
             expect(session.matches(fabric.fabricIndex, current.sessionId! ^ 0x1, Bytes.of(current.key))).equals(false);
         });
 
+        describe("GroupKeyMap check", () => {
+            function groupPacket(fabric: Fabric, keySetId: number, groupId: number) {
+                return receivedPacket(groupDatagram(fabric, { keySetId, groupId }));
+            }
+
+            /** A second fabric with the same identity, so its key set 1 derives the same operational key. */
+            async function addTwinFabric(fabric: Fabric, fabricManager: FabricManager) {
+                const twin = new Fabric(crypto, {
+                    ...fabric.config,
+                    fabricIndex: FabricIndex(2),
+                    fabricId: FabricId(BigInt("0x456789ABCDEF1235")),
+                });
+                const twinStorage = new MemoryStorageDriver();
+                twinStorage.initialize();
+                twin.storage = new StorageContext(twinStorage, ["twin"]);
+                fabricManager.addFabric(twin);
+                await twin.groups.setFromGroupKeySet({
+                    groupKeySetId: 1,
+                    groupKeySecurityPolicy: 0,
+                    epochKey0: b$`000102030405060708090a0b0c0d0e0f`,
+                    epochStartTime0: 1,
+                    epochKey1: null,
+                    epochStartTime1: null,
+                    epochKey2: null,
+                    epochStartTime2: null,
+                    groupKeyMulticastPolicy: 0,
+                });
+                return twin;
+            }
+
+            it("rejects a key whose key set GroupKeyMap maps only to another group", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                fabric.groups.groupKeyIdMap = new Map([[GroupId(3), 1]]);
+                const { decodedPacket, aad } = groupPacket(fabric, 1, 2);
+
+                const failure = decodeFailure(fabricManager, decodedPacket, aad);
+
+                expect(failure.candidateFabrics).deep.equals(new Set([fabric.fabricIndex]));
+                expect(failure.group).deep.equals({ groupId: GroupId(2), fabricIndex: fabric.fabricIndex });
+            });
+
+            it("reports a key that GroupKeyMap maps only to another group as failed authentication", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                fabric.groups.groupKeyIdMap = new Map([[GroupId(3), 1]]);
+                const { decodedPacket, aad } = groupPacket(fabric, 1, 2);
+                const storage = new MemoryStorageDriver();
+                storage.initialize();
+                const sessions = new SessionManager({
+                    fabrics: fabricManager,
+                    storage: new StorageContext(storage, ["sessions"]),
+                });
+                await sessions.construction.ready;
+                const emitted = new Array<GroupMessageEventInfo>();
+                sessions.onGroupMessage.on(info => {
+                    emitted.push(info);
+                });
+
+                expect(sessions.groupSessionFromPacket(decodedPacket, aad, "fd00::1")).equals(undefined);
+
+                expect(emitted).deep.equals([
+                    {
+                        kind: "unauthenticated",
+                        candidateFabrics: new Set([fabric.fabricIndex]),
+                        group: { groupId: GroupId(2), fabricIndex: fabric.fabricIndex },
+                        sourceIp: "fd00::1",
+                    },
+                ]);
+                const [event] = emitted;
+                if (event.kind === "unauthenticated") {
+                    expect(GroupMessageRejection.resultFor(event, fabric.fabricIndex)).equals(
+                        Groupcast.GroupcastTestResult.FailedAuth,
+                    );
+                    expect(GroupMessageRejection.resultFor(event, FabricIndex(2))).equals(
+                        Groupcast.GroupcastTestResult.NoAvailableKey,
+                    );
+                }
+                await sessions.close();
+            });
+
+            it("names every fabric whose key was a candidate when no key passes", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                fabric.groups.groupKeyIdMap = new Map([[GroupId(3), 1]]);
+                const twin = await addTwinFabric(fabric, fabricManager);
+                twin.groups.groupKeyIdMap = new Map([[GroupId(4), 1]]);
+                const { decodedPacket, aad } = groupPacket(fabric, 1, 2);
+
+                const failure = decodeFailure(fabricManager, decodedPacket, aad);
+
+                expect(failure.candidateFabrics).deep.equals(new Set([fabric.fabricIndex, twin.fabricIndex]));
+                expect(failure.group).deep.equals({ groupId: GroupId(2), fabricIndex: fabric.fabricIndex });
+            });
+
+            it("tries the next candidate after one fails the GroupKeyMap check", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                fabric.groups.groupKeyIdMap = new Map([[GroupId(3), 1]]);
+                const twin = await addTwinFabric(fabric, fabricManager);
+                twin.groups.groupKeyIdMap = new Map([[GroupId(2), 1]]);
+                const { decodedPacket, aad } = groupPacket(fabric, 1, 2);
+
+                const result = GroupSession.decodeWithCandidateKeys(fabricManager, decodedPacket, aad);
+
+                expect(result.fabric).equals(twin);
+                expect(result.groupId).equals(GroupId(2));
+            });
+
+            it("authenticates a privacy message with message extensions", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                const payload = MessageCodec.encodePayload({
+                    packetHeader: {
+                        sessionId: 0,
+                        sessionType: SessionType.Group,
+                        messageId: 0,
+                        hasPrivacyEnhancements: true,
+                        isControlMessage: false,
+                        hasMessageExtensions: false,
+                    },
+                    payloadHeader: {
+                        isInitiatorMessage: true,
+                        requiresAck: false,
+                        messageType: 0x05,
+                        exchangeId: 0x1234,
+                        protocolId: 0x0001,
+                        ackedMessageId: undefined,
+                        hasSecuredExtension: false,
+                    },
+                    payload: b$`00112233`,
+                }).applicationPayload;
+                const { decodedPacket, aad } = receivedPacket(
+                    privacyGroupDatagramWithExtensions(fabric, b$`abcd`, payload),
+                );
+
+                const result = GroupSession.decodeWithCandidateKeys(fabricManager, decodedPacket, aad);
+
+                expect(result.groupId).equals(GroupId(2));
+                expect(Bytes.toHex(result.message.payload)).equals("00112233");
+            });
+
+            it("names a fabric once when several of its keys were candidates", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                await fabric.groups.setFromGroupKeySet({
+                    groupKeySetId: 2,
+                    groupKeySecurityPolicy: 0,
+                    epochKey0: b$`000102030405060708090a0b0c0d0e0f`,
+                    epochStartTime0: 1,
+                    epochKey1: null,
+                    epochStartTime1: null,
+                    epochKey2: null,
+                    epochStartTime2: null,
+                    groupKeyMulticastPolicy: 0,
+                });
+                fabric.groups.groupKeyIdMap = new Map([
+                    [GroupId(3), 1],
+                    [GroupId(4), 2],
+                ]);
+                const { decodedPacket, aad } = groupPacket(fabric, 1, 2);
+
+                expect([...decodeFailure(fabricManager, decodedPacket, aad).candidateFabrics]).deep.equals([
+                    fabric.fabricIndex,
+                ]);
+            });
+
+            it("does not name a fabric whose key set is not mapped as a candidate", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                fabric.groups.groupKeyIdMap = new Map([[GroupId(3), 1]]);
+                const twin = await addTwinFabric(fabric, fabricManager);
+                twin.groups.groupKeyIdMap = new Map();
+                const { decodedPacket, aad } = groupPacket(fabric, 1, 2);
+
+                const failure = decodeFailure(fabricManager, decodedPacket, aad);
+
+                expect(failure.candidateFabrics).deep.equals(new Set([fabric.fabricIndex]));
+            });
+
+            it("fails a mapped key whose authenticated payload does not parse", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                const wire = groupDatagramWithPlaintext(fabric, 1, 2, UNPARSABLE_GROUP_PAYLOAD);
+                const { decodedPacket, aad } = receivedPacket(wire);
+
+                const failure = decodeFailure(fabricManager, decodedPacket, aad);
+
+                expect(failure.candidateFabrics).deep.equals(new Set([fabric.fabricIndex]));
+                expect(failure.group).deep.equals({ groupId: GroupId(2), fabricIndex: fabric.fabricIndex });
+            });
+
+            it("fails a key mapped to another group without parsing its payload", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                fabric.groups.groupKeyIdMap = new Map([[GroupId(3), 1]]);
+                const { decodedPacket, aad } = groupPacket(fabric, 1, 2);
+                const { decodePayload } = MessageCodec;
+                let parsed = 0;
+                MessageCodec.decodePayload = packet => {
+                    parsed++;
+                    return decodePayload.call(MessageCodec, packet);
+                };
+                try {
+                    expect(decodeFailure(fabricManager, decodedPacket, aad).candidateFabrics).deep.equals(
+                        new Set([fabric.fabricIndex]),
+                    );
+                } finally {
+                    MessageCodec.decodePayload = decodePayload;
+                }
+
+                expect(parsed).equals(0);
+            });
+
+            it("rejects a key whose key set holds other key material than the key set of the destination group", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                await fabric.groups.setFromGroupKeySet({
+                    groupKeySetId: 2,
+                    groupKeySecurityPolicy: 0,
+                    epochKey0: b$`f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff`,
+                    epochStartTime0: 1,
+                    epochKey1: null,
+                    epochStartTime1: null,
+                    epochKey2: null,
+                    epochStartTime2: null,
+                    groupKeyMulticastPolicy: 0,
+                });
+                fabric.groups.groupKeyIdMap = new Map([
+                    [GroupId(3), 1],
+                    [GroupId(2), 2],
+                ]);
+                const { decodedPacket, aad } = groupPacket(fabric, 1, 2);
+
+                expect(decodeFailure(fabricManager, decodedPacket, aad).candidateFabrics).deep.equals(
+                    new Set([fabric.fabricIndex]),
+                );
+            });
+
+            it("lets a crypto error other than a failed authentication escape", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                const { decodedPacket, aad } = groupPacket(fabric, 1, 2);
+                const fabricCrypto = fabric.crypto;
+                const { decrypt } = fabricCrypto;
+                fabricCrypto.decrypt = () => {
+                    throw new InternalError("Test failure while decrypting a group payload");
+                };
+                try {
+                    expect(() => GroupSession.decodeWithCandidateKeys(fabricManager, decodedPacket, aad)).throws(
+                        InternalError,
+                    );
+                } finally {
+                    fabricCrypto.decrypt = decrypt;
+                }
+            });
+
+            it("names the plain header group id without a fabric when no key authenticates", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                const wire = groupDatagramWithPlaintext(fabric, 1, 2, UNPARSABLE_GROUP_PAYLOAD);
+                fabric.groups.removeGroupKeySet(1);
+                const { decodedPacket, aad } = receivedPacket(wire);
+
+                const failure = decodeFailure(fabricManager, decodedPacket, aad);
+
+                expect(failure.candidateFabrics.size).equals(0);
+                expect(failure.group).deep.equals({ groupId: GroupId(2) });
+            });
+
+            it("lets an error other than a parse failure of the payload escape", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                const { decodedPacket, aad } = groupPacket(fabric, 1, 2);
+                const { decodePayload } = MessageCodec;
+                MessageCodec.decodePayload = () => {
+                    throw new InternalError("Test failure while parsing a group payload");
+                };
+                try {
+                    expect(() => GroupSession.decodeWithCandidateKeys(fabricManager, decodedPacket, aad)).throws(
+                        InternalError,
+                    );
+                } finally {
+                    MessageCodec.decodePayload = decodePayload;
+                }
+            });
+
+            it("accepts a key whose key set GroupKeyMap maps the destination group to", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                fabric.groups.groupKeyIdMap = new Map([
+                    [GroupId(3), 1],
+                    [GroupId(2), 1],
+                ]);
+                const { decodedPacket, aad } = groupPacket(fabric, 1, 2);
+
+                const result = GroupSession.decodeWithCandidateKeys(fabricManager, decodedPacket, aad);
+
+                expect(result.groupId).equals(GroupId(2));
+                expect(result.keySetId).equals(1);
+                expect(Bytes.toHex(result.message.payload)).equals("00112233");
+            });
+
+            it("accepts a key that the destination group's key set holds although its own key set maps another group", async () => {
+                const { fabric, fabricManager } = await groupFabric();
+                // Identical key material derives the same group session id for both key sets
+                await fabric.groups.setFromGroupKeySet({
+                    groupKeySetId: 2,
+                    groupKeySecurityPolicy: 0,
+                    epochKey0: b$`000102030405060708090a0b0c0d0e0f`,
+                    epochStartTime0: 1,
+                    epochKey1: null,
+                    epochStartTime1: null,
+                    epochKey2: null,
+                    epochStartTime2: null,
+                    groupKeyMulticastPolicy: 0,
+                });
+                const current = fabric.groups.keySets.currentKeyForId(1);
+                expect(fabric.groups.sessions.get(current.sessionId!)?.map(({ keySetId }) => keySetId)).deep.equals([
+                    1, 2,
+                ]);
+                fabric.groups.groupKeyIdMap = new Map([
+                    [GroupId(3), 1],
+                    [GroupId(2), 2],
+                ]);
+                const { decodedPacket, aad } = groupPacket(fabric, 1, 2);
+
+                const result = GroupSession.decodeWithCandidateKeys(fabricManager, decodedPacket, aad);
+
+                expect(result.groupId).equals(GroupId(2));
+                expect(Bytes.areEqual(result.key, current.key)).equals(true);
+                // Access control checks the same mapping by key material
+                expect(fabric.groups.subjectForGroup(GroupId(2), result.key)).deep.include({ hasValidMapping: true });
+            });
+        });
+
         it("always sends group messages with the privacy flag set", async () => {
             const { fabric } = await groupFabric();
             const current = fabric.groups.keySets.currentKeyForId(1);
@@ -561,4 +912,14 @@ function captureLogs<T>(fn: () => T) {
         dest.format = format;
         dest.write = write;
     }
+}
+
+function decodeFailure(fabrics: FabricManager, packet: DecodedPacket, aad: Bytes) {
+    try {
+        GroupSession.decodeWithCandidateKeys(fabrics, packet, aad);
+    } catch (error) {
+        GroupSessionDecodeError.accept(error);
+        return error;
+    }
+    throw new InternalError("Decode accepted the group message");
 }
