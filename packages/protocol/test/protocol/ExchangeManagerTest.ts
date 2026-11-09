@@ -139,10 +139,8 @@ describe("ExchangeManager", () => {
             async closeForShutdown() {},
         });
 
-        // Peer loss ignores sessions created no earlier than the failing exchange
-        await MockTime.advance(1000);
-
         return {
+            sessions,
             session,
             closedWith,
             exchanges,
@@ -161,6 +159,18 @@ describe("ExchangeManager", () => {
             await expect(exchange.send(0, Bytes.empty)).to.be.rejectedWith(NetworkError);
 
             expect(peer.closedWith[0]).equals(exchange);
+        });
+
+        it("keeps a session of the peer registered after the failing exchange started", async () => {
+            await using peer = await failingPeer();
+
+            const exchange = peer.exchanges.initiateExchangeForSession(peer.session, SECURE_CHANNEL_PROTOCOL_ID);
+            const newer = new ProtocolMocks.NodeSession({ manager: peer.sessions, index: 2, peerNodeId: NodeId(1) });
+            expect(newer.createdAt).equals(peer.session.createdAt);
+            await expect(exchange.send(0, Bytes.empty)).to.be.rejectedWith(NetworkError);
+
+            expect(peer.session.isPeerLost).is.true;
+            expect(newer.isPeerLost).is.false;
         });
 
         it("leaves the session and its subscriptions alone when the exchange suppresses peer loss", async () => {

@@ -256,13 +256,18 @@ export class Peer {
         return this.#descriptor;
     }
 
+    /**
+     * The open sessions with the peer.  The set holds established sessions only, as it is filled from
+     * `SessionManager.sessions`.  So {@link hasSession}, {@link newestSession} and observers of `peer.sessions.added`
+     * never see a session whose handshake still runs.
+     */
     get sessions() {
         return this.#sessions;
     }
 
     get subscriptions() {
         // TODO - this should just be #subscriptions
-        return [...this.#sessions].flatMap(session => [...session.subscriptions]);
+        return this.#context.sessions.sessionsFor(this.address).flatMap(session => [...session.subscriptions]);
     }
 
     get exchangeProvider() {

@@ -26,6 +26,7 @@ import {
     Environment,
     Environmental,
     hex,
+    ImmutableSet,
     ImplementationError,
     InternalError,
     Lifecycle,
@@ -35,10 +36,10 @@ import {
     Millis,
     Mutex,
     Observable,
+    ObservableSet,
     ObserverGroup,
     StorageContext,
     StorageManager,
-    Time,
     Timestamp,
     toHex,
     Transport,
@@ -255,7 +256,8 @@ export class SessionManager {
     readonly #logger: Logger;
     readonly #context: SessionManagerContext;
     readonly #unsecuredSessions = new Map<NodeId, UnsecuredSession>();
-    readonly #sessions = new BasicSet<NodeSession>();
+    readonly #establishedSessions = new BasicSet<NodeSession>();
+    readonly #registeredSessions = new RegisteredSessions(this.#establishedSessions);
     readonly #groupSessions = new Map<NodeId, BasicSet<GroupSession>>();
     #nextSessionId: number;
     readonly #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
@@ -309,16 +311,8 @@ export class SessionManager {
             await this.deleteResumptionRecordsForFabric(fabric);
         });
 
-        this.#sessions.added.on(session => {
-            // We are the responder, so nothing else reclaims these: an initiator's sessions are swept by the peer
-            // loss its own traffic reports
-            if (!session.isInitiator) {
-                this.#sessionEvictionMutex.run(() => this.#evictExcessSessionsFor(session));
-            }
-        });
-
         // Add subscription monitors to new node sessions
-        this.#sessions.added.on(session => {
+        this.#registeredSessions.added.on(session => {
             const subscriptionsChanged = (subscription: Subscription) => {
                 if (session.isClosing) {
                     return;
@@ -335,6 +329,11 @@ export class SessionManager {
                 session.subscriptions.deleted.off(subscriptionsChanged);
             });
         });
+
+        this.#registeredSessions.deleted.on(session => {
+            this.#establishedSessions.delete(session);
+        });
+        this.#establishedSessions.added.on(session => this.#sessionEstablished(session));
 
         this.#construction = Construction(this, () => this.#initialize());
     }
@@ -371,10 +370,57 @@ export class SessionManager {
     }
 
     /**
-     * Active secure sessions.
+     * The established secure sessions.  A session joins once its handshake completed, so {@link ObservableSet.added}
+     * emits on establishment, and a session whose handshake fails never appears.  It leaves when it closes.
+     *
+     * Read this set to find a session to use, or to list or observe the sessions with peers.
+     *
+     * Read {@link registeredSessions} instead for subscriptions and reports, and for session teardown and message
+     * routing.  A peer may send a Subscribe on a session we respond to before that session is established, so the
+     * subscriptions of a peer may live on a session that is not in this set.  The CHIP SDK drops such messages; we
+     * serve them, see {@link NodeSession.isEstablishing}.
      */
-    get sessions() {
-        return this.#sessions;
+    get sessions(): ImmutableSet<NodeSession> & ObservableSet<NodeSession> {
+        return this.#establishedSessions;
+    }
+
+    /**
+     * Every secure session that receives messages, including those whose handshake still runs (see
+     * {@link NodeSession.isEstablishing}).  A session joins on creation, unless it is created with
+     * `delayManagerRegistration`, and leaves when it closes.
+     *
+     * Read this set for message routing, session ID allocation, session teardown, peer loss, and for the subscriptions
+     * and reports of a peer.  Code that looks for a session to use reads {@link sessions}.
+     *
+     * {@link sessions} emits {@link ObservableSet.added} for a session only after every observer of `added` here ran,
+     * so components that wire up a session here, such as the ExchangeManager, are ready before users of the
+     * established session see it.
+     */
+    get registeredSessions(): BasicSet<NodeSession> {
+        return this.#registeredSessions;
+    }
+
+    /**
+     * The number of registrations in {@link registeredSessions} so far.  A session registered from now on gets this
+     * value or a higher one as its registration position, so the value marks "sessions registered after this point"
+     * for {@link PeerLossContext.registeredBefore}.
+     */
+    get registrationCount() {
+        return this.#registeredSessions.count;
+    }
+
+    /**
+     * The open sessions with the peer of {@link session} that registered at or after it.  {@link handlePeerShutdown}
+     * keeps these sessions when it receives {@link session}.  For a session that never registered, the result is empty.
+     */
+    sessionsRegisteredSince(session: NodeSession) {
+        const position = this.#registeredSessions.positionOf(session);
+        if (position === undefined) {
+            return [];
+        }
+        return this.sessionsFor(session.peerAddress).filter(
+            other => !this.#registeredSessions.isRegisteredBefore(other, position),
+        );
     }
 
     /**
@@ -550,10 +596,10 @@ export class SessionManager {
         return deletedCount > 0;
     }
 
-    /** The session with the least recent traffic among those {@link filter} accepts, if any. */
-    #leastRecentlyUsedSession(filter: (session: NodeSession) => boolean) {
+    /** The session with the least recent traffic among {@link sessions} that {@link filter} accepts, if any. */
+    #leastRecentlyUsedSession(sessions: Iterable<NodeSession>, filter: (session: NodeSession) => boolean) {
         let oldest: NodeSession | undefined;
-        for (const session of this.#sessions) {
+        for (const session of sessions) {
             if (filter(session) && (oldest === undefined || session.timestamp < oldest.timestamp)) {
                 oldest = session;
             }
@@ -564,7 +610,7 @@ export class SessionManager {
     findOldestInactiveSession() {
         this.#construction.assert();
 
-        const oldest = this.#leastRecentlyUsedSession(() => true);
+        const oldest = this.#leastRecentlyUsedSession(this.#registeredSessions, () => true);
         if (oldest === undefined) {
             throw new MatterFlowError("No session found to close and all session ids are taken.");
         }
@@ -608,21 +654,20 @@ export class SessionManager {
     getSession(sessionId: number) {
         this.#construction.assert();
 
-        return this.#sessions.get("id", sessionId);
+        return this.#registeredSessions.get("id", sessionId);
     }
 
     getPaseSession() {
         this.#construction.assert();
 
-        return [...this.#sessions].find(session => NodeSession.is(session) && session.isPase && !session.isClosing);
+        return this.#establishedSessions.find(session => session.isPase && !session.isClosing);
     }
 
     forFabric(fabric: Fabric) {
         this.#construction.assert();
 
-        return [...this.#sessions].filter(
-            session =>
-                NodeSession.is(session) && session.isSecure && session.fabric?.fabricIndex === fabric.fabricIndex,
+        return this.#establishedSessions.filter(
+            session => session.isSecure && session.fabric?.fabricIndex === fabric.fabricIndex,
         );
     }
 
@@ -641,7 +686,7 @@ export class SessionManager {
         // Prefer the most recently active session (i.e. the one we last heard from the peer on).  Older ones may not
         // work with broken peers (e.g. CHIP test harness).
         let found: NodeSession | undefined;
-        for (const session of this.#sessions) {
+        for (const session of this.#establishedSessions) {
             if (!session.peerIs(address) || session.isClosing || session.isPeerLost) {
                 continue;
             }
@@ -656,11 +701,11 @@ export class SessionManager {
 
     sessionsFor(address: PeerAddress) {
         address = PeerAddress(address);
-        return this.#sessions.filter(session => session.peerAddress === address && !session.isClosing);
+        return this.#registeredSessions.filter(session => session.peerAddress === address && !session.isClosing);
     }
 
     sessionsForFabricIndex(fabricIndex: FabricIndex) {
-        return this.#sessions.filter(session => session.fabric?.fabricIndex === fabricIndex);
+        return this.#registeredSessions.filter(session => session.fabric?.fabricIndex === fabricIndex);
     }
 
     /**
@@ -668,23 +713,59 @@ export class SessionManager {
      * sessions close.  Our own subscriptions to the peer belong to the peer, not to a session, so a peer that persists
      * subscriptions can refresh them after its restart.
      *
-     * @param asOf sessions created at or after this instant are kept; on the clock of {@link Time.nowUs} like
-     * {@link Session.createdAt}, not a wall-clock time.  Defaults to now.
+     * Sessions that register while the shutdown runs are kept.
+     *
+     * @param keep this session and the sessions registered after it are kept.  Without it, or for a session that never
+     * registered, every session registered now is removed.  A {@link Timestamp} is deprecated: then only the sessions
+     * created before that instant are removed, and a session created in the same instant counts as newer.
      */
-    handlePeerShutdown(address: PeerAddress, asOf?: Timestamp) {
-        return this.#handlePeerLoss({
+    handlePeerShutdown(address: PeerAddress, keep?: NodeSession | Timestamp) {
+        const context = {
             address,
             cause: new PeerShutdownError(),
-            asOf: asOf ?? Time.nowUs,
             keepSubscriptions: true,
+            registeredBefore: this.registrationCount,
+        };
+        if (typeof keep === "number") {
+            return this.#handlePeerLoss({ ...context, asOf: keep });
+        }
+
+        const keepPosition = keep === undefined ? undefined : this.#registeredSessions.positionOf(keep);
+        return this.#handlePeerLoss({ ...context, registeredBefore: keepPosition ?? context.registeredBefore });
+    }
+
+    /**
+     * Removes all Peer sessions and closes subscriptions.  Only the sessions registered before
+     * {@link PeerLossContext.registeredBefore} are affected; by default every session registered now.  A given
+     * {@link PeerLossContext.asOf} applies in addition.
+     */
+    async handlePeerLoss(address: PeerAddress, context: PeerLossContext) {
+        return await this.#handlePeerLoss({
+            ...context,
+            address,
+            registeredBefore: context.registeredBefore ?? this.registrationCount,
         });
     }
 
     /**
-     * Removes all Peer sessions and closes subscriptions.
+     * Supersede the older sessions {@link newer} replaces, then evict excess sessions of the peer.  Supersession comes
+     * first and is synchronous, so the subscriptions have left a session before eviction can close it.
+     *
+     * An older session that is still establishing is not superseded.  Subscriptions exist on such a session only if a
+     * Subscribe arrived before its handshake finished.  If that handshake fails, the subscriptions close with it.
      */
-    async handlePeerLoss(address: PeerAddress, context: PeerLossContext) {
-        return await this.#handlePeerLoss({ ...context, address, asOf: context.asOf ?? Time.nowUs });
+    #sessionEstablished(newer: NodeSession) {
+        for (const older of this.#establishedSessions) {
+            if (older !== newer && !older.isClosing && supersedes(newer, older)) {
+                older.superseded.emit(newer);
+            }
+        }
+
+        // We are the responder, so nothing else reclaims these: an initiator's sessions are swept by the peer loss its
+        // own traffic reports
+        if (!newer.isInitiator) {
+            this.#sessionEvictionMutex.run(() => this.#evictExcessSessionsFor(newer));
+        }
     }
 
     /**
@@ -692,7 +773,8 @@ export class SessionManager {
      *
      * Only sessions the peer established are eligible: ones we initiated are ours to manage, and the peer loss our
      * own traffic reports already sweeps them.  {@link added} is excluded so a burst of new sessions cannot evict the
-     * one that prompted the check.
+     * one that prompted the check.  Only established sessions count and are evicted; an establishing session becomes
+     * established or closes within its handshake.
      */
     async #evictExcessSessionsFor(added: NodeSession) {
         if (added.isPase || added.isClosing) {
@@ -705,10 +787,13 @@ export class SessionManager {
 
         // A session already closing still occupies a slot until it completes, so it counts here but is not evicted
         // again -- otherwise one that parks in deferredClose drops out of the count and the cap stops capping
-        let excess = this.#sessions.filter(claimsSlot).length + 1 - MAX_SESSIONS_PER_PEER;
+        let excess = this.#establishedSessions.filter(claimsSlot).length + 1 - MAX_SESSIONS_PER_PEER;
 
         while (excess-- > 0) {
-            const session = this.#leastRecentlyUsedSession(s => claimsSlot(s) && !s.isClosing);
+            const session = this.#leastRecentlyUsedSession(
+                this.#establishedSessions,
+                s => claimsSlot(s) && !s.isClosing,
+            );
             if (session === undefined) {
                 return;
             }
@@ -731,9 +816,16 @@ export class SessionManager {
     ) {
         await this.#construction;
 
-        const { address, asOf } = context;
-        for (const session of this.#sessions) {
+        const { address, asOf, registeredBefore } = context;
+        for (const session of this.#registeredSessions) {
             if (!session.peerIs(address)) {
+                continue;
+            }
+
+            if (
+                registeredBefore !== undefined &&
+                !this.#registeredSessions.isRegisteredBefore(session, registeredBefore)
+            ) {
                 continue;
             }
 
@@ -1052,7 +1144,7 @@ export class SessionManager {
 
     getActiveSessionInformation(): ActiveSessionInformation[] {
         this.#construction.assert();
-        return [...this.#sessions]
+        return this.#establishedSessions
             .filter(session => session.isSecure && !session.isPase)
             .map(session => {
                 const activity = session instanceof SecureSession ? session.wallClockActivity : undefined;
@@ -1104,7 +1196,7 @@ export class SessionManager {
 
         const context: PeerLossContext = { cause: new ShutdownError("Session closed by node shutdown") };
 
-        const closePromises = this.#sessions.map(async session => {
+        const closePromises = this.#registeredSessions.map(async session => {
             await session.closeSubscriptionsForShutdown();
 
             // TODO - some CHIP tests (CASERecovery for one) expect us to exit without closing the session and will fail
@@ -1112,7 +1204,7 @@ export class SessionManager {
             // node attempts contact even if we've already restarted
             await session.initiateForceClose(context);
 
-            this.#sessions.delete(session);
+            this.#registeredSessions.delete(session);
         });
 
         for (const session of this.#unsecuredSessions.values()) {
@@ -1135,6 +1227,74 @@ export class SessionManager {
     compressIdRange(upperBound: number) {
         this.#idUpperBound = upperBound;
         this.#nextSessionId = (this.#context.fabrics.crypto.randomUint32 % upperBound) + 1;
+    }
+}
+
+/**
+ * Whether {@link newer} replaces {@link older} for the peer's subscriptions: both are CASE sessions with the same peer
+ * and equal CASE Authenticated Tags, so a subscription that moves keeps the access subject it was set up with.  The
+ * role does not matter, because both roles store the CATs of the peer's NOC.  This matches
+ * `SecureSessionTable::NewerSessionAvailable` of the CHIP SDK.
+ *
+ * Only {@link newer} needs the PASE check: a PASE session has the unspecified peer node ID, which no CASE peer has, so
+ * an {@link older} session with the same peer as a CASE session is a CASE session too.
+ */
+function supersedes(newer: NodeSession, older: NodeSession) {
+    return !newer.isPase && newer.peerIs(older.peerAddress) && hasEqualCats(newer, older);
+}
+
+function hasEqualCats(session: NodeSession, other: NodeSession) {
+    const tags = new Set(session.caseAuthenticatedTags);
+    const otherTags = new Set(other.caseAuthenticatedTags);
+    return tags.size === otherTags.size && [...otherTags].every(tag => tags.has(tag));
+}
+
+/**
+ * The registered sessions.  The set also adds each session to the set of established sessions once it is established.
+ * A session that is already established on registration joins that set after all observers of {@link added} ran.
+ */
+class RegisteredSessions extends BasicSet<NodeSession> {
+    readonly #established: BasicSet<NodeSession>;
+    readonly #positions = new WeakMap<NodeSession, number>();
+    #count = 0;
+
+    constructor(established: BasicSet<NodeSession>) {
+        super();
+        this.#established = established;
+    }
+
+    override add(session: NodeSession) {
+        if (this.has(session)) {
+            return;
+        }
+
+        this.#positions.set(session, this.#count++);
+        super.add(session);
+
+        if (session.isEstablishing) {
+            session.established.once(() => {
+                // A session disposed without a close leaves this set while it is not closing and may still establish
+                if (this.has(session)) {
+                    this.#established.add(session);
+                }
+            });
+        } else {
+            this.#established.add(session);
+        }
+    }
+
+    get count() {
+        return this.#count;
+    }
+
+    /** The position of {@link session} in the registration order; kept after it leaves.  Undefined if never added. */
+    positionOf(session: NodeSession) {
+        return this.#positions.get(session);
+    }
+
+    isRegisteredBefore(session: NodeSession, position: number) {
+        const own = this.#positions.get(session);
+        return own !== undefined && own < position;
     }
 }
 

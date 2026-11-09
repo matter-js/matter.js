@@ -647,7 +647,7 @@ export namespace GeneralDiagnosticsServer {
 
                     let currentSubscriptions = 0;
                     let currentSubscriptionsForFabric = 0;
-                    for (const sess of sessionManager.sessions) {
+                    for (const sess of sessionManager.registeredSessions) {
                         const count = sess.subscriptions.size;
                         currentSubscriptions += count;
                         if (sess.fabric?.fabricIndex === accessingFabric) {
