@@ -84,6 +84,7 @@ export function TestStruct(
 export function TestCluster(
     attributes: Record<string, Omit<AttributeElement.Properties, "name" | "id">>,
     defaults: Val.Struct = {},
+    remote = false,
 ) {
     const cluster = new ClusterModel({
         name: "TestCluster",
@@ -91,10 +92,30 @@ export function TestCluster(
             AttributeElement({ ...definition, id: index + 1, name }),
         ),
     });
-    return managedTestValue(cluster, Object.keys(attributes), defaults);
+    return managedTestValue(cluster, Object.keys(attributes), defaults, undefined, remote);
 }
 
-function managedTestValue(schema: Schema, fieldNames: string[], defaults: Val.Struct, primaryKey?: "name" | "id") {
+/**
+ * A store for a datasource that holds the values of a remote node, starting with {@link initialValues}.  It drops every
+ * write.
+ */
+function remoteStoreOf(initialValues: Val.Struct): Datasource.ExternallyMutableStore {
+    return {
+        initialValues: { ...initialValues },
+        version: 0,
+        prepare: () => () => {},
+        externalSet: async () => ({}),
+        forgetVersion: async () => {},
+    };
+}
+
+function managedTestValue(
+    schema: Schema,
+    fieldNames: string[],
+    defaults: Val.Struct,
+    primaryKey?: "name" | "id",
+    remote = false,
+) {
     const supervisor = RootSupervisor.for(schema);
 
     const notifies: { index: string | undefined; oldValue: Val; newValue: Val }[] = [];
@@ -117,9 +138,9 @@ function managedTestValue(schema: Schema, fieldNames: string[], defaults: Val.St
         },
         type: TestState,
         supervisor,
-        defaults,
         events,
         primaryKey,
+        ...(remote ? { store: remoteStoreOf(defaults) } : { defaults }),
     });
 
     return {

@@ -27,6 +27,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
     - Fix: `X520.DomainComponent` encodes the domainComponent OID 0.9.2342.19200300.100.1.25 instead of the emailAddress OID with tag and length bytes in its content
 
+- @matter/model
+    - Feature: `ValueModel.fabricScopedList` tells whether a value is a fabric-scoped list
+
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
     - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
@@ -55,10 +58,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: LocalizationConfiguration, TimeFormatLocalization and UnitLocalization start with a value from their supported list when the detected, default or stored value is not in it
     - Fix: `TimeFormatLocalizationServer` starts without the CalendarFormat feature
     - Fix: UnitLocalization answers a `TemperatureUnit` write outside `SupportedTemperatureUnits` with CONSTRAINT_ERROR
-    - Fix: A client node writes only its own entries of a fabric-scoped list, and its cache keeps the entries of other fabrics
-    - Adjustment: A client node refuses a write of a fabric-scoped list while its fabric index on the peer is unknown, whatever the fabric filter of its cache
-    - Adjustment: A client node refuses a write of a fabric-scoped list with an entry that is not a struct or whose FabricIndex is neither its fabric index on the peer nor `FabricIndex.OMIT_FABRIC`, unless the entry equals a cached entry of another fabric or of no fabric
-    - Adjustment: A fabric-scoped list of a server node no longer shows entries of `FabricIndex.NO_FABRIC` to a session of a fabric
+    - Fix: A client node other than a group writes only its own entries of a fabric-scoped list and keeps the other fabrics' entries in its cache
+    - Adjustment: A client node other than a group refuses to write a fabric-scoped list while its fabric index on the peer is unknown
+    - Adjustment: A client node other than a group refuses a fabric-scoped list entry of another fabric or of no fabric unless it equals a cached entry
+    - Feature: `ClientNode.fabricIndexOnPeer` returns our fabric index on the peer
+    - Adjustment: Internal client store and validation APIs for writes to a remote node changed
     - Fix: A client node sends a write that breaks a model constraint to the device instead of refusing it locally, and the Remote API accepts such a value in a command response from the device
     - Fix: Corrects extension typing of `registerHardwareFault()`, `registerRadioFault()` and `registerNetworkFault()` of a GeneralDiagnostics server
     - Fix: GeneralDiagnostics registering a fault that is already active no longer emits a fault change event

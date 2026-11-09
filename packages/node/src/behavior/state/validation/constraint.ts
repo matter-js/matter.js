@@ -12,7 +12,7 @@ import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { NameResolver } from "../managed/NameResolver.js";
 import { assertArray, assertBoolean, assertNumeric, assertSequence, assertString } from "./assertions.js";
 import { ValidationLocation } from "./location.js";
-import { withPeerForwarding } from "./peer-forwarding.js";
+import { leaveErrorsToRemote } from "./remote-validation.js";
 
 interface NameResolverFactory {
     (location: ValidationLocation): (name: string) => Val;
@@ -85,8 +85,8 @@ export function createConstraintValidator(
         return undefined;
     }
 
-    // Forward here, not in the caller: a forwarded error must not skip later checks such as list entries
-    const validate = withPeerForwarding(supervisor, inner);
+    // Wrap here, not in the caller: an error left to the device must not skip later checks such as list entries
+    const validate = leaveErrorsToRemote(supervisor, inner);
 
     return (value, session, location) => {
         const cfg = location.config?.supervision;

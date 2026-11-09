@@ -3010,7 +3010,7 @@ describe("ClientNode", () => {
         }
 
         it("does not relax server-side fabricIndex validation", async () => {
-            // Guards against leakage of `underClientNode` onto server-rooted contexts.
+            // OMIT_FABRIC is accepted only in a value sent to a remote node, never in the state of our own node
 
             await using site = new MockSite();
             const { device } = await site.addCommissionedPair();

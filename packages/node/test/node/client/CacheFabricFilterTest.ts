@@ -19,7 +19,9 @@ class UnwritableStore implements Datasource.ExternallyMutableStore {
     initialValues: Val.Struct = {};
     version = 5;
 
-    async set() {}
+    prepare() {
+        return async () => {};
+    }
 
     async externalSet() {
         return {};
@@ -38,7 +40,9 @@ class GatedStore implements Datasource.ExternallyMutableStore {
     release!: () => void;
     #released = new Promise<void>(resolve => (this.release = resolve));
 
-    async set() {}
+    prepare() {
+        return async () => {};
+    }
 
     async externalSet(values: Val.StructMap) {
         this.written.push(values);
@@ -66,7 +70,9 @@ class RecordingStore implements Datasource.ExternallyMutableStore {
     version = 5;
     written = new Array<Val.StructMap>();
 
-    async set() {}
+    prepare() {
+        return async () => {};
+    }
 
     async externalSet(values: Val.StructMap) {
         this.written.push(values);

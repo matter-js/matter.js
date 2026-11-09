@@ -7,18 +7,40 @@
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { Api } from "#behavior/system/remote/api/Api.js";
+import { ApiPath } from "#behavior/system/remote/api/ApiPath.js";
 import type { RemoteRequest } from "#behavior/system/remote/api/RemoteRequest.js";
 import { AccessControlClient, AccessControlServer } from "#behaviors/access-control";
+import { BindingClient, BindingServer } from "#behaviors/binding";
+import { OnOffClient } from "#behaviors/on-off";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { UserLabelClient, UserLabelServer } from "#behaviors/user-label";
 import { OnOffLightDevice } from "#devices/on-off-light";
+import { ClientGroup } from "#node/ClientGroup.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
-import { LogLevel, MaybePromise, Millis, Seconds } from "@matter/general";
-import { MockSite, captureLog, clientStructureOf, seedPeerCache, settled, subscribedPeer } from "@matter/node/testing";
-import { Write, WriteError } from "@matter/protocol";
-import { EndpointNumber, FabricIndex, NodeId, Status, StatusResponseError, SubjectId, TlvOfModel } from "@matter/types";
+import { InternalError, LogLevel, MaybePromise, Millis, Seconds } from "@matter/general";
+import { DataModelPath } from "@matter/model";
+import {
+    MockServerNode,
+    MockSite,
+    captureLog,
+    clientStructureOf,
+    seedPeerCache,
+    settled,
+    subscribedPeer,
+} from "@matter/node/testing";
+import { Read, Val, Write, WriteError } from "@matter/protocol";
+import {
+    EndpointNumber,
+    FabricIndex,
+    GroupId,
+    NodeId,
+    Status,
+    StatusResponseError,
+    SubjectId,
+    TlvOfModel,
+} from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 
@@ -160,7 +182,7 @@ async function forgetOurFabricIndex(peer: ClientNode) {
         new Map([[OperationalCredentials.attributes.currentFabricIndex.id, FabricIndex.NO_FABRIC]]),
     );
     await MockTime.resolve(peer.setStateOf(CommissioningClient, { fabricIndexOnPeer: undefined }));
-    expect(peer.clientPeerContext).deep.equals({});
+    expect(peer.fabricIndexOnPeer).undefined;
 }
 
 /** Records the ACL of every change {@link peer} announces. */
@@ -186,11 +208,13 @@ function expectRefusedUnknownIndex(caught: unknown) {
         expect.fail(`Expected a WriteError, got ${String(caught)}`);
     }
     expect(caught.code).equals(Status.ConstraintError);
-    expect(caught.message).contains("our fabric index on the peer");
-    expect(caught.message).contains("is not known yet; read operationalCredentials.currentFabricIndex first");
+    expect(caught.message).contains("our fabric index on the peer (commissioning.fabricIndexOnPeer) is unknown");
+    expect(caught.message).contains("read operationalCredentials.currentFabricIndex first");
 }
 
-const MAY_HAVE_CHANGED = "may have changed since the list was read, so read it again and retry";
+const MAY_HAVE_CHANGED =
+    "the entry differs from every cached entry of that fabric: it was edited, or the cache changed since the list " +
+    "was read, so read the list again and retry";
 
 /**
  * Expects a refusal for an entry of fabric {@link written}, which says the cached entries of that fabric may have
@@ -268,7 +292,8 @@ function comparable(list: object[]) {
 
 describe("ClientNode fabric-scoped list write", () => {
     // Matter § 7.19.1.8.2: a write to a fabric-scoped list is fabric-filtered, so the device replaces only our entries
-    // and ignores all others; Matter § 7.13.6: it stores every written entry under our fabric
+    // and ignores all others; § 7.19.1.9.1: it ignores the written FabricIndex; § 7.13.6: it uses the accessing
+    // fabric
 
     before(() => {
         MockTime.init();
@@ -309,7 +334,7 @@ describe("ClientNode fabric-scoped list write", () => {
         expect(sentAcl(writes[0])).deep.equals(withoutFabricIndex([admin, own, added]));
         expect(deviceAcl(device)).deep.equals([admin, foreignOnDevice, own, added]);
         expect(cachedAcl(peer)).deep.equals([admin, foreignAsReported, own, added]);
-        const lines = log.messages.filter(message => message.includes("Leaving 1 entries not of our fabric"));
+        const lines = log.messages.filter(message => message.includes("Leaving 1 entry of other fabrics"));
         expect(lines).length(1);
         expect(lines[0]).contains(" DEBUG ");
     });
@@ -321,7 +346,7 @@ describe("ClientNode fabric-scoped list write", () => {
 
         await MockTime.resolve(peer.setStateOf(AccessControlClient, { acl: [admin, own] }));
 
-        expect(log.messages.filter(message => message.includes("entries not of our fabric"))).deep.equals([]);
+        expect(log.messages.filter(message => message.includes("entries of other fabrics"))).deep.equals([]);
     });
 
     it("writes two fabric-scoped lists of one cluster and keeps the other fabric's entry in both caches", async () => {
@@ -361,7 +386,7 @@ describe("ClientNode fabric-scoped list write", () => {
         expect(cachedAcl(peer)).deep.equals(cached);
     });
 
-    it("writes back the full list from a session opened by a reactor, without a peer context", async () => {
+    it("writes back the full list from a reactor's session", async () => {
         await using site = new MockSite();
         const { device, peer, admin } = await unfilteredPeer(site);
 
@@ -518,25 +543,25 @@ describe("ClientNode fabric-scoped list write", () => {
         expect(cachedAcl(peer)).deep.equals([admin, foreignAsReported, reportedForeign, own, added]);
     });
 
-    it("writes when a report changes the other fabric's entry during the act and caches that entry", async () => {
+    // The act holds the other fabric's entry as it read it; no snapshot of what it read exists to tell it unchanged
+    it("refuses with the retry advice when a report changes another fabric's entry during an editing act", async () => {
         await using site = new MockSite();
         const { device, peer, admin } = await unfilteredPeer(site);
-        const reportedForeign = { fabricIndex: FOREIGN, privilege: 3 };
+        const reportedAcl = [admin, { fabricIndex: FOREIGN, privilege: 3 }, own];
+        const onDevice = deviceAcl(device);
+        const writes = recordWrites(peer);
 
-        await MockTime.resolve(
+        const caught = await captureRejection(() =>
             peer.act(async agent => {
                 agent.get(AccessControlClient).state.acl.push(aclEntry(NEW_SUBJECT, FabricIndex.OMIT_FABRIC));
-                await seedPeerCache(
-                    peer,
-                    peer,
-                    AccessControlClient,
-                    new Map([[ACL_ID, [admin, reportedForeign, own]]]),
-                );
+                await seedPeerCache(peer, peer, AccessControlClient, new Map([[ACL_ID, reportedAcl]]));
             }),
         );
 
-        expect(deviceAcl(device)).deep.equals([admin, foreignOnDevice, own, added]);
-        expect(cachedAcl(peer)).deep.equals([admin, reportedForeign, own, added]);
+        expectRefusedIndex(caught, FOREIGN, true);
+        expect(writes).length(0);
+        expect(deviceAcl(device)).deep.equals(onDevice);
+        expect(cachedAcl(peer)).deep.equals(reportedAcl);
     });
 
     it("keeps a report that arrives while the write is in flight", async () => {
@@ -772,49 +797,325 @@ describe("ClientNode fabric-scoped list write", () => {
         });
     });
 
-    describe("a value the validator refuses, in a writer request", () => {
-        function writeAcl(peer: ClientNode, acl: unknown) {
-            return RemoteWriter(
-                peer,
-                clientStructureOf(peer),
-            )([
-                {
-                    number: EndpointNumber(0),
-                    behaviorId: String(AccessControl.id),
-                    values: { [ACL_ID]: acl },
-                    cached: undefined,
-                },
+    describe("with our fabric index learned from operational credentials", () => {
+        it("writes right after the peer reported its current fabric index", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair();
+            const commissioned = controller.peers.get("peer1")!;
+            const peerAddress = commissioned.peerAddress!;
+            await MockTime.resolve(commissioned.delete());
+
+            // A peer whose structure is not read yet holds no fabric index on the peer, as one from an older release
+            const peer = await controller.peers.forAddress(peerAddress);
+            expect(peer.state.commissioning.fabricIndexOnPeer).undefined;
+            expect(peer.fabricIndexOnPeer).undefined;
+            await MockTime.resolve(
+                (async () => {
+                    for await (const _chunk of peer.interaction.read(
+                        Read(
+                            { fabricFilter: true },
+                            Read.Attribute({
+                                endpoint: peer,
+                                cluster: OperationalCredentials.Cluster,
+                                attributes: "currentFabricIndex",
+                            }),
+                            Read.Attribute({ endpoint: peer, cluster: AccessControl.Cluster, attributes: "acl" }),
+                        ),
+                    ));
+                })(),
+                { macrotasks: true },
+            );
+            expect(peer.fabricIndexOnPeer).equals(OURS);
+
+            await MockTime.resolve(
+                peer.setStateOf(AccessControlClient, {
+                    acl: [...peer.stateOf(AccessControlClient).acl, aclEntry(NEW_SUBJECT, FabricIndex.OMIT_FABRIC)],
+                }),
+            );
+
+            expect(deviceAcl(device).at(-1)).deep.equals(added);
+        });
+    });
+
+    describe("of a binding list through the Remote API", () => {
+        it("writes back the list it read while the cache holds an entry of another fabric with a node", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: ServerNode.RootEndpoint, device: OnOffLightDevice.with(BindingServer) },
+            });
+            const peer = await subscribedPeer(controller, "peer1");
+            await MockTime.resolve(peer.set({ network: { defaultSubscription: { fabricFilter: false } } }));
+            await settle(controller, device, peer);
+
+            // The node is a bigint in the cache and a number after the Remote API casts it; the cluster is absent
+            const foreign = { node: NodeId(5), endpoint: EndpointNumber(1), fabricIndex: FOREIGN };
+            const deviceEndpoint = device.parts.get(1)!;
+            await MockTime.resolve(deviceEndpoint.setStateOf(BindingServer, { binding: [foreign] }));
+            const peerEndpoint = peer.parts.get(1)!;
+            for (let wait = 0; wait < 100 && !peerEndpoint.stateOf(BindingClient).binding?.length; wait++) {
+                await MockTime.resolve(MockTime.sleep("binding report pending", Millis(100)));
+            }
+            expect(entriesOf(peerEndpoint.stateOf(BindingClient).binding ?? [])).deep.equals([foreign]);
+
+            const read = await execute(controller, { target: "peers/peer1/1/binding/binding", method: "read" });
+            const list = read.kind === "value" && Array.isArray(read.value.js) ? read.value.js : [];
+            await execute(controller, {
+                target: "peers/peer1/1/binding/binding",
+                method: "write",
+                value: [...list, { node: 7, endpoint: 1 }],
+            });
+
+            expect(entriesOf(deviceEndpoint.stateOf(BindingServer).binding)).deep.equals([
+                foreign,
+                { node: NodeId(7), endpoint: EndpointNumber(1), fabricIndex: OURS },
             ]);
+        });
+    });
+
+    it("takes our fabric index from commissioning over the one operational credentials report", async () => {
+        await using site = new MockSite();
+        const { peer } = await unfilteredPeer(site);
+        await seedPeerCache(
+            peer,
+            peer,
+            OperationalCredentialsClient,
+            new Map([[OperationalCredentials.attributes.currentFabricIndex.id, FabricIndex(7)]]),
+        );
+
+        expect(peer.state.commissioning.fabricIndexOnPeer).equals(OURS);
+        expect(peer.fabricIndexOnPeer).equals(OURS);
+    });
+
+    it("names the attribute of the peer in a refusal", async () => {
+        await using site = new MockSite();
+        const { peer, admin } = await unfilteredPeer(site);
+
+        const caught = await captureRejection(() =>
+            peer.setStateOf(AccessControlClient, { acl: [admin, aclEntry(NEW_SUBJECT, FabricIndex(5))] }),
+        );
+
+        expect(caught).instanceOf(WriteError);
+        expect(String(caught)).contains(`Writing ${peer.path.at("accessControl").at("state").at("acl")}: `);
+    });
+
+    describe("a value the validator accepts, in a prepared write", () => {
+        function prepareAcl(peer: ClientNode, acl: unknown, values: Val.Struct = { [ACL_ID]: acl }) {
+            return RemoteWriter(peer, clientStructureOf(peer)).prepare({
+                number: EndpointNumber(0),
+                behaviorId: String(AccessControl.id),
+                values,
+                cached: { [ACL_ID]: peer.stateOf(AccessControlClient).acl },
+                path: new DataModelPath("acl"),
+            });
         }
 
-        function nullAcl(peer: ClientNode) {
-            return writeAcl(peer, null);
-        }
-
-        it("refuses an entry that is not a struct before anything is sent", async () => {
+        it("refuses an undefined entry", async () => {
             await using site = new MockSite();
             const { peer } = await unfilteredPeer(site);
-            const writes = recordWrites(peer);
 
-            const caught = await captureRejection(() => writeAcl(peer, [5]));
+            const caught = await captureRejection(() => prepareAcl(peer, [undefined, own]));
 
             if (!(caught instanceof WriteError)) {
                 expect.fail(`Expected a WriteError, got ${String(caught)}`);
             }
             expect(caught.message).contains("Cannot write an entry that is not a struct");
-            expect(writes).length(0);
         });
 
-        it("is refused while our fabric index on the peer is unknown", async () => {
+        it("refuses an entry of another fabric with FabricIndex under its tag", async () => {
+            await using site = new MockSite();
+            const { peer, admin } = await unfilteredPeer(site);
+            const { fabricIndex: _, ...entry } = aclEntry(NEW_SUBJECT, OURS);
+
+            const caught = await captureRejection(() => prepareAcl(peer, [admin, own, { ...entry, 254: FOREIGN }]));
+
+            expectRefusedIndex(caught, FOREIGN, true);
+        });
+
+        it("refuses an entry of another fabric that lost a property the cached entry has", async () => {
+            await using site = new MockSite();
+            const { peer, admin } = await unfilteredPeer(site);
+            await seedPeerCache(
+                peer,
+                peer,
+                AccessControlClient,
+                new Map([[ACL_ID, [admin, { fabricIndex: FOREIGN, privilege: 3 }, own]]]),
+            );
+
+            const caught = await captureRejection(() => prepareAcl(peer, [admin, foreignAsReported, own]));
+
+            expectRefusedIndex(caught, FOREIGN, true);
+        });
+
+        it("sends our entry with FabricIndex under its tag", async () => {
+            await using site = new MockSite();
+            const { device, peer, admin } = await unfilteredPeer(site);
+            const { fabricIndex: _, ...entry } = aclEntry(NEW_SUBJECT, OURS);
+
+            const written = [admin, foreignAsReported, own, { ...entry, 254: FabricIndex.OMIT_FABRIC }];
+            const proposed = { [ACL_ID]: written };
+            const prepared = prepareAcl(peer, written, proposed);
+            await MockTime.resolve(RemoteWriter(peer, clientStructureOf(peer)).send([prepared]), { macrotasks: true });
+
+            expect(proposed[ACL_ID]).equals(written);
+            expect(written.at(-1)).deep.equals({ ...entry, 254: FabricIndex.OMIT_FABRIC });
+            expect(deviceAcl(device)).deep.equals([admin, foreignOnDevice, own, added]);
+            expect(prepared.values[ACL_ID]).deep.equals([admin, own, { ...entry, 254: OURS }]);
+            expect([...(prepared.cacheMerges?.keys() ?? [])]).deep.equals([ACL_ID]);
+            expect(prepared.cacheMerges?.get(ACL_ID)?.([foreignAsReported, own])).deep.equals([
+                foreignAsReported,
+                admin,
+                own,
+                { ...entry, 254: OURS },
+            ]);
+        });
+
+        it("refuses an entry that is not a struct", async () => {
+            await using site = new MockSite();
+            const { peer } = await unfilteredPeer(site);
+
+            const caught = await captureRejection(() => prepareAcl(peer, [5]));
+
+            if (!(caught instanceof WriteError)) {
+                expect.fail(`Expected a WriteError, got ${String(caught)}`);
+            }
+            expect(caught.message).contains("Cannot write an entry that is not a struct");
+        });
+
+        it("prepares a value that is not a list as written", async () => {
+            await using site = new MockSite();
+            const { peer } = await unfilteredPeer(site);
+
+            const prepared = prepareAcl(peer, null);
+
+            expect(prepared.values).deep.equals({ [ACL_ID]: null });
+            expect(prepared.cacheMerges).undefined;
+        });
+
+        it("is refused for a value that is not a list while our fabric index on the peer is unknown", async () => {
             await using site = new MockSite();
             const { peer } = await unfilteredPeer(site);
             await forgetOurFabricIndex(peer);
-            const writes = recordWrites(peer);
 
-            const caught = await captureRejection(() => nullAcl(peer));
+            expectRefusedUnknownIndex(await captureRejection(() => prepareAcl(peer, null)));
+        });
+    });
+    describe("with two peers in one transaction", () => {
+        /**
+         * Two peers of two controllers, each with a subscription so its cache holds its device's ACL.
+         */
+        async function twoPeers(site: MockSite) {
+            const pairs = [await site.addCommissionedPair(), await site.addCommissionedPair()];
+            const [a, b] = await Promise.all(pairs.map(({ controller }) => subscribedPeer(controller, "peer1")));
+            return { a: { peer: a, device: pairs[0].device }, b: { peer: b, device: pairs[1].device } };
+        }
 
-            expectRefusedUnknownIndex(caught);
-            expect(writes).length(0);
+        type Side = { peer: ClientNode; device: ServerNode };
+
+        /**
+         * Writes the ACL of every peer in {@link order} in one act, each with a new entry of {@link fabricIndexOf} that
+         * peer, and expects the whole transaction to be refused with nothing sent or cached.
+         */
+        async function expectNothingWritten(
+            order: Side[],
+            fabricIndexOf: (peer: ClientNode) => FabricIndex,
+            expectRefusal: (caught: unknown) => void,
+        ) {
+            const before = order.map(({ peer, device }) => ({ onDevice: deviceAcl(device), cached: cachedAcl(peer) }));
+            const writes = order.map(({ peer }) => recordWrites(peer));
+
+            const caught = await captureRejection(() =>
+                LocalActorContext.act("two peers", context => {
+                    for (const { peer } of order) {
+                        const state = peer.agentFor(context).get(AccessControlClient).state;
+                        state.acl = [...state.acl, aclEntry(NEW_SUBJECT, fabricIndexOf(peer))];
+                    }
+                }),
+            );
+
+            expectRefusal(caught);
+            for (const [index, { peer, device }] of order.entries()) {
+                expect(writes[index], `${peer}`).length(0);
+                expect(deviceAcl(device), `${peer}`).deep.equals(before[index].onDevice);
+                expect(cachedAcl(peer), `${peer}`).deep.equals(before[index].cached);
+            }
+        }
+
+        for (const refusedFirst of [false, true]) {
+            const order = refusedFirst ? "the refused peer first" : "the refused peer last";
+
+            it(`sends nothing when the fabric index on one peer is unknown, with ${order}`, async () => {
+                await using site = new MockSite();
+                const { a, b } = await twoPeers(site);
+                await forgetOurFabricIndex(b.peer);
+
+                await expectNothingWritten(
+                    refusedFirst ? [b, a] : [a, b],
+                    () => FabricIndex.OMIT_FABRIC,
+                    expectRefusedUnknownIndex,
+                );
+            });
+
+            it(`sends nothing when one peer refuses an entry of another fabric, with ${order}`, async () => {
+                await using site = new MockSite();
+                const { a, b } = await twoPeers(site);
+                const otherFabric = FabricIndex(5);
+
+                await expectNothingWritten(
+                    refusedFirst ? [b, a] : [a, b],
+                    peer => (peer === b.peer ? otherFabric : FabricIndex.OMIT_FABRIC),
+                    caught => expectRefusedIndex(caught, otherFabric, false),
+                );
+            });
+        }
+    });
+
+    describe("on a group node", () => {
+        async function groupOf(node: MockServerNode) {
+            const fabric = await node.addFabric();
+            const group = await node.peers.forAddress({
+                fabricIndex: fabric.fabricIndex,
+                nodeId: NodeId.fromGroupId(GroupId(5)),
+            });
+            if (!(group instanceof ClientGroup)) {
+                expect.fail("Expected a group node");
+            }
+            return group;
+        }
+
+        it("is a remote node to the Remote API", async () => {
+            const node = await MockServerNode.createOnline();
+            try {
+                const group = await groupOf(node);
+                const isRemote = await node.act(async agent => {
+                    const item = await Api.resourceFor(agent, new ApiPath(`peers/${group.id}`));
+                    return item?.isRemote;
+                });
+
+                expect(isRemote).true;
+            } finally {
+                await node.close();
+            }
+        });
+
+        it("accepts a value the local model refuses on a group endpoint, for the devices to decide", async () => {
+            const node = await MockServerNode.createOnline();
+            try {
+                const endpoint = (await groupOf(node)).endpoints.require(1);
+                endpoint.behaviors.require(OnOffClient);
+                const rolledBack = new InternalError("roll back before the group write is sent");
+                const undefinedEnumValue: number = 9;
+
+                const caught = await captureRejection(() =>
+                    endpoint.act(agent => {
+                        agent.get(OnOffClient).state.startUpOnOff = undefinedEnumValue;
+                        throw rolledBack;
+                    }),
+                );
+
+                expect(caught).equals(rolledBack);
+            } finally {
+                await node.close();
+            }
         });
     });
 });

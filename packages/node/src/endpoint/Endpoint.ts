@@ -31,7 +31,7 @@ import {
 } from "@matter/general";
 import { ClusterModel, DataModelPath } from "@matter/model";
 import { InteractionSettings, Read, ReadResult, Val } from "@matter/protocol";
-import { AttributeId, ClusterId, EndpointNumber, FabricIndex, Status } from "@matter/types";
+import { AttributeId, ClusterId, EndpointNumber, Status } from "@matter/types";
 import { RootEndpoint } from "../endpoints/root.js";
 import { Agent } from "./Agent.js";
 import {
@@ -895,7 +895,6 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             this.#activity = this.env.get(NodeActivity);
         }
 
-        const { clientPeerContext } = this;
         return LocalActorContext.act(
             purpose,
             context => {
@@ -904,38 +903,9 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             {
                 activity: this.#activity,
                 lifetime: this.construction,
-                clientPeerContext,
                 abort: options?.abort,
             },
         );
-    }
-
-    /**
-     * The peer context for actions on this endpoint if it belongs to a client node, otherwise undefined.
-     *
-     * @internal
-     */
-    get clientPeerContext(): { fabricIndexOnPeer?: FabricIndex } | undefined {
-        const root = this.ownerOfType(RootEndpoint);
-        if (root === undefined || (root as unknown as Node<any>).nodeType !== "client") {
-            return undefined;
-        }
-        // String-keyed lookup avoids importing CommissioningClient/OperationalCredentialsClient: that would
-        // form a cycle (Endpoint → CommissioningClient → ClientNode → Node → Endpoint).
-        const commissioning = root.behaviors.maybeStateOf("commissioning") as
-            | { fabricIndexOnPeer?: FabricIndex }
-            | undefined;
-        if (commissioning?.fabricIndexOnPeer !== undefined) {
-            return { fabricIndexOnPeer: commissioning.fabricIndexOnPeer };
-        }
-        const opcreds = root.behaviors.maybeStateOf("operationalCredentials") as
-            | { currentFabricIndex?: FabricIndex }
-            | undefined;
-        const fallback = opcreds?.currentFabricIndex;
-        if (fallback !== undefined && fallback !== FabricIndex.NO_FABRIC) {
-            return { fabricIndexOnPeer: fallback };
-        }
-        return {};
     }
 
     /**

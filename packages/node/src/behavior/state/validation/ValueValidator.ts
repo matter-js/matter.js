@@ -20,7 +20,7 @@ import { BitmapEncodedValue, FabricIndex, Status } from "@matter/types";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import { maybeConfigOf } from "../../supervision/SupervisionConfig.js";
 import type { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
-import { memberSlotOf, memberValueOf } from "../managed/MemberKeys.js";
+import { memberValueOf } from "../managed/MemberKeys.js";
 import {
     assertArray,
     assertBoolean,
@@ -36,7 +36,7 @@ import { createConformanceValidator } from "./conformance.js";
 import { createConstraintValidator } from "./constraint.js";
 import { isFabricIndexField } from "./FabricIndexField.js";
 import { ValidationLocation } from "./location.js";
-import { withPeerForwarding } from "./peer-forwarding.js";
+import { leaveErrorsToRemote } from "./remote-validation.js";
 
 const logger = Logger.get("ValueValidator");
 
@@ -48,7 +48,7 @@ const logger = Logger.get("ValueValidator");
  */
 export function ValueValidator(schema: Schema, supervisor: RootSupervisor): ValueSupervisor.Validate | undefined {
     if (schema instanceof ClusterModel) {
-        return withPeerForwarding(supervisor, createStructValidator(schema, supervisor));
+        return leaveErrorsToRemote(supervisor, createStructValidator(schema, supervisor));
     }
 
     let validator: ValueSupervisor.Validate | undefined;
@@ -125,7 +125,7 @@ export function ValueValidator(schema: Schema, supervisor: RootSupervisor): Valu
     validator = createNullValidator(schema, validator);
 
     // Catches undefined enum values, reserved bitmap bits and struct-choice conformance errors
-    validator = validator && withPeerForwarding(supervisor, validator);
+    validator = validator && leaveErrorsToRemote(supervisor, validator);
 
     validator = createConformanceValidator(schema, supervisor, validator);
 
@@ -340,33 +340,16 @@ function createIntegerValidator(schema: ValueModel, supervisor: RootSupervisor, 
 
     const inner = createSimpleValidator(schema, supervisor, assertion);
 
-    // The device stores a written fabric-scoped struct under the accessing fabric whatever FabricIndex the client
-    // wrote (Matter § 7.13.6), so a client node caches its own index for OMIT_FABRIC.  Changing `siblings` bends the
-    // read-only validator contract on purpose: it covers both the per-field StructManager setter path and
-    // ListManager.writeEntry, which writes raw entry objects.
+    // The FabricIndex of a written fabric-scoped struct is ignored (Matter § 7.19.1.9.1) and the encoder leaves
+    // OMIT_FABRIC out of a write, so a value sent to a remote node may hold OMIT_FABRIC
     if (isFabricIndexField(schema)) {
-        const fieldName = schema.propertyName;
-        const fieldId = schema.id;
-        const fabricIndexOrSubstitute: ValueSupervisor.Validate = (value, session, location) => {
-            const peerContext = session.clientPeerContext;
-            if (value !== FabricIndex.OMIT_FABRIC || peerContext === undefined || peerContext.valuesFromDevice) {
-                inner(value, session, location);
+        const acceptOmittedOutbound: ValueSupervisor.Validate = (value, session, location) => {
+            if (value === FabricIndex.OMIT_FABRIC && location.remote === "outbound") {
                 return;
             }
-            const { fabricIndexOnPeer } = peerContext;
-            const siblings = location.siblings as Val.Struct | undefined;
-            if (siblings !== undefined && fabricIndexOnPeer !== undefined) {
-                // Substitute into the slot holding the value — a name-keyed container may hold it under the
-                // field's TLV tag number, and writing another slot would leave two disagreeing fabricIndex values
-                siblings[memberSlotOf(siblings, fieldName, fieldId) ?? fieldName] = fabricIndexOnPeer;
-                return;
-            }
-            logger.debug(
-                "OMIT_FABRIC was not replaced because the peer's fabric index or the containing struct is unknown at",
-                location.path,
-            );
+            inner(value, session, location);
         };
-        return fabricIndexOrSubstitute;
+        return acceptOmittedOutbound;
     }
 
     return inner;
@@ -391,14 +374,13 @@ function createStructValidator(schema: Schema, supervisor: RootSupervisor): Valu
 
         const config = location.config ?? maybeConfigOf(struct);
 
-        const sublocation = {
+        const sublocation: ValidationLocation = {
+            ...location,
             path: location.path.at(""),
             siblings: struct,
             choices: {},
-            outerResolve: location.outerResolve,
             config,
-            owner: location.owner,
-        } as ValidationLocation;
+        };
 
         for (const name in validators) {
             const { id, validate } = validators[name];
@@ -465,10 +447,15 @@ function createListValidator(schema: ValueModel, supervisor: RootSupervisor): Va
                 const entryConfig = location.config?.readonlyChild?.("entry");
 
                 let index = 0;
-                const sublocation = {
+                // An entry is not a member of the struct that holds the list, so it gets none of its context
+                const sublocation: ValidationLocation = {
+                    ...location,
                     path: location.path.at(""),
-                    owner: location.owner,
-                } as ValidationLocation;
+                    siblings: undefined,
+                    choices: undefined,
+                    outerResolve: undefined,
+                    config: undefined,
+                };
                 // An index names the position in the list, which an entry holding no value occupies too
                 for (const e of list as Iterable<unknown>) {
                     if (e !== undefined && e !== null) {
