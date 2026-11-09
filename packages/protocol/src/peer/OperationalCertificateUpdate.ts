@@ -63,9 +63,27 @@ const MAX_FAILSAFE = Seconds(0xffff);
 /**
  * Thrown when updating the operational certificate of a peer fails.
  *
- * The message states which certificate the peer holds afterwards, or that this could not be determined.
+ * When the update changed or may have changed the peer, the message states which certificate the peer holds afterwards,
+ * or that this could not be determined.
  */
-export class OperationalCertificateUpdateError extends MatterError {}
+export class OperationalCertificateUpdateError extends MatterError {
+    /**
+     * The CurrentFabricIndex the peer reported for our fabric at the start of the update.  Undefined when the update
+     * failed before or while reading it, or when the peer reported an invalid value.
+     */
+    readonly fabricIndexOnPeer?: FabricIndex;
+
+    constructor(message: string, options?: OperationalCertificateUpdateError.Options) {
+        super(message, options);
+        this.fabricIndexOnPeer = options?.fabricIndexOnPeer;
+    }
+}
+
+export namespace OperationalCertificateUpdateError {
+    export interface Options extends ErrorOptions {
+        fabricIndexOnPeer?: FabricIndex;
+    }
+}
 
 /**
  * Thrown when the update did not start because the fail-safe of the peer may be in use: ArmFailSafe answered
@@ -124,7 +142,10 @@ export namespace OperationalCertificateUpdate {
      * @see {@link MatterSpecification.v161.Core} § 11.18.6.10
      */
     export interface Result {
-        /** Fabric index of our fabric on the peer, read before the update and confirmed by the NOCResponse. */
+        /**
+         * Fabric index of our fabric on the peer, read before the update.  An OK NOCResponse must carry the same index;
+         * after a lost NOCResponse the index is not confirmed that way.
+         */
         fabricIndexOnPeer: FabricIndex;
 
         /** Public key of the new node operational key pair. */
@@ -209,7 +230,10 @@ export namespace OperationalCertificateUpdate {
      * of range, with the connection error when no CASE session can be established at the start, with {@link
      * OperationalCertificateUpdateBusyError} or {@link OperationalCertificateUpdateRefusedError} when the update armed no
      * fail-safe because of the Breadcrumb, the reported NOC or the ArmFailSafe error code, and with {@link
-     * OperationalCertificateUpdateError} for every other failure.
+     * OperationalCertificateUpdateError} for every other failure.  Every {@link OperationalCertificateUpdateError}
+     * carries the CurrentFabricIndex read at the start in {@link OperationalCertificateUpdateError.fabricIndexOnPeer};
+     * the index is undefined when that read failed.  The {@link ImplementationError}, the connection error and an abort
+     * before the read carry no index.
      *
      * @see {@link MatterSpecification.v161.Core} § 11.18.6.9
      * @see {@link MatterSpecification.v161.Core} § 11.10.7.2
@@ -255,9 +279,10 @@ export namespace OperationalCertificateUpdate {
             }
             throw new OperationalCertificateUpdateError(
                 `Updating the operational certificate of ${address} failed; it keeps its previous certificate`,
-                { cause: installed.cause },
+                { cause: installed.cause, fabricIndexOnPeer: installed.fabricIndex },
             );
         }
+        const { fabricIndex } = installed;
 
         let cause = installed.kind === "unconfirmed" ? installed.cause : undefined;
         let completion: Completion | undefined;
@@ -295,25 +320,25 @@ export namespace OperationalCertificateUpdate {
                 if (installed.refusal !== undefined) {
                     throw new OperationalCertificateUpdateError(
                         `Updating the operational certificate of ${address} failed; the new certificate is in place, because another operation of the same fabric completed the fail-safe`,
-                        { cause: installed.refusal },
+                        { cause: installed.refusal, fabricIndexOnPeer: fabricIndex },
                     );
                 }
                 return {
-                    fabricIndexOnPeer: installed.fabricIndex,
+                    fabricIndexOnPeer: fabricIndex,
                     operationalPublicKey: installed.operationalPublicKey,
                 };
 
             case "reverted":
                 throw new OperationalCertificateUpdateError(
                     `Updating the operational certificate of ${address} failed; it reverted to its previous certificate`,
-                    { cause: completion.cause ?? cause },
+                    { cause: completion.cause ?? cause, fabricIndexOnPeer: fabricIndex },
                 );
 
             case "unknown":
                 await forgetSessions(context, address, "Outcome of the operational certificate update is unknown");
                 throw new OperationalCertificateUpdateError(
                     `Updating the operational certificate of ${address} failed and its outcome is unknown; the peer reverts to its previous certificate when its fail-safe expires, unless this update or another operation of the same fabric completed that fail-safe`,
-                    { cause: completion.cause ?? cause },
+                    { cause: completion.cause ?? cause, fabricIndexOnPeer: fabricIndex },
                 );
         }
     }
@@ -321,7 +346,7 @@ export namespace OperationalCertificateUpdate {
 
 /** Outcome of the steps over the first session. */
 type InstalledCertificate =
-    | { kind: "refused"; cause: unknown }
+    | { kind: "refused"; cause: unknown; fabricIndex: FabricIndex | undefined }
     | ({ kind: "unconfirmed"; cause: unknown } & NewCertificate)
     | ({ kind: "installed" } & NewCertificate);
 
@@ -357,7 +382,7 @@ async function installNewCertificate(
     try {
         ({ breadcrumb, nocs, fabricIndex } = await readStartState(interaction));
     } catch (cause) {
-        return { kind: "refused", cause };
+        return { kind: "refused", cause, fabricIndex: undefined };
     }
 
     let previous: { noc: Bytes; caseAuthenticatedTags?: readonly CaseAuthenticatedTag[] };
@@ -366,29 +391,32 @@ async function installNewCertificate(
     } catch (cause) {
         return {
             kind: "refused",
+            fabricIndex,
             cause: new OperationalCertificateUpdateRefusedError(
                 `Cannot update the operational certificate of ${interaction.address}: the certificate it reports did not verify`,
-                { cause },
+                { cause, fabricIndexOnPeer: fabricIndex },
             ),
         };
     }
     if (breadcrumb !== 0n) {
         return {
             kind: "refused",
+            fabricIndex,
             cause: new OperationalCertificateUpdateBusyError(
                 `Cannot update the operational certificate of ${interaction.address}: its Breadcrumb is ${breadcrumb}, so another operation of the same fabric may hold the fail-safe; retry later`,
+                { fabricIndexOnPeer: fabricIndex },
             ),
         };
     }
 
     let certificate: NewCertificate;
     try {
-        await armFailsafe(interaction, failsafeArm);
+        await armFailsafe(interaction, failsafeArm, fabricIndex);
     } catch (cause) {
         if (!isArmRefusal(cause)) {
             await disarmFailsafe(interaction);
         }
-        return { kind: "refused", cause };
+        return { kind: "refused", cause, fabricIndex };
     }
 
     try {
@@ -437,7 +465,7 @@ async function installNewCertificate(
         };
     } catch (cause) {
         await disarmFailsafe(interaction);
-        return { kind: "refused", cause };
+        return { kind: "refused", cause, fabricIndex };
     }
 
     let response: OperationalCredentials.NocResponse;
@@ -458,7 +486,7 @@ async function installNewCertificate(
     } catch (cause) {
         if (cause instanceof ReceivedStatusResponseError) {
             await disarmFailsafe(interaction);
-            return { kind: "refused", cause };
+            return { kind: "refused", cause, fabricIndex };
         }
 
         // The peer may have applied UpdateNOC and then dropped the session or its NOCResponse
@@ -470,8 +498,10 @@ async function installNewCertificate(
         await disarmFailsafe(interaction);
         return {
             kind: "refused",
+            fabricIndex,
             cause: new OperationalCertificateUpdateError(
                 `UpdateNOC failed with ${OperationalCredentials.NodeOperationalCertStatus[statusCode]} (${statusCode})${debugText ? `, ${debugText}` : ""}`,
+                { fabricIndexOnPeer: fabricIndex },
             ),
         };
     }
@@ -483,6 +513,7 @@ async function installNewCertificate(
             ...certificate,
             refusal: new OperationalCertificateUpdateError(
                 `UpdateNOC answered OK for fabric index ${response.fabricIndex ?? "none"} instead of ${certificate.fabricIndex}, the CurrentFabricIndex read before`,
+                { fabricIndexOnPeer: certificate.fabricIndex },
             ),
         };
     }
@@ -549,6 +580,7 @@ async function completeUpdate(
                         ? response
                         : new OperationalCertificateUpdateError(
                               `CommissioningComplete failed with ${commissioningErrorText(response.errorCode, response.debugText)}`,
+                              { fabricIndexOnPeer: certificate.fabricIndex },
                           ),
                 disarmed: await disarmFailsafe(interaction),
             };
@@ -804,7 +836,12 @@ function isArmRefusal(cause: unknown) {
     );
 }
 
-async function armFailsafe(interaction: ClientInteraction, { failsafe, breadcrumb }: FailsafeArm) {
+/** Rejects with a Busy or Refused error that carries `fabricIndexOnPeer` when the peer answers with an error code. */
+async function armFailsafe(
+    interaction: ClientInteraction,
+    { failsafe, breadcrumb }: FailsafeArm,
+    fabricIndexOnPeer: FabricIndex,
+) {
     const { errorCode, debugText } = responseOf(
         await AdministratorCommands.invoke(interaction, {
             endpoint: RootEndpointNumber,
@@ -820,10 +857,12 @@ async function armFailsafe(interaction: ClientInteraction, { failsafe, breadcrum
     if (errorCode === GeneralCommissioning.CommissioningError.BusyWithOtherAdmin) {
         throw new OperationalCertificateUpdateBusyError(
             `Cannot update the operational certificate of ${interaction.address}: ArmFailSafe failed because another administrator holds the fail-safe or a commissioning window is open; retry later`,
+            { fabricIndexOnPeer },
         );
     }
     throw new OperationalCertificateUpdateRefusedError(
         `Cannot update the operational certificate of ${interaction.address}: ArmFailSafe failed with ${commissioningErrorText(errorCode, debugText)}`,
+        { fabricIndexOnPeer },
     );
 }
 

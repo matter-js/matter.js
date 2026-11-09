@@ -70,6 +70,7 @@ import {
     FabricRemovedError,
     LocatedNodeCommissioningOptions,
     OperationalAddress,
+    OperationalCertificateUpdateError,
     PaseClient,
     Peer,
     PeerAddress,
@@ -484,14 +485,21 @@ export class CommissioningClient extends Behavior {
      * runs under a fail-safe and ends with a CASE session that uses the new NOC.  Existing sessions with the node close,
      * and subscriptions re-establish over a new session.
      *
-     * On failure the node keeps or returns to its previous NOC and stays reachable; the error message says which NOC
-     * it holds, or that this could not be determined.  If CommissioningComplete took effect but its answer was lost,
-     * the update resolves.  Throws `OperationalCertificateUpdateBusyError` when the node's fail-safe may be in use
+     * On failure the node keeps or returns to its previous NOC, unless another operation of the same fabric completed
+     * the fail-safe (the new NOC is then in place) or the outcome cannot be determined.  When the update changed or may
+     * have changed the node, the error message says which NOC it holds, or that this could not be determined.  If
+     * CommissioningComplete took effect but its answer was lost, the update resolves.  Throws `OperationalCertificateUpdateBusyError` when the node's fail-safe may be in use
      * (retry later), `OperationalCertificateUpdateRefusedError` when the node refused the fail-safe otherwise,
      * `OperationalCertificateUpdateError` for any later failure once the node was reached, the
      * connection error if it cannot be reached, and {@link ImplementationError} if the node is not commissioned, this
      * controller is not the certificate authority of its fabric or {@link CommissioningClient.OperationalCertificateUpdateOptions.failsafe}
      * is out of range.
+     *
+     * The update reads the node's CurrentFabricIndex first.  Once that read succeeded, the read index replaces
+     * {@link CommissioningClient.State.fabricIndexOnPeer}, also when the update fails afterwards.  On failure the index
+     * is stored and committed in its own transaction, because the caller's transaction rolls back with the error; if
+     * that store fails, the failure is logged and the update error is thrown unchanged.  That transaction waits for the
+     * lock on this state, so do not call this method from a transaction that already holds that lock.
      *
      * @see {@link MatterSpecification.v161.Core} § 11.18.6.9
      */
@@ -503,10 +511,40 @@ export class CommissioningClient extends Behavior {
             );
         }
 
-        const { fabricIndexOnPeer } = await this.env.get(ControllerCommissioner).updateOperationalCertificate({
-            ...options,
-            address: ProtocolPeerAddress(peerAddress),
-        });
+        let fabricIndexOnPeer: FabricIndex;
+        try {
+            ({ fabricIndexOnPeer } = await this.env.get(ControllerCommissioner).updateOperationalCertificate({
+                ...options,
+                address: ProtocolPeerAddress(peerAddress),
+            }));
+        } catch (error) {
+            if (error instanceof OperationalCertificateUpdateError && error.fabricIndexOnPeer !== undefined) {
+                await this.#storeFabricIndexOfFailedUpdate(error.fabricIndexOnPeer);
+            }
+            throw error;
+        }
+
+        await this.#storeReportedFabricIndex(fabricIndexOnPeer);
+    }
+
+    /** Never rejects, so the update error stays the one the caller sees. */
+    async #storeFabricIndexOfFailedUpdate(fabricIndexOnPeer: FabricIndex) {
+        try {
+            await this.endpoint.act("store-fabric-index-on-peer", agent =>
+                agent.get(CommissioningClient).#storeReportedFabricIndex(fabricIndexOnPeer),
+            );
+        } catch (error) {
+            logger.warn(
+                `${this.endpoint} could not store fabric index ${fabricIndexOnPeer} read before its failed operational certificate update:`,
+                error,
+            );
+        }
+    }
+
+    async #storeReportedFabricIndex(fabricIndexOnPeer: FabricIndex) {
+        const { transaction } = this.context;
+        await transaction.addResources(this);
+        await transaction.begin();
 
         const known = this.state.fabricIndexOnPeer;
         if (fabricIndexOnPeer !== known) {
@@ -1075,7 +1113,9 @@ export namespace CommissioningClient {
         commissionedAt?: Timestamp;
 
         /**
-         * Fabric index the peer assigned to our identity (from the AddNoc response).  Substituted for the
+         * Fabric index the peer assigned to our identity.  It is taken from the AddNoc response, from the
+         * CurrentFabricIndex a certificate update reads, or, when none is stored, from the CurrentFabricIndex in the
+         * cached OperationalCredentials state.  Substituted for the
          * {@link FabricIndex.OMIT_FABRIC} sentinel on fabric-scoped struct writes so the local cache mirrors
          * the value the peer will store.
          *

@@ -16,20 +16,25 @@ import type { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     causedBy,
+    createPromise,
     Crypto,
     Entropy,
     Environment,
     ImplementationError,
     isObject,
     Lifetime,
+    LogLevel,
     MatterAggregateError,
+    MaybePromise,
+    MemoryStorageDriver,
     MockCrypto,
     Seconds,
     StorageError,
+    SupportedStorageTypes,
     Time,
     UnexpectedDataError,
 } from "@matter/general";
-import { MockSite, subscribedPeer } from "@matter/node/testing";
+import { captureLog, MockSite, subscribedPeer } from "@matter/node/testing";
 import {
     CertificateAuthority,
     ClientInteraction,
@@ -96,15 +101,128 @@ async function update(controller: ServerNode, device: ServerNode, peer: ClientNo
     );
 }
 
+/** A fabric index the device never assigns, stored before a failing update to show whether the update replaces it. */
+const STALE_FABRIC_INDEX = FabricIndex(200);
+
+async function updateFailure(controller: ServerNode, device: ServerNode, peer: ClientNode) {
+    await peer.setStateOf(CommissioningClient, { fabricIndexOnPeer: STALE_FABRIC_INDEX });
+    const failure = await withEntropy([controller, device], () =>
+        MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
+    ).then(
+        () => undefined,
+        (error: unknown) => error,
+    );
+    if (!(failure instanceof OperationalCertificateUpdateError)) {
+        expect.fail(`Expected an OperationalCertificateUpdateError, got ${failure}`);
+    }
+    return failure;
+}
+
+/**
+ * Expect the update to fail after it read CurrentFabricIndex: the error and the stored fabric index carry the index of
+ * the device instead of {@link STALE_FABRIC_INDEX}.
+ */
 async function rejectedUpdate(controller: ServerNode, device: ServerNode, peer: ClientNode, message?: RegExp) {
-    await expect(
-        withEntropy([controller, device], () =>
-            MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
-        ),
-    ).rejectedWith(OperationalCertificateUpdateError, message);
+    const failure = await updateFailure(controller, device, peer);
+    if (message !== undefined) {
+        expect(failure.message).match(message);
+    }
 
     // Disarmed at once rather than left to expire
     expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
+
+    expectFabricIndexReported(failure, device, peer);
+    return failure;
+}
+
+/** Expect the cause of {@link failure} to be an update error that carries the index of the device too. */
+function expectCauseFabricIndexReported(failure: OperationalCertificateUpdateError, device: ServerNode) {
+    const { cause } = failure;
+    if (!(cause instanceof OperationalCertificateUpdateError)) {
+        expect.fail(`Expected an OperationalCertificateUpdateError as cause, got ${cause}`);
+    }
+    expect(cause.fabricIndexOnPeer).equals(FabricIndex(deviceFabric(device).fabricIndex));
+}
+
+/** Memory storage that fails every write of {@link failing}.index as `fabricIndexOnPeer`. */
+class FabricIndexFailingStorage extends MemoryStorageDriver {
+    constructor(
+        store: Record<string, any>,
+        private readonly failing: { index?: number },
+    ) {
+        super(store);
+    }
+
+    override set(
+        contexts: string[],
+        keyOrValues: string | Record<string, SupportedStorageTypes>,
+        value?: SupportedStorageTypes,
+    ) {
+        const { index } = this.failing;
+        const written = typeof keyOrValues === "string" ? { [keyOrValues]: value } : keyOrValues;
+        if (index !== undefined && written.fabricIndexOnPeer === index) {
+            throw new StorageError("Simulated storage failure");
+        }
+        super.set(contexts, keyOrValues, value);
+    }
+}
+
+function expectFabricIndexReported(failure: OperationalCertificateUpdateError, device: ServerNode, peer: ClientNode) {
+    const fabricIndex = FabricIndex(deviceFabric(device).fabricIndex);
+    expect(failure.fabricIndexOnPeer).equals(fabricIndex);
+    expect(peer.stateOf(CommissioningClient).fabricIndexOnPeer).equals(fabricIndex);
+}
+
+/** Expect the update to fail before it read CurrentFabricIndex: no index reported, the stored one unchanged. */
+function expectFabricIndexUnread(failure: OperationalCertificateUpdateError, peer: ClientNode) {
+    expect(failure.fabricIndexOnPeer).undefined;
+    expect(peer.stateOf(CommissioningClient).fabricIndexOnPeer).equals(STALE_FABRIC_INDEX);
+}
+
+/**
+ * Run {@link test} while a second transaction takes the commissioning state of {@link peer} as soon as the protocol
+ * update settles, writes {@link STALE_FABRIC_INDEX} and holds the lock for one macrotask.
+ */
+async function whileCommissioningStateHeld<T>(peer: ClientNode, test: () => Promise<T>) {
+    const commissioner = peer.env.get(ControllerCommissioner);
+    const original = commissioner.updateOperationalCertificate;
+    let holding: MaybePromise<void> | undefined;
+    commissioner.updateOperationalCertificate = async (...args) => {
+        try {
+            return await original.apply(commissioner, args);
+        } finally {
+            const locked = createPromise<void>();
+            holding = peer.act("hold-commissioning-state", async agent => {
+                const commissioning = agent.get(CommissioningClient);
+                await agent.context.transaction.addResources(commissioning);
+                await agent.context.transaction.begin();
+                commissioning.state.fabricIndexOnPeer = STALE_FABRIC_INDEX;
+                locked.resolver();
+                await MockTime.macrotask;
+            });
+            await Promise.race([locked.promise, holding]);
+        }
+    };
+    try {
+        const result = await test();
+        await holding;
+        expect(holding).not.undefined;
+        return result;
+    } finally {
+        commissioner.updateOperationalCertificate = original;
+    }
+}
+
+/** Run {@link test}; every restore function it registers runs afterwards in reverse order, also when it throws. */
+async function withPatches(test: (patch: (restore: () => void) => void) => Promise<void>) {
+    const restores = new Array<() => void>();
+    try {
+        await test(restore => restores.push(restore));
+    } finally {
+        for (const restore of restores.reverse()) {
+            restore();
+        }
+    }
 }
 
 type Handler = (this: unknown, ...args: unknown[]) => Promise<unknown>;
@@ -405,30 +523,26 @@ async function expectForgedNocsRefused(
     const ca = controller.env.get(CertificateAuthority);
     const generateNoc = ca.generateNoc;
     let issued = 0;
-    ca.generateNoc = (...args) => {
-        issued++;
-        return generateNoc.apply(ca, args);
-    };
-    const { sent: arms, restore: restoreArm } = interceptCommand(
-        GeneralCommissioning.Cluster.id,
-        ARM_FAIL_SAFE_COMMAND_ID,
-        {
+    const arms = { attempts: 0 };
+    await withPatches(async patch => {
+        ca.generateNoc = (...args) => {
+            issued++;
+            return generateNoc.apply(ca, args);
+        };
+        patch(() => (ca.generateNoc = generateNoc));
+        const intercepted = interceptCommand(GeneralCommissioning.Cluster.id, ARM_FAIL_SAFE_COMMAND_ID, {
             delivered: true,
             answered: true,
-        },
-    );
-    const restoreRead = reportNocsOnce(forge);
-    try {
-        await expect(
-            withEntropy([controller, device], () =>
-                MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
-            ),
-        ).rejectedWith(OperationalCertificateUpdateRefusedError, /the certificate it reports did not verify/);
-    } finally {
-        restoreRead();
-        restoreArm();
-        ca.generateNoc = generateNoc;
-    }
+        });
+        patch(intercepted.restore);
+        patch(reportNocsOnce(forge));
+
+        const failure = await updateFailure(controller, device, peer);
+        arms.attempts = intercepted.sent.attempts;
+        expect(failure).instanceOf(OperationalCertificateUpdateRefusedError);
+        expect(failure.message).match(/the certificate it reports did not verify/);
+        expectFabricIndexReported(failure, device, peer);
+    });
 
     expect(arms.attempts).equals(0);
     expect(issued).equals(0);
@@ -533,16 +647,11 @@ describe("OperationalCertificateUpdate", () => {
             throw new StatusResponseError("Refused by test", Status.ConstraintError);
         });
         try {
-            await expect(
-                withEntropy([controller, device], () =>
-                    MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
-                ),
-            ).rejectedWith(OperationalCertificateUpdateError, /keeps its previous certificate/);
+            await rejectedUpdate(controller, device, peer, /keeps its previous certificate/);
         } finally {
             restore();
         }
 
-        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
         expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
     });
 
@@ -679,11 +788,10 @@ describe("OperationalCertificateUpdate", () => {
 
         await MockTime.resolve(peer.openEnhancedCommissioningWindow(), { macrotasks: true });
 
-        await expect(
-            withEntropy([controller, device], () =>
-                MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
-            ),
-        ).rejectedWith(OperationalCertificateUpdateBusyError, /another administrator holds the fail-safe/);
+        const failure = await updateFailure(controller, device, peer);
+        expect(failure).instanceOf(OperationalCertificateUpdateBusyError);
+        expect(failure.message).match(/another administrator holds the fail-safe/);
+        expectFabricIndexReported(failure, device, peer);
         expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
     });
 
@@ -710,19 +818,43 @@ describe("OperationalCertificateUpdate", () => {
                 },
         );
         try {
-            const failure = await withEntropy([controller, device], () =>
-                MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
-            ).then(
-                () => undefined,
-                (error: unknown) => error,
-            );
+            const failure = await updateFailure(controller, device, peer);
             expect(failure).instanceOf(OperationalCertificateUpdateRefusedError);
             expect(failure).not.instanceOf(OperationalCertificateUpdateBusyError);
+            expectFabricIndexReported(failure, device, peer);
         } finally {
             restore();
         }
 
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
+        expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
+    });
+
+    it("reports the previous certificate kept when the device answers ArmFailSafe with an error status", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const before = snapshot(device);
+
+        const restore = await patchDeviceCommand(
+            device,
+            GeneralCommissioningServer,
+            "armFailSafe",
+            original =>
+                async function (this: unknown, ...args: unknown[]) {
+                    const [request] = args;
+                    if (isObject(request) && request.expiryLengthSeconds !== 0) {
+                        throw new StatusResponseError("Refused by test", Status.ConstraintError);
+                    }
+                    return original.apply(this, args);
+                },
+        );
+        try {
+            await rejectedUpdate(controller, device, peer, /keeps its previous certificate/);
+        } finally {
+            restore();
+        }
+
         expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
     });
 
@@ -735,11 +867,10 @@ describe("OperationalCertificateUpdate", () => {
 
         const { sent: arms, restore } = dropRequests(GeneralCommissioning.Cluster.id, ARM_FAIL_SAFE_COMMAND_ID);
         try {
-            await expect(
-                withEntropy([controller, device], () =>
-                    MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
-                ),
-            ).rejectedWith(OperationalCertificateUpdateBusyError, /Breadcrumb is 7, so another operation/);
+            const failure = await updateFailure(controller, device, peer);
+            expect(failure).instanceOf(OperationalCertificateUpdateBusyError);
+            expect(failure.message).match(/Breadcrumb is 7, so another operation/);
+            expectFabricIndexReported(failure, device, peer);
         } finally {
             restore();
         }
@@ -770,16 +901,16 @@ describe("OperationalCertificateUpdate", () => {
             }
             yield* original.apply(this, args);
         };
+        let failure: OperationalCertificateUpdateError;
         try {
-            await expect(
-                withEntropy([controller, device], () =>
-                    MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
-                ),
-            ).rejectedWith(OperationalCertificateUpdateError, /keeps its previous certificate/);
+            failure = await updateFailure(controller, device, peer);
         } finally {
             ClientInteraction.prototype.read = original;
             restoreArm();
         }
+
+        expect(failure.message).match(/keeps its previous certificate/);
+        expectFabricIndexUnread(failure, peer);
 
         expect(arms.attempts).equals(0);
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
@@ -791,15 +922,15 @@ describe("OperationalCertificateUpdate", () => {
         const peer = await subscribedPeer(controller, "peer1");
 
         const restore = dropAttributeReports(GeneralCommissioning.Cluster.id, BREADCRUMB_ATTRIBUTE_ID);
+        let failure: OperationalCertificateUpdateError;
         try {
-            await expect(
-                withEntropy([controller, device], () =>
-                    MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
-                ),
-            ).rejectedWith(OperationalCertificateUpdateError, /keeps its previous certificate/);
+            failure = await updateFailure(controller, device, peer);
         } finally {
             restore();
         }
+
+        expect(failure.message).match(/keeps its previous certificate/);
+        expectFabricIndexUnread(failure, peer);
 
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
     });
@@ -810,22 +941,16 @@ describe("OperationalCertificateUpdate", () => {
         const peer = await subscribedPeer(controller, "peer1");
 
         const restore = dropAttributeReports(OperationalCredentials.Cluster.id, CURRENT_FABRIC_INDEX_ATTRIBUTE_ID);
-        let caught: unknown;
+        let failure: OperationalCertificateUpdateError;
         try {
-            await withEntropy([controller, device], () =>
-                MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
-            );
-        } catch (error) {
-            caught = error;
+            failure = await updateFailure(controller, device, peer);
         } finally {
             restore();
         }
 
-        expect(caught).instanceOf(OperationalCertificateUpdateError);
-        expect((caught as Error).message).match(/keeps its previous certificate/);
-        expect(String((caught as OperationalCertificateUpdateError).cause)).contains(
-            "reported CurrentFabricIndex none",
-        );
+        expect(failure.message).match(/keeps its previous certificate/);
+        expect(String(failure.cause)).contains("reported CurrentFabricIndex none");
+        expectFabricIndexUnread(failure, peer);
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
     });
 
@@ -860,6 +985,144 @@ describe("OperationalCertificateUpdate", () => {
         expect(peer.stateOf(CommissioningClient).fabricIndexOnPeer).equals(knownIndex);
     });
 
+    it("stores the CurrentFabricIndex read before an update the device refuses", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        const restore = await patchDeviceCommand(device, OperationalCredentialsServer, "updateNoc", () => async () => ({
+            statusCode: OperationalCredentials.NodeOperationalCertStatus.InvalidNoc,
+        }));
+        try {
+            const failure = await rejectedUpdate(controller, device, peer, /keeps its previous certificate/);
+            expectCauseFabricIndexReported(failure, device);
+        } finally {
+            restore();
+        }
+    });
+
+    it("stores the CurrentFabricIndex read before a refused CommissioningComplete", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        const restore = await patchDeviceCommand(
+            device,
+            GeneralCommissioningServer,
+            "commissioningComplete",
+            () => async () => ({
+                errorCode: GeneralCommissioning.CommissioningError.ValueOutsideRange,
+                debugText: "test refusal",
+            }),
+        );
+        try {
+            const failure = await rejectedUpdate(controller, device, peer, /reverted to its previous certificate/);
+            expectCauseFabricIndexReported(failure, device);
+        } finally {
+            restore();
+        }
+    });
+
+    it("throws the update error unchanged when storing the CurrentFabricIndex read before fails", async () => {
+        const failing: { index?: number } = {};
+        await using site = new MockSite({
+            createStorageDriver: store => new FabricIndexFailingStorage(store, failing),
+        });
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        await device.setStateOf(GeneralCommissioningServer, { breadcrumb: 7 });
+        const fabricIndex = FabricIndex(deviceFabric(device).fabricIndex);
+        failing.index = fabricIndex;
+
+        using log = captureLog(LogLevel.WARN);
+        const failure = await updateFailure(controller, device, peer);
+
+        expect(failure).instanceOf(OperationalCertificateUpdateBusyError);
+        expect(failure.message).match(/Breadcrumb is 7, so another operation/);
+        expect(failure.fabricIndexOnPeer).equals(fabricIndex);
+        expect(log.messages.some(message => message.includes(`could not store fabric index ${fabricIndex}`))).true;
+    });
+
+    it("stores the CurrentFabricIndex after another transaction releases the commissioning state", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        await peer.setStateOf(CommissioningClient, { fabricIndexOnPeer: STALE_FABRIC_INDEX });
+
+        await whileCommissioningStateHeld(peer, () => update(controller, device, peer));
+
+        expect(peer.stateOf(CommissioningClient).fabricIndexOnPeer).equals(
+            FabricIndex(deviceFabric(device).fabricIndex),
+        );
+    });
+
+    it("stores the CurrentFabricIndex of a failed update after another transaction releases the commissioning state", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        await device.setStateOf(GeneralCommissioningServer, { breadcrumb: 7 });
+
+        const failure = await whileCommissioningStateHeld(peer, () => updateFailure(controller, device, peer));
+
+        expect(failure).instanceOf(OperationalCertificateUpdateBusyError);
+        expectFabricIndexReported(failure, device, peer);
+    });
+
+    it("stores the CurrentFabricIndex read before an update with an unknown outcome", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const fabricIndex = FabricIndex(deviceFabric(device).fabricIndex);
+
+        const restore = loseUpdateNocResponse(() => device.stop());
+        let failure: OperationalCertificateUpdateError;
+        try {
+            failure = await updateFailure(controller, device, peer);
+        } finally {
+            restore();
+        }
+
+        expect(failure.message).match(/outcome is unknown/);
+        expect(failure.fabricIndexOnPeer).equals(fabricIndex);
+        expect(peer.stateOf(CommissioningClient).fabricIndexOnPeer).equals(fabricIndex);
+    });
+
+    it("reports the CurrentFabricIndex when another operation completed the fail-safe of a refused NOCResponse", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+
+        let newNoc: Bytes | undefined;
+        await withPatches(async patch => {
+            patch(
+                await patchDeviceCommand(
+                    device,
+                    OperationalCredentialsServer,
+                    "updateNoc",
+                    original =>
+                        async function (this: unknown, ...args: unknown[]) {
+                            const [request] = args;
+                            if (isObject(request) && Bytes.isBytes(request.nocValue)) {
+                                newNoc = request.nocValue;
+                            }
+                            const response = await original.apply(this, args);
+                            return isObject(response) ? { ...response, fabricIndex: STALE_FABRIC_INDEX } : response;
+                        },
+                ),
+            );
+            // The disarm reverts the device; reporting the new NOC afterwards looks like a commit by another operation
+            patch(
+                reportNocs(
+                    entries => (newNoc === undefined ? entries : forgedNocs(newNoc)(entries)),
+                    () => newNoc !== undefined,
+                ),
+            );
+
+            const failure = await rejectedUpdate(controller, device, peer, /the new certificate is in place/);
+            expectCauseFabricIndexReported(failure, device);
+        });
+    });
+
     it("refuses an uncommissioned node", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
@@ -871,7 +1134,7 @@ describe("OperationalCertificateUpdate", () => {
         ).rejectedWith(ImplementationError, /not commissioned/);
     });
 
-    it("keeps the device's fabric index on the controller", async () => {
+    it("stores the device's fabric index when none is stored", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
         const peer = await subscribedPeer(controller, "peer1");
@@ -888,7 +1151,7 @@ describe("OperationalCertificateUpdate", () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
         const peer = await subscribedPeer(controller, "peer1");
-        await peer.setStateOf(CommissioningClient, { fabricIndexOnPeer: FabricIndex(200) });
+        await peer.setStateOf(CommissioningClient, { fabricIndexOnPeer: STALE_FABRIC_INDEX });
 
         await update(controller, device, peer);
 
@@ -1015,16 +1278,16 @@ describe("OperationalCertificateUpdate", () => {
             ARM_FAIL_SAFE_COMMAND_ID,
         );
         const restoreRead = dropAttributeReports(OperationalCredentials.Cluster.id, NOCS_ATTRIBUTE_ID);
+        let failure: OperationalCertificateUpdateError;
         try {
-            await expect(
-                withEntropy([controller, device], () =>
-                    MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }),
-                ),
-            ).rejectedWith(OperationalCertificateUpdateError, /keeps its previous certificate/);
+            failure = await updateFailure(controller, device, peer);
         } finally {
             restoreRead();
             restoreArm();
         }
+
+        expect(failure.message).match(/keeps its previous certificate/);
+        expectFabricIndexUnread(failure, peer);
 
         expect(arms.attempts).equals(0);
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
