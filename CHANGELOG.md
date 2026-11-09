@@ -70,7 +70,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `VendorIdVerification.verifyData` returns false for a VVSC that breaks its certificate profile instead of throwing
 
 - @matter/nodejs
-    - Fix: SQLite storage accepts overlapping transactions instead of failing with "Transaction is in progress", so concurrent node state writes are no longer lost (@delu999)
+    - Fix: (@delu999) SQLite storage accepts overlapping transactions instead of failing with "Transaction is in progress", so concurrent node state writes are no longer lost
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp

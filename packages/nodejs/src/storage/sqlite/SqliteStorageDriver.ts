@@ -658,6 +658,7 @@ class SqliteStorageDriverTransaction extends StorageTransaction {
     override commit() {
         this.assertActive();
         this.#store.commit(this.#writes);
+        this.#writes.length = 0;
         super.commit();
     }
 

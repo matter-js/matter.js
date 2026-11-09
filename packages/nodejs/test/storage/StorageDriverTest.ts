@@ -384,6 +384,15 @@ describe("StorageDrivers", () => {
                 assert.equal(storage.get(CONTEXTx1, "key"), "value");
             });
 
+            it("reads stored data through a committed transaction", async () => {
+                const tx = storage.begin();
+                tx.set(CONTEXTx1, "key", "old");
+                tx.commit();
+                storage.set(CONTEXTx1, "key", "new");
+
+                assert.equal(tx.get(CONTEXTx1, "key"), "new");
+            });
+
             it("discards writes on rollback", async () => {
                 {
                     using tx = storage.begin();
