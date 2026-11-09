@@ -83,7 +83,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Device attestation reports a Certification Declaration from the Matter test CD signer as `TrustedAsTestCertificate` when test certificates are not accepted
 
 - @project-chip/matter.js
-    - Fix: `PairedNode.reconnect()` waits for concurrent network state updates when re-enabling the subscription, so a lock conflict no longer leaves the node unsubscribed
+    - Fix: (@cwedgwood) `PairedNode` waits for concurrent network state updates when it enables the subscription, so a lock conflict no longer leaves the node unsubscribed
 
 ## 0.18.0 (2026-10-20)
 
