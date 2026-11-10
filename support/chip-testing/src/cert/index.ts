@@ -105,6 +105,10 @@ const deviceQueues = new Map<string, LineQueue>();
 Boot.init(() => {
     forgetLogOriginClaims();
 
+    // Certification checks read message payloads and secret field values from the logs of in-process nodes
+    Logger.logPayloads = true;
+    Logger.redactSecrets = false;
+
     Logger.destinations["cert-matterjs-device"] = OriginDestination("cert-matterjs-device", "device", text => {
         const id = activeDeviceId.getStore();
         const queue = id === undefined ? undefined : deviceQueues.get(id);

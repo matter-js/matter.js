@@ -14,6 +14,7 @@ import {
     Endian,
     hex,
     InternalError,
+    Logger,
     NotImplementedError,
     UnexpectedDataError,
 } from "@matter/general";
@@ -122,7 +123,7 @@ export namespace Message {
                     privacy: hasPrivacyEnhancements,
                 }),
                 size: payload.byteLength ? payload.byteLength : undefined,
-                payload: payload.byteLength ? payload : undefined,
+                payload: payload.byteLength && Logger.logPayloads ? payload : undefined,
             },
             true,
         );

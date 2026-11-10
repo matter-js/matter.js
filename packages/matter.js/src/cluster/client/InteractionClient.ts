@@ -17,7 +17,7 @@ import {
     ServerAddressUdp,
     UnexpectedDataError,
 } from "@matter/general";
-import { Matter, Specification } from "@matter/model";
+import { Matter, SecretRedaction, Specification } from "@matter/model";
 import type { ServerNode } from "@matter/node";
 import { ClientNodeInteraction } from "@matter/node";
 import {
@@ -784,9 +784,9 @@ export class InteractionClient {
                 Diagnostic.dict({
                     attributes: attributes
                         .map(
-                            ({ endpointId, clusterId, attribute: { id }, value, dataVersion }) =>
+                            ({ endpointId, clusterId, attribute: { id, schema }, value, dataVersion }) =>
                                 `${resolveAttributeName({ endpointId, clusterId, attributeId: id })} = ${Diagnostic.json(
-                                    value,
+                                    SecretRedaction.redact(schema, value),
                                 )} (version=${dataVersion})`,
                         )
                         .join(", "),

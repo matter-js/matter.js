@@ -527,7 +527,11 @@ export class ExchangeManager implements Transport.Provider {
                         Mark.INBOUND,
                         "unexpected message",
                         messageDiagnostics,
-                        Diagnostic.json(message),
+                        Diagnostic.json(
+                            Logger.logPayloads
+                                ? message
+                                : { packetHeader: message.packetHeader, payloadHeader: message.payloadHeader },
+                        ),
                     );
                 }
             }
