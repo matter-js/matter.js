@@ -38,6 +38,13 @@ export enum DeviceAttestationCheck {
     AttestationSignatureInvalid = "AttestationSignatureInvalid",
     AttestationNonceMismatch = "AttestationNonceMismatch",
     CertificationDeclarationSignatureInvalid = "CertificationDeclarationSignatureInvalid",
+    /**
+     * A Certification Declaration field does not match the device.  Collected as a recoverable error for the
+     * BasicInformation VendorID and ProductID, which the device reports about itself, also when it did not report them;
+     * thrown for a mismatch with the DAC or PAI.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.2.3.1
+     */
     CertificationDeclarationFieldMismatch = "CertificationDeclarationFieldMismatch",
     CertificateRevoked = "CertificateRevoked",
     FirmwareInfoMismatch = "FirmwareInfoMismatch",
@@ -106,6 +113,12 @@ export interface AttestationFinding {
 
 /** Error thrown when device attestation validation encounters a hard failure. */
 export class DeviceAttestationError extends CommissioningError {
+    /**
+     * Findings {@link DeviceAttestationValidator.validate} collected before this failure stopped validation, so a
+     * policy can see them next to the failure.
+     */
+    readonly precedingFindings = new Array<AttestationFinding>();
+
     constructor(
         readonly failure: DeviceAttestationCheck,
         message: string,
@@ -262,11 +275,27 @@ export namespace DeviceAttestationValidator {
      * `onFailure` whether to proceed: {@link DeviceAttestationCheck.TrustedAsTestCertificate}, and
      * {@link DeviceAttestationCheck.CertificationDeclarationFieldMismatch} when the CD does not match the
      * BasicInformation VendorID or ProductID the device reported, or the device did not report them.
-     * Warning and info findings are always collected.
+     * Warning and info findings are always collected. When a hard failure stops validation, the findings collected
+     * until then are in {@link DeviceAttestationError.precedingFindings}.
      */
     export async function validate(context: Context, data: DeviceAttestationData): Promise<ValidationResult> {
-        const { crypto, dclCertificateService } = context;
         const findings = new Array<AttestationFinding>();
+        try {
+            return { dacPublicKey: await validateCollecting(context, data, findings), findings };
+        } catch (error) {
+            if (error instanceof DeviceAttestationError) {
+                error.precedingFindings.push(...findings);
+            }
+            throw error;
+        }
+    }
+
+    async function validateCollecting(
+        context: Context,
+        data: DeviceAttestationData,
+        findings: AttestationFinding[],
+    ): Promise<ReturnType<typeof PublicKey>> {
+        const { crypto, dclCertificateService } = context;
 
         // Step 1: Parse PAI and DAC from DER; the PAI goes first, as the CHIP SDK checks the PAI format first
         const pai = parsePeerCertificate("PAI", data.pai, der => Pai.fromAsn1(der));
@@ -548,7 +577,7 @@ export namespace DeviceAttestationValidator {
         }
 
         // product_id_array SHALL contain BasicInformation ProductID
-        if (data.productId === undefined || !cdContent.produceIdArray.includes(data.productId)) {
+        if (cdContent.produceIdArray.every(id => id !== data.productId)) {
             findings.push({
                 level: "error",
                 type: DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
@@ -652,6 +681,6 @@ export namespace DeviceAttestationValidator {
         //       compare attestationInfo.firmwareInfo bytes against expected value and emit a
         //       FirmwareInfoMismatch warning finding on mismatch. Validation is MAY per spec.
 
-        return { dacPublicKey, findings };
+        return dacPublicKey;
     }
 }
