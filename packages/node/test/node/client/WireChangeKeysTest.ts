@@ -23,6 +23,7 @@ function recordingStructure(node: MockServerNode) {
                 initialValues: values,
                 version: 0,
                 prepare: () => async () => {},
+                assertWritable: () => {},
                 externalSet: async (incoming: Val.StructMap) => {
                     for (const [key, value] of incoming) {
                         values[String(key)] = value;

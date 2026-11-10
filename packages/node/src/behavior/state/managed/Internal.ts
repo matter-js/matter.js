@@ -20,6 +20,16 @@ export namespace Internal {
     }
 
     /**
+     * The reference behind a managed value, or `undefined` for any other value.
+     */
+    export function referenceOf(value: Val): ValReference<Val.Collection> | undefined {
+        if (value === null || typeof value !== "object") {
+            return undefined;
+        }
+        return (value as Partial<Collection>)[reference];
+    }
+
+    /**
      * Copy an incoming value tree into raw data for a manager to store.
      *
      * A managed proxy is replaced by a copy of its raw value, including the entries of other fabrics.  Every array and
@@ -35,7 +45,7 @@ export namespace Internal {
             return value;
         }
 
-        const ref = (value as Collection)[reference];
+        const ref = referenceOf(value);
         if (ref) {
             return copy(ref.value);
         }

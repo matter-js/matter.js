@@ -234,14 +234,11 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     }
 
     /**
-     * Remove an entry.  Only the last entry may go, so the list never has a gap.  An index beyond the end is ignored.
+     * Remove the entry at `index`, which is below {@link getListLength}.  Only the last entry may go, so the list never
+     * has a gap.
      */
     protected deleteEntry(index: number, location: AccessControl.Location) {
-        const length = this.getListLength();
-        if (index >= length) {
-            return;
-        }
-        if (index !== length - 1) {
+        if (index !== this.getListLength() - 1) {
             throw new WriteError(location, `Deleting entry ${index} would leave a gap; use splice to remove it`);
         }
         this.setListLength(index);
@@ -443,6 +440,11 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     deleteProperty(_target: Val.List, property: PropertyKey) {
         const index = entryIndexFor(property);
         if (index !== undefined) {
+            if (index >= this.getListLength()) {
+                // Ignored as on an array, but the list must still be writable, so an uncached or group list refuses
+                this.reference.assertWritable();
+                return true;
+            }
             this.#sublocation.path.id = index;
             this.deleteEntry(index, this.#sublocation);
             return true;
@@ -531,13 +533,10 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
     }
 
     /**
-     * Remove an entry.  Any entry may go, because the later entries of this fabric move up to fill the gap.  An index
-     * beyond the end is ignored.
+     * Remove the entry at `index`, which is below {@link getListLength}.  Any entry may go, because the later entries
+     * of this fabric move up to fill the gap.
      */
     protected override deleteEntry(index: number, location: AccessControl.Location) {
-        if (index >= this.getListLength()) {
-            return;
-        }
         this.config.authorizeWrite(this.session, location);
         const entries = this.visibleEntries();
         entries.splice(index, 1);

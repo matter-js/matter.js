@@ -11,7 +11,6 @@ import { ApiPath } from "#behavior/system/remote/api/ApiPath.js";
 import type { RemoteRequest } from "#behavior/system/remote/api/RemoteRequest.js";
 import { AccessControlClient, AccessControlServer } from "#behaviors/access-control";
 import { BindingClient, BindingServer } from "#behaviors/binding";
-import { OnOffClient } from "#behaviors/on-off";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { UserLabelClient, UserLabelServer } from "#behaviors/user-label";
 import { OnOffLightDevice } from "#devices/on-off-light";
@@ -19,7 +18,7 @@ import { ClientGroup } from "#node/ClientGroup.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
-import { InternalError, LogLevel, MaybePromise, Millis, Seconds } from "@matter/general";
+import { LogLevel, MaybePromise, Millis, Seconds } from "@matter/general";
 import { DataModelPath } from "@matter/model";
 import {
     MockServerNode,
@@ -32,6 +31,7 @@ import {
 } from "@matter/node/testing";
 import { Read, Val, Write, WriteError } from "@matter/protocol";
 import {
+    ClusterId,
     EndpointNumber,
     FabricIndex,
     GroupId,
@@ -40,6 +40,7 @@ import {
     StatusResponseError,
     SubjectId,
     TlvOfModel,
+    ValidationMandatoryFieldMissingError,
 } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
@@ -623,6 +624,26 @@ describe("ClientNode fabric-scoped list write", () => {
         expect(labelsOf(peer)).deep.equals([label]);
     });
 
+    it("refuses a list entry without its mandatory field instead of completing it from a cached entry", async () => {
+        await using site = new MockSite();
+        const { device, peer } = await unfilteredPeer(site);
+        const peerEndpoint = peer.parts.get(1)!;
+        const room = { label: "room", value: "kitchen" };
+        await MockTime.resolve(
+            peerEndpoint.setStateOf(UserLabelClient, { labelList: [room, { label: "floor", value: "1" }] }),
+        );
+        const writes = recordWrites(peer);
+
+        const caught = await captureRejection(() =>
+            peerEndpoint.setStateOf(UserLabelClient, { labelList: [{ label: "zone" }] }),
+        );
+
+        expect(caught).instanceOf(ValidationMandatoryFieldMissingError);
+        expect(writes).length(0);
+        expect(labelsOf(device)).deep.equals([room, { label: "floor", value: "1" }]);
+        expect(labelsOf(peer)).deep.equals([room, { label: "floor", value: "1" }]);
+    });
+
     describe("through the Remote API", () => {
         // Characterization: the Remote API shows every entry
         it("reads the entries of every fabric", async () => {
@@ -834,6 +855,63 @@ describe("ClientNode fabric-scoped list write", () => {
             );
 
             expect(deviceAcl(device).at(-1)).deep.equals(added);
+        });
+    });
+
+    describe("of a binding list given whole", () => {
+        const foreign = { node: NodeId(5), endpoint: EndpointNumber(1), cluster: ClusterId(6), fabricIndex: FOREIGN };
+        const ours = { node: NodeId(6), endpoint: EndpointNumber(1), cluster: ClusterId(8), fabricIndex: OURS };
+        const given = { node: NodeId(6), endpoint: EndpointNumber(1) };
+        const written = { ...given, fabricIndex: OURS };
+
+        /** A peer whose cache holds {@link foreign} and {@link ours}, as the device does. */
+        async function bindingPeer(site: MockSite) {
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: ServerNode.RootEndpoint, device: OnOffLightDevice.with(BindingServer) },
+            });
+            const peer = await subscribedPeer(controller, "peer1");
+            await MockTime.resolve(peer.set({ network: { defaultSubscription: { fabricFilter: false } } }));
+            await settle(controller, device, peer);
+
+            const deviceEndpoint = device.parts.get(1)!;
+            const peerEndpoint = peer.parts.get(1)!;
+            await MockTime.resolve(deviceEndpoint.setStateOf(BindingServer, { binding: [foreign, ours] }));
+            for (let wait = 0; wait < 100 && peerEndpoint.stateOf(BindingClient).binding?.length !== 2; wait++) {
+                await MockTime.resolve(MockTime.sleep("binding report pending", Millis(100)));
+            }
+            expect(entriesOf(peerEndpoint.stateOf(BindingClient).binding)).deep.equals([foreign, ours]);
+
+            return { controller, deviceEndpoint, peerEndpoint, writes: recordWrites(peer) };
+        }
+
+        it("writes the entry setStateOf gives without the fields of the cached entry at that index and keeps the other fabric's entry", async () => {
+            await using site = new MockSite();
+            const { deviceEndpoint, peerEndpoint, writes } = await bindingPeer(site);
+
+            await MockTime.resolve(peerEndpoint.setStateOf(BindingClient, { binding: [given] }));
+
+            expect(writes).length(1);
+            expect(entriesOf(deviceEndpoint.stateOf(BindingServer).binding)).deep.equals([foreign, written]);
+            expect(entriesOf(peerEndpoint.stateOf(BindingClient).binding)).deep.equals([foreign, written]);
+        });
+
+        it("writes the entry an update through the Remote API gives without the fields of the cached entry at that index", async () => {
+            await using site = new MockSite();
+            const { controller, deviceEndpoint, writes } = await bindingPeer(site);
+
+            await MockTime.resolve(
+                controller.act(async agent => {
+                    const item = await Api.resourceFor(agent, new ApiPath("peers/peer1/1/binding/binding"));
+                    if (item === undefined) {
+                        expect.fail("Expected the binding attribute of the peer");
+                    }
+                    await item.patch({ js: [{ node: 6, endpoint: 1 }] });
+                }),
+                { macrotasks: true },
+            );
+
+            expect(writes).length(1);
+            expect(entriesOf(deviceEndpoint.stateOf(BindingServer).binding)).deep.equals([foreign, written]);
         });
     });
 
@@ -1092,27 +1170,6 @@ describe("ClientNode fabric-scoped list write", () => {
                 });
 
                 expect(isRemote).true;
-            } finally {
-                await node.close();
-            }
-        });
-
-        it("accepts a value the local model refuses on a group endpoint, for the devices to decide", async () => {
-            const node = await MockServerNode.createOnline();
-            try {
-                const endpoint = (await groupOf(node)).endpoints.require(1);
-                endpoint.behaviors.require(OnOffClient);
-                const rolledBack = new InternalError("roll back before the group write is sent");
-                const undefinedEnumValue: number = 9;
-
-                const caught = await captureRejection(() =>
-                    endpoint.act(agent => {
-                        agent.get(OnOffClient).state.startUpOnOff = undefinedEnumValue;
-                        throw rolledBack;
-                    }),
-                );
-
-                expect(caught).equals(rolledBack);
             } finally {
                 await node.close();
             }

@@ -5,8 +5,9 @@
  */
 
 import { InternalError } from "@matter/general";
-import { AccessControl, Val } from "@matter/protocol";
+import { AccessControl, ExpiredReferenceError, Val } from "@matter/protocol";
 import type { Supervision } from "../../supervision/Supervision.js";
+import { UncachedValueError } from "./errors.js";
 import {
     memberFallbackKeyFor,
     memberKeyFor,
@@ -33,13 +34,21 @@ type Container = Record<string | number, Val>;
  *
  * A reference stays bound to its member for its whole life and follows whatever container the parent holds there:
  *
- * | State   | Cause                                               | {@link value}      | Writes                  |
- * |---------|-----------------------------------------------------|--------------------|-------------------------|
- * | live    | the member holds a container                        | that container     | allowed                 |
- * | absent  | the member, or a container above it, is absent      | `undefined`/`null` | `PhantomReferenceError` |
- * | expired | the owning context exited, or a parent is read-only | last value seen    | `ExpiredReferenceError` |
+ * | State   | Cause                                                    | {@link value}      | Writes                  |
+ * |---------|----------------------------------------------------------|--------------------|-------------------------|
+ * | live    | the member holds a container                             | that container     | allowed                 |
+ * | default | the member is absent; the reference has a default        | the default        | `UncachedValueError`    |
+ * | absent  | member absent without default, or container above absent | `undefined`/`null` | `PhantomReferenceError` |
+ * | expired | the owning context exited, or a parent is read-only      | last value seen    | `ExpiredReferenceError` |
  *
- * "absent" returns to "live" when a container is assigned again.  "expired" is final.
+ * A reference to a mandatory member has a default when its parent keys by ID, which only a mirror's root does; see
+ * {@link ValReference.PrimaryKey}.  A reference makes its default when it enters "default" and serves that same value
+ * until it leaves; a read never stores it.  A value built from the default and assigned whole is stored like any other
+ * assignment and replaces the remote value.  A write below a reference in "default" fails the same way.  Before the
+ * default is checked, a write throws what the datasource's `ExternallyMutableStore.assertWritable` throws.  "default"
+ * and "absent" return to "live" when the member holds a container again, for example after a report or an assignment.
+ * Once a transaction changed the cluster, its root keeps its own copy, so a later report does not reach it.  A live
+ * member that becomes absent again, for example by a rollback, enters "default" or "absent".  "expired" is final.
  */
 export class ManagedReference implements ValReference {
     readonly primaryKey = "name";
@@ -53,9 +62,11 @@ export class ManagedReference implements ValReference {
     #fallbackKey: string | number | undefined;
     #readFallbackKey: string | number | undefined;
     #clone: (container: Val) => Val;
+    #makeDefault: (() => Val) | undefined;
+    #servesDefault = false;
     #session: AccessControl.Session;
     #location: AccessControl.Location;
-    #value: unknown;
+    #value: Val;
     #dynamicContainer: Val.Struct | undefined;
     #dynamicSource: Val | undefined;
 
@@ -65,6 +76,8 @@ export class ManagedReference implements ValReference {
      * @param id the lookup ID, used when {@link parent} keys its members by ID
      * @param clone clones the container prior to write
      * @param session the access control session
+     * @param makeDefault makes the default to serve while the member is absent; called once each time the member
+     * becomes absent
      */
     constructor(
         parent: ValReference<Val.Collection>,
@@ -72,9 +85,11 @@ export class ManagedReference implements ValReference {
         id: number | undefined,
         clone: (container: Val) => Val,
         session: AccessControl.Session,
+        makeDefault?: () => Val,
     ) {
         this.parent = parent;
         this.#clone = clone;
+        this.#makeDefault = makeDefault;
         this.#session = session;
 
         this.#location = {
@@ -90,10 +105,7 @@ export class ManagedReference implements ValReference {
         this.#readFallbackKey = readFallbackKey;
 
         this.#bindDynamicContainer();
-        this.#value =
-            this.#dynamicContainer === undefined
-                ? memberValueOf(parent.value as Container, key, readFallbackKey)
-                : memberValueOf(this.#dynamicContainer as Container, key, fallbackKey);
+        this.#value = this.#memberValue();
 
         // Propagate supervision config from parent
         if (parent.supervisionConfig) {
@@ -129,6 +141,16 @@ export class ManagedReference implements ValReference {
 
     set location(loc: AccessControl.Location) {
         this.#location = loc;
+    }
+
+    assertWritable() {
+        if (this.expired) {
+            throw new ExpiredReferenceError(this.location);
+        }
+        this.parent.assertWritable();
+        if (this.#servesDefault) {
+            throw new UncachedValueError(this.location);
+        }
     }
 
     /**
@@ -171,6 +193,7 @@ export class ManagedReference implements ValReference {
         }
 
         if (this.parent.value === undefined || this.parent.value === null) {
+            this.#servesDefault = false;
             this.#replaceValue(undefined);
             return;
         }
@@ -184,12 +207,23 @@ export class ManagedReference implements ValReference {
             }
         }
 
+        this.#replaceValue(this.#memberValue());
+    }
+
+    #memberValue() {
         const value =
             this.#dynamicContainer === undefined
                 ? memberValueOf(this.parent.value as Container, this.#key, this.#readFallbackKey)
                 : memberValueOf(this.#dynamicContainer as Container, this.#key, this.#fallbackKey);
-
-        this.#replaceValue(value);
+        if (value !== undefined || this.#makeDefault === undefined) {
+            this.#servesDefault = false;
+            return value;
+        }
+        if (!this.#servesDefault) {
+            this.#servesDefault = true;
+            return this.#makeDefault();
+        }
+        return this.#value;
     }
 
     /**
