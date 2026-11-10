@@ -77,6 +77,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
 
 - @matter/protocol
+    - Fix: A subscription to an ICD whose IdleModeDuration is shorter than the default ceiling requests the default ceiling instead of the IdleModeDuration
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
     - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
