@@ -35,6 +35,7 @@ import {
     TestCert_PAA_NoVID_PublicKey,
     TestCert_PAA_NoVID_SKID,
 } from "@matter/protocol";
+import { VendorId } from "@matter/types";
 
 /**
  * Build a CRL of the CHIP test PAA without vendor ID with the given revoked serial numbers (hex strings), signed and
@@ -210,6 +211,9 @@ interface AttestationTestOptions {
 
     /** Hex encoded certification the device presents instead of a generated one. */
     deviceCertification?: typeof DAC_PROFILE_VIOLATION;
+
+    /** BasicInformation VendorID the device reports, set after its certification took the original VendorID. */
+    basicInformationVendorId?: VendorId;
 }
 
 /**
@@ -251,6 +255,10 @@ async function runAttestationTest(options: AttestationTestOptions) {
                       },
                   },
         );
+
+        if (options.basicInformationVendorId !== undefined) {
+            await device.set({ basicInformation: { vendorId: options.basicInformationVendorId } });
+        }
 
         // setupBeforeCommission sets up its own DCL mocks (e.g., with revocation data)
         if (options.setupBeforeCommission !== undefined) {
@@ -538,6 +546,50 @@ describe("device attestation during commissioning", () => {
             }));
     });
 
+    describe("BasicInformation VendorID that does not match the CD", () => {
+        const basicInformationVendorId = VendorId(0xfff2);
+        const mismatch = /CD vendor_id 0xFFF1 does not match BasicInformation VendorID 0xFFF2/;
+
+        it("reports CertificationDeclarationFieldMismatch, callback rejects", () =>
+            runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                basicInformationVendorId,
+                onAttestationFailure: () => false,
+                expectRejection: /^Device attestation rejected by policy: CD vendor_id 0xFFF1 does not match/,
+                assertFindings: findings => {
+                    const errors = findings.filter(f => f.level === "error");
+                    expect(errors.map(f => f.type)).deep.equals([
+                        DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
+                    ]);
+                    expect(errors[0].message).match(mismatch);
+                },
+            }));
+
+        it("reports CertificationDeclarationFieldMismatch, callback accepts → commissioning proceeds", () =>
+            runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                basicInformationVendorId,
+                onAttestationFailure: () => true,
+                assertResult: device => {
+                    expect(device.state.commissioning.commissioned).equals(true);
+                },
+            }));
+
+        it("names every error finding when the policy rejects", () =>
+            runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                paaAsTestOnly: true,
+                basicInformationVendorId,
+                onAttestationFailure: false,
+                expectRejection: err => {
+                    expect(err).instanceOf(CommissioningError);
+                    const message = err instanceof Error ? err.message : "";
+                    expect(message).match(/is a test\/development certificate/);
+                    expect(message).match(mismatch);
+                },
+            }));
+    });
+
     describe("with DCL trust store (wrong PAA)", () => {
         it("PaaNotTrusted error finding, callback rejects", () =>
             runAttestationTest({
@@ -591,9 +643,12 @@ describe("device attestation during commissioning", () => {
                     fetchMock.install();
                 },
                 assertFindings: findings => {
-                    expect(findings).to.have.length(1);
-                    expect(findings[0].type).equals(DeviceAttestationCheck.CertificateRevoked);
-                    expect(findings[0].level).equals("error");
+                    const errors = findings.filter(f => f.level === "error");
+                    expect(errors.map(f => f.type)).deep.equals([DeviceAttestationCheck.CertificateRevoked]);
+                    expect(findings.map(f => f.type)).deep.equals([
+                        DeviceAttestationCheck.PaaTrustStoreTimeMismatch,
+                        DeviceAttestationCheck.CertificateRevoked,
+                    ]);
                 },
             }));
 
