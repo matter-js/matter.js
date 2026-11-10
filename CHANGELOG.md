@@ -88,6 +88,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `CertificateAuthority.issueNoc()` returns each NOC with the ICAC that signed it, and the controller installs that ICAC for its own fabric and in AddNOC
     - Adjustment: `CertificateAuthority.generateNoc()` is deprecated; it drops the ICAC
     - Fix: A controller fabric takes the fabric ID of a root certificate that has one
+    - Enhancement: `DistinguishedName.areEqual()` compares two DNs RDN by RDN, in order
+    - Adjustment: NOC and ICAC verification refuses a certificate whose issuer DN differs from the subject DN of the certificate that signed it, as the CHIP SDK does; a matter.js device commissioned by a controller with a hand-built CA configuration whose root or ICAC subject is not just the configured `rcacId` or `icacId` needs to be commissioned again
+    - Fix: The local certificate authority uses the full subject of its root or ICAC as the issuer DN, so a stored root or ICAC whose subject holds more than its ID issues NOCs that verify
+    - Fix: A `FabricAuthority.defaultFabric()` call that arrives while the NOC renewal runs waits for it and returns the renewed fabric
     - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated

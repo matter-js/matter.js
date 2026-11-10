@@ -207,6 +207,27 @@ export namespace DistinguishedName {
     export function rdnCount(dn: View) {
         return encodedRdnsOf(dn).length;
     }
+
+    /** Whether two DNs encode the same RDNs in the same order, as the CHIP SDK compares DNs. */
+    export function areEqual(a: View, b: View) {
+        const aRdns = encodedRdnsOf(a);
+        const bRdns = encodedRdnsOf(b);
+        return (
+            aRdns.length === bRdns.length &&
+            aRdns.every((rdn, index) => {
+                const other = bRdns[index];
+                return rdn.type === other.type && valuesAreEqual(rdn.value, other.value);
+            })
+        );
+    }
+}
+
+/** A decoded identifier is a number when it fits.  A DN built in code may hold the same value as bigint. */
+function valuesAreEqual(a: DistinguishedName.Rdn["value"], b: DistinguishedName.Rdn["value"]) {
+    if (typeof a === "string" || typeof b === "string") {
+        return a === b;
+    }
+    return BigInt(a) === BigInt(b);
 }
 
 /** Written only by {@link decodeDistinguishedName}, so a DN object the caller built or copied has no entry. */

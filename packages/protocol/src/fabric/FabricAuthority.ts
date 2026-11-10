@@ -57,7 +57,7 @@ export class FabricAuthority {
     #ca: CertificateAuthority;
     #fabrics: FabricManager;
     #fabricAdded = new AsyncObservable<[Fabric]>();
-    #renewalAttemptedFabricIndices = new Set<FabricIndex>();
+    #nocRenewals = new Map<FabricIndex, Promise<void>>();
     #checkedFabricIndices = new Set<FabricIndex>();
 
     constructor({ ca, fabrics }: FabricAuthorityContext) {
@@ -90,7 +90,9 @@ export class FabricAuthority {
      *
      * When rotateNoc is true (the default) and the CA renews NOCs at start ({@link CertificateAuthority.renewsNocAtStart}),
      * the NOC key pair is rotated once per runtime when the fabric already exists.  When the CA cannot issue the new
-     * NOC, this is logged and the fabric keeps its NOC; the CA is not asked again in this run.
+     * NOC, this is logged and the fabric keeps its NOC; the CA is not asked again in this run.  A call that arrives
+     * while the renewal runs waits for it and returns the renewed fabric.  When installing the renewed NOC fails, the
+     * error reaches every waiting call and the next call renews again.
      */
     async defaultFabric(config: FabricAuthorityConfiguration, rotateNoc = true) {
         // First search for a fabric associated with the CA's root certificate
@@ -99,7 +101,7 @@ export class FabricAuthority {
         if (fabric !== undefined) {
             this.#warnOnIssuerMismatch(fabric);
             if (rotateNoc && this.#ca.renewsNocAtStart) {
-                fabric = await this.#rotateFabricNocKey(fabric);
+                fabric = await this.#renewNoc(fabric);
             }
             if (fabric.label !== config.adminFabricLabel) {
                 await fabric.setLabel(config.adminFabricLabel);
@@ -209,12 +211,25 @@ export class FabricAuthority {
         return fabric;
     }
 
-    async #rotateFabricNocKey(fabric: Fabric) {
-        if (this.#renewalAttemptedFabricIndices.has(fabric.fabricIndex)) {
-            return fabric;
+    async #renewNoc(fabric: Fabric) {
+        const { fabricIndex } = fabric;
+        let renewal = this.#nocRenewals.get(fabricIndex);
+        if (renewal === undefined) {
+            renewal = this.#issueRenewedNoc(fabric);
+            this.#nocRenewals.set(fabricIndex, renewal);
         }
-        this.#renewalAttemptedFabricIndices.add(fabric.fabricIndex);
+        try {
+            await renewal;
+        } catch (error) {
+            if (this.#nocRenewals.get(fabricIndex) === renewal) {
+                this.#nocRenewals.delete(fabricIndex);
+            }
+            throw error;
+        }
+        return this.#fabrics.for(fabricIndex);
+    }
 
+    async #issueRenewedNoc(fabric: Fabric) {
         const builder = await FabricBuilder.create(this.#fabrics.crypto);
         const {
             subject: { nodeId, fabricId, caseAuthenticatedTags },
@@ -230,15 +245,13 @@ export class FabricAuthority {
                 `Could not renew the NOC of fabric ${fabric.fabricIndex}, keeping the current one:`,
                 Diagnostic.errorMessage(asError(error)),
             );
-            return fabric;
+            return;
         }
         await builder.updateOperationalCert(fabric, issued.noc, issued.icac);
         const newFabric = await builder.build(fabric.fabricIndex);
-        logger.notice(`Rotated NOC for fabric ${fabric.fabricIndex}`);
+        logger.notice(`Renewed NOC for fabric ${fabric.fabricIndex}`);
 
         await this.#fabrics.replaceFabric(newFabric);
-
-        return newFabric;
     }
 
     /**

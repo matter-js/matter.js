@@ -697,6 +697,56 @@ describe("FabricAuthority", () => {
             expect(failedRenewals).equal(1);
         });
 
+        it("renews again after installing the renewed NOC failed", async () => {
+            const signer = await CertificateAuthority.create(crypto);
+            let renewals = 0;
+            const authority = await externalAuthority({
+                signer,
+                renewNocAtStart: true,
+                issueNoc: request => {
+                    renewals++;
+                    return signer.issueNoc(request);
+                },
+            });
+            const created = await authority.createFabric({ adminFabricLabel: "external" });
+            renewals = 0;
+            const replaceFabric = fabricManager.replaceFabric;
+            fabricManager.replaceFabric = () => {
+                throw new StorageError("Simulated storage failure (test)");
+            };
+
+            await expect(authority.defaultFabric({ adminFabricLabel: "external" })).rejectedWith(StorageError);
+            fabricManager.replaceFabric = replaceFabric;
+            const renewed = await authority.defaultFabric({ adminFabricLabel: "external" });
+
+            expect(renewals).equal(2);
+            expect(renewed).not.equal(created);
+        });
+
+        it("returns the renewed fabric to a caller that arrives while the renewal runs", async () => {
+            const signer = await CertificateAuthority.create(crypto);
+            let renewals = 0;
+            const authority = await externalAuthority({
+                signer,
+                renewNocAtStart: true,
+                issueNoc: request => {
+                    renewals++;
+                    return signer.issueNoc(request);
+                },
+            });
+            const created = await authority.createFabric({ adminFabricLabel: "external" });
+            renewals = 0;
+
+            const [first, second] = await Promise.all([
+                authority.defaultFabric({ adminFabricLabel: "external" }),
+                authority.defaultFabric({ adminFabricLabel: "external" }),
+            ]);
+
+            expect(renewals).equal(1);
+            expect(first).not.equal(created);
+            expect(second).equal(first);
+        });
+
         it("warns once when a stored fabric does not match the issuer's fabric ID and IPK", async () => {
             const signer = await CertificateAuthority.create(crypto);
             await (await externalAuthority({ signer })).createFabric({ adminFabricLabel: "external" });

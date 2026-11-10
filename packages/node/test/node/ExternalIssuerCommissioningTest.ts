@@ -72,7 +72,11 @@ describe("Commissioning with an external issuer", () => {
         const { controller, device } = await site.addUncommissionedPair();
 
         const crypto = controller.env.get(Crypto);
+        // Without entropy the mock gives the root and the ICAC the same key pair.
+        const signerCrypto = mockCryptoOf(controller);
+        signerCrypto.entropic = true;
         const signer = await CertificateAuthority.create(crypto, options.intermediateCert ?? false);
+        signerCrypto.entropic = false;
         const requests = new Array<CertificateAuthority.Issuer.NocRequest>();
         controller.env.set(
             CertificateAuthority,

@@ -31,7 +31,7 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
 
     /**
      * Verify a NOC and its optional ICAC against a root certificate, all in Matter TLV form.  An empty ICAC counts as
-     * none.  Returns the decoded NOC.
+     * none.  Returns the decoded NOC and the certificate that signed it.
      *
      * Throws {@link CertificateError} when the certificates do not fit each other and `CryptoVerifyError` when a
      * signature is wrong.  A malformed certificate throws its decoding error.
@@ -45,8 +45,8 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
             await ica.verify(crypto, root);
         }
         const nocCert = Noc.fromTlv(noc);
-        await nocCert.verify(crypto, root, ica);
-        return nocCert;
+        const signer = await nocCert.verify(crypto, root, ica);
+        return { noc: nocCert, signer };
     }
 
     /** Construct the class from an ASN.1/DER encoded certificate */
@@ -206,7 +206,9 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
                 `Noc certificate authorityKeyIdentifier must be equal to Root/Ica subjectKeyIdentifier.`,
             );
         }
+        this.verifyIssuedBy(issuer);
 
         await crypto.verifyEcdsa(PublicKey(issuer.cert.ellipticCurvePublicKey), this.asUnsignedDer(), this.signature);
+        return issuer;
     }
 }

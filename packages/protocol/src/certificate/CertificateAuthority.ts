@@ -314,18 +314,13 @@ export class CertificateAuthority {
         request: CertificateAuthority.Issuer.NocRequest,
         { noc, icac }: CertificateAuthority.Issuer.IssuedNoc,
     ) {
-        const nocCert = await Noc.verifyChain(this.#crypto, rootCert, noc, icac);
+        const { noc: nocCert, signer } = await Noc.verifyChain(this.#crypto, rootCert, noc, icac);
         const {
             subject: { nodeId, fabricId, caseAuthenticatedTags },
             ellipticCurvePublicKey,
-            extensions: { authorityKeyIdentifier },
         } = nocCert.cert;
 
-        if (
-            icac !== undefined &&
-            icac.byteLength > 0 &&
-            !Bytes.areEqual(authorityKeyIdentifier, Icac.fromTlv(icac).cert.extensions.subjectKeyIdentifier)
-        ) {
+        if (icac !== undefined && icac.byteLength > 0 && !(signer instanceof Icac)) {
             throw new CertificateError(
                 `External issuer returned an ICAC with a NOC for node ${NodeId.strOf(nodeId)} that this ICAC did not sign`,
             );

@@ -19,6 +19,7 @@ import {
 import { CaseAuthenticatedTag, FabricId, NodeId } from "@matter/types";
 import type { CertificateAuthority } from "./CertificateAuthority.js";
 import { jsToMatterDate } from "./kinds/definitions/asn.js";
+import { OperationalCertificate } from "./kinds/definitions/operational.js";
 import { Icac } from "./kinds/Icac.js";
 import { Noc } from "./kinds/Noc.js";
 import { Rcac } from "./kinds/Rcac.js";
@@ -39,6 +40,7 @@ export class LocalIssuer implements CertificateAuthority.Issuer {
     #rootKeyPair?: PrivateKey;
     #rootKeyIdentifier?: Bytes;
     #rootCertBytes?: Bytes;
+    #rootSubject?: OperationalCertificate.Rcac["subject"];
     #nextCertificateId = BigInt(1);
     #icacProps?: IcacProps;
     #storage?: StorageContext;
@@ -69,7 +71,7 @@ export class LocalIssuer implements CertificateAuthority.Issuer {
 
         this.#rootKeyPair = await this.#crypto.createKeyPair();
         this.#rootKeyIdentifier = Bytes.of(await this.#crypto.computeHash(this.#rootKeyPair.publicKey, "SHA-1"));
-        this.#rootCertBytes = await this.#generateRootCert();
+        this.#installRootCert(await this.#generateRootCert());
 
         if (requireIcac) {
             this.#icacProps = await this.#generateIcacProps();
@@ -89,6 +91,7 @@ export class LocalIssuer implements CertificateAuthority.Issuer {
         this.#rootKeyPair = undefined;
         this.#rootKeyIdentifier = undefined;
         this.#rootCertBytes = undefined;
+        this.#rootSubject = undefined;
         this.#icacProps = undefined;
         await this.#storage?.clearAll();
     }
@@ -152,7 +155,7 @@ export class LocalIssuer implements CertificateAuthority.Issuer {
             signatureAlgorithm: 1 /* EcdsaWithSHA256 */,
             publicKeyAlgorithm: 1 /* EC */,
             ellipticCurveIdentifier: 1 /* P256v1 */,
-            issuer: { rcacId: this.#rootCertId },
+            issuer: this.#initializedRootSubject,
             notBefore: jsToMatterDate(now, -1),
             notAfter: jsToMatterDate(now, 10),
             subject: { icacId: certId },
@@ -174,6 +177,7 @@ export class LocalIssuer implements CertificateAuthority.Issuer {
             keyPair,
             keyIdentifier,
             certBytes: cert.asSignedTlv(),
+            subject: cert.cert.subject,
         };
     }
 
@@ -226,6 +230,19 @@ export class LocalIssuer implements CertificateAuthority.Issuer {
         return this.#rootKeyIdentifier;
     }
 
+    /** The subject DN of the root is the issuer DN of the certificates the root signs. */
+    #installRootCert(bytes: Bytes) {
+        this.#rootCertBytes = bytes;
+        this.#rootSubject = Rcac.fromTlv(bytes).cert.subject;
+    }
+
+    get #initializedRootSubject() {
+        if (this.#rootSubject === undefined) {
+            throw new InternalError("Root certificate is not installed");
+        }
+        return this.#rootSubject;
+    }
+
     get #initializedRootCertBytes() {
         if (this.#rootCertBytes === undefined) {
             throw new InternalError("Root certificate is not installed");
@@ -261,7 +278,7 @@ export class LocalIssuer implements CertificateAuthority.Issuer {
             this.#rootKeyPair = PrivateKey(certValues.rootKeyPair as BinaryKeyPair);
         }
         this.#rootKeyIdentifier = certValues.rootKeyIdentifier as Bytes;
-        this.#rootCertBytes = certValues.rootCertBytes as Bytes;
+        this.#installRootCert(certValues.rootCertBytes as Bytes);
         this.#nextCertificateId = BigInt(certValues.nextCertificateId as bigint | number);
 
         const hasIcac = this.#isValidStoredIcacCertificate(certValues);
@@ -277,6 +294,7 @@ export class LocalIssuer implements CertificateAuthority.Issuer {
                 keyPair: PrivateKey(certValues.icacKeyPair as BinaryKeyPair),
                 keyIdentifier: certValues.icacKeyIdentifier as Bytes,
                 certBytes: certValues.icacCertBytes as Bytes,
+                subject: Icac.fromTlv(certValues.icacCertBytes as Bytes).cert.subject,
             };
         } else {
             // Validate: when no ICAC, rootKeyPair is required for signing NOCs
@@ -308,21 +326,17 @@ export class LocalIssuer implements CertificateAuthority.Issuer {
         };
     }
 
-    #getSigningParameters(): {
-        issuer: { rcacId: bigint } | { icacId: bigint };
-        signingKey: PrivateKey;
-        authorityKeyId: Bytes;
-    } {
+    #getSigningParameters() {
         if (this.#icacProps) {
             return {
-                issuer: { icacId: this.#icacProps.certId },
+                issuer: this.#icacProps.subject,
                 signingKey: this.#icacProps.keyPair,
                 authorityKeyId: this.#icacProps.keyIdentifier,
             };
         }
 
         return {
-            issuer: { rcacId: this.#rootCertId },
+            issuer: this.#initializedRootSubject,
             signingKey: this.#initializedRootKeyPair,
             authorityKeyId: this.#initializedRootKeyIdentifier,
         };
@@ -334,4 +348,7 @@ interface IcacProps {
     keyPair: PrivateKey;
     keyIdentifier: Bytes;
     certBytes: Bytes;
+
+    /** The issuer DN of the NOCs this ICAC signs. */
+    subject: OperationalCertificate.Icac["subject"];
 }
