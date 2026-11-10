@@ -29,6 +29,26 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
         return new Noc(OperationalCertificate.TlvNoc.decode(tlv));
     }
 
+    /**
+     * Verify a NOC and its optional ICAC against a root certificate, all in Matter TLV form.  An empty ICAC counts as
+     * none.  Returns the decoded NOC.
+     *
+     * Throws {@link CertificateError} when the certificates do not fit each other and `CryptoVerifyError` when a
+     * signature is wrong.  A malformed certificate throws its decoding error.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.5
+     */
+    static async verifyChain(crypto: Crypto, rootCert: Bytes, noc: Bytes, icac?: Bytes) {
+        const root = Rcac.fromTlv(rootCert);
+        const ica = icac !== undefined && icac.byteLength > 0 ? Icac.fromTlv(icac) : undefined;
+        if (ica !== undefined) {
+            await ica.verify(crypto, root);
+        }
+        const nocCert = Noc.fromTlv(noc);
+        await nocCert.verify(crypto, root, ica);
+        return nocCert;
+    }
+
     /** Construct the class from an ASN.1/DER encoded certificate */
     static fromAsn1(asn1: Bytes) {
         const cert = Certificate.parseAsn1Certificate(asn1);

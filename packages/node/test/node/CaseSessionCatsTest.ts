@@ -46,9 +46,9 @@ describe("CASE session CATs", () => {
 
         // The commissioner requests the device NOC without CATs; the controller's own NOC passes its CATs
         const { ca } = controller.env.get(FabricAuthority);
-        const generateNoc = ca.generateNoc.bind(ca);
-        ca.generateNoc = (publicKey, fabricId, nodeId, cats) =>
-            generateNoc(publicKey, fabricId, nodeId, cats ?? deviceCats);
+        const issueNoc = ca.issueNoc.bind(ca);
+        ca.issueNoc = request =>
+            issueNoc({ ...request, caseAuthenticatedTags: request.caseAuthenticatedTags ?? deviceCats });
 
         const controllerSessions = new Array<NodeSession>();
         const deviceSessions = new Array<NodeSession>();

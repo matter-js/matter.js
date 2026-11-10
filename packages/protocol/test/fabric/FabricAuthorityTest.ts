@@ -5,7 +5,10 @@
  */
 
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
+import { jsToMatterDate } from "#certificate/kinds/definitions/asn.js";
+import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
+import { Rcac } from "#certificate/kinds/Rcac.js";
 import { FabricBuilder } from "#fabric/Fabric.js";
 import { FabricAuthority } from "#fabric/FabricAuthority.js";
 import { FabricManager } from "#fabric/FabricManager.js";
@@ -13,12 +16,19 @@ import {
     Bytes,
     CertificateError,
     createPromise,
+    Diagnostic,
     ImplementationError,
+    LogDestination,
+    Logger,
+    LogLevel,
     MemoryStorageDriver,
+    PrivateKey,
     StandardCrypto,
     StorageError,
     StorageManager,
     SupportedStorageTypes,
+    Time,
+    toHex,
 } from "@matter/general";
 import { CaseAuthenticatedTag, FabricId, GroupId, NodeId, VendorId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
@@ -34,6 +44,78 @@ async function createAuthority(driver: MemoryStorageDriver) {
     const authority = new FabricAuthority({ ca, fabrics });
     await authority.construction;
     return { authority, fabrics };
+}
+
+/** A certificate authority whose NOCs another ICAC under the root of {@link root} signs. */
+async function intermediateOf(root: CertificateAuthority, icacId: bigint) {
+    const { rootKeyPair, rootCertId, rootKeyIdentifier } = root.config;
+    if (rootKeyPair === undefined) {
+        throw new ImplementationError("The root CA needs its key pair");
+    }
+    const keyPair = await crypto.createKeyPair();
+    const keyIdentifier = Bytes.of(await crypto.computeHash(keyPair.publicKey, "SHA-1"));
+    const now = Time.now;
+    const cert = new Icac({
+        serialNumber: Bytes.fromHex(toHex(icacId)),
+        signatureAlgorithm: 1,
+        publicKeyAlgorithm: 1,
+        ellipticCurveIdentifier: 1,
+        issuer: { rcacId: rootCertId },
+        notBefore: jsToMatterDate(now, -1),
+        notAfter: jsToMatterDate(now, 10),
+        subject: { icacId },
+        ellipticCurvePublicKey: keyPair.publicKey,
+        extensions: {
+            basicConstraints: { isCa: true },
+            keyUsage: { keyCertSign: true, cRLSign: true },
+            subjectKeyIdentifier: keyIdentifier,
+            authorityKeyIdentifier: rootKeyIdentifier,
+        },
+    });
+    await cert.sign(crypto, PrivateKey(rootKeyPair));
+    return await CertificateAuthority.create(crypto, {
+        rootCertId,
+        rootKeyIdentifier,
+        rootCertBytes: root.rootCert,
+        nextCertificateId: 100n,
+        icacCertId: icacId,
+        icacKeyPair: keyPair.keyPair,
+        icacKeyIdentifier: keyIdentifier,
+        icacCertBytes: cert.asSignedTlv(),
+    });
+}
+
+/** A certificate authority with a new root whose subject carries {@link fabricId}. */
+async function rootWithFabricId(fabricId: FabricId) {
+    const rootCertId = 1n;
+    const keyPair = await crypto.createKeyPair();
+    const keyIdentifier = Bytes.of(await crypto.computeHash(keyPair.publicKey, "SHA-1"));
+    const now = Time.now;
+    const cert = new Rcac({
+        serialNumber: Bytes.fromHex(toHex(rootCertId)),
+        signatureAlgorithm: 1,
+        publicKeyAlgorithm: 1,
+        ellipticCurveIdentifier: 1,
+        issuer: { rcacId: rootCertId },
+        notBefore: jsToMatterDate(now, -1),
+        notAfter: jsToMatterDate(now, 10),
+        subject: { rcacId: rootCertId, fabricId },
+        ellipticCurvePublicKey: keyPair.publicKey,
+        extensions: {
+            basicConstraints: { isCa: true },
+            keyUsage: { keyCertSign: true, cRLSign: true },
+            subjectKeyIdentifier: keyIdentifier,
+            authorityKeyIdentifier: keyIdentifier,
+        },
+    });
+    await cert.sign(crypto, keyPair);
+    return await CertificateAuthority.create(crypto, {
+        rootCertId,
+        rootKeyIdentifier: keyIdentifier,
+        rootCertBytes: cert.asSignedTlv(),
+        rootKeyPair: keyPair.keyPair,
+        nextCertificateId: 100n,
+    });
 }
 
 describe("FabricAuthority", () => {
@@ -447,6 +529,186 @@ describe("FabricAuthority", () => {
 
             const createdFabric = await authority.createFabric(config);
             expect(emittedFabric).to.equal(createdFabric);
+        });
+    });
+
+    describe("external issuer", () => {
+        const IPK = Bytes.fromHex("000102030405060708090a0b0c0d0e0f");
+
+        async function externalAuthority(
+            issuer: Partial<CertificateAuthority.Issuer> & { signer: CertificateAuthority },
+        ) {
+            const { signer, ...overrides } = issuer;
+            const ca = await CertificateAuthority.create(crypto, {
+                rootCert: signer.rootCert,
+                issueNoc: request => signer.issueNoc(request),
+                ...overrides,
+            });
+            const authority = new FabricAuthority({ ca, fabrics: fabricManager });
+            await authority.construction;
+            return authority;
+        }
+
+        /** Collects the texts of FabricAuthority warnings until `Logger.destinations.capture` is deleted. */
+        function captureWarnings() {
+            const warnings = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    if (message.facility === "FabricAuthority" && message.level === LogLevel.WARN) {
+                        warnings.push(message.values.map(value => String(value)).join(" "));
+                    }
+                },
+            });
+            return warnings;
+        }
+
+        afterEach(() => {
+            delete Logger.destinations.capture;
+        });
+
+        it("creates the fabric with the issuer's fabric ID and IPK", async () => {
+            const signer = await CertificateAuthority.create(crypto);
+            const authority = await externalAuthority({
+                signer,
+                fabric: { fabricId: FabricId(7n), identityProtectionKey: IPK },
+            });
+
+            const fabric = await authority.createFabric({ adminFabricLabel: "external" });
+
+            expect(fabric.fabricId).equal(FabricId(7n));
+            expect(fabric.identityProtectionKey).deep.equal(IPK);
+        });
+
+        it("refuses a configured fabric ID that differs from the issuer's", async () => {
+            const signer = await CertificateAuthority.create(crypto);
+            const authority = await externalAuthority({
+                signer,
+                fabric: { fabricId: FabricId(7n), identityProtectionKey: IPK },
+            });
+
+            await expect(
+                authority.createFabric({ adminFabricLabel: "external", adminFabricId: FabricId(8n) }),
+            ).rejectedWith(ImplementationError);
+        });
+
+        it("creates the fabric with the fabric ID of the root certificate and refuses another", async () => {
+            const signer = await rootWithFabricId(FabricId(5n));
+            const authority = await externalAuthority({ signer });
+
+            const fabric = await authority.createFabric({ adminFabricLabel: "external" });
+
+            expect(fabric.fabricId).equal(FabricId(5n));
+            await expect(
+                authority.createFabric({ adminFabricLabel: "external", adminFabricId: FabricId(6n) }),
+            ).rejectedWith(ImplementationError);
+        });
+
+        it("refuses an issuer fabric whose fabric ID differs from the root certificate's", async () => {
+            const signer = await rootWithFabricId(FabricId(5n));
+
+            await expect(
+                CertificateAuthority.create(crypto, {
+                    rootCert: signer.rootCert,
+                    fabric: { fabricId: FabricId(6n), identityProtectionKey: IPK },
+                    issueNoc: request => signer.issueNoc(request),
+                }),
+            ).rejectedWith(ImplementationError, "root certificate is for fabric ID 5");
+        });
+
+        it("installs the ICAC issued with each NOC, also when the issuer changes its ICAC", async () => {
+            const root = await CertificateAuthority.create(crypto);
+            let signer = await intermediateOf(root, 1n);
+            const ca = await CertificateAuthority.create(crypto, {
+                rootCert: root.rootCert,
+                renewNocAtStart: true,
+                issueNoc: request => signer.issueNoc(request),
+            });
+            const authority = new FabricAuthority({ ca, fabrics: fabricManager });
+            await authority.construction;
+
+            const created = await authority.createFabric({ adminFabricLabel: "external" });
+            expect(created.intermediateCACert).deep.equal(signer.icacCert);
+
+            signer = await intermediateOf(root, 2n);
+            const rotated = await authority.defaultFabric({ adminFabricLabel: "external" });
+
+            expect(rotated).not.equal(created);
+            expect(rotated.intermediateCACert).deep.equal(signer.icacCert);
+        });
+
+        it("does not renew its own NOC at start unless the issuer asks for it", async () => {
+            const signer = await CertificateAuthority.create(crypto);
+            const requests = new Array<CertificateAuthority.Issuer.NocRequest>();
+            const authority = await externalAuthority({
+                signer,
+                issueNoc: request => {
+                    requests.push(request);
+                    return signer.issueNoc(request);
+                },
+            });
+            const created = await authority.createFabric({ adminFabricLabel: "external" });
+
+            expect(await authority.defaultFabric({ adminFabricLabel: "external" })).equal(created);
+            expect(requests.length).equal(1);
+        });
+
+        it("keeps the current NOC when renewing it fails", async () => {
+            const signer = await CertificateAuthority.create(crypto);
+            let available = true;
+            const authority = await externalAuthority({
+                signer,
+                renewNocAtStart: true,
+                issueNoc: request => {
+                    if (!available) {
+                        throw new StorageError("Simulated unreachable CA (test)");
+                    }
+                    return signer.issueNoc(request);
+                },
+            });
+            const created = await authority.createFabric({ adminFabricLabel: "external" });
+            available = false;
+            const warnings = captureWarnings();
+
+            expect(await authority.defaultFabric({ adminFabricLabel: "external" })).equal(created);
+            expect(warnings.some(text => text.includes("Could not renew the NOC"))).true;
+        });
+
+        it("warns once when a stored fabric does not match the issuer's fabric ID and IPK", async () => {
+            const signer = await CertificateAuthority.create(crypto);
+            await (await externalAuthority({ signer })).createFabric({ adminFabricLabel: "external" });
+            const second = await externalAuthority({
+                signer,
+                fabric: { fabricId: FabricId(9n), identityProtectionKey: IPK },
+            });
+            const warnings = captureWarnings();
+
+            await second.defaultFabric({ adminFabricLabel: "external" });
+            await second.defaultFabric({ adminFabricLabel: "external" });
+
+            expect(warnings.filter(text => text.includes("fabric ID 9")).length).equal(1);
+            expect(warnings.filter(text => text.includes("another IPK")).length).equal(1);
+        });
+
+        it("warns only about the value that differs", async () => {
+            const signer = await CertificateAuthority.create(crypto);
+            await (
+                await externalAuthority({ signer, fabric: { fabricId: FabricId(9n), identityProtectionKey: IPK } })
+            ).createFabric({ adminFabricLabel: "external" });
+            const otherIpk = Bytes.fromHex("ffeeddccbbaa99887766554433221100");
+
+            const sameFabricId = captureWarnings();
+            await (
+                await externalAuthority({ signer, fabric: { fabricId: FabricId(9n), identityProtectionKey: otherIpk } })
+            ).defaultFabric({ adminFabricLabel: "external" });
+            expect(sameFabricId.some(text => text.includes("another IPK"))).true;
+            expect(sameFabricId.some(text => text.includes("serves fabric ID"))).false;
+
+            const sameIpk = captureWarnings();
+            await (
+                await externalAuthority({ signer, fabric: { fabricId: FabricId(10n), identityProtectionKey: IPK } })
+            ).defaultFabric({ adminFabricLabel: "external" });
+            expect(sameIpk.some(text => text.includes("serves fabric ID 10"))).true;
+            expect(sameIpk.some(text => text.includes("another IPK"))).false;
         });
     });
 

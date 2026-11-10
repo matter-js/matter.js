@@ -82,6 +82,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
 
 - @matter/protocol
+    - Feature: (@henrikdimander) `CertificateAuthority.create(crypto, issuer)` creates a certificate authority whose NOCs come from a `CertificateAuthority.Issuer`, for example a remote CA service, so the controller holds no CA private key
+    - Feature: A `CertificateAuthority.Issuer` can provide the fabric ID and IPK that new controller fabrics use, so several controllers share one fabric
+    - Feature: (@henrikdimander) During commissioning, the NOC request to an external issuer carries the device's attestation and CSR responses, so a remote CA can verify them itself
+    - Enhancement: `CertificateAuthority.issueNoc()` returns each NOC with the ICAC that signed it, and the controller installs that ICAC for its own fabric and in AddNOC
+    - Adjustment: `CertificateAuthority.generateNoc()` is deprecated; it drops the ICAC
+    - Fix: A controller fabric takes the fabric ID of a root certificate that has one
     - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated

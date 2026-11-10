@@ -6,11 +6,14 @@
 
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { Noc } from "#certificate/kinds/Noc.js";
+import { Rcac } from "#certificate/kinds/Rcac.js";
 import {
+    asError,
     AsyncObservable,
     Bytes,
     Construction,
     CRYPTO_SYMMETRIC_KEY_LENGTH,
+    Diagnostic,
     Environment,
     Environmental,
     ImplementationError,
@@ -55,6 +58,7 @@ export class FabricAuthority {
     #fabrics: FabricManager;
     #fabricAdded = new AsyncObservable<[Fabric]>();
     #rotatedFabricIndices = new Set<FabricIndex>(); // Remember which we already rotated in this run
+    #checkedFabricIndices = new Set<FabricIndex>();
 
     constructor({ ca, fabrics }: FabricAuthorityContext) {
         this.#ca = ca;
@@ -83,14 +87,18 @@ export class FabricAuthority {
 
     /**
      * Get the default fabric for this authority.
-     * When rotateNoc is true (the default), the NOC key pair is rotated once per runtime when the fabric already exists.
+     *
+     * When rotateNoc is true (the default) and the CA renews NOCs at start ({@link CertificateAuthority.renewsNocAtStart}),
+     * the NOC key pair is rotated once per runtime when the fabric already exists.  When the CA cannot issue the new
+     * NOC, this is logged and the fabric keeps its NOC.
      */
     async defaultFabric(config: FabricAuthorityConfiguration, rotateNoc = true) {
         // First search for a fabric associated with the CA's root certificate
         const caRootCert = this.#ca.rootCert;
         let fabric = this.fabrics.find(fabric => Bytes.areEqual(fabric.rootCert, caRootCert));
         if (fabric !== undefined) {
-            if (rotateNoc) {
+            this.#warnOnIssuerMismatch(fabric);
+            if (rotateNoc && this.#ca.renewsNocAtStart) {
                 fabric = await this.#rotateFabricNocKey(fabric);
             }
             if (fabric.label !== config.adminFabricLabel) {
@@ -130,11 +138,31 @@ export class FabricAuthority {
     /**
      * Create new fabric under our control.
      *
+     * The fabric ID comes from the external issuer's fabric, else from the root certificate, else from
+     * {@link FabricAuthorityConfiguration.adminFabricId}, else at random.  The IPK comes from the external issuer's
+     * fabric, else at random.  Throws {@link ImplementationError} when a configured fabric ID differs from the one the
+     * issuer or the root certificate prescribes.
+     *
      * When persisting fails, this rejects and the fabric stays in memory; it is not rolled back.
      */
     async createFabric(config: FabricAuthorityConfiguration) {
+        const issuerFabric = this.#ca.fabric;
+        const rootFabricId = Rcac.fromTlv(this.#ca.rootCert).cert.subject.fabricId;
+        const prescribedFabricId =
+            issuerFabric?.fabricId ?? (rootFabricId === undefined ? undefined : FabricId(rootFabricId));
+        if (
+            prescribedFabricId !== undefined &&
+            config.adminFabricId !== undefined &&
+            config.adminFabricId !== prescribedFabricId
+        ) {
+            throw new ImplementationError(
+                `Configured fabric ID ${config.adminFabricId} differs from fabric ID ${prescribedFabricId} of the certificate authority`,
+            );
+        }
+
         const rootNodeId = config.adminNodeId ?? NodeId.randomOperationalNodeId(this.#fabrics.crypto);
-        const ipkValue = this.#fabrics.crypto.randomBytes(CRYPTO_SYMMETRIC_KEY_LENGTH);
+        const ipkValue =
+            issuerFabric?.identityProtectionKey ?? this.#fabrics.crypto.randomBytes(CRYPTO_SYMMETRIC_KEY_LENGTH);
 
         let vendorId = config.adminVendorId;
         if (vendorId === undefined) {
@@ -154,11 +182,14 @@ export class FabricAuthority {
             .setRootVendorId(vendorId)
             .setLabel(config.adminFabricLabel);
 
-        const fabricId = config.adminFabricId ?? FabricId(this.#fabrics.crypto.randomBigInt(8));
-        await fabricBuilder.setOperationalCert(
-            await this.#ca.generateNoc(fabricBuilder.publicKey, fabricId, rootNodeId, config.caseAuthenticatedTags),
-            this.#ca.icacCert,
-        );
+        const fabricId = prescribedFabricId ?? config.adminFabricId ?? FabricId(this.#fabrics.crypto.randomBigInt(8));
+        const { noc, icac } = await this.#ca.issueNoc({
+            publicKey: fabricBuilder.publicKey,
+            fabricId,
+            nodeId: rootNodeId,
+            caseAuthenticatedTags: config.caseAuthenticatedTags,
+        });
+        await fabricBuilder.setOperationalCert(noc, icac);
 
         let index = config.adminFabricIndex;
         if (index === undefined) {
@@ -191,11 +222,17 @@ export class FabricAuthority {
         if (nodeId !== fabric.nodeId) {
             throw new ImplementationError(`Cannot rotate NOC for fabric ${fabric.fabricIndex} because node ID changed`);
         }
-        await builder.updateOperationalCert(
-            fabric,
-            await this.#ca.generateNoc(builder.publicKey, fabricId, nodeId, caseAuthenticatedTags),
-            fabric.intermediateCACert,
-        );
+        let issued: CertificateAuthority.Issuer.IssuedNoc;
+        try {
+            issued = await this.#ca.issueNoc({ publicKey: builder.publicKey, fabricId, nodeId, caseAuthenticatedTags });
+        } catch (error) {
+            logger.warn(
+                `Could not renew the NOC of fabric ${fabric.fabricIndex}, keeping the current one:`,
+                Diagnostic.errorMessage(asError(error)),
+            );
+            return fabric;
+        }
+        await builder.updateOperationalCert(fabric, issued.noc, issued.icac);
         const newFabric = await builder.build(fabric.fabricIndex);
         logger.notice(`Rotated NOC for fabric ${fabric.fabricIndex}`);
 
@@ -203,6 +240,28 @@ export class FabricAuthority {
 
         this.#rotatedFabricIndices.add(fabric.fabricIndex);
         return newFabric;
+    }
+
+    /**
+     * A stored fabric whose fabric ID or IPK differs from the external issuer's fabric cannot open CASE sessions to
+     * devices that other controllers of that fabric commissioned.  Warns once per fabric and run; the stored values
+     * stay in use.
+     */
+    #warnOnIssuerMismatch(fabric: Fabric) {
+        const issuerFabric = this.#ca.fabric;
+        if (issuerFabric === undefined || this.#checkedFabricIndices.has(fabric.fabricIndex)) {
+            return;
+        }
+        this.#checkedFabricIndices.add(fabric.fabricIndex);
+
+        if (issuerFabric.fabricId !== fabric.fabricId) {
+            logger.warn(
+                `Fabric ${fabric.fabricIndex} has fabric ID ${fabric.fabricId}, but the external issuer serves fabric ID ${issuerFabric.fabricId}`,
+            );
+        }
+        if (!Bytes.areEqual(issuerFabric.identityProtectionKey, fabric.identityProtectionKey)) {
+            logger.warn(`Fabric ${fabric.fabricIndex} has another IPK than the external issuer provides`);
+        }
     }
 
     static [Environmental.create](env: Environment) {

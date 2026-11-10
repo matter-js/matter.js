@@ -322,13 +322,12 @@ export class MatterController {
         basicInformation?: Partial<Omit<BasicInformation.Attributes, "vendorId">>;
         clientCacheFlushInterval?: Duration;
     }) {
-        const crypto = options.environment.get(Crypto);
         const {
             ble = false,
             tcp,
             transportPreference,
             adminFabricLabel,
-            adminFabricId = FabricId(crypto.randomBigInt(8)),
+            adminFabricId,
             adminVendorId,
             rootNodeId,
             caseAuthenticatedTags,

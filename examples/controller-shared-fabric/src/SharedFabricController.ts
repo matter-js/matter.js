@@ -166,12 +166,12 @@ async function main() {
         .setRootVendorId(VendorId(65521))
         .setLabel("Matter.js Controller");
 
-    const noc = await certificateAuthority.generateNoc(
-        fabricBuilder.publicKey,
-        FabricId(fabricId),
-        NodeId(BigInt(nodeId)),
-    );
-    await fabricBuilder.setOperationalCert(noc, certificateAuthority.icacCert);
+    const { noc, icac } = await certificateAuthority.issueNoc({
+        publicKey: fabricBuilder.publicKey,
+        fabricId: FabricId(fabricId),
+        nodeId: NodeId(BigInt(nodeId)),
+    });
+    await fabricBuilder.setOperationalCert(noc, icac);
     const fabric = await fabricBuilder.build(FabricIndex(1));
 
     // Get controller storage
