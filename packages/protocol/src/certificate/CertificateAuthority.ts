@@ -22,6 +22,7 @@ import {
     asyncNew,
 } from "@matter/general";
 import { CaseAuthenticatedTag, FabricId, NodeId } from "@matter/types";
+import { Icac } from "./kinds/Icac.js";
 import { Noc } from "./kinds/Noc.js";
 import { Rcac } from "./kinds/Rcac.js";
 import { LocalIssuer } from "./LocalIssuer.js";
@@ -315,14 +316,18 @@ export class CertificateAuthority {
     ) {
         const nocCert = await Noc.verifyChain(this.#crypto, rootCert, noc, icac);
         const {
-            issuer,
             subject: { nodeId, fabricId, caseAuthenticatedTags },
             ellipticCurvePublicKey,
+            extensions: { authorityKeyIdentifier },
         } = nocCert.cert;
 
-        if (icac !== undefined && icac.byteLength > 0 && issuer.icacId === undefined) {
+        if (
+            icac !== undefined &&
+            icac.byteLength > 0 &&
+            !Bytes.areEqual(authorityKeyIdentifier, Icac.fromTlv(icac).cert.extensions.subjectKeyIdentifier)
+        ) {
             throw new CertificateError(
-                `External issuer returned an ICAC with a NOC for node ${NodeId.strOf(nodeId)} that the root signed`,
+                `External issuer returned an ICAC with a NOC for node ${NodeId.strOf(nodeId)} that this ICAC did not sign`,
             );
         }
 

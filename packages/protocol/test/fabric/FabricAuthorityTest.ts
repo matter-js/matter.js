@@ -315,7 +315,7 @@ describe("FabricAuthority", () => {
             expect(Bytes.areEqual(thirdPublicKey, firstPublicKey)).to.be.true;
         });
 
-        it("rotatedFabricIndices Set correctly prevents duplicate rotations", async () => {
+        it("does not rotate a fabric twice in one run", async () => {
             // Create initial fabric
             const config = {
                 adminFabricLabel: "test-fabric",
@@ -671,6 +671,30 @@ describe("FabricAuthority", () => {
 
             expect(await authority.defaultFabric({ adminFabricLabel: "external" })).equal(created);
             expect(warnings.some(text => text.includes("Could not renew the NOC"))).true;
+        });
+
+        it("asks the issuer to renew the NOC only once per run, also when renewing fails", async () => {
+            const signer = await CertificateAuthority.create(crypto);
+            let failedRenewals = 0;
+            let available = true;
+            const authority = await externalAuthority({
+                signer,
+                renewNocAtStart: true,
+                issueNoc: request => {
+                    if (!available) {
+                        failedRenewals++;
+                        throw new StorageError("Simulated unreachable CA (test)");
+                    }
+                    return signer.issueNoc(request);
+                },
+            });
+            const created = await authority.createFabric({ adminFabricLabel: "external" });
+            available = false;
+            captureWarnings();
+
+            expect(await authority.defaultFabric({ adminFabricLabel: "external" })).equal(created);
+            expect(await authority.defaultFabric({ adminFabricLabel: "external" })).equal(created);
+            expect(failedRenewals).equal(1);
         });
 
         it("warns once when a stored fabric does not match the issuer's fabric ID and IPK", async () => {

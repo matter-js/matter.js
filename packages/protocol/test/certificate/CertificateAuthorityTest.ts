@@ -14,6 +14,7 @@ import {
     CertificateError,
     ImplementationError,
     MemoryStorageDriver,
+    PrivateKey,
     StandardCrypto,
     StorageContext,
     StorageManager,
@@ -463,26 +464,60 @@ describe("CertificateAuthority", () => {
             await ca.issueNoc(await request());
         });
 
+        /** A CA with only the root of {@link signer}, so it signs NOCs with the root key. */
+        async function rootOnly(signer: CertificateAuthority) {
+            const { rootCertId, rootKeyIdentifier, rootCertBytes, rootKeyPair } = signer.config;
+            if (rootKeyPair === undefined) {
+                throw new ImplementationError("The signer needs its root key pair");
+            }
+            return {
+                rootKeyPair,
+                ca: await CertificateAuthority.create(crypto, {
+                    rootCertId,
+                    rootKeyIdentifier,
+                    rootCertBytes,
+                    rootKeyPair,
+                    nextCertificateId: 100n,
+                }),
+            };
+        }
+
         it("refuses a NOC the root signed when the issuer returns an ICAC with it", async () => {
             const { ca } = await createIssuer({
                 intermediateCert: true,
                 issue: async (signer, request) => {
-                    const { rootCertId, rootKeyIdentifier, rootCertBytes, rootKeyPair } = signer.config;
-                    if (rootKeyPair === undefined) {
-                        throw new ImplementationError("The signer needs its root key pair");
-                    }
-                    const rootSigned = await CertificateAuthority.create(crypto, {
-                        rootCertId,
-                        rootKeyIdentifier,
-                        rootCertBytes,
-                        rootKeyPair,
-                        nextCertificateId: 100n,
-                    });
-                    return { noc: (await rootSigned.issueNoc(request)).noc, icac: signer.icacCert };
+                    const { noc } = await (await rootOnly(signer)).ca.issueNoc(request);
+                    return { noc, icac: signer.icacCert };
                 },
             });
 
             await expect(ca.issueNoc(await request())).rejectedWith(CertificateError);
+        });
+
+        it("refuses a NOC the root signed under the name of the ICAC returned with it", async () => {
+            const { ca } = await createIssuer({
+                intermediateCert: true,
+                issue: async (signer, request) => {
+                    const { ca: root, rootKeyPair } = await rootOnly(signer);
+                    const { cert } = Noc.fromTlv((await root.issueNoc(request)).noc);
+                    const noc = new Noc({
+                        serialNumber: cert.serialNumber,
+                        signatureAlgorithm: cert.signatureAlgorithm,
+                        publicKeyAlgorithm: cert.publicKeyAlgorithm,
+                        ellipticCurveIdentifier: cert.ellipticCurveIdentifier,
+                        issuer: { icacId: 1n },
+                        notBefore: cert.notBefore,
+                        notAfter: cert.notAfter,
+                        subject: cert.subject,
+                        ellipticCurvePublicKey: cert.ellipticCurvePublicKey,
+                        extensions: cert.extensions,
+                    });
+                    await noc.sign(crypto, PrivateKey(rootKeyPair));
+                    return { noc: noc.asSignedTlv(), icac: signer.icacCert };
+                },
+            });
+
+            await expect(ca.issueNoc(await request())).rejectedWith(CertificateError, "did not sign");
         });
 
         it("does not ask the issuer when the request is already aborted", async () => {

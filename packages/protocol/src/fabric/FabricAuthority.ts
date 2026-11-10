@@ -57,7 +57,7 @@ export class FabricAuthority {
     #ca: CertificateAuthority;
     #fabrics: FabricManager;
     #fabricAdded = new AsyncObservable<[Fabric]>();
-    #rotatedFabricIndices = new Set<FabricIndex>(); // Remember which we already rotated in this run
+    #renewalAttemptedFabricIndices = new Set<FabricIndex>();
     #checkedFabricIndices = new Set<FabricIndex>();
 
     constructor({ ca, fabrics }: FabricAuthorityContext) {
@@ -90,7 +90,7 @@ export class FabricAuthority {
      *
      * When rotateNoc is true (the default) and the CA renews NOCs at start ({@link CertificateAuthority.renewsNocAtStart}),
      * the NOC key pair is rotated once per runtime when the fabric already exists.  When the CA cannot issue the new
-     * NOC, this is logged and the fabric keeps its NOC.
+     * NOC, this is logged and the fabric keeps its NOC; the CA is not asked again in this run.
      */
     async defaultFabric(config: FabricAuthorityConfiguration, rotateNoc = true) {
         // First search for a fabric associated with the CA's root certificate
@@ -210,10 +210,10 @@ export class FabricAuthority {
     }
 
     async #rotateFabricNocKey(fabric: Fabric) {
-        if (this.#rotatedFabricIndices.has(fabric.fabricIndex)) {
-            // We only rotate once per runtime
+        if (this.#renewalAttemptedFabricIndices.has(fabric.fabricIndex)) {
             return fabric;
         }
+        this.#renewalAttemptedFabricIndices.add(fabric.fabricIndex);
 
         const builder = await FabricBuilder.create(this.#fabrics.crypto);
         const {
@@ -238,7 +238,6 @@ export class FabricAuthority {
 
         await this.#fabrics.replaceFabric(newFabric);
 
-        this.#rotatedFabricIndices.add(fabric.fabricIndex);
         return newFabric;
     }
 
