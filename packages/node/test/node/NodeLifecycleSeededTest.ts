@@ -423,6 +423,24 @@ describe("NodeLifecycle#isSeeded/seeded", () => {
         expect(peer.lifecycle.isSeeded).true;
     });
 
+    it("places an aggregator's devices reported before the root's PartsList once the root names it", async () => {
+        await using site = new MockSite();
+        const { peer, seededCount } = await unreadPeer(site);
+
+        await applyRead(
+            peer,
+            descriptorReports(1, [AggregatorEndpoint.deviceType], [2], 10),
+            descriptorReports(2, [OnOffLightDevice.deviceType], [], 10),
+        );
+        expect([...peer.endpoints].map(endpoint => endpoint.number)).deep.equals([0]);
+
+        await applyRead(peer, descriptorReports(0, [ROOT_NODE], [1], 10));
+
+        expect([...peer.endpoints].map(endpoint => endpoint.number).sort()).deep.equals([0, 1, 2]);
+        expect(peer.lifecycle.isSeeded).true;
+        expect(seededCount()).equals(1);
+    });
+
     it("does not wait for a PartsList entry that is no endpoint number", async () => {
         await using site = new MockSite();
         const warnings = captureRootOnlyWarnings();
@@ -504,6 +522,37 @@ describe("ClientNode with a root that reports no device type", () => {
 
         expect(peer.endpoints.for(EndpointNumber(1)).owner?.number).equals(0);
         expect(peer.endpoints.for(EndpointNumber(2)).owner?.number).equals(1);
+    });
+
+    it("places the devices an aggregator names when the root also omits one of them", async () => {
+        await using site = new MockSite();
+        const warnings = new Array<string>();
+        Logger.destinations.capture = LogDestination({
+            add(message: Diagnostic.Message) {
+                if (message.level === LogLevel.WARN) {
+                    warnings.push(message.values.map(String).join(" "));
+                }
+            },
+        });
+        const { peer } = await unreadPeer(site);
+
+        for (const version of [10, 11]) {
+            await applyRead(peer, [
+                ...descriptorReports(0, [], [1, 2], version),
+                ...descriptorReports(1, [AGGREGATOR], [2, 3], version),
+                ...descriptorReports(2, [OnOffLightDevice.deviceType], [], version),
+                ...descriptorReports(3, [OnOffLightDevice.deviceType], [], version),
+            ]);
+        }
+
+        expect(peer.lifecycle.isSeeded).true;
+        expect(peer.endpoints.for(EndpointNumber(1)).owner?.number).equals(0);
+        expect(peer.endpoints.for(EndpointNumber(2)).owner?.number).equals(1);
+        expect(peer.endpoints.for(EndpointNumber(3)).owner?.number).equals(1);
+        expect(warnings.filter(text => text.includes(MISSING_ROOT_DEVICE_TYPE_WARNING)).length).equals(1);
+        const incompleteRoot = warnings.filter(text => text.includes("in the PartsList of its root endpoint"));
+        expect(incompleteRoot.length).equals(1);
+        expect(incompleteRoot[0]).contains("does not name endpoints 3 in");
     });
 
     it("restores the endpoints from storage and warns again after a restart", async () => {

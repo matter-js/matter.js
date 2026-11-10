@@ -52,6 +52,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A state list write that would leave a gap, an `undefined` entry, an invalid length or an index above 65535 throws `WriteError`
     - Fix: Deleting from a fabric-filtered state list, or setting the length of any state list, requires write access
     - Fix: A ClientNode whose root endpoint reports an empty DeviceTypeList installs its other endpoints, gets seeded and logs one warning per node each time it starts
+    - Fix: A ClientNode places and keeps an endpoint that its root's PartsList omits while another endpoint on the node names it and the peer has reported its DeviceTypeList or PartsList, and warns once per node each time it starts about such a root PartsList
     - Fix: Thermostat accepts a preset write that sends an existing built-in preset with a null `BuiltIn`
     - Fix: A held proxy for a state list entry expires when its transaction moves, removes or replaces that entry, also by assigning the whole list, instead of serving the entry now at its index
     - Fix: The property descriptors of a state list's entries and length carry the managed entry and the visible length instead of the raw stored values
