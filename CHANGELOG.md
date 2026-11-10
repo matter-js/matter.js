@@ -77,7 +77,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
 
 - @matter/protocol
-    - Fix: A subscription to an ICD whose IdleModeDuration is shorter than the default ceiling requests the default ceiling instead of the IdleModeDuration
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
     - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
@@ -143,6 +142,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: (@quasistatic-setup) Commissioning over BLE ends PASE as soon as the BLE connection closes, instead of waiting up to 35 seconds for a reply the device can no longer send, and continues with the device's other addresses
     - Fix: A PASE session over BLE, also one returned by `ControllerCommissioner.establishPase()`, closes at once when the BLE connection closes, also when it closed while PASE completed
     - Fix: A BLE connection that cannot be opened during commissioning no longer cancels the device's other addresses
+    - Fix: A subscription to an ICD whose IdleModeDuration is shorter than the default ceiling requests the default ceiling instead of the IdleModeDuration
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
