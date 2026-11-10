@@ -1266,6 +1266,21 @@ describe("ExchangeManager", () => {
             }
         }
 
+        it("closes the exchange of an unsolicited message when sending the ack fails", async () => {
+            await using peer = await receiver();
+            let sends = 0;
+            peer.transport.channel.send = async () => {
+                sends++;
+                throw new NetworkError("Simulated send failure");
+            };
+
+            peer.transport.receive(unsecuredMessage(NodeId(1n), 7, true));
+            await settle();
+
+            expect(sends).equals(1);
+            expect(peer.sessions.unsecuredSessions.size).equals(0);
+        });
+
         it("discards the session when the handler does not adopt it", async () => {
             await using peer = await receiver();
             peer.exchanges.addProtocolHandler(silentHandler());
