@@ -680,7 +680,7 @@ export class Peer {
             Diagnostic.via(this.address.toString()),
             "Transport decision",
             Diagnostic.dict({
-                transports: transports === undefined ? "udp (no constraint)" : transports.join("+"),
+                transports: transports === undefined ? "no constraint" : transports.join("+"),
                 reason,
                 peerPreference: this.transportPreference ?? "none",
                 ...diag,
