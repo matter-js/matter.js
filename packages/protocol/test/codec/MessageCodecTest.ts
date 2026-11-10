@@ -5,7 +5,7 @@
  */
 
 import { Message, MessageCodec } from "#codec/MessageCodec.js";
-import { Bytes, UnexpectedDataError } from "@matter/general";
+import { Bytes, Diagnostic, UnexpectedDataError } from "@matter/general";
 import { NodeId } from "@matter/types";
 
 const ENCODED = Bytes.fromHex(
@@ -350,6 +350,21 @@ describe("MessageCodec", () => {
             expect(() => MessageCodec.encodePacket(payload)).throws(
                 "Message extensions not supported when encoding a packet.",
             );
+        });
+    });
+
+    describe("Message.diagnosticsOf", () => {
+        function msgFlagsOf(isInitiatorMessage: boolean) {
+            const message = { ...DECODED_2, payloadHeader: { ...DECODED_2.payloadHeader, isInitiatorMessage } };
+            return Diagnostic.valueOf(Message.diagnosticsOf({ via: "test" }, message).msgFlags);
+        }
+
+        it("shows the I flag of a message from the exchange initiator", () => {
+            expect(msgFlagsOf(true)).equals("I reqAck");
+        });
+
+        it("omits the I flag of a message from the exchange responder", () => {
+            expect(msgFlagsOf(false)).equals("reqAck");
         });
     });
 });

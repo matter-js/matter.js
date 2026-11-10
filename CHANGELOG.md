@@ -94,6 +94,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `SessionManager.registeredSessions` holds every session that receives messages, including those whose handshake still runs
     - Enhancement: `ExchangeSendOptions.onTransmitted` runs once the first transmission of a message went out
     - Enhancement: `SecureChannelMessenger.sendSuccess()` takes an optional `onTransmitted` callback
+    - Enhancement: Message logs show the I flag in `msgFlags` for messages from the exchange initiator
     - Adjustment: Peer loss and peer shutdown compare sessions by registration order instead of creation time; `PeerLossContext.asOf` is deprecated for `registeredBefore`
     - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
     - Adjustment: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
