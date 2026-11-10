@@ -15,11 +15,12 @@ import { listOf } from "#decoration/decorators/listOf.js";
 import { nonvolatile } from "#decoration/decorators/nonvolatile.js";
 import { nullable } from "#decoration/decorators/nullable.js";
 import { response } from "#decoration/decorators/response.js";
+import { secret } from "#decoration/decorators/secret.js";
 import { writable } from "#decoration/index.js";
 import { AttributeModel } from "#models/AttributeModel.js";
 import { CommandModel } from "#models/index.js";
 import { Schema } from "#models/Schema.js";
-import { uint16, uint32, uint8 } from "#standard/elements/models.js";
+import { octstr, uint16, uint32, uint8 } from "#standard/elements/models.js";
 
 describe("FieldSemantics", () => {
     it("sets type", () => {
@@ -79,6 +80,35 @@ describe("FieldSemantics", () => {
         expect(bar!.quality.nonvolatile).true;
         expect(bar!.access.readable).true;
         expect(bar!.access.writable).false;
+    });
+
+    it("sets secret", () => {
+        class Foo {
+            @field(octstr, secret)
+            bar = new Uint8Array();
+        }
+
+        expect(Schema.Required(Foo).fields("bar")!.isSecret).true;
+    });
+
+    it("keeps secret marked by a separate decorator below attribute", () => {
+        class Foo {
+            @attribute(0x1, octstr)
+            @secret
+            bar = new Uint8Array();
+        }
+
+        expect(Schema.Required(Foo).get(AttributeModel, "bar")?.isSecret).true;
+    });
+
+    it("keeps secret marked by a separate decorator above attribute", () => {
+        class Foo {
+            @secret
+            @attribute(0x1, octstr)
+            bar = new Uint8Array();
+        }
+
+        expect(Schema.Required(Foo).get(AttributeModel, "bar")?.isSecret).true;
     });
 
     it("defaults attributes to read-only", () => {

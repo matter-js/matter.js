@@ -513,7 +513,7 @@ describe("device attestation during commissioning", () => {
                 dclPaaCert: TestCert_PAA_NoVID_Cert,
                 paaAsTestOnly: true,
                 onAttestationFailure: () => false,
-                expectRejection: /finding\(s\) and was rejected by policy/,
+                expectRejection: /Device attestation rejected by policy: PAA .* is a test\/development certificate/,
                 assertFindings: findings => {
                     const trusted = findings.filter(f => f.type === DeviceAttestationCheck.TrustedAsTestCertificate);
                     expect(trusted.map(f => f.level)).deep.equals(["error", "error"]);

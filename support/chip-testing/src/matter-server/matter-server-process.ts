@@ -43,6 +43,9 @@ const LISTEN_ADDRESS = "127.0.0.1";
  */
 const INHERITED_ENVIRONMENT = ["PATH", "HOME", "TMPDIR", "TMP", "TEMP", "SYSTEMROOT", "USERPROFILE", "APPDATA"];
 
+/** Certification checks read message payloads and secret field values from the server's log. */
+const CERT_LOG_ENVIRONMENT = { MATTER_LOG_PAYLOADS: "true", MATTER_LOG_REDACTSECRETS: "false" };
+
 const DEFAULT_READINESS_TIMEOUT = Seconds(30);
 const CONNECT_TIMEOUT = Seconds(5);
 
@@ -228,7 +231,7 @@ export class MatterServerProcess {
             let announce = (_port: number) => {};
             const listening = new Promise<number>(resolve => (announce = resolve));
             child = ManagedChildProcess.spawn(command, args, {
-                env: { ...inheritedEnvironment(), ...env },
+                env: { ...inheritedEnvironment(), ...CERT_LOG_ENVIRONMENT, ...env },
                 stopGraceMs: exitGrace,
                 onLine: raw => {
                     const line = plainLogLine(raw);
