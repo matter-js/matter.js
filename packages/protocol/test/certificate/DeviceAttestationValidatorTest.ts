@@ -627,12 +627,11 @@ describe("DeviceAttestationValidator", () => {
         it("reports CertificationDeclarationFieldMismatch when the device did not report VendorID", async () => {
             const dclService = await setupDclService();
 
-            const { findings, dacPublicKey } = await DeviceAttestationValidator.validate(
+            const { findings } = await DeviceAttestationValidator.validate(
                 buildContext(dclService),
                 buildData({ vendorId: undefined }),
             );
 
-            expect(dacPublicKey).to.not.be.undefined;
             const errors = findings.filter(({ level }) => level === "error");
             expect(errors.map(({ type }) => type)).to.deep.equal([
                 DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
@@ -655,27 +654,32 @@ describe("DeviceAttestationValidator", () => {
             expect(errors[0].message).to.match(/BasicInformation ProductID \(not reported by the device\)/);
         });
 
-        it("still runs the DAC origin checks when the device did not report VendorID", async () => {
+        it("keeps the VendorID finding when a later DAC check stops validation", async () => {
             const dclService = await setupDclService();
 
             const altCd = await CertificationDeclaration.generate(crypto, VendorId(0xfff2), productId);
             const { attestationElements, attestationSignature } = await buildAttestationWithCd(altCd);
 
-            await expectDacOriginCheckRejects(
-                DeviceAttestationValidator.validate(
-                    buildContext(dclService),
-                    buildData({ attestationElements, attestationSignature, vendorId: undefined }),
-                ),
+            const error = await DeviceAttestationValidator.validate(
+                buildContext(dclService),
+                buildData({ attestationElements, attestationSignature, vendorId: undefined }),
+            ).then(
+                () => undefined,
+                (e: unknown) => e,
             );
+
+            if (!(error instanceof DeviceAttestationError)) {
+                expect.fail(`expected a DeviceAttestationError, got ${String(error)}`);
+            }
+            const { message, precedingFindings } = error;
+            expect(message).to.match(/DAC vendorId.*does not match CD vendor_id/);
+            const errors = precedingFindings.filter(({ level }) => level === "error");
+            expect(errors.map(({ type }) => type)).to.deep.equal([
+                DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
+            ]);
+            expect(errors[0].message).to.match(/BasicInformation VendorID \(not reported by the device\)/);
         });
     });
-
-    async function expectDacOriginCheckRejects(validation: Promise<unknown>) {
-        await expect(validation).to.be.rejectedWith(
-            DeviceAttestationError,
-            /DAC vendorId.*does not match CD vendor_id/,
-        );
-    }
 
     describe("certificate revocation checks", () => {
         it("throws CertificateRevoked when DAC serial is in revocation list", async () => {

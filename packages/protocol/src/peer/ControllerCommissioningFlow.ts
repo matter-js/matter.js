@@ -140,14 +140,13 @@ export type ControllerCommissioningFlowOptions = {
          *   - throw any error to reject by rethrowing that error verbatim (no wrapping)
          * - `undefined`: accept with warning logging (backward compatibility)
          *
-         * The callback receives either:
-         * - A single error-level finding for hard failures (invalid chain, bad signature, revoked
-         *   certificate, untrusted PAA, DCL service unavailable). The commissioner must decide
-         *   whether to proceed despite the failure.
-         * - The findings of a validation that ran to the end. These are warning/info-level findings
-         *   (e.g. provisional CD, test CD, no revocation data) and the recoverable error-level findings
-         *   `TrustedAsTestCertificate` and `CertificationDeclarationFieldMismatch` for the BasicInformation
-         *   VendorID and ProductID, which the commissioner must decide on like a hard failure.
+         * The callback receives the findings collected during validation: warning/info-level findings
+         * (e.g. provisional CD, test CD, no revocation data) and the recoverable error-level findings
+         * `TrustedAsTestCertificate` and `CertificationDeclarationFieldMismatch` for the BasicInformation
+         * VendorID and ProductID, which the commissioner must decide on like a hard failure. When a hard
+         * failure (invalid chain, bad signature, revoked certificate, untrusted PAA, DCL service
+         * unavailable) stops validation, its error-level finding comes last, after the findings collected
+         * until then.
          *
          * TODO: Make required in next breaking version and remove undefined backward-compatible accept
          */
@@ -1351,7 +1350,10 @@ export class ControllerCommissioningFlow {
             }
             baseError = asError(error);
             if (error instanceof DeviceAttestationError) {
-                findings = [{ level: "error", type: error.failure, message: error.message }];
+                findings = [
+                    ...error.precedingFindings,
+                    { level: "error", type: error.failure, message: error.message },
+                ];
             } else {
                 // Unexpected validation error (e.g. an unrecoverably corrupt trust-store certificate).
                 // Surface it as an error finding so the onFailure policy can still judge it, instead of
