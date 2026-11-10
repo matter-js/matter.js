@@ -5,15 +5,22 @@
  */
 
 import { asError, Bytes, Crypto, EcdsaSignature, MaybePromise, PublicKey } from "@matter/general";
-import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
+import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
+import { OPERATIONAL_CREDENTIALS_RESP_MAX, TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
 import { CommissioningError } from "../peer/CommissioningError.js";
 import { Certificate } from "./kinds/Certificate.js";
 import { isLocalDefect } from "./PeerData.js";
 
 /** Reasons a CSRResponse fails validation. */
 export enum NocsrCheck {
+    /** NOCSRElements or AttestationSignature is missing. */
+    FieldMissing = "FieldMissing",
+
     /** NOCSRElements or AttestationSignature is empty. */
     ResponseEmpty = "ResponseEmpty",
+
+    /** NOCSRElements is longer than {@link OPERATIONAL_CREDENTIALS_RESP_MAX}. */
+    ElementsTooLong = "ElementsTooLong",
 
     /** The AttestationSignature is malformed or does not verify with the DAC public key. */
     AttestationSignatureInvalid = "AttestationSignatureInvalid",
@@ -53,13 +60,8 @@ export namespace NocsrValidator {
         dacPublicKey: PublicKey;
     }
 
-    export interface Response {
-        /** NOCSRElements of the CSRResponse. */
-        nocsrElements: Bytes;
-
-        /** AttestationSignature of the CSRResponse. */
-        attestationSignature: Bytes;
-    }
+    /** A CSRResponse as decoded, so a mandatory field the device left out is `undefined`. */
+    export type Response = Partial<OperationalCredentials.CsrResponse>;
 
     /**
      * Validate a CSRResponse and return the operational public key of its CSR.
@@ -70,16 +72,28 @@ export namespace NocsrValidator {
      * propagates unchanged, because it is a defect of our own code, not of the device's data.
      *
      * @see {@link MatterSpecification.v161.Core} § 6.4.6.1.1
+     * @see {@link MatterSpecification.v161.Core} § 11.18.4.1
      * @see {@link MatterSpecification.v161.Core} § 11.18.4.9
      */
     export async function validate(
         { crypto, attestationChallenge, csrNonce, dacPublicKey }: Context,
         { nocsrElements, attestationSignature }: Response,
     ): Promise<Bytes> {
+        if (nocsrElements === undefined || attestationSignature === undefined) {
+            throw new NocsrError(NocsrCheck.FieldMissing, "CSRResponse lacks NOCSRElements or AttestationSignature");
+        }
+
         if (nocsrElements.byteLength === 0 || attestationSignature.byteLength === 0) {
             throw new NocsrError(
                 NocsrCheck.ResponseEmpty,
                 "CSRResponse has empty NOCSRElements or AttestationSignature",
+            );
+        }
+
+        if (nocsrElements.byteLength > OPERATIONAL_CREDENTIALS_RESP_MAX) {
+            throw new NocsrError(
+                NocsrCheck.ElementsTooLong,
+                `CSRResponse NOCSRElements has ${nocsrElements.byteLength} bytes, more than RESP_MAX of ${OPERATIONAL_CREDENTIALS_RESP_MAX}`,
             );
         }
 

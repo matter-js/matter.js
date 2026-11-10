@@ -492,6 +492,10 @@ export class ControllerCommissioningFlow {
         return [...attributeMap.values()];
     }
 
+    /**
+     * Invoke one command and return the fields of its response, or nothing for a status response.  The fields are
+     * decoded but not checked against the response schema, so a mandatory field the device left out is `undefined`.
+     */
     // TODO improve response typing
     async #invokeCommand<const C extends ClusterType.Concrete>(
         request: Invoke.ConcreteCommandRequest<C>,

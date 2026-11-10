@@ -15,7 +15,7 @@ import {
     PublicKey,
 } from "@matter/general";
 import { MATTER_EPOCH_OFFSET_S, VendorId } from "@matter/types";
-import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
+import { OPERATIONAL_CREDENTIALS_RESP_MAX, TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { CommissioningError } from "../peer/CommissioningError.js";
 import { CdSigners } from "./CdSigners.js";
@@ -61,6 +61,13 @@ export enum DeviceAttestationCheck {
     PaiFormatInvalid = "PaiFormatInvalid",
 
     AttestationElementsUnparseable = "AttestationElementsUnparseable",
+
+    /**
+     * AttestationElements is longer than RESP_MAX.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.4.1
+     */
+    AttestationElementsTooLong = "AttestationElementsTooLong",
     CertificationDeclarationUnparseable = "CertificationDeclarationUnparseable",
 
     /**
@@ -265,6 +272,13 @@ export namespace DeviceAttestationValidator {
             throw new DeviceAttestationError(
                 DeviceAttestationCheck.VendorIdMismatch,
                 `DAC vendorId ${idHex(dac.cert.subject.vendorId)} does not match PAI vendorId ${idHex(pai.cert.subject.vendorId)}`,
+            );
+        }
+
+        if (data.attestationElements.byteLength > OPERATIONAL_CREDENTIALS_RESP_MAX) {
+            throw new DeviceAttestationError(
+                DeviceAttestationCheck.AttestationElementsTooLong,
+                `Device returned attestation elements of ${data.attestationElements.byteLength} bytes, more than RESP_MAX of ${OPERATIONAL_CREDENTIALS_RESP_MAX}`,
             );
         }
 

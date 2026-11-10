@@ -31,8 +31,23 @@ describe("NocsrValidator", () => {
         }
 
         /** The CSRResponse of a device, with the given NOCSR Information fields replaced. */
-        function respond(fields: { csrNonce?: Bytes; certSigningRequest?: Bytes } = {}) {
+        function respond(fields: { csrNonce?: Bytes; certSigningRequest?: Bytes; vendorReserved1?: Bytes } = {}) {
             return respondRaw(TlvCertSigningRequest.encode({ certSigningRequest, csrNonce, ...fields }));
+        }
+
+        /** A valid CSRResponse whose NOCSRElements are {@link length} bytes long, filled up with vendorReserved1. */
+        function respondWithLength(length: number) {
+            const encode = (fill: number) =>
+                TlvCertSigningRequest.encode({ certSigningRequest, csrNonce, vendorReserved1: new Uint8Array(fill) });
+            let fill = length - encode(0).byteLength;
+            while (fill >= 0 && encode(fill).byteLength > length) {
+                fill--;
+            }
+            const nocsrElements = encode(fill);
+            if (nocsrElements.byteLength !== length) {
+                throw new InternalError(`No fill gives NOCSRElements of ${length} bytes`);
+            }
+            return respondRaw(nocsrElements);
         }
 
         const context: NocsrValidator.Context = {
@@ -42,7 +57,7 @@ describe("NocsrValidator", () => {
             dacPublicKey: PublicKey(dacKey.publicKey),
         };
 
-        return { context, respond, respondRaw, operationalKey, certSigningRequest };
+        return { context, respond, respondRaw, respondWithLength, operationalKey, certSigningRequest };
     }
 
     async function expectFailure(promise: Promise<unknown>, check: NocsrCheck) {
@@ -69,6 +84,21 @@ describe("NocsrValidator", () => {
             NocsrValidator.validate(context, { ...response, attestationSignature: new Uint8Array(0) }),
             NocsrCheck.ResponseEmpty,
         );
+    });
+
+    it("refuses a response without NOCSRElements or AttestationSignature", async () => {
+        const { context, respond } = await scenario();
+        const { nocsrElements, attestationSignature } = await respond();
+
+        await expectFailure(NocsrValidator.validate(context, { attestationSignature }), NocsrCheck.FieldMissing);
+        await expectFailure(NocsrValidator.validate(context, { nocsrElements }), NocsrCheck.FieldMissing);
+    });
+
+    it("accepts NOCSRElements of 900 bytes and refuses 901 bytes", async () => {
+        const { context, respondWithLength } = await scenario();
+
+        await NocsrValidator.validate(context, await respondWithLength(900));
+        await expectFailure(NocsrValidator.validate(context, await respondWithLength(901)), NocsrCheck.ElementsTooLong);
     });
 
     it("refuses an attestation signature of another key", async () => {
