@@ -309,9 +309,12 @@ export namespace Datasource {
          * refusal rejects the commit before any remote node receives a write.  Must complete synchronously and must
          * not write.
          *
+         * The values are TLV-encoded only when the returned step sends them, so a value the encoder cannot write fails in
+         * commit phase one, when another remote node may already have received its write.
+         *
          * @param path the path of the values, for a refusal
-         * @throws WriteError to refuse the values.  Any other error, such as an `InternalError` or an encoder error,
-         * passes through the same way.  Either rejects the commit and rolls the transaction back.
+         * @throws WriteError to refuse the values.  Any other error, such as an `InternalError`, passes through the same
+         * way.  Either rejects the commit and rolls the transaction back.
          * @see {@link Transaction.Participant.settled}
          */
         prepare(values: Val.Struct, path: DataModelPath): ExternallyMutableStore.Send;
