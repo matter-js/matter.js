@@ -82,6 +82,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
 
 - @matter/protocol
+    - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
     - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
@@ -108,6 +109,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
     - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
+    - Fix: Commissioning that stops on an unexpected error expires the device's fail-safe, so the device accepts a new commissioning attempt right away
     - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks
     - Fix: A CASE responder closes a session whose resumption the peer does not confirm
     - Fix: A CASE responder closes a new session whose SigmaFinished cannot be sent
