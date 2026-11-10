@@ -18,14 +18,16 @@ export interface ValReference<T extends Val = Val> {
     /**
      * The current value of the referenced property.  While the property is absent, a reference with a default for it
      * serves that default, and any other reference serves `undefined` or `null`.  A reference below a container that
-     * is absent without a default serves `undefined` or `null` too.  After the owning context exits, a nested
-     * reference keeps the last value it saw and the root reference throws {@link ExpiredReferenceError}.
+     * is absent without a default serves `undefined` or `null` too.  An expired nested reference keeps the last
+     * container it saw, which a live reference to the same entry may still change.  The root reference throws
+     * {@link ExpiredReferenceError} after its owning context exits.
      */
     readonly value: T | undefined | null;
 
     /**
-     * When true, the reference no longer tracks live state: the owning context has exited, or the reference is a
-     * read-only view.  Final, and true for every reference below an expired one.
+     * When true, the reference no longer tracks live state: the owning context has exited, a change in this session
+     * moved, removed or replaced the list entry it was read for, or the reference is a read-only view.  Final, and true
+     * for every reference below an expired one.
      */
     readonly expired: boolean;
 
@@ -54,8 +56,11 @@ export interface ValReference<T extends Val = Val> {
 
     /**
      * Refresh any internal cache from the referenced container.
+     *
+     * @param cause what changed the container, which decides whether a list entry reference follows its index (see
+     * `ManagedReference.Binding`)
      */
-    refresh(): void;
+    refresh(cause: ValReference.RefreshCause): void;
 
     /**
      * Throw the error a change through this reference fails with.  Does not check whether the member is absent;
@@ -116,6 +121,14 @@ export interface ValReference<T extends Val = Val> {
 }
 
 export namespace ValReference {
+    /**
+     * What changed a container before a refresh.
+     *
+     * - `session`: a change or rollback in the session that holds the reference.
+     * - `external`: another transaction committed, and the session has not written since.
+     */
+    export type RefreshCause = "session" | "external";
+
     /**
      * How a container keys its own members.
      *

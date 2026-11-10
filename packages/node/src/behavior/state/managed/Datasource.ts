@@ -1087,7 +1087,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             onChange: (oldValues: Val.Struct) => {
                 if (this.#values === oldValues) {
                     this.#values = this.#internals.values;
-                    this.#refreshSubrefs();
+                    this.#refreshSubrefs("external");
                 }
             },
         };
@@ -1206,7 +1206,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             }
 
             // Point subreferences to the clone
-            this.#refreshSubrefs();
+            this.#refreshSubrefs("session");
         }
 
         // A mutator that throws may already have changed or restored values
@@ -1217,7 +1217,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
                 mutator();
             }
         } finally {
-            this.#refreshSubrefs();
+            this.#refreshSubrefs("session");
         }
     }
 
@@ -1434,7 +1434,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         // against
         this.#precommitValues = undefined;
 
-        this.#refreshSubrefs();
+        this.#refreshSubrefs("session");
     }
 
     // -- Private helpers --
@@ -1482,11 +1482,11 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         }
     }
 
-    #refreshSubrefs() {
+    #refreshSubrefs(cause: ValReference.RefreshCause) {
         const subrefs = this.subrefs;
         if (subrefs) {
             for (const key in subrefs) {
-                subrefs[key].refresh();
+                subrefs[key].refresh(cause);
             }
         }
     }

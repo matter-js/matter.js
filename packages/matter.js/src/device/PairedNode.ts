@@ -19,6 +19,7 @@ import {
     Immutable,
     ImplementationError,
     InternalError,
+    isObject,
     Logger,
     MatterError,
     MaybePromise,
@@ -35,6 +36,7 @@ import {
     ClusterRevision,
     FeatureMap,
     Matter,
+    SecretRedaction,
 } from "@matter/model";
 import {
     Behavior,
@@ -407,8 +409,9 @@ export class PairedNode {
                         logger.warn(this.#peerAddress, `Error during read-only initialization`, error);
                     });
                 } else {
-                    // Activate the sustained subscription on NetworkClient
-                    this.#activateSubscription();
+                    this.#activateSubscription().catch(error =>
+                        logger.warn(this.#peerAddress, "Error activating subscription", error),
+                    );
                 }
             }
         });
@@ -485,17 +488,15 @@ export class PairedNode {
 
     /**
      * Activate the sustained subscription on NetworkClient. This triggers the Read and Subscribe flow.
+     *
+     * Waits for the NetworkClient state lock when another transaction holds it.  Rejects when the state write fails.
      */
-    #activateSubscription() {
+    async #activateSubscription() {
         if (this.#closing || this.#options.autoSubscribe === false) {
             return;
         }
-        const networkState = this.#clientNode.stateOf(NetworkClient);
-        if (!networkState.autoSubscribe) {
-            MaybePromise.catch(
-                () => this.#clientNode.act(agent => (agent.get(NetworkClient).state.autoSubscribe = true)),
-                error => logger.warn(this.#peerAddress, "Error activating subscription", error),
-            );
+        if (!this.#clientNode.stateOf(NetworkClient).autoSubscribe) {
+            await this.#clientNode.set({ network: { autoSubscribe: true } });
         }
     }
 
@@ -568,7 +569,7 @@ export class PairedNode {
         if (this.#options.autoSubscribe === false) {
             await this.#initializeWithRead();
         } else {
-            this.#activateSubscription();
+            await this.#activateSubscription();
         }
     }
 
@@ -595,7 +596,7 @@ export class PairedNode {
      * reconnection was successful.
      */
     triggerReconnect() {
-        this.reconnect().catch(error => logger.error(this.#peerAddress, `Failed to reconnect to node`, error));
+        this.reconnect().catch(error => logger.warn(this.#peerAddress, `Failed to reconnect to node`, error));
     }
 
     /**
@@ -615,7 +616,7 @@ export class PairedNode {
         }
         // Toggle autoSubscribe to tear down and re-create the sustained subscription
         await this.#clientNode.set({ network: { autoSubscribe: false } });
-        this.#activateSubscription();
+        await this.#activateSubscription();
     }
 
     async #initializeFromStoredData() {
@@ -710,10 +711,18 @@ export class PairedNode {
                     if (this.#endpoints !== undefined && cluster === undefined) {
                         continue;
                     }
-                    logger.debug(
-                        this.#peerAddress,
-                        `Trigger attribute update for ${endpointId}.${cluster?.name ?? Matter.clusters(clusterId)?.name ?? Diagnostic.hex(clusterId)}.${attributeId} to ${Diagnostic.json(value)}`,
-                    );
+                    logger.debug(() => {
+                        const clusterModel = Matter.clusters(clusterId);
+                        const attributeModel =
+                            (behavior.schema instanceof ClusterModel
+                                ? behavior.schema.attributes(attributeId)
+                                : undefined) ?? clusterModel?.attributes(attributeId);
+                        const loggedValue = SecretRedaction.redact(attributeModel, value);
+                        return [
+                            this.#peerAddress,
+                            `Trigger attribute update for ${endpointId}.${cluster?.name ?? clusterModel?.name ?? Diagnostic.hex(clusterId)}.${attributeId} to ${Diagnostic.json(loggedValue)}`,
+                        ];
+                    });
                     if (cluster !== undefined) {
                         asClusterClientInternal(cluster)._triggerAttributeUpdate(attributeId as AttributeId, value);
                     }
@@ -875,7 +884,7 @@ export class PairedNode {
         eventTriggeredCallback?: (data: DecodedEventReportValue<any>) => void;
     }) {
         // Activate a subscription through NetworkClient if not already active
-        this.#activateSubscription();
+        await this.#activateSubscription();
         return this.currentSubscriptionIntervalSeconds;
     }
 
@@ -1109,7 +1118,7 @@ export class PairedNode {
                 this.#peerAddress,
                 `${isRecreation ? "Recreating" : "Creating"} endpoint`,
                 endpointId,
-                Diagnostic.json(endpoint.state),
+                Diagnostic.json(redactedStateOf(endpoint)),
             ]);
             const device = this.#createDevice(endpointId, endpoint, this.#interactionClient);
             if (device === undefined) {
@@ -1764,4 +1773,19 @@ export namespace PairedNode {
         /** Emitted when a subscription alive trigger is received (max interval trigger or any data update) */
         connectionAlive: Observable<[void]>;
     }
+}
+
+/**
+ * The state of {@link endpoint} for logging, with the attribute values the cluster models mark secret replaced.
+ */
+function redactedStateOf(endpoint: ClientEndpoint) {
+    const state: Record<string, unknown> = {};
+    for (const [id, values] of Object.entries(endpoint.state)) {
+        const schema = endpoint.behaviors.supported[id]?.schema;
+        state[id] =
+            schema instanceof ClusterModel && isObject(values)
+                ? SecretRedaction.redactAttributes(schema, values)
+                : values;
+    }
+    return state;
 }

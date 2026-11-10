@@ -5,7 +5,7 @@
  */
 
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
-import { Hours, Millis, ServerAddressUdp } from "@matter/general";
+import { Hours, Millis, ServerAddressUdp, Time, Timestamp } from "@matter/general";
 import { CommissionableDevice } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 
@@ -224,6 +224,30 @@ describe("RemoteDescriptor", () => {
             RemoteDescriptor.toLongForm({}, long);
 
             expect(long.advertisedIntervals).undefined;
+        });
+    });
+
+    describe("legacyRecordToLongForm", () => {
+        before(() => {
+            MockTime.init();
+        });
+
+        it("drops stored discovery TTLs", () => {
+            const long = RemoteDescriptor.legacyRecordToLongForm(
+                JSON.parse('{ "deviceIdentifier": "abc", "ttl": null }'),
+                { ...udp("fd00::1"), ttl: Millis(7.2e15) },
+            );
+
+            expect(long.deviceIdentifier).equals("abc");
+            expect(long.ttl).undefined;
+            expect(long.addresses?.map(({ ttl }) => ttl)).deep.equals([undefined]);
+        });
+
+        it("keeps a stored discoveredAt and defaults a missing one to now", () => {
+            const discoveredAt = Timestamp(Time.nowMs - Hours(1));
+
+            expect(RemoteDescriptor.legacyRecordToLongForm({ discoveredAt }).discoveredAt).equals(discoveredAt);
+            expect(RemoteDescriptor.legacyRecordToLongForm(undefined).discoveredAt).equals(Time.nowMs);
         });
     });
 });

@@ -371,6 +371,12 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         return this.#interaction;
     }
 
+    /**
+     * The peer's operational address, or `undefined` if the peer is not commissioned or its storage is not available.
+     *
+     * Reads the commissioning state when it is loaded, otherwise a cached value or storage.  So it also answers for a
+     * node whose commissioning state failed to load.
+     */
     get peerAddress(): PeerAddress | undefined {
         // Whenever the commissioning backing is loaded its state is authoritative - mirror it (set or cleared)
         // so the cache cannot survive a decommission as a stale value

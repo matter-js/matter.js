@@ -22,6 +22,10 @@ inputs:
     description: 'Patch Yaml Files for Matter.js testrun?'
     required: true
     default: "false"
+  python-venv:
+    description: 'Restore or build the CHIP Python environment in connectedhomeip/out/venv (only the Python tests need it)'
+    required: true
+    default: "true"
 
 runs:
   using: 'composite'
@@ -47,6 +51,9 @@ runs:
         echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
         # Host-built binaries and the Python environment in the caches work only on the OS release that built them
         echo "OS_RELEASE=$(. /etc/os-release && echo "$ID$VERSION_ID")" >> $GITHUB_ENV
+        # Same sanitizer as the CHIP CI Linux test jobs. Part of the bin cache key, so binaries of another variant are
+        # never restored.
+        echo "CHIP_BUILD_VARIANT=ipv6only-no-ble-no-wifi-no-shell-asan-clang" >> $GITHUB_ENV
 
     - name: Cache Bin files
       id: cache-bin
@@ -55,7 +62,7 @@ runs:
         cache-name: chip-bin
       with:
         path: ./bin
-        key: ${{ inputs.runner-os }}-${{ env.OS_RELEASE }}-build-yaml-${{ env.cache-name }}-${{ inputs.connectedhomeip-tag }}-${{ env.DATE }}
+        key: ${{ inputs.runner-os }}-${{ env.OS_RELEASE }}-build-yaml-${{ env.cache-name }}-${{ env.CHIP_BUILD_VARIANT }}-${{ inputs.connectedhomeip-tag }}-${{ env.DATE }}
 
     - name: Checkout Matter SDK
       id: checkout-sdk
@@ -74,67 +81,69 @@ runs:
         path: ./connectedhomeip/.environment
         key: ${{ inputs.runner-os }}-${{ env.OS_RELEASE }}-env-${{ env.cache-name }}-${{ inputs.connectedhomeip-tag }}-${{ env.DATE }}
 
-    - name: Cache Chip out files
-      id: cache-out
+    # Later steps use only the Python environment from out/. The app build directories stay out of the cache because
+    # the cache archive is written to and read from the root disk, which has little free space in the release jobs.
+    - if: ${{ inputs.python-venv == 'true' }}
+      name: Cache Chip Python environment
+      id: cache-venv
       uses: actions/cache@v5
       env:
-        cache-name: chip-out
+        cache-name: chip-venv
       with:
-        path: ./connectedhomeip/out/
-        key: ${{ inputs.runner-os }}-${{ env.OS_RELEASE }}-out-${{ env.cache-name }}-${{ inputs.connectedhomeip-tag }}-${{ env.DATE }}
+        path: ./connectedhomeip/out/venv
+        key: ${{ inputs.runner-os }}-${{ env.OS_RELEASE }}-venv-${{ env.cache-name }}-${{ inputs.connectedhomeip-tag }}-${{ env.DATE }}
 
     # Only build if cache is not hit or if the commit message contains '[rebuild-chip]'
-    - if: ${{ steps.cache-env.outputs.cache-hit != 'true' || steps.cache-out.outputs.cache-hit != 'true' || inputs.rebuild-chip-tool == 'true' }}
+    - if: ${{ inputs.python-venv == 'true' && (steps.cache-env.outputs.cache-hit != 'true' || steps.cache-venv.outputs.cache-hit != 'true' || inputs.rebuild-chip-tool == 'true') }}
       name: Build python framework
       id: build-python
       shell: bash
       run: |
         cd connectedhomeip
         ./scripts/run_in_build_env.sh './scripts/build_python.sh --install_virtual_env out/venv'
+        # The wheels are installed into out/venv, the build tree is not needed afterwards
+        rm -rf out/python_lib
 
     # Only build if cache is not hit or if the commit message contains '[rebuild-chip]'
+    # One target at a time, deleting its build directory after copying the binary, like the CHIP CI REPL build: the
+    # disk then holds one build tree instead of all of them.
     - if: ${{ steps.cache-bin.outputs.cache-hit != 'true' || inputs.rebuild-chip-tool == 'true' }}
       name: Build executables
       id: build-executables
       env:
-        BUILD_VARIANT: "ipv6only-no-ble-no-wifi-no-shell-tsan-clang"
+        # <build_examples.py app name>:<binary name>
+        CHIP_APPS: >-
+          chip-tool:chip-tool
+          all-clusters:chip-all-clusters-app
+          all-devices:all-devices-app
+          lock:chip-lock-app
+          tv-app:chip-tv-app
+          bridge:chip-bridge-app
+          lit-icd:lit-icd-app
+          microwave-oven:chip-microwave-oven-app
+          rvc:chip-rvc-app
+          network-manager:matter-network-manager-app
+          energy-gateway:chip-energy-gateway-app
+          evse:chip-evse-app
       shell: bash
       run: |
         cd connectedhomeip
-        ./scripts/run_in_build_env.sh \
-          "./scripts/build/build_examples.py \
-            --target linux-x64-chip-tool-${BUILD_VARIANT} \
-            --target linux-x64-all-clusters-${BUILD_VARIANT} \
-            --target linux-x64-all-devices-${BUILD_VARIANT} \
-            --target linux-x64-lock-${BUILD_VARIANT} \
-            --target linux-x64-tv-app-${BUILD_VARIANT} \
-            --target linux-x64-bridge-${BUILD_VARIANT} \
-            --target linux-x64-lit-icd-${BUILD_VARIANT} \
-            --target linux-x64-microwave-oven-${BUILD_VARIANT} \
-            --target linux-x64-rvc-${BUILD_VARIANT} \
-            --target linux-x64-network-manager-${BUILD_VARIANT} \
-            --target linux-x64-energy-gateway-${BUILD_VARIANT} \
-            --target linux-x64-evse-${BUILD_VARIANT} \
-            build
-          "
-        cp out/linux-x64-chip-tool-${BUILD_VARIANT}/chip-tool ../bin/
-        cp out/linux-x64-all-clusters-${BUILD_VARIANT}/chip-all-clusters-app ../bin/
-        cp out/linux-x64-all-devices-${BUILD_VARIANT}/all-devices-app ../bin/
-        cp out/linux-x64-bridge-${BUILD_VARIANT}/chip-bridge-app ../bin/
-        cp out/linux-x64-lock-${BUILD_VARIANT}/chip-lock-app ../bin/
-        cp out/linux-x64-tv-app-${BUILD_VARIANT}/chip-tv-app ../bin/
-        cp out/linux-x64-lit-icd-${BUILD_VARIANT}/lit-icd-app ../bin/
-        cp out/linux-x64-microwave-oven-${BUILD_VARIANT}/chip-microwave-oven-app ../bin/
-        cp out/linux-x64-rvc-${BUILD_VARIANT}/chip-rvc-app ../bin/
-        cp out/linux-x64-network-manager-${BUILD_VARIANT}/matter-network-manager-app ../bin/
-        cp out/linux-x64-energy-gateway-${BUILD_VARIANT}/chip-energy-gateway-app ../bin/
-        cp out/linux-x64-evse-${BUILD_VARIANT}/chip-evse-app ../bin/
+        ./scripts/run_in_build_env.sh '
+          set -e
+          for app in $CHIP_APPS; do
+            target="linux-x64-${app%%:*}-${CHIP_BUILD_VARIANT}"
+            ./scripts/build/build_examples.py --target "$target" build
+            cp "out/$target/${app#*:}" ../bin/
+            rm -rf "out/$target"
+          done
+        '
 
     - name: Display used binaries
       shell: bash
       run: |
         echo "Connected IP Branch: ${{ inputs.connectedhomeip-tag }}"
         ls -la bin
+        df -h / .
 
     - if: ${{ inputs.build-matter-js == 'true' }}
       name: Install and build matter.js
@@ -152,3 +161,17 @@ runs:
     - name: Tweak security settings to prevent errors on Ubuntu containers
       shell: bash
       run: sudo sysctl kernel.apparmor_restrict_unprivileged_userns=0
+
+    # The same runtime settings as the CHIP CI Linux test jobs: leak detection on, and the symbolizer from the build
+    # environment so ASAN and LSAN reports show source lines.
+    - name: Set ASAN options for the CHIP binaries
+      shell: bash
+      run: |
+        echo "LSAN_OPTIONS=detect_leaks=1" >> "$GITHUB_ENV"
+        cd connectedhomeip
+        ./scripts/run_in_build_env.sh '
+          symbolizer="$(command -v llvm-symbolizer || true)"
+          if [ -n "$symbolizer" ]; then
+            echo "ASAN_SYMBOLIZER_PATH=$symbolizer" >> "$GITHUB_ENV"
+          fi
+        '

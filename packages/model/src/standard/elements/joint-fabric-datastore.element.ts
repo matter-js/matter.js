@@ -401,11 +401,20 @@ export const JointFabricDatastore = Cluster(
         { name: "DatastoreGroupKeySetStruct", type: "struct" },
         Field({ name: "GroupKeySetId", id: 0x0, type: "uint16", conformance: "M" }),
         Field({ name: "GroupKeySecurityPolicy", id: 0x1, type: "DatastoreGroupKeySecurityPolicyEnum", conformance: "M" }),
-        Field({ name: "EpochKey0", id: 0x2, type: "octstr", conformance: "M", constraint: "16", quality: "X" }),
+        Field({
+            name: "EpochKey0", id: 0x2, type: "octstr", conformance: "M", constraint: "16", isSecret: true,
+            quality: "X"
+        }),
         Field({ name: "EpochStartTime0", id: 0x3, type: "epoch-us", conformance: "M", quality: "X" }),
-        Field({ name: "EpochKey1", id: 0x4, type: "octstr", conformance: "M", constraint: "16", quality: "X" }),
+        Field({
+            name: "EpochKey1", id: 0x4, type: "octstr", conformance: "M", constraint: "16", isSecret: true,
+            quality: "X"
+        }),
         Field({ name: "EpochStartTime1", id: 0x5, type: "epoch-us", conformance: "M", quality: "X" }),
-        Field({ name: "EpochKey2", id: 0x6, type: "octstr", conformance: "M", constraint: "16", quality: "X" }),
+        Field({
+            name: "EpochKey2", id: 0x6, type: "octstr", conformance: "M", constraint: "16", isSecret: true,
+            quality: "X"
+        }),
         Field({ name: "EpochStartTime2", id: 0x7, type: "epoch-us", conformance: "M", quality: "X" }),
         Field({ name: "GroupKeyMulticastPolicy", id: 0x8, type: "DatastoreGroupKeyMulticastPolicyEnum", conformance: "D" })
     )

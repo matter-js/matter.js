@@ -62,6 +62,7 @@ import {
 /** A UDP-like transport that delivers datagrams on demand. */
 class MockTransport implements Transport {
     readonly #listeners = new Set<(socket: Channel<Bytes>, data: Bytes) => void>();
+    readonly sent = new Array<Bytes>();
     readonly channel: UdpNetworkChannel<Bytes> = {
         maxPayloadSize: 1280,
         isReliable: false,
@@ -70,7 +71,9 @@ class MockTransport implements Transport {
         type: ChannelType.UDP,
         networkAddress: { type: "udp", ip: "fd00::1", port: 5540 },
         networkAddressChanged: Observable(),
-        async send() {},
+        send: async (data: Bytes) => {
+            this.sent.push(data);
+        },
         async close() {},
     };
 
@@ -139,10 +142,8 @@ describe("ExchangeManager", () => {
             async closeForShutdown() {},
         });
 
-        // Peer loss ignores sessions created no earlier than the failing exchange
-        await MockTime.advance(1000);
-
         return {
+            sessions,
             session,
             closedWith,
             exchanges,
@@ -161,6 +162,18 @@ describe("ExchangeManager", () => {
             await expect(exchange.send(0, Bytes.empty)).to.be.rejectedWith(NetworkError);
 
             expect(peer.closedWith[0]).equals(exchange);
+        });
+
+        it("keeps a session of the peer registered after the failing exchange started", async () => {
+            await using peer = await failingPeer();
+
+            const exchange = peer.exchanges.initiateExchangeForSession(peer.session, SECURE_CHANNEL_PROTOCOL_ID);
+            const newer = new ProtocolMocks.NodeSession({ manager: peer.sessions, index: 2, peerNodeId: NodeId(1) });
+            expect(newer.createdAt).equals(peer.session.createdAt);
+            await expect(exchange.send(0, Bytes.empty)).to.be.rejectedWith(NetworkError);
+
+            expect(peer.session.isPeerLost).is.true;
+            expect(newer.isPeerLost).is.false;
         });
 
         it("leaves the session and its subscriptions alone when the exchange suppresses peer loss", async () => {
@@ -1009,8 +1022,38 @@ describe("ExchangeManager", () => {
                 }
             });
 
-            expect(entries.filter(({ text }) => text.includes("unexpected message"))).length(1);
+            const unexpected = entries.filter(({ text }) => text.includes("unexpected message"));
+            expect(unexpected).length(1);
+            expect(unexpected[0].text).contains('"payload":');
             expect(levels.filter(level => level > LogLevel.DEBUG)).deep.equals([]);
+        });
+
+        it("leaves the payload out of the unexpected message log while payload logging is off", async () => {
+            await using peer = await sessionWithSleepingLitPeer();
+            peer.exchanges.addProtocolHandler({
+                id: SECURE_CHANNEL_PROTOCOL_ID,
+                requiresSecureSession: true,
+                async onNewExchange() {},
+                async close() {},
+            });
+
+            const { logPayloads } = Logger;
+            Logger.logPayloads = false;
+            let entries: { text: string }[];
+            try {
+                ({ entries } = await captureLevels(async () => {
+                    peer.transport.receive(peer.datagram(responseOn(0x4321)));
+                    for (let i = 0; i < 20; i++) {
+                        await MockTime.yield();
+                    }
+                }));
+            } finally {
+                Logger.logPayloads = logPayloads;
+            }
+
+            const unexpected = entries.filter(({ text }) => text.includes("unexpected message"));
+            expect(unexpected).length(1);
+            expect(unexpected[0].text).not.contains('"payload":');
         });
 
         it("closes the least recently active exchange after an older exchange became active again", async () => {
@@ -1224,7 +1267,13 @@ describe("ExchangeManager", () => {
             };
         }
 
-        function unsecuredMessage(sourceNodeId: NodeId, messageId: number, requiresAck = false, exchangeId = 1) {
+        function unsecuredMessage(
+            sourceNodeId: NodeId,
+            messageId: number,
+            requiresAck = false,
+            exchangeId = 1,
+            isInitiatorMessage = true,
+        ) {
             return MessageCodec.encodePacket(
                 MessageCodec.encodePayload({
                     packetHeader: {
@@ -1240,7 +1289,7 @@ describe("ExchangeManager", () => {
                         exchangeId,
                         protocolId: SECURE_CHANNEL_PROTOCOL_ID,
                         messageType: SecureMessageType.IcdCheckInMessage,
-                        isInitiatorMessage: true,
+                        isInitiatorMessage,
                         requiresAck,
                         hasSecuredExtension: false,
                     },
@@ -1255,6 +1304,44 @@ describe("ExchangeManager", () => {
                 await MockTime.yield();
             }
         }
+
+        /** Exchange id, I flag and acked message counter of each standalone ack the manager sent. */
+        function sentAcks(transport: MockTransport) {
+            return transport.sent
+                .map(data => MessageCodec.decodePayload(MessageCodec.decodePacket(data)).payloadHeader)
+                .filter(
+                    header =>
+                        header.protocolId === SECURE_CHANNEL_PROTOCOL_ID &&
+                        header.messageType === SecureMessageType.StandaloneAck,
+                )
+                .map(({ exchangeId, isInitiatorMessage, ackedMessageId }) => ({
+                    exchangeId,
+                    isInitiatorMessage,
+                    ackedMessageId,
+                }));
+        }
+
+        it("acks a message without the I flag and without open exchange with the I flag set", async () => {
+            await using peer = await receiver();
+
+            peer.transport.receive(unsecuredMessage(NodeId(1n), 7, true, 0x1234, false));
+            await settle();
+
+            expect(sentAcks(peer.transport)).deep.equals([
+                { exchangeId: 0x1234, isInitiatorMessage: true, ackedMessageId: 7 },
+            ]);
+        });
+
+        it("acks an unhandled message the peer initiated in the responder role", async () => {
+            await using peer = await receiver();
+
+            peer.transport.receive(unsecuredMessage(NodeId(1n), 7, true, 0x1234));
+            await settle();
+
+            expect(sentAcks(peer.transport)).deep.equals([
+                { exchangeId: 0x1234, isInitiatorMessage: false, ackedMessageId: 7 },
+            ]);
+        });
 
         it("discards the session when the handler does not adopt it", async () => {
             await using peer = await receiver();

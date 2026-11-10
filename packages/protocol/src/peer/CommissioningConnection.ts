@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { BleError } from "#ble/Ble.js";
 import { CommissionableDevice } from "#common/Scanner.js";
 import { CommissioningError, PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
 import { NodeSession } from "#session/NodeSession.js";
@@ -175,7 +176,9 @@ export async function CommissioningConnection(
                             asErr.message,
                         );
                         lastNonRetryableError = asErr;
-                    } else if (causedBy(asErr, NoResponseTimeoutError, TransientPeerCommunicationError, NetworkError)) {
+                    } else if (
+                        causedBy(asErr, NoResponseTimeoutError, TransientPeerCommunicationError, NetworkError, BleError)
+                    ) {
                         lastError = asErr;
                         logger.warn(
                             `Address ${ServerAddress.urlFor(candidate.address)} unreachable for ${candidate.device.deviceIdentifier}`,
@@ -234,6 +237,7 @@ export async function CommissioningConnection(
         if (lastError !== undefined) {
             throw new PairRetransmissionLimitReachedError(
                 `Failed to connect on any discovered server: ${lastError.message}`,
+                { cause: lastError },
             );
         }
         throw new PairRetransmissionLimitReachedError("Failed to connect on any discovered server");

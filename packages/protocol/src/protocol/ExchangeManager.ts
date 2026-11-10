@@ -40,7 +40,6 @@ import {
     Logger,
     MatterFlowError,
     ObserverGroup,
-    Time,
     Transport,
     TransportClosedError,
     TransportSet,
@@ -124,8 +123,8 @@ export class ExchangeManager implements Transport.Provider {
 
         this.#observers.on(this.#transports.added, this.#addTransport);
         this.#observers.on(this.#transports.deleted, this.#deleteTransport);
-        this.#observers.on(this.#sessions.sessions.added, this.#addSession);
-        this.#observers.on(this.#sessions.sessions.deleted, this.#deleteSession);
+        this.#observers.on(this.#sessions.registeredSessions.added, this.#addSession);
+        this.#observers.on(this.#sessions.registeredSessions.deleted, this.#deleteSession);
     }
 
     static [Environmental.create](env: Environment) {
@@ -528,7 +527,11 @@ export class ExchangeManager implements Transport.Provider {
                         Mark.INBOUND,
                         "unexpected message",
                         messageDiagnostics,
-                        Diagnostic.json(message),
+                        Diagnostic.json(
+                            Logger.logPayloads
+                                ? message
+                                : { packetHeader: message.packetHeader, payloadHeader: message.payloadHeader },
+                        ),
                     );
                 }
             }
@@ -611,7 +614,7 @@ export class ExchangeManager implements Transport.Provider {
     }
 
     #messageExchangeContextFor(session: Session): MessageExchangeContext {
-        const createdAt = Time.nowUs;
+        const registeredBefore = this.#sessions.registrationCount;
         return {
             session,
             localSessionParameters: this.#sessions.sessionParameters,
@@ -638,7 +641,7 @@ export class ExchangeManager implements Transport.Provider {
                 // Report peer loss to the session manager; this notifies all (relevant) sessions for the peer
                 await this.#sessions.handlePeerLoss(session.peerAddress, {
                     cause,
-                    asOf: createdAt,
+                    registeredBefore,
                     currentExchange: exchange,
                 });
             },
@@ -706,7 +709,7 @@ export class ExchangeManager implements Transport.Provider {
             }
         };
 
-        for (const session of this.#sessions.sessions) check(session);
+        for (const session of this.#sessions.registeredSessions) check(session);
         for (const session of this.#sessions.unsecuredSessions.values()) check(session);
 
         return result;

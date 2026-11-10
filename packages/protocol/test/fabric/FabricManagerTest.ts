@@ -7,6 +7,8 @@
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager, FabricTableFullError } from "#fabric/FabricManager.js";
 import { TestFabric } from "#fabric/TestFabric.js";
+import { FabricRemovedError } from "#peer/PeerCommunicationError.js";
+import { NodeSession } from "#session/NodeSession.js";
 import {
     Bytes,
     ImplementationError,
@@ -192,6 +194,90 @@ describe("FabricManager", () => {
             await fabrics.clear();
 
             expect(replacement.icd.registrations).deep.equals([]);
+        });
+
+        function sessionOn(fabric: Fabric, id: number, peerNodeId: NodeId) {
+            return new NodeSession({
+                crypto,
+                id,
+                fabric,
+                peerNodeId,
+                peerSessionId: id,
+                decryptKey: Bytes.fromHex("00112233445566778899aabbccddeeff"),
+                encryptKey: Bytes.fromHex("ffeeddccbbaa99887766554433221100"),
+                attestationKey: new Uint8Array(),
+                isInitiator: true,
+            });
+        }
+
+        it("closes a session bound to the replaced object when the replacement is deleted", async () => {
+            const { fabric, replacement } = await replaceable();
+            const session = sessionOn(fabric, 1, NodeId(0x1111));
+
+            await fabrics.replaceFabric(replacement);
+            expect(replacement.hasSessionForPeer(NodeId(0x1111))).true;
+
+            await replacement.delete();
+            expect(session.isClosing).true;
+            expect(fabric.hasSessionForPeer(NodeId(0x1111))).false;
+        });
+
+        it("closes a session created on the replaced object after the replacement when the replacement is deleted", async () => {
+            const { fabric, replacement } = await replaceable();
+            await fabrics.replaceFabric(replacement);
+            const session = sessionOn(fabric, 2, NodeId(0x2222));
+
+            expect(replacement.hasSessionForPeer(NodeId(0x2222))).true;
+            await replacement.delete();
+            expect(session.isClosing).true;
+        });
+
+        it("closes a session bound to the replacement when the replaced object is deleted", async () => {
+            const { fabric, replacement } = await replaceable();
+            await fabrics.replaceFabric(replacement);
+            const session = sessionOn(replacement, 3, NodeId(0x3333));
+
+            expect(fabric.hasSessionForPeer(NodeId(0x3333))).true;
+            await fabric.delete();
+            expect(session.isClosing).true;
+        });
+
+        it("closes sessions of both objects on replaced() and leave()", async () => {
+            const { fabric, replacement } = await replaceable();
+            await fabrics.replaceFabric(replacement);
+            const onOld = sessionOn(fabric, 4, NodeId(0x4444));
+            const onNew = sessionOn(replacement, 5, NodeId(0x5555));
+
+            await replacement.replaced();
+            expect(onOld.isClosing).true;
+            expect(onNew.isClosing).true;
+
+            const leaveOld = sessionOn(fabric, 6, NodeId(0x6666));
+            const leaveNew = sessionOn(replacement, 7, NodeId(0x7777));
+            await replacement.leave();
+            expect(leaveOld.isClosing).true;
+            expect(leaveNew.isClosing).true;
+        });
+
+        it("removes a closed session from the view of both objects", async () => {
+            const { fabric, replacement } = await replaceable();
+            await fabrics.replaceFabric(replacement);
+            const session = sessionOn(fabric, 8, NodeId(0x8888));
+
+            await session.initiateForceClose({ cause: new FabricRemovedError() });
+            expect(fabric.hasSessionForPeer(NodeId(0x8888))).false;
+            expect(replacement.hasSessionForPeer(NodeId(0x8888))).false;
+        });
+
+        it("keeps the sessions when the replaced object is restored", async () => {
+            const { fabric, replacement } = await replaceable();
+            await fabrics.replaceFabric(replacement);
+            await fabrics.replaceFabric(fabric);
+            const session = sessionOn(replacement, 9, NodeId(0x9999));
+
+            expect(fabric.hasSessionForPeer(NodeId(0x9999))).true;
+            await fabric.delete();
+            expect(session.isClosing).true;
         });
 
         it("refuses a replacement from another root", async () => {

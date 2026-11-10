@@ -19,6 +19,9 @@ LocalMatter.children.push({
             name: "GroupKeySetStruct",
             type: "struct",
             children: [
+                { tag: "field", id: 0x2, name: "EpochKey0", isSecret: true },
+                { tag: "field", id: 0x4, name: "EpochKey1", isSecret: true },
+                { tag: "field", id: 0x6, name: "EpochKey2", isSecret: true },
                 { tag: "field", id: 0x8, name: "GroupKeyMulticastPolicy", conformance: "O", default: 0 },
                 // FabricIndex at 0xfe is excluded from command payloads; clients don't provide it in KeySetWrite
                 { tag: "field", id: 0xfe, name: "FabricIndex", conformance: "O" },

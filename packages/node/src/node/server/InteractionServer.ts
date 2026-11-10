@@ -646,7 +646,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
 
         if (fabric !== undefined && !keepSubscriptions) {
             let clearedCount = 0;
-            for (const sess of this.#context.sessions.sessions) {
+            for (const sess of this.#context.sessions.registeredSessions) {
                 // TODO Adjust this filtering when subscriptions move to Peer
                 if (!PeerAddress.is(sess.peerAddress, session.peerAddress)) {
                     // Ignore subscriptions from other peers
@@ -761,40 +761,37 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const maxInterval = subscription.maxInterval;
 
         // Then send the subscription response
-        await messenger.send(
-            MessageType.SubscribeResponse,
-            TlvSubscribeResponse.encode({
-                subscriptionId,
-                maxInterval: Seconds.of(maxInterval),
-                interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
-            }),
-            {
-                logContext: {
-                    ...Subscription.diagnosticOf(subscriptionId),
-                    maxInterval: Duration.format(maxInterval),
+        try {
+            await messenger.send(
+                MessageType.SubscribeResponse,
+                TlvSubscribeResponse.encode({
+                    subscriptionId,
+                    maxInterval: Seconds.of(maxInterval),
+                    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+                }),
+                {
+                    logContext: {
+                        ...Subscription.diagnosticOf(subscriptionId),
+                        maxInterval: Duration.format(maxInterval),
+                    },
                 },
-            },
-        );
+            );
+        } catch (error) {
+            await subscription.close();
+            throw error;
+        }
 
-        // When an error occurs while sending the response, the subscription is not yet active and will be cleaned up by GC
         if (subscription.activate()) {
             this.#counters.totalSubscriptionsEstablished++;
         }
     }
 
-    #initiateSubscriptionExchange(addressOrSession: PeerAddress | Session, protocolId: number) {
-        const exchange =
-            addressOrSession instanceof Session
-                ? this.#context.exchangeManager.initiateExchangeForSession(
-                      addressOrSession,
-                      protocolId,
-                      SUBSCRIPTION_EXCHANGE_OPTIONS,
-                  )
-                : this.#context.exchangeManager.initiateExchange(
-                      addressOrSession,
-                      protocolId,
-                      SUBSCRIPTION_EXCHANGE_OPTIONS,
-                  );
+    #initiateSubscriptionExchange(session: Session, protocolId: number) {
+        const exchange = this.#context.exchangeManager.initiateExchangeForSession(
+            session,
+            protocolId,
+            SUBSCRIPTION_EXCHANGE_OPTIONS,
+        );
 
         // Count subscription report messages we push and the acks we receive in response
         this.#countExchangeMessages(exchange);
@@ -813,8 +810,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const context: ServerSubscriptionContext = {
             session,
             node: this.#node,
-            initiateExchange: (addressOrSession, protocolId) =>
-                this.#initiateSubscriptionExchange(addressOrSession, protocolId),
+            initiateExchange: (session, protocolId) => this.#initiateSubscriptionExchange(session, protocolId),
         };
 
         const subscription = new ServerSubscription({
@@ -881,8 +877,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             const context: ServerSubscriptionContext = {
                 session,
                 node: this.#node,
-                initiateExchange: (addressOrSession, protocolId) =>
-                    this.#initiateSubscriptionExchange(addressOrSession, protocolId),
+                initiateExchange: (session, protocolId) => this.#initiateSubscriptionExchange(session, protocolId),
             };
 
             subscription = new ServerSubscription({
@@ -958,7 +953,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const jitter = delayJitterWindowMs > 0 ? this.#node.env.get(Entropy).randomUint32 % delayJitterWindowMs : 0;
         const delay = Millis(delayMinMs + jitter);
 
-        for (const session of this.#context.sessions.sessions) {
+        for (const session of this.#context.sessions.registeredSessions) {
             for (const subscription of session.subscriptions) {
                 if (subscription instanceof ServerSubscription && subscription.selectsAnyEndpoint(endpoints)) {
                     subscription.deferReports(delay);

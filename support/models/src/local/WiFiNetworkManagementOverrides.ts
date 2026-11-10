@@ -18,7 +18,15 @@ LocalMatter.children.push({
             id: 0x1,
             name: "NetworkPassphraseResponse",
             children: [
-                { tag: "field", id: 0x0, name: "Passphrase", type: "octstr", constraint: "max 64", conformance: "M" },
+                {
+                    tag: "field",
+                    id: 0x0,
+                    name: "Passphrase",
+                    type: "octstr",
+                    constraint: "max 64",
+                    conformance: "M",
+                    isSecret: true,
+                },
             ],
         },
     ],
