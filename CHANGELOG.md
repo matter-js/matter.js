@@ -120,6 +120,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Groupcast testing reports a group message for which only another fabric had a candidate key as NoAvailableKey instead of FailedAuth
     - Fix: Starting an exchange skips exchange ids that are still open on the session, instead of reusing one after the 16-bit counter wraps
     - Fix: An exchange is identified by its session, so a message on another session with the same exchange id no longer reaches or replaces it, nor counts toward its session's exchange limit
+    - Fix: A standalone ack for a received message without the initiator flag that matches no open exchange, such as a retransmission after the local exchange closed, sets the initiator flag, so the peer accepts it instead of retransmitting until it drops the session
     - Fix: A privacy group message with message extensions is decoded with the extensions in the additional authenticated data, as specified in section 4.8.2, instead of refused
     - Fix: The mDNS responder no longer sends a goodbye for host addresses or shared pointers that another of its services still publishes
     - Fix: The mDNS responder answers a multicast pointer query with the pointer of every service of that type
