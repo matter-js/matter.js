@@ -1001,6 +1001,36 @@ describe("Client Event Notification", () => {
             expect(peer.stateOf(NetworkClient).maxEventNumber).equals(higher);
         });
 
+        it("does not deliver events again when the device drops the subscription and the session stays", async () => {
+            await using site = new MockSite();
+            const { device, peer, press, observed, settle } = await switchPair(site);
+
+            await press();
+            await press();
+            await until(() => observed.length === 2);
+            await settle();
+            await stored(peer, observed[1]);
+
+            const subscription = sustained(peer.behaviors.internalsOf(NetworkClient).activeSubscription);
+            const sessions = [...device.env.get(SessionManager).sessions];
+            for (const session of sessions) {
+                await MockTime.resolve(session.closeSubscriptions());
+            }
+            await MockTime.resolve(subscription.inactive);
+            await MockTime.resolve(subscription.active);
+            await settle();
+
+            expect([...device.env.get(SessionManager).sessions]).deep.equals(sessions);
+            expect(observed.length).equals(2);
+
+            await press();
+            await until(() => observed.length > 2);
+            await settle();
+
+            expect(observed.length).equals(3);
+            expect(observed[2] > observed[1]).true;
+        });
+
         it("resubscribes above the stored number after a restart", async () => {
             await using site = new MockSite();
             const { controller, device, peer, press, observed, settle } = await switchPair(site);
