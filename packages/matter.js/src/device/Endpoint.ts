@@ -15,7 +15,7 @@ import {
     NotImplementedError,
     Observable,
 } from "@matter/general";
-import { ClusterModel, Matter } from "@matter/model";
+import { ClusterModel, Matter, SecretRedaction } from "@matter/model";
 import {
     Behavior,
     Endpoint as ClientEndpoint,
@@ -444,6 +444,7 @@ export class Endpoint {
             }),
         ];
         const elementDiagnostic = Array<unknown>();
+        const clusterModel = Matter.get(ClusterModel, client.id);
 
         const features = client.supportedFeatures;
         const supportedFeatures = new Array<string>();
@@ -451,7 +452,6 @@ export class Endpoint {
             if (features[featureName] === true) supportedFeatures.push(featureName);
         }
         if (supportedFeatures.length) {
-            const clusterModel = Matter.get(ClusterModel, client.id);
             let displayFeatures: string[];
             if (clusterModel) {
                 const titleMap = new Map<string, string>();
@@ -480,7 +480,7 @@ export class Endpoint {
                     attribute.name,
                     Diagnostic.dict({
                         id: Diagnostic.hex(attribute.id),
-                        val: attribute.getLocal(),
+                        val: SecretRedaction.redact(clusterModel?.attributes(attribute.id), attribute.getLocal()),
                         flags: Diagnostic.asFlags({
                             unknown: attribute instanceof UnknownSupportedAttributeClient,
                             fabricScoped: attribute.fabricScoped,

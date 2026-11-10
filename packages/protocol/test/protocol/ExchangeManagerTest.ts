@@ -1019,7 +1019,9 @@ describe("ExchangeManager", () => {
                 }
             });
 
-            expect(entries.filter(({ text }) => text.includes("unexpected message"))).length(1);
+            const unexpected = entries.filter(({ text }) => text.includes("unexpected message"));
+            expect(unexpected).length(1);
+            expect(unexpected[0].text).not.contains('"payload":');
             expect(levels.filter(level => level > LogLevel.DEBUG)).deep.equals([]);
         });
 

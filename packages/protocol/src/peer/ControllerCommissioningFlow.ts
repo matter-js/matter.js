@@ -356,7 +356,7 @@ export class ControllerCommissioningFlow {
         this.fabric = fabric;
         this.transitionToCase = transitionToCase;
         this.commissioningOptions = commissioningOptions;
-        logger.debug(`Commissioning options: ${Diagnostic.json(commissioningOptions)}`);
+        logger.debug("Commissioning options", Diagnostic.dict(loggedOptionsOf(commissioningOptions)));
         this.#initializeCommissioningSteps();
     }
 
@@ -2192,4 +2192,27 @@ export class ControllerCommissioningFlow {
     close() {
         this.#armFailsafeInterval?.stop();
     }
+}
+
+/**
+ * The fields of {@link options} that hold no secret, for logging.  The options the caller passes may carry more, such as
+ * the fabric with its identity protection key or the passcode.
+ */
+function loggedOptionsOf(options: ControllerCommissioningFlowOptions) {
+    const {
+        regulatoryLocation,
+        regulatoryCountryCode,
+        adminVendorId,
+        wifiNetwork,
+        threadNetwork,
+        otaUpdateProviderLocation,
+    } = options;
+    return {
+        regulatoryLocation,
+        regulatoryCountryCode,
+        adminVendorId,
+        wifiSsid: wifiNetwork?.wifiSsid,
+        threadNetwork: threadNetwork && (threadNetwork.networkName ?? "(dataset only)"),
+        otaUpdateProviderLocation,
+    };
 }

@@ -70,6 +70,19 @@ export class Logger {
      */
     static nestingLevel: number;
 
+    /**
+     * Whether message logs include the decrypted message payload.  Off by default because a payload may carry secrets
+     * such as network credentials or keys, which no log redaction can remove from raw bytes.
+     */
+    static logPayloads = false;
+
+    /**
+     * Whether log output replaces values the model marks as secret, such as keys, passcodes and network credentials,
+     * with a placeholder.  On by default.  Turn it off only for local debugging or where a test reads such values back
+     * from the log.
+     */
+    static redactSecrets = true;
+
     readonly #name: string;
     readonly #origin?: Diagnostic.Origin;
 

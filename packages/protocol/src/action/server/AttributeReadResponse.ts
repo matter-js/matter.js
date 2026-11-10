@@ -12,7 +12,7 @@ import { AccessControl, hasLocalActor, hasRemoteActor } from "#action/server/Acc
 import { DataResponse, FallbackLimits, WildcardPathFlagsCodec } from "#action/server/DataResponse.js";
 import { Val } from "#action/Val.js";
 import { InternalError, Logger, serialize } from "@matter/general";
-import { AccessLevel, AttributeModel, DataModelPath, ElementTag } from "@matter/model";
+import { AccessLevel, AttributeModel, DataModelPath, ElementTag, SecretRedaction } from "@matter/model";
 import {
     AttributePath,
     ClusterId,
@@ -301,7 +301,8 @@ export class AttributeReadResponse<
             const value = this.#currentState[attributeId];
             const version = cluster.version;
             logger.debug(
-                () => `Reading attribute ${this.node.inspectPath(path)}=${serialize(value)} (version=${version})`,
+                () =>
+                    `Reading attribute ${this.node.inspectPath(path)}=${serialize(SecretRedaction.redact(cluster.type.attributes[attributeId]?.schema, value))} (version=${version})`,
             );
             // Perform actual read of one attribute
             this.#addValue(path, value, version, this.#currentCluster.type.attributes[attributeId]!.tlv);

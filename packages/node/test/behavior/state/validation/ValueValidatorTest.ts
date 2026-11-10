@@ -31,6 +31,12 @@ import {
 import { BitmapEncodedValue, FabricIndex, NodeId } from "@matter/types";
 
 describe("ValueValidator", () => {
+    it("shows the first 60 characters of a long value in a datatype error", () => {
+        const value = `${"a".repeat(60)}${"b".repeat(10)}`;
+
+        expect(new DatatypeError({ path: "test" }, "a number", value).message).contains(`"${"a".repeat(60)}…"`);
+    });
+
     implementInt("uint8", 0, 0xff);
     implementInt("uint32", 0, 0xffffffff);
     implementInt("uint64", 0, 0xffffffffffffffffn);
