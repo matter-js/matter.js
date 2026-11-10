@@ -13,7 +13,7 @@ import { Read } from "#action/request/Read.js";
 import { Write } from "#action/request/Write.js";
 import { ResultStatus } from "#action/response/ResultStatus.js";
 import { BleDisconnectedError } from "#ble/Ble.js";
-import { Certificate } from "#certificate/kinds/Certificate.js";
+import { NocsrValidator } from "#certificate/NocsrValidator.js";
 import { PeerMessageMissingError, PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import { OperationalDataset } from "#thread/OperationalDataset.js";
 import {
@@ -24,7 +24,6 @@ import {
     ChannelType,
     Diagnostic,
     Duration,
-    EcdsaSignature,
     ImplementationError,
     Instant,
     Logger,
@@ -38,7 +37,7 @@ import {
     Timer,
     Timespan,
     Timestamp,
-    UnexpectedDataError,
+    InternalError,
 } from "@matter/general";
 import {
     ClusterId,
@@ -66,7 +65,6 @@ import {
     DeviceAttestationValidator,
 } from "../certificate/DeviceAttestationValidator.js";
 import { Dac } from "../certificate/kinds/AttestationCertificates.js";
-import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { Fabric } from "../fabric/Fabric.js";
 import { CommissioningError } from "./CommissioningError.js";
@@ -1440,37 +1438,31 @@ export class ControllerCommissioningFlow {
      *     DCL contains the name and other information of the Commissioner’s manufacturer.
      */
     async #certificates() {
+        const csrNonce = this.fabric.crypto.randomBytes(32);
         const { nocsrElements, attestationSignature: csrSignature } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
                 cluster: OperationalCredentials,
                 command: "csrRequest",
-                fields: { csrNonce: this.fabric.crypto.randomBytes(32) },
+                fields: { csrNonce },
             },
             {
                 useExtendedFailSafeMessageResponseTimeout: true,
             },
         );
 
-        if (nocsrElements.byteLength === 0 || csrSignature.byteLength === 0) {
-            throw new UnexpectedDataError("Invalid response from device");
+        if (this.#dacPublicKey === undefined) {
+            throw new InternalError("CSRResponse received before the device attestation step set the DAC public key");
         }
-
-        // Verify CSR attestation signature using DAC public key (extracted in step 10)
-        if (this.#dacPublicKey !== undefined) {
-            try {
-                await this.fabric.crypto.verifyEcdsa(
-                    this.#dacPublicKey,
-                    Bytes.concat(nocsrElements, this.commissioningOptions.attestation!.challengeKey),
-                    new EcdsaSignature(csrSignature),
-                );
-            } catch {
-                throw new CommissioningError("CSR signature verification failed against DAC public key");
-            }
-        }
-
-        const { certSigningRequest } = TlvCertSigningRequest.decode(nocsrElements);
-        const operationalPublicKey = await Certificate.getPublicKeyFromCsr(this.ca.crypto, certSigningRequest);
+        const operationalPublicKey = await NocsrValidator.validate(
+            {
+                crypto: this.fabric.crypto,
+                attestationChallenge: this.commissioningOptions.attestation.challengeKey,
+                csrNonce,
+                dacPublicKey: this.#dacPublicKey,
+            },
+            { nocsrElements, attestationSignature: csrSignature },
+        );
 
         await this.#invokeCommand(
             {

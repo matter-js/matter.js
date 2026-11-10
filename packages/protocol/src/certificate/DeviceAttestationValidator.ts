@@ -10,7 +10,6 @@ import {
     Crypto,
     Diagnostic,
     EcdsaSignature,
-    ImplementationError,
     InternalError,
     MaybePromise,
     PublicKey,
@@ -25,6 +24,7 @@ import { CertificateProfileError } from "./kinds/Certificate.js";
 import { mayIssue } from "./kinds/CertificateSignature.js";
 import { CertificationDeclaration, CertificationDeclarationFormatError } from "./kinds/CertificationDeclaration.js";
 import { CertificationType } from "./kinds/definitions/certification-declaration.js";
+import { isLocalDefect } from "./PeerData.js";
 
 /** @see {@link MatterSpecification.v161.Core} § 6.3.1 */
 const CD_FORMAT_VERSION = 1;
@@ -123,12 +123,7 @@ function parsePeerValue<T>(check: DeviceAttestationCheck, description: string, p
     try {
         return parse();
     } catch (cause) {
-        // A defect of ours is not the peer's malformed data, and a classified failure keeps its check
-        if (
-            cause instanceof InternalError ||
-            cause instanceof ImplementationError ||
-            cause instanceof DeviceAttestationError
-        ) {
+        if (isLocalDefect(cause) || cause instanceof DeviceAttestationError) {
             throw cause;
         }
         throw new DeviceAttestationError(check, `${description}: ${asError(cause).message}`, { cause });

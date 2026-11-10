@@ -10,6 +10,7 @@ export * from "./CertificateAuthority.js";
 export * from "./ChipPAAuthorities.js";
 export * from "./DeviceAttestationValidator.js";
 export * from "./DeviceCertification.js";
+export * from "./NocsrValidator.js";
 export * from "./kinds/AttestationCertificates.js";
 export * from "./kinds/Certificate.js";
 export * from "./kinds/CertificateSignature.js";
