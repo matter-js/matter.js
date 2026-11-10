@@ -317,6 +317,16 @@ export namespace Datasource {
         prepare(values: Val.Struct, path: DataModelPath): ExternallyMutableStore.Send;
 
         /**
+         * Refuse every change of the values when the remote node takes no writes through this store.  The datasource
+         * asks before it applies a change and before it joins the transaction, so the refusal comes where the change
+         * is made; {@link ValReference.assertWritable} states which checks run before and after.  Must not write.
+         *
+         * @param path the path of the values, for the refusal
+         * @throws an error that says why the remote node takes no writes
+         */
+        assertWritable(path: DataModelPath): void;
+
+        /**
          * Apply values the peer reported.
          *
          * Uses the same patch semantics as {@link PersistentStore.set}, but the values are the peer's own and take
@@ -489,13 +499,20 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     supervisionConfig?: GlobalConfig;
 
     /**
-     * True when {@link store} is a {@link Datasource.ExternallyMutableStore}, i.e. the values are a copy of a remote
+     * {@link store} when it is a {@link Datasource.ExternallyMutableStore}, i.e. the values are a copy of a remote
      * node's values and a write goes to that node rather than to local persistence.
+     */
+    readonly remoteStore?: Datasource.ExternallyMutableStore;
+
+    /**
+     * True when the datasource has a {@link remoteStore}.
      *
      * A validation error of a value sent to the remote node is left to the device, and a session of our own server
      * node sees a fabric-scoped list unfiltered, as its fabric is not one of the remote node.
      */
-    readonly mirrorsRemote: boolean;
+    get mirrorsRemote() {
+        return this.remoteStore !== undefined;
+    }
 
     observedInteractions?: Set<
         | NonNullable<ValueSupervisor.RemoteActorSession["interactionComplete"]>
@@ -512,7 +529,9 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         this.location = options.location;
         this.entropy = options.entropy;
         this.store = options.store;
-        this.mirrorsRemote = Datasource.ExternallyMutableStore.is(options.store);
+        if (Datasource.ExternallyMutableStore.is(options.store)) {
+            this.remoteStore = options.store;
+        }
         this.owner = options.owner;
         this.onChange = options.onChange;
         this.primaryKey = options.primaryKey === "id" ? "id" : "name";
@@ -1045,8 +1064,8 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             this.supervisionConfig = new LocalConfig(internals.supervisionConfig);
         }
 
-        const { store } = internals;
-        if (Datasource.ExternallyMutableStore.is(store)) {
+        const store = internals.remoteStore;
+        if (store !== undefined) {
             this.settled = () => {
                 const proposed = this.#proposedValues();
                 this.#send = proposed === undefined ? undefined : store.prepare(proposed, internals.location.path);
@@ -1139,10 +1158,15 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         }
     }
 
-    change(mutator: () => void, member: string | number) {
+    assertWritable() {
         if (this.#expired) {
             throw new ExpiredReferenceError(this.location);
         }
+        this.#internals.remoteStore?.assertWritable(this.location.path);
+    }
+
+    change(mutator: () => void, member: string | number) {
+        this.assertWritable();
 
         // Join the transaction
         this.#startWrite();

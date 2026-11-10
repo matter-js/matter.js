@@ -7,6 +7,7 @@
 import type { AccessControl, Val } from "@matter/protocol";
 import { ExpiredReferenceError, PhantomReferenceError } from "@matter/protocol";
 import type { Supervision } from "../../supervision/Supervision.js";
+import { Internal } from "./Internal.js";
 
 /**
  * A Reference offers a simple mechanism for referring to properties by reference.
@@ -15,9 +16,10 @@ import type { Supervision } from "../../supervision/Supervision.js";
  */
 export interface ValReference<T extends Val = Val> {
     /**
-     * The current value of the referenced property.  `undefined` or `null` while the property, or a container above
-     * it, is absent.  After the owning context exits, a nested reference keeps the last value it saw and the root
-     * reference throws {@link ExpiredReferenceError}.
+     * The current value of the referenced property.  While the property is absent, a reference with a default for it
+     * serves that default, and any other reference serves `undefined` or `null`.  A reference below a container that
+     * is absent without a default serves `undefined` or `null` too.  After the owning context exits, a nested
+     * reference keeps the last value it saw and the root reference throws {@link ExpiredReferenceError}.
      */
     readonly value: T | undefined | null;
 
@@ -54,6 +56,21 @@ export interface ValReference<T extends Val = Val> {
      * Refresh any internal cache from the referenced container.
      */
     refresh(): void;
+
+    /**
+     * Throw the error a change through this reference fails with.  Does not check whether the member is absent;
+     * {@link ValReference.containerOf} does.  A change asks before it is applied and before it joins the transaction.
+     * The access check, list bounds checks and the validation of a new list entry run before this; validation of a
+     * value assigned to a struct member runs after it.  The Remote API `add` asks before the access check.
+     *
+     * Checks in this order, so the first refusal wins: {@link expired}, then the datasource, then a default served by
+     * this reference or one above it.
+     *
+     * @throws ExpiredReferenceError when the reference is {@link expired}, naming the location of this reference
+     * @throws what the datasource's `ExternallyMutableStore.assertWritable` throws
+     * @throws UncachedValueError when this reference, or one above it, serves the default of an absent member
+     */
+    assertWritable(): void;
 
     /**
      * Whether the transaction cloned {@link container} since its last commit or rollback.  A nested write may change
@@ -102,9 +119,10 @@ export namespace ValReference {
     /**
      * How a container keys its own members.
      *
-     * `id` also asserts provenance: only a datasource mirroring a peer keys by element ID, and for such a container
-     * the peer's reports are the only source of values — no locally derived value (state-class field initializer,
-     * configured default or computed schema default) may enter it or be synthesized on read.
+     * `id` also asserts provenance: only a datasource mirroring a peer keys by element ID, and such a container stores
+     * only values the peer reported or that are being written to it — no locally derived value (state-class field
+     * initializer, configured default or computed schema default) may enter it.  A mandatory member the container
+     * does not hold reads as its default, which is never stored; see `ManagedReference`.
      */
     export type PrimaryKey = "id" | "name";
 
@@ -133,11 +151,21 @@ export namespace ValReference {
      * @throws ExpiredReferenceError when the reference is {@link ValReference.expired}, whether or not the container is
      * present
      * @throws PhantomReferenceError when the property, or a container above it, is absent
+     * @throws any error {@link ValReference.assertWritable} throws
      */
     export function writableContainerOf<T extends Val>(reference: ValReference<T>): NonNullable<T> {
-        if (reference.expired) {
-            throw new ExpiredReferenceError(reference.location);
-        }
+        reference.assertWritable();
         return containerOf(reference);
+    }
+
+    /**
+     * Assert that {@link value} may be changed.  Use it before a value built from {@link value}, such as a list with
+     * one more entry, replaces it: {@link value} may be a default that the datasource does not hold, and the new value
+     * would then replace the remote value.  Returns for a value that is not managed.
+     *
+     * @throws any error {@link ValReference.assertWritable} throws for the reference behind {@link value}
+     */
+    export function assertWritableValue(value: Val) {
+        Internal.referenceOf(value)?.assertWritable();
     }
 }

@@ -381,6 +381,7 @@ describe("settlement errors", () => {
         const sent = new Array<RemoteWriter.PreparedWrite[]>();
         const participant = new RemoteWriteParticipant(
             {
+                assertWritable: () => {},
                 prepare: ({ number, behaviorId, values }) => preparedWrite(number, behaviorId, values),
                 send: async writes => {
                     sent.push(writes);
@@ -506,6 +507,7 @@ describe("remote write preparation", () => {
     function mirrorOf(name: string, refusal?: Error) {
         const sent = new Array<RemoteWriter.PreparedWrite[]>();
         const writer: RemoteWriter = {
+            assertWritable: () => {},
             prepare: ({ number, behaviorId, values }) => {
                 if (refusal !== undefined) {
                     throw refusal;

@@ -114,6 +114,10 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
         return transaction => this.#propose(transaction, write);
     }
 
+    assertWritable(path: DataModelPath) {
+        this.#writer.assertWritable(path);
+    }
+
     #propose(transaction: Transaction, write: RemoteWriter.PreparedWrite) {
         let participant = transaction.getParticipant(this.#writer);
         if (participant === undefined) {

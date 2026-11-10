@@ -7,6 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { Internal } from "#behavior/state/managed/Internal.js";
 import { StateType } from "#behavior/state/StateType.js";
 import { BehaviorSupervisor } from "#behavior/supervision/BehaviorSupervisor.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
@@ -1099,6 +1100,7 @@ describe("Datasource", () => {
                 initialValues: { plain: 1, __features__: featuresKeyOf(gatedSupervisor()) },
                 version: 1,
                 prepare: () => async () => {},
+                assertWritable: () => {},
                 async externalSet() {
                     return {};
                 },
@@ -1364,6 +1366,7 @@ describe("Datasource", () => {
                 initialValues: { legacy: "old" },
                 version: 1,
                 prepare: () => async () => {},
+                assertWritable: () => {},
                 async externalSet() {
                     return {};
                 },
@@ -1407,6 +1410,8 @@ describe("Datasource", () => {
                 this.initialValues = initialValues;
                 this.version = version;
             }
+
+            assertWritable() {}
 
             prepare() {
                 return async () => {};
@@ -1526,6 +1531,8 @@ describe("Datasource", () => {
                 this.initialValues = initialValues;
             }
 
+            assertWritable() {}
+
             prepare(values: Val.Struct, _path?: DataModelPath) {
                 return () => this.send(values);
             }
@@ -1569,6 +1576,34 @@ describe("Datasource", () => {
             expect(stateChanges).equals(0);
             expect(changes).deep.equals([]);
             expect(ds.version).equals(version);
+        });
+
+        it("refuses a change through the root reference while the store refuses every change", async () => {
+            const refusal = new ImplementationError("the remote node takes no writes");
+            class RefusingStore extends RecordingMirrorStore {
+                override assertWritable() {
+                    throw refusal;
+                }
+            }
+            const store = new RefusingStore({ 1: "bar" });
+            const ds = createDatasource({ type: WriteState, supervisor: writeSupervisor, primaryKey: "id", store });
+
+            await withReference(ds, ({ state }) => {
+                const root = Internal.referenceOf(state);
+                if (root === undefined) {
+                    expect.fail("the state has no reference");
+                }
+
+                let changed = false;
+                expect(() =>
+                    root.change(() => {
+                        changed = true;
+                    }, "foo"),
+                ).throws(refusal);
+                expect(changed).false;
+            });
+
+            expect(store.sets).deep.equals([]);
         });
 
         it("sends every assigned member and changes nothing locally", async () => {

@@ -6,6 +6,7 @@
 
 import { Api } from "#behavior/system/remote/api/Api.js";
 import type { RemoteRequest } from "#behavior/system/remote/api/RemoteRequest.js";
+import { DescriptorServer } from "#behaviors/descriptor";
 import { UserLabelServer } from "#behaviors/user-label";
 import { Abort } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
@@ -57,6 +58,29 @@ describe("Api", () => {
             }
             expect(response.error.message).contains("labelList.entry.label");
             expect(node.stateOf(UserLabelServer).labelList).deep.equals([{ label: "room", value: "kitchen" }]);
+        });
+
+        // Characterization: the list's maximum length applies to an added entry as before
+        it("rejects an entry beyond the list's maximum length and leaves the list unchanged", async () => {
+            const TaggedDescriptorServer = DescriptorServer.with("TagList");
+            const tags = [1, 2, 3, 4, 5, 6].map(tag => ({ mfgCode: null, namespaceId: 7, tag }));
+            await using node = await MockServerNode.createOnline({
+                type: MockServerNode.RootEndpoint.with(TaggedDescriptorServer),
+                descriptor: { tagList: tags },
+            });
+
+            const response = await execute(node, {
+                id: "1",
+                method: "add",
+                target: "descriptor/tagList",
+                value: { mfgCode: null, namespaceId: 7, tag: 7 },
+            });
+
+            if (response.kind !== "error") {
+                expect.fail(`Expected an error response, got "${response.kind}"`);
+            }
+            expect(StatusResponseError.of(response.error)?.code).equals(Status.ConstraintError);
+            expect(node.stateOf(TaggedDescriptorServer).tagList.map(({ tag }) => tag)).deep.equals([1, 2, 3, 4, 5, 6]);
         });
 
         it("rejects a target that is not a list", async () => {

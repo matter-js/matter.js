@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InvalidGroupOperationError } from "#endpoint/errors.js";
 import { ClientStructure } from "#node/client/ClientStructure.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { InternalError } from "@matter/general";
@@ -43,6 +44,14 @@ export interface RemoteWriter {
     prepare(proposal: RemoteWriter.Proposal): RemoteWriter.PreparedWrite;
 
     /**
+     * Refuse every state change on a node that takes no writes through its endpoints.
+     *
+     * @param path the path of the values the change is for
+     * @throws InvalidGroupOperationError for a group node
+     */
+    assertWritable(path: DataModelPath): void;
+
+    /**
      * Send {@link writes} in one Write Request.
      *
      * Resolves with a status per attribute once the peer answered, including those declined locally because the peer's
@@ -68,6 +77,15 @@ export function RemoteWriter(node: ClientNode, structure: ClientStructure): Remo
     }
 
     return {
+        assertWritable(path) {
+            if (node.nodeType === "group") {
+                throw new InvalidGroupOperationError(
+                    `Cannot write ${path}: writing state on a group endpoint is not supported; ` +
+                        "use group.interaction.write() with a group path",
+                );
+            }
+        },
+
         prepare({ number, behaviorId, values, cached, path }) {
             const { clusterId, cluster } = clusterFor(number, behaviorId);
             const attrs = attrsFor(cluster);

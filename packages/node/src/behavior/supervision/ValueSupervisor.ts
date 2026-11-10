@@ -56,7 +56,9 @@ export interface ValueSupervisor {
     readonly manage: ValueSupervisor.Manage;
 
     /**
-     * Apply changes.  Does not perform validation.
+     * Apply changes.  The patch does not validate; a value assigned to a managed target is validated by the target.  A
+     * target that mirrors a remote node takes each given member or entry as a whole value; any other target is
+     * patched.  The rule is documented on `ValuePatcher`.
      */
     readonly patch: ValueSupervisor.Patch;
 

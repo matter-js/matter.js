@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ValReference } from "#behavior/state/managed/ValReference.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { type ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { InternalError, NotImplementedError } from "@matter/general";
@@ -65,6 +66,7 @@ export class PropertyResource extends ApiResource {
 
         const entry = new Envelope({ supervisor: this.supervisorFor(entrySchema), ...request });
         entry.validate(this.session, this.outbound);
+        ValReference.assertWritableValue(list);
         this.#target[this.id] = [...list, entry.js];
     }
 

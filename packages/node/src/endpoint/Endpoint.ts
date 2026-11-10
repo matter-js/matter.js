@@ -251,6 +251,10 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * This is a transactional operation.  An error results in no change.  The endpoint will wait for exclusive access
      * before applying changes.
      *
+     * On the cluster state of a client node each given attribute value is assigned whole, like `state.x = value` in an
+     * act, and is not merged into the cached value.  On any other state, such as a local node or a local behavior of a
+     * client node, a struct or list is patched into the current value.
+     *
      * @param values the values to change
      */
     async set(values: SupportedBehaviors.StatePatchOf<T["behaviors"]>) {

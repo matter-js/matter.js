@@ -47,6 +47,10 @@ export class ReadOnlyReference implements ValReference {
         throw new ExpiredReferenceError(this.location);
     }
 
+    assertWritable() {
+        throw new ExpiredReferenceError(this.location);
+    }
+
     refresh() {}
 
     owns() {

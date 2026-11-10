@@ -34,6 +34,7 @@ export function createCache(options?: {
  */
 export function sendingWriter(statuses: WriteResult.AttributeStatus[]): RemoteWriter {
     return {
+        assertWritable: () => {},
         prepare: ({ number, behaviorId, values }) => preparedWrite(number, behaviorId, values),
         send: async () => statuses,
     };

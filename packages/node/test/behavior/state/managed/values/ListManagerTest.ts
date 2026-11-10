@@ -316,8 +316,8 @@ describe("ListManager", () => {
                         children: [fieldOf("entry", structOf({ fabricIndex: "fabric-idx", value: "uint8" }))],
                     },
                 },
-                { list: entries },
-                remote,
+                remote ? { 1: entries } : { list: entries },
+                remote ? { mirrorsRemote: true } : undefined,
             );
         }
 
@@ -942,6 +942,25 @@ describe("ListManager", () => {
                 expect(() => Reflect.deleteProperty(list, 1)).throws(WriteError);
                 expect(Reflect.deleteProperty(list, 5)).true;
                 expect(list.pop()).equals(3);
+            });
+
+            struct.expect({ list: [1, 2] });
+        });
+
+        it("stores a delete of the last entry (characterization)", async () => {
+            const struct = await writePlainList([1, 2], list => {
+                expect(Reflect.deleteProperty(list, 1)).true;
+            });
+
+            struct.expect({ list: [1] });
+        });
+
+        it("restores the last entry on rollback of its delete (characterization)", async () => {
+            const struct = TestStruct({ list: listOf("uint8") }, { list: [1, 2] });
+
+            await LocalActorContext.act("test", async cx => {
+                Reflect.deleteProperty(struct.reference(cx).list as number[], 1);
+                await cx.transaction.rollback();
             });
 
             struct.expect({ list: [1, 2] });

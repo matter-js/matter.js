@@ -59,6 +59,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `TimeFormatLocalizationServer` starts without the CalendarFormat feature
     - Fix: UnitLocalization answers a `TemperatureUnit` write outside `SupportedTemperatureUnits` with CONSTRAINT_ERROR
     - Fix: A client node other than a group writes only its own entries of a fabric-scoped list and keeps the other fabrics' entries in its cache
+    - Fix: A state write on a group endpoint fails with `InvalidGroupOperationError`
+    - Fix: The Remote API `add` to a mandatory list that a client node's cache does not hold fails with `UncachedValueError` instead of replacing the device's list with the new entry alone
+    - Adjustment: On the cluster state of a client node, `set()` and `setStateOf()` write each given struct or list whole instead of merging it into the cached value
+    - Adjustment: A change in place of a mandatory list, struct or bitmap that a client node's cache does not hold throws `UncachedValueError` instead of being ignored
+    - Adjustment: A mandatory struct that a client node's cache does not hold reads as a managed struct, with its absent fields as undefined keys
     - Adjustment: A client node other than a group refuses to write a fabric-scoped list while its fabric index on the peer is unknown
     - Adjustment: A client node other than a group refuses a fabric-scoped list entry of another fabric or of no fabric unless it equals a cached entry
     - Feature: `ClientNode.fabricIndexOnPeer` returns our fabric index on the peer
