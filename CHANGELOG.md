@@ -147,6 +147,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: (@quasistatic-setup) Commissioning over BLE ends PASE as soon as the BLE connection closes, instead of waiting up to 35 seconds for a reply the device can no longer send, and continues with the device's other addresses
     - Fix: A PASE session over BLE, also one returned by `ControllerCommissioner.establishPase()`, closes at once when the BLE connection closes, also when it closed while PASE completed
     - Fix: A BLE connection that cannot be opened during commissioning no longer cancels the device's other addresses
+    - Fix: A subscription to an ICD whose IdleModeDuration is shorter than the default ceiling requests the default ceiling instead of the IdleModeDuration
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
