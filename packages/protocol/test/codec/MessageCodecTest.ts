@@ -5,7 +5,7 @@
  */
 
 import { Message, MessageCodec } from "#codec/MessageCodec.js";
-import { Bytes, UnexpectedDataError } from "@matter/general";
+import { Bytes, Diagnostic, LogFormat, Logger, UnexpectedDataError } from "@matter/general";
 import { NodeId } from "@matter/types";
 
 const ENCODED = Bytes.fromHex(
@@ -350,6 +350,28 @@ describe("MessageCodec", () => {
             expect(() => MessageCodec.encodePacket(payload)).throws(
                 "Message extensions not supported when encoding a packet.",
             );
+        });
+    });
+
+    describe("diagnosticsOf", () => {
+        function loggedPayload() {
+            const diagnostics = Message.diagnosticsOf({ via: "test" }, DECODED);
+            return LogFormat.formats.plain(Diagnostic.message({ values: [diagnostics] }));
+        }
+
+        it("includes the payload by default", () => {
+            expect(Logger.logPayloads).true;
+            expect(loggedPayload()).contains(Bytes.toHex(DECODED.payload));
+        });
+
+        it("omits the payload when disabled", () => {
+            const { logPayloads } = Logger;
+            Logger.logPayloads = false;
+            try {
+                expect(loggedPayload()).not.contains(Bytes.toHex(DECODED.payload));
+            } finally {
+                Logger.logPayloads = logPayloads;
+            }
         });
     });
 });

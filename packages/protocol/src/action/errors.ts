@@ -65,7 +65,7 @@ export class DatatypeError extends ValidateError {
     constructor(path: SchemaErrorPath, type: string, value: unknown, code?: Status) {
         let str = `${value}`;
         if (str.length > 60) {
-            str = `${str.substring(60)}…`;
+            str = `${str.substring(0, 60)}…`;
         }
         super(path, `Value "${str}" is not ${type}`, code);
     }

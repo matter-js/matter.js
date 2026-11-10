@@ -38,6 +38,7 @@ import {
     ElementTag,
     GeneratedCommandList,
     Matter,
+    SecretRedaction,
 } from "@matter/model";
 import type {
     AttributeTypeProtocol,
@@ -509,6 +510,7 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
                 const attr: AttributeTypeProtocol = {
                     id: id as AttributeId,
                     tlv,
+                    schema: member,
                     wildcardPathFlags,
                     limits,
                     name,
@@ -622,6 +624,11 @@ function validateCommandPayload(
     });
 }
 
+function redactedPayloadDiagnostic(model: CommandModel | undefined, payload: object) {
+    const redacted = SecretRedaction.redact(model, payload);
+    return isObject(redacted) ? Diagnostic.dict(redacted) : redacted;
+}
+
 /**
  * Invokes a command on a backing behavior
  */
@@ -638,7 +645,7 @@ function invokeCommand(
 
     let requestDiagnostic: unknown;
     if (isObject(request)) {
-        requestDiagnostic = Diagnostic.dict(request);
+        requestDiagnostic = redactedPayloadDiagnostic(commandModels?.requestModel, request);
     } else if (request !== undefined) {
         requestDiagnostic = request;
     } else {
@@ -647,7 +654,6 @@ function invokeCommand(
 
     const { path, endpoint } = backing;
     const context = session as ActionContext;
-
     logger.info(
         "Invoke",
         Mark.INBOUND,
@@ -682,6 +688,41 @@ function invokeCommand(
         commandModels && request
             ? (name: string) => (name === camelize(commandModels.requestModel.name) ? request : undefined)
             : undefined;
+
+    const { transaction } = session;
+
+    /**
+     * Validate and log the response of the command, as returned or once its promise resolves.
+     */
+    function completeResponse(result: unknown) {
+        if (commandModels?.responseModel) {
+            try {
+                validateCommandPayload(
+                    result as Val.Struct | undefined,
+                    commandModels.responseModel,
+                    commandModels.supervisor,
+                    session,
+                    outerResolve,
+                );
+            } catch (e) {
+                const error = new StatusResponse.FailureError(
+                    `Response validation failed for ${command.name}: ${asError(e).message}`,
+                );
+                error.cause = e;
+                throw error;
+            }
+        }
+        if (isObject(result)) {
+            logger.info(
+                "Invoke",
+                Mark.OUTBOUND,
+                Diagnostic.strong(path.at(camelize(command.name))),
+                transaction.via,
+                redactedPayloadDiagnostic(commandModels?.responseModel, result),
+            );
+        }
+        return result;
+    }
 
     const agent = endpoint.agentFor(context);
     const behavior = agent.get(backing.type);
@@ -721,63 +762,10 @@ function invokeCommand(
         if (MaybePromise.is(result)) {
             isAsync = true;
             result = Promise.resolve(result)
-                .then(result => {
-                    if (commandModels?.responseModel) {
-                        try {
-                            validateCommandPayload(
-                                result as Val.Struct | undefined,
-                                commandModels.responseModel,
-                                commandModels.supervisor,
-                                session,
-                                outerResolve,
-                            );
-                        } catch (e) {
-                            const error = new StatusResponse.FailureError(
-                                `Response validation failed for ${command.name}: ${asError(e).message}`,
-                            );
-                            error.cause = e;
-                            throw error;
-                        }
-                    }
-                    if (isObject(result)) {
-                        logger.info(
-                            "Invoke",
-                            Mark.OUTBOUND,
-                            Diagnostic.strong(path.at(camelize(command.name))),
-                            session.transaction!.via,
-                            Diagnostic.dict(result),
-                        );
-                    }
-                    return result;
-                })
+                .then(completeResponse)
                 .finally(() => activity?.[Symbol.dispose]());
         } else {
-            if (commandModels?.responseModel) {
-                try {
-                    validateCommandPayload(
-                        result as Val.Struct | undefined,
-                        commandModels.responseModel,
-                        commandModels.supervisor,
-                        session,
-                        outerResolve,
-                    );
-                } catch (e) {
-                    const error = new StatusResponse.FailureError(
-                        `Response validation failed for ${command.name}: ${asError(e).message}`,
-                    );
-                    error.cause = e;
-                    throw error;
-                }
-            }
-            if (isObject(result)) {
-                logger.info(
-                    "Invoke",
-                    Mark.OUTBOUND,
-                    Diagnostic.strong(path.at(camelize(command.name))),
-                    session.transaction.via,
-                    Diagnostic.dict(result),
-                );
-            }
+            completeResponse(result);
         }
     } finally {
         if (!isAsync) {
