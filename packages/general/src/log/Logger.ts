@@ -71,15 +71,19 @@ export class Logger {
     static nestingLevel: number;
 
     /**
-     * Whether message logs include the decrypted message payload.  Off by default because a payload may carry secrets
-     * such as network credentials or keys, which no log redaction can remove from raw bytes.
+     * Whether message logs include the decrypted message payload.  On by default.  A payload may carry secrets such as
+     * network credentials or keys, which {@link redactSecrets} cannot remove from raw bytes, so a product that must keep
+     * them out of its logs sets this to false.
      */
-    static logPayloads = false;
+    static logPayloads = true;
 
     /**
      * Whether log output replaces values the model marks as secret, such as keys, passcodes and network credentials,
      * with a placeholder.  On by default.  Turn it off only for local debugging or where a test reads such values back
      * from the log.
+     *
+     * With debug logging, message logs still contain these values TLV-encoded inside the decrypted message payload.  To
+     * keep them out of a debug log as well, also set {@link logPayloads} to false.
      */
     static redactSecrets = true;
 

@@ -1021,8 +1021,36 @@ describe("ExchangeManager", () => {
 
             const unexpected = entries.filter(({ text }) => text.includes("unexpected message"));
             expect(unexpected).length(1);
-            expect(unexpected[0].text).not.contains('"payload":');
+            expect(unexpected[0].text).contains('"payload":');
             expect(levels.filter(level => level > LogLevel.DEBUG)).deep.equals([]);
+        });
+
+        it("leaves the payload out of the unexpected message log while payload logging is off", async () => {
+            await using peer = await sessionWithSleepingLitPeer();
+            peer.exchanges.addProtocolHandler({
+                id: SECURE_CHANNEL_PROTOCOL_ID,
+                requiresSecureSession: true,
+                async onNewExchange() {},
+                async close() {},
+            });
+
+            const { logPayloads } = Logger;
+            Logger.logPayloads = false;
+            let entries: { text: string }[];
+            try {
+                ({ entries } = await captureLevels(async () => {
+                    peer.transport.receive(peer.datagram(responseOn(0x4321)));
+                    for (let i = 0; i < 20; i++) {
+                        await MockTime.yield();
+                    }
+                }));
+            } finally {
+                Logger.logPayloads = logPayloads;
+            }
+
+            const unexpected = entries.filter(({ text }) => text.includes("unexpected message"));
+            expect(unexpected).length(1);
+            expect(unexpected[0].text).not.contains('"payload":');
         });
 
         it("closes the least recently active exchange after an older exchange became active again", async () => {

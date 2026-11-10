@@ -41,9 +41,7 @@ Report defects through the
 especially any analysis of behavior or of log output, whether written by you or by an AI tool —
 must be backed by a complete log attached as a file. Enable verbose logging
 (`MATTER_LOG_LEVEL=debug` or `--log-level=debug`), reproduce the problem, then attach the
-resulting log. For protocol problems, also set `MATTER_LOG_PAYLOADS=true` so message logs include
-the decrypted payloads; such a log can contain network credentials and keys, so share it only with
-people you trust. A few quoted lines are not enough; we need the surrounding context to reproduce
+resulting log. A few quoted lines are not enough; we need the surrounding context to reproduce
 your analysis.
 
 Your own analysis and a proposed fix are welcome on top of that — the log is what lets us verify

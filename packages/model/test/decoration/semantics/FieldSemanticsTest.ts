@@ -91,6 +91,26 @@ describe("FieldSemantics", () => {
         expect(Schema.Required(Foo).fields("bar")!.isSecret).true;
     });
 
+    it("keeps secret marked by a separate decorator below attribute", () => {
+        class Foo {
+            @attribute(0x1, octstr)
+            @secret
+            bar = new Uint8Array();
+        }
+
+        expect(Schema.Required(Foo).get(AttributeModel, "bar")?.isSecret).true;
+    });
+
+    it("keeps secret marked by a separate decorator above attribute", () => {
+        class Foo {
+            @secret
+            @attribute(0x1, octstr)
+            bar = new Uint8Array();
+        }
+
+        expect(Schema.Required(Foo).get(AttributeModel, "bar")?.isSecret).true;
+    });
+
     it("defaults attributes to read-only", () => {
         class Foo {
             @attribute(0x1, uint32)

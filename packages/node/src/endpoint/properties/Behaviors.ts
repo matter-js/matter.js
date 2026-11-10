@@ -148,6 +148,7 @@ export class Behaviors {
 
             if (elements.attributes.size) {
                 const behaviorData = new Array<unknown>();
+                const attributeModels = schema instanceof ClusterModel ? schema.attributes : undefined;
                 for (const attributeName of elements.attributes) {
                     const attr = cluster.attributes?.[attributeName];
                     if (attr) {
@@ -156,7 +157,7 @@ export class Behaviors {
                             Diagnostic.dict({
                                 id: Diagnostic.hex(attr.id),
                                 val: SecretRedaction.redact(
-                                    attr.schema,
+                                    attributeModels?.(attr.id) ?? attr.schema,
                                     (backing?.stateView as Val.Struct | undefined)?.[attributeName],
                                 ),
                                 flags: Diagnostic.asFlags({

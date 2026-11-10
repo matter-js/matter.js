@@ -5,15 +5,27 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { IdentifyServer } from "#behaviors/identify";
 import { ThreadNetworkDirectoryServer } from "#behaviors/thread-network-directory";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
 import { Bytes, Crypto, Diagnostic, LogDestination, LogFormat, Logger, LogLevel, Seconds } from "@matter/general";
-import { attribute, cluster, listOf, octstr, secret, SecretRedaction, Specification, writable } from "@matter/model";
+import {
+    attribute,
+    cluster,
+    listOf,
+    Matter,
+    octstr,
+    secret,
+    SecretRedaction,
+    Specification,
+    writable,
+} from "@matter/model";
 import { interaction, MockServerNode, MockSite } from "@matter/node/testing";
 import { Invoke } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber, TlvArray, TlvByteString } from "@matter/types";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
+import { Identify } from "@matter/types/clusters/identify";
 import { ThreadNetworkDirectory } from "@matter/types/clusters/thread-network-directory";
 
 const DATASET = Bytes.fromHex("0e080000000000010000000300000f35060004001fffe0");
@@ -51,10 +63,13 @@ namespace SecretsServer {
 }
 
 /**
- * Every message logged at any level while {@link actor} runs, rendered as plain text.
+ * Every message logged at any level while {@link actor} runs, rendered as plain text.  Message payloads are left out,
+ * because they carry secrets as raw TLV bytes that redaction does not cover.
  */
 async function capturedLog(actor: () => Promise<void>) {
     const lines = new Array<string>();
+    const { logPayloads } = Logger;
+    Logger.logPayloads = false;
     Logger.destinations.capture = LogDestination({
         level: LogLevel.DEBUG,
         add(message: Diagnostic.Message) {
@@ -65,6 +80,7 @@ async function capturedLog(actor: () => Promise<void>) {
         await actor();
     } finally {
         delete Logger.destinations.capture;
+        Logger.logPayloads = logPayloads;
     }
     return lines;
 }
@@ -291,5 +307,25 @@ describe("SecretLogging", () => {
 
         expect(text).contains(SecretRedaction.PLACEHOLDER);
         expect(text).not.contains(Bytes.toHex(KEY));
+    });
+
+    it("shows no value in endpoint diagnostics that only the behavior schema marks secret", async () => {
+        const schema = Matter.clusters.require("Identify").clone();
+        schema.attributes.require("IdentifyTime").isSecret = true;
+        const SecretIdentifyServer = IdentifyServer.for(Identify, schema);
+        await using node = await MockServerNode.createOnline(undefined, {
+            device: OnOffLightDevice.with(SecretIdentifyServer),
+        });
+        const endpoint = node.parts.get(1)!;
+        await endpoint.act(agent => {
+            agent.get(SecretIdentifyServer).state.identifyTime = 4321;
+        });
+
+        const text = LogFormat.formats.plain(
+            Diagnostic.message({ values: [Diagnostic.list(endpoint.behaviors.detailedDiagnostic)] }),
+        );
+
+        expect(text).contains(`identifyTime id: 0x0 val: ${SecretRedaction.PLACEHOLDER}`);
+        expect(text).not.contains("4321");
     });
 });

@@ -33,8 +33,8 @@ const logger = Logger.get("Environment");
  * * `log.level` - Log level to use, as a name (`debug`, `info`, `notice`, `warn`, `error`, `fatal`) or number (0-5) {@link Logger.level}
  * * `log.format` - Log format to use {@link Logger.format}
  * * `log.stack.limit` - Stack trace limit, see https://nodejs.org/api/errors.html#errorstacktracelimit
- * * `log.payloads` - Include decrypted message payloads in message logs {@link Logger.logPayloads}
- * * `log.redactSecrets` - Replace secret values in log output with a placeholder, default true {@link Logger.redactSecrets}
+ * * `log.payloads` - Include decrypted message payloads in message logs, default true {@link Logger.logPayloads}
+ * * `log.redactSecrets` - Replace secret values in log output with a placeholder, default true; debug message logs still carry them in the payload unless `log.payloads` is false {@link Logger.redactSecrets}
  * * `mdns.networkInterface` - Network interface to use for MDNS broadcasts and scanning, default are all available interfaces
  * * `mdns.ipv4` - Also announce/scan on IPv4 interfaces
  * * `network.interface` - Map of interface names to types, expected to be defined as object with name as key and of `{type: string|number}` objects with types: 1=Wifi, 2=Ethernet, 3=Cellular, 4=Thread (strings or numbers can be used). Can also be provided via env or cli like `MATTER_NETWORK_INTERFACE_ETH0_TYPE=Ethernet`

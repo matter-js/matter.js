@@ -359,16 +359,16 @@ describe("MessageCodec", () => {
             return LogFormat.formats.plain(Diagnostic.message({ values: [diagnostics] }));
         }
 
-        it("omits the payload by default", () => {
-            expect(Logger.logPayloads).false;
-            expect(loggedPayload()).not.contains(Bytes.toHex(DECODED.payload));
+        it("includes the payload by default", () => {
+            expect(Logger.logPayloads).true;
+            expect(loggedPayload()).contains(Bytes.toHex(DECODED.payload));
         });
 
-        it("includes the payload when enabled", () => {
+        it("omits the payload when disabled", () => {
             const { logPayloads } = Logger;
-            Logger.logPayloads = true;
+            Logger.logPayloads = false;
             try {
-                expect(loggedPayload()).contains(Bytes.toHex(DECODED.payload));
+                expect(loggedPayload()).not.contains(Bytes.toHex(DECODED.payload));
             } finally {
                 Logger.logPayloads = logPayloads;
             }
