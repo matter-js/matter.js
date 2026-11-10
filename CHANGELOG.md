@@ -150,6 +150,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A PASE session over BLE, also one returned by `ControllerCommissioner.establishPase()`, closes at once when the BLE connection closes, also when it closed while PASE completed
     - Fix: A BLE connection that cannot be opened during commissioning no longer cancels the device's other addresses
     - Fix: A subscription to an ICD whose IdleModeDuration is shorter than the default ceiling requests the default ceiling instead of the IdleModeDuration
+    - Fix: Removing a fabric closes all its sessions, also those established before its operational certificate was replaced
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once

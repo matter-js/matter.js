@@ -464,6 +464,7 @@ export class GroupSession extends SecureSession {
 
     override async close() {
         this.manager?.removeGroupSession(this);
+        this.#createdFor.deleteSession(this);
         await super.close();
     }
 }

@@ -73,7 +73,7 @@ export class Fabric {
     readonly intermediateCACert: Bytes | undefined;
     readonly operationalCert: Bytes;
     readonly #keyPair: Key;
-    readonly #sessions = new Set<SecureSession>();
+    #sessions = new Set<SecureSession>();
     #groups: FabricGroups;
     #icd?: FabricIcd;
     #accessControl: FabricAccessControl;
@@ -279,10 +279,11 @@ export class Fabric {
     }
 
     /**
-     * Take over the runtime state of {@link previous}, the object this one replaces for the same fabric: groups, access
-     * control, ICD state and the storage context.  Both objects then share the same instances, so sessions still bound
-     * to {@link previous} see every change.  The derived group keys depend on the root, fabric ID and IPK, so these
-     * must be unchanged.
+     * Take over the runtime state of {@link previous}, the object this one replaces for the same fabric: sessions,
+     * groups, access control, ICD state and the storage context.  Both objects then share the same instances.  Sessions
+     * still bound to {@link previous} see every change to groups, access control and ICD state, and deleting, leaving
+     * or replacing either object closes the sessions bound to both.  The derived group keys depend on the root, fabric
+     * ID and IPK, so these must be unchanged.
      */
     takeOverRuntimeStateOf(previous: Fabric) {
         if (
@@ -293,6 +294,7 @@ export class Fabric {
                 `Fabric ${this.fabricIndex} can only be replaced by new operational credentials under the same root, fabric ID and IPK`,
             );
         }
+        this.#sessions = previous.#sessions;
         this.#groups = previous.#groups;
         this.#accessControl = previous.#accessControl;
         this.#icd = previous.icd;

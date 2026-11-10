@@ -334,6 +334,28 @@ describe("SecureSession", () => {
             await sessions.close();
         });
 
+        it("leaves the sessions of its fabric when it closes", async () => {
+            const { fabric } = await groupFabric();
+            const current = fabric.groups.keySets.currentKeyForId(1);
+            const groupId = 2;
+            const peerNodeId = NodeId(0xffffffffffff0000n | BigInt(groupId));
+            const session = new GroupSession({
+                id: current.sessionId ?? 0,
+                fabric,
+                keySetId: 1,
+                operationalGroupKey: current.key,
+                operationalPrivacyKey: current.privacyKey,
+                peerNodeId,
+                multicastAddress: fabric.groups.multicastAddressFor(GroupId(groupId)),
+                messageCounter: new MessageCounter(fabric.crypto),
+            });
+            expect(fabric.hasSessionForPeer(peerNodeId)).true;
+
+            await session.close();
+
+            expect(fabric.hasSessionForPeer(peerNodeId)).false;
+        });
+
         it("derives the nonce from the source node ID in the header", async () => {
             const { fabric, fabricManager } = await groupFabric();
             const current = fabric.groups.keySets.currentKeyForId(1);
