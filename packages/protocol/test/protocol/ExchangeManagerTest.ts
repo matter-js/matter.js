@@ -62,6 +62,7 @@ import {
 /** A UDP-like transport that delivers datagrams on demand. */
 class MockTransport implements Transport {
     readonly #listeners = new Set<(socket: Channel<Bytes>, data: Bytes) => void>();
+    readonly sent = new Array<Bytes>();
     readonly channel: UdpNetworkChannel<Bytes> = {
         maxPayloadSize: 1280,
         isReliable: false,
@@ -70,7 +71,9 @@ class MockTransport implements Transport {
         type: ChannelType.UDP,
         networkAddress: { type: "udp", ip: "fd00::1", port: 5540 },
         networkAddressChanged: Observable(),
-        async send() {},
+        send: async (data: Bytes) => {
+            this.sent.push(data);
+        },
         async close() {},
     };
 
@@ -1264,7 +1267,13 @@ describe("ExchangeManager", () => {
             };
         }
 
-        function unsecuredMessage(sourceNodeId: NodeId, messageId: number, requiresAck = false, exchangeId = 1) {
+        function unsecuredMessage(
+            sourceNodeId: NodeId,
+            messageId: number,
+            requiresAck = false,
+            exchangeId = 1,
+            isInitiatorMessage = true,
+        ) {
             return MessageCodec.encodePacket(
                 MessageCodec.encodePayload({
                     packetHeader: {
@@ -1280,7 +1289,7 @@ describe("ExchangeManager", () => {
                         exchangeId,
                         protocolId: SECURE_CHANNEL_PROTOCOL_ID,
                         messageType: SecureMessageType.IcdCheckInMessage,
-                        isInitiatorMessage: true,
+                        isInitiatorMessage,
                         requiresAck,
                         hasSecuredExtension: false,
                     },
@@ -1295,6 +1304,44 @@ describe("ExchangeManager", () => {
                 await MockTime.yield();
             }
         }
+
+        /** Exchange id, I flag and acked message counter of each standalone ack the manager sent. */
+        function sentAcks(transport: MockTransport) {
+            return transport.sent
+                .map(data => MessageCodec.decodePayload(MessageCodec.decodePacket(data)).payloadHeader)
+                .filter(
+                    header =>
+                        header.protocolId === SECURE_CHANNEL_PROTOCOL_ID &&
+                        header.messageType === SecureMessageType.StandaloneAck,
+                )
+                .map(({ exchangeId, isInitiatorMessage, ackedMessageId }) => ({
+                    exchangeId,
+                    isInitiatorMessage,
+                    ackedMessageId,
+                }));
+        }
+
+        it("acks a message without the I flag and without open exchange with the I flag set", async () => {
+            await using peer = await receiver();
+
+            peer.transport.receive(unsecuredMessage(NodeId(1n), 7, true, 0x1234, false));
+            await settle();
+
+            expect(sentAcks(peer.transport)).deep.equals([
+                { exchangeId: 0x1234, isInitiatorMessage: true, ackedMessageId: 7 },
+            ]);
+        });
+
+        it("acks an unhandled message the peer initiated in the responder role", async () => {
+            await using peer = await receiver();
+
+            peer.transport.receive(unsecuredMessage(NodeId(1n), 7, true, 0x1234));
+            await settle();
+
+            expect(sentAcks(peer.transport)).deep.equals([
+                { exchangeId: 0x1234, isInitiatorMessage: false, ackedMessageId: 7 },
+            ]);
+        });
 
         it("discards the session when the handler does not adopt it", async () => {
             await using peer = await receiver();
