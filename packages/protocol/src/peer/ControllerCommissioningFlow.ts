@@ -144,9 +144,10 @@ export type ControllerCommissioningFlowOptions = {
          * - A single error-level finding for hard failures (invalid chain, bad signature, revoked
          *   certificate, untrusted PAA, DCL service unavailable). The commissioner must decide
          *   whether to proceed despite the failure.
-         * - One or more warning/info-level findings after successful validation (e.g. provisional
-         *   CD, test CD, skipped CD signer verification, no revocation data, test-cert-only PAA).
-         *   These are informational and the commissioner can inspect them for detailed decisions.
+         * - The findings of a validation that ran to the end. These are warning/info-level findings
+         *   (e.g. provisional CD, test CD, no revocation data) and the recoverable error-level findings
+         *   `TrustedAsTestCertificate` and `CertificationDeclarationFieldMismatch` for the BasicInformation
+         *   VendorID and ProductID, which the commissioner must decide on like a hard failure.
          *
          * TODO: Make required in next breaking version and remove undefined backward-compatible accept
          */
@@ -356,7 +357,7 @@ export class ControllerCommissioningFlow {
         this.fabric = fabric;
         this.transitionToCase = transitionToCase;
         this.commissioningOptions = commissioningOptions;
-        logger.debug(`Commissioning options: ${Diagnostic.json(commissioningOptions)}`);
+        logger.debug("Commissioning options", Diagnostic.dict(loggedOptionsOf(commissioningOptions)));
         this.#initializeCommissioningSteps();
     }
 
@@ -477,6 +478,10 @@ export class ControllerCommissioningFlow {
         }
         for await (const data of this.interaction.read(request)) {
             for await (const entry of data) {
+                if (entry.kind === "attr-status") {
+                    logger.debug("Commissioning read returned status", entry.status, "for", entry.path);
+                    continue;
+                }
                 if (entry.kind !== "attr-value") {
                     continue;
                 }
@@ -789,6 +794,10 @@ export class ControllerCommissioningFlow {
 
         for await (const data of networkData) {
             for await (const entry of data) {
+                if (entry.kind === "attr-status") {
+                    logger.debug("Commissioning read returned status", entry.status, "for", entry.path);
+                    continue;
+                }
                 if (entry.kind !== "attr-value") {
                     continue;
                 }
@@ -1328,8 +1337,8 @@ export class ControllerCommissioningFlow {
                     attestationElements,
                     attestationSignature,
                     attestationNonce,
-                    vendorId: this.collectedCommissioningData.vendorId!,
-                    productId: this.collectedCommissioningData.productId!,
+                    vendorId: this.collectedCommissioningData.vendorId,
+                    productId: this.collectedCommissioningData.productId,
                 },
             );
             findings = result.findings;
@@ -1356,8 +1365,11 @@ export class ControllerCommissioningFlow {
         if (findings.length > 0) {
             const decision = await this.#resolveAttestationFindings(findings);
             if (!decision.proceed) {
+                const errorMessages = findings.filter(({ level }) => level === "error").map(({ message }) => message);
                 baseError ??= new CommissioningError(
-                    `Device attestation produced ${findings.length} finding(s) and was rejected by policy`,
+                    errorMessages.length
+                        ? `Device attestation rejected by policy: ${errorMessages.join("; ")}`
+                        : `Device attestation produced ${findings.length} finding(s) and was rejected by policy`,
                 );
                 if (decision.reason !== undefined) {
                     throw new CommissioningError(decision.reason, { cause: baseError });
@@ -2192,4 +2204,27 @@ export class ControllerCommissioningFlow {
     close() {
         this.#armFailsafeInterval?.stop();
     }
+}
+
+/**
+ * The fields of {@link options} that hold no secret, for logging.  The options the caller passes may carry more, such as
+ * the fabric with its identity protection key or the passcode.
+ */
+function loggedOptionsOf(options: ControllerCommissioningFlowOptions) {
+    const {
+        regulatoryLocation,
+        regulatoryCountryCode,
+        adminVendorId,
+        wifiNetwork,
+        threadNetwork,
+        otaUpdateProviderLocation,
+    } = options;
+    return {
+        regulatoryLocation,
+        regulatoryCountryCode,
+        adminVendorId,
+        wifiSsid: wifiNetwork?.wifiSsid,
+        threadNetwork: threadNetwork && (threadNetwork.networkName ?? "(dataset only)"),
+        otaUpdateProviderLocation,
+    };
 }

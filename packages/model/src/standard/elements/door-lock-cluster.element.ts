@@ -148,7 +148,7 @@ export const DoorLock = Cluster(
 
     Attribute({
         name: "AliroGroupResolvingKey", id: 0x84, type: "octstr", access: "R A", conformance: "ALBU",
-        constraint: "16", quality: "X"
+        constraint: "16", isSecret: true, quality: "X"
     }),
 
     Attribute(
@@ -228,11 +228,11 @@ export const DoorLock = Cluster(
 
     Command(
         { name: "LockDoor", id: 0x0, access: "O T", conformance: "M", direction: "request", response: "status" },
-        Field({ name: "PinCode", id: 0x0, type: "octstr", conformance: "[COTA & PIN]" })
+        Field({ name: "PinCode", id: 0x0, type: "octstr", conformance: "[COTA & PIN]", isSecret: true })
     ),
     Command(
         { name: "UnlockDoor", id: 0x1, access: "O T", conformance: "M", direction: "request", response: "status" },
-        Field({ name: "PinCode", id: 0x0, type: "octstr", conformance: "[COTA & PIN]" })
+        Field({ name: "PinCode", id: 0x0, type: "octstr", conformance: "[COTA & PIN]", isSecret: true })
     ),
     Command({ name: "Toggle", id: 0x2, access: "O T", conformance: "X", direction: "request", response: "status" }),
 
@@ -242,7 +242,7 @@ export const DoorLock = Cluster(
             response: "status"
         },
         Field({ name: "Timeout", id: 0x0, type: "uint16", conformance: "M" }),
-        Field({ name: "PinCode", id: 0x1, type: "octstr", conformance: "[COTA & PIN]" })
+        Field({ name: "PinCode", id: 0x1, type: "octstr", conformance: "[COTA & PIN]", isSecret: true })
     ),
 
     Command(
@@ -501,7 +501,7 @@ export const DoorLock = Cluster(
         },
         Field({ name: "OperationType", id: 0x0, type: "DataOperationTypeEnum", conformance: "M", constraint: "add, modify" }),
         Field({ name: "Credential", id: 0x1, type: "CredentialStruct", conformance: "M" }),
-        Field({ name: "CredentialData", id: 0x2, type: "octstr", conformance: "M", constraint: "desc" }),
+        Field({ name: "CredentialData", id: 0x2, type: "octstr", conformance: "M", constraint: "desc", isSecret: true }),
         Field({
             name: "UserIndex", id: 0x3, type: "uint16", conformance: "M",
             constraint: "1 to numberOfTotalUsersSupported", quality: "X"
@@ -558,7 +558,7 @@ export const DoorLock = Cluster(
 
     Command(
         { name: "UnboltDoor", id: 0x27, access: "O T", conformance: "UBOLT", direction: "request", response: "status" },
-        Field({ name: "PinCode", id: 0x0, type: "octstr", conformance: "[COTA & PIN]" })
+        Field({ name: "PinCode", id: 0x0, type: "octstr", conformance: "[COTA & PIN]", isSecret: true })
     ),
 
     Command(
@@ -566,10 +566,10 @@ export const DoorLock = Cluster(
             name: "SetAliroReaderConfig", id: 0x28, access: "A T", conformance: "ALIRO", direction: "request",
             response: "status"
         },
-        Field({ name: "SigningKey", id: 0x0, type: "octstr", conformance: "M", constraint: "32" }),
+        Field({ name: "SigningKey", id: 0x0, type: "octstr", conformance: "M", constraint: "32", isSecret: true }),
         Field({ name: "VerificationKey", id: 0x1, type: "octstr", conformance: "M", constraint: "65" }),
         Field({ name: "GroupIdentifier", id: 0x2, type: "octstr", conformance: "M", constraint: "16" }),
-        Field({ name: "GroupResolvingKey", id: 0x3, type: "octstr", conformance: "ALBU", constraint: "16" })
+        Field({ name: "GroupResolvingKey", id: 0x3, type: "octstr", conformance: "ALBU", constraint: "16", isSecret: true })
     ),
 
     Command({

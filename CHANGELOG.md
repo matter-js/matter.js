@@ -11,7 +11,12 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/examples
+    - Fix: The controller examples log only the discovery options when commissioning, not the passcode or network credentials
+
 - @matter/general
+    - Feature: `Logger.logPayloads`, also set by the `log.payloads` variable, leaves decrypted message payloads out of message logs when set to false
+    - Feature: `Logger.redactSecrets`, also set by the `log.redactSecrets` variable, turns off the replacement of secret values in log output when set to false
     - Feature: `Network.interfacesChanged` reports interface and address changes, checked every 60 seconds while observed
     - Enhancement: WAL storage logs at notice level when an open restores entries from its log and when it has saved the restored state, with the time each took
     - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
@@ -26,6 +31,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `StandardCrypto` encrypts and decrypts AES-CCM plaintext of 65521 to 65535 bytes, which Matter messages reach only with `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: `StandardCrypto` computes the correct AES-CCM tag for AAD of 65280 bytes or more
     - Fix: `X520.DomainComponent` encodes the domainComponent OID 0.9.2342.19200300.100.1.25 instead of the emailAddress OID with tag and length bytes in its content
+
+- @matter/model
+    - Feature: The `isSecret` element property and the `secret` decorator mark a value as secret, and `SecretRedaction` replaces secret values for logging; standard fields that carry network credentials, keys, passcodes and PINs are marked secret
 
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
@@ -73,6 +81,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: GeneralDiagnostics `TestEventTriggersEnabled` is true exactly when a non-zero `deviceTestEnableKey` is configured, and PayloadTestRequest accepts that key without also setting the attribute
     - Fix: GeneralDiagnostics test commands compare the EnableKey in constant time and never accept a key that is not 16 bytes, and the node refuses to start with a non-zero `deviceTestEnableKey` of another length
     - Fix: `VendorIdVerification.verifyData` returns false for a VVSC that breaks its certificate profile instead of throwing
+    - Fix: A device logs secret fields of received commands and of its command responses, and endpoint diagnostics show secret attribute values, as `(redacted)`
 
 - @matter/nodejs
     - Fix: (@delu999) SQLite storage accepts overlapping transactions instead of failing with "Transaction is in progress", so concurrent node state writes are no longer lost
@@ -82,6 +91,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
 
 - @matter/protocol
+    - Enhancement: A connection to a peer logs at debug level which transports it tries and why
+    - Enhancement: Device attestation reports a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as a finding instead of stopping validation
     - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
@@ -94,6 +105,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `SessionManager.registeredSessions` holds every session that receives messages, including those whose handshake still runs
     - Enhancement: `ExchangeSendOptions.onTransmitted` runs once the first transmission of a message went out
     - Enhancement: `SecureChannelMessenger.sendSuccess()` takes an optional `onTransmitted` callback
+    - Enhancement: Message logs show the I flag in `msgFlags` for messages from the exchange initiator
     - Adjustment: Peer loss and peer shutdown compare sessions by registration order instead of creation time; `PeerLossContext.asOf` is deprecated for `registeredBefore`
     - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
     - Adjustment: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
@@ -121,6 +133,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Starting an exchange skips exchange ids that are still open on the session, instead of reusing one after the 16-bit counter wraps
     - Fix: An exchange is identified by its session, so a message on another session with the same exchange id no longer reaches or replaces it, nor counts toward its session's exchange limit
     - Fix: The exchange opened to ack an unsolicited message is closed even when sending the ack fails, instead of staying open
+    - Fix: A standalone ack for a received message without the initiator flag that matches no open exchange, such as a retransmission after the local exchange closed, sets the initiator flag, so the peer accepts it instead of retransmitting until it drops the session
     - Fix: A privacy group message with message extensions is decoded with the extensions in the additional authenticated data, as specified in section 4.8.2, instead of refused
     - Fix: The mDNS responder no longer sends a goodbye for host addresses or shared pointers that another of its services still publishes
     - Fix: The mDNS responder answers a multicast pointer query with the pointer of every service of that type
@@ -152,6 +165,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A BLE connection that cannot be opened during commissioning no longer cancels the device's other addresses
     - Fix: A subscription to an ICD whose IdleModeDuration is shorter than the default ceiling requests the default ceiling instead of the IdleModeDuration
     - Fix: Removing a fabric closes all its sessions, also those established before its operational certificate was replaced
+    - Fix: Invoke, read and write logs show secret values such as Thread datasets and Wi-Fi credentials as `(redacted)`
+    - Fix: The commissioning options log no longer contains the network credentials, the passcode or the fabric's identity protection key
+    - Fix: `DatatypeError` messages show the first 60 characters of a long value instead of the characters after them
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
@@ -159,6 +175,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @project-chip/matter.js
     - Fix: Migrating a legacy controller's peers no longer fails on a stored discovery TTL that is invalid
     - Fix: (@cwedgwood) `PairedNode` waits for concurrent network state updates when it enables the subscription, so a lock conflict no longer leaves the node unsubscribed
+    - Fix: Attribute write, attribute update and endpoint structure logs of the legacy controller show secret values as `(redacted)`
 
 ## 0.18.0 (2026-10-20)
 

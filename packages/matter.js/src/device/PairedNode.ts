@@ -19,6 +19,7 @@ import {
     Immutable,
     ImplementationError,
     InternalError,
+    isObject,
     Logger,
     MatterError,
     MaybePromise,
@@ -35,6 +36,7 @@ import {
     ClusterRevision,
     FeatureMap,
     Matter,
+    SecretRedaction,
 } from "@matter/model";
 import {
     Behavior,
@@ -709,10 +711,18 @@ export class PairedNode {
                     if (this.#endpoints !== undefined && cluster === undefined) {
                         continue;
                     }
-                    logger.debug(
-                        this.#peerAddress,
-                        `Trigger attribute update for ${endpointId}.${cluster?.name ?? Matter.clusters(clusterId)?.name ?? Diagnostic.hex(clusterId)}.${attributeId} to ${Diagnostic.json(value)}`,
-                    );
+                    logger.debug(() => {
+                        const clusterModel = Matter.clusters(clusterId);
+                        const attributeModel =
+                            (behavior.schema instanceof ClusterModel
+                                ? behavior.schema.attributes(attributeId)
+                                : undefined) ?? clusterModel?.attributes(attributeId);
+                        const loggedValue = SecretRedaction.redact(attributeModel, value);
+                        return [
+                            this.#peerAddress,
+                            `Trigger attribute update for ${endpointId}.${cluster?.name ?? clusterModel?.name ?? Diagnostic.hex(clusterId)}.${attributeId} to ${Diagnostic.json(loggedValue)}`,
+                        ];
+                    });
                     if (cluster !== undefined) {
                         asClusterClientInternal(cluster)._triggerAttributeUpdate(attributeId as AttributeId, value);
                     }
@@ -1108,7 +1118,7 @@ export class PairedNode {
                 this.#peerAddress,
                 `${isRecreation ? "Recreating" : "Creating"} endpoint`,
                 endpointId,
-                Diagnostic.json(endpoint.state),
+                Diagnostic.json(redactedStateOf(endpoint)),
             ]);
             const device = this.#createDevice(endpointId, endpoint, this.#interactionClient);
             if (device === undefined) {
@@ -1763,4 +1773,19 @@ export namespace PairedNode {
         /** Emitted when a subscription alive trigger is received (max interval trigger or any data update) */
         connectionAlive: Observable<[void]>;
     }
+}
+
+/**
+ * The state of {@link endpoint} for logging, with the attribute values the cluster models mark secret replaced.
+ */
+function redactedStateOf(endpoint: ClientEndpoint) {
+    const state: Record<string, unknown> = {};
+    for (const [id, values] of Object.entries(endpoint.state)) {
+        const schema = endpoint.behaviors.supported[id]?.schema;
+        state[id] =
+            schema instanceof ClusterModel && isObject(values)
+                ? SecretRedaction.redactAttributes(schema, values)
+                : values;
+    }
+    return state;
 }
