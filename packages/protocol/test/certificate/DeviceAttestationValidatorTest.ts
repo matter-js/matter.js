@@ -572,36 +572,35 @@ describe("DeviceAttestationValidator", () => {
             await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
         });
 
-        it("throws CertificationDeclarationFieldMismatch when CD vendorId does not match BasicInformation", async () => {
+        it("reports CertificationDeclarationFieldMismatch when CD vendorId does not match BasicInformation", async () => {
             const dclService = await setupDclService();
 
-            // Generate CD with a different vendorId
-            const wrongVendorCd = await CertificationDeclaration.generate(crypto, VendorId(0xfff2), productId);
-            const { attestationElements, attestationSignature } = await buildAttestationWithCd(wrongVendorCd);
+            const { findings } = await DeviceAttestationValidator.validate(
+                buildContext(dclService),
+                buildData({ vendorId: VendorId(0xfff2) }),
+            );
 
-            await expect(
-                DeviceAttestationValidator.validate(
-                    buildContext(dclService),
-                    buildData({ attestationElements, attestationSignature }),
-                ),
-            ).to.be.rejectedWith(DeviceAttestationError, /CD vendor_id.*does not match BasicInformation VendorID/);
+            const errors = findings.filter(({ level }) => level === "error");
+            expect(errors.map(({ type }) => type)).to.deep.equal([
+                DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
+            ]);
+            expect(errors[0].message).to.match(/CD vendor_id.*does not match BasicInformation VendorID 0xfff2/i);
         });
 
-        it("throws CertificationDeclarationFieldMismatch when productId not in CD product_id_array", async () => {
+        it("reports CertificationDeclarationFieldMismatch when productId not in CD product_id_array", async () => {
             const dclService = await setupDclService();
 
-            // Generate CD with a different productId (our productId 0x8000 won't be in the array)
-            const wrongProductCd = await CertificationDeclaration.generate(crypto, vendorId, 0x9999);
-            const { attestationElements, attestationSignature } = await buildAttestationWithCd(wrongProductCd);
+            const { findings } = await DeviceAttestationValidator.validate(
+                buildContext(dclService),
+                buildData({ productId: 0x9999 }),
+            );
 
-            await expect(
-                DeviceAttestationValidator.validate(
-                    buildContext(dclService),
-                    buildData({ attestationElements, attestationSignature }),
-                ),
-            ).to.be.rejectedWith(
-                DeviceAttestationError,
-                /CD product_id_array.*does not contain BasicInformation ProductID/,
+            const errors = findings.filter(({ level }) => level === "error");
+            expect(errors.map(({ type }) => type)).to.deep.equal([
+                DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
+            ]);
+            expect(errors[0].message).to.match(
+                /CD product_id_array.*does not contain BasicInformation ProductID 0x9999/i,
             );
         });
 
@@ -624,7 +623,59 @@ describe("DeviceAttestationValidator", () => {
                 ),
             ).to.be.rejectedWith(DeviceAttestationError, /DAC vendorId.*does not match CD vendor_id/);
         });
+
+        it("reports CertificationDeclarationFieldMismatch when the device did not report VendorID", async () => {
+            const dclService = await setupDclService();
+
+            const { findings, dacPublicKey } = await DeviceAttestationValidator.validate(
+                buildContext(dclService),
+                buildData({ vendorId: undefined }),
+            );
+
+            expect(dacPublicKey).to.not.be.undefined;
+            const errors = findings.filter(({ level }) => level === "error");
+            expect(errors.map(({ type }) => type)).to.deep.equal([
+                DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
+            ]);
+            expect(errors[0].message).to.match(/BasicInformation VendorID \(not reported by the device\)/);
+        });
+
+        it("reports CertificationDeclarationFieldMismatch when the device did not report ProductID", async () => {
+            const dclService = await setupDclService();
+
+            const { findings } = await DeviceAttestationValidator.validate(
+                buildContext(dclService),
+                buildData({ productId: undefined }),
+            );
+
+            const errors = findings.filter(({ level }) => level === "error");
+            expect(errors.map(({ type }) => type)).to.deep.equal([
+                DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
+            ]);
+            expect(errors[0].message).to.match(/BasicInformation ProductID \(not reported by the device\)/);
+        });
+
+        it("still runs the DAC origin checks when the device did not report VendorID", async () => {
+            const dclService = await setupDclService();
+
+            const altCd = await CertificationDeclaration.generate(crypto, VendorId(0xfff2), productId);
+            const { attestationElements, attestationSignature } = await buildAttestationWithCd(altCd);
+
+            await expectDacOriginCheckRejects(
+                DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData({ attestationElements, attestationSignature, vendorId: undefined }),
+                ),
+            );
+        });
     });
+
+    async function expectDacOriginCheckRejects(validation: Promise<unknown>) {
+        await expect(validation).to.be.rejectedWith(
+            DeviceAttestationError,
+            /DAC vendorId.*does not match CD vendor_id/,
+        );
+    }
 
     describe("certificate revocation checks", () => {
         it("throws CertificateRevoked when DAC serial is in revocation list", async () => {
