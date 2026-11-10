@@ -207,6 +207,7 @@ function isBatchable(request: ClientInvoke) {
         useExtendedFailSafeMessageResponseTimeout: !!request.useExtendedFailSafeMessageResponseTimeout,
         additionalMrpDelay: request.additionalMrpDelay !== undefined,
         addressOverride: request.addressOverride !== undefined,
+        requireExistingSession: !!request.requireExistingSession,
         // Server only
         beforeDispatch: request.beforeDispatch !== undefined,
     };
@@ -1015,6 +1016,11 @@ export class ClientInteraction<
         if (subscriptionPathsCount === 0) {
             throw new ImplementationError("When subscribing to attributes and events, at least one must be specified.");
         }
+        if (request.sustain && request.requireExistingSession) {
+            throw new ImplementationError(
+                "A sustained subscription re-establishes its session, so it cannot require an existing session",
+            );
+        }
         if (subscriptionPathsCount > this.#exchangeProvider.subscribePathsSupported) {
             logger.info(
                 `Subscribe interactions with more than ${this.#exchangeProvider.subscribePathsSupported} paths might be not allowed by the device.`,
@@ -1252,6 +1258,7 @@ export class ClientInteraction<
                     abort,
                     connectionTimeout: session?.connectionTimeout,
                     addressOverride: request.addressOverride,
+                    requireExistingSession: request.requireExistingSession,
                     requiredTransport,
                 });
             } catch (e) {
