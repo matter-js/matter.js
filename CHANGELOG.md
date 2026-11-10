@@ -32,10 +32,17 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
+    - Enhancement: `ClientNode.fabricIndexOnPeer` returns our fabric index on the peer
     - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
     - Adjustment: Conformance and enum errors on client-local state of a client node, such as `CommissioningClient`, are refused locally
     - Adjustment: On behavior types derived with `.with()`, `.alter()` or `.enable()`, `LocalizationConfigurationServer.detectedLocale` is declared as a getter, and the extension methods of `GeneralDiagnosticsServer` and `AccessControlServer` as methods, so they can be overridden with `get` or a method that calls `super`; a property override of `detectedLocale` no longer compiles
     - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is deprecated and stays empty; subscriptions stored there by an older version are taken over at start
+    - Adjustment: On the cluster state of a client node, `set()` and `setStateOf()` write each given struct or list whole instead of merging it into the cached value
+    - Adjustment: A change in place of a mandatory list, struct or bitmap that a client node's cache does not hold throws `UncachedValueError` instead of being ignored
+    - Adjustment: A mandatory struct that a client node's cache does not hold reads as a managed struct, with its absent fields as undefined keys
+    - Adjustment: A client node other than a group refuses to write a fabric-scoped list while its fabric index on the peer is unknown
+    - Adjustment: A client node other than a group refuses a fabric-scoped list entry of another fabric or of no fabric unless it equals a cached entry
+    - Adjustment: Internal client store and validation APIs for writes to a remote node changed
     - Fix: `TimeFormatLocalizationServer` `detectedHourFormat` and `detectedCalendarType` have their enum types instead of `string`, so an override can return any value of the enum
     - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
@@ -61,13 +68,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A client node other than a group writes only its own entries of a fabric-scoped list and keeps the other fabrics' entries in its cache
     - Fix: A state write on a group endpoint fails with `InvalidGroupOperationError`
     - Fix: The Remote API `add` to a mandatory list that a client node's cache does not hold fails with `UncachedValueError` instead of replacing the device's list with the new entry alone
-    - Adjustment: On the cluster state of a client node, `set()` and `setStateOf()` write each given struct or list whole instead of merging it into the cached value
-    - Adjustment: A change in place of a mandatory list, struct or bitmap that a client node's cache does not hold throws `UncachedValueError` instead of being ignored
-    - Adjustment: A mandatory struct that a client node's cache does not hold reads as a managed struct, with its absent fields as undefined keys
-    - Adjustment: A client node other than a group refuses to write a fabric-scoped list while its fabric index on the peer is unknown
-    - Adjustment: A client node other than a group refuses a fabric-scoped list entry of another fabric or of no fabric unless it equals a cached entry
-    - Feature: `ClientNode.fabricIndexOnPeer` returns our fabric index on the peer
-    - Adjustment: Internal client store and validation APIs for writes to a remote node changed
     - Fix: A client node sends a write that breaks a model constraint to the device instead of refusing it locally, and the Remote API accepts such a value in a command response from the device
     - Fix: Corrects extension typing of `registerHardwareFault()`, `registerRadioFault()` and `registerNetworkFault()` of a GeneralDiagnostics server
     - Fix: GeneralDiagnostics registering a fault that is already active no longer emits a fault change event
