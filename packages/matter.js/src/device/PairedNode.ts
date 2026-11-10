@@ -713,7 +713,11 @@ export class PairedNode {
                     }
                     logger.debug(() => {
                         const clusterModel = Matter.clusters(clusterId);
-                        const loggedValue = SecretRedaction.redact(clusterModel?.attributes(attributeId), value);
+                        const attributeModel =
+                            (behavior.schema instanceof ClusterModel
+                                ? behavior.schema.attributes(attributeId)
+                                : undefined) ?? clusterModel?.attributes(attributeId);
+                        const loggedValue = SecretRedaction.redact(attributeModel, value);
                         return [
                             this.#peerAddress,
                             `Trigger attribute update for ${endpointId}.${cluster?.name ?? clusterModel?.name ?? Diagnostic.hex(clusterId)}.${attributeId} to ${Diagnostic.json(loggedValue)}`,
