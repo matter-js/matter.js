@@ -28,7 +28,7 @@ export enum NocsrCheck {
     /** NOCSRElements is not a valid NOCSR Information structure. */
     ElementsUnparseable = "ElementsUnparseable",
 
-    /** The CSRNonce in NOCSRElements is not the one the commissioner sent. */
+    /** The CSRNonce in NOCSRElements is not the one sent in CSRRequest. */
     CsrNonceMismatch = "CsrNonceMismatch",
 
     /** The PKCS #10 CSR is malformed, uses another algorithm or key type, or its own signature does not verify. */
@@ -53,10 +53,10 @@ export namespace NocsrValidator {
         /** The attestation challenge of the secure session the CSRRequest was sent on. */
         attestationChallenge: Bytes;
 
-        /** The CSRNonce the commissioner sent in CSRRequest. */
+        /** The CSRNonce sent in CSRRequest. */
         csrNonce: Bytes;
 
-        /** The public key of the device's DAC from the device attestation step. */
+        /** The public key of the DAC the device reported, in device attestation or a CertificateChainRequest. */
         dacPublicKey: PublicKey;
     }
 
