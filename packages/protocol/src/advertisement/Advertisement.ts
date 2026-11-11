@@ -162,7 +162,7 @@ export abstract class Advertisement<T extends ServiceDescription = ServiceDescri
     protected async onCreate() {
         // Deduplicate advertisements.  There may only be a single commissioning advertisement per advertiser and a
         // single operational advertisement per advertiser+service
-        const duplicates = [...this.advertiser.advertisements].filter(this.isDuplicate.bind(this));
+        const duplicates = [...this.advertiser.advertisements].filter(ad => ad !== this && this.isDuplicate(ad));
         if (duplicates.length) {
             using _deduplicating = this.#lifetime.join("deduplicating");
             await Advertisement.closeAll(duplicates);
@@ -222,7 +222,8 @@ export abstract class Advertisement<T extends ServiceDescription = ServiceDescri
     }
 
     /**
-     * Identify other advertisers for the same service.  The advertiser will close these automatically.
+     * Identify another advertisement of this advertiser that this one replaces.  {@link onCreate} closes these before
+     * this one starts; it never passes this advertisement itself.
      */
     abstract isDuplicate(other: Advertisement): boolean;
 

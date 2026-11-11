@@ -138,6 +138,8 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
         // Use Promise.resolve() to initialize on next microtick so the constructor completes before invocation
         await Promise.resolve();
 
+        await super.onCreate();
+
         // Install the records generator.  This will be used for broadcast and to respond to queries
         logger.info("Publishing", this.dict());
         this.#registration = await this.advertiser.server.register(this.service, this.#recordsGenerator);

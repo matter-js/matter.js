@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { CommissionableMdnsAdvertisement } from "#advertisement/mdns/CommissionableMdnsAdvertisement.js";
 import { OperationalMdnsAdvertisement } from "#advertisement/mdns/OperationalMdnsAdvertisement.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { TestFabric } from "#fabric/TestFabric.js";
@@ -839,6 +840,7 @@ describe("MDNS goodbye of one advertisement among several", () => {
     let server: MdnsServer;
     let listener: MockUdpSocket;
     let dataListener: Transport.Listener;
+    let cryptos: MockCrypto[];
     let advertisers: MdnsAdvertiser[];
     let messages: DnsMessage[];
     let messageTimes: number[];
@@ -849,9 +851,10 @@ describe("MDNS goodbye of one advertisement among several", () => {
         const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
         serverSocket = await MdnsSocket.create(serverNetwork, { netInterface: "fake0" });
         server = new MdnsServer(serverSocket);
+        cryptos = [MockCrypto(0x80), MockCrypto(0x81)];
         advertisers = [
-            new MdnsAdvertiser(MockCrypto(0x80), server, { port: PORT }),
-            new MdnsAdvertiser(MockCrypto(0x81), server, { port: PORT2 }),
+            new MdnsAdvertiser(cryptos[0], server, { port: PORT }),
+            new MdnsAdvertiser(cryptos[1], server, { port: PORT2 }),
         ];
 
         listener = new MockUdpSocket(clientNetwork, {
@@ -974,6 +977,35 @@ describe("MDNS goodbye of one advertisement among several", () => {
             .filter(({ recordType, ttl }) => recordType === DnsRecordType.SRV && ttl > 0);
         expect(answers.map(({ name }) => name)).deep.equals([second.qname]);
     });
+    it("withdraws the previous commissioning window when a new one starts", async () => {
+        const operational = await advertise(OPERATIONAL_SERVICE);
+        const first = await advertise(COMMISSIONABLE_SERVICE);
+        if (!(first instanceof CommissionableMdnsAdvertisement)) {
+            expect.fail("Expected an mDNS commissionable advertisement");
+        }
+        const commissioner = await advertise(
+            ServiceDescription.Commissioner({
+                name: "Test Commissioner",
+                deviceType: 1,
+                vendorId: VendorId(1),
+                productId: 0x8000,
+            }),
+        );
+        expect([...advertisers[0].advertisements]).deep.equals([operational, first, commissioner]);
+        cryptos[0].index = 0x90;
+        messages.length = 0;
+
+        const second = await advertise(COMMISSIONABLE_SERVICE);
+
+        const withdrawn = messages
+            .flatMap(({ answers }) => answers)
+            .filter(({ recordType, ttl }) => recordType === DnsRecordType.SRV && ttl === 0)
+            .map(({ name }) => name);
+        expect(withdrawn).deep.equals([first.qname]);
+        expect(second.service).not.equals(first.service);
+        expect([...advertisers[0].advertisements]).deep.equals([operational, commissioner, second]);
+    });
+
     it("says goodbye to the vendor pointer when the commissioning window becomes privacy masked", async () => {
         await advertise(COMMISSIONABLE_SERVICE);
         // Announcements every 90 s at most keep the vendor pointer cached until the extended announcement at 15 min

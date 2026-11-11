@@ -70,7 +70,6 @@ export class CommissionerMdnsAdvertisement extends MdnsAdvertisement<ServiceDesc
     }
 
     override isDuplicate(other: Advertisement) {
-        // Only one commissioning advertisement allowed per advertiser
-        return other.isCommissioning();
+        return other.description.kind === "commissioner";
     }
 }

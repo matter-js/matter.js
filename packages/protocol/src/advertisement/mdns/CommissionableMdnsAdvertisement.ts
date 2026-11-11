@@ -99,8 +99,8 @@ export class CommissionableMdnsAdvertisement extends MdnsAdvertisement<ServiceDe
     }
 
     override isDuplicate(other: Advertisement) {
-        // Only one commissioning advertisement allowed per advertiser
-        return other.service === this.service && other.isCommissioning();
+        // Only one commissioning window per advertiser; each window has its own instance name
+        return other.description.kind === "commissionable";
     }
 
     #validatePairingInstructions() {
