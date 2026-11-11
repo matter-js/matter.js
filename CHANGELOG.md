@@ -18,6 +18,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: `Logger.logPayloads`, also set by the `log.payloads` variable, leaves decrypted message payloads out of message logs when set to false
     - Feature: `Logger.redactSecrets`, also set by the `log.redactSecrets` variable, turns off the replacement of secret values in log output when set to false
     - Feature: `Network.interfacesChanged` reports interface and address changes, checked every 60 seconds while observed
+    - Feature: The `mdns.statistics` variable (`MATTER_MDNS_STATISTICS`) logs the mDNS traffic counts at info level
+    - Enhancement: `MdnsSocket` logs some traffic statistics once per minute - set `mdns.statistics` (`MATTER_MDNS_STATISTICS`) to true for info loglevel, otherwise debug
     - Enhancement: WAL storage logs at notice level when an open restores entries from its log and when it has saved the restored state, with the time each took
     - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
     - Adjustment: Removed the unused WAL storage history API (`WalStorageDriver.snapshotAtTime()`/`snapshotAtCommit()`, the `headSnapshot` and `cleanInterval` options) and the `WalSnapshot` export
