@@ -18,6 +18,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: `Logger.logPayloads`, also set by the `log.payloads` variable, leaves decrypted message payloads out of message logs when set to false
     - Feature: `Logger.redactSecrets`, also set by the `log.redactSecrets` variable, turns off the replacement of secret values in log output when set to false
     - Feature: `Network.interfacesChanged` reports interface and address changes, checked every 60 seconds while observed
+    - Feature: The `mdns.statistics` variable (`MATTER_MDNS_STATISTICS`) logs the mDNS traffic counts at info level
+    - Enhancement: `MdnsSocket` logs some traffic statistics once per minute - set `mdns.statistics` (`MATTER_MDNS_STATISTICS`) to true for info loglevel, otherwise debug
     - Enhancement: WAL storage logs at notice level when an open restores entries from its log and when it has saved the restored state, with the time each took
     - Adjustment: Falling back to standard crypto, for example on Bun where Node.js crypto has no AES-CCM, logs one line at info level instead of two at notice level
     - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
@@ -147,6 +149,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
     - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
+    - Fix: The client stops its subscription timeout timer when its last peer subscription closes, so the timer no longer keeps the process running until it expires
     - Fix: A client subscription is replaced early when the peer does not acknowledge our status response to a report chunk, or to a final report while the replacement would prime compactly
     - Fix: Commissioning that stops on an unexpected error expires the device's fail-safe, so the device accepts a new commissioning attempt right away
     - Fix: `ClientInteraction.close()` closes only the subscriptions established through that interaction, no longer every subscription to the same peer

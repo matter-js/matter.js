@@ -43,11 +43,12 @@ export interface TestEnvOptions {
     netInterface?: string;
     ips?: string[];
     peerIps?: string[];
+    logStatistics?: boolean;
 }
 
 /** Creates a test environment with MdnsSocket and peer channel for sending/receiving */
 export async function createTestEnv(options: TestEnvOptions = {}): Promise<TestEnv> {
-    const { enableIpv4 = true, netInterface = "fake0", ips, peerIps } = options;
+    const { enableIpv4 = true, netInterface = "fake0", ips, peerIps, logStatistics } = options;
 
     const simulator = new NetworkSimulator();
 
@@ -57,7 +58,7 @@ export async function createTestEnv(options: TestEnvOptions = {}): Promise<TestE
     const peerNetworkIps = peerIps ?? (enableIpv4 ? [PEER_IPV4, PEER_IPV6] : [PEER_IPV6]);
     const peerNetwork = new MockNetwork(simulator, PEER_MAC, peerNetworkIps);
 
-    const socket = await MdnsSocket.create(network, { enableIpv4, netInterface });
+    const socket = await MdnsSocket.create(network, { enableIpv4, netInterface, logStatistics });
 
     // Create a peer channel to send/receive mDNS messages
     const peerChannel = new MockUdpSocket(peerNetwork, {
