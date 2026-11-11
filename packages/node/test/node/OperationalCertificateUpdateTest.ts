@@ -539,15 +539,15 @@ async function expectForgedNocsRefused(
     forge: (entries: unknown[]) => unknown[],
 ) {
     const ca = controller.env.get(CertificateAuthority);
-    const generateNoc = ca.generateNoc;
+    const issueNoc = ca.issueNoc;
     let issued = 0;
     const arms = { attempts: 0 };
     await withPatches(async patch => {
-        ca.generateNoc = (...args) => {
+        ca.issueNoc = request => {
             issued++;
-            return generateNoc.apply(ca, args);
+            return issueNoc.call(ca, request);
         };
-        patch(() => (ca.generateNoc = generateNoc));
+        patch(() => (ca.issueNoc = issueNoc));
         const intercepted = interceptCommand(GeneralCommissioning.Cluster.id, ARM_FAIL_SAFE_COMMAND_ID, {
             delivered: true,
             answered: true,
@@ -1393,15 +1393,12 @@ describe("OperationalCertificateUpdate", () => {
         const { controller, device } = await site.addUncommissionedPair();
         await controller.start();
         const ca = controller.env.get(CertificateAuthority);
-        const generateNoc = ca.generateNoc;
-        ca.generateNoc = (publicKey, fabricId, nodeId, caseAuthenticatedTags) =>
-            generateNoc.call(
-                ca,
-                publicKey,
-                fabricId,
-                nodeId,
-                caseAuthenticatedTags ?? [CaseAuthenticatedTag(0x1234_0001)],
-            );
+        const issueNoc = ca.issueNoc;
+        ca.issueNoc = request =>
+            issueNoc.call(ca, {
+                ...request,
+                caseAuthenticatedTags: request.caseAuthenticatedTags ?? [CaseAuthenticatedTag(0x1234_0001)],
+            });
         try {
             await withEntropy([controller, device], async () => {
                 const { passcode, discriminator } = device.state.commissioning;
@@ -1410,7 +1407,7 @@ describe("OperationalCertificateUpdate", () => {
                 });
             });
         } finally {
-            ca.generateNoc = generateNoc;
+            ca.issueNoc = issueNoc;
         }
         const peer = await subscribedPeer(controller, "peer1");
         const fabric = deviceFabric(device);
@@ -1591,9 +1588,9 @@ describe("OperationalCertificateUpdate", () => {
         await controller.start();
         const ca = controller.env.get(CertificateAuthority);
         const tags = [CaseAuthenticatedTag(0x1234_0001)];
-        const generateNoc = ca.generateNoc;
-        ca.generateNoc = (publicKey, fabricId, nodeId, caseAuthenticatedTags) =>
-            generateNoc.call(ca, publicKey, fabricId, nodeId, caseAuthenticatedTags ?? tags);
+        const issueNoc = ca.issueNoc;
+        ca.issueNoc = request =>
+            issueNoc.call(ca, { ...request, caseAuthenticatedTags: request.caseAuthenticatedTags ?? tags });
         try {
             await withEntropy([controller, device], async () => {
                 const { passcode, discriminator } = device.state.commissioning;
@@ -1602,7 +1599,7 @@ describe("OperationalCertificateUpdate", () => {
                 });
             });
         } finally {
-            ca.generateNoc = generateNoc;
+            ca.issueNoc = issueNoc;
         }
         const nocTags = () => Noc.fromTlv(deviceFabric(device).operationalCert).cert.subject.caseAuthenticatedTags;
         expect(nocTags()).deep.equals(tags);
@@ -1613,6 +1610,34 @@ describe("OperationalCertificateUpdate", () => {
 
         expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).false;
         expect(nocTags()).deep.equals(tags);
+    });
+
+    it("sends the ICAC an external issuer returns with the new NOC", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addUncommissionedPair();
+        const crypto = controller.env.get(Crypto);
+        const signer = await withEntropy([controller], () => CertificateAuthority.create(crypto, true));
+        controller.env.set(
+            CertificateAuthority,
+            await CertificateAuthority.create(crypto, {
+                rootCert: signer.rootCert,
+                issueNoc: request => signer.issueNoc(request),
+            }),
+        );
+        await controller.start();
+        await withEntropy([controller, device], async () => {
+            const { passcode, discriminator } = device.state.commissioning;
+            await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+                macrotasks: true,
+            });
+        });
+        const peer = await subscribedPeer(controller, "peer1");
+        const before = snapshot(device);
+
+        await update(controller, device, peer);
+
+        expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).false;
+        expect(deviceFabric(device).intermediateCACert).deep.equals(signer.icacCert);
     });
 
     it("keeps the new NOC when CommissioningComplete committed but another operation's commit answered NoFailSafe", async () => {

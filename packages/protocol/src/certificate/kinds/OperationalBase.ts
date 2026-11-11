@@ -55,6 +55,16 @@ export abstract class OperationalBase<CT extends MatterCertificate> extends Cert
     abstract asSignedTlv(): Bytes;
 
     /**
+     * Throws {@link CertificateError} when the issuer DN is not the subject DN of {@link signer}.  The CHIP SDK finds
+     * the signer of a certificate by this DN and by the authority key identifier.
+     */
+    protected verifyIssuedBy(signer: OperationalBase<MatterCertificate>) {
+        if (!DistinguishedName.areEqual(this.cert.issuer, signer.cert.subject)) {
+            throw new CertificateError(`Certificate issuer must be equal to the subject of its signing certificate.`);
+        }
+    }
+
+    /**
      * Verifies general requirements a Matter certificate fields must fulfill.
      * Rules for this are listed in @see {@link MatterSpecification.v161.Core} §6.5.x
      */

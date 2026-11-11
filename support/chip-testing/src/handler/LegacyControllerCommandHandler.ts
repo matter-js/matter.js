@@ -584,10 +584,11 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             certSigningRequest,
         );
 
+        const { noc, icac } = await ca.issueNoc({ publicKey: operationalPublicKey, fabricId, nodeId });
         return {
             IPK: identityProtectionKey,
-            NOC: await ca.generateNoc(operationalPublicKey, fabricId, nodeId),
-            ICAC: ca.icacCert,
+            NOC: noc,
+            ICAC: icac,
             RCAC: rootCertBytes,
         };
     }

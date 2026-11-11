@@ -361,6 +361,7 @@ type InstalledCertificate =
 
 interface NewCertificate {
     nocValue: Bytes;
+    icacValue?: Bytes;
     operationalPublicKey: Bytes;
 
     /** The verified NOC the peer held before the update. */
@@ -462,16 +463,18 @@ async function installNewCertificate(
             { crypto: ca.crypto, attestationChallenge: session.attestationChallengeKey, csrNonce, dacPublicKey },
             csrResponse,
         );
+        const { noc, icac } = await ca.issueNoc({
+            publicKey: operationalPublicKey,
+            fabricId: fabric.fabricId,
+            nodeId: interaction.address.nodeId,
+            caseAuthenticatedTags: previous.caseAuthenticatedTags,
+        });
         certificate = {
             operationalPublicKey,
             previousNoc: previous.noc,
             fabricIndex,
-            nocValue: await ca.generateNoc(
-                operationalPublicKey,
-                fabric.fabricId,
-                interaction.address.nodeId,
-                previous.caseAuthenticatedTags,
-            ),
+            nocValue: noc,
+            icacValue: icac,
         };
     } catch (cause) {
         await disarmFailsafe(interaction);
@@ -487,7 +490,7 @@ async function installNewCertificate(
                     endpoint: RootEndpointNumber,
                     cluster: OperationalCredentials,
                     command: "updateNoc",
-                    fields: { nocValue: certificate.nocValue, icacValue: ca.icacCert },
+                    fields: { nocValue: certificate.nocValue, icacValue: certificate.icacValue },
                 },
                 { useExtendedFailSafeMessageResponseTimeout: true },
             ),

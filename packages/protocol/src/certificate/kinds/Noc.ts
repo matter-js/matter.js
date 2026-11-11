@@ -8,6 +8,7 @@ import { Bytes, CertificateError, Crypto, Diagnostic, PublicKey } from "@matter/
 import { CaseAuthenticatedTag, FabricId, NodeId } from "@matter/types";
 import { Certificate } from "./Certificate.js";
 import { OperationalCertificate } from "./definitions/operational.js";
+import { DistinguishedName } from "./DistinguishedName.js";
 import { Icac } from "./Icac.js";
 import { OperationalBase } from "./OperationalBase.js";
 import { Rcac } from "./Rcac.js";
@@ -27,6 +28,26 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
     static fromTlv(tlv: Bytes) {
         Noc.assertTlvSize(tlv);
         return new Noc(OperationalCertificate.TlvNoc.decode(tlv));
+    }
+
+    /**
+     * Verify a NOC and its optional ICAC against a root certificate, all in Matter TLV form.  An empty ICAC counts as
+     * none.  Returns the decoded NOC and the certificate that signed it.
+     *
+     * Throws {@link CertificateError} when the certificates do not fit each other and `CryptoVerifyError` when a
+     * signature is wrong.  A malformed certificate throws its decoding error.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.5
+     */
+    static async verifyChain(crypto: Crypto, rootCert: Bytes, noc: Bytes, icac?: Bytes) {
+        const root = Rcac.fromTlv(rootCert);
+        const ica = icac !== undefined && icac.byteLength > 0 ? Icac.fromTlv(icac) : undefined;
+        if (ica !== undefined) {
+            await ica.verify(crypto, root);
+        }
+        const nocCert = Noc.fromTlv(noc);
+        const signer = await nocCert.verify(crypto, root, ica);
+        return { noc: nocCert, signer };
     }
 
     /** Construct the class from an ASN.1/DER encoded certificate */
@@ -171,22 +192,28 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
             throw new CertificateError(`Noc certificate authorityKeyIdentifier must be 160 bit.`);
         }
 
-        let issuer: Rcac | Icac | undefined;
-        if (Bytes.areEqual(authorityKeyIdentifier, root.cert.extensions.subjectKeyIdentifier)) {
-            issuer = root;
-        } else if (
-            ica !== undefined &&
-            Bytes.areEqual(authorityKeyIdentifier, ica.cert.extensions.subjectKeyIdentifier)
-        ) {
-            issuer = ica;
-        }
-
-        if (issuer === undefined) {
+        const keyMatches = [root, ica].filter(
+            (candidate): candidate is Rcac | Icac =>
+                candidate !== undefined &&
+                Bytes.areEqual(authorityKeyIdentifier, candidate.cert.extensions.subjectKeyIdentifier),
+        );
+        if (keyMatches.length === 0) {
             throw new CertificateError(
                 `Noc certificate authorityKeyIdentifier must be equal to Root/Ica subjectKeyIdentifier.`,
             );
         }
 
+        // Like the CHIP SDK, select the signer by key identifier and subject DN: a root and an ICAC may share a key
+        const issuer = keyMatches.find(candidate =>
+            DistinguishedName.areEqual(this.cert.issuer, candidate.cert.subject),
+        );
+        if (issuer === undefined) {
+            throw new CertificateError(
+                `Noc certificate issuer must be equal to the subject of the Root/Ica certificate with its authorityKeyIdentifier.`,
+            );
+        }
+
         await crypto.verifyEcdsa(PublicKey(issuer.cert.ellipticCurvePublicKey), this.asUnsignedDer(), this.signature);
+        return issuer;
     }
 }

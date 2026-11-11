@@ -55,11 +55,7 @@ export class Icac extends OperationalBase<OperationalCertificate.Icac> {
     async verify(crypto: Crypto, root: Rcac) {
         this.generalVerify();
 
-        const {
-            subject,
-            issuer: { rcacId },
-            extensions,
-        } = this.cert;
+        const { subject, extensions } = this.cert;
         const { fabricId, icacId } = subject;
         const { basicConstraints, extendedKeyUsage, subjectKeyIdentifier, authorityKeyIdentifier } = extensions;
 
@@ -107,14 +103,7 @@ export class Icac extends OperationalBase<OperationalCertificate.Icac> {
             );
         }
 
-        // Verify the certificate chain by checking rcac ids in subject and issuer
-        if (root.cert.subject.rcacId !== rcacId) {
-            throw new CertificateError(
-                `RcacId in Ica certificate does not match the rcacId in the parent certificate. ${Diagnostic.json(
-                    root.cert.subject.rcacId,
-                )} !== ${Diagnostic.json(rcacId)}`,
-            );
-        }
+        this.verifyIssuedBy(root);
 
         // The basic constraints extension SHALL be encoded with is-ca set to true.
         if (!basicConstraints.isCa) {

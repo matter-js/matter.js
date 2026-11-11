@@ -110,8 +110,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
 
 - @matter/protocol
+    - Feature: (@henrikdimander) `CertificateAuthority.create(crypto, issuer)` creates a certificate authority whose NOCs come from a `CertificateAuthority.Issuer`, for example a remote CA service, so the controller holds no CA private key
+    - Feature: (@henrikdimander) During commissioning, the NOC request to an external issuer carries the device's attestation and CSR responses, so a remote CA can verify them itself
+    - Feature: A `CertificateAuthority.Issuer` can provide the fabric ID and IPK that new controller fabrics use, so several controllers share one fabric
     - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair
     - Feature: `NocsrValidator` validates a CSRResponse and throws `NocsrError` when a check fails
+    - Enhancement: `CertificateAuthority.issueNoc()` returns each NOC with the ICAC that signed it, and the controller installs that ICAC for its own fabric and in AddNOC and UpdateNOC
+    - Enhancement: `DistinguishedName.areEqual()` compares two DNs RDN by RDN, in order
     - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Enhancement: The commissioning attestation policy also receives the findings collected before a hard failure, and a policy rejection names the error findings
@@ -124,6 +129,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `ExchangeSendOptions.onTransmitted` runs once the first transmission of a message went out
     - Enhancement: `SecureChannelMessenger.sendSuccess()` takes an optional `onTransmitted` callback
     - Enhancement: Message logs show the I flag in `msgFlags` for messages from the exchange initiator
+    - Adjustment: `CertificateAuthority.generateNoc()` is deprecated; it drops the ICAC
+    - Adjustment: NOC and ICAC verification refuses a certificate whose issuer DN differs from the subject DN of the certificate that signed it, as the CHIP SDK does; a matter.js device commissioned by a controller with a hand-built CA configuration whose root or ICAC subject is not just the configured `rcacId` or `icacId` needs to be commissioned again
     - Adjustment: Exchange logs show `maxTrans` and `retransTimeLimit` on the first transmission of a message that has its own retransmission budget, instead of always `maxTrans: 5` when the exchange opens
     - Adjustment: `DeviceAttestationValidator.validate()` returns a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as an error-level finding instead of throwing
     - Adjustment: A CSRResponse that is empty, lacks a field, has NOCSRElements over 900 bytes, or cannot be decoded fails commissioning with `NocsrError`
@@ -148,6 +155,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
     - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
+    - Fix: A controller fabric takes the fabric ID of a root certificate that has one
+    - Fix: The local certificate authority uses the full subject of its root or ICAC as the issuer DN, so a stored root or ICAC whose subject holds more than its ID issues NOCs that verify
+    - Fix: A `FabricAuthority.defaultFabric()` call that arrives while the NOC renewal runs waits for it and returns the renewed fabric
     - Fix: A client subscription is replaced early when the peer does not acknowledge our status response to a report chunk, or to a final report while the replacement would prime compactly
     - Fix: Commissioning that stops on an unexpected error expires the device's fail-safe, so the device accepts a new commissioning attempt right away
     - Fix: `ClientInteraction.close()` closes only the subscriptions established through that interaction, no longer every subscription to the same peer

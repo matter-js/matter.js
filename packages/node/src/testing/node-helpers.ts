@@ -250,16 +250,16 @@ export function CommissioningHelper() {
 
             const { certSigningRequest } = TlvCertSigningRequest.decode(nocsrElements);
             const peerPublicKey = await Certificate.getPublicKeyFromCsr(crypto, certSigningRequest);
-            const noc = await authority.ca.generateNoc(
-                peerPublicKey,
-                controllerFabric.fabricId,
-                controllerFabric.nodeId,
-            );
+            const { noc, icac } = await authority.ca.issueNoc({
+                publicKey: peerPublicKey,
+                fabricId: controllerFabric.fabricId,
+                nodeId: controllerFabric.nodeId,
+            });
 
             await node.online(context, async agent => {
                 const result = await agent.operationalCredentials.addNoc({
                     nocValue: noc,
-                    icacValue: controllerFabric.intermediateCACert,
+                    icacValue: icac,
                     ipkValue: controllerFabric.identityProtectionKey,
                     caseAdminSubject: NodeId((index + 1) * 100),
                     adminVendorId: VendorId(65521),

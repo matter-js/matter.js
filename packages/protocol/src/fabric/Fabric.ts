@@ -5,7 +5,6 @@
  */
 
 import { Certificate } from "#certificate/kinds/Certificate.js";
-import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
 import { FabricGroups, GROUP_SECURITY_INFO } from "#groups/FabricGroups.js";
@@ -355,15 +354,7 @@ export class Fabric {
     }
 
     async verifyCredentials(operationalCert: Bytes, intermediateCACert?: Bytes) {
-        const rootCert = Rcac.fromTlv(this.rootCert);
-        const nocCert = Noc.fromTlv(operationalCert);
-        const icaCert = intermediateCACert !== undefined ? Icac.fromTlv(intermediateCACert) : undefined;
-        if (icaCert !== undefined) {
-            // Validate ICACertificate against Root Certificate
-            await icaCert.verify(this.#crypto, rootCert);
-        }
-        // Validate NOC Certificate against ICA Certificate
-        await nocCert.verify(this.#crypto, rootCert, icaCert);
+        await Noc.verifyChain(this.#crypto, this.rootCert, operationalCert, intermediateCACert);
     }
 
     matchesFabricIdAndRootPublicKey(fabricId: FabricId, rootPublicKey: Bytes) {
@@ -622,13 +613,7 @@ export class FabricBuilder {
             throw new PublicKeyError("Operational certificate does not match public key");
         }
 
-        const rootCert = Rcac.fromTlv(rootCertBytes);
-        const nocCert = Noc.fromTlv(operationalCert);
-        const icaCert = intermediateCACert !== undefined ? Icac.fromTlv(intermediateCACert) : undefined;
-        if (icaCert !== undefined) {
-            await icaCert.verify(this.#crypto, rootCert);
-        }
-        await nocCert.verify(this.#crypto, rootCert, icaCert);
+        await Noc.verifyChain(this.#crypto, rootCertBytes, operationalCert, intermediateCACert);
 
         return { fabricId: FabricId(fabricId), nodeId, intermediateCACert };
     }

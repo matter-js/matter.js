@@ -348,6 +348,54 @@ off via a callback to complete the flow elsewhere. On the new API:
   never finished — discard that local node (`node.delete()`) once `completingController` has taken over; treat
   `completingController` as the source of truth for the peer going forward.
 
+### External certificate authority
+
+A controller can get every NOC from an external CA, for example a remote CA service that holds the root and ICAC
+keys, so the controller holds no CA private key. Implement `CertificateAuthority.Issuer`, install the authority in
+the environment of the controller node, and create the node with that environment:
+
+```ts
+import { Crypto, Environment } from "@matter/general";
+import { ControllerBehavior, ServerNode } from "@matter/node";
+import { CertificateAuthority } from "@matter/protocol";
+
+const env = new Environment("controller", Environment.default);
+env.set(
+    CertificateAuthority,
+    await CertificateAuthority.create(env.get(Crypto), {
+        rootCert, // RCAC, Matter TLV
+        fabric: { fabricId, identityProtectionKey }, // optional: the fabric this CA serves, IPK 16 bytes
+        async issueNoc(request) {
+            // request: { publicKey, fabricId, nodeId, caseAuthenticatedTags?, evidence?, abort? }
+            const { noc, icac } = await myCaService.sign(request);
+            return { noc, icac }; // Matter TLV; icac undefined when the root signs directly
+        },
+    }),
+);
+const controller = await ServerNode.create(ServerNode.RootEndpointWithoutGroupcast.with(ControllerBehavior), {
+    environment: env,
+    id: "controller",
+    controller: { adminNodeId }, // this controller's own node ID, used when it creates its fabric
+});
+```
+
+- matter.js verifies each returned NOC against the root, the requested subject and the public key.
+- During commissioning, `request.evidence` carries the device's attestation and CSR responses, so the CA can check
+  them itself. The commissioner allows 30 seconds for the device NOC and re-arms the device's fail-safe first when it
+  would not last that long; `request.abort` aborts when the time is over. When `issueNoc` throws, commissioning stops and matter.js
+  tries to end the device's fail-safe; if that fails, the device ends it when its timer runs out.
+- The controller does not renew its own NOC at start with an external issuer unless the issuer sets
+  `renewNocAtStart: true`. A failed renewal is logged and the current NOC stays in use.
+- `CertificateAuthority.config` is not available for an external issuer; it holds no key material.
+- An authority set on the environment the node is created with, as above, stays across a factory reset of the node.
+  One set on the node's own environment (`node.env`) is removed by the reset; set it again before the next start,
+  else the node creates a built-in authority with a new root.
+
+Several controllers in one fabric (for example a gateway and phone apps) need the same root certificate, fabric ID
+and IPK, so let the issuer provide `fabric`. Each running controller needs its own node ID (`adminNodeId`), and the
+node IDs the controllers assign to devices must not overlap. matter.js does not check any of this across
+controllers.
+
 ---
 
 ## Subscriptions & reconnection are automatic now

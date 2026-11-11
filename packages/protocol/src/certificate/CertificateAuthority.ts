@@ -5,58 +5,45 @@
  */
 
 import {
+    Abort,
     BinaryKeyPair,
     Bytes,
+    CertificateError,
     Construction,
+    CRYPTO_SYMMETRIC_KEY_LENGTH,
     Crypto,
     Environment,
     Environmental,
     ImplementationError,
-    InternalError,
     Logger,
     MatterAggregateError,
-    PrivateKey,
     StorageContext,
     StorageManager,
-    Time,
     asyncNew,
-    toHex,
 } from "@matter/general";
 import { CaseAuthenticatedTag, FabricId, NodeId } from "@matter/types";
-import { jsToMatterDate } from "./kinds/definitions/asn.js";
 import { Icac } from "./kinds/Icac.js";
 import { Noc } from "./kinds/Noc.js";
 import { Rcac } from "./kinds/Rcac.js";
+import { LocalIssuer } from "./LocalIssuer.js";
 
 const logger = Logger.get("CertificateAuthority");
 
 const CERTIFICATES_CONTEXT = "certificates";
 
 /**
- * Manages the root key pair for a fabric owned by a local node.
+ * Issues the operational certificates (NOCs) of the fabrics a local node controls.
  *
- * Supports optional Intermediate Certificate Authority (ICAC) for 3-tier PKI hierarchy.
- * When ICAC is enabled, the certificate chain becomes: RCAC -> ICAC -> NOC instead of RCAC -> NOC.
- *
- * Behavior:
- * - When ICAC exists, it is always used to sign NOCs (operational certificates)
- * - When no ICAC exists, the root certificate signs NOCs directly
- *
- * Security implications:
- * - 3-tier PKI allows RCAC to remain in secure storage while ICAC signs operational certificates
- * - Storage of existing certificates is preserved when loading from storage
- * - Configuration changes after creation are not supported
+ * Every NOC comes from an {@link CertificateAuthority.Issuer}.  The built-in issuer holds the key pair of the signing
+ * certificate, the root or the ICAC when there is one, and signs NOCs locally; it is the default.  An external issuer, for example a remote CA
+ * service, receives each NOC request instead, and the authority then holds no private key.
  */
 export class CertificateAuthority {
     #crypto: Crypto;
-    #rootCertId = BigInt(0);
-    #rootKeyPair?: PrivateKey;
-    #rootKeyIdentifier?: Bytes;
-    #rootCertBytes?: Bytes;
-    #nextCertificateId = BigInt(1);
     #construction: Construction<CertificateAuthority>;
-    #icacProps?: IcacProps;
-    #storage?: StorageContext;
+    #local?: LocalIssuer;
+    #issuer?: CertificateAuthority.Issuer;
+    #rootCert?: Bytes;
 
     get crypto() {
         return this.#crypto;
@@ -74,7 +61,8 @@ export class CertificateAuthority {
      * Discard the key material this authority holds, persisted and in memory.
      *
      * The authority is unusable afterwards, so a holder that starts a new operation fails loudly rather than issuing
-     * certificates no fabric can validate.  A signing operation already in flight snapshots its key and completes.
+     * certificates no fabric can validate.  A NOC request already in flight completes with the root certificate it
+     * started with.
      */
     async erase() {
         await MatterAggregateError.settleSeries(
@@ -83,13 +71,11 @@ export class CertificateAuthority {
                 () => this.#construction.close(),
 
                 () => {
-                    this.#rootKeyPair = undefined;
-                    this.#rootKeyIdentifier = undefined;
-                    this.#rootCertBytes = undefined;
-                    this.#icacProps = undefined;
+                    this.#issuer = undefined;
+                    this.#rootCert = undefined;
                 },
 
-                () => this.#storage?.clearAll(),
+                () => this.#local?.erase(),
             ],
             "Error erasing certificate authority",
         );
@@ -126,9 +112,23 @@ export class CertificateAuthority {
      */
     static create(crypto: Crypto, generateIntermediateCert?: boolean): Promise<CertificateAuthority>;
 
+    /**
+     * Creates a new CertificateAuthority instance that obtains every NOC from {@link issuer}, for example a remote CA
+     * service.  The authority holds no private key and stores nothing; {@link config} is not available.
+     *
+     * Install it with `env.set(CertificateAuthority, ...)` before the controller node starts, on the environment the
+     * node is created with or on the node's own environment (`node.env`).  A factory reset of the node removes an
+     * authority set on `node.env`; set it again before the next start, else the node creates a built-in authority with
+     * a new root.
+     *
+     * Throws {@link ImplementationError} when the root certificate does not verify or the issuer's fabric values are
+     * invalid.
+     */
+    static create(crypto: Crypto, issuer: CertificateAuthority.Issuer): Promise<CertificateAuthority>;
+
     static async create(
         crypto: Crypto,
-        options?: StorageContext | CertificateAuthority.Configuration | boolean,
+        options?: StorageContext | CertificateAuthority.Configuration | CertificateAuthority.Issuer | boolean,
         generateIntermediateCert?: boolean,
     ) {
         return asyncNew(CertificateAuthority, crypto, options, generateIntermediateCert);
@@ -136,51 +136,27 @@ export class CertificateAuthority {
 
     constructor(
         crypto: Crypto,
-        options?: StorageContext | CertificateAuthority.Configuration | boolean,
+        options?: StorageContext | CertificateAuthority.Configuration | CertificateAuthority.Issuer | boolean,
         generateIntermediateCert?: boolean,
     ) {
         this.#crypto = crypto;
 
-        // Not deferred to the initializer below: erase() must find the context even mid-construction
-        if (options instanceof StorageContext) {
-            this.#storage = options;
+        if (isIssuer(options)) {
+            const issuer = options;
+            this.#construction = Construction(this, () => this.#installExternal(issuer));
+            return;
         }
 
+        // Created here, not in the initializer below: erase() must find the storage even mid-construction
+        const local = new LocalIssuer(crypto, options instanceof StorageContext ? options : undefined);
+        this.#local = local;
+        const config = typeof options === "object" && !(options instanceof StorageContext) ? options : undefined;
+        const requireIcac = typeof options === "boolean" ? options : generateIntermediateCert;
+
         this.#construction = Construction(this, async () => {
-            if (typeof options === "boolean") {
-                generateIntermediateCert = options;
-                options = undefined;
-            }
-
-            const certValues = options instanceof StorageContext ? await options.values() : (options ?? {});
-
-            // When generateIntermediateCert is set, we ensure it, or if a valid ICAC is stored then we require it
-            // else we check what's in the storage and default to false
-            const requireIcac = generateIntermediateCert ?? this.#isValidStoredIcacCertificate(certValues);
-
-            if (this.#isValidStoredRootCertificate(certValues)) {
-                this.#loadFromStorage(certValues, requireIcac);
-                logger.info(
-                    `Loaded stored credentials with ID ${this.#rootCertId}${this.#icacProps !== undefined ? ` and ICAC with ID ${this.#icacProps.certId}` : ""}`,
-                );
-                return;
-            }
-
-            this.#rootKeyPair = await this.#crypto.createKeyPair();
-            this.#rootKeyIdentifier = Bytes.of(await this.#crypto.computeHash(this.#rootKeyPair.publicKey, "SHA-1"));
-            this.#rootCertBytes = await this.#generateRootCert();
-
-            if (requireIcac) {
-                this.#icacProps = await this.#generateIcacProps();
-            }
-
-            logger.info(
-                `Created new credentials with ID ${this.#rootCertId}${this.#icacProps !== undefined ? ` and ICAC with ID ${this.#icacProps.certId}` : ""}`,
-            );
-
-            if (options instanceof StorageContext) {
-                await options.set(this.#buildStorageData());
-            }
+            await local.initialize(config, requireIcac);
+            this.#rootCert = local.rootCert;
+            this.#issuer = local;
         });
     }
 
@@ -192,255 +168,191 @@ export class CertificateAuthority {
     }
 
     get rootCert(): Bytes {
-        return this.#construction.assert("root cert", this.#rootCertBytes);
+        return this.#construction.assert("root cert", this.#rootCert);
     }
 
+    /**
+     * The ICAC the built-in issuer signs NOCs with.  Undefined without an ICAC and with an external issuer; a NOC from
+     * {@link issueNoc} comes with the ICAC that signed it.
+     */
     get icacCert(): Bytes | undefined {
-        if (!this.#icacProps) {
+        const icac = this.#local?.icacCert;
+        if (icac === undefined) {
             return undefined;
         }
-        return this.#construction.assert("icac cert", this.#icacProps.certBytes);
+        return this.#construction.assert("icac cert", icac);
     }
 
+    /**
+     * The fabric the external issuer serves, or undefined.
+     */
+    get fabric(): CertificateAuthority.Issuer.Fabric | undefined {
+        return this.#issuer?.fabric;
+    }
+
+    /** Whether this authority signs NOCs itself with the built-in issuer, without asking an external one. */
+    get isBuiltIn() {
+        return this.#local !== undefined;
+    }
+
+    /**
+     * Whether the controller replaces the key pair of its own NOC once per run, at the first use of its fabric.  True
+     * for the built-in issuer; for an external issuer as {@link CertificateAuthority.Issuer.renewNocAtStart} says.
+     */
+    get renewsNocAtStart() {
+        if (this.#local !== undefined) {
+            return true;
+        }
+        return this.#issuer?.renewNocAtStart ?? false;
+    }
+
+    /**
+     * The key material and state of the built-in issuer, for storing it elsewhere.
+     *
+     * Throws {@link ImplementationError} for an authority with an external issuer, which holds no key material.
+     */
     get config(): CertificateAuthority.Configuration {
-        return {
-            rootCertId: this.#rootCertId,
-            rootKeyIdentifier: this.construction.assert("root key identifier", this.#rootKeyIdentifier),
-            rootCertBytes: this.construction.assert("root cert bytes", this.#rootCertBytes),
-            nextCertificateId: this.#nextCertificateId,
-            ...(this.#icacProps !== undefined
-                ? {
-                      rootKeyPair: this.#rootKeyPair?.keyPair, // rootKeyPair is optional when using ICAC
-                      icacCertId: this.#icacProps.certId,
-                      icacKeyPair: this.construction.assert("icac key pair", this.#icacProps.keyPair).keyPair,
-                      icacKeyIdentifier: this.construction.assert("icac key identifier", this.#icacProps.keyIdentifier),
-                      icacCertBytes: this.construction.assert("icac cert bytes", this.#icacProps.certBytes),
-                  }
-                : {
-                      rootKeyPair: this.construction.assert("root key pair", this.#rootKeyPair).keyPair,
-                  }),
-        };
+        const local = this.#local;
+        if (local === undefined) {
+            throw new ImplementationError("A certificate authority with an external issuer holds no key material");
+        }
+        this.#construction.assert("config");
+        return local.config;
     }
 
-    async #generateRootCert() {
-        const now = Time.now;
-        const cert = new Rcac({
-            serialNumber: Bytes.fromHex(toHex(this.#rootCertId)),
-            signatureAlgorithm: 1 /* EcdsaWithSHA256 */,
-            publicKeyAlgorithm: 1 /* EC */,
-            ellipticCurveIdentifier: 1 /* P256v1 */,
-            issuer: { rcacId: this.#rootCertId },
-            notBefore: jsToMatterDate(now, -1),
-            notAfter: jsToMatterDate(now, 10),
-            subject: { rcacId: this.#rootCertId },
-            ellipticCurvePublicKey: this.#initializedRootKeyPair.publicKey,
-            extensions: {
-                basicConstraints: { isCa: true },
-                keyUsage: {
-                    keyCertSign: true,
-                    cRLSign: true,
-                },
-                subjectKeyIdentifier: this.#initializedRootKeyIdentifier,
-                authorityKeyIdentifier: this.#initializedRootKeyIdentifier,
-            },
-        });
-        await cert.sign(this.#crypto, this.#initializedRootKeyPair);
-        return cert.asSignedTlv();
+    /**
+     * Issue a NOC for {@link CertificateAuthority.Issuer.NocRequest.publicKey}.
+     *
+     * The built-in issuer signs it locally.  A NOC from an external issuer is verified against {@link rootCert}, the
+     * requested subject and the requested public key before it is returned.  The ICAC returned with the NOC is the one
+     * to install with it.
+     *
+     * Throws:
+     * - `ValidationOutOfBoundsError` for an invalid CAT list, before the issuer is asked
+     * - {@link CertificateError} when the NOC of an external issuer does not verify
+     * - an `AbortedError` when {@link CertificateAuthority.Issuer.NocRequest.abort} aborts first (a native signal
+     *   throws its reason instead)
+     * - whatever the issuer throws, unchanged
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.5.6
+     */
+    async issueNoc(request: CertificateAuthority.Issuer.NocRequest): Promise<CertificateAuthority.Issuer.IssuedNoc> {
+        const issuer = this.#construction.assert("issuer", this.#issuer);
+        const rootCert = this.rootCert;
+        request.abort?.throwIfAborted();
+        const { caseAuthenticatedTags } = request;
+        if (caseAuthenticatedTags !== undefined) {
+            CaseAuthenticatedTag.validateNocTagList(caseAuthenticatedTags);
+        }
+
+        if (issuer === this.#local) {
+            return await issuer.issueNoc(request);
+        }
+
+        const issued = await Abort.attempt(request.abort, issuer.issueNoc(request));
+        try {
+            await this.#verifyIssued(rootCert, request, issued);
+        } catch (error) {
+            if (error instanceof CertificateError) {
+                throw error;
+            }
+            throw new CertificateError(
+                `NOC from the external issuer for node ${NodeId.strOf(request.nodeId)} is invalid`,
+                { cause: error },
+            );
+        }
+        return issued;
     }
 
-    async #generateIcacProps(): Promise<IcacProps> {
-        const certId = this.#nextCertificateId++;
-        const keyPair = await this.#crypto.createKeyPair();
-        const keyIdentifier = Bytes.of(await this.#crypto.computeHash(keyPair.publicKey, "SHA-1"));
-
-        const now = Time.now;
-        const cert = new Icac({
-            serialNumber: Bytes.fromHex(toHex(certId)),
-            signatureAlgorithm: 1 /* EcdsaWithSHA256 */,
-            publicKeyAlgorithm: 1 /* EC */,
-            ellipticCurveIdentifier: 1 /* P256v1 */,
-            issuer: { rcacId: this.#rootCertId },
-            notBefore: jsToMatterDate(now, -1),
-            notAfter: jsToMatterDate(now, 10),
-            subject: { icacId: certId },
-            ellipticCurvePublicKey: keyPair.publicKey,
-            extensions: {
-                basicConstraints: { isCa: true },
-                keyUsage: {
-                    keyCertSign: true,
-                    cRLSign: true,
-                },
-                subjectKeyIdentifier: keyIdentifier,
-                authorityKeyIdentifier: this.#initializedRootKeyIdentifier,
-            },
-        });
-        await cert.sign(this.#crypto, this.#initializedRootKeyPair);
-
-        return {
-            certId,
-            keyPair,
-            keyIdentifier,
-            certBytes: cert.asSignedTlv(),
-        };
-    }
-
+    /**
+     * Issue a NOC.
+     *
+     * @deprecated Use {@link issueNoc}.  This method returns only the NOC and drops the ICAC an external issuer
+     * returns with it.
+     */
     async generateNoc(
         publicKey: Bytes,
         fabricId: FabricId,
         nodeId: NodeId,
         caseAuthenticatedTags?: readonly CaseAuthenticatedTag[],
     ) {
-        const now = Time.now;
-        const certId = this.#nextCertificateId++;
-
-        const { issuer, signingKey, authorityKeyId } = this.#getSigningParameters();
-
-        const cert = new Noc({
-            serialNumber: Bytes.fromHex(toHex(certId)),
-            signatureAlgorithm: 1 /* EcdsaWithSHA256 */,
-            publicKeyAlgorithm: 1 /* EC */,
-            ellipticCurveIdentifier: 1 /* P256v1 */,
-            issuer,
-            notBefore: jsToMatterDate(now, -1),
-            notAfter: jsToMatterDate(now, 10),
-            subject: { fabricId, nodeId, caseAuthenticatedTags },
-            ellipticCurvePublicKey: publicKey,
-            extensions: {
-                basicConstraints: { isCa: false },
-                keyUsage: {
-                    digitalSignature: true,
-                },
-                extendedKeyUsage: [2, 1],
-                subjectKeyIdentifier: Bytes.of(await this.#crypto.computeHash(publicKey, "SHA-1")),
-                authorityKeyIdentifier: authorityKeyId,
-            },
-        });
-        await cert.sign(this.#crypto, signingKey);
-        return cert.asSignedTlv();
+        return (await this.issueNoc({ publicKey, fabricId, nodeId, caseAuthenticatedTags })).noc;
     }
 
-    get #initializedRootKeyPair() {
-        if (this.#rootKeyPair === undefined) {
-            throw new InternalError("CA private key is not installed");
-        }
-        return this.#rootKeyPair;
-    }
-
-    get #initializedRootKeyIdentifier() {
-        if (this.#rootKeyIdentifier === undefined) {
-            throw new InternalError("CA key identifier is not installed");
-        }
-        return this.#rootKeyIdentifier;
-    }
-
-    #isValidStoredRootCertificate(certValues: Record<string, unknown>): boolean {
-        return (
-            (typeof certValues.rootCertId === "number" || typeof certValues.rootCertId === "bigint") &&
-            (certValues.rootKeyPair === undefined ||
-                Bytes.isBytes(certValues.rootKeyPair) ||
-                typeof certValues.rootKeyPair === "object") &&
-            Bytes.isBytes(certValues.rootKeyIdentifier) &&
-            Bytes.isBytes(certValues.rootCertBytes) &&
-            (typeof certValues.nextCertificateId === "number" || typeof certValues.nextCertificateId === "bigint")
-        );
-    }
-
-    #isValidStoredIcacCertificate(certValues: Record<string, unknown>): boolean {
-        return (
-            (typeof certValues.icacCertId === "number" || typeof certValues.icacCertId === "bigint") &&
-            (Bytes.isBytes(certValues.icacKeyPair) || typeof certValues.icacKeyPair === "object") &&
-            Bytes.isBytes(certValues.icacKeyIdentifier) &&
-            Bytes.isBytes(certValues.icacCertBytes)
-        );
-    }
-
-    #loadFromStorage(certValues: Record<string, unknown>, requireIcac?: boolean): void {
-        this.#rootCertId = BigInt(certValues.rootCertId as bigint | number);
-        if (certValues.rootKeyPair !== undefined) {
-            // rootKeyPair is optional when using ICAC (3-tier PKI without RCAC private key)
-            this.#rootKeyPair = PrivateKey(certValues.rootKeyPair as BinaryKeyPair);
-        }
-        this.#rootKeyIdentifier = certValues.rootKeyIdentifier as Bytes;
-        this.#rootCertBytes = certValues.rootCertBytes as Bytes;
-        this.#nextCertificateId = BigInt(certValues.nextCertificateId as bigint | number);
-
-        const hasIcac = this.#isValidStoredIcacCertificate(certValues);
-        if (requireIcac !== undefined && requireIcac !== hasIcac) {
-            throw new ImplementationError(
-                `Stored credentials contain ICAC certificate: ${hasIcac}, but configuration expected it to be ${requireIcac}`,
-            );
+    async #installExternal(issuer: CertificateAuthority.Issuer) {
+        let root: Rcac;
+        try {
+            root = Rcac.fromTlv(issuer.rootCert);
+            await root.verify(this.#crypto);
+        } catch (error) {
+            throw new ImplementationError("Root certificate of the external issuer is invalid", { cause: error });
         }
 
-        if (hasIcac) {
-            this.#icacProps = {
-                certId: BigInt(certValues.icacCertId as bigint | number),
-                keyPair: PrivateKey(certValues.icacKeyPair as BinaryKeyPair),
-                keyIdentifier: certValues.icacKeyIdentifier as Bytes,
-                certBytes: certValues.icacCertBytes as Bytes,
-            };
-        } else {
-            // Validate: when no ICAC, rootKeyPair is required for signing NOCs
-            if (this.#rootKeyPair === undefined) {
+        const { fabric } = issuer;
+        if (fabric !== undefined) {
+            const { fabricId, identityProtectionKey } = fabric;
+            if (identityProtectionKey.byteLength !== CRYPTO_SYMMETRIC_KEY_LENGTH) {
                 throw new ImplementationError(
-                    "rootKeyPair is required when not using ICAC (2-tier PKI requires RCAC private key to sign NOCs)",
+                    `External issuer IPK has ${identityProtectionKey.byteLength} bytes instead of ${CRYPTO_SYMMETRIC_KEY_LENGTH}`,
+                );
+            }
+            const rootFabricId = root.cert.subject.fabricId;
+            if (rootFabricId !== undefined && FabricId(rootFabricId) !== fabricId) {
+                throw new ImplementationError(
+                    `External issuer serves fabric ID ${fabricId}, but its root certificate is for fabric ID ${rootFabricId}`,
                 );
             }
         }
+
+        this.#rootCert = issuer.rootCert;
+        this.#issuer = issuer;
+        logger.info(`Using external issuer with root certificate ID ${root.cert.subject.rcacId ?? "(none)"}`);
     }
 
-    #buildStorageData(): CertificateAuthority.Configuration {
-        return {
-            rootCertId: this.#rootCertId,
-            rootKeyIdentifier: this.#initializedRootKeyIdentifier,
-            rootCertBytes: this.#initializedRootCertBytes,
-            nextCertificateId: this.#nextCertificateId,
-            ...(this.#icacProps
-                ? {
-                      rootKeyPair: this.#rootKeyPair?.keyPair, // rootKeyPair is optional when using ICAC
-                      icacCertId: this.#icacProps.certId,
-                      icacKeyPair: this.#icacProps.keyPair.keyPair,
-                      icacKeyIdentifier: this.#icacProps.keyIdentifier,
-                      icacCertBytes: this.#icacProps.certBytes,
-                  }
-                : {
-                      rootKeyPair: this.#initializedRootKeyPair.keyPair,
-                  }),
-        };
-    }
+    async #verifyIssued(
+        rootCert: Bytes,
+        request: CertificateAuthority.Issuer.NocRequest,
+        { noc, icac }: CertificateAuthority.Issuer.IssuedNoc,
+    ) {
+        const { noc: nocCert, signer } = await Noc.verifyChain(this.#crypto, rootCert, noc, icac);
+        const {
+            subject: { nodeId, fabricId, caseAuthenticatedTags },
+            ellipticCurvePublicKey,
+        } = nocCert.cert;
 
-    #getSigningParameters(): {
-        issuer: { rcacId: bigint } | { icacId: bigint };
-        signingKey: PrivateKey;
-        authorityKeyId: Bytes;
-    } {
-        if (this.#icacProps) {
-            return {
-                issuer: { icacId: this.#icacProps.certId },
-                signingKey: this.#icacProps.keyPair,
-                authorityKeyId: this.#icacProps.keyIdentifier,
-            };
+        if (icac !== undefined && icac.byteLength > 0 && !(signer instanceof Icac)) {
+            throw new CertificateError(
+                `External issuer returned an ICAC with a NOC for node ${NodeId.strOf(nodeId)} that this ICAC did not sign`,
+            );
         }
 
-        return {
-            issuer: { rcacId: this.#rootCertId },
-            signingKey: this.#initializedRootKeyPair,
-            authorityKeyId: this.#initializedRootKeyIdentifier,
-        };
-    }
-
-    get #initializedRootCertBytes() {
-        if (this.#rootCertBytes === undefined) {
-            throw new InternalError("Root certificate is not installed");
+        const issuedTags = [...(caseAuthenticatedTags ?? [])].sort((a, b) => a - b);
+        const requestedTags = [...(request.caseAuthenticatedTags ?? [])].sort((a, b) => a - b);
+        if (
+            nodeId !== request.nodeId ||
+            fabricId !== request.fabricId ||
+            issuedTags.length !== requestedTags.length ||
+            issuedTags.some((tag, index) => tag !== requestedTags[index])
+        ) {
+            throw new CertificateError(
+                `External issuer returned a NOC for node ${NodeId.strOf(nodeId)} in fabric ${fabricId} with CATs ${issuedTags.join(",")}, requested was node ${NodeId.strOf(request.nodeId)} in fabric ${request.fabricId} with CATs ${requestedTags.join(",")}`,
+            );
         }
-        return this.#rootCertBytes;
+        if (!Bytes.areEqual(ellipticCurvePublicKey, request.publicKey)) {
+            throw new CertificateError(
+                `External issuer returned a NOC for node ${NodeId.strOf(nodeId)} with another public key than requested`,
+            );
+        }
     }
 }
 
-interface IcacProps {
-    certId: bigint;
-    keyPair: PrivateKey;
-    keyIdentifier: Bytes;
-    certBytes: Bytes;
+function isIssuer(options: unknown): options is CertificateAuthority.Issuer {
+    return (
+        typeof options === "object" &&
+        options !== null &&
+        "issueNoc" in options &&
+        typeof options.issueNoc === "function"
+    );
 }
 
 export namespace CertificateAuthority {
@@ -481,4 +393,120 @@ export namespace CertificateAuthority {
      * the RCAC private key.
      */
     export type Configuration = ConfigurationWithoutIcac | ConfigurationWithIcac;
+
+    /**
+     * Issues NOCs for a {@link CertificateAuthority}, for example by forwarding the request to a remote CA service.
+     * Certificates are in Matter TLV form, except the X.509 DER certificates in {@link Issuer.CommissioningEvidence}.
+     *
+     * Several controllers in one fabric need the same root certificate, fabric ID and IPK.  An issuer that serves them
+     * provides {@link fabric}, so each controller creates its fabric with these values.  Each running controller needs
+     * its own node ID, and the node IDs the controllers assign to devices must not overlap; matter.js does not check
+     * this.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.5
+     */
+    export interface Issuer {
+        /** The RCAC every issued NOC chains to. */
+        readonly rootCert: Bytes;
+
+        /**
+         * The fabric this issuer serves.  When set, a new controller fabric uses its fabric ID and IPK.  A configured
+         * fabric ID that differs fails with {@link ImplementationError}.
+         */
+        readonly fabric?: Issuer.Fabric;
+
+        /**
+         * Whether the controller replaces the key pair of its own NOC once per run, at the first use of its fabric, as
+         * it does with the built-in issuer.  Default false: an external issuer is asked only for new NOCs.
+         */
+        readonly renewNocAtStart?: boolean;
+
+        /**
+         * Issue a NOC for the request's public key with the requested subject.
+         *
+         * The controller calls this for its own NOC when it creates its fabric or renews its key pair, and once per
+         * device during commissioning while the device's fail-safe timer runs.  For a device NOC,
+         * {@link Issuer.NocRequest.abort} aborts when the time the commissioner allows for issuing ends.  When this
+         * throws during commissioning, commissioning stops and the commissioner tries to end the device's fail-safe.
+         */
+        issueNoc(request: Issuer.NocRequest): Promise<Issuer.IssuedNoc>;
+    }
+
+    export namespace Issuer {
+        /** The fabric values an external CA owns, shared by all controllers of the fabric. */
+        export interface Fabric {
+            /** Must match the fabric ID of the root certificate when that has one. */
+            fabricId: FabricId;
+
+            /**
+             * The IPK, 16 bytes.  Controllers of one fabric need the same IPK to open CASE sessions to its devices.
+             *
+             * @see {@link MatterSpecification.v161.Core} § 4.14.2.6.1
+             */
+            identityProtectionKey: Bytes;
+        }
+
+        /** The subject and public key of a NOC to issue. */
+        export interface NocRequest {
+            publicKey: Bytes;
+            fabricId: FabricId;
+            nodeId: NodeId;
+            caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
+
+            /**
+             * What the device returned during commissioning, when the NOC is for a device being commissioned.
+             * Undefined for the controller's own NOC.  A remote CA can use it to verify the device's attestation and
+             * the binding of {@link publicKey} to the DAC itself, instead of trusting the controller's check.
+             */
+            evidence?: CommissioningEvidence;
+
+            /**
+             * Aborts when the result is no longer needed.  For a device NOC it aborts when the time the commissioner
+             * allows for issuing ends; the commissioner extends the device's fail-safe to cover that time.
+             */
+            abort?: AbortSignal;
+        }
+
+        /** An issued NOC and the ICAC that signed it. */
+        export interface IssuedNoc {
+            noc: Bytes;
+
+            /** The ICAC that signed {@link noc}.  Undefined, or empty, when the root signed it directly. */
+            icac?: Bytes;
+        }
+
+        /**
+         * The device's attestation and operational CSR responses, as received.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 6.2.3, § 11.18.6.2, § 11.18.6.3, § 11.18.6.5 and § 11.18.6.6
+         */
+        export interface CommissioningEvidence {
+            /** The DAC, X.509 DER, from CertificateChainRequest. */
+            dac: Bytes;
+
+            /** The PAI, X.509 DER, from CertificateChainRequest. */
+            pai: Bytes;
+
+            /** AttestationResponse.attestationElements, which carry the certification declaration. */
+            attestationElements: Bytes;
+
+            /** AttestationResponse.attestationSignature, over the elements and {@link attestationChallenge}. */
+            attestationSignature: Bytes;
+
+            /** The nonce sent in AttestationRequest. */
+            attestationNonce: Bytes;
+
+            /** The attestation challenge of the PASE session the device is commissioned over. */
+            attestationChallenge: Bytes;
+
+            /** CSRResponse.nocsrElements, which carry the PKCS#10 request for {@link NocRequest.publicKey}. */
+            nocsrElements: Bytes;
+
+            /** CSRResponse.attestationSignature, over the elements and {@link attestationChallenge}. */
+            nocsrSignature: Bytes;
+
+            /** The nonce sent in CSRRequest. */
+            csrNonce: Bytes;
+        }
+    }
 }

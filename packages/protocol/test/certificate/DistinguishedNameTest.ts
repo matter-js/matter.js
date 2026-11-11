@@ -852,4 +852,20 @@ describe("Certificate distinguished name", () => {
             );
         });
     });
+
+    describe("equality", () => {
+        it("compares a decoded identifier with the same value as bigint", async () => {
+            const { subject } = Rcac.fromTlv((await chain()).rootTlv).cert;
+            expect(typeof subject.rcacId).equal("number");
+            expect(DistinguishedName.areEqual(subject, { rcacId: BigInt(ROOT_ID) })).true;
+        });
+
+        it("refuses another value, another attribute, another order and another count", () => {
+            expect(DistinguishedName.areEqual({ icacId: 1 }, { icacId: 2 })).false;
+            expect(DistinguishedName.areEqual({ commonName: "a" }, { commonName: "b" })).false;
+            expect(DistinguishedName.areEqual({ icacId: 1 }, { rcacId: 1 })).false;
+            expect(DistinguishedName.areEqual({ icacId: 1, commonName: "a" }, { commonName: "a", icacId: 1 })).false;
+            expect(DistinguishedName.areEqual({ icacId: 1 }, { icacId: 1, commonName: "a" })).false;
+        });
+    });
 });

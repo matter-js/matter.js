@@ -471,6 +471,100 @@ describe("Operational certificate verification", () => {
         });
     });
 
+    describe("certificate chain", () => {
+        it("verifies a chain with the fabric ID in the root and ICAC subjects", async () => {
+            const rootSubject = { rcacId: ROOT_ID, fabricId: FABRIC_ID };
+            const icaSubject = { icacId: ICAC_ID, fabricId: FABRIC_ID };
+            const rootWithFabric = await rcacTlv(root, cert => {
+                cert.issuer = { ...rootSubject };
+                cert.subject = { ...rootSubject };
+            });
+            const icaWithFabric = await icacTlv(ica, root, cert => {
+                cert.issuer = { ...rootSubject };
+                cert.subject = { ...icaSubject };
+            });
+            const noc = await nocTlv(node, ica, cert => {
+                cert.issuer = { ...icaSubject };
+            });
+
+            await verifyIcac(icaWithFabric, rootWithFabric);
+            await verifyNoc(noc, rootWithFabric, icaWithFabric);
+        });
+
+        it("selects the ICAC as signer when it shares the key of the root", async () => {
+            const icaWithRootKey = await icacTlv(root, root);
+            const noc = await nocTlv(node, root);
+
+            const signer = await Noc.fromTlv(noc).verify(crypto, Rcac.fromTlv(rootTlv), Icac.fromTlv(icaWithRootKey));
+            expect(signer).instanceOf(Icac);
+        });
+
+        it("refuses a NOC whose issuer DN names another ICAC", async () => {
+            const noc = await nocTlv(node, ica, cert => {
+                cert.issuer = { icacId: ICAC_ID + 1 };
+            });
+            await expect(verifyNoc(noc, rootTlv, icaTlv)).rejectedWith(CertificateError, /issuer must be equal/);
+        });
+
+        it("refuses a NOC whose issuer DN lacks an RDN of the ICAC subject", async () => {
+            const icaWithFabric = await icacTlv(ica, root, cert => {
+                cert.subject = { icacId: ICAC_ID, fabricId: FABRIC_ID };
+            });
+            const noc = await nocTlv(node, ica);
+            await expect(verifyNoc(noc, rootTlv, icaWithFabric)).rejectedWith(CertificateError, /issuer must be equal/);
+        });
+
+        it("refuses a NOC whose issuer DN has the RDNs of the ICAC subject in another order", async () => {
+            const icaWithFabric = await icacTlv(ica, root, cert => {
+                cert.subject = { icacId: ICAC_ID, fabricId: FABRIC_ID };
+            });
+            const noc = await nocTlv(node, ica, cert => {
+                cert.issuer = { fabricId: FABRIC_ID, icacId: ICAC_ID };
+            });
+            await expect(verifyNoc(noc, rootTlv, icaWithFabric)).rejectedWith(CertificateError, /issuer must be equal/);
+        });
+
+        it("refuses a NOC signed by the root whose issuer DN is not the root subject", async () => {
+            const noc = await nocTlv(node, root, cert => {
+                cert.issuer = { rcacId: ROOT_ID + 1 };
+            });
+            await expect(verifyNoc(noc, rootTlv)).rejectedWith(CertificateError, /issuer must be equal/);
+        });
+
+        it("refuses a NOC whose fabric ID differs from the one in the root subject", async () => {
+            const rootSubject = { rcacId: ROOT_ID, fabricId: FabricId(2n) };
+            const rootWithFabric = await rcacTlv(root, cert => {
+                cert.issuer = { ...rootSubject };
+                cert.subject = { ...rootSubject };
+            });
+            const noc = await nocTlv(node, root, cert => {
+                cert.issuer = { ...rootSubject };
+            });
+            await expect(verifyNoc(noc, rootWithFabric)).rejectedWith(CertificateError, /FabricId in NoC certificate/);
+        });
+
+        it("refuses a NOC whose fabric ID differs from the one in the ICAC subject", async () => {
+            const icaSubject = { icacId: ICAC_ID, fabricId: FabricId(2n) };
+            const icaWithFabric = await icacTlv(ica, root, cert => {
+                cert.subject = { ...icaSubject };
+            });
+            const noc = await nocTlv(node, ica, cert => {
+                cert.issuer = { ...icaSubject };
+            });
+            await expect(verifyNoc(noc, rootTlv, icaWithFabric)).rejectedWith(
+                CertificateError,
+                /FabricId in NoC certificate/,
+            );
+        });
+
+        it("refuses an ICAC whose issuer DN is not the root subject", async () => {
+            const icac = await icacTlv(ica, root, cert => {
+                cert.issuer = { rcacId: ROOT_ID + 1 };
+            });
+            await expect(verifyIcac(icac, rootTlv)).rejectedWith(CertificateError, /issuer must be equal/);
+        });
+    });
+
     describe("NOC extensions", () => {
         // CHIP requires serverAuth only (FabricTable.cpp:344, CASESession.cpp:455), so matter.js does too.
         // Characterization: passes without the fix.
@@ -546,16 +640,14 @@ describe("Operational certificate verification", () => {
 
         // Characterization: passes without the fix.
         it("verifies an issuer DN with exactly five RDNs", async () => {
+            const fiveRdns = { icacId: ICAC_ID, commonName: "a", surName: "b", serialNum: "c", countryName: "DE" };
             const noc = await nocTlv(node, ica, cert => {
-                cert.issuer = {
-                    icacId: ICAC_ID,
-                    commonName: "a",
-                    surName: "b",
-                    serialNum: "c",
-                    countryName: "DE",
-                };
+                cert.issuer = { ...fiveRdns };
             });
-            await verifyNoc(noc, rootTlv, icaTlv);
+            const icaWithFiveRdns = await icacTlv(ica, root, cert => {
+                cert.subject = { ...fiveRdns };
+            });
+            await verifyNoc(noc, rootTlv, icaWithFiveRdns);
         });
 
         // Characterization: passes without the fix.
