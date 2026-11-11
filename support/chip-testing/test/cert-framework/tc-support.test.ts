@@ -959,6 +959,39 @@ describe("expectSequence", () => {
 
         expect(record.verdict).equal("unverified");
     });
+
+    it("names the line of a block that carries another value when no block matches", async () => {
+        const otherEvent = READ_EVENT_LINES.map(line => (line === "[DMG] Event = 0x0," ? "[DMG] Event = 0x1," : line));
+        const record = await withFollower(otherEvent, follower =>
+            expectSequence(follower, "chip-local", "read event path", { chip: SEQUENCE }, 0, Millis(200)),
+        );
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).contains(
+            `last rejected candidate: line 8 after the match at line 0 is not ${SEQUENCE[8]}: [DMG] Event = 0x1,`,
+        );
+    });
+
+    it("waits for the line a cut-off block lacks and lists the lines from the search start", async () => {
+        const record = await withFollower(READ_EVENT_LINES.slice(0, 8), follower =>
+            expectSequence(follower, "chip-local", "read event path", { chip: SEQUENCE }, 0, Millis(200)),
+        );
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).contains(`Timed out waiting for ${SEQUENCE[8]} (from index 0)`);
+        expect(record.detail).contains("[DMG] Cluster = 0x28,");
+        expect(record.detail).not.contains("last rejected candidate");
+    });
+
+    it("passes on a matching block that follows one carrying another value (characterization)", async () => {
+        const otherEvent = READ_EVENT_LINES.map(line => (line === "[DMG] Event = 0x0," ? "[DMG] Event = 0x1," : line));
+        const record = await withFollower([...otherEvent, ...READ_EVENT_LINES], follower =>
+            expectSequence(follower, "chip-local", "read event path", { chip: SEQUENCE }, 0, Seconds(1)),
+        );
+
+        expect(record.verdict).equal("pass");
+        expect(record.logLine).equal(READ_EVENT_LINES.length + 9);
+    });
 });
 
 describe("expectMessageWithPath", () => {
