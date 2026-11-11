@@ -80,6 +80,25 @@ import { SustainedSubscription } from "./subscription/SustainedSubscription.js";
 const logger = Logger.get("ClientInteraction");
 
 /**
+ * Estimates whether a subscribe request like `request` primes with little data.  It does when every attribute path
+ * names one attribute or the request carried at least one DataVersionFilter and all of them fit, and when it has no
+ * event requests or carries an event filter.  The estimate ignores attribute sizes and which clusters the filters
+ * cover.
+ */
+function primesCompactly(request: Read, allDataVersionFiltersSent: boolean) {
+    const { attributeRequests, dataVersionFilters, eventRequests, eventFilters } = request;
+    const attributesCompact =
+        attributeRequests === undefined ||
+        attributeRequests.every(
+            ({ endpointId, clusterId, attributeId }) =>
+                endpointId !== undefined && clusterId !== undefined && attributeId !== undefined,
+        ) ||
+        (allDataVersionFiltersSent && !!dataVersionFilters?.length);
+    const eventsCompact = !eventRequests?.length || !!eventFilters?.length;
+    return attributesCompact && eventsCompact;
+}
+
+/**
  * Returns a log-friendly peer address diagnostic for sessions that expose one
  * (currently: group multicast).
  */
@@ -1067,15 +1086,16 @@ export class ClientInteraction<
             );
 
             let responseMessage: Message;
+            let allDataVersionFiltersSent: boolean;
             try {
-                await messenger.sendSubscribeRequest(
+                ({ allDataVersionFiltersSent } = await messenger.sendSubscribeRequest(
                     {
                         ...request,
                         minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
                         maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
                     },
                     { abort },
-                );
+                ));
 
                 await this.#handleSubscriptionResponse(request, readChunks(messenger, abort));
                 abort.throwIfAborted();
@@ -1103,6 +1123,7 @@ export class ClientInteraction<
                 response,
                 abort,
                 maxPeerResponseTime: this.maximumPeerResponseTime(SUBSCRIPTION_PROCESSING_TIME),
+                compactPriming: primesCompactly(request, allDataVersionFiltersSent),
             });
             this.subscriptions.addPeer(subscription);
 
