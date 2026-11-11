@@ -10,6 +10,7 @@ import { Read } from "#action/request/Read.js";
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { Dac } from "#certificate/kinds/AttestationCertificates.js";
 import { Noc } from "#certificate/kinds/Noc.js";
+import { NocsrValidator } from "#certificate/NocsrValidator.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
@@ -443,6 +444,7 @@ async function installNewCertificate(
         );
         const dacPublicKey = PublicKey(Dac.fromAsn1(dac).cert.ellipticCurvePublicKey);
 
+        const csrNonce = ca.crypto.randomBytes(32);
         const csrResponse = responseOf(
             await AdministratorCommands.invoke(
                 interaction,
@@ -450,16 +452,16 @@ async function installNewCertificate(
                     endpoint: RootEndpointNumber,
                     cluster: OperationalCredentials,
                     command: "csrRequest",
-                    fields: { csrNonce: ca.crypto.randomBytes(32), isForUpdateNoc: true },
+                    fields: { csrNonce, isForUpdateNoc: true },
                 },
                 { useExtendedFailSafeMessageResponseTimeout: true },
             ),
             "CSRRequest",
         );
-        const operationalPublicKey = await AdministratorCommands.operationalPublicKeyOfCsr(ca.crypto, csrResponse, {
-            challenge: session.attestationChallengeKey,
-            dacPublicKey,
-        });
+        const operationalPublicKey = await NocsrValidator.validate(
+            { crypto: ca.crypto, attestationChallenge: session.attestationChallengeKey, csrNonce, dacPublicKey },
+            csrResponse,
+        );
         certificate = {
             operationalPublicKey,
             previousNoc: previous.noc,

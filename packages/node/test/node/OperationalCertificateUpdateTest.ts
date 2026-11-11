@@ -32,7 +32,6 @@ import {
     StorageError,
     SupportedStorageTypes,
     Time,
-    UnexpectedDataError,
 } from "@matter/general";
 import { captureLog, MockSite, subscribedPeer } from "@matter/node/testing";
 import {
@@ -48,6 +47,8 @@ import {
     ExchangeManager,
     Fabric,
     FabricManager,
+    NocsrCheck,
+    NocsrError,
     OperationalCertificateUpdate,
     OperationalCertificateUpdateBusyError,
     OperationalCertificateUpdateError,
@@ -251,6 +252,15 @@ async function patchDeviceCommand<B extends typeof OperationalCredentialsServer 
     return () => {
         proto[command] = original;
     };
+}
+
+/** The failed check of the {@link NocsrError} in the cause chain of {@link error}, if any. */
+function nocsrFailureOf(error: unknown): NocsrCheck | undefined {
+    for (let cause = error; cause instanceof Error; cause = cause.cause) {
+        if (cause instanceof NocsrError) {
+            return cause.failure;
+        }
+    }
 }
 
 async function nodeLabelReachesController(device: ServerNode, peer: ClientNode, nodeLabel: string) {
@@ -679,7 +689,8 @@ describe("OperationalCertificateUpdate", () => {
             return { ...response, attestationSignature: new Uint8Array(64) };
         };
         try {
-            await rejectedUpdate(controller, device, peer);
+            const failure = await rejectedUpdate(controller, device, peer);
+            expect(nocsrFailureOf(failure)).equals(NocsrCheck.AttestationSignatureInvalid);
         } finally {
             proto.csrRequest = original;
         }
@@ -2176,7 +2187,40 @@ describe("OperationalCertificateUpdate", () => {
         }
 
         expect(failure).instanceOf(OperationalCertificateUpdateError);
-        expect(causedBy(failure, UnexpectedDataError)).true;
+        expect(nocsrFailureOf(failure)).equals(NocsrCheck.ResponseEmpty);
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
+        expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
+    });
+
+    it("rolls back when the CSR response carries another CSRNonce", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const before = snapshot(device);
+
+        const proto = await device.act(agent => Object.getPrototypeOf(agent.get(OperationalCredentialsServer)));
+        const original = proto.csrRequest;
+        proto.csrRequest = async function (
+            this: OperationalCredentialsServer,
+            request: OperationalCredentials.CsrRequest,
+        ) {
+            const csrNonce = Bytes.of(request.csrNonce).map(byte => byte ^ 0xff);
+            return original.call(this, { ...request, csrNonce });
+        };
+        let failure: unknown;
+        try {
+            failure = await withEntropy([controller, device], () =>
+                MockTime.resolve(peer.updateOperationalCertificate(), { macrotasks: true }).then(
+                    () => undefined,
+                    (error: unknown) => error,
+                ),
+            );
+        } finally {
+            proto.csrRequest = original;
+        }
+
+        expect(failure).instanceOf(OperationalCertificateUpdateError);
+        expect(nocsrFailureOf(failure)).equals(NocsrCheck.CsrNonceMismatch);
         expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
         expect(Bytes.areEqual(snapshot(device).operationalCert, before.operationalCert)).true;
     });

@@ -8,12 +8,7 @@ import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { ClientRequest } from "#action/client/ClientRequest.js";
 import { Invoke } from "#action/request/Invoke.js";
 import { InvokeResult } from "#action/response/InvokeResult.js";
-import { Certificate } from "#certificate/kinds/Certificate.js";
-import { TlvCertSigningRequest } from "#common/OperationalCredentialsTypes.js";
-import { Bytes, Crypto, EcdsaSignature, PublicKey, UnexpectedDataError } from "@matter/general";
 import { ClusterType } from "@matter/types";
-import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
-import { CommissioningError } from "./CommissioningError.js";
 
 /**
  * Helpers for the administrator commands that the commissioning flow and the operational certificate update send over
@@ -38,43 +33,5 @@ export namespace AdministratorCommands {
         return InvokeResult.responseOfSingleCommand(
             interaction.invoke({ ...Invoke({ commands: [request], ...options }), ...transmission }),
         );
-    }
-
-    /**
-     * Validate the NOCSR information of a CSRResponse and return the node operational public key the CSR requests a
-     * certificate for.
-     *
-     * When {@link dacPublicKey} is given, the attestation signature must verify over `nocsrElements ||
-     * attestationChallenge` with that key, where the challenge belongs to the secure session that carried the
-     * CSRRequest.  The CSR's own signature is checked by {@link Certificate.getPublicKeyFromCsr}.
-     *
-     * Throws {@link UnexpectedDataError} for an empty response and {@link CommissioningError} for a signature that does
-     * not verify against the DAC.
-     *
-     * @see {@link MatterSpecification.v161.Core} § 11.18.4.9
-     */
-    export async function operationalPublicKeyOfCsr(
-        crypto: Crypto,
-        { nocsrElements, attestationSignature }: OperationalCredentials.CsrResponse,
-        attestation: { challenge: Bytes; dacPublicKey?: PublicKey },
-    ) {
-        if (nocsrElements.byteLength === 0 || attestationSignature.byteLength === 0) {
-            throw new UnexpectedDataError("Invalid response from device");
-        }
-
-        if (attestation.dacPublicKey !== undefined) {
-            try {
-                await crypto.verifyEcdsa(
-                    attestation.dacPublicKey,
-                    Bytes.concat(nocsrElements, attestation.challenge),
-                    new EcdsaSignature(attestationSignature),
-                );
-            } catch {
-                throw new CommissioningError("CSR signature verification failed against DAC public key");
-            }
-        }
-
-        const { certSigningRequest } = TlvCertSigningRequest.decode(nocsrElements);
-        return await Certificate.getPublicKeyFromCsr(crypto, certSigningRequest);
     }
 }

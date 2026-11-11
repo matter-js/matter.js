@@ -12,6 +12,7 @@ import { Invoke } from "#action/request/Invoke.js";
 import { Read } from "#action/request/Read.js";
 import { Write } from "#action/request/Write.js";
 import { BleDisconnectedError } from "#ble/Ble.js";
+import { NocsrValidator } from "#certificate/NocsrValidator.js";
 import { PeerMessageMissingError, PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import { OperationalDataset } from "#thread/OperationalDataset.js";
 import {
@@ -35,6 +36,7 @@ import {
     Timer,
     Timespan,
     Timestamp,
+    InternalError,
 } from "@matter/general";
 import {
     ClusterId,
@@ -493,6 +495,10 @@ export class ControllerCommissioningFlow {
         return [...attributeMap.values()];
     }
 
+    /**
+     * Invoke one command and return the fields of its response, or nothing for a status response.  The fields are
+     * decoded but not checked against the response schema, so a mandatory field the device left out is `undefined`.
+     */
     async #invokeCommand<const C extends ClusterType.Concrete>(
         request: Invoke.ConcreteCommandRequest<C>,
         options: Omit<Invoke.Definition, "commands"> = {},
@@ -1428,23 +1434,30 @@ export class ControllerCommissioningFlow {
      *     DCL contains the name and other information of the Commissioner’s manufacturer.
      */
     async #certificates() {
-        const { nocsrElements, attestationSignature } = await this.#invokeCommand(
+        const csrNonce = this.fabric.crypto.randomBytes(32);
+        const { nocsrElements, attestationSignature: csrSignature } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
                 cluster: OperationalCredentials,
                 command: "csrRequest",
-                fields: { csrNonce: this.fabric.crypto.randomBytes(32) },
+                fields: { csrNonce },
             },
             {
                 useExtendedFailSafeMessageResponseTimeout: true,
             },
         );
 
-        // The DAC public key is only known when the attestation step ran
-        const operationalPublicKey = await AdministratorCommands.operationalPublicKeyOfCsr(
-            this.ca.crypto,
-            { nocsrElements, attestationSignature },
-            { challenge: this.commissioningOptions.attestation!.challengeKey, dacPublicKey: this.#dacPublicKey },
+        if (this.#dacPublicKey === undefined) {
+            throw new InternalError("CSRResponse received before the device attestation step set the DAC public key");
+        }
+        const operationalPublicKey = await NocsrValidator.validate(
+            {
+                crypto: this.fabric.crypto,
+                attestationChallenge: this.commissioningOptions.attestation.challengeKey,
+                csrNonce,
+                dacPublicKey: this.#dacPublicKey,
+            },
+            { nocsrElements, attestationSignature: csrSignature },
         );
 
         await this.#invokeCommand(
