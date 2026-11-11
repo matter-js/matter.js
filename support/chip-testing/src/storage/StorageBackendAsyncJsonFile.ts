@@ -15,7 +15,7 @@ export class StorageBackendAsyncJsonFile extends Storage {
     private closed = false;
     private store?: MemoryStorageDriver;
     #hasUnsavedChanges = false;
-    #writing?: Promise<void>;
+    #writeQueue = Promise.resolve();
 
     constructor(readonly path: string) {
         super();
@@ -86,7 +86,10 @@ export class StorageBackendAsyncJsonFile extends Storage {
         }
         if (this.closed) return;
         this.#hasUnsavedChanges = true;
-        await (this.#writing ??= this.#writeChanges().finally(() => (this.#writing = undefined)));
+        const write = this.#writeQueue.then(() => this.#writeIfUnsaved());
+        // The caller receives a write error through `write`; the queue drops it so later commits still run
+        this.#writeQueue = write.catch(() => {});
+        await write;
     }
 
     /** Write the current state to the file; resolves once it is written.  Does nothing after {@link close}. */
@@ -94,10 +97,17 @@ export class StorageBackendAsyncJsonFile extends Storage {
         await this.commit();
     }
 
-    async #writeChanges() {
-        while (this.#hasUnsavedChanges && this.store !== undefined) {
-            this.#hasUnsavedChanges = false;
+    async #writeIfUnsaved() {
+        if (!this.#hasUnsavedChanges || this.store === undefined) {
+            return;
+        }
+        this.#hasUnsavedChanges = false;
+        try {
             await this.#writeAndMoveFile(this.path, this.toJson(this.store.data));
+        } catch (error) {
+            // Commits queued behind this write must retry, not resolve as if their change was stored
+            this.#hasUnsavedChanges = true;
+            throw error;
         }
     }
 
@@ -113,6 +123,7 @@ export class StorageBackendAsyncJsonFile extends Storage {
         }
         await this.flush();
         this.closed = true;
+        await this.#writeQueue;
         await this.store.close();
     }
 
