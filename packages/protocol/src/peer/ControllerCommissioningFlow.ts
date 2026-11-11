@@ -138,13 +138,13 @@ export type ControllerCommissioningFlowOptions = {
          *   - throw any error to reject by rethrowing that error verbatim (no wrapping)
          * - `undefined`: accept with warning logging (backward compatibility)
          *
-         * The callback receives either:
-         * - A single error-level finding for hard failures (invalid chain, bad signature, revoked
-         *   certificate, untrusted PAA, DCL service unavailable). The commissioner must decide
-         *   whether to proceed despite the failure.
-         * - One or more warning/info-level findings after successful validation (e.g. provisional
-         *   CD, test CD, skipped CD signer verification, no revocation data, test-cert-only PAA).
-         *   These are informational and the commissioner can inspect them for detailed decisions.
+         * The callback receives the findings collected during validation: warning/info-level findings
+         * (e.g. provisional CD, test CD, no revocation data) and the recoverable error-level findings
+         * `TrustedAsTestCertificate` and `CertificationDeclarationFieldMismatch` for the BasicInformation
+         * VendorID and ProductID, which the commissioner must decide on like a hard failure. When a hard
+         * failure (invalid chain, bad signature, revoked certificate, untrusted PAA, DCL service
+         * unavailable) stops validation, its error-level finding comes last, after the findings collected
+         * until then.
          *
          * TODO: Make required in next breaking version and remove undefined backward-compatible accept
          */
@@ -475,6 +475,10 @@ export class ControllerCommissioningFlow {
         }
         for await (const data of this.interaction.read(request)) {
             for await (const entry of data) {
+                if (entry.kind === "attr-status") {
+                    logger.debug("Commissioning read returned status", entry.status, "for", entry.path);
+                    continue;
+                }
                 if (entry.kind !== "attr-value") {
                     continue;
                 }
@@ -791,6 +795,10 @@ export class ControllerCommissioningFlow {
 
         for await (const data of networkData) {
             for await (const entry of data) {
+                if (entry.kind === "attr-status") {
+                    logger.debug("Commissioning read returned status", entry.status, "for", entry.path);
+                    continue;
+                }
                 if (entry.kind !== "attr-value") {
                     continue;
                 }
@@ -1330,8 +1338,8 @@ export class ControllerCommissioningFlow {
                     attestationElements,
                     attestationSignature,
                     attestationNonce,
-                    vendorId: this.collectedCommissioningData.vendorId!,
-                    productId: this.collectedCommissioningData.productId!,
+                    vendorId: this.collectedCommissioningData.vendorId,
+                    productId: this.collectedCommissioningData.productId,
                 },
             );
             findings = result.findings;
@@ -1344,7 +1352,10 @@ export class ControllerCommissioningFlow {
             }
             baseError = asError(error);
             if (error instanceof DeviceAttestationError) {
-                findings = [{ level: "error", type: error.failure, message: error.message }];
+                findings = [
+                    ...error.precedingFindings,
+                    { level: "error", type: error.failure, message: error.message },
+                ];
             } else {
                 // Unexpected validation error (e.g. an unrecoverably corrupt trust-store certificate).
                 // Surface it as an error finding so the onFailure policy can still judge it, instead of
@@ -1358,8 +1369,11 @@ export class ControllerCommissioningFlow {
         if (findings.length > 0) {
             const decision = await this.#resolveAttestationFindings(findings);
             if (!decision.proceed) {
+                const errorMessages = findings.filter(({ level }) => level === "error").map(({ message }) => message);
                 baseError ??= new CommissioningError(
-                    `Device attestation produced ${findings.length} finding(s) and was rejected by policy`,
+                    errorMessages.length
+                        ? `Device attestation rejected by policy: ${errorMessages.join("; ")}`
+                        : `Device attestation produced ${findings.length} finding(s) and was rejected by policy`,
                 );
                 if (decision.reason !== undefined) {
                     throw new CommissioningError(decision.reason, { cause: baseError });

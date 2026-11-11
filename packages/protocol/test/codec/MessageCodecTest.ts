@@ -353,7 +353,7 @@ describe("MessageCodec", () => {
         });
     });
 
-    describe("diagnosticsOf", () => {
+    describe("Message.diagnosticsOf", () => {
         function loggedPayload() {
             const diagnostics = Message.diagnosticsOf({ via: "test" }, DECODED);
             return LogFormat.formats.plain(Diagnostic.message({ values: [diagnostics] }));
@@ -372,6 +372,19 @@ describe("MessageCodec", () => {
             } finally {
                 Logger.logPayloads = logPayloads;
             }
+        });
+
+        function msgFlagsOf(isInitiatorMessage: boolean) {
+            const message = { ...DECODED_2, payloadHeader: { ...DECODED_2.payloadHeader, isInitiatorMessage } };
+            return Diagnostic.valueOf(Message.diagnosticsOf({ via: "test" }, message).msgFlags);
+        }
+
+        it("shows the I flag of a message from the exchange initiator", () => {
+            expect(msgFlagsOf(true)).equals("I reqAck");
+        });
+
+        it("omits the I flag of a message from the exchange responder", () => {
+            expect(msgFlagsOf(false)).equals("reqAck");
         });
     });
 });
