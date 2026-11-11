@@ -6,7 +6,7 @@
 
 import { InternalError, isObject, serialize } from "@matter/general";
 import type { Schema } from "@matter/model";
-import { Access, AttributeModel, DataModelPath, ValueModel } from "@matter/model";
+import { AttributeModel, DataModelPath, ValueModel } from "@matter/model";
 import { AccessControl, hasRemoteActor, ReadError, SchemaImplementationError, Val, WriteError } from "@matter/protocol";
 import { Status } from "@matter/types";
 import type { RootSupervisor } from "../../../supervision/RootSupervisor.js";
@@ -46,18 +46,6 @@ export function ListManager(owner: RootSupervisor, schema: Schema): ValueSupervi
     };
 }
 
-/**
- * Whether a list holds fabric-scoped entries that a remote actor may see filtered by fabric: `F` access, or an attribute
- * with `S` access.  `S` on a struct field only hides that field from other fabrics.
- */
-export function isFabricScopedList(schema: Schema) {
-    return schema.effectiveAccess.fabric === Access.Fabric.Scoped || isFabricSensitiveList(schema);
-}
-
-function isFabricSensitiveList(schema: Schema) {
-    return schema instanceof AttributeModel && schema.fabricSensitive;
-}
-
 function createConfig(owner: RootSupervisor, schema: Schema): ListConfig {
     const entry = schema instanceof ValueModel ? schema.listEntry : undefined;
     if (entry === undefined) {
@@ -67,12 +55,10 @@ function createConfig(owner: RootSupervisor, schema: Schema): ListConfig {
     const entryManager = owner.get(entry);
 
     const access = AccessControl(schema);
-    const fabricSensitive = isFabricSensitiveList(schema);
-
     return {
         schema,
-        fabricScoped: fabricSensitive || schema.effectiveAccess.fabric === Access.Fabric.Scoped,
-        fabricSensitive,
+        fabricScoped: schema instanceof ValueModel && schema.fabricScopedList,
+        fabricSensitive: schema instanceof AttributeModel && schema.fabricSensitive,
         manageEntries: entryManager.manage !== PrimitiveManager,
         manageEntry: entryManager.manage,
         validateEntry: entryManager.validate,
@@ -146,6 +132,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
             ...reference.location,
             path: reference.location.path.at(-1),
             owner: reference.rootOwner,
+            remote: reference.mirrorsRemote ? "outbound" : undefined,
         };
     }
 
@@ -240,14 +227,11 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     }
 
     /**
-     * Remove an entry.  Only the last entry may go, so the list never has a gap.  An index beyond the end is ignored.
+     * Remove the entry at `index`, which is below {@link getListLength}.  Only the last entry may go, so the list never
+     * has a gap.
      */
     protected deleteEntry(index: number, location: AccessControl.Location) {
-        const length = this.getListLength();
-        if (index >= length) {
-            return;
-        }
-        if (index !== length - 1) {
+        if (index !== this.getListLength() - 1) {
             throw new WriteError(location, `Deleting entry ${index} would leave a gap; use splice to remove it`);
         }
         this.setListLength(index);
@@ -362,7 +346,12 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
                 }
 
                 const location = { ...this.reference.location, path: this.reference.location.path.at(index) };
-                const reference = new ReadOnlyReference(entry, location, this.reference.rootOwner);
+                const reference = new ReadOnlyReference(
+                    entry,
+                    location,
+                    this.reference.rootOwner,
+                    this.reference.mirrorsRemote,
+                );
                 this.config.manageEntry(reference, this.session);
                 view = reference.owner;
                 views.set(entry, view);
@@ -450,6 +439,11 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     deleteProperty(_target: Val.List, property: PropertyKey) {
         const index = entryIndexFor(property);
         if (index !== undefined) {
+            if (index >= this.getListLength()) {
+                // Ignored as on an array, but the list must still be writable, so an uncached or group list refuses
+                this.reference.assertWritable();
+                return true;
+            }
             this.#sublocation.path.id = index;
             this.deleteEntry(index, this.#sublocation);
             return true;
@@ -560,13 +554,10 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
     }
 
     /**
-     * Remove an entry.  Any entry may go, because the later entries of this fabric move up to fill the gap.  An index
-     * beyond the end is ignored.
+     * Remove the entry at `index`, which is below {@link getListLength}.  Any entry may go, because the later entries
+     * of this fabric move up to fill the gap.
      */
     protected override deleteEntry(index: number, location: AccessControl.Location) {
-        if (index >= this.getListLength()) {
-            return;
-        }
         this.config.authorizeWrite(this.session, location);
         const entries = this.visibleEntries();
         entries.splice(index, 1);
@@ -619,6 +610,9 @@ function createProxy(config: ListConfig, reference: ValReference<Val.List>, sess
         config.manageEntries &&
         config.fabricScoped &&
         hasRemoteActor(session) &&
+        // The session's fabric belongs to our server node, not to the remote node, so it does not filter a copy of
+        // that node's list
+        !reference.mirrorsRemote &&
         // Fabric-sensitive lists are filtered for reads and writes; command handlers see all entries, as data access
         // rules do not apply to them
         (session.fabricFiltered || (config.fabricSensitive && !session.command));

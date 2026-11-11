@@ -68,6 +68,7 @@ import "./ThreadNetworkDirectoryOverrides.js";
 import "./TimeFormatLocalizationOverrides.js";
 import "./TimeSynchronizationOverrides.js";
 import "./TlsClientManagementOverrides.js";
+import "./UnitLocalizationOverrides.js";
 import "./UserLabelOverrides.js";
 import "./WebRtcTransportDefinitionsOverrides.js";
 import "./WiFiNetworkManagementOverrides.js";

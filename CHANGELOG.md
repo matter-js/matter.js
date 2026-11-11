@@ -35,16 +35,25 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `X520.DomainComponent` encodes the domainComponent OID 0.9.2342.19200300.100.1.25 instead of the emailAddress OID with tag and length bytes in its content
 
 - @matter/model
+    - Feature: `ValueModel.fabricScopedList` tells whether a value is a fabric-scoped list
     - Feature: The `isSecret` element property and the `secret` decorator mark a value as secret, and `SecretRedaction` replaces secret values for logging; standard fields that carry network credentials, keys, passcodes and PINs are marked secret
 
 - @matter/node
     - Feature: `ClientNode.updateOperationalCertificate()` replaces a commissioned node's operational certificate with one for a new key pair (UpdateNOC)
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
+    - Enhancement: `ClientNode.fabricIndexOnPeer` returns our fabric index on the peer
     - Enhancement: `RemoteDescriptor.legacyRecordToLongForm()` converts a peer record of the legacy controller storage
     - Adjustment: The Thermostat `persistedPresets$Changing` and `persistedPresets$Changed` events type `value` and `oldValue` as `Thermostat.Preset[] | undefined`; `oldValue` is `undefined` when the presets are first stored
     - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
+    - Adjustment: Conformance and enum errors on client-local state of a client node, such as `CommissioningClient`, are refused locally
     - Adjustment: On behavior types derived with `.with()`, `.alter()` or `.enable()`, `LocalizationConfigurationServer.detectedLocale` is declared as a getter, and the extension methods of `GeneralDiagnosticsServer` and `AccessControlServer` as methods, so they can be overridden with `get` or a method that calls `super`; a property override of `detectedLocale` no longer compiles
     - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is deprecated and stays empty; subscriptions stored there by an older version are taken over at start
+    - Adjustment: On the cluster state of a client node, `set()` and `setStateOf()` write each given struct or list whole instead of merging it into the cached value
+    - Adjustment: A change in place of a mandatory list, struct or bitmap that a client node's cache does not hold throws `UncachedValueError` instead of being ignored
+    - Adjustment: A mandatory struct that a client node's cache does not hold reads as a managed struct, with its absent fields as undefined keys
+    - Adjustment: A client node other than a group refuses to write a fabric-scoped list while its fabric index on the peer is unknown
+    - Adjustment: A client node other than a group refuses a fabric-scoped list entry of another fabric or of no fabric unless it equals a cached entry
+    - Adjustment: Internal client store and validation APIs for writes to a remote node changed
     - Adjustment: A ClientNode reads its root's PartsList as listing every endpoint, whatever device types the root reports
     - Adjustment: `ServerSubscriptionContext.initiateExchange()` takes only a `Session`, no longer a `PeerAddress`
     - Adjustment: `SessionsBehavior` events `opened` and `closed` no longer fire for a session whose handshake fails
@@ -75,6 +84,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
     - Fix: AdministratorCommissioning OpenCommissioningWindow answers INVALID_COMMAND to a discriminator above 4095 instead of CONSTRAINT_ERROR
     - Fix: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow answer PAKEParameterError on a session without fabric, as CHIP does, instead of UNSUPPORTED_ACCESS
+    - Fix: LocalizationConfiguration, TimeFormatLocalization and UnitLocalization start with a value from their supported list when the detected, default or stored value is not in it
+    - Fix: `TimeFormatLocalizationServer` starts without the CalendarFormat feature
+    - Fix: UnitLocalization answers a `TemperatureUnit` write outside `SupportedTemperatureUnits` with CONSTRAINT_ERROR
+    - Fix: A client node other than a group writes only its own entries of a fabric-scoped list and keeps the other fabrics' entries in its cache
+    - Fix: A state write on a group endpoint fails with `InvalidGroupOperationError`
+    - Fix: The Remote API `add` to a mandatory list that a client node's cache does not hold fails with `UncachedValueError` instead of replacing the device's list with the new entry alone
+    - Fix: A client node sends a write that breaks a model constraint to the device instead of refusing it locally, and the Remote API accepts such a value in a command response from the device
     - Fix: A subscription moves to each newer CASE session of its subscriber
     - Fix: A subscription sends its reports on its own session instead of the most recently active session with its subscriber
     - Fix: A subscription whose SubscribeResponse cannot be sent is closed
@@ -108,6 +124,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `ExchangeSendOptions.onTransmitted` runs once the first transmission of a message went out
     - Enhancement: `SecureChannelMessenger.sendSuccess()` takes an optional `onTransmitted` callback
     - Enhancement: Message logs show the I flag in `msgFlags` for messages from the exchange initiator
+    - Adjustment: Exchange logs show `maxTrans` and `retransTimeLimit` on the first transmission of a message that has its own retransmission budget, instead of always `maxTrans: 5` when the exchange opens
+    - Adjustment: `DeviceAttestationValidator.validate()` returns a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as an error-level finding instead of throwing
     - Adjustment: A CSRResponse that is empty, lacks a field, has NOCSRElements over 900 bytes, or cannot be decoded fails commissioning with `NocsrError`
     - Adjustment: Device attestation refuses AttestationElements over 900 bytes with `DeviceAttestationCheck.AttestationElementsTooLong`, as the CHIP SDK does
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
@@ -130,6 +148,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
     - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
+    - Fix: A client subscription is replaced early when the peer does not acknowledge our status response to a report chunk, or to a final report while the replacement would prime compactly
     - Fix: Commissioning that stops on an unexpected error expires the device's fail-safe, so the device accepts a new commissioning attempt right away
     - Fix: `ClientInteraction.close()` closes only the subscriptions established through that interaction, no longer every subscription to the same peer
     - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks

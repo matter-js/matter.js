@@ -20,14 +20,21 @@ export namespace Internal {
     }
 
     /**
+     * The reference behind a managed value, or `undefined` for any other value.
+     */
+    export function referenceOf(value: Val): ValReference<Val.Collection> | undefined {
+        if (value === null || typeof value !== "object") {
+            return undefined;
+        }
+        return (value as Partial<Collection>)[reference];
+    }
+
+    /**
      * The raw value behind a managed proxy, or `value` itself.  Unlike {@link copy}, the result is the stored object,
      * so a list entry reference bound to one of its entries stays live when the value is stored back.
      */
     export function rawOf(value: Val): Val {
-        if (value === null || value === undefined || typeof value !== "object") {
-            return value;
-        }
-        const ref = (value as Collection)[reference];
+        const ref = referenceOf(value);
         return ref ? ref.value : value;
     }
 
@@ -47,7 +54,7 @@ export namespace Internal {
             return value;
         }
 
-        const ref = (value as Collection)[reference];
+        const ref = referenceOf(value);
         if (ref) {
             return copy(ref.value);
         }

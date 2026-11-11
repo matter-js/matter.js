@@ -161,6 +161,7 @@ describe("Binding integration", () => {
         }
 
         return {
+            controller,
             switchNode,
             lightNode,
             peerSwitch,
@@ -426,10 +427,44 @@ describe("Binding integration", () => {
             const problems = await problemsDuring(switchNode, async () => {
                 // A report just before the loss starts the subscription timeout
                 await switchLight(lightNode, resolution, true);
+                // The peer acks our status first, so only the subscription timeout can detect the loss
+                await MockTime.resolve(Time.sleep("report status delivery", Seconds(1)), { macrotasks: true });
                 isolation.on = true;
                 const lostAt = Time.nowUs;
                 await MockTime.resolve(subscription.inactive);
                 expect(Time.nowUs - lostAt).at.least(Seconds(maxInterval));
+                expect(statuses).deep.equals([false]);
+
+                entropic(true);
+                isolation.on = false;
+                await MockTime.resolve(subscription.active, { macrotasks: true });
+                entropic(false);
+                expect(statuses).deep.equals([false, true]);
+                await switchLight(lightNode, resolution, false);
+            });
+
+            expect(resolution.node.behaviors.internalsOf(NetworkClient).activeSubscription).equals(subscription);
+            expect(switchNode.peers.size).equals(1);
+            expect(problems).deep.equals([]);
+        });
+
+        it("detects a lost peer by the missing ack of a report status and resubscribes once it is back", async () => {
+            await using site = new MockSite();
+            const { controller, switchNode, lightNode, resolution, entropic } = await boundLight(site);
+            const isolation = isolate(lightNode);
+            const subscription = await subscribeToOnOff(resolution, entropic);
+            const { maxInterval } = subscription;
+            const statuses = new Array<boolean>();
+            resolution.node.eventsOf(NetworkClient).subscriptionStatusChanged.on(status => void statuses.push(status));
+            // The controller's own subscription to the light is replaced too, which needs entropy for its CASE handshake
+            (controller.env.get(Crypto) as MockCrypto).entropic = true;
+
+            const problems = await problemsDuring(switchNode, async () => {
+                await switchLight(lightNode, resolution, true);
+                isolation.on = true;
+                const lostAt = Time.nowUs;
+                await MockTime.resolve(subscription.inactive);
+                expect(Time.nowUs - lostAt).below(Seconds(maxInterval));
                 expect(statuses).deep.equals([false]);
 
                 entropic(true);
@@ -453,6 +488,8 @@ describe("Binding integration", () => {
 
             const problems = await problemsDuring(switchNode, async () => {
                 await switchLight(lightNode, resolution, true);
+                // The peer acks our status first, so only the subscription timeout can detect the loss
+                await MockTime.resolve(Time.sleep("report status delivery", Seconds(1)), { macrotasks: true });
 
                 // A power loss: the light goes away without a word to the switch
                 isolation.on = true;

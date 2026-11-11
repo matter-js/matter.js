@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ValidationLocation } from "#behavior/state/validation/location.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import type { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { Abort, InternalError, MaybePromise, NotImplementedError } from "@matter/general";
@@ -132,6 +133,28 @@ export abstract class ApiResource {
             throw new InternalError(`Remote API resource ${this.id} has no endpoint to validate against`);
         }
         return this.parent.session;
+    }
+
+    /**
+     * Whether this resource subtree belongs to a remote node, a peer or a group, rather than to a server node.  A value
+     * it validates is sent to or received from that node.
+     */
+    get isRemote(): boolean {
+        return this.parent?.isRemote ?? false;
+    }
+
+    /**
+     * The {@link ValidationLocation.remote} of a value this resource subtree sends to its node.
+     */
+    get outbound(): ValidationLocation["remote"] {
+        return this.isRemote ? "outbound" : undefined;
+    }
+
+    /**
+     * The {@link ValidationLocation.remote} of a value this resource subtree receives from its node.
+     */
+    get inbound(): ValidationLocation["remote"] {
+        return this.isRemote ? "inbound" : undefined;
     }
 
     /**

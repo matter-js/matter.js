@@ -358,7 +358,6 @@ export class MessageExchange {
                 SAT: activeThreshold !== undefined ? Duration.format(activeThreshold) : undefined,
                 SAI: activeInterval !== undefined ? Duration.format(activeInterval) : undefined,
                 SII: idleInterval !== undefined ? Duration.format(idleInterval) : undefined,
-                maxTrans: MRP.MAX_TRANSMISSIONS,
                 exchangeFlags: Diagnostic.asFlags({
                     MRP: this.session.usesMrp,
                     I: this.isInitiator,
@@ -801,6 +800,13 @@ export class MessageExchange {
             this.#sentMessageToAck = message;
             const backOff = this.#mrpResubmissionBackOffTime;
             logContext.backOff = Duration.format(backOff);
+            const { maxRetransmissions, retransmissionTimeLimit } = this.#sendOptions;
+            if (maxRetransmissions !== undefined && Number.isFinite(maxRetransmissions)) {
+                logContext.maxTrans = maxRetransmissions;
+            }
+            if (retransmissionTimeLimit !== undefined) {
+                logContext.retransTimeLimit = Duration.format(retransmissionTimeLimit);
+            }
             this.#retransmissionTimer = Time.getTimer(`retransmitting ${Message.via(this, message)}`, backOff, () =>
                 this.#retransmitMessage(message, expectedProcessingTime),
             );
