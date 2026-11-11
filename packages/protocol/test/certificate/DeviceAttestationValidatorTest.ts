@@ -318,6 +318,23 @@ describe("DeviceAttestationValidator", () => {
             ).to.be.rejectedWith(DeviceAttestationError, /attestation elements that cannot be decoded/);
         });
 
+        it("refuses elements of 901 bytes before decoding them, but decodes 900 bytes", async () => {
+            const dclService = await setupDclService();
+
+            await expect(
+                DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData({ attestationElements: new Uint8Array(901) }),
+                ),
+            ).to.be.rejectedWith(DeviceAttestationError, /901 bytes, more than RESP_MAX of 900/);
+            await expect(
+                DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData({ attestationElements: new Uint8Array(900) }),
+                ),
+            ).to.be.rejectedWith(DeviceAttestationError, /attestation elements that cannot be decoded/);
+        });
+
         it("throws CertificationDeclarationUnparseable when the CD field holds something else", async () => {
             const dclService = await setupDclService();
 

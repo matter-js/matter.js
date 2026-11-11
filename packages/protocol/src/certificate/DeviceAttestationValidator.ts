@@ -10,13 +10,12 @@ import {
     Crypto,
     Diagnostic,
     EcdsaSignature,
-    ImplementationError,
     InternalError,
     MaybePromise,
     PublicKey,
 } from "@matter/general";
 import { MATTER_EPOCH_OFFSET_S, VendorId } from "@matter/types";
-import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
+import { OPERATIONAL_CREDENTIALS_RESP_MAX, TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { CommissioningError } from "../peer/CommissioningError.js";
 import { CdSigners } from "./CdSigners.js";
@@ -25,6 +24,7 @@ import { CertificateProfileError } from "./kinds/Certificate.js";
 import { mayIssue } from "./kinds/CertificateSignature.js";
 import { CertificationDeclaration, CertificationDeclarationFormatError } from "./kinds/CertificationDeclaration.js";
 import { CertificationType } from "./kinds/definitions/certification-declaration.js";
+import { isLocalDefect } from "./PeerData.js";
 
 /** @see {@link MatterSpecification.v161.Core} § 6.3.1 */
 const CD_FORMAT_VERSION = 1;
@@ -68,6 +68,13 @@ export enum DeviceAttestationCheck {
     PaiFormatInvalid = "PaiFormatInvalid",
 
     AttestationElementsUnparseable = "AttestationElementsUnparseable",
+
+    /**
+     * AttestationElements is longer than RESP_MAX.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.4.1
+     */
+    AttestationElementsTooLong = "AttestationElementsTooLong",
     CertificationDeclarationUnparseable = "CertificationDeclarationUnparseable",
 
     /**
@@ -136,12 +143,7 @@ function parsePeerValue<T>(check: DeviceAttestationCheck, description: string, p
     try {
         return parse();
     } catch (cause) {
-        // A defect of ours is not the peer's malformed data, and a classified failure keeps its check
-        if (
-            cause instanceof InternalError ||
-            cause instanceof ImplementationError ||
-            cause instanceof DeviceAttestationError
-        ) {
+        if (isLocalDefect(cause) || cause instanceof DeviceAttestationError) {
             throw cause;
         }
         throw new DeviceAttestationError(check, `${description}: ${asError(cause).message}`, { cause });
@@ -308,6 +310,13 @@ export namespace DeviceAttestationValidator {
             throw new DeviceAttestationError(
                 DeviceAttestationCheck.VendorIdMismatch,
                 `DAC vendorId ${idHex(dac.cert.subject.vendorId)} does not match PAI vendorId ${idHex(pai.cert.subject.vendorId)}`,
+            );
+        }
+
+        if (data.attestationElements.byteLength > OPERATIONAL_CREDENTIALS_RESP_MAX) {
+            throw new DeviceAttestationError(
+                DeviceAttestationCheck.AttestationElementsTooLong,
+                `Device returned attestation elements of ${data.attestationElements.byteLength} bytes, more than RESP_MAX of ${OPERATIONAL_CREDENTIALS_RESP_MAX}`,
             );
         }
 

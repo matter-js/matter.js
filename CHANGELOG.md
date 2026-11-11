@@ -91,6 +91,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
 
 - @matter/protocol
+    - Feature: `NocsrValidator` validates a CSRResponse and throws `NocsrError` when a check fails
+    - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
+    - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Enhancement: The commissioning attestation policy also receives the findings collected before a hard failure, and a policy rejection names the error findings
     - Enhancement: A connection to a peer logs at debug level which transports it tries and why
     - Enhancement: Device attestation reports a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as a finding instead of stopping validation
@@ -103,7 +106,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `ExchangeSendOptions.onTransmitted` runs once the first transmission of a message went out
     - Enhancement: `SecureChannelMessenger.sendSuccess()` takes an optional `onTransmitted` callback
     - Enhancement: Message logs show the I flag in `msgFlags` for messages from the exchange initiator
-    - Adjustment: `DeviceAttestationValidator.validate()` returns a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as an error-level finding instead of throwing
+    - Adjustment: A CSRResponse that is empty, lacks a field, has NOCSRElements over 900 bytes, or cannot be decoded fails commissioning with `NocsrError`
+    - Adjustment: Device attestation refuses AttestationElements over 900 bytes with `DeviceAttestationCheck.AttestationElementsTooLong`, as the CHIP SDK does
+    - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
+    - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
+    - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
+    - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec` and `ExchangeManager`    - Adjustment: `DeviceAttestationValidator.validate()` returns a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as an error-level finding instead of throwing
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
     - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
     - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
@@ -126,6 +134,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Commissioning that stops on an unexpected error expires the device's fail-safe, so the device accepts a new commissioning attempt right away
     - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks
     - Fix: A CASE responder closes a session whose resumption the peer does not confirm
+    - Fix: The commissioner stops commissioning when the CSRResponse carries a CSRNonce other than the one it sent
     - Fix: A CASE responder closes a new session whose SigmaFinished cannot be sent
     - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept
     - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
