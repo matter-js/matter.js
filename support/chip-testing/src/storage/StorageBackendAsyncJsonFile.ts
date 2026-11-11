@@ -4,24 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-    InternalError,
-    MemoryStorageDriver,
-    Storage,
-    SupportedStorageTypes,
-    Time,
-    createPromise,
-    fromJson,
-    toJson,
-} from "@matter/general";
+import { InternalError, MemoryStorageDriver, Storage, SupportedStorageTypes, fromJson, toJson } from "@matter/general";
 import { readFile, rename, writeFile } from "node:fs/promises";
 
+/**
+ * JSON file storage for the CHIP test apps.  Every change is written to the file.  One write runs at a time; changes
+ * made while a write runs are written together by the next one, so the file always ends with the latest state.
+ */
 export class StorageBackendAsyncJsonFile extends Storage {
-    /** We store changes after a value was set to the storage, but not more often than this setting (in ms). */
     private closed = false;
     private store?: MemoryStorageDriver;
-    private currentStoreItPromise?: Promise<void>;
-    private lastStoredTime = 0;
+    #hasUnsavedChanges = false;
+    #writing?: Promise<void>;
 
     constructor(readonly path: string) {
         super();
@@ -40,7 +34,6 @@ export class StorageBackendAsyncJsonFile extends Storage {
         }
         this.store = new MemoryStorageDriver(data);
         this.store.initialize(); // Internal usage — creates from pre-loaded data
-        this.lastStoredTime = Time.nowMs;
     }
 
     get initialized() {
@@ -92,33 +85,24 @@ export class StorageBackendAsyncJsonFile extends Storage {
             throw new InternalError("Storage not initialized.");
         }
         if (this.closed) return;
-        if (this.currentStoreItPromise !== undefined) {
-            return;
-        }
-        await this.storeIt();
+        this.#hasUnsavedChanges = true;
+        await (this.#writing ??= this.#writeChanges());
     }
 
-    async storeIt(forced = false) {
-        if (this.store === undefined) {
-            throw new InternalError("Storage not initialized.");
-        }
-        if (this.closed) return;
-        if (!forced && this.lastStoredTime < Time.nowMs - 1000) {
-            return;
-        }
-        if (this.currentStoreItPromise !== undefined) {
-            await this.currentStoreItPromise;
-        }
+    /** Write the current state to the file; resolves once it is written. */
+    async flush() {
+        await this.commit();
+    }
 
-        const { promise, rejecter, resolver } = createPromise<void>();
-        const json = this.toJson(this.store.data);
-        this.#writeAndMoveFile(this.path, json)
-            .then(resolver, rejecter)
-            .finally(() => {
-                this.currentStoreItPromise = undefined;
-            });
-        this.currentStoreItPromise = promise;
-        return promise;
+    async #writeChanges() {
+        try {
+            while (this.#hasUnsavedChanges && this.store !== undefined) {
+                this.#hasUnsavedChanges = false;
+                await this.#writeAndMoveFile(this.path, this.toJson(this.store.data));
+            }
+        } finally {
+            this.#writing = undefined;
+        }
     }
 
     async #writeAndMoveFile(filepath: string, value: string): Promise<void> {
@@ -131,7 +115,7 @@ export class StorageBackendAsyncJsonFile extends Storage {
         if (this.store === undefined) {
             return;
         }
-        await this.storeIt(true);
+        await this.flush();
         this.closed = true;
         await this.store.close();
     }
