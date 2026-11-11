@@ -51,6 +51,8 @@ export {
 /** @internal Test seam — not API. The wired test a `certTest()` declaration registered. */
 export { createRegisteredCertTest } from "./cert/cert-test.js";
 export { ChipDockerSubject, ChipLocalSubject } from "./cert/chip-app-subject.js";
+/** @internal Test seam — not API. What a chip-local test case runs before its first device starts. */
+export { ChipPlatformStateError, clearChipLocalPlatformState } from "./cert/chip-app-subject.js";
 /** @internal Test seam — not API. `ChipDockerDevice`'s own constructor, and its Docker collaborator types. */
 export { ChipDockerDevice, HARNESS_DBUS_CONTAINER } from "./cert/chip-app-subject.js";
 /** @internal Test seam — not API. */
