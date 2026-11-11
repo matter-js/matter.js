@@ -115,7 +115,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: A `CertificateAuthority.Issuer` can provide the fabric ID and IPK that new controller fabrics use, so several controllers share one fabric
     - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair
     - Feature: `NocsrValidator` validates a CSRResponse and throws `NocsrError` when a check fails
-    - Enhancement: `CertificateAuthority.issueNoc()` returns each NOC with the ICAC that signed it, and the controller installs that ICAC for its own fabric and in AddNOC
+    - Enhancement: `CertificateAuthority.issueNoc()` returns each NOC with the ICAC that signed it, and the controller installs that ICAC for its own fabric and in AddNOC and UpdateNOC
     - Enhancement: `DistinguishedName.areEqual()` compares two DNs RDN by RDN, in order
     - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
