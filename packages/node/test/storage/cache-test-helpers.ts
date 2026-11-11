@@ -73,7 +73,15 @@ export function recordingConsumer() {
     const integrated = new Array<Val.Struct>();
     const announced = new Array<Val.Struct>();
     const consumer = {
-        readValues: () => ({}),
+        readValues: (keys: Set<string>) => {
+            const read: Val.Struct = {};
+            for (const key of keys) {
+                if (key in values) {
+                    read[key] = values[key];
+                }
+            }
+            return read;
+        },
         snapshot: () => ({ ...values }),
         releaseValues: () => ({ ...values }),
         integrate: (changes: Val.StructMap) => {
@@ -90,18 +98,18 @@ export function recordingConsumer() {
 
 /**
  * A local writer whose every persist waits until the test lets it finish, then patches {@link stored} like
- * storage does.
+ * storage does, or fail.
  */
 export function gatedWriter() {
     const stored: Val.Struct = {};
-    const pending = new Array<{ values: Val.Struct; finish: () => void }>();
+    const pending = new Array<{ values: Val.Struct; finish: () => void; fail: (error: Error) => void }>();
     return {
         stored,
         pending,
         persistInTransaction: async () => {},
         persist: async (_ep: unknown, _bid: unknown, values: Val.Struct) => {
-            const { promise, resolver } = createPromise<void>();
-            pending.push({ values, finish: resolver });
+            const { promise, resolver, rejecter } = createPromise<void>();
+            pending.push({ values, finish: resolver, fail: rejecter });
             await promise;
             Object.assign(stored, values);
         },

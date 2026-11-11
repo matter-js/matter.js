@@ -334,9 +334,10 @@ export namespace Datasource {
          *
          * Uses the same patch semantics as {@link PersistentStore.set}, but the values are the peer's own and take
          * effect at once.  A write instead goes through {@link prepare} and leaves the local values unchanged until the
-         * peer accepts them.  Resolves once the values are applied, also when storing them locally failed; the result
-         * then carries that failure for the caller to report.  Their change notifications may follow later, when
-         * notifications of an earlier change are still held; do not await them.
+         * peer accepts them.  The values apply in memory before this first awaits, so a write the peer answers while
+         * they are still being stored sees them.  Resolves once they are stored locally or queued for storage, also when storing them failed;
+         * the result then carries that failure for the caller to report.  Their change notifications may follow later,
+         * when notifications of an earlier change are still held; do not await them.
          */
         externalSet(values: Val.StructMap): Promise<ExternallyMutableStore.Applied>;
 

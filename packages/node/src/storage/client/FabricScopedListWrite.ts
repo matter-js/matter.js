@@ -6,7 +6,7 @@
 
 import { memberValueOf } from "#behavior/state/managed/MemberKeys.js";
 import { fabricIndexOf, withFabricIndex } from "#behavior/state/validation/FabricIndexField.js";
-import { Bytes, isObject, Logger } from "@matter/general";
+import { Bytes, isDeepEqual, isObject, Logger } from "@matter/general";
 import type { DataModelPath, ValueModel } from "@matter/model";
 import { Val, WriteError } from "@matter/protocol";
 import { FabricIndex, Status, TlvOfModel, ValidationError } from "@matter/types";
@@ -75,9 +75,11 @@ export namespace FabricScopedListWrite {
      * property name, so the cache can hold what the device stores.  The encoder leaves FabricIndex out of a write.
      *
      * An entry that is not ours is left out if it equals an entry of {@link cached}; the device keeps it.  Two entries
-     * are equal if each field of {@link entrySchema} is absent from both or has the same TLV encoding in both, so a
-     * number and a bigint of the same value are equal.  A property that is not a field of {@link entrySchema} is not
-     * compared, as the encoder never sends it.  A field that does not encode makes the entries differ.
+     * are equal if each field of {@link entrySchema} is absent from both, holds deep-equal values in both, or has the
+     * same TLV encoding in both.  So a number and a bigint of the same value are equal, and an unchanged copy of a
+     * cached entry is equal to it even when a cached value breaks a bound of the model.  A property that is not a field
+     * of {@link entrySchema} is not compared, as the encoder never sends it.  A field whose values differ and that does
+     * not encode makes the entries differ.
      *
      * @param cached the cached value of the list
      * @param entrySchema the schema of an entry of the list
@@ -171,6 +173,9 @@ function isSameEntry(entry: Val, cachedEntry: Val, entrySchema: ValueModel) {
             if (value !== cachedValue) {
                 return false;
             }
+            continue;
+        }
+        if (isDeepEqual(value, cachedValue)) {
             continue;
         }
         const encoded = encodingOf(field, value);

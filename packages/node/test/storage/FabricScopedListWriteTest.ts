@@ -143,10 +143,14 @@ describe("FabricScopedListWrite", () => {
 
         it("refuses an entry of another fabric whose field does not encode, and says so", () => {
             expect(
-                refusalOf(() =>
-                    entriesToSend([{ fabricIndex: 2, cluster: "one" }], [{ fabricIndex: 2, cluster: "one" }]),
-                ),
+                refusalOf(() => entriesToSend([{ fabricIndex: 2, cluster: "one" }], [{ fabricIndex: 2, cluster: 1 }])),
             ).contains("its field cluster holds a value the field does not allow, so it cannot be compared");
+        });
+
+        it("leaves out an unchanged copy of a cached entry of another fabric whose field does not encode", () => {
+            expect(
+                entriesToSend([{ fabricIndex: 2, cluster: "one" }], [{ fabricIndex: 2, cluster: "one" }]),
+            ).deep.equals([]);
         });
 
         it("logs at debug the entries of other fabrics a write leaves out and those it omits", () => {
@@ -194,6 +198,16 @@ describe("FabricScopedListWrite", () => {
                 refusalOf(() =>
                     aclEntriesOf([{ data: new Uint8Array([0x17]), fabricIndex: 2 }], [extension], EXTENSION_ENTRY),
                 );
+            });
+
+            it("compares an extension whose data is longer than the model allows", () => {
+                const extension = { data: new Uint8Array(200).fill(0x18), fabricIndex: 2 };
+                const copy = { data: new Uint8Array(200).fill(0x18), fabricIndex: 2 };
+                const edited = { data: new Uint8Array(200).fill(0x18), fabricIndex: 2 };
+                edited.data[199] = 0x17;
+
+                expect(aclEntriesOf([copy], [extension], EXTENSION_ENTRY)).deep.equals([]);
+                refusalOf(() => aclEntriesOf([edited], [extension], EXTENSION_ENTRY));
             });
         });
 

@@ -359,7 +359,26 @@ describe("settlement errors", () => {
         expect(writer.stored).deep.equals({ "1": "first" });
     });
 
-    it("does not apply a value when the cache is discarded while persisting it", async () => {
+    it("keeps a report in memory while it persists and after persisting it fails", async () => {
+        const writer = gatedWriter();
+        const cache = createCache({ localWriter: writer });
+        const { values, consumer } = recordingConsumer();
+        cache.consumer = consumer;
+
+        const report = cache.externalSet(attrs({ "1": "reported" }));
+        await MockTime.yield();
+
+        expect(values).deep.equals({ "1": "reported" });
+
+        writer.pending[0].fail(new Error("persist failure"));
+        const { persistFailure } = await report;
+
+        expect(persistFailure).instanceOf(Error);
+        expect(values).deep.equals({ "1": "reported" });
+        expect(writer.stored).deep.equals({});
+    });
+
+    it("applies but does not announce a value when the cache is discarded while persisting it", async () => {
         let cache: DatasourceCache | undefined;
         cache = createCache({
             localWriter: {
@@ -369,12 +388,13 @@ describe("settlement errors", () => {
                 },
             },
         });
-        const { integrated, consumer } = recordingConsumer();
+        const { integrated, announced, consumer } = recordingConsumer();
         cache.consumer = consumer;
 
         await cache.externalSet(attrs({ "1": "reported" }));
 
-        expect(integrated).deep.equals([]);
+        expect(integrated).deep.equals([{ "1": "reported" }]);
+        expect(announced).deep.equals([]);
     });
 
     it("sends nothing it held before a rollback", async () => {
