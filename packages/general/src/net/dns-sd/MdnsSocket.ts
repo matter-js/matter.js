@@ -16,6 +16,9 @@ import { Logger } from "#log/Logger.js";
 import { MatterAggregateError } from "#MatterError.js";
 import { Network, NetworkError } from "#net/Network.js";
 import { UdpMulticastServer } from "#net/udp/UdpMulticastServer.js";
+import { Duration } from "#time/Duration.js";
+import { Time } from "#time/Time.js";
+import { Millis, Minutes } from "#time/TimeUnit.js";
 import { Bytes } from "#util/Bytes.js";
 import { Lifetime } from "#util/Lifetime.js";
 import { AsyncObservable, BasicObservable } from "#util/Observable.js";
@@ -26,8 +29,13 @@ const logger = Logger.get("MdnsListener");
 
 const DNS_HEADER_SIZE = 12;
 
+const STATISTICS_INTERVAL = Minutes(1);
+
 /**
  * Manages the UDP socket for other components that implement MDNS logic.
+ *
+ * Counts the traffic in both directions and logs the counts at debug level once per minute and on close.  Nothing is
+ * logged for an interval without traffic.
  */
 export class MdnsSocket {
     #socket: UdpMulticastServer;
@@ -38,6 +46,10 @@ export class MdnsSocket {
         true,
     );
     readonly #relevance = new MdnsRelevanceFilter();
+    #statistics = new TrafficStatistics();
+    readonly #statisticsTimer = Time.getPeriodicTimer("mDNS statistics", STATISTICS_INTERVAL, () =>
+        this.#logStatistics(),
+    );
 
     static async create(
         network: Network,
@@ -59,6 +71,8 @@ export class MdnsSocket {
 
     constructor(socket: UdpMulticastServer) {
         this.#socket = socket;
+        this.#statisticsTimer.utility = true;
+        this.#statisticsTimer.start();
         socket.onMessage(this.#handleMessage.bind(this));
     }
 
@@ -123,6 +137,7 @@ export class MdnsSocket {
         intf?: string,
         unicastDest?: string,
     ): Promise<UdpMulticastServer.Reach | undefined> {
+        this.#statistics.sentMessages++;
         const reach = new MessageReach(intf);
         const { messageType, queries = [] } = message;
 
@@ -265,11 +280,22 @@ export class MdnsSocket {
     }
 
     #send(message: DnsMessagePartiallyPreEncoded, intf?: string, unicastDest?: string) {
-        return this.#socket.send(DnsCodec.encode(message), intf, unicastDest);
+        const encoded = DnsCodec.encode(message);
+        this.#statistics.sentPackets++;
+        this.#statistics.sentBytes += encoded.byteLength;
+        return this.#socket.send(encoded, intf, unicastDest);
+    }
+
+    #logStatistics() {
+        const statistics = this.#statistics;
+        this.#statistics = new TrafficStatistics();
+        statistics.log(this.#relevance.isActive);
     }
 
     async close() {
         this.#isClosed = true;
+        this.#statisticsTimer.stop();
+        this.#logStatistics();
         await this.#socket.close();
         if (this.#handlers) {
             await MatterAggregateError.allSettled(this.#handlers);
@@ -277,22 +303,34 @@ export class MdnsSocket {
     }
 
     #handleMessage(bytes: Bytes, sourceIp: string, sourceIntf: string) {
-        // Ignore if closed
         if (this.#isClosed) {
             return;
         }
 
+        const statistics = this.#statistics;
+        statistics.received++;
+        statistics.receivedBytes += bytes.byteLength;
+
         // Drop traffic no subscriber cares about before paying for a full decode
         if (!this.#relevance.isRelevant(bytes)) {
+            statistics.skipped++;
             return;
         }
 
-        // Parse
+        const startedAt = Time.nowUs;
+
         const parsed = DnsCodec.decode(bytes);
 
-        // Skip unparseable
         if (parsed === undefined) {
+            statistics.undecodable++;
+            statistics.processingMs += Time.nowUs - startedAt;
             return;
+        }
+
+        if (DnsMessageType.isQuery(parsed.messageType)) {
+            statistics.queries++;
+        } else {
+            statistics.responses++;
         }
 
         const result = this.#receipt.emit({
@@ -300,6 +338,7 @@ export class MdnsSocket {
             sourceIp,
             sourceIntf,
         }) as MaybePromise;
+        statistics.processingMs += Time.nowUs - startedAt;
 
         if (MaybePromise.is(result)) {
             const handler: Promise<void> = Promise.resolve(result).finally(() => this.#handlers?.delete(handler));
@@ -388,5 +427,46 @@ class MessageReach {
                 `mDNS datagram not sent: interface ${this.#netInterface} has no address family the server uses`,
             ),
         };
+    }
+}
+
+/**
+ * Traffic counters of an {@link MdnsSocket} for one statistics interval.
+ *
+ * `processingMs` is the time spent decoding kept packets and running the synchronous part of the receipt observers.
+ * Work an observer does after its first `await` is not included.
+ */
+class TrafficStatistics {
+    received = 0;
+    receivedBytes = 0;
+    /** Packets the relevance filter dropped before decoding. */
+    skipped = 0;
+    undecodable = 0;
+    queries = 0;
+    responses = 0;
+    processingMs = 0;
+    /** Calls of {@link MdnsSocket.send}, counted when the call starts. */
+    sentMessages = 0;
+    /**
+     * Encoded packets a message was split into.  {@link UdpMulticastServer} sends each one on every interface and
+     * address family, so more datagrams leave the host.
+     */
+    sentPackets = 0;
+    sentBytes = 0;
+
+    /** Log the counters at debug level, unless nothing was received or sent. */
+    log(isFilterActive: boolean) {
+        if (this.received === 0 && this.sentMessages === 0) {
+            return;
+        }
+        logger.debug(
+            "Traffic since the previous report:",
+            `received ${this.received} packets (${this.receivedBytes} bytes),`,
+            `skipped ${this.skipped}, undecodable ${this.undecodable},`,
+            `queries ${this.queries}, responses ${this.responses},`,
+            `processing ${Duration.format(Millis(this.processingMs))};`,
+            `sent ${this.sentMessages} messages in ${this.sentPackets} packets (${this.sentBytes} bytes);`,
+            `relevance filter ${isFilterActive ? "on" : "off"}`,
+        );
     }
 }
