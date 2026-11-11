@@ -988,17 +988,20 @@ describe("MdnsSocket", () => {
     });
     describe("traffic statistics", () => {
         let env: TestEnv;
-        let lines: string[];
+        let counts: unknown[];
+        let levels: LogLevel[];
 
         before(() => MockTime.enable());
 
         beforeEach(async () => {
             env = await createTestEnv({ enableIpv4: true });
-            lines = new Array<string>();
+            counts = new Array<unknown>();
+            levels = new Array<LogLevel>();
             Logger.destinations.capture = LogDestination({
                 add(message: Diagnostic.Message) {
-                    if (message.facility === "MdnsListener" && String(message.values[0]).startsWith("Traffic")) {
-                        lines.push(message.values.join(" "));
+                    if (message.facility === "MdnsListener" && String(message.values[0]).startsWith("mDNS stats")) {
+                        counts.push(message.values[1]);
+                        levels.push(message.level);
                     }
                 },
             });
@@ -1024,15 +1027,32 @@ describe("MdnsSocket", () => {
             await receipt;
 
             await MockTime.advance(Minutes(1));
-            expect(lines).to.have.length(1);
-            expect(lines[0]).to.contain("received 3 packets");
-            expect(lines[0]).to.contain("skipped 1, undecodable 0");
-            expect(lines[0]).to.contain("queries 1, responses 1");
-            expect(lines[0]).to.contain("sent 0 messages in 0 packets");
-            expect(lines[0]).to.contain("relevance filter on");
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({
+                rx: 3,
+                skipped: 1,
+                undecodable: 0,
+                queries: 1,
+                responses: 1,
+                tx: 0,
+                txPackets: 0,
+                filter: "on",
+            });
 
             await MockTime.advance(Minutes(1));
-            expect(lines).to.have.length(1);
+            expect(counts).to.have.length(1);
+        });
+
+        it("logs at debug level by default and at info level with logStatistics", async () => {
+            await env.socket.send(createQuery("_matter._tcp.local"));
+            await MockTime.advance(Minutes(1));
+
+            await closeTestEnv(env);
+            env = await createTestEnv({ enableIpv4: true, logStatistics: true });
+            await env.socket.send(createQuery("_matter._tcp.local"));
+            await MockTime.advance(Minutes(1));
+
+            expect(levels).deep.equal([LogLevel.DEBUG, LogLevel.INFO]);
         });
 
         it("counts received bytes and undecodable packets", async () => {
@@ -1044,30 +1064,33 @@ describe("MdnsSocket", () => {
             await receipt;
 
             await MockTime.advance(Minutes(1));
-            expect(lines).to.have.length(1);
-            const bytes = garbage.byteLength + DnsCodec.encode(query).byteLength;
-            expect(lines[0]).to.contain(`received 2 packets (${bytes} bytes)`);
-            expect(lines[0]).to.contain("undecodable 1, queries 1");
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({
+                rx: 2,
+                rxBytes: garbage.byteLength + DnsCodec.encode(query).byteLength,
+                undecodable: 1,
+                queries: 1,
+            });
         });
 
         it("counts a message split into several packets once", async () => {
             await env.socket.send(createOversizedResponse(100));
 
             await MockTime.advance(Minutes(1));
-            expect(lines).to.have.length(1);
-            const packets = Number(lines[0].match(/sent 1 messages in (\d+) packets/)?.[1]);
-            expect(packets).to.be.greaterThan(1);
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({ tx: 1 });
+            expect(counts[0]).to.have.property("txPackets").greaterThan(1);
         });
 
         it("logs the remaining counts on close and stops logging", async () => {
             await env.socket.send(createQuery("_matter._tcp.local"));
 
             await env.socket.close();
-            expect(lines).to.have.length(1);
-            expect(lines[0]).to.contain("sent 1 messages in 1 packets");
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({ tx: 1, txPackets: 1 });
 
             await MockTime.advance(Minutes(1));
-            expect(lines).to.have.length(1);
+            expect(counts).to.have.length(1);
         });
 
         it("reports the relevance filter as off while an owner registered all names", async () => {
@@ -1077,9 +1100,8 @@ describe("MdnsSocket", () => {
             await receipt;
 
             await MockTime.advance(Minutes(1));
-            expect(lines).to.have.length(1);
-            expect(lines[0]).to.contain("skipped 0");
-            expect(lines[0]).to.contain("relevance filter off");
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({ skipped: 0, filter: "off" });
         });
     });
 });

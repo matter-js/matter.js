@@ -12,7 +12,9 @@ import {
     DnsMessageTypeFlag,
     MAX_MDNS_MESSAGE_SIZE,
 } from "#codec/DnsCodec.js";
+import { Diagnostic } from "#log/Diagnostic.js";
 import { Logger } from "#log/Logger.js";
+import { LogLevel } from "#log/LogLevel.js";
 import { MatterAggregateError } from "#MatterError.js";
 import { Network, NetworkError } from "#net/Network.js";
 import { UdpMulticastServer } from "#net/udp/UdpMulticastServer.js";
@@ -34,8 +36,8 @@ const STATISTICS_INTERVAL = Minutes(1);
 /**
  * Manages the UDP socket for other components that implement MDNS logic.
  *
- * Counts the traffic in both directions and logs the counts at debug level once per minute and on close.  Nothing is
- * logged for an interval without traffic.
+ * Counts the traffic in both directions and logs the counts once per minute and on close, at debug level or, with
+ * {@link MdnsSocket.Options.logStatistics}, at info level.  Nothing is logged for an interval without traffic.
  */
 export class MdnsSocket {
     #socket: UdpMulticastServer;
@@ -46,6 +48,7 @@ export class MdnsSocket {
         true,
     );
     readonly #relevance = new MdnsRelevanceFilter();
+    readonly #statisticsLevel: LogLevel;
     #statistics = new TrafficStatistics();
     readonly #statisticsTimer = Time.getPeriodicTimer("mDNS statistics", STATISTICS_INTERVAL, () =>
         this.#logStatistics(),
@@ -53,9 +56,9 @@ export class MdnsSocket {
 
     static async create(
         network: Network,
-        options?: { enableIpv4?: boolean; netInterface?: string; lifetime?: Lifetime.Owner },
+        options?: MdnsSocket.Options & { enableIpv4?: boolean; netInterface?: string; lifetime?: Lifetime.Owner },
     ) {
-        const { enableIpv4 = true, netInterface, lifetime } = options ?? {};
+        const { enableIpv4 = true, netInterface, lifetime, logStatistics } = options ?? {};
         const socket = new MdnsSocket(
             await UdpMulticastServer.create({
                 lifetime,
@@ -65,12 +68,14 @@ export class MdnsSocket {
                 broadcastAddressIpv6: MdnsSocket.BROADCAST_IPV6,
                 listeningPort: MdnsSocket.BROADCAST_PORT,
             }),
+            { logStatistics },
         );
         return socket;
     }
 
-    constructor(socket: UdpMulticastServer) {
+    constructor(socket: UdpMulticastServer, options?: MdnsSocket.Options) {
         this.#socket = socket;
+        this.#statisticsLevel = options?.logStatistics ? LogLevel.INFO : LogLevel.DEBUG;
         this.#statisticsTimer.utility = true;
         this.#statisticsTimer.start();
         socket.onMessage(this.#handleMessage.bind(this));
@@ -289,7 +294,7 @@ export class MdnsSocket {
     #logStatistics() {
         const statistics = this.#statistics;
         this.#statistics = new TrafficStatistics();
-        statistics.log(this.#relevance.isActive);
+        statistics.log(this.#statisticsLevel, this.#relevance.isActive);
     }
 
     async close() {
@@ -321,9 +326,10 @@ export class MdnsSocket {
 
         const parsed = DnsCodec.decode(bytes);
 
+        statistics.decodeMs += Time.nowUs - startedAt;
+
         if (parsed === undefined) {
             statistics.undecodable++;
-            statistics.processingMs += Time.nowUs - startedAt;
             return;
         }
 
@@ -338,7 +344,6 @@ export class MdnsSocket {
             sourceIp,
             sourceIntf,
         }) as MaybePromise;
-        statistics.processingMs += Time.nowUs - startedAt;
 
         if (MaybePromise.is(result)) {
             const handler: Promise<void> = Promise.resolve(result).finally(() => this.#handlers?.delete(handler));
@@ -348,6 +353,11 @@ export class MdnsSocket {
 }
 
 export namespace MdnsSocket {
+    export interface Options {
+        /** Log the traffic counts at info level instead of debug level. */
+        logStatistics?: boolean;
+    }
+
     export interface Message extends DnsMessage {
         sourceIp: string;
         sourceIntf: string;
@@ -432,9 +442,6 @@ class MessageReach {
 
 /**
  * Traffic counters of an {@link MdnsSocket} for one statistics interval.
- *
- * `processingMs` is the time spent decoding kept packets and running the synchronous part of the receipt observers.
- * Work an observer does after its first `await` is not included.
  */
 class TrafficStatistics {
     received = 0;
@@ -444,7 +451,8 @@ class TrafficStatistics {
     undecodable = 0;
     queries = 0;
     responses = 0;
-    processingMs = 0;
+    /** Time spent decoding the packets the relevance filter kept. */
+    decodeMs = 0;
     /** Calls of {@link MdnsSocket.send}, counted when the call starts. */
     sentMessages = 0;
     /**
@@ -454,19 +462,27 @@ class TrafficStatistics {
     sentPackets = 0;
     sentBytes = 0;
 
-    /** Log the counters at debug level, unless nothing was received or sent. */
-    log(isFilterActive: boolean) {
-        if (this.received === 0 && this.sentMessages === 0) {
+    /** Log the counters, unless nothing was received or sent. */
+    log(level: LogLevel, isFilterActive: boolean) {
+        if (this.received === 0 && this.sentMessages === 0 && this.sentPackets === 0) {
             return;
         }
-        logger.debug(
-            "Traffic since the previous report:",
-            `received ${this.received} packets (${this.receivedBytes} bytes),`,
-            `skipped ${this.skipped}, undecodable ${this.undecodable},`,
-            `queries ${this.queries}, responses ${this.responses},`,
-            `processing ${Duration.format(Millis(this.processingMs))};`,
-            `sent ${this.sentMessages} messages in ${this.sentPackets} packets (${this.sentBytes} bytes);`,
-            `relevance filter ${isFilterActive ? "on" : "off"}`,
+        logger.log(
+            level,
+            "mDNS stats:",
+            Diagnostic.dict({
+                rx: this.received,
+                rxBytes: this.receivedBytes,
+                skipped: this.skipped,
+                undecodable: this.undecodable,
+                queries: this.queries,
+                responses: this.responses,
+                decode: Duration.format(Millis(this.decodeMs)),
+                tx: this.sentMessages,
+                txPackets: this.sentPackets,
+                txBytes: this.sentBytes,
+                filter: isFilterActive ? "on" : "off",
+            }),
         );
     }
 }
