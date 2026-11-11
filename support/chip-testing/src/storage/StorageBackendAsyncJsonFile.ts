@@ -86,7 +86,7 @@ export class StorageBackendAsyncJsonFile extends Storage {
         }
         if (this.closed) return;
         this.#hasUnsavedChanges = true;
-        await (this.#writing ??= this.#writeChanges());
+        await (this.#writing ??= this.#writeChanges().finally(() => (this.#writing = undefined)));
     }
 
     /** Write the current state to the file; resolves once it is written.  Does nothing after {@link close}. */
@@ -95,13 +95,9 @@ export class StorageBackendAsyncJsonFile extends Storage {
     }
 
     async #writeChanges() {
-        try {
-            while (this.#hasUnsavedChanges && this.store !== undefined) {
-                this.#hasUnsavedChanges = false;
-                await this.#writeAndMoveFile(this.path, this.toJson(this.store.data));
-            }
-        } finally {
-            this.#writing = undefined;
+        while (this.#hasUnsavedChanges && this.store !== undefined) {
+            this.#hasUnsavedChanges = false;
+            await this.#writeAndMoveFile(this.path, this.toJson(this.store.data));
         }
     }
 
