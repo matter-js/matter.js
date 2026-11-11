@@ -237,7 +237,7 @@ export async function startTestApp(testInstance: TestInstance) {
 
         // Trigger storing current data because later it could be too late and testrunner already did things
         if (testInstance.storage instanceof StorageBackendAsyncJsonFile && testInstance.storage.initialized) {
-            testInstance.storage.storeIt(true).catch(error => logger.info(error.stack));
+            testInstance.storage.flush().catch(error => logger.info(error.stack));
         }
 
         testInstance
