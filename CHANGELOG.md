@@ -36,6 +36,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: The `isSecret` element property and the `secret` decorator mark a value as secret, and `SecretRedaction` replaces secret values for logging; standard fields that carry network credentials, keys, passcodes and PINs are marked secret
 
 - @matter/node
+    - Feature: `ClientNode.updateOperationalCertificate()` replaces a commissioned node's operational certificate with one for a new key pair (UpdateNOC)
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
     - Enhancement: `RemoteDescriptor.legacyRecordToLongForm()` converts a peer record of the legacy controller storage
     - Adjustment: The Thermostat `persistedPresets$Changing` and `persistedPresets$Changed` events type `value` and `oldValue` as `Thermostat.Preset[] | undefined`; `oldValue` is `undefined` when the presets are first stored
@@ -94,6 +95,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: (@henrikdimander) `CertificateAuthority.create(crypto, issuer)` creates a certificate authority whose NOCs come from a `CertificateAuthority.Issuer`, for example a remote CA service, so the controller holds no CA private key
     - Feature: (@henrikdimander) During commissioning, the NOC request to an external issuer carries the device's attestation and CSR responses, so a remote CA can verify them itself
     - Feature: A `CertificateAuthority.Issuer` can provide the fabric ID and IPK that new controller fabrics use, so several controllers share one fabric
+    - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair
     - Feature: `NocsrValidator` validates a CSRResponse and throws `NocsrError` when a check fails
     - Enhancement: `CertificateAuthority.issueNoc()` returns each NOC with the ICAC that signed it, and the controller installs that ICAC for its own fabric and in AddNOC
     - Enhancement: `DistinguishedName.areEqual()` compares two DNs RDN by RDN, in order
@@ -102,8 +104,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: The commissioning attestation policy also receives the findings collected before a hard failure, and a policy rejection names the error findings
     - Enhancement: A connection to a peer logs at debug level which transports it tries and why
     - Enhancement: Device attestation reports a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as a finding instead of stopping validation
-    - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
-    - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Enhancement: `SessionManager` stores each CASE resumption record under its own key with the new `PeerAddressStore` instead of rewriting all records on every change; after a downgrade each peer establishes a new session once
     - Enhancement: `NodeSession` has an establishing state, see `isEstablishing`, `completeEstablishment()` and `established`
     - Enhancement: `NodeSession.superseded` emits the newer CASE session with the same peer and CASE Authenticated Tags
@@ -118,11 +118,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
     - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
     - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
-    - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec` and `ExchangeManager`    - Adjustment: `DeviceAttestationValidator.validate()` returns a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as an error-level finding instead of throwing
-    - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
-    - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
-    - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
     - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec` and `ExchangeManager`
+    - Adjustment: `DeviceAttestationValidator.validate()` returns a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as an error-level finding instead of throwing
     - Adjustment: Peer loss and peer shutdown compare sessions by registration order instead of creation time; `PeerLossContext.asOf` is deprecated for `registeredBefore`
     - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
     - Adjustment: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
@@ -142,6 +139,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The local certificate authority uses the full subject of its root or ICAC as the issuer DN, so a stored root or ICAC whose subject holds more than its ID issues NOCs that verify
     - Fix: A `FabricAuthority.defaultFabric()` call that arrives while the NOC renewal runs waits for it and returns the renewed fabric
     - Fix: Commissioning that stops on an unexpected error expires the device's fail-safe, so the device accepts a new commissioning attempt right away
+    - Fix: `ClientInteraction.close()` closes only the subscriptions established through that interaction, no longer every subscription to the same peer
     - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks
     - Fix: A CASE responder closes a session whose resumption the peer does not confirm
     - Fix: The commissioner stops commissioning when the CSRResponse carries a CSRNonce other than the one it sent
