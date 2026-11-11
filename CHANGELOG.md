@@ -11,7 +11,12 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/examples
+    - Fix: The controller examples log only the discovery options when commissioning, not the passcode or network credentials
+
 - @matter/general
+    - Feature: `Logger.logPayloads`, also set by the `log.payloads` variable, leaves decrypted message payloads out of message logs when set to false
+    - Feature: `Logger.redactSecrets`, also set by the `log.redactSecrets` variable, turns off the replacement of secret values in log output when set to false
     - Feature: `Network.interfacesChanged` reports interface and address changes, checked every 60 seconds while observed
     - Enhancement: WAL storage logs at notice level when an open restores entries from its log and when it has saved the restored state, with the time each took
     - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
@@ -26,6 +31,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `StandardCrypto` encrypts and decrypts AES-CCM plaintext of 65521 to 65535 bytes, which Matter messages reach only with `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: `StandardCrypto` computes the correct AES-CCM tag for AAD of 65280 bytes or more
     - Fix: `X520.DomainComponent` encodes the domainComponent OID 0.9.2342.19200300.100.1.25 instead of the emailAddress OID with tag and length bytes in its content
+
+- @matter/model
+    - Feature: The `isSecret` element property and the `secret` decorator mark a value as secret, and `SecretRedaction` replaces secret values for logging; standard fields that carry network credentials, keys, passcodes and PINs are marked secret
 
 - @matter/node
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
@@ -73,6 +81,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: GeneralDiagnostics `TestEventTriggersEnabled` is true exactly when a non-zero `deviceTestEnableKey` is configured, and PayloadTestRequest accepts that key without also setting the attribute
     - Fix: GeneralDiagnostics test commands compare the EnableKey in constant time and never accept a key that is not 16 bytes, and the node refuses to start with a non-zero `deviceTestEnableKey` of another length
     - Fix: `VendorIdVerification.verifyData` returns false for a VVSC that breaks its certificate profile instead of throwing
+    - Fix: A device logs secret fields of received commands and of its command responses, and endpoint diagnostics show secret attribute values, as `(redacted)`
 
 - @matter/nodejs
     - Fix: (@delu999) SQLite storage accepts overlapping transactions instead of failing with "Transaction is in progress", so concurrent node state writes are no longer lost
@@ -83,27 +92,37 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Feature: (@henrikdimander) `CertificateAuthority.create(crypto, issuer)` creates a certificate authority whose NOCs come from a `CertificateAuthority.Issuer`, for example a remote CA service, so the controller holds no CA private key
-    - Feature: A `CertificateAuthority.Issuer` can provide the fabric ID and IPK that new controller fabrics use, so several controllers share one fabric
     - Feature: (@henrikdimander) During commissioning, the NOC request to an external issuer carries the device's attestation and CSR responses, so a remote CA can verify them itself
+    - Feature: A `CertificateAuthority.Issuer` can provide the fabric ID and IPK that new controller fabrics use, so several controllers share one fabric
+    - Feature: `NocsrValidator` validates a CSRResponse and throws `NocsrError` when a check fails
     - Enhancement: `CertificateAuthority.issueNoc()` returns each NOC with the ICAC that signed it, and the controller installs that ICAC for its own fabric and in AddNOC
-    - Adjustment: `CertificateAuthority.generateNoc()` is deprecated; it drops the ICAC
-    - Fix: A controller fabric takes the fabric ID of a root certificate that has one
     - Enhancement: `DistinguishedName.areEqual()` compares two DNs RDN by RDN, in order
-    - Adjustment: NOC and ICAC verification refuses a certificate whose issuer DN differs from the subject DN of the certificate that signed it, as the CHIP SDK does; a matter.js device commissioned by a controller with a hand-built CA configuration whose root or ICAC subject is not just the configured `rcacId` or `icacId` needs to be commissioned again
-    - Fix: The local certificate authority uses the full subject of its root or ICAC as the issuer DN, so a stored root or ICAC whose subject holds more than its ID issues NOCs that verify
-    - Fix: A `FabricAuthority.defaultFabric()` call that arrives while the NOC renewal runs waits for it and returns the renewed fabric
     - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
-    - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
-    - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
-    - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
-    - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec` and `ExchangeManager`
+    - Enhancement: The commissioning attestation policy also receives the findings collected before a hard failure, and a policy rejection names the error findings
+    - Enhancement: A connection to a peer logs at debug level which transports it tries and why
+    - Enhancement: Device attestation reports a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as a finding instead of stopping validation
+    - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
+    - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Enhancement: `SessionManager` stores each CASE resumption record under its own key with the new `PeerAddressStore` instead of rewriting all records on every change; after a downgrade each peer establishes a new session once
     - Enhancement: `NodeSession` has an establishing state, see `isEstablishing`, `completeEstablishment()` and `established`
     - Enhancement: `NodeSession.superseded` emits the newer CASE session with the same peer and CASE Authenticated Tags
     - Enhancement: `SessionManager.registeredSessions` holds every session that receives messages, including those whose handshake still runs
     - Enhancement: `ExchangeSendOptions.onTransmitted` runs once the first transmission of a message went out
     - Enhancement: `SecureChannelMessenger.sendSuccess()` takes an optional `onTransmitted` callback
+    - Enhancement: Message logs show the I flag in `msgFlags` for messages from the exchange initiator
+    - Adjustment: `CertificateAuthority.generateNoc()` is deprecated; it drops the ICAC
+    - Adjustment: NOC and ICAC verification refuses a certificate whose issuer DN differs from the subject DN of the certificate that signed it, as the CHIP SDK does; a matter.js device commissioned by a controller with a hand-built CA configuration whose root or ICAC subject is not just the configured `rcacId` or `icacId` needs to be commissioned again
+    - Adjustment: A CSRResponse that is empty, lacks a field, has NOCSRElements over 900 bytes, or cannot be decoded fails commissioning with `NocsrError`
+    - Adjustment: Device attestation refuses AttestationElements over 900 bytes with `DeviceAttestationCheck.AttestationElementsTooLong`, as the CHIP SDK does
+    - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
+    - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
+    - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
+    - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec` and `ExchangeManager`    - Adjustment: `DeviceAttestationValidator.validate()` returns a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as an error-level finding instead of throwing
+    - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
+    - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
+    - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
+    - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec` and `ExchangeManager`
     - Adjustment: Peer loss and peer shutdown compare sessions by registration order instead of creation time; `PeerLossContext.asOf` is deprecated for `registeredBefore`
     - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
     - Adjustment: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
@@ -119,9 +138,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
     - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
+    - Fix: A controller fabric takes the fabric ID of a root certificate that has one
+    - Fix: The local certificate authority uses the full subject of its root or ICAC as the issuer DN, so a stored root or ICAC whose subject holds more than its ID issues NOCs that verify
+    - Fix: A `FabricAuthority.defaultFabric()` call that arrives while the NOC renewal runs waits for it and returns the renewed fabric
     - Fix: Commissioning that stops on an unexpected error expires the device's fail-safe, so the device accepts a new commissioning attempt right away
     - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks
     - Fix: A CASE responder closes a session whose resumption the peer does not confirm
+    - Fix: The commissioner stops commissioning when the CSRResponse carries a CSRNonce other than the one it sent
     - Fix: A CASE responder closes a new session whose SigmaFinished cannot be sent
     - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept
     - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
@@ -130,6 +153,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Groupcast testing reports a group message for which only another fabric had a candidate key as NoAvailableKey instead of FailedAuth
     - Fix: Starting an exchange skips exchange ids that are still open on the session, instead of reusing one after the 16-bit counter wraps
     - Fix: An exchange is identified by its session, so a message on another session with the same exchange id no longer reaches or replaces it, nor counts toward its session's exchange limit
+    - Fix: The exchange opened to ack an unsolicited message is closed even when sending the ack fails, instead of staying open
+    - Fix: A standalone ack for a received message without the initiator flag that matches no open exchange, such as a retransmission after the local exchange closed, sets the initiator flag, so the peer accepts it instead of retransmitting until it drops the session
     - Fix: A privacy group message with message extensions is decoded with the extensions in the additional authenticated data, as specified in section 4.8.2, instead of refused
     - Fix: The mDNS responder no longer sends a goodbye for host addresses or shared pointers that another of its services still publishes
     - Fix: The mDNS responder answers a multicast pointer query with the pointer of every service of that type
@@ -161,6 +186,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A BLE connection that cannot be opened during commissioning no longer cancels the device's other addresses
     - Fix: A subscription to an ICD whose IdleModeDuration is shorter than the default ceiling requests the default ceiling instead of the IdleModeDuration
     - Fix: Removing a fabric closes all its sessions, also those established before its operational certificate was replaced
+    - Fix: Invoke, read and write logs show secret values such as Thread datasets and Wi-Fi credentials as `(redacted)`
+    - Fix: The commissioning options log no longer contains the network credentials, the passcode or the fabric's identity protection key
+    - Fix: `DatatypeError` messages show the first 60 characters of a long value instead of the characters after them
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
@@ -168,6 +196,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @project-chip/matter.js
     - Fix: Migrating a legacy controller's peers no longer fails on a stored discovery TTL that is invalid
     - Fix: (@cwedgwood) `PairedNode` waits for concurrent network state updates when it enables the subscription, so a lock conflict no longer leaves the node unsubscribed
+    - Fix: Attribute write, attribute update and endpoint structure logs of the legacy controller show secret values as `(redacted)`
 
 ## 0.18.0 (2026-10-20)
 

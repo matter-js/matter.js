@@ -86,6 +86,7 @@ function fakeInboundMessage(overrides?: {
     payload?: Bytes;
     ackedMessageId?: number;
     requiresAck?: boolean;
+    isInitiatorMessage?: boolean;
 }): Message {
     return {
         packetHeader: { messageId: overrides?.messageId ?? 1 },
@@ -93,7 +94,7 @@ function fakeInboundMessage(overrides?: {
             protocolId: overrides?.protocolId ?? SECURE_CHANNEL_PROTOCOL_ID,
             messageType: overrides?.messageType ?? 1,
             exchangeId: 1,
-            isInitiatorMessage: false,
+            isInitiatorMessage: overrides?.isInitiatorMessage ?? false,
             requiresAck: overrides?.requiresAck ?? false,
             ackedMessageId: overrides?.ackedMessageId,
         },
@@ -620,6 +621,28 @@ describe("MessageExchange", () => {
             expect(closingCount).to.equal(0);
             expect(closedCount).to.equal(1);
         });
+
+        it("emits closing for an ack-only exchange on a reliable channel, which sends nothing", async () => {
+            const { session } = mrpSession(true);
+            const message = fakeInboundMessage({ messageId: 7, requiresAck: true });
+            const exchange = MessageExchange.fromInitialMessage(
+                {
+                    session,
+                    localSessionParameters: SessionParameters(SessionParameters.defaults),
+                    localAdditionalMrpDelay: Millis(0),
+                    localFixedMrpBackoff: Millis(0),
+                    async peerLost() {},
+                    retry() {},
+                },
+                message,
+            );
+
+            await exchange.sendStandaloneAckForMessage(message);
+            await exchange.close();
+
+            expect(exchange.isInitiator).true;
+            expect(exchange.closing.value).true;
+        });
     });
 
     describe("cross-protocol StatusReport", () => {
@@ -755,8 +778,13 @@ describe("MessageExchange", () => {
 
             const protocolId = options.protocolId ?? SECURE_CHANNEL_PROTOCOL_ID;
             const exchange = options.peerInitiated
-                ? MessageExchange.fromInitialMessage(context, fakeInboundMessage({ protocolId }), exchangeOptions)
+                ? MessageExchange.fromInitialMessage(
+                      context,
+                      fakeInboundMessage({ protocolId, isInitiatorMessage: true }),
+                      exchangeOptions,
+                  )
                 : MessageExchange.initiate(context, 1, protocolId, exchangeOptions);
+            expect(exchange.isInitiator).equals(!options.peerInitiated);
 
             await expect(exchange.send(1, Bytes.empty)).to.be.rejectedWith("captured");
             return captured;

@@ -422,12 +422,7 @@ export class ExchangeManager implements Transport.Provider {
                         messageDiagnostics,
                     );
 
-                    try {
-                        await exchange.sendStandaloneAckForMessage(message);
-                    } finally {
-                        // Ensure we close the exchange even if sending the ack failed
-                        await exchange.close();
-                    }
+                    await this.#ackAndClose(exchange, message);
                     return;
                 }
 
@@ -497,10 +492,9 @@ export class ExchangeManager implements Transport.Provider {
                 lifetime.details.exchange = exchange.idStr;
                 this.#addExchange(session, exchangeIndex, exchange);
 
+                this.#logger.debug("Ignore", Mark.INBOUND, "unsolicited message", messageDiagnostics);
                 try {
-                    await exchange.sendStandaloneAckForMessage(message);
-                    await exchange.close();
-                    this.#logger.debug("Ignore", Mark.INBOUND, "unsolicited message", messageDiagnostics);
+                    await this.#ackAndClose(exchange, message);
                 } catch (error) {
                     this.#handleIncomingMessageError("unsolicited message", error, exchange, message);
                 }
@@ -527,10 +521,26 @@ export class ExchangeManager implements Transport.Provider {
                         Mark.INBOUND,
                         "unexpected message",
                         messageDiagnostics,
-                        Diagnostic.json(message),
+                        Diagnostic.json(
+                            Logger.logPayloads
+                                ? message
+                                : { packetHeader: message.packetHeader, payloadHeader: message.payloadHeader },
+                        ),
                     );
                 }
             }
+        }
+    }
+
+    /**
+     * Sends a standalone ack for the message if it needs one, then closes the exchange even if sending the ack throws.
+     * The send error is rethrown after the close.
+     */
+    async #ackAndClose(exchange: MessageExchange, message: Message) {
+        try {
+            await exchange.sendStandaloneAckForMessage(message);
+        } finally {
+            await exchange.close();
         }
     }
 

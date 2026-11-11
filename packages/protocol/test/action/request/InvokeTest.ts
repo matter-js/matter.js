@@ -6,10 +6,35 @@
 
 import { Invoke } from "#action/request/Invoke.js";
 import { MalformedRequestError } from "#action/request/MalformedRequestError.js";
-import { Millis } from "@matter/general";
-import { EndpointNumber } from "@matter/types";
+import { Bytes, Diagnostic, LogFormat, Millis } from "@matter/general";
+import { Matter, SecretRedaction } from "@matter/model";
+import { ClusterId, CommandId, EndpointNumber, TlvOfModel, TlvVoid } from "@matter/types";
 import { Identify } from "@matter/types/clusters/identify";
+import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { OnOff } from "@matter/types/clusters/on-off";
+import { ThreadNetworkDirectory } from "@matter/types/clusters/thread-network-directory";
+
+const DATASET = Bytes.fromHex("0e080000000000010000000300000f35060004001fffe0");
+const DATASET_HEX = Bytes.toHex(DATASET);
+
+function logged(value: unknown) {
+    return LogFormat.formats.plain(Diagnostic.message({ values: [value] }));
+}
+
+function threadDatasetLegacyRequest(): Invoke.LegacyCommandRequest {
+    const model = Matter.clusters.require("NetworkCommissioning").commands.require("AddOrUpdateThreadNetwork");
+    return {
+        endpoint: EndpointNumber(0),
+        cluster: { id: ClusterId(NetworkCommissioning.id), name: "NetworkCommissioning" },
+        command: {
+            requestId: CommandId(model.id),
+            requestSchema: TlvOfModel(model) ?? TlvVoid,
+            responseSchema: TlvVoid,
+            timed: false,
+        },
+        fields: { operationalDataset: DATASET, breadcrumb: 7 },
+    };
+}
 
 describe("Invoke", () => {
     describe("basic command invocation", () => {
@@ -177,6 +202,51 @@ describe("Invoke", () => {
 
         it("throws when called with no arguments", () => {
             expect(() => (Invoke as () => unknown)()).throws(MalformedRequestError, "at least one command");
+        });
+    });
+
+    describe("log output", () => {
+        it("replaces secret command fields", () => {
+            const request = Invoke(
+                Invoke.ConcreteCommandRequest({
+                    endpoint: EndpointNumber(0),
+                    cluster: NetworkCommissioning,
+                    command: "addOrUpdateThreadNetwork",
+                    fields: { operationalDataset: DATASET, breadcrumb: 7 },
+                }),
+            );
+
+            const text = logged(request);
+            expect(text).not.contains(DATASET_HEX);
+            expect(text).contains(SecretRedaction.PLACEHOLDER);
+            expect(text).contains("breadcrumb");
+        });
+
+        it("replaces secret command fields of a legacy request through the standard model", () => {
+            const text = logged(Invoke({ commands: [threadDatasetLegacyRequest()] }));
+
+            expect(text).not.contains(DATASET_HEX);
+            expect(text).contains(SecretRedaction.PLACEHOLDER);
+        });
+
+        it("keeps fields of a legacy request of a cluster the standard model does not define", () => {
+            const request = threadDatasetLegacyRequest();
+            request.cluster = { id: ClusterId(0xfff1fc00), name: "Custom" };
+
+            expect(Invoke.redactRequestFields(request, request.fields)).deep.equals(request.fields);
+        });
+
+        it("replaces secret response fields", () => {
+            const request = Invoke.ConcreteCommandRequest({
+                endpoint: EndpointNumber(1),
+                cluster: ThreadNetworkDirectory,
+                command: "getOperationalDataset",
+                fields: { extendedPanId: Bytes.fromHex("0000000000000001") },
+            });
+
+            expect(Invoke.redactResponseFields(request, { operationalDataset: DATASET })).deep.equals({
+                operationalDataset: SecretRedaction.PLACEHOLDER,
+            });
         });
     });
 });

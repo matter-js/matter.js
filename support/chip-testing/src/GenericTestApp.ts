@@ -15,6 +15,10 @@ import { StorageBackendAsyncJsonFile } from "./storage/StorageBackendAsyncJsonFi
 
 const logger = Logger.get("GenericTestApp");
 
+// Certification checks read message payloads and secret field values from the log of this process
+Logger.logPayloads = true;
+Logger.redactSecrets = false;
+
 // TODO - the get*Parameter calls are deprecated along with matter-node.js so copied here temporarily.  Replace with
 // yargs ?
 const commandArguments = process.argv.slice(2);

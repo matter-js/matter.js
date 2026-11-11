@@ -13,7 +13,7 @@ import { Read } from "#action/request/Read.js";
 import { Write } from "#action/request/Write.js";
 import { ResultStatus } from "#action/response/ResultStatus.js";
 import { BleDisconnectedError } from "#ble/Ble.js";
-import { Certificate } from "#certificate/kinds/Certificate.js";
+import { NocsrValidator } from "#certificate/NocsrValidator.js";
 import { PeerMessageMissingError, PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import { OperationalDataset } from "#thread/OperationalDataset.js";
 import {
@@ -25,7 +25,6 @@ import {
     ChannelType,
     Diagnostic,
     Duration,
-    EcdsaSignature,
     ImplementationError,
     Instant,
     Logger,
@@ -39,7 +38,7 @@ import {
     Timer,
     Timespan,
     Timestamp,
-    UnexpectedDataError,
+    InternalError,
 } from "@matter/general";
 import {
     ClusterId,
@@ -67,7 +66,6 @@ import {
     DeviceAttestationValidator,
 } from "../certificate/DeviceAttestationValidator.js";
 import { Dac } from "../certificate/kinds/AttestationCertificates.js";
-import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { Fabric } from "../fabric/Fabric.js";
 import { CommissioningError } from "./CommissioningError.js";
@@ -141,13 +139,13 @@ export type ControllerCommissioningFlowOptions = {
          *   - throw any error to reject by rethrowing that error verbatim (no wrapping)
          * - `undefined`: accept with warning logging (backward compatibility)
          *
-         * The callback receives either:
-         * - A single error-level finding for hard failures (invalid chain, bad signature, revoked
-         *   certificate, untrusted PAA, DCL service unavailable). The commissioner must decide
-         *   whether to proceed despite the failure.
-         * - One or more warning/info-level findings after successful validation (e.g. provisional
-         *   CD, test CD, skipped CD signer verification, no revocation data, test-cert-only PAA).
-         *   These are informational and the commissioner can inspect them for detailed decisions.
+         * The callback receives the findings collected during validation: warning/info-level findings
+         * (e.g. provisional CD, test CD, no revocation data) and the recoverable error-level findings
+         * `TrustedAsTestCertificate` and `CertificationDeclarationFieldMismatch` for the BasicInformation
+         * VendorID and ProductID, which the commissioner must decide on like a hard failure. When a hard
+         * failure (invalid chain, bad signature, revoked certificate, untrusted PAA, DCL service
+         * unavailable) stops validation, its error-level finding comes last, after the findings collected
+         * until then.
          *
          * TODO: Make required in next breaking version and remove undefined backward-compatible accept
          */
@@ -364,7 +362,7 @@ export class ControllerCommissioningFlow {
         this.fabric = fabric;
         this.transitionToCase = transitionToCase;
         this.commissioningOptions = commissioningOptions;
-        logger.debug(`Commissioning options: ${Diagnostic.json(commissioningOptions)}`);
+        logger.debug("Commissioning options", Diagnostic.dict(loggedOptionsOf(commissioningOptions)));
         this.#initializeCommissioningSteps();
     }
 
@@ -485,6 +483,10 @@ export class ControllerCommissioningFlow {
         }
         for await (const data of this.interaction.read(request)) {
             for await (const entry of data) {
+                if (entry.kind === "attr-status") {
+                    logger.debug("Commissioning read returned status", entry.status, "for", entry.path);
+                    continue;
+                }
                 if (entry.kind !== "attr-value") {
                     continue;
                 }
@@ -502,6 +504,10 @@ export class ControllerCommissioningFlow {
         return [...attributeMap.values()];
     }
 
+    /**
+     * Invoke one command and return the fields of its response, or nothing for a status response.  The fields are
+     * decoded but not checked against the response schema, so a mandatory field the device left out is `undefined`.
+     */
     // TODO improve response typing
     async #invokeCommand<const C extends ClusterType.Concrete>(
         request: Invoke.ConcreteCommandRequest<C>,
@@ -797,6 +803,10 @@ export class ControllerCommissioningFlow {
 
         for await (const data of networkData) {
             for await (const entry of data) {
+                if (entry.kind === "attr-status") {
+                    logger.debug("Commissioning read returned status", entry.status, "for", entry.path);
+                    continue;
+                }
                 if (entry.kind !== "attr-value") {
                     continue;
                 }
@@ -1336,8 +1346,8 @@ export class ControllerCommissioningFlow {
                     attestationElements,
                     attestationSignature,
                     attestationNonce,
-                    vendorId: this.collectedCommissioningData.vendorId!,
-                    productId: this.collectedCommissioningData.productId!,
+                    vendorId: this.collectedCommissioningData.vendorId,
+                    productId: this.collectedCommissioningData.productId,
                 },
             );
             findings = result.findings;
@@ -1350,7 +1360,10 @@ export class ControllerCommissioningFlow {
             }
             baseError = asError(error);
             if (error instanceof DeviceAttestationError) {
-                findings = [{ level: "error", type: error.failure, message: error.message }];
+                findings = [
+                    ...error.precedingFindings,
+                    { level: "error", type: error.failure, message: error.message },
+                ];
             } else {
                 // Unexpected validation error (e.g. an unrecoverably corrupt trust-store certificate).
                 // Surface it as an error finding so the onFailure policy can still judge it, instead of
@@ -1364,8 +1377,11 @@ export class ControllerCommissioningFlow {
         if (findings.length > 0) {
             const decision = await this.#resolveAttestationFindings(findings);
             if (!decision.proceed) {
+                const errorMessages = findings.filter(({ level }) => level === "error").map(({ message }) => message);
                 baseError ??= new CommissioningError(
-                    `Device attestation produced ${findings.length} finding(s) and was rejected by policy`,
+                    errorMessages.length
+                        ? `Device attestation rejected by policy: ${errorMessages.join("; ")}`
+                        : `Device attestation produced ${findings.length} finding(s) and was rejected by policy`,
                 );
                 if (decision.reason !== undefined) {
                     throw new CommissioningError(decision.reason, { cause: baseError });
@@ -1468,25 +1484,18 @@ export class ControllerCommissioningFlow {
             },
         );
 
-        if (nocsrElements.byteLength === 0 || csrSignature.byteLength === 0) {
-            throw new UnexpectedDataError("Invalid response from device");
+        if (this.#dacPublicKey === undefined) {
+            throw new InternalError("CSRResponse received before the device attestation step set the DAC public key");
         }
-
-        // Verify CSR attestation signature using DAC public key (extracted in step 10)
-        if (this.#dacPublicKey !== undefined) {
-            try {
-                await this.fabric.crypto.verifyEcdsa(
-                    this.#dacPublicKey,
-                    Bytes.concat(nocsrElements, this.commissioningOptions.attestation!.challengeKey),
-                    new EcdsaSignature(csrSignature),
-                );
-            } catch {
-                throw new CommissioningError("CSR signature verification failed against DAC public key");
-            }
-        }
-
-        const { certSigningRequest } = TlvCertSigningRequest.decode(nocsrElements);
-        const operationalPublicKey = await Certificate.getPublicKeyFromCsr(this.ca.crypto, certSigningRequest);
+        const operationalPublicKey = await NocsrValidator.validate(
+            {
+                crypto: this.fabric.crypto,
+                attestationChallenge: this.commissioningOptions.attestation.challengeKey,
+                csrNonce,
+                dacPublicKey: this.#dacPublicKey,
+            },
+            { nocsrElements, attestationSignature: csrSignature },
+        );
 
         await this.#invokeCommand(
             {
@@ -2228,4 +2237,27 @@ export class ControllerCommissioningFlow {
     close() {
         this.#armFailsafeInterval?.stop();
     }
+}
+
+/**
+ * The fields of {@link options} that hold no secret, for logging.  The options the caller passes may carry more, such as
+ * the fabric with its identity protection key or the passcode.
+ */
+function loggedOptionsOf(options: ControllerCommissioningFlowOptions) {
+    const {
+        regulatoryLocation,
+        regulatoryCountryCode,
+        adminVendorId,
+        wifiNetwork,
+        threadNetwork,
+        otaUpdateProviderLocation,
+    } = options;
+    return {
+        regulatoryLocation,
+        regulatoryCountryCode,
+        adminVendorId,
+        wifiSsid: wifiNetwork?.wifiSsid,
+        threadNetwork: threadNetwork && (threadNetwork.networkName ?? "(dataset only)"),
+        otaUpdateProviderLocation,
+    };
 }

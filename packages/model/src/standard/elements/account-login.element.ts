@@ -33,13 +33,13 @@ export const AccountLogin = Cluster(
 
     Command(
         { name: "GetSetupPinResponse", id: 0x1, access: "F", conformance: "M", direction: "response" },
-        Field({ name: "SetupPin", id: 0x0, type: "string", conformance: "M", constraint: "desc" })
+        Field({ name: "SetupPin", id: 0x0, type: "string", conformance: "M", constraint: "desc", isSecret: true })
     ),
 
     Command(
         { name: "Login", id: 0x2, access: "F A T", conformance: "M", direction: "request", response: "status" },
         Field({ name: "TempAccountIdentifier", id: 0x0, type: "string", conformance: "M", constraint: "16 to 100" }),
-        Field({ name: "SetupPin", id: 0x1, type: "string", conformance: "M", constraint: "min 8" }),
+        Field({ name: "SetupPin", id: 0x1, type: "string", conformance: "M", constraint: "min 8", isSecret: true }),
         Field({ name: "Node", id: 0x2, type: "node-id", conformance: "O" })
     ),
 

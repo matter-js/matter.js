@@ -561,14 +561,17 @@ export class ClientInteraction<
 
                     const data = commandFields === undefined ? undefined : responseSchema?.decodeTlv(commandFields);
 
-                    logger.info(
-                        "Invoke",
-                        Mark.INBOUND,
-                        messenger.exchange.via,
-                        messenger.exchange.diagnostics,
-                        Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
-                        isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
-                    );
+                    logger.info(() => {
+                        const loggedData = Invoke.redactResponseFields(cmd, data);
+                        return [
+                            "Invoke",
+                            Mark.INBOUND,
+                            messenger.exchange.via,
+                            messenger.exchange.diagnostics,
+                            Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
+                            isObject(loggedData) ? Diagnostic.dict(loggedData) : Diagnostic.weak("(no payload)"),
+                        ];
+                    });
 
                     chunk.push({
                         kind: "cmd-response",
@@ -680,19 +683,7 @@ export class ClientInteraction<
                 ...request,
                 commands: batchCommands,
                 invokeRequests: batchInvokeRequests,
-                [Diagnostic.value]: () =>
-                    Diagnostic.list(
-                        [...batchCommands.values()].map(cmd => {
-                            const { commandRef } = cmd;
-                            const fields = "fields" in cmd ? cmd.fields : undefined;
-                            return [
-                                Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
-                                "with",
-                                isObject(fields) ? Diagnostic.dict(fields) : "(no payload)",
-                                commandRef !== undefined && batchCommands.size > 1 ? `(ref ${commandRef})` : "",
-                            ];
-                        }),
-                    ),
+                [Diagnostic.value]: () => Invoke.diagnosticOf(batchCommands.values()),
             };
             return this.#invokeSingle(batchRequest, session);
         });
