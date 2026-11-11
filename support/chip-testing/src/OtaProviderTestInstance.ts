@@ -60,7 +60,7 @@ class CertOtaProviderServer extends OtaSoftwareUpdateProviderServer {
             vendorId,
             productId,
             currentSoftwareVersion: softwareVersion,
-            includeTestImages: allowTestOtaImages,
+            includeNonProductionImages: allowTestOtaImages,
         });
         if (candidate === undefined) {
             return undefined;

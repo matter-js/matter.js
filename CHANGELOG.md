@@ -21,22 +21,50 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Enhancement: Added `SoftwareUpdateManager.dropUndeliverableUpdate()` for `checkUpdateAvailable()` overrides
-    - Enhancement: Set the new `SoftwareUpdateManager` state `delegateConsentToRequestor` to true to let a requestor that can obtain user consent itself download and apply the newest stored image without a consent from the application
-    - Adjustment: A requestor that can obtain user consent itself is no longer offered an image it may not apply
-    - Adjustment: `SoftwareUpdateManager.forceUpdate()` queues the update and returns at once; the announcement runs in the background, and the outcome is reported via `updateDone` and `updateFailed`
-    - Adjustment: The OTA update check finds stored local images only with `allowTestOtaImages`, as the OTA provider already offered them only then
-    - Adjustment: A failed OTA update keeps its consent for 24 hours and is not announced again until a new consent is given; meanwhile the node may still retry it on its own
-    - Adjustment: A failed OTA update announcement is retried by the next queue check, within 5 minutes, instead of after the 15-minute stall timeout; a hanging one ends after 15 minutes
-    - Fix: The OTA provider offers the same stored image as the update check, and the consented version instead of a lower one
+    - Enhancement: Added `SoftwareUpdateManager.mayDelegateConsentTo()`, the rule for when a node may obtain the user consent itself
+    - Enhancement: Added the `SoftwareUpdateManager` state `delegateConsentToRequestor`, which lets a requestor that can obtain user consent itself apply the newest stored image
+    - Adjustment: `SoftwareUpdateManager.Internal.consents` holds one consent per peer in a `PeerAddressMap` and is written only through the manager API, and the `Internal.updateQueue` entries have a new shape
+    - Adjustment: `SoftwareUpdateManager.queuedUpdates` omits a failed update
+    - Adjustment: `SoftwareUpdateManager.Internal.versionUpdateObservers` holds one observer group per peer
+    - Adjustment: Removed `OtaSoftwareUpdateProviderServer.Internal.inProgressDetails`
+    - Adjustment: `SoftwareUpdateManager.suppressNextStartUp()` is private
+    - Adjustment: Removed `SoftwareUpdateManager.onOtaStatusChange()`
+    - Adjustment: `SoftwareUpdateManager.forceUpdate()` does not wait for the announcement to the node
+    - Adjustment: `SoftwareUpdateManager.forceUpdate()` throws `OtaUpdateError` when the node already runs the target or a higher version, transfers another version, or no node has the peer address
+    - Adjustment: `SoftwareUpdateManager.addUpdateConsent()` throws `OtaUpdateError` for a peer address no node has, instead of creating a node for it
+    - Adjustment: `SoftwareUpdateManager.addUpdateConsent()` stores no consent for a version at or below the one the node runs and returns false
+    - Adjustment: `SoftwareUpdateManager.removeConsent()` with a version cancels only an update to that version
+    - Adjustment: `SoftwareUpdateManager` emits `updateApplying` only for the version the queued update follows
+    - Adjustment: A requestor that can obtain user consent itself is offered an image without a consent from the application only with `delegateConsentToRequestor`
+    - Adjustment: The OTA update check queues the consented version also when it found a higher one, and emits `updateAvailable` for that one
+    - Adjustment: The OTA provider accepts an apply of a version above 0 under an update token it does not know, as after a controller restart
+    - Adjustment: A node that restarts with its old version before it asks to apply is announced the update again instead of failing it
+    - Adjustment: The OTA update check and the OTA provider offer stored local and test-net images only with `allowTestOtaImages`, so a local image is no longer reported and then refused
+    - Fix: The OTA provider offers the consented version instead of a lower stored one
+    - Fix: The OTA provider no longer delegates the user consent to a node with `LocalConfigDisabled` set
+    - Fix: The OTA provider accepts the apply of an image it offered under that update token, unless the consent for its version was removed
+    - Fix: A failed OTA update keeps its consent for 24 hours and is not announced again until a new consent is given
+    - Fix: A failed OTA update announcement is retried by the next queue check within 5 minutes, and a hanging one ends after 15 minutes
     - Fix: A consent granted through `requestUserConsentForUpdate()` is no longer lost when the download starts
     - Fix: A queued OTA update fails and is reported via `updateFailed` when the announced node finds no image for it, instead of being announced again every 15 minutes
+    - Fix: A status of one OTA offer, such as a cancel or a `Done` below the target, no longer moves the queued update of another offer
+    - Fix: An OTA update is reported as failed when the node queries again with its old version after it was allowed to apply
     - Fix: A forced OTA update is announced once
-    - Fix: A cancelled OTA update also ends the apply rights of its update tokens
+    - Fix: `SoftwareUpdateManager` emits its events once its state is final, and an error of a listener no longer fails the OTA command that caused the event
+    - Fix: The OTA state of a node is dropped when its peer is deleted, as on decommission
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
 
+- @matter/nodejs-shell
+    - Adjustment: `nodes ota apply` applies only production images while `config ota-test-images` is off
+    - Adjustment: With `--local`, the OTA commands skip stored local images with `--mode prod`, and with `--mode auto` while `config ota-test-images` is off, and say so
+    - Adjustment: `nodes ota known --local` lists stored local images only while `config ota-test-images` is set
+    - Adjustment: `config ota-test-images` names local images in its output
+    - Fix: `nodes ota apply --local --force` applies a stored image instead of downloading it again
+
 - @matter/protocol
     - Enhancement: Added `DclOtaUpdateService.findApplicable()` to list the stored update images a device can apply, in offer order
+    - Adjustment: `DclOtaUpdateService.checkForUpdate()` with `isProduction: true` no longer returns stored local images
 
 ## 0.18.0 (2026-10-20)
 

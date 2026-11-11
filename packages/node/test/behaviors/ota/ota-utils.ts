@@ -395,6 +395,10 @@ export function InstrumentedOtaProviderServer(
          * answer the provider gives only in a state the flow does not otherwise pass through.
          */
         beforeApplyUpdateRequest?: (agent: Agent) => MaybePromise<void>;
+        /** Replaces the QueryImage the requestor sent, standing in for a requestor that sends other fields. */
+        rewriteQueryImageRequest?: (
+            request: OtaSoftwareUpdateProvider.QueryImageRequest,
+        ) => OtaSoftwareUpdateProvider.QueryImageRequest;
         /** Replaces the request the requestor sent, standing in for a requestor that sends other fields. */
         rewriteApplyUpdateRequest?: (
             request: OtaSoftwareUpdateProvider.ApplyUpdateRequest,
@@ -456,7 +460,7 @@ export function InstrumentedOtaProviderServer(
                     queryImageRejecter(new Error("Unexpected call to queryImage"));
                 }
                 queryImageResolver();
-                const response = await super.queryImage(request);
+                const response = await super.queryImage(hooks.rewriteQueryImageRequest?.(request) ?? request);
                 queryImageResponses.push(response);
                 queryImageAnsweredResolver();
                 return response;

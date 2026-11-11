@@ -191,7 +191,7 @@ nodes ota known --local
 
 Options:
 - `[node-id]`: Optional node ID to check for updates for a specific node
-- `--local`: Include locally stored update files in the results
+- `--local`: Include locally stored update files in the results; local images only with `config ota-test-images`
 
 #### Check for OTA updates for a commissioned node
 
@@ -205,7 +205,7 @@ nodes ota check 5000 --local
 
 Options:
 - `--mode <auto|prod|test|both>`: DCL instances to query. `auto` (default) follows the `config ota-test-images` setting: production only, or production plus test when test images are enabled
-- `--local`: Include locally stored update files when checking for updates
+- `--local`: Include locally stored update files when checking for updates; local images not with `--mode prod`, and with `--mode auto` only with `config ota-test-images`
 
 The command will display information about available updates including version, file size, and download URL.
 
@@ -222,7 +222,7 @@ nodes ota download 5000 --local
 Options:
 - `--mode <auto|prod|test|both>`: DCL instances to query. `auto` (default) follows the `config ota-test-images` setting: production only, or production plus test when test images are enabled
 - `--force`: Force re-download even if the update is already cached locally
-- `--local`: Consider locally cached updates when checking for available updates (before downloading)
+- `--local`: Consider locally cached updates when checking for available updates (before downloading); local images not with `--mode prod`, and with `--mode auto` only with `config ota-test-images`
 
 #### Apply OTA update to a commissioned node
 
@@ -238,7 +238,7 @@ nodes ota apply 5000 --force
 Options:
 - `--mode <auto|prod|test|both>`: DCL instances to query. `auto` (default) follows the `config ota-test-images` setting: production only, or production plus test when test images are enabled
 - `--force`: Force download even if update is already stored locally
-- `--local`: Apply update from locally stored files instead of downloading from DCL
+- `--local`: Apply update from locally stored files instead of downloading from DCL; local images only with `config ota-test-images` and not with `--mode prod`
 
 The command will check for available updates, download if necessary, and trigger the OTA update process on the connected node. The node must be connected for this command to work.
 
@@ -313,7 +313,7 @@ ota download 0xfff1 0x8000 1 --mode test
 
 Options:
 - `--mode <auto|prod|test|both>`: DCL instances to query. `auto` (default) follows the `config ota-test-images` setting: production only, or production plus test when test images are enabled
-- `--local`: Include locally stored update files in the search
+- `--local`: Include locally stored update files in the search; local images not with `--mode prod`, and with `--mode auto` only with `config ota-test-images`
 
 #### Copy OTA image to filesystem
 

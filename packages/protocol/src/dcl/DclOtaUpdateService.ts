@@ -52,7 +52,10 @@ export type OtaUpdateInfo = DeviceSoftwareVersionModelDclSchemaWithSource;
 
 const OTA_DOWNLOAD_TIMEOUT = Minutes(5);
 
-/** Preference among stored images with the same version, used to select an update; a local image is one the user added on purpose. */
+/**
+ * Preference among stored images with the same version, used to select an update; a local image is one the user added
+ * on purpose.
+ */
 const STORED_MODE_PRECEDENCE: Record<OtaStorageMode, number> = { local: 0, test: 1, prod: 2 };
 
 const OTA_FILENAME_REGEX = /^[0-9a-f]+[./][0-9a-f]+[./](?:prod|test|local)[./]\d+$/i;
@@ -317,7 +320,7 @@ export class DclOtaUpdateService {
                 vendorId,
                 productId,
                 currentSoftwareVersion,
-                includeTestImages: isProduction !== true,
+                includeNonProductionImages: isProduction !== true,
             });
             for (const entry of storedUpdates) {
                 const localUpdate: DeviceSoftwareVersionModelDclSchemaWithSource = {
@@ -383,18 +386,18 @@ export class DclOtaUpdateService {
      * Stored images a device of the product can update to from `currentSoftwareVersion`: newer than that version, with
      * the version inside the image's applicable range.  Highest version first; on equal versions a local image comes
      * first, then a test-net image, then a production image.  Test-net and local images are only included with
-     * `includeTestImages`.
+     * `includeNonProductionImages`.
      *
      * The update check with stored images and the answer to a device's QueryImage both select through this, so a
      * consent given for the version the update check found names an image that QueryImage offers.
      */
     async findApplicable(options: DclOtaUpdateService.FindApplicableOptions) {
-        const { vendorId, productId, currentSoftwareVersion, includeTestImages } = options;
+        const { vendorId, productId, currentSoftwareVersion, includeNonProductionImages } = options;
         const entries = await this.find({ vendorId, productId, currentVersion: currentSoftwareVersion });
         return entries
             .filter(
                 ({ softwareVersion, mode }) =>
-                    softwareVersion > currentSoftwareVersion && (includeTestImages || mode === "prod"),
+                    softwareVersion > currentSoftwareVersion && (includeNonProductionImages || mode === "prod"),
             )
             .sort(
                 (a, b) =>
@@ -1341,6 +1344,6 @@ export namespace DclOtaUpdateService {
         currentSoftwareVersion: number;
 
         /** Include stored test-net and local images; production images are always included. */
-        includeTestImages: boolean;
+        includeNonProductionImages: boolean;
     }
 }
