@@ -54,6 +54,7 @@ export class MdnsService {
         const vars = environment.get(VariableService);
         this.#enableIpv4 = vars.boolean("mdns.ipv4") ?? options?.ipv4 ?? true;
         this.limitedToNetInterface = vars.get("mdns.networkInterface", options?.networkInterface);
+        const logStatistics = vars.boolean("mdns.statistics") ?? false;
 
         this.#construction = Construction(this, async () => {
             try {
@@ -61,6 +62,7 @@ export class MdnsService {
                     lifetime: this.#construction,
                     enableIpv4: this.enableIpv4,
                     netInterface: this.limitedToNetInterface,
+                    logStatistics,
                 });
             } catch (cause) {
                 // Withdraw before rejecting so a retry constructs a new instance instead of awaiting this crashed one

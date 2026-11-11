@@ -9,6 +9,7 @@ import { CommissioningClient } from "#behavior/system/commissioning/Commissionin
 import { ClientNetworkRuntime } from "#behavior/system/network/ClientNetworkRuntime.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
+import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Agent } from "#endpoint/Agent.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { ClientNodeEndpoints } from "#endpoint/properties/ClientNodeEndpoints.js";
@@ -33,6 +34,7 @@ import {
 } from "@matter/general";
 import { Matter, MatterModel } from "@matter/model";
 import { Interactable, OccurrenceManager, PeerAddress, PeerSet } from "@matter/protocol";
+import { FabricIndex } from "@matter/types";
 import { ClientEndpointInitializer } from "./client/ClientEndpointInitializer.js";
 import { ClientNodeInteraction } from "./client/ClientNodeInteraction.js";
 import { ClientStructure } from "./client/ClientStructure.js";
@@ -82,6 +84,25 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     override readonly nodeType: "client" | "group" = "client";
+
+    /**
+     * Our fabric index on the peer, if known: `commissioning.fabricIndexOnPeer`, else
+     * `operationalCredentials.currentFabricIndex` unless the peer reported `FabricIndex.NO_FABRIC`.
+     *
+     * Any write of a fabric-scoped list such as `acl` needs it.  The write sends only our entries and leaves out an
+     * entry of another fabric that equals a cached entry; it refuses any other entry of another fabric, and any write
+     * of a fabric-scoped list while this index is unknown.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 7.19.1.8.2
+     */
+    get fabricIndexOnPeer() {
+        const recorded = this.maybeStateOf(CommissioningClient)?.fabricIndexOnPeer;
+        if (recorded !== undefined) {
+            return recorded;
+        }
+        const current = this.maybeStateOf(OperationalCredentialsClient)?.currentFabricIndex;
+        return current === FabricIndex.NO_FABRIC ? undefined : current;
+    }
 
     /**
      * Model of Matter semantics understood by this node.

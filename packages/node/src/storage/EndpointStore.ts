@@ -44,7 +44,7 @@ export class EndpointStore {
     /**
      * Patch values.  Keyed by {@link Behavior.id} then property name.
      *
-     * See {@link Datasource.Store.set} for the patch semantics the individual structs use.
+     * See {@link Datasource.PersistentStore.set} for the patch semantics the individual structs use.
      *
      * When {@link sharedTx} is provided, writes go through it and the caller owns the transaction lifecycle (no
      * commit/dispose here).
