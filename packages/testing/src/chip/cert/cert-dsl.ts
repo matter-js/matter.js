@@ -35,7 +35,13 @@ import {
     SelectableDeviceFlavor,
 } from "./cert-context.js";
 import { CertControllerGapError, CertTest, registerCertTestFactory } from "./cert-test.js";
-import { chipImageBase, ChipDockerSubject, ChipLocalSubject, resolveChipLocalAppDir } from "./chip-app-subject.js";
+import {
+    chipImageBase,
+    ChipDockerSubject,
+    ChipLocalSubject,
+    clearChipLocalPlatformState,
+    resolveChipLocalAppDir,
+} from "./chip-app-subject.js";
 import type {
     ControllerCapability,
     ControllerRoleKind,
@@ -614,6 +620,11 @@ function defineCertTest(
 
             if (unmetTestPics(definition, pics) !== undefined) {
                 this.skip();
+            }
+
+            // The primary role starts first and #buildContext starts the other roles after it
+            if (flavor === "chip-local") {
+                await clearChipLocalPlatformState();
             }
 
             await State.activateSubject(
