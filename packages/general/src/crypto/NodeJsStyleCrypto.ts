@@ -629,7 +629,7 @@ if (nodeCrypto?.createECDH) {
     NodeJsStyleCrypto.providesDefault = claimDefault;
 
     if (!claimDefault) {
-        logger.notice(`Leaving crypto to a standard implementation because Node.js-style crypto offers ${defect}`);
+        logger.info(`Using standard crypto (AES-CCM in pure JavaScript) because Node.js-style crypto offers ${defect}`);
     }
 
     if (claimDefault) {
