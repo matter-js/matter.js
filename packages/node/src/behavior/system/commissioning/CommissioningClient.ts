@@ -128,9 +128,22 @@ export class CommissioningClient extends Behavior {
      * Older versions stored a peer's session parameters under `sessionParameters`: the full effective set once a
      * session existed, otherwise only the DNS-SD intervals.  The first becomes the reported set, the second the
      * advertised intervals.  Values already under the new keys win.
+     *
+     * Stored discovery TTLs are dropped, so the default TTL applies.  Versions before 0.16.11 stored TTLs inflated by
+     * powers of 1000 or `null`, which fail validation or keep an address from expiring.  Current discovery stores no
+     * TTL.
      */
     static override migrate(values: Val.Struct) {
         super.migrate(values);
+
+        delete values.ttl;
+        if (Array.isArray(values.addresses)) {
+            for (const address of values.addresses) {
+                if (isObject(address)) {
+                    delete address.ttl;
+                }
+            }
+        }
 
         const { sessionParameters } = values;
         delete values.sessionParameters;
@@ -1125,7 +1138,7 @@ export namespace CommissioningClient {
         fabricIndexOnPeer?: FabricIndex;
 
         /**
-         * The TTL of the discovery record if applicable (in seconds).
+         * The TTL of the discovery record if applicable.
          */
         @field(duration, nonvolatile)
         ttl?: Duration;

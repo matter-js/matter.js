@@ -61,6 +61,11 @@ export abstract class BleChannel<T extends Bytes = Bytes> implements Channel<T>,
         return this.#closed;
     }
 
+    /** True once {@link closed} was emitted.  Lets a consumer that subscribes late detect a loss it did not observe. */
+    get isClosed() {
+        return this.#closedFired;
+    }
+
     protected emitClosed() {
         if (this.#closedFired) {
             return;

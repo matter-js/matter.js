@@ -90,6 +90,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         this.validateProperty({ name: "access", type: Access });
         this.validateProperty({ name: "quality", type: Quality });
         this.validateProperty({ name: "metatype", type: Metatype });
+        this.validateProperty({ name: "isSecret", type: "boolean" });
 
         this.#validateAspect("conformance");
         this.model.conformance.validateReferences(this, name => this.resolveReference(name));

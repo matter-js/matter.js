@@ -12,8 +12,10 @@ import {
     DnsRecordClass,
     DnsRecordType,
     Millis,
+    Minutes,
     MockCrypto,
     Seconds,
+    Time,
 } from "@matter/general";
 import { Specification } from "@matter/model";
 import { MockSite } from "@matter/node/testing";
@@ -265,6 +267,85 @@ describe("Peer descriptor", () => {
             expect(state.advertisedIntervals?.activeInterval).equals(300);
             expect(state.advertisedIntervals?.idleInterval).undefined;
         });
+    });
+
+    describe("stored discovery TTLs", () => {
+        it("loads a TTL stored as null", async () => {
+            const site = new MockSite();
+            await using _site = site;
+            const { controller } = await commissionedPeer(site);
+            const controllerId = controller.id;
+            await site.close();
+
+            const key = "nodes.peer1.endpoints.0.commissioning";
+            const stored = site.storageFor(controllerId)[key];
+            stored.ttl = null;
+            stored.addresses = [{ ...stored.addresses[0], ttl: null }];
+
+            const controllerB = await site.addNode(undefined, { id: controllerId, index: 1 });
+            const peer = controllerB.peers.get("peer1")!;
+
+            expect(peer.construction.status).equals("active");
+            const state = peer.stateOf(CommissioningClient);
+            expect(state.ttl).undefined;
+            expect(state.addresses?.[0].ttl).undefined;
+
+            await peer.setStateOf(CommissioningClient, { tcpUnsupported: true });
+            expect(site.storageFor(controllerId)[key].ttl).undefined;
+            expect(site.storageFor(controllerId)[key].addresses[0].ttl).undefined;
+        });
+
+        it("drops every stored TTL on load", async () => {
+            const site = new MockSite();
+            await using _site = site;
+            const { controller } = await commissionedPeer(site);
+            const controllerId = controller.id;
+            await site.close();
+
+            // Inflated values as older versions stored them, and a plausible one
+            const key = "nodes.peer1.endpoints.0.commissioning";
+            const stored = site.storageFor(controllerId)[key];
+            const [address] = stored.addresses;
+            stored.ttl = 4.5e198;
+            stored.addresses = [
+                { ...address, ttl: 7.2e15 },
+                { ...address, port: address.port + 1, ttl: 1.2e8 },
+                { ...address, port: address.port + 2, ttl: Seconds(120) },
+            ];
+
+            const controllerB = await site.addNode(undefined, { id: controllerId, index: 1 });
+            const peer = controllerB.peers.get("peer1")!;
+
+            expect(peer.construction.status).equals("active");
+            const state = peer.stateOf(CommissioningClient);
+            expect(state.ttl).undefined;
+            expect(state.addresses?.map(({ ttl }) => ttl)).deep.equals([undefined, undefined, undefined]);
+
+            await peer.setStateOf(CommissioningClient, { tcpUnsupported: true });
+            const written = site.storageFor(controllerId)[key];
+            expect(written.ttl).undefined;
+            expect(written.addresses.map(({ ttl }: { ttl?: number }) => ttl)).deep.equals([
+                undefined,
+                undefined,
+                undefined,
+            ]);
+        });
+    });
+
+    it("removes a discovered address once its TTL has passed", async () => {
+        await using site = new MockSite();
+        const { controller } = await commissionedPeer(site);
+        const peer = controller.peers.get("peer1")!;
+        const [address] = peer.stateOf(CommissioningClient).addresses!;
+        if (!("port" in address) || address.port === undefined) {
+            expect.fail("Expected an IP address");
+        }
+        const expiring = { ...address, port: address.port + 1, discoveredAt: Time.nowMs, ttl: Seconds(120) };
+        await peer.setStateOf(CommissioningClient, { addresses: [address, expiring] });
+
+        await MockTime.resolve(Time.sleep("address expiry", Minutes(5)), { macrotasks: true });
+
+        expect(peer.stateOf(CommissioningClient).addresses).deep.equals([address]);
     });
 
     it("keeps a peer marked TCP-unsupported across a restart until a session reports TCP support", async () => {

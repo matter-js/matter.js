@@ -5,6 +5,7 @@
  */
 
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
+import { ClientRequest } from "#action/client/ClientRequest.js";
 import { Invoke } from "#action/request/Invoke.js";
 import { InvokeResult } from "#action/response/InvokeResult.js";
 import { Certificate } from "#certificate/kinds/Certificate.js";
@@ -25,13 +26,18 @@ export namespace AdministratorCommands {
      * Throws the status error when the peer answers with a status other than success.
      *
      * TODO improve response typing
+     *
+     * @param transmission how the request reaches the peer, such as {@link ClientRequest.requireExistingSession}
      */
     export async function invoke<const C extends ClusterType.Concrete>(
         interaction: ClientInteraction,
         request: Invoke.ConcreteCommandRequest<C>,
         options: Omit<Invoke.Definition, "commands"> = {},
+        transmission?: ClientRequest,
     ) {
-        return InvokeResult.responseOfSingleCommand(interaction.invoke(Invoke({ commands: [request], ...options })));
+        return InvokeResult.responseOfSingleCommand(
+            interaction.invoke({ ...Invoke({ commands: [request], ...options }), ...transmission }),
+        );
     }
 
     /**

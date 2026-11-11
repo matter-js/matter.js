@@ -220,7 +220,7 @@ export class CaseClient {
 
             const successPromise = messenger.sendSuccess();
 
-            this.#sessions.sessions.add(secureSession); // Triggers interactions to the node
+            this.#sessions.registeredSessions.add(secureSession); // Triggers interactions to the node
 
             try {
                 await successPromise;
@@ -366,7 +366,7 @@ export class CaseClient {
                 caseAuthenticatedTags: peerCaseAuthenticatedTags,
             };
 
-            this.#sessions.sessions.add(secureSession);
+            this.#sessions.registeredSessions.add(secureSession);
         }
 
         // Not abortable; errors must not propagate — session is already adopted at this point.

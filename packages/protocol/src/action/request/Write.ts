@@ -5,7 +5,7 @@
  */
 
 import { Diagnostic, Duration } from "@matter/general";
-import { Specification } from "@matter/model";
+import { SecretRedaction, Specification } from "@matter/model";
 import { ArraySchema, AttributeData, AttributeId, ClusterId, TlvOfModel, WriteRequest } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { MalformedRequestError } from "./MalformedRequestError.js";
@@ -87,15 +87,16 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
         [Diagnostic.value]: () => {
             const items = data.flatMap(entry => {
                 const { version, value, endpoint, cluster, attributes } = entry;
-                const valueString = Diagnostic.json(value);
                 const list = Array.isArray(attributes) ? attributes : [attributes];
                 const versionString = version !== undefined ? `(version=${version})` : "";
-                return list.map(attribute =>
-                    Diagnostic.squash(
+                return list.map(attribute => {
+                    const { schema } = Specifier.attributeFor(Specifier.clusterOf(entry), attribute);
+                    const valueString = Diagnostic.json(SecretRedaction.redact(schema, value));
+                    return Diagnostic.squash(
                         Diagnostic.strong(resolvePathForSpecifier({ endpoint, cluster, attribute })),
                         ` = ${valueString}${versionString}`,
-                    ),
-                );
+                    );
+                });
             });
             if (chunked) {
                 return [Diagnostic.asFlags({ chunked: true }), Diagnostic.list(items)];

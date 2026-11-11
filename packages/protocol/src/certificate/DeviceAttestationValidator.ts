@@ -38,6 +38,13 @@ export enum DeviceAttestationCheck {
     AttestationSignatureInvalid = "AttestationSignatureInvalid",
     AttestationNonceMismatch = "AttestationNonceMismatch",
     CertificationDeclarationSignatureInvalid = "CertificationDeclarationSignatureInvalid",
+    /**
+     * A Certification Declaration field does not match the device.  Collected as a recoverable error for the
+     * BasicInformation VendorID and ProductID, which the device reports about itself, also when it did not report them;
+     * thrown for a mismatch with the DAC or PAI.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 6.2.3.1
+     */
     CertificationDeclarationFieldMismatch = "CertificationDeclarationFieldMismatch",
     CertificateRevoked = "CertificateRevoked",
     FirmwareInfoMismatch = "FirmwareInfoMismatch",
@@ -106,6 +113,12 @@ export interface AttestationFinding {
 
 /** Error thrown when device attestation validation encounters a hard failure. */
 export class DeviceAttestationError extends CommissioningError {
+    /**
+     * Findings {@link DeviceAttestationValidator.validate} collected before this failure stopped validation, so a
+     * policy can see them next to the failure.
+     */
+    readonly precedingFindings = new Array<AttestationFinding>();
+
     constructor(
         readonly failure: DeviceAttestationCheck,
         message: string,
@@ -197,6 +210,10 @@ function idHex(id?: number) {
     return id === undefined ? "undefined" : `0x${Diagnostic.hex(id, 4).toUpperCase()}`;
 }
 
+function basicInformationValue(id?: number) {
+    return id === undefined ? "(not reported by the device)" : idHex(id);
+}
+
 export namespace DeviceAttestationValidator {
     export interface Context {
         crypto: Crypto;
@@ -217,8 +234,11 @@ export namespace DeviceAttestationValidator {
         attestationElements: Bytes;
         attestationSignature: Bytes;
         attestationNonce: Bytes;
-        vendorId: VendorId;
-        productId: number;
+        /** BasicInformation VendorID; undefined when the device did not report it. */
+        vendorId?: VendorId;
+
+        /** BasicInformation ProductID; undefined when the device did not report it. */
+        productId?: number;
     }
 
     /** Result of a successful validation, including any non-fatal findings. */
@@ -251,13 +271,31 @@ export namespace DeviceAttestationValidator {
      * is provided.
      *
      * Most error-level failures throw immediately via {@link DeviceAttestationError}. A small
-     * set of recoverable error cases (currently {@link DeviceAttestationCheck.TrustedAsTestCertificate})
-     * are collected in `findings` so the caller can decide via `onFailure` whether to proceed.
-     * Warning and info findings are always collected.
+     * set of recoverable error cases are collected in `findings` so the caller can decide via
+     * `onFailure` whether to proceed: {@link DeviceAttestationCheck.TrustedAsTestCertificate}, and
+     * {@link DeviceAttestationCheck.CertificationDeclarationFieldMismatch} when the CD does not match the
+     * BasicInformation VendorID or ProductID the device reported, or the device did not report them.
+     * Warning and info findings are always collected. When a hard failure stops validation, the findings collected
+     * until then are in {@link DeviceAttestationError.precedingFindings}.
      */
     export async function validate(context: Context, data: DeviceAttestationData): Promise<ValidationResult> {
-        const { crypto, dclCertificateService } = context;
         const findings = new Array<AttestationFinding>();
+        try {
+            return { dacPublicKey: await validateCollecting(context, data, findings), findings };
+        } catch (error) {
+            if (error instanceof DeviceAttestationError) {
+                error.precedingFindings.push(...findings);
+            }
+            throw error;
+        }
+    }
+
+    async function validateCollecting(
+        context: Context,
+        data: DeviceAttestationData,
+        findings: AttestationFinding[],
+    ): Promise<ReturnType<typeof PublicKey>> {
+        const { crypto, dclCertificateService } = context;
 
         // Step 1: Parse PAI and DAC from DER; the PAI goes first, as the CHIP SDK checks the PAI format first
         const pai = parsePeerCertificate("PAI", data.pai, der => Pai.fromAsn1(der));
@@ -531,18 +569,20 @@ export namespace DeviceAttestationValidator {
 
         // vendor_id SHALL match BasicInformation VendorID
         if (cdContent.vendorId !== data.vendorId) {
-            throw new DeviceAttestationError(
-                DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                `CD vendor_id ${idHex(cdContent.vendorId)} does not match BasicInformation VendorID ${idHex(data.vendorId)}`,
-            );
+            findings.push({
+                level: "error",
+                type: DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
+                message: `CD vendor_id ${idHex(cdContent.vendorId)} does not match BasicInformation VendorID ${basicInformationValue(data.vendorId)}`,
+            });
         }
 
         // product_id_array SHALL contain BasicInformation ProductID
-        if (!cdContent.produceIdArray.includes(data.productId)) {
-            throw new DeviceAttestationError(
-                DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                `CD product_id_array [${cdContent.produceIdArray.map(idHex).join(", ")}] does not contain BasicInformation ProductID ${idHex(data.productId)}`,
-            );
+        if (cdContent.produceIdArray.every(id => id !== data.productId)) {
+            findings.push({
+                level: "error",
+                type: DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
+                message: `CD product_id_array [${cdContent.produceIdArray.map(idHex).join(", ")}] does not contain BasicInformation ProductID ${basicInformationValue(data.productId)}`,
+            });
         }
 
         // CD SHALL contain both or neither of dac_origin_vendor_id and dac_origin_product_id
@@ -641,6 +681,6 @@ export namespace DeviceAttestationValidator {
         //       compare attestationInfo.firmwareInfo bytes against expected value and emit a
         //       FirmwareInfoMismatch warning finding on mismatch. Validation is MAY per spec.
 
-        return { dacPublicKey, findings };
+        return dacPublicKey;
     }
 }

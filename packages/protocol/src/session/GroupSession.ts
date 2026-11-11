@@ -113,6 +113,7 @@ export class GroupSession extends SecureSession {
     readonly #operationalPrivacyKey?: Bytes;
     readonly #multicastAddress: string;
     readonly supportsMRP = false;
+    readonly isEstablishing = false;
     readonly closingAfterExchangeFinished = false; // Group sessions do not close after exchange finished, they are long-lived
 
     readonly keySetId: number;
@@ -463,6 +464,7 @@ export class GroupSession extends SecureSession {
 
     override async close() {
         this.manager?.removeGroupSession(this);
+        this.#createdFor.deleteSession(this);
         await super.close();
     }
 }

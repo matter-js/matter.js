@@ -8,7 +8,7 @@ import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
-import { isObject, MaybePromise, MockCrypto } from "@matter/general";
+import { ImplementationError, isObject, MaybePromise, MockCrypto } from "@matter/general";
 import {
     ClusterModel,
     DataModelPath,
@@ -19,7 +19,7 @@ import {
     FieldValue,
 } from "@matter/model";
 import { MockExchange } from "@matter/node/testing";
-import { ConstraintError, Val } from "@matter/protocol";
+import { ConstraintError, ExpiredReferenceError, Val } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
 import { aclEndpoint, listOf, rawValuesOf, structOf, TestStruct } from "./value-utils.js";
 
@@ -768,6 +768,91 @@ describe("StructManager", () => {
                 expect(() => (state.foo = "too long")).throws();
 
                 expect(state.foo).equals("old");
+            });
+        });
+
+        describe("held entry of a dynamic list", () => {
+            type Entry = { value: number };
+
+            function listBacked(backing: { list: Entry[] } = { list: [{ value: 1 }, { value: 2 }] }) {
+                class ListBackedState {
+                    [Val.properties]() {
+                        return {
+                            get list() {
+                                return backing.list;
+                            },
+
+                            set list(value: Entry[]) {
+                                if (value.length < 2) {
+                                    throw new ImplementationError("The list keeps at least two entries");
+                                }
+                                backing.list = value;
+                            },
+                        };
+                    }
+                }
+
+                return Datasource({
+                    entropy: MockCrypto(),
+                    type: ListBackedState,
+                    supervisor: RootSupervisor.for(
+                        new FieldModel(
+                            FieldElement(
+                                { name: "Struct", type: "struct" },
+                                FieldElement(
+                                    { name: "list", id: 0, type: "list" },
+                                    FieldElement(
+                                        { name: "entry", type: "struct" },
+                                        FieldElement({ name: "value", id: 0, type: "uint8", constraint: "max 10" }),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                    location: { endpoint: EndpointNumber(1), path: new DataModelPath("ListBackedState") },
+                });
+            }
+
+            it("stays live when the setter rejects a list method", async () => {
+                const datasource = listBacked();
+
+                await LocalActorContext.act("test", cx => {
+                    const state = datasource.reference(cx) as unknown as { list: Entry[] };
+                    const held = state.list[1];
+
+                    expect(() => state.list.shift()).throws(ImplementationError);
+
+                    held.value = 7;
+                    expect(state.list[1].value).equals(7);
+                });
+            });
+
+            it("stays live when a rejected write restores the list", async () => {
+                const datasource = listBacked();
+
+                await LocalActorContext.act("test", cx => {
+                    const state = datasource.reference(cx) as unknown as { list: Entry[] };
+                    const held = state.list[1];
+
+                    expect(() => (state.list = [{ value: 99 }, { value: 98 }])).throws(ConstraintError);
+
+                    held.value = 7;
+                    expect(state.list[1].value).equals(7);
+                });
+            });
+
+            it("refuses its first write when the provider serves another entry at its index", async () => {
+                const backing = { list: [{ value: 1 }, { value: 2 }] };
+                const datasource = listBacked(backing);
+
+                await LocalActorContext.act("test", cx => {
+                    const state = datasource.reference(cx) as unknown as { list: Entry[] };
+                    const held = state.list[0];
+                    backing.list = [{ value: 5 }, { value: 6 }];
+
+                    expect(() => (held.value = 7)).throws(ExpiredReferenceError);
+                    expect(backing.list[0].value).equals(5);
+                });
             });
         });
     });

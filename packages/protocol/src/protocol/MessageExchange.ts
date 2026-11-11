@@ -129,6 +129,13 @@ export interface ExchangeSendOptions {
      */
     ackWaitAbort?: AbortSignal;
 
+    /**
+     * Invoked once, when the first transmission of the message went out and before the wait for its ack starts.  Not
+     * invoked when the first transmission fails or is aborted, and not for standalone acks or retransmissions.  A
+     * callback that throws fails the send.
+     */
+    onTransmitted?: () => void;
+
     /** Number of MRP transmissions, the first one included (default: MRP.MAX_TRANSMISSIONS) */
     maxRetransmissions?: number;
 
@@ -208,15 +215,22 @@ export interface MessageExchangeContext {
  * TODO - replace throws with logging for some errors triggered by peer
  */
 export class MessageExchange {
+    /**
+     * Creates the exchange for a received message that matches no open exchange: a new exchange the peer initiated,
+     * or an ephemeral exchange that only acks the message.  The role is the inverse of the message's I flag, so the
+     * peer can match the ack to its exchange also when that exchange is ours, for example after it closed here.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.10.5.2
+     */
     static fromInitialMessage(
         context: MessageExchangeContext,
         initialMessage: Message,
         options?: MessageExchange.Options,
     ) {
         const { session } = context;
-        return new MessageExchange({
+        const exchange = new MessageExchange({
             context,
-            isInitiator: false,
+            isInitiator: !initialMessage.payloadHeader.isInitiatorMessage,
             peerSessionId: session.id,
             nodeId: initialMessage.packetHeader.destNodeId,
             peerNodeId: initialMessage.packetHeader.sourceNodeId,
@@ -224,6 +238,8 @@ export class MessageExchange {
             protocolId: initialMessage.payloadHeader.protocolId,
             ...options,
         });
+        exchange.#used = true;
+        return exchange;
     }
 
     static initiate(
@@ -270,7 +286,7 @@ export class MessageExchange {
     #closeCause?: Error;
     #isDestroyed = false;
     #timedInteractionTimer: Timer | undefined;
-    #used: boolean;
+    #used = false;
 
     readonly #peerSessionId: number;
     readonly #nodeId: NodeId | undefined;
@@ -329,8 +345,6 @@ export class MessageExchange {
         this.#suppressPeerLoss = suppressPeerLoss;
 
         const { activeThreshold, activeInterval, idleInterval } = this.session.parameters;
-
-        this.#used = !isInitiator; // If we are the initiator then exchange was not used yet, so track it
 
         const { session } = context;
         logger.debug(
@@ -674,6 +688,7 @@ export class MessageExchange {
             ackWaitAbort,
             expectedProcessingTime = MRP.DEFAULT_EXPECTED_PROCESSING_TIME,
             logContext = {},
+            onTransmitted,
         } = this.#sendOptions;
 
         using abort = new Abort(this.#sendOptions);
@@ -809,6 +824,7 @@ export class MessageExchange {
             await abort.attempt(
                 this.channel.send(message, { exchange: this, logContext, addressOverride: this.#addressOverride }),
             );
+            onTransmitted?.();
         }
         if (waiting.aborted) {
             this.#endAckWait();

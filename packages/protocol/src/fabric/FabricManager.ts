@@ -375,8 +375,8 @@ export class FabricManager {
 
     /**
      * Replace a fabric by a new object for the same fabric under new operational credentials, as UpdateNOC and NOC
-     * rotation produce.  The new object shares the groups, access control and ICD state of the replaced one, so these
-     * stay intact and in effect throughout.
+     * rotation produce.  The new object shares the sessions, groups, access control and ICD state of the replaced one,
+     * so these stay intact and in effect throughout.
      */
     async replaceFabric(fabric: Fabric) {
         await this.#construction;

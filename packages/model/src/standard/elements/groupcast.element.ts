@@ -67,7 +67,7 @@ export const Groupcast = Cluster(
             Field({ name: "entry", type: "endpoint-no" })
         ),
         Field({ name: "KeySetId", id: 0x2, type: "uint16", conformance: "M", constraint: "min 1" }),
-        Field({ name: "Key", id: 0x3, type: "octstr", conformance: "O", constraint: "16" }),
+        Field({ name: "Key", id: 0x3, type: "octstr", conformance: "O", constraint: "16", isSecret: true }),
         Field({ name: "UseAuxiliaryAcl", id: 0x4, type: "bool", conformance: "[LN]" }),
         Field({ name: "ReplaceEndpoints", id: 0x5, type: "bool", conformance: "[LN]" }),
         Field({ name: "McastAddrPolicy", id: 0x6, type: "MulticastAddrPolicyEnum", conformance: "O" })
@@ -98,7 +98,7 @@ export const Groupcast = Cluster(
         { name: "UpdateGroupKey", id: 0x3, access: "F M", conformance: "M", direction: "request", response: "status" },
         Field({ name: "GroupId", id: 0x0, type: "group-id", conformance: "M", constraint: "min 1" }),
         Field({ name: "KeySetId", id: 0x1, type: "uint16", conformance: "M", constraint: "min 1" }),
-        Field({ name: "Key", id: 0x2, type: "octstr", conformance: "O", constraint: "16" })
+        Field({ name: "Key", id: 0x2, type: "octstr", conformance: "O", constraint: "16", isSecret: true })
     ),
 
     Command(

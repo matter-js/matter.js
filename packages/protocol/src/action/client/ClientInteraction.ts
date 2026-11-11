@@ -207,6 +207,7 @@ function isBatchable(request: ClientInvoke) {
         useExtendedFailSafeMessageResponseTimeout: !!request.useExtendedFailSafeMessageResponseTimeout,
         additionalMrpDelay: request.additionalMrpDelay !== undefined,
         addressOverride: request.addressOverride !== undefined,
+        requireExistingSession: !!request.requireExistingSession,
         // Server only
         beforeDispatch: request.beforeDispatch !== undefined,
     };
@@ -557,14 +558,17 @@ export class ClientInteraction<
 
                     const data = commandFields === undefined ? undefined : responseSchema?.decodeTlv(commandFields);
 
-                    logger.info(
-                        "Invoke",
-                        Mark.INBOUND,
-                        messenger.exchange.via,
-                        messenger.exchange.diagnostics,
-                        Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
-                        isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
-                    );
+                    logger.info(() => {
+                        const loggedData = Invoke.redactResponseFields(cmd, data);
+                        return [
+                            "Invoke",
+                            Mark.INBOUND,
+                            messenger.exchange.via,
+                            messenger.exchange.diagnostics,
+                            Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
+                            isObject(loggedData) ? Diagnostic.dict(loggedData) : Diagnostic.weak("(no payload)"),
+                        ];
+                    });
 
                     chunk.push({
                         kind: "cmd-response",
@@ -676,19 +680,7 @@ export class ClientInteraction<
                 ...request,
                 commands: batchCommands,
                 invokeRequests: batchInvokeRequests,
-                [Diagnostic.value]: () =>
-                    Diagnostic.list(
-                        [...batchCommands.values()].map(cmd => {
-                            const { commandRef } = cmd;
-                            const fields = "fields" in cmd ? cmd.fields : undefined;
-                            return [
-                                Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
-                                "with",
-                                isObject(fields) ? Diagnostic.dict(fields) : "(no payload)",
-                                commandRef !== undefined && batchCommands.size > 1 ? `(ref ${commandRef})` : "",
-                            ];
-                        }),
-                    ),
+                [Diagnostic.value]: () => Invoke.diagnosticOf(batchCommands.values()),
             };
             return this.#invokeSingle(batchRequest, session);
         });
@@ -1012,6 +1004,11 @@ export class ClientInteraction<
         if (subscriptionPathsCount === 0) {
             throw new ImplementationError("When subscribing to attributes and events, at least one must be specified.");
         }
+        if (request.sustain && request.requireExistingSession) {
+            throw new ImplementationError(
+                "A sustained subscription re-establishes its session, so it cannot require an existing session",
+            );
+        }
         if (subscriptionPathsCount > this.#exchangeProvider.subscribePathsSupported) {
             logger.info(
                 `Subscribe interactions with more than ${this.#exchangeProvider.subscribePathsSupported} paths might be not allowed by the device.`,
@@ -1257,6 +1254,7 @@ export class ClientInteraction<
                     abort,
                     connectionTimeout: session?.connectionTimeout,
                     addressOverride: request.addressOverride,
+                    requireExistingSession: request.requireExistingSession,
                     requiredTransport,
                 });
             } catch (e) {

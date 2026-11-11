@@ -2587,6 +2587,12 @@ and `expectReportAck` now have matterjs branches:
 - `Message « for: I/StatusResponse … acked: <that report's counter> … payload: 152400 00` is the DUT's
   answer to **that** report — matter.js names the acked message counter, which is a tighter correlation
   than the chip path's exchange id — and the byte after `152400` is the status, `00` being Success.
+  Message logs carry the `payload:` field by default, and the cert harness also sets
+  `Logger.logPayloads` explicitly (`GenericTestApp`, the in-process nodes in `src/cert/index.ts`, and
+  `MATTER_LOG_PAYLOADS` for the spawned matterjs-server), so an environment that turns payloads off
+  does not break these checks. The harness also turns off
+  `Logger.redactSecrets` the same way, because checks such as `matterjsCommandFields` and the
+  matterjs-server ICD client read keys, datasets and credentials from those logs.
 
 Two traps in those lines. matter.js renders a subscription id through `Subscription.idStrOf`, which is
 `hex.fixed(id, 8)` — an id built with a plain `toString(16)` matches no line at all whenever the id has

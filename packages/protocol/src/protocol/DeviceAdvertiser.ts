@@ -367,7 +367,11 @@ export class DeviceAdvertiser {
             if (event === "startup") {
                 // For startup events where we have active subscriptions somewhere on the fabric, we just convert
                 // into "retransmit" to send out one ping for client convenience
-                if (this.#context.sessions.forFabric(fabric).some(session => session.subscriptions.size > 0)) {
+                if (
+                    this.#context.sessions
+                        .sessionsForFabricIndex(fabric.fabricIndex)
+                        .some(session => session.subscriptions.size > 0)
+                ) {
                     event = "retransmit";
                 }
             }

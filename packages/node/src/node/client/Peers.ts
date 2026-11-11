@@ -43,7 +43,6 @@ import {
     Minutes,
     Mutex,
     Observable,
-    Seconds,
     Time,
     Timestamp,
     UninitializedDependencyError,
@@ -420,8 +419,9 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     /**
-     * Look up a peer by numeric/string id or {@link PeerAddress}. A {@link PeerAddress} matches the commissioned
-     * peer whose {@link CommissioningClient} peer address equals it; otherwise the container's id lookup is used.
+     * Look up a peer by numeric/string id or {@link PeerAddress}. A {@link PeerAddress} matches the peer whose
+     * {@link ClientNode.peerAddress} equals it, also a peer that failed to load; otherwise the container's id lookup is
+     * used.
      *
      * Look up by {@link PeerAddress} for anything held while a peer is commissioned: a local id may be reissued to a
      * different device once the peer it named is gone, so the same string can resolve to a peer that never saw the
@@ -433,11 +433,9 @@ export class Peers extends EndpointContainer<ClientNode> {
         if (typeof id !== "string" && typeof id !== "number") {
             const address = PeerAddress(id);
             for (const node of this) {
-                if (node.behaviors.active.some(behavior => behavior.id === "commissioning")) {
-                    const nodeAddress = node.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined;
-                    if (nodeAddress !== undefined && PeerAddress.is(nodeAddress, address)) {
-                        return node;
-                    }
+                const nodeAddress = node.peerAddress;
+                if (nodeAddress !== undefined && PeerAddress.is(nodeAddress, address)) {
+                    return node;
                 }
             }
             return undefined;
@@ -944,11 +942,9 @@ export class Peers extends EndpointContainer<ClientNode> {
             return;
         }
 
-        // Use the current session's createdAt as asOf so it (and newer sessions) are preserved
-        // while older sessions (from before the reboot) are closed.  If the currentSession is
-        // undefined (no known session), handlePeerShutdown uses the current Time.nowUs value as its cutoff.
+        // Sessions registered before the current session are treated as from before the restart
         const sessionManager = this.owner.env.get(SessionManager);
-        await sessionManager.handlePeerShutdown(peerAddress, sessionManager.maybeSessionFor(peerAddress)?.createdAt);
+        await sessionManager.handlePeerShutdown(peerAddress, sessionManager.maybeSessionFor(peerAddress));
     }
 }
 
@@ -1015,11 +1011,11 @@ class Factory extends ClientNodeFactory {
     }
 }
 
-function expirationOf<T extends { discoveredAt?: Timestamp; ttl?: Duration | number }>(
+function expirationOf<T extends { discoveredAt?: Timestamp; ttl?: Duration }>(
     lifespan: T,
 ): T extends { discoveredAt: Timestamp } ? Timestamp : Timestamp | undefined {
     if (lifespan.discoveredAt !== undefined) {
-        return Timestamp(lifespan.discoveredAt + (Seconds(lifespan.ttl) ?? DEFAULT_TTL));
+        return Timestamp(lifespan.discoveredAt + (lifespan.ttl ?? DEFAULT_TTL));
     }
     return undefined as unknown as Timestamp;
 }
