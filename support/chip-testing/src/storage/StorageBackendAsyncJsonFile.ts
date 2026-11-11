@@ -18,6 +18,8 @@ import { readFile, rename, writeFile } from "node:fs/promises";
 /**
  * JSON file storage for the CHIP test apps.  Every change is written to the file.  One write runs at a time; changes
  * made while a write runs are written together by the next one, so the file always ends with the latest state.
+ *
+ * {@link initialize} may be called again after {@link close}; the test apps do this when a node reboots in-process.
  */
 export class StorageBackendAsyncJsonFile extends Storage {
     private closed = false;
@@ -43,6 +45,8 @@ export class StorageBackendAsyncJsonFile extends Storage {
         }
         this.store = new MemoryStorageDriver(data);
         this.store.initialize(); // Internal usage — creates from pre-loaded data
+        this.closed = false;
+        this.#closing = undefined;
     }
 
     get initialized() {
