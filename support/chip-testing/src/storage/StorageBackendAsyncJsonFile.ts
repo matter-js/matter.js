@@ -89,7 +89,7 @@ export class StorageBackendAsyncJsonFile extends Storage {
         await (this.#writing ??= this.#writeChanges());
     }
 
-    /** Write the current state to the file; resolves once it is written. */
+    /** Write the current state to the file; resolves once it is written.  Does nothing after {@link close}. */
     async flush() {
         await this.commit();
     }
