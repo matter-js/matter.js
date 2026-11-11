@@ -1727,6 +1727,20 @@ describe("controller capabilities", () => {
         );
     });
 
+    it("records an operational certificate update as a gap of matterjs-server only", () => {
+        const required = ["noc-update"] as const;
+
+        for (const controller of ["matterjs", "chip-tool"]) {
+            env.MATTER_CERT_CONTROLLER = controller;
+            expect(controllerCapabilityGap(required), controller).undefined;
+        }
+
+        env.MATTER_CERT_CONTROLLER = "matterjs-server";
+        expect(controllerCapabilityGap(required)).equal(
+            `controller "matterjs-server" lacks noc-update: ${MATTERJS_SERVER_CAPABILITY_GAPS["noc-update"]}`,
+        );
+    });
+
     it("names the controller, the capability and the reason where the DUT controller declares one out of scope", () => {
         env.MATTER_CERT_CONTROLLER = "matterjs-server";
 

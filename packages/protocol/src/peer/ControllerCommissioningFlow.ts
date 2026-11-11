@@ -11,7 +11,6 @@ import { WriteResult } from "#action/index.js";
 import { Invoke } from "#action/request/Invoke.js";
 import { Read } from "#action/request/Read.js";
 import { Write } from "#action/request/Write.js";
-import { ResultStatus } from "#action/response/ResultStatus.js";
 import { BleDisconnectedError } from "#ble/Ble.js";
 import { NocsrValidator } from "#certificate/NocsrValidator.js";
 import { PeerMessageMissingError, PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
@@ -46,7 +45,6 @@ import {
     FabricIndex,
     Global,
     NodeId,
-    Status,
     StatusResponseError,
     VendorId,
 } from "@matter/types";
@@ -67,6 +65,7 @@ import {
 import { Dac } from "../certificate/kinds/AttestationCertificates.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { Fabric } from "../fabric/Fabric.js";
+import { AdministratorCommands } from "./AdministratorCommands.js";
 import { CommissioningError } from "./CommissioningError.js";
 import { PeerAddress } from "./PeerAddress.js";
 
@@ -500,33 +499,12 @@ export class ControllerCommissioningFlow {
      * Invoke one command and return the fields of its response, or nothing for a status response.  The fields are
      * decoded but not checked against the response schema, so a mandatory field the device left out is `undefined`.
      */
-    // TODO improve response typing
     async #invokeCommand<const C extends ClusterType.Concrete>(
         request: Invoke.ConcreteCommandRequest<C>,
         options: Omit<Invoke.Definition, "commands"> = {},
         transmission?: ClientRequest,
     ) {
-        for await (const data of this.interaction.invoke({
-            ...Invoke({
-                commands: [request],
-                ...options,
-            }),
-            ...transmission,
-        })) {
-            for (const entry of data) {
-                // We send only one command, so we only get one response back
-                switch (entry.kind) {
-                    case "cmd-status":
-                        if (entry.status !== Status.Success) {
-                            throw ResultStatus.errorOf(entry);
-                        }
-                        return;
-
-                    case "cmd-response":
-                        return entry.data;
-                }
-            }
-        }
+        return AdministratorCommands.invoke(this.interaction, request, options, transmission);
     }
 
     /**

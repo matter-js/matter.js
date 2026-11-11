@@ -226,6 +226,7 @@ export class ClientInteraction<
     /** One entry per running interaction; retries may reuse request objects. */
     readonly #interactions = new BasicSet<symbol>();
     #subscriptions?: ClientSubscriptions;
+    readonly #established = new Set<ClientSubscription>();
     readonly #abort: Abort;
     readonly #sustainRetries: RetrySchedule;
     readonly #address?: PeerAddress;
@@ -271,14 +272,10 @@ export class ClientInteraction<
         using _closing = this.#lifetime.closing();
 
         // Close subscriptions established through this interaction so they do not outlive the interactable; a
-        // sustained subscription would otherwise retry forever against a closed interactable.
-        const peer = this.#exchangeProvider.peerAddress;
-        if (this.#subscriptions !== undefined && peer !== undefined) {
-            for (const subscription of [...this.#subscriptions]) {
-                if (PeerAddress.is(peer, subscription.peer)) {
-                    subscription.close();
-                }
-            }
+        // sustained subscription would otherwise retry forever against a closed interactable.  Subscriptions other
+        // interactions established to the same peer stay open.
+        for (const subscription of [...this.#established]) {
+            subscription.close();
         }
 
         // Close batching
@@ -1099,12 +1096,16 @@ export class ClientInteraction<
                 lifetime: this.subscriptions,
                 request,
                 peer,
-                closed: () => this.subscriptions.delete(subscription),
+                closed: () => {
+                    this.subscriptions.delete(subscription);
+                    this.#established.delete(subscription);
+                },
                 response,
                 abort,
                 maxPeerResponseTime: this.maximumPeerResponseTime(SUBSCRIPTION_PROCESSING_TIME),
             });
             this.subscriptions.addPeer(subscription);
+            this.#established.add(subscription);
 
             logger.info(
                 "Subscription successful",
@@ -1142,7 +1143,10 @@ export class ClientInteraction<
                 lifetime: this.subscriptions,
                 subscribe,
                 peer,
-                closed: () => this.subscriptions.delete(subscription),
+                closed: () => {
+                    this.subscriptions.delete(subscription);
+                    this.#established.delete(subscription);
+                },
                 request,
                 // Both, or an abort by the caller would end only the attempt in flight while the
                 // sustainer treats that as a failure to retry
@@ -1162,6 +1166,7 @@ export class ClientInteraction<
         }
 
         this.subscriptions.addActive(subscription);
+        this.#established.add(subscription);
 
         return subscription as unknown as SubscriptionResult<T>;
     }
