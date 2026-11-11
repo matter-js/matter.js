@@ -227,9 +227,11 @@ describe("InteractionClientMessenger", () => {
             minIntervalFloorSeconds: 0,
             maxIntervalCeilingSeconds: 1,
             attributeRequests: [{}],
+            dataVersionFilters: [{ path: { endpointId: EndpointNumber(1), clusterId: 0 }, dataVersion: 1 }],
         } as SubscribeRequest;
 
-        await messenger.sendSubscribeRequest(requestData);
+        const { allDataVersionFiltersSent } = await messenger.sendSubscribeRequest(requestData);
+        expect(allDataVersionFiltersSent).equal(true);
         for await (const _x of messenger.readDataReports());
 
         expect(request).to.deep.equal(requestData);
@@ -277,7 +279,8 @@ describe("InteractionClientMessenger", () => {
             dataVersionFilters,
         } as SubscribeRequest;
 
-        await messenger.sendSubscribeRequest(requestData);
+        const { allDataVersionFiltersSent } = await messenger.sendSubscribeRequest(requestData);
+        expect(allDataVersionFiltersSent).equal(false);
         for await (const _x of messenger.readDataReports());
 
         expect(request).to.exist;
