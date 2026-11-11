@@ -491,6 +491,14 @@ describe("Operational certificate verification", () => {
             await verifyNoc(noc, rootWithFabric, icaWithFabric);
         });
 
+        it("selects the ICAC as signer when it shares the key of the root", async () => {
+            const icaWithRootKey = await icacTlv(root, root);
+            const noc = await nocTlv(node, root);
+
+            const signer = await Noc.fromTlv(noc).verify(crypto, Rcac.fromTlv(rootTlv), Icac.fromTlv(icaWithRootKey));
+            expect(signer).instanceOf(Icac);
+        });
+
         it("refuses a NOC whose issuer DN names another ICAC", async () => {
             const noc = await nocTlv(node, ica, cert => {
                 cert.issuer = { icacId: ICAC_ID + 1 };

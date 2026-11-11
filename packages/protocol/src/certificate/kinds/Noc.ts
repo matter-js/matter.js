@@ -8,6 +8,7 @@ import { Bytes, CertificateError, Crypto, Diagnostic, PublicKey } from "@matter/
 import { CaseAuthenticatedTag, FabricId, NodeId } from "@matter/types";
 import { Certificate } from "./Certificate.js";
 import { OperationalCertificate } from "./definitions/operational.js";
+import { DistinguishedName } from "./DistinguishedName.js";
 import { Icac } from "./Icac.js";
 import { OperationalBase } from "./OperationalBase.js";
 import { Rcac } from "./Rcac.js";
@@ -191,22 +192,26 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
             throw new CertificateError(`Noc certificate authorityKeyIdentifier must be 160 bit.`);
         }
 
-        let issuer: Rcac | Icac | undefined;
-        if (Bytes.areEqual(authorityKeyIdentifier, root.cert.extensions.subjectKeyIdentifier)) {
-            issuer = root;
-        } else if (
-            ica !== undefined &&
-            Bytes.areEqual(authorityKeyIdentifier, ica.cert.extensions.subjectKeyIdentifier)
-        ) {
-            issuer = ica;
-        }
-
-        if (issuer === undefined) {
+        const keyMatches = [root, ica].filter(
+            (candidate): candidate is Rcac | Icac =>
+                candidate !== undefined &&
+                Bytes.areEqual(authorityKeyIdentifier, candidate.cert.extensions.subjectKeyIdentifier),
+        );
+        if (keyMatches.length === 0) {
             throw new CertificateError(
                 `Noc certificate authorityKeyIdentifier must be equal to Root/Ica subjectKeyIdentifier.`,
             );
         }
-        this.verifyIssuedBy(issuer);
+
+        // Like the CHIP SDK, select the signer by key identifier and subject DN: a root and an ICAC may share a key
+        const issuer = keyMatches.find(candidate =>
+            DistinguishedName.areEqual(this.cert.issuer, candidate.cert.subject),
+        );
+        if (issuer === undefined) {
+            throw new CertificateError(
+                `Noc certificate issuer must be equal to the subject of the Root/Ica certificate with its authorityKeyIdentifier.`,
+            );
+        }
 
         await crypto.verifyEcdsa(PublicKey(issuer.cert.ellipticCurvePublicKey), this.asUnsignedDer(), this.signature);
         return issuer;
