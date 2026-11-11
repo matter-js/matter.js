@@ -1128,9 +1128,9 @@ export namespace CommissioningClient {
         /**
          * Fabric index the peer assigned to our identity.  It is taken from the AddNoc response, from the
          * CurrentFabricIndex a certificate update reads, or, when none is stored, from the CurrentFabricIndex in the
-         * cached OperationalCredentials state.  Substituted for the
-         * {@link FabricIndex.OMIT_FABRIC} sentinel on fabric-scoped struct writes so the local cache mirrors
-         * the value the peer will store.
+         * cached OperationalCredentials state.  A write of a fabric-scoped list sends our entries with this FabricIndex,
+         * as the peer loads the accessing fabric into a written entry, so the local cache holds the value the peer
+         * stores.
          *
          * Distinct from {@link peerAddress.fabricIndex} which is our local fabric index.
          */

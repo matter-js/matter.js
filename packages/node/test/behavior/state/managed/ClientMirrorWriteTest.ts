@@ -25,10 +25,10 @@ const VIEWPORT = { x1: 0, y1: 0, x2: 640, y2: 480 };
 class CameraState {}
 
 /**
- * Capture the values a datasource hands to persistence.  For a client mirror these are the same objects the remote
- * writer encodes for the peer.
+ * Capture the values a datasource hands to persistence.  A remote store receives the same objects to prepare for the
+ * remote writer.
  */
-class CapturingStore implements Datasource.Store {
+class CapturingStore implements Datasource.PersistentStore {
     initialValues: Val.Struct;
     written?: Val.Struct;
 

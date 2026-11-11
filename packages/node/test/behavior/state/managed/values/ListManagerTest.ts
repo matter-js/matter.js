@@ -293,6 +293,61 @@ describe("ListManager", () => {
         );
     });
 
+    describe("fabric-scoped list attribute of a client node", () => {
+        const entries = [
+            { fabricIndex: FabricIndex.NO_FABRIC, value: 0 },
+            { fabricIndex: 1, value: 1 },
+            { fabricIndex: undefined, value: 2 },
+            { fabricIndex: 2, value: 3 },
+        ];
+
+        const fabric1 = {
+            fabricFiltered: true,
+            exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+            node: aclEndpoint(),
+        };
+
+        function scopedList(remote = false) {
+            return TestCluster(
+                {
+                    list: {
+                        type: "list",
+                        access: "RW F",
+                        children: [fieldOf("entry", structOf({ fabricIndex: "fabric-idx", value: "uint8" }))],
+                    },
+                },
+                remote ? { 1: entries } : { list: entries },
+                remote ? { mirrorsRemote: true } : undefined,
+            );
+        }
+
+        function entriesIn(list: Val) {
+            if (!Array.isArray(list)) {
+                expect.fail("Expected a list");
+            }
+            return [...list];
+        }
+
+        it("shows a remote actor of our server node every entry", async () => {
+            const struct = scopedList(true);
+            await struct.online(fabric1, ref => {
+                expect(entriesIn(ref.list)).deep.equals(entries);
+            });
+        });
+
+        // Characterization: the list of our own server node is filtered by the remote actor's fabric
+        it("filters the list of our own server node by the remote actor's fabric", async () => {
+            const struct = scopedList();
+            await struct.online(fabric1, ref => {
+                expect(entriesIn(ref.list)).deep.equals([
+                    { fabricIndex: FabricIndex.NO_FABRIC, value: 0 },
+                    { fabricIndex: 1, value: 1 },
+                    { fabricIndex: undefined, value: 2 },
+                ]);
+            });
+        });
+    });
+
     describe("fabric-sensitive list attribute", () => {
         function sensitiveList() {
             return TestCluster(
@@ -887,6 +942,25 @@ describe("ListManager", () => {
                 expect(() => Reflect.deleteProperty(list, 1)).throws(WriteError);
                 expect(Reflect.deleteProperty(list, 5)).true;
                 expect(list.pop()).equals(3);
+            });
+
+            struct.expect({ list: [1, 2] });
+        });
+
+        it("stores a delete of the last entry (characterization)", async () => {
+            const struct = await writePlainList([1, 2], list => {
+                expect(Reflect.deleteProperty(list, 1)).true;
+            });
+
+            struct.expect({ list: [1] });
+        });
+
+        it("restores the last entry on rollback of its delete (characterization)", async () => {
+            const struct = TestStruct({ list: listOf("uint8") }, { list: [1, 2] });
+
+            await LocalActorContext.act("test", async cx => {
+                Reflect.deleteProperty(struct.reference(cx).list as number[], 1);
+                await cx.transaction.rollback();
             });
 
             struct.expect({ list: [1, 2] });
