@@ -7,6 +7,7 @@
 import { ReadResult } from "#action/response/ReadResult.js";
 import { IncomingInteractionClientMessenger } from "#interaction/InteractionMessenger.js";
 import { Subscription } from "#interaction/Subscription.js";
+import { PeerAckMissingError } from "#peer/PeerCommunicationError.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
 import { SecureSession } from "#session/SecureSession.js";
@@ -103,6 +104,8 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
             return;
         }
 
+        const reportNumber = subscription.nextReportNumber();
+
         // Pass the data to the recipient
         try {
             subscription.isReading = true;
@@ -136,11 +139,23 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
                     for await (const _chunk of reports);
                 }
             }
+        } catch (error) {
+            if (messenger.unacknowledgedReportStatus !== "chunk" || !causedBy(error, PeerAckMissingError)) {
+                throw error;
+            }
         } finally {
             subscription.isReading = false;
             subscription.timeoutAt = undefined;
             this.#subscriptions.resetTimer();
             await messenger.close();
+            const unacknowledged = messenger.unacknowledgedReportStatus;
+            if (unacknowledged !== undefined) {
+                if (this.#subscriptions.isBlocked) {
+                    logger.debug(exchange.via, "Report status not acknowledged during shutdown");
+                } else {
+                    subscription.reportStatusUnacknowledged(reportNumber, unacknowledged);
+                }
+            }
         }
     }
 

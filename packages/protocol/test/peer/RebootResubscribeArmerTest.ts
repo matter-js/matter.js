@@ -69,6 +69,7 @@ async function setup() {
             closed: () => subscriptions.delete(subscription),
             response: { subscriptionId: nextSubscriptionId++, maxInterval: 3600 },
             maxPeerResponseTime: Seconds(1),
+            compactPriming: true,
         });
         subscriptions.addPeer(subscription);
         return subscription;

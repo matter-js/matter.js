@@ -122,6 +122,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `ExchangeSendOptions.onTransmitted` runs once the first transmission of a message went out
     - Enhancement: `SecureChannelMessenger.sendSuccess()` takes an optional `onTransmitted` callback
     - Enhancement: Message logs show the I flag in `msgFlags` for messages from the exchange initiator
+    - Adjustment: Exchange logs show `maxTrans` and `retransTimeLimit` on the first transmission of a message that has its own retransmission budget, instead of always `maxTrans: 5` when the exchange opens
+    - Adjustment: `DeviceAttestationValidator.validate()` returns a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as an error-level finding instead of throwing
     - Adjustment: A CSRResponse that is empty, lacks a field, has NOCSRElements over 900 bytes, or cannot be decoded fails commissioning with `NocsrError`
     - Adjustment: Device attestation refuses AttestationElements over 900 bytes with `DeviceAttestationCheck.AttestationElementsTooLong`, as the CHIP SDK does
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
@@ -144,6 +146,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
     - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
+    - Fix: A client subscription is replaced early when the peer does not acknowledge our status response to a report chunk, or to a final report while the replacement would prime compactly
     - Fix: Commissioning that stops on an unexpected error expires the device's fail-safe, so the device accepts a new commissioning attempt right away
     - Fix: `ClientInteraction.close()` closes only the subscriptions established through that interaction, no longer every subscription to the same peer
     - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks
