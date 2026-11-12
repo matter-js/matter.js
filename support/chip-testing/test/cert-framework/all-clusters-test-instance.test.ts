@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "@matter/main";
+import { Bytes, ImplementationError } from "@matter/main";
 import { CommissioningFlowType } from "@matter/main/types";
 import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
+import { NodeTestInstance } from "../../src/NodeTestInstance.js";
 
 function setupWith(...appArgs: string[]) {
     return new AllClustersTestInstance({ commandPipeFactory: async () => {}, appArgs }).setupServer();
@@ -49,5 +50,40 @@ describe("AllClustersTestInstance --custom-flow", () => {
             "--custom-flow takes 0, 1 or 2",
         );
         await expect(setupWith("--custom-flow", "user")).rejectedWith(ImplementationError, "--custom-flow");
+    });
+});
+
+describe("AllClustersTestInstance --enable-key", () => {
+    it("takes the test event trigger key from the run's app-args", async () => {
+        const node = await setupWith("--enable-key", "0f0e0d0c0b0a09080706050403020100");
+        try {
+            expect(Bytes.toHex(node.state.generalDiagnostics.deviceTestEnableKey)).equal(
+                "0f0e0d0c0b0a09080706050403020100",
+            );
+        } finally {
+            await node.close();
+        }
+    });
+
+    it("takes the key in the --enable-key=<hex> form", async () => {
+        const node = await setupWith("--enable-key=0f0e0d0c0b0a09080706050403020100");
+        try {
+            expect(Bytes.toHex(node.state.generalDiagnostics.deviceTestEnableKey)).equal(
+                "0f0e0d0c0b0a09080706050403020100",
+            );
+        } finally {
+            await node.close();
+        }
+    });
+
+    it("keeps the default key without the argument", async () => {
+        const node = await setupWith();
+        try {
+            expect(Bytes.toHex(node.state.generalDiagnostics.deviceTestEnableKey)).equal(
+                NodeTestInstance.testEnableKey,
+            );
+        } finally {
+            await node.close();
+        }
     });
 });
