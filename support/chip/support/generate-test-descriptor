@@ -299,7 +299,14 @@ def load_python():
             # else:
             #     raise
 
+    # A class with several test base classes is a subclass of each of them, so the walk below reaches it once per base
+    loaded_classes = set()
+
     def load_class(test_class):
+        if test_class in loaded_classes:
+            return
+        loaded_classes.add(test_class)
+
         # Read file and extract YAML header
         path = inspect.getfile(test_class)
         sys.stderr.write("Loading " + path + "\n")
