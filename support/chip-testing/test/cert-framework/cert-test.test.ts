@@ -3421,7 +3421,7 @@ describe("CertTest", () => {
                         cx.recorder.check({
                             type: "response",
                             verdict: "unverified",
-                            accepted: "the matter.js app defines no manufacturer-specific cluster",
+                            accepted: "the app defines no manufacturer-specific cluster",
                         });
                     },
                 },

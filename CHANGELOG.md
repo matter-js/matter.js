@@ -58,6 +58,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: A ClientNode reads its root's PartsList as listing every endpoint, whatever device types the root reports
     - Adjustment: `ServerSubscriptionContext.initiateExchange()` takes only a `Session`, no longer a `PeerAddress`
     - Adjustment: `SessionsBehavior` events `opened` and `closed` no longer fire for a session whose handshake fails
+    - Fix: A Thermostat `Presets` write with an unknown preset handle returns NOT_FOUND instead of RESOURCE_EXHAUSTED when the list also exceeds NumberOfPresets
     - Fix: `TimeFormatLocalizationServer` `detectedHourFormat` and `detectedCalendarType` have their enum types instead of `string`, so an override can return any value of the enum
     - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
     - Fix: (@cmatte) A peer whose stored discovery TTL is invalid loads again
@@ -201,6 +202,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Invoke, read and write logs show secret values such as Thread datasets and Wi-Fi credentials as `(redacted)`
     - Fix: The commissioning options log no longer contains the network credentials, the passcode or the fabric's identity protection key
     - Fix: `DatatypeError` messages show the first 60 characters of a long value instead of the characters after them
+
+- @matter/testing
+    - Feature: `ControllerAdapterOptions.sustainedSubscription` keeps the controller's own subscription to each commissioned node, set for a `certTest()` that declares `sustained-subscription`; `step()` refuses that capability
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once

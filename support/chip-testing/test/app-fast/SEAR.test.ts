@@ -8,4 +8,6 @@ import { RvcApp } from "../support.js";
 
 describe("SEAR", () => {
     chip("SEAR/*").subject(RvcApp);
+    // Selects the runs of multi-run tests, which "SEAR/*" does not
+    chip("SEAR/*/run*").subject(RvcApp);
 });

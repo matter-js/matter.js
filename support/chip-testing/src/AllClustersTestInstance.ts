@@ -60,12 +60,14 @@ import {
     TimeFormatLocalizationServer,
     TotalVolatileOrganicCompoundsConcentrationMeasurementServer,
     UnitLocalizationServer,
+    LaundryDryerControlsServer,
     UserLabelServer,
     WaterHeaterModeServer,
 } from "@matter/main/behaviors";
 import {
     AdministratorCommissioning,
     AirQuality,
+    LaundryDryerControls,
     BasicInformation,
     ColorControl,
     ConcentrationMeasurement,
@@ -97,6 +99,8 @@ import { GenericSwitchDevice, OnOffLightDevice } from "@matter/main/devices";
 import { MdnsAdvertiser } from "@matter/main/protocol";
 import { CommissioningFlowType, DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
 import { BackchannelCommand } from "@matter/testing";
+import { argValue } from "./app-args.js";
+import { UnitTestingServer } from "./cert/unit-testing-cluster.js";
 import { TestActivatedCarbonFilterMonitoringServer } from "./cluster/TestActivatedCarbonFilterMonitoringServer.js";
 import { TestDishwasherModeServer } from "./cluster/TestDishwasherModeServer.js";
 import { TestGeneralDiagnosticsServer } from "./cluster/TestGeneralDiagnosticsServer.js";
@@ -292,13 +296,9 @@ export class AllClustersTestInstance extends NodeTestInstance {
         // Network ID is string "eth-app" in TC_CNET_4_3
         const networkId = Bytes.fromHex("6574682D617070");
 
-        let deviceTestEnableKey = Bytes.fromHex(NodeTestInstance.testEnableKey);
-        const argsEnableKeyIndex = process.argv.indexOf("--enable-key");
-        if (argsEnableKeyIndex !== -1) {
-            deviceTestEnableKey = Bytes.fromHex(process.argv[argsEnableKeyIndex + 1]);
-        }
-
-        const flowType = customFlowOf(this.#appArgs ?? process.argv.slice(2));
+        const appArgs = this.#appArgs ?? process.argv.slice(2);
+        const deviceTestEnableKey = Bytes.fromHex(argValue(appArgs, "enable-key") ?? NodeTestInstance.testEnableKey);
+        const flowType = customFlowOf(appArgs);
 
         const rootEndpoint = this.groupcast
             ? ServerNode.RootEndpoint.with(
@@ -1176,6 +1176,19 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 },
             },
         );
+
+        endpoint1.behaviors.require(UnitTestingServer);
+
+        // Added separately because one more server in the endpoint's static type exceeds TypeScript's instantiation depth
+        endpoint1.behaviors.require(LaundryDryerControlsServer, {
+            // CHIP's all-clusters app supports these levels
+            supportedDrynessLevels: [
+                LaundryDryerControls.DrynessLevel.Low,
+                LaundryDryerControls.DrynessLevel.Normal,
+                LaundryDryerControls.DrynessLevel.Max,
+            ],
+            selectedDrynessLevel: null,
+        });
         await serverNode.add(endpoint1);
 
         const endpoint2 = new Endpoint(OnOffLightDevice.with(DescriptorServer.with(Descriptor.Feature.TagList)), {

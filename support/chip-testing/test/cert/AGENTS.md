@@ -132,10 +132,7 @@ The convention this series has followed, worth stating explicitly for the next T
   controller has no such callback — not for a pattern nobody has written yet, and it belongs on the one
   check that cannot be settled rather than on the step, so a second gap in the same step still fails
   the run. `RunRecord.unverifiedChecks` counts every unverified check, accepted or not, so a bundle
-  says how much of the run rests on nothing observed. As of this writing every device-log check in this
-  directory carries both flavors' patterns, and the whole matterjs leg reports one unverified check,
-  accepted: TC-IDM-2.1 step 21's "matter.js's all-clusters app defines no manufacturer-specific
-  cluster".
+  says how much of the run rests on nothing observed.
 
   Two things bite when writing the matterjs half:
 
@@ -725,8 +722,11 @@ answer: a controller that cannot send a command says nothing about the device, a
   requires) that its implementation declares as a gap or out of scope, with the registered text as its detail. chip-tool declares `tcp-transport`, `attestation`, `webrtc-requestor`,
   `chunked-write`, `batch-invoke`, `batch-arrival-order`, `many-paths-per-request`, `mixed-version-write`,
   `typed-list-write-with-others`, `session-introspection`, `sustained-subscription`, `ota-provider`,
-  `ota-provider-script` and `icd-client`.
-- A test declares `controllerCapabilities` on `certTest()`, and a step declares it on `step()`. A test is skipped
+  `ota-provider-script` and `icd-client`. `sustained-subscription` is the one capability a step cannot declare
+  (`step()` throws); a case declares it on `certTest()`, which builds its controllers with
+  `ControllerAdapterOptions.sustainedSubscription`.
+- A test declares `controllerCapabilities` on `certTest()`, and a step declares them on `step()`, except
+  `sustained-subscription`, which only `certTest()` takes. A test is skipped
   when any controller role lacks one, helper roles included (each role is judged by the implementation that fills
   it). `transport: "tcp"` implies `tcp-transport`. A skipped step is counted in `controllerUnsupportedSkips`.
 - A python-wrapped case that needs a capability (`TC-DA-1.9`, the `certCameraCase` WebRTC cases) does not go through
@@ -738,7 +738,7 @@ answer: a controller that cannot send a command says nothing about the device, a
   `cx.controllerSelection` and `cx.deviceFlavor`. Changing either variable after collection has no effect on the case.
   Case and step code never reads the variables: a helper takes `cx` (`dutControllerLogFlavor(cx)`), and a step option
   that depends on them (`notApplicable`, `longRunning`) is a function of the `CertRunSetup` the engine passes, such as
-  `unitTestingNotApplicable` or `longRunningReason(...)`. `skipOnControllerGap()` reads the controller when the test
+  `longRunningReason(...)`. `skipOnControllerGap()` reads the controller when the test
   runs and returns the selection it judged by; the case builds its controller and writes its evidence from that
   value.
 - A refusal that still reaches the step runner is a framework error (step verdict `error`, run verdict `error`,
@@ -795,9 +795,25 @@ with `outOfScope` naming the reason, no devices and verdict `skipped`.
   data version (TC-IDM-3.1 step 15) are out of scope (`multi-path-write`): the server writes one attribute per request
   and handles conditional writes itself. They skip as "not reachable for controller use cases" and the TC passes on
   its other steps. A timed write (TC-IDM-5.1 step 2) sends `timed_request_timeout_ms`.
-- The TCP block (`tcp-transport`) is capability-gated the same way, and so is TC-BR-4 (`sustained-subscription`), at
-  test level. TC-SC-3.5 runs: it does not wait for any commissioning result (see "A commissioner that retries turns a
-  one-shot fault into a pass" below).
+- The TCP block (`tcp-transport`) is capability-gated the same way, at test level. TC-SC-3.5 runs: it does not wait
+  for any commissioning result (see "A commissioner that retries turns a one-shot fault into a pass" below).
+- TC-BR-4 runs (matterjs flavor only, see the bridge block section). A case that declares `sustained-subscription` on
+  `certTest()` gets its controllers built with `ControllerAdapterOptions.sustainedSubscription`. This adapter then
+  sends `enable_auto_subscription` for each node it commissions (except with `withoutSubscription`) before
+  `commission()` returns, and waits until the server reports its own subscription active. Where switching it
+  on fails, the adapter removes the node from the server again (`remove_node`) and `commission()` rejects. The
+  subscription stays on until `decommission()` or the adapter closes: an ICD `unregister()` and the end of an OTA
+  update leave it on, and an ICD `stopSubscription()` throws `ImplementationError`, because its contract is to end
+  the subscription. The server refuses `subscribe` for such a node, so these cases cannot open subscriptions of their
+  own on this leg. A case that does not declare it gets the server's own subscription only while an OTA update or ICD
+  registration needs it.
+- With that subscription, `clientEndpoints` and `clientAttribute` answer from `get_node`, whose `attributes`
+  (`endpoint/cluster/attribute`, tag-keyed values) the subscription keeps current. The server drops every attribute
+  of an endpoint the node removed, so a removed endpoint is absent. `observeEvents` sends `start_listening` and
+  reports the `node_event`s the subscription forwards, after the events a `read` of the paths answers with. A
+  fabric-filtered `read` also merges into the server's node data, as a read feeds the in-process `ClientNode`, so
+  TC-BR-4 takes every held value before its own read (`heldBefore`). Without the declaration the three calls refuse as
+  `sustained-subscription`.
 - The OTA provider cases that script the server's provider or announce it with nothing staged (TC-SU-3.2–3.4) are out
   of scope (`ota-provider-script` in `MATTERJS_SERVER_OUT_OF_SCOPE`), not a gap: the server's provider answers only
   with a staged image, and scripted answers stay excluded until the test plans' need for them is clarified. They skip
@@ -808,7 +824,8 @@ with `outOfScope` naming the reason, no devices and verdict `skipped`.
   client needs the subscription as well is inferred, not verified. The adapter sends `enable_auto_subscription` for the
   node the first time one of them is used, and `disable_auto_subscription` once the use ended: when `serveOtaUpdate`
   returns or fails, where that call switched it on; after a successful `unregister()`; and on `stopSubscription()`.
-  It sends no `disable_auto_subscription` for a node it did not switch on. The ICD client and the OTA provider share
+  It sends no `disable_auto_subscription` for a node it did not switch on, nor for a node whose subscription a
+  `sustained-subscription` case holds (see the TC-BR-4 bullet above). The ICD client and the OTA provider share
   the one switch per node: an `unregister()` during an update switches the update's subscription off too. No case
   mixes them on one node. The server refuses `subscribe` for an auto-subscribed node, and switching the
   subscription on ends the node's client subscriptions (`ControllerCommandHandler.subscribe`, `setAutoSubscription`),
@@ -1352,38 +1369,39 @@ matterjs-server controller refuses a write outside it and outside the UnitTestin
 - list: `UserLabel.labelList` on endpoint 1. CHIP keeps at most 4 entries of 16-character strings
   (`kMaxUserLabelListLength`), so the values stay within that.
 
-Float, octet string and struct have no writable attribute on both apps, and no attribute there holds a list
-larger than one MTU. CHIP has them only in its `UnitTesting` cluster (0xfff1fc05, endpoint 1), which neither
-matter.js's app nor the model defines. Those steps (3.1 steps 7, 8, 9, 13; 4.1 step 7) run only on a chip TH,
-against `float_single`, `octet_string`, `struct_attr` and `list_long_octet_string`:
+Float, octet string and struct have no writable standard attribute on both apps, and no standard attribute there
+holds a list larger than one MTU. CHIP has them in its `UnitTesting` cluster (0xfff1fc05, endpoint 1), which the
+Matter model does not define. Those steps (3.1 steps 7, 8, 9, 13; 4.1 step 7) write `float_single`, `octet_string`,
+`struct_attr` and `list_long_octet_string`:
 
-- `src/cert/unit-testing-cluster.ts` declares the four attributes as a custom cert cluster (see `FaultInjection`
-  below), so the in-process and chip-tool adapters encode them by id. matterjs-server models the same four
+- `src/cert/unit-testing-cluster.ts` declares the four attributes once, as `UnitTestingServer`. The controller
+  adapters register it as a custom cert cluster (see `FaultInjection` below), so the in-process and chip-tool adapters
+  encode them by id, and the matter.js all-clusters app serves it on endpoint 1. So both TH flavors run the steps, and
+  a matter.js TH also answers TC-IDM-2.1 step 21's manufacturer-specific read.
+- Log patterns resolve a cluster by `findCertCluster`, so a matter.js TH's lines name a registered custom cluster
+  (`1.unitTesting.state.floatSingle`) as they name a standard one. matterjs-server models the same four
   attributes (its `custom-clusters` package), and `SERVER_CUSTOM_CLUSTERS` in `matter-server-wire.ts` lists the
   definition, so the matterjs-server adapter writes, reads and subscribes them through the server and decodes them by
   the declared model: a struct comes back keyed by field name, as from chip-tool. Every other cluster outside the
   Matter model stays refused.
-- On a matter.js TH the steps carry `notApplicable` with the reason "the matter.js all-clusters app has no
-  UnitTesting cluster", decided by `unitTestingNotApplicable` from the device flavor the case was collected for. A
-  step's `flavors` option would skip them too, but the reason it records names only the flavor (`unsupported on device
-  flavor "matterjs"`). The engine checks `notApplicable` before the controller gaps, so the matterjs-server leg also
-  records the TH's reason there.
-- The TH accepts only what `test-cluster-server.cpp` allows: `octet_string` at most 10 bytes, `struct_attr` with an
+- A chip TH accepts only what `test-cluster-server.cpp` allows: `octet_string` at most 10 bytes, `struct_attr` with an
   empty `e` and at most 6 bytes in `d`, and `list_long_octet_string` entries that are exactly the 512-byte
-  `0123456789abcdef…` buffer. Step 13 writes 3 entries because the TH starts with 4, so the read-back shows the
-  write took effect.
+  `0123456789abcdef…` buffer. The matter.js TH stores any value the model allows; the steps stay within chip's limits.
+  Step 13 writes 3 entries because both THs start with 4, so the read-back shows the write took effect.
 - Each step reads the value back. The in-process controller decodes a cluster outside the Matter model generically,
   so a struct comes back keyed by field id; chip-tool decodes it by the declared field names.
 - matter.js encodes a `map8` without declared bits as 0, so `SimpleStruct.f` is declared `uint8`.
 
 Step 13 asks for a chunked write (Matter Core § 10.2.3). `expectChunkedWrite` (`tc-idm-3.1-support.ts`) reads it off
-the chip TH's log, starting at the Write Request whose path the step's own path check matched, so an earlier write to
+the TH's log, starting at the Write Request whose path the step's own path check matched, so an earlier write to
 another attribute in the window is not taken for it: two or more `WriteRequestMessage`s on one exchange,
 `moreChunkedMessages = true` on all but the last, and the DUT's MRP acknowledgement of each `WriteResponse` logged
 before the TH decodes the next chunk. Line order alone cannot show the DUT waited, because the TH answers an early
-chunk in turn anyway. A non-chip TH's log has no pattern, so the check would report `unverified`; the matter.js
-all-clusters app has no UnitTesting cluster, so on a matter.js TH the step is not applicable before it gets there. Over
-TCP the step does not apply (see "A step that applies only over UDP" above). The in-process controller and
+chunk in turn anyway. On a matter.js TH the chunks are its `InteractionServer Write «` lines on the request's session
+and exchange, each but the last with `moreChunkedMessages`. The TH logs the next chunk's `Write «` line only after the
+DUT acknowledged its `WriteResponse-chunk`, so that line proves nothing; the proof is the TH's receipt of the next chunk
+(`MessageExchange Message « for: I/WriteRequest`), which must follow the response and carry or follow the DUT's
+acknowledgement of its counter. Over TCP the step does not apply (see "A step that applies only over UDP" above). The in-process controller and
 matterjs-server send the write as two chunks, and the step passes against a chip TH. The server reaches the chip TH
 over TCP, so it skips there unless the server runs with `MATTER_NETWORK_TCP=false` (see the matterjs-server section).
 chip-tool's `write-by-id` sends the list as one REPLACE `AttributeDataIB` and fails with
@@ -1579,8 +1597,9 @@ updates the same shape (see "One subscription over several paths" above). `optio
 request's `EventFilters`; omitting it sends no filter at all, which is the optional case both plans
 describe.
 
-The in-process, chip-tool and matterjs-server adapters implement them (the matterjs-server adapter refuses
-`observeEvents` as its `sustained-subscription` gap). `InProcessControllerAdapter` passes the paths straight to
+The in-process, chip-tool and matterjs-server adapters implement them (`observeEvents` is chip-tool's
+`sustained-subscription` gap; the matterjs-server adapter reports it through the server's own subscription, see
+"What skips on the matterjs-server leg"). `InProcessControllerAdapter` passes the paths straight to
 `Read`/`Subscribe`'s own `events`/`eventFilters` options (`packages/protocol/src/action/request/`);
 `ChipToolControllerAdapter` runs `any read-event-by-id <clusters> <events> <node> <endpoints>` and
 `any subscribe-event-by-id <clusters> <events> <min> <max> <node> <endpoints>`, whose JSON results
@@ -3249,7 +3268,9 @@ what the bridge exposes now, so it passes whether or not the controller ever not
 
 `CertNodeApi` therefore gained `clientEndpoints()` and `clientAttribute()`, which report what the
 controller holds without issuing an interaction — the matter.js adapter walks the `ClientNode`'s
-endpoint tree and its behaviors' state. chip-tool keeps nothing between commands, so it refuses both,
+endpoint tree and its behaviors' state, the matterjs-server adapter reads the server's node data (`get_node`,
+kept current by the subscription the case's `sustained-subscription` declaration switches on at commissioning).
+chip-tool keeps nothing between commands, so it refuses both,
 and its overlay answers 0 for `MCORE.BRIDGECLIENT` and every `MCORE.DEVLIST.*` flag: **the whole case
 is not applicable on a chip-tool controller**, which is the honest declaration, not a gap. The device
 file answers 1 for the `DEVLIST` flags because it describes a device, so the overlay has to override
@@ -3998,7 +4019,9 @@ chip-cert-bins' stock `lit-icd-app`. Four things had to line up before any Check
   `stopSubscription()` turns the peer's `autoSubscribe` off. A CHIP TH sets SuppressResponse only on read reports, never
   on subscription reports, so each report asks for an answer, and a DUT without the subscription answers
   INVALID_SUBSCRIPTION, which ends it. Step 1 has TH2 write TH1's NodeLabel, which makes TH1 send a report at once
-  rather than at the next max interval. The server leg ends the DUT's subscription this way. The in-process leg drops
+  rather than at the next max interval. The server leg ends the DUT's subscription this way; it refuses
+  `stopSubscription()` for a node a `sustained-subscription` case holds, so these cases cannot declare that
+  capability. The in-process leg drops
   the recreated subscription while its priming report is in flight, and matter.js answers that report with
   INVALID_SUBSCRIPTION too, so the TH ends the subscription and deletes its persisted entry.
 - **The controller has to advertise operationally**, or the TH fails with "Node Address resolution failed for ICD
