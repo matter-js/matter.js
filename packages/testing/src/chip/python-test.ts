@@ -176,24 +176,27 @@ export class PythonTest extends BaseTest {
 
         let passed = false;
         let skippedSteps = 0;
-        for await (let line of terminal) {
-            line = parseStep(line, step);
-            if (isSkippedStepLine(line)) {
-                skippedSteps++;
-            }
+        try {
+            for await (let line of terminal) {
+                line = parseStep(line, step);
+                if (isSkippedStepLine(line)) {
+                    skippedSteps++;
+                }
 
-            if (line.indexOf("Final result: PASS") !== -1) {
-                // Old format
-                passed = true;
-            } else if (line.match(/\[Test\]\s+\S+\s+PASS$/)) {
-                // New format
-                passed = true;
-            }
+                if (line.indexOf("Final result: PASS") !== -1) {
+                    // Old format
+                    passed = true;
+                } else if (line.match(/\[Test\]\s+\S+\s+PASS$/)) {
+                    // New format
+                    passed = true;
+                }
 
-            MockLogger.injectExternalMessage("CHIP", spiffy(line));
+                MockLogger.injectExternalMessage("CHIP", spiffy(line));
+            }
+        } finally {
+            // A failing run reports its own count, not the one an earlier run left on the descriptor
+            this.descriptor.skippedSteps = skippedSteps;
         }
-
-        this.descriptor.skippedSteps = skippedSteps;
 
         if (!passed) {
             throw new Error("Python test exited without error but did not indicate successful test");
