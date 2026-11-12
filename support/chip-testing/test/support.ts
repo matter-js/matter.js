@@ -15,6 +15,7 @@ import { AllDevicesTestInstance } from "../src/AllDevicesTestInstance.js";
 import { BridgeTestInstance } from "../src/BridgeTestInstance.js";
 import { DeviceTestInstanceConstructor } from "../src/GenericTestApp.js";
 import { IcdTestInstance } from "../src/IcdTestInstance.js";
+import { LockTestInstance } from "../src/LockTestInstance.js";
 import { NodeTestInstance } from "../src/NodeTestInstance.js";
 import { RvcTestInstance } from "../src/RvcTestInstance.js";
 import { TvTestInstance } from "../src/TvTestInstance.js";
@@ -59,6 +60,7 @@ export const BridgeApp = App(BridgeTestInstance);
 export const TvApp = App(TvTestInstance);
 export const RvcApp = App(RvcTestInstance);
 export const LitIcdApp = App(IcdTestInstance);
+export const LockApp = App(LockTestInstance);
 
 // chip-test-header app names (in the harness form chipAppName() produces: strip ${...},
 // CHIP_/_APP affixes, lower-kebab-case) → factory. When a python test descriptor names an
@@ -70,5 +72,6 @@ chip.subjectFor("bridge", BridgeApp);
 chip.subjectFor("tv", TvApp);
 chip.subjectFor("rvc", RvcApp);
 chip.subjectFor("lit-icd", LitIcdApp);
+chip.subjectFor("lock", LockApp);
 
 chip.defaultSubject = AllClustersApp;
