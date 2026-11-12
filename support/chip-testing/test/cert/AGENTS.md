@@ -857,10 +857,10 @@ with `outOfScope` naming the reason, no devices and verdict `skipped`.
   pass it on the command line: `MATTER_CERT_SERVER_ENTRY="/usr/bin/env MATTER_NETWORK_TCP=false node <entry>"`.
   `env` execs the server, so SIGTERM still reaches it. Over UDP step 20 runs and proves the chunked read.
 
-**PICS.** `MATTERJS_SERVER_CONTROLLER_PICS` (`src/cert/matter-server-pics.ts`) is the server's own certification
-declaration, not a hand-written list. `src/cert/matter-server-sve-pics.ts` holds every item of that declaration
-(`MATTERJS_SERVER_SVE_PICS`, Matter 1.6.1 re-certification). It is generated from the declaration's zip with
-`node support/chip-testing/generate-server-sve-pics.mjs <declaration>.zip`; a key the zip declares on several endpoints
+**PICS.** `MATTERJS_SERVER_CONTROLLER_PICS` (`src/cert/matter-server-controller-pics.ts`) is the server's own
+certification declaration, not a hand-written list. `src/cert/matter-server-pics.ts` holds every item of that
+declaration (`MATTERJS_SERVER_PICS`, Matter 1.6.1 re-certification). It is generated from the declaration's zip with
+`node support/chip-testing/generate-server-pics.mjs <declaration>.zip`; a key the zip declares on several endpoints
 is 1 where any endpoint supports it. The leg takes only the keys `describesController` accepts: every `<cluster>.C`
 key, the server clusters the server hosts as a controller (`OTAP.S`, `WEBRTCR.S`), and the MCORE keys of the
 controller roles (`IDM.C`, commissioner and controller roles, `DD` commissioning keys, `BDX`, OTA provider,
@@ -869,7 +869,7 @@ answer those keys, so they stay out. `MCORE.DD.DISCOVERY_*` stays out too, becau
 advertises. A test pins the MCORE split: a regenerated declaration with a new MCORE key fails it until someone decides
 the key's side, except a new `MCORE.IDM.C.*` key (controller side) or `MCORE.SC.*` key (device side).
 
-The leg deviates from the declaration only in `SVE_DEVIATIONS`, each with its reason:
+The leg deviates from the declaration only in `DEVIATIONS`, each with its reason:
 
 - `MCORE.DD.SCAN_QR_CODE` is 1 (declared 0): `commission_with_code` takes a scanned `MT:…` payload.
 - `MCORE.OTA.HTTPS` is 0 (declared 1): the server's OTA provider hands out images over BDX only.
@@ -1697,7 +1697,7 @@ chip-tool declare their client surface by hand (`MATTERJS_CONTROLLER_PICS`, `CHI
 everything they support, as far as they can, also where CHIP's file already agrees. The matterjs-server leg declares
 the controller side of the
 server's certification declaration (`MATTERJS_SERVER_CONTROLLER_PICS`, from the generated
-`matter-server-sve-pics.ts`), plus a short list of deviations with their reasons. The run evaluates
+`matter-server-pics.ts`), plus a short list of deviations with their reasons. The run evaluates
 `chip.defaultPics.with(those)`. Everything the controller says nothing about still comes from the
 device's file.
 
@@ -4399,7 +4399,8 @@ Each step goes through `sendCommand` with `commandPayload`, and a command with t
 - **`commandPayload` also renders an octet string** (chip's three-line byte list, matter.js's hex), **a bitmap** given
   as its set bits (chip's number, matter.js's object with every bit) **and a null** (chip prints `0x<id> = NULL` with
   no comma, matter.js `null`).
-- **The year-day and holiday steps are gated on `DRLK.C.F04` (WDSCH)**, as in the plan and in CHIP's yaml, although
-  the commands belong to YDSCH and HDSCH (`F0a`, `F0b`). CHIP's PICS file answers those two 0 for a client.
-- **PICS:** CHIP's file answers every key the case uses 1; all three overlays declare them anyway, as the controller's
-  client surface.
+- **The year-day steps are gated on `DRLK.C.F0a` (YDSCH), the holiday steps on `DRLK.C.F0b` (HDSCH).** The plan and
+  CHIP's yaml gate both on `F04` (WDSCH), which the commands do not belong to. CHIP's PICS file answers `F0a` and
+  `F0b` with 0 for a client, so the matter.js and chip-tool overlays declare them; the server's declaration has both.
+- **PICS:** CHIP's file answers every other key the case uses 1; all three overlays declare them anyway, as the
+  controller's client surface.

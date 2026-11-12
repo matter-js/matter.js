@@ -45,7 +45,7 @@ import {
     MATTERJS_CONTROLLER_PICS,
 } from "./InProcessControllerAdapter.js";
 import { forgetLogOriginClaims, logOriginsAreClaimed, OriginDestination, registerLogOrigin } from "./log-origins.js";
-import { MATTERJS_SERVER_CONTROLLER_PICS } from "./matter-server-pics.js";
+import { MATTERJS_SERVER_CONTROLLER_PICS } from "./matter-server-controller-pics.js";
 import {
     MATTERJS_SERVER_CAPABILITY_GAPS,
     MATTERJS_SERVER_OUT_OF_SCOPE,

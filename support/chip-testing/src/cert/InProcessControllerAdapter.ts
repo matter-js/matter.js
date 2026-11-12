@@ -347,11 +347,14 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "DGWIFI.C": 1,
     "DGWIFI.C.C00.Tx": 1,
 
-    // The DoorLock client commands TC-DRLK-3.2 sends, and the WDSCH and USR features its steps name. CHIP's PICS file
-    // answers these 1 already; the overlay states the controller's client surface for this case.
+    // The DoorLock client commands TC-DRLK-3.2 sends, and the WDSCH, YDSCH, HDSCH and USR features its steps use.
+    // CHIP's PICS file answers these 1 already, except YDSCH and HDSCH; the overlay states the controller's client
+    // surface.
     "DRLK.C": 1,
     "DRLK.C.F04": 1,
     "DRLK.C.F08": 1,
+    "DRLK.C.F0a": 1,
+    "DRLK.C.F0b": 1,
     "DRLK.C.C00.Tx": 1,
     "DRLK.C.C01.Tx": 1,
     "DRLK.C.C03.Tx": 1,

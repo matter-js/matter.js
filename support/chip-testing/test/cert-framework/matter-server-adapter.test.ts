@@ -34,8 +34,8 @@ import { fileURLToPath } from "node:url";
 import { ControllerCommandError } from "../../src/cert/controller-command-error.js";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
 import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAdapter.js";
-import { describesController, MATTERJS_SERVER_CONTROLLER_PICS } from "../../src/cert/matter-server-pics.js";
-import { MATTERJS_SERVER_SVE_PICS } from "../../src/cert/matter-server-sve-pics.js";
+import { describesController, MATTERJS_SERVER_CONTROLLER_PICS } from "../../src/cert/matter-server-controller-pics.js";
+import { MATTERJS_SERVER_PICS } from "../../src/cert/matter-server-pics.js";
 import {
     MATTERJS_SERVER_CAPABILITY_GAPS,
     MATTERJS_SERVER_OUT_OF_SCOPE,
@@ -2565,7 +2565,7 @@ describe("MatterServerControllerAdapter construction", () => {
 
     it("follows the server's certification declaration except for the listed deviations", () => {
         const deviations = Object.entries(MATTERJS_SERVER_CONTROLLER_PICS).filter(
-            ([key, value]) => MATTERJS_SERVER_SVE_PICS[key] !== value,
+            ([key, value]) => MATTERJS_SERVER_PICS[key] !== value,
         );
         expect(Object.fromEntries(deviations)).deep.equal({
             "MCORE.DD.SCAN_QR_CODE": 1,
@@ -2574,7 +2574,7 @@ describe("MatterServerControllerAdapter construction", () => {
             "CADMIN.M.UserInterfaceDisplay": 0,
             "CADMIN.M.AudioInterface": 0,
         });
-        expect(MATTERJS_SERVER_SVE_PICS).deep.include({
+        expect(MATTERJS_SERVER_PICS).deep.include({
             "MCORE.DD.SCAN_QR_CODE": 0,
             "MCORE.OTA.HTTPS": 1,
             "OTAP.S.M.UserConsentNeeded": 0,
@@ -2584,7 +2584,7 @@ describe("MatterServerControllerAdapter construction", () => {
     });
 
     it("takes only the controller side of the declaration, so the TH's own PICS answer the device side", () => {
-        const declaredMcore = Object.keys(MATTERJS_SERVER_SVE_PICS).filter(key => key.startsWith("MCORE."));
+        const declaredMcore = Object.keys(MATTERJS_SERVER_PICS).filter(key => key.startsWith("MCORE."));
 
         // A regenerated declaration that adds an MCORE key fails one of the two lists until someone decides its side;
         // only a new MCORE.SC key (device side) or MCORE.IDM.C key (controller side) joins without that
@@ -2676,7 +2676,7 @@ describe("MatterServerControllerAdapter construction", () => {
         ]);
 
         // A supported server cluster the declaration adds has to be placed on a side as well
-        const supportedServerClusters = Object.entries(MATTERJS_SERVER_SVE_PICS)
+        const supportedServerClusters = Object.entries(MATTERJS_SERVER_PICS)
             .filter(([key, value]) => value === 1 && key.split(".")[1] === "S")
             .map(([key]) => key.split(".")[0]);
         expect([...new Set(supportedServerClusters)]).deep.equal(["OTAP", "WEBRTCR"]);

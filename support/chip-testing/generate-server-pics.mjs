@@ -5,14 +5,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Writes src/cert/matter-server-sve-pics.ts from the PICS XML files of matterjs-server's certification
+// Writes src/cert/matter-server-pics.ts from the PICS XML files of matterjs-server's certification
 // declaration (a zip with one folder per endpoint). A key declared on several endpoints is supported where any
 // endpoint supports it.
 //
-// Run via: `node support/chip-testing/generate-server-sve-pics.mjs <declaration>.zip` (needs `unzip` on the PATH)
+// Run via: `node support/chip-testing/generate-server-pics.mjs <declaration>.zip` (needs `unzip` on the PATH)
 
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -20,18 +19,17 @@ import { fileURLToPath } from "node:url";
 
 const zip = process.argv[2];
 if (zip === undefined) {
-    console.error("Usage: generate-server-sve-pics.mjs <declaration>.zip");
+    console.error("Usage: generate-server-pics.mjs <declaration>.zip");
     process.exit(1);
 }
 
-const target = join(dirname(fileURLToPath(import.meta.url)), "src/cert/matter-server-sve-pics.ts");
+const target = join(dirname(fileURLToPath(import.meta.url)), "src/cert/matter-server-pics.ts");
 
-const extracted = mkdtempSync(join(tmpdir(), "sve-pics-"));
+const extracted = mkdtempSync(join(tmpdir(), "server-pics-"));
 try {
     execFileSync("unzip", ["-q", zip, "-d", extracted]);
     const values = readDeclaration(extracted);
-    const sha256 = createHash("sha256").update(readFileSync(zip)).digest("hex");
-    writeFileSync(target, render(`${basename(zip)} (sha256 ${sha256})`, values));
+    writeFileSync(target, render(values));
     console.log(`${Object.keys(values).length} keys, ${Object.values(values).filter(Boolean).length} supported`);
 } finally {
     rmSync(extracted, { recursive: true, force: true });
@@ -68,7 +66,7 @@ function xmlFiles(directory) {
         .map(name => join(directory, name));
 }
 
-function render(source, values) {
+function render(values) {
     const entries = Object.entries(values)
         .map(([key, supported]) => `    "${key}": ${supported ? 1 : 0},`)
         .join("\n");
@@ -86,11 +84,9 @@ import type { PicsValues } from "@matter/testing";
  * Every PICS item of matterjs-server's certification declaration. A key declared on several endpoints is supported
  * where any endpoint supports it.
  *
- * Source: \`${source}\`
- *
- * Regenerate with \`node support/chip-testing/generate-server-sve-pics.mjs <declaration>.zip\`.
+ * Regenerate with \`node support/chip-testing/generate-server-pics.mjs <declaration>.zip\`.
  */
-export const MATTERJS_SERVER_SVE_PICS: PicsValues = {
+export const MATTERJS_SERVER_PICS: PicsValues = {
 ${entries}
 };
 `;
