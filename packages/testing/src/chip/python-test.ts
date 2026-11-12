@@ -12,7 +12,7 @@ import type { Container } from "../docker/container.js";
 import { Terminal } from "../docker/terminal.js";
 import { TestFileDescriptor } from "../test-descriptor.js";
 import { expandAppPlaceholders } from "./app-reference.js";
-import { isSkippedStepLine, parseStep } from "./chip-test-common.js";
+import { parseStep, skippedStepOf } from "./chip-test-common.js";
 import { Constants, ContainerPaths } from "./config.js";
 import { PicsSource } from "./pics/source.js";
 import { RestartFlagMonitor } from "./restart-flag-monitor.js";
@@ -175,12 +175,13 @@ export class PythonTest extends BaseTest {
         );
 
         let passed = false;
-        let skippedSteps = 0;
+        const skippedSteps = new Set<string>();
         try {
             for await (let line of terminal) {
                 line = parseStep(line, step);
-                if (isSkippedStepLine(line)) {
-                    skippedSteps++;
+                const skipped = skippedStepOf(line);
+                if (skipped !== undefined) {
+                    skippedSteps.add(skipped);
                 }
 
                 if (line.indexOf("Final result: PASS") !== -1) {
@@ -195,7 +196,7 @@ export class PythonTest extends BaseTest {
             }
         } finally {
             // A failing run reports its own count, not the one an earlier run left on the descriptor
-            this.descriptor.skippedSteps = skippedSteps;
+            this.descriptor.skippedSteps = skippedSteps.size;
         }
 
         if (!passed) {
