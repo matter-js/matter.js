@@ -40,6 +40,24 @@ function storedPresets(deviceEp: Endpoint<typeof PresetsThermostat>) {
     return deviceEp.state.thermostat.persistedPresets!;
 }
 
+/** A thermostat whose Occupied presets support names, with separate total and per-scenario limits. */
+function namedPresetsEndpoint(numberOfPresets: number, numberOfOccupiedPresets: number) {
+    return new Endpoint(PresetsThermostat, {
+        id: "thermostat",
+        number: 1,
+        thermostat: {
+            ...thermostatConfig(numberOfPresets),
+            presetTypes: [
+                {
+                    presetScenario: Thermostat.PresetScenario.Occupied,
+                    numberOfPresets: numberOfOccupiedPresets,
+                    presetTypeFeatures: { supportsNames: true },
+                },
+            ],
+        },
+    });
+}
+
 describe("Presets local write", () => {
     before(() => MockTime.init());
 
@@ -464,14 +482,27 @@ describe("Presets local write", () => {
     });
 
     it("rejects more presets than the thermostat supports", async () => {
-        await using ctx = await thermostat(2);
-        const { deviceEp } = ctx;
+        const deviceEp = namedPresetsEndpoint(2, 5);
+        await using _node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: deviceEp });
 
-        await expect(writePresets(deviceEp, [newPreset(), newPreset(), newPreset()])).rejectedWith(
-            "exceeds NumberOfPresets",
-        );
+        await expect(
+            writePresets(deviceEp, [newPreset({ name: "A" }), newPreset({ name: "B" }), newPreset({ name: "C" })]),
+        ).rejectedWith("exceeds NumberOfPresets");
 
         expect(storedPresets(deviceEp)).deep.equals([]);
+    });
+
+    it("checks a preset's own rules before the NumberOfPresets limit", async () => {
+        const deviceEp = namedPresetsEndpoint(2, 5);
+        await using _node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: deviceEp });
+
+        await expect(
+            writePresets(deviceEp, [
+                newPreset({ name: "A" }),
+                newPreset({ name: "B" }),
+                newPreset({ name: "C", presetHandle: Uint8Array.of(0xee) }),
+            ]),
+        ).rejectedWith(StatusResponse.NotFoundError, "does not exist in old Presets");
     });
 
     it("rejects a named preset when the preset type does not support names", async () => {

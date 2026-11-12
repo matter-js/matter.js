@@ -41,6 +41,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Feature: (@lboue) `ThermostatServer` implements the `MatterScheduleConfiguration` (MSCH) feature with the `Schedules` and `ActiveScheduleHandle` attributes, atomic writes and `SetActiveScheduleRequest`. The feature stays locked until certification tests have validated it: enabling it without the `thermostat-msch` forward feature throws an `ImplementationError`
+    - Fix: `ThermostatServer` checks a written preset's own rules before the `NumberOfPresets` limit, in the order the specification gives, so a preset with an unknown handle is refused with NOT_FOUND
     - Fix: `ThermostatServer` raises `NumberOfPresets` at startup to cover the stored presets, instead of failing to start after a configuration lowered it
     - Feature: `ClientNode.updateOperationalCertificate()` replaces a commissioned node's operational certificate with one for a new key pair (UpdateNOC)
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message

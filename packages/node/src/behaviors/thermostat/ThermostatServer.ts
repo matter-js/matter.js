@@ -1525,12 +1525,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         oldPresets: Thermostat.Preset[] | undefined,
         issuedHandles: ReadonlySet<string>,
     ) {
-        if (newPresets.length > this.state.numberOfPresets) {
-            throw new StatusResponse.ResourceExhaustedError(
-                `Number of presets (${newPresets.length}) exceeds NumberOfPresets (${this.state.numberOfPresets})`,
-            );
-        }
-
         const oldPresetsMap = new Map<string, Thermostat.Preset>();
         if (oldPresets !== undefined) {
             for (const preset of oldPresets) {
@@ -1548,7 +1542,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         const presetScenarioNames = new Map<Thermostat.PresetScenario, (string | null)[]>();
         const presetScenarioCounts = new Map<Thermostat.PresetScenario, number>();
         const newPresetsSet = new Set<string>();
-        for (const preset of newPresets) {
+        for (const [index, preset] of newPresets.entries()) {
             // Name is optional, so an atomic write's decoded payload omits it where a stored write's managed value
             // reads it as its schema fallback of null
             const name = preset.name ?? null;
@@ -1606,6 +1600,12 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
             scenarioNames.push(name);
             presetScenarioNames.set(preset.presetScenario, scenarioNames);
+
+            if (index === this.state.numberOfPresets) {
+                throw new StatusResponse.ResourceExhaustedError(
+                    `Number of presets (${newPresets.length}) exceeds NumberOfPresets (${this.state.numberOfPresets})`,
+                );
+            }
 
             const count = presetScenarioCounts.get(preset.presetScenario) ?? 0;
             if (count === presetType.numberOfPresets) {
@@ -1878,12 +1878,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         oldSchedules: Thermostat.Schedule[] | undefined,
         issuedHandles: ReadonlySet<string>,
     ) {
-        if (newSchedules.length > this.state.numberOfSchedules) {
-            throw new StatusResponse.ResourceExhaustedError(
-                `Number of schedules (${newSchedules.length}) exceeds NumberOfSchedules (${this.state.numberOfSchedules})`,
-            );
-        }
-
         const oldSchedulesMap = new Map<string, Thermostat.Schedule>();
         if (oldSchedules !== undefined) {
             for (const schedule of oldSchedules) {
@@ -1950,13 +1944,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 );
             }
 
-            const count = scheduleModeCounts.get(schedule.systemMode) ?? 0;
-            if (count === scheduleType.numberOfSchedules) {
-                throw new StatusResponse.ResourceExhaustedError(
-                    `Number of schedules (${count + 1}) for systemMode ${Thermostat.SystemMode[schedule.systemMode]} exceeds allowed number (${scheduleType.numberOfSchedules})`,
-                );
-            }
-            scheduleModeCounts.set(schedule.systemMode, count + 1);
+            scheduleModeCounts.set(schedule.systemMode, (scheduleModeCounts.get(schedule.systemMode) ?? 0) + 1);
 
             if (schedule.name !== undefined && !scheduleTypeFeatures.supportsNames) {
                 throw new StatusResponse.ConstraintErrorError(
@@ -1983,6 +1971,21 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             }
 
             this.#validateScheduleTransitions(schedule, scheduleTypeFeatures, numberOfScheduleTransitionPerDay);
+        }
+
+        // The count limits apply only after every schedule passed its own checks (§ 4.3.11.51 steps 2 and 3)
+        if (newSchedules.length > this.state.numberOfSchedules) {
+            throw new StatusResponse.ResourceExhaustedError(
+                `Number of schedules (${newSchedules.length}) exceeds NumberOfSchedules (${this.state.numberOfSchedules})`,
+            );
+        }
+        for (const [systemMode, count] of scheduleModeCounts) {
+            const allowed = scheduleTypeMap.get(systemMode)?.numberOfSchedules ?? 0;
+            if (count > allowed) {
+                throw new StatusResponse.ResourceExhaustedError(
+                    `Number of schedules (${count}) for systemMode ${Thermostat.SystemMode[systemMode]} exceeds allowed number (${allowed})`,
+                );
+            }
         }
     }
 

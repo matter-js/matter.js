@@ -330,6 +330,17 @@ describe("Schedules local write", () => {
         expect(storedSchedules(deviceEp)).deep.equals([]);
     });
 
+    it("checks every schedule's own rules before the schedule count limits", async () => {
+        await using ctx = await thermostat(1);
+        const { deviceEp } = ctx;
+
+        await expect(
+            writeSchedules(deviceEp, [newSchedule(), newSchedule({ scheduleHandle: Uint8Array.of(0xee) })]),
+        ).rejectedWith(StatusResponse.NotFoundError, "does not exist in old Schedules");
+
+        expect(storedSchedules(deviceEp)).deep.equals([]);
+    });
+
     it("rejects more schedules than a systemMode scenario supports", async () => {
         const deviceEp = new Endpoint(SchedulesThermostat, {
             id: "thermostat",
