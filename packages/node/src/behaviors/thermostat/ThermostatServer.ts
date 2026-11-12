@@ -1378,12 +1378,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         oldPresets: Thermostat.Preset[] | undefined,
         issuedHandles: ReadonlySet<string>,
     ) {
-        if (newPresets.length > this.state.numberOfPresets) {
-            throw new StatusResponse.ResourceExhaustedError(
-                `Number of presets (${newPresets.length}) exceeds NumberOfPresets (${this.state.numberOfPresets})`,
-            );
-        }
-
         const oldPresetsMap = new Map<string, Thermostat.Preset>();
         if (oldPresets !== undefined) {
             for (const preset of oldPresets) {
@@ -1401,7 +1395,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         const presetScenarioNames = new Map<Thermostat.PresetScenario, (string | null)[]>();
         const presetScenarioCounts = new Map<Thermostat.PresetScenario, number>();
         const newPresetsSet = new Set<string>();
-        for (const preset of newPresets) {
+        for (const [index, preset] of newPresets.entries()) {
             // Name is optional, so an atomic write's decoded payload omits it where a stored write's managed value
             // reads it as its schema fallback of null
             const name = preset.name ?? null;
@@ -1442,23 +1436,18 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 );
             }
 
-            const scenarioNames = presetScenarioNames.get(preset.presetScenario) ?? [];
-
-            // The specification counts null - "no name" - as a value that may not repeat within a scenario
-            if (scenarioNames.includes(name)) {
-                throw new StatusResponse.ConstraintErrorError(
-                    `Duplicate preset name ${JSON.stringify(name)} for scenario ${Thermostat.PresetScenario[preset.presetScenario]}`,
-                );
-            }
-
             if (name !== null && !presetType.presetTypeFeatures.supportsNames) {
                 throw new StatusResponse.ConstraintErrorError(
                     `Preset names are not supported for scenario ${Thermostat.PresetScenario[preset.presetScenario]}`,
                 );
             }
 
-            scenarioNames.push(name);
-            presetScenarioNames.set(preset.presetScenario, scenarioNames);
+            // The write rules check each appended preset in order: its handle, scenario and name, then both counts
+            if (index + 1 > this.state.numberOfPresets) {
+                throw new StatusResponse.ResourceExhaustedError(
+                    `Number of presets (${newPresets.length}) exceeds NumberOfPresets (${this.state.numberOfPresets})`,
+                );
+            }
 
             const count = presetScenarioCounts.get(preset.presetScenario) ?? 0;
             if (count === presetType.numberOfPresets) {
@@ -1467,6 +1456,17 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 );
             }
             presetScenarioCounts.set(preset.presetScenario, count + 1);
+
+            const scenarioNames = presetScenarioNames.get(preset.presetScenario) ?? [];
+
+            // The specification counts null - "no name" - as a value that may not repeat within a scenario
+            if (scenarioNames.includes(name)) {
+                throw new StatusResponse.ConstraintErrorError(
+                    `Duplicate preset name ${JSON.stringify(name)} for scenario ${Thermostat.PresetScenario[preset.presetScenario]}`,
+                );
+            }
+            scenarioNames.push(name);
+            presetScenarioNames.set(preset.presetScenario, scenarioNames);
 
             if (this.features.cooling) {
                 if (preset.coolingSetpoint === undefined) {
