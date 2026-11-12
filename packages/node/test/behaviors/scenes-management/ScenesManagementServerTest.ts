@@ -5,11 +5,11 @@
  */
 
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
-import { ScenesManagementClient } from "#behaviors/scenes-management";
+import { ScenesManagementClient, ScenesManagementServer } from "#behaviors/scenes-management";
 import { ServerNode } from "#node/index.js";
 import { MockSite } from "@matter/node/testing";
 import { Read } from "@matter/protocol";
-import { AttributeId, ClusterId, EndpointNumber, GroupId } from "@matter/types";
+import { AttributeId, ClusterId, EndpointNumber, FabricIndex, GroupId, Status } from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
 
 describe("ScenesManagementServer", () => {
@@ -95,5 +95,48 @@ describe("ScenesManagementServer", () => {
                 }
             })(),
         );
+    });
+
+    it("limits a fabric's remaining capacity by the entries other fabrics use", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+            },
+        });
+        const deviceEp = device.endpoints.for(1);
+        const cmds = controller.peers.get("peer1")!.endpoints.for(EndpointNumber(1)).commandsOf(ScenesManagementClient);
+
+        // Another fabric fills the table up to three free entries, far fewer than this fabric's own share
+        const sceneTableSize = deviceEp.stateOf(ScenesManagementServer).sceneTableSize;
+        await MockTime.resolve(
+            deviceEp.setStateOf(ScenesManagementServer, {
+                sceneTable: Array.from({ length: sceneTableSize - 3 }, (_, sceneId) => ({
+                    sceneGroupId: GroupId(0),
+                    sceneId,
+                    sceneTransitionTime: 0,
+                    sceneValues: {},
+                    fabricIndex: FabricIndex(2),
+                })),
+            }),
+        );
+
+        const membership = await MockTime.resolve(cmds.getSceneMembership({ groupId: GroupId(0) }));
+        expect(membership.capacity).equals(3);
+
+        const addScene = (sceneId: number) =>
+            MockTime.resolve(
+                cmds.addScene({
+                    groupId: GroupId(0),
+                    sceneId,
+                    transitionTime: 0,
+                    sceneName: "",
+                    extensionFieldSetStructs: [],
+                }),
+            );
+        for (const sceneId of [1, 2, 3]) {
+            expect((await addScene(sceneId)).status).equals(Status.Success);
+        }
+        expect((await addScene(4)).status).equals(Status.ResourceExhausted);
     });
 });
