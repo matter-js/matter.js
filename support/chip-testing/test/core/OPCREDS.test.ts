@@ -10,4 +10,6 @@ describe("OPCREDS", () => {
         // where OperationalCredentials has no PQC device attestation
         "OPCREDS/3.9",
     );
+    // Selects the runs of multi-run tests, which "OPCREDS/*" does not
+    chip("OPCREDS/*/run*").exclude("OPCREDS/3.9/*");
 });

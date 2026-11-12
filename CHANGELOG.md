@@ -203,6 +203,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The commissioning options log no longer contains the network credentials, the passcode or the fabric's identity protection key
     - Fix: `DatatypeError` messages show the first 60 characters of a long value instead of the characters after them
 
+- @matter/testing
+    - Feature: `ControllerAdapterOptions.sustainedSubscription` keeps the controller's own subscription to each commissioned node, set for a `certTest()` that declares `sustained-subscription`; `step()` refuses that capability
+
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
 
