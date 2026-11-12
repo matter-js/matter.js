@@ -49,9 +49,9 @@ import {
     NoCommissionedPeerError,
     SessionStateError,
 } from "../../src/cert/InProcessControllerAdapter.js";
+import { MATTERJS_SERVER_CONTROLLER_PICS } from "../../src/cert/matter-server-pics.js";
 import {
     MATTERJS_SERVER_CAPABILITY_GAPS,
-    MATTERJS_SERVER_CONTROLLER_PICS,
     MATTERJS_SERVER_OUT_OF_SCOPE,
 } from "../../src/cert/MatterServerControllerAdapter.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
