@@ -14,6 +14,11 @@ import { p256 } from "@noble/curves/nist.js";
 import * as utils from "@noble/curves/utils.js";
 import { Entropy } from "../util/Entropy.js";
 import { cmac } from "./aes/Cmac.js";
+import type {
+    CRYPTO_AEAD_MAX_AAD_LENGTH_BYTES,
+    cryptoAeadMaxCiphertextLength,
+    cryptoAeadMaxPlaintextLength,
+} from "./CryptoConstants.js";
 import { CryptoVerifyError, KeyInputError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import type { PrivateKey, PublicKey } from "./Key.js";
@@ -117,11 +122,20 @@ export abstract class Crypto extends Entropy {
 
     /**
      * Encrypt using AES-CCM. `tagLength` defaults to 16 (Matter AEAD); pass 8 for CCM-8.
+     *
+     * @throws CryptoInputError when the nonce length, tag length, AAD length or plaintext length is outside the
+     *   AES-CCM limits matter.js supports, see {@link cryptoAeadMaxPlaintextLength} and
+     *   {@link CRYPTO_AEAD_MAX_AAD_LENGTH_BYTES}
      */
     abstract encrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes, tagLength?: number): Bytes;
 
     /**
      * Decrypt using AES-CCM. `tagLength` defaults to 16; pass 8 for CCM-8.
+     *
+     * @throws CryptoDecryptError when the data does not authenticate with the key, nonce and AAD
+     * @throws CryptoInputError when the nonce length, tag length, AAD length or data length is outside the
+     *   AES-CCM limits matter.js supports, see {@link cryptoAeadMaxCiphertextLength} and
+     *   {@link CRYPTO_AEAD_MAX_AAD_LENGTH_BYTES}
      */
     abstract decrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes, tagLength?: number): Bytes;
 

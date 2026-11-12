@@ -8,20 +8,25 @@ import {
     InternalError,
     MemoryStorageDriver,
     Storage,
+    StorageError,
     SupportedStorageTypes,
-    Time,
-    createPromise,
     fromJson,
     toJson,
 } from "@matter/general";
 import { readFile, rename, writeFile } from "node:fs/promises";
 
+/**
+ * JSON file storage for the CHIP test apps.  Every change is written to the file.  One write runs at a time; changes
+ * made while a write runs are written together by the next one, so the file always ends with the latest state.
+ *
+ * {@link initialize} may be called again after {@link close}; the test apps do this when a node reboots in-process.
+ */
 export class StorageBackendAsyncJsonFile extends Storage {
-    /** We store changes after a value was set to the storage, but not more often than this setting (in ms). */
     private closed = false;
     private store?: MemoryStorageDriver;
-    private currentStoreItPromise?: Promise<void>;
-    private lastStoredTime = 0;
+    #hasUnsavedChanges = false;
+    #writeQueue = Promise.resolve();
+    #closing?: Promise<void>;
 
     constructor(readonly path: string) {
         super();
@@ -40,7 +45,8 @@ export class StorageBackendAsyncJsonFile extends Storage {
         }
         this.store = new MemoryStorageDriver(data);
         this.store.initialize(); // Internal usage — creates from pre-loaded data
-        this.lastStoredTime = Time.nowMs;
+        this.closed = false;
+        this.#closing = undefined;
     }
 
     get initialized() {
@@ -68,57 +74,62 @@ export class StorageBackendAsyncJsonFile extends Storage {
         keyOrValues: string | Record<string, SupportedStorageTypes>,
         value?: SupportedStorageTypes,
     ) {
-        if (this.store === undefined) {
-            throw new InternalError("Storage not initialized.");
-        }
+        const store = this.#storeForChange();
         if (typeof keyOrValues === "string") {
-            this.store.set(contexts, keyOrValues, value);
+            store.set(contexts, keyOrValues, value);
         } else {
-            this.store.set(contexts, keyOrValues);
+            store.set(contexts, keyOrValues);
         }
         await this.commit();
     }
 
     override async delete(contexts: string[], key: string) {
+        this.#storeForChange().delete(contexts, key);
+        await this.commit();
+    }
+
+    /** The store for a change.  Refuses changes once {@link close} has started, so no change is kept in memory only. */
+    #storeForChange() {
         if (this.store === undefined) {
             throw new InternalError("Storage not initialized.");
         }
-        this.store.delete(contexts, key);
-        await this.commit();
+        if (this.closed) {
+            throw new StorageError(`Storage ${this.path} is closed.`);
+        }
+        return this.store;
     }
 
     private async commit() {
         if (this.store === undefined) {
             throw new InternalError("Storage not initialized.");
         }
-        if (this.closed) return;
-        if (this.currentStoreItPromise !== undefined) {
-            return;
-        }
-        await this.storeIt();
+        this.#hasUnsavedChanges = true;
+        const write = this.#writeQueue.then(() => this.#writeIfUnsaved());
+        // The caller receives a write error through `write`; the queue drops it so later commits still run
+        this.#writeQueue = write.catch(() => {});
+        await write;
     }
 
-    async storeIt(forced = false) {
-        if (this.store === undefined) {
-            throw new InternalError("Storage not initialized.");
-        }
-        if (this.closed) return;
-        if (!forced && this.lastStoredTime < Time.nowMs - 1000) {
+    /** Write the current state to the file; resolves once it is written.  Does nothing after {@link close}. */
+    async flush() {
+        if (this.closed) {
             return;
         }
-        if (this.currentStoreItPromise !== undefined) {
-            await this.currentStoreItPromise;
-        }
+        await this.commit();
+    }
 
-        const { promise, rejecter, resolver } = createPromise<void>();
-        const json = this.toJson(this.store.data);
-        this.#writeAndMoveFile(this.path, json)
-            .then(resolver, rejecter)
-            .finally(() => {
-                this.currentStoreItPromise = undefined;
-            });
-        this.currentStoreItPromise = promise;
-        return promise;
+    async #writeIfUnsaved() {
+        if (!this.#hasUnsavedChanges || this.store === undefined) {
+            return;
+        }
+        this.#hasUnsavedChanges = false;
+        try {
+            await this.#writeAndMoveFile(this.path, this.toJson(this.store.data));
+        } catch (error) {
+            // Commits queued behind this write must retry, not resolve as if their change was stored
+            this.#hasUnsavedChanges = true;
+            throw error;
+        }
     }
 
     async #writeAndMoveFile(filepath: string, value: string): Promise<void> {
@@ -127,12 +138,18 @@ export class StorageBackendAsyncJsonFile extends Storage {
         await rename(tmpName, filepath);
     }
 
-    override async close() {
+    /** Write the final state and close the store.  Concurrent and repeated calls share the first call's result. */
+    override close() {
+        return (this.#closing ??= this.#close());
+    }
+
+    async #close() {
         if (this.store === undefined) {
             return;
         }
-        await this.storeIt(true);
         this.closed = true;
+        // Queued after all earlier writes, so it stores the final state and reports its error to the caller
+        await this.commit();
         await this.store.close();
     }
 
@@ -158,10 +175,7 @@ export class StorageBackendAsyncJsonFile extends Storage {
     }
 
     override async clearAll(contexts: string[]) {
-        if (this.store === undefined) {
-            throw new InternalError("Storage not initialized.");
-        }
-        this.store.clearAll(contexts);
+        this.#storeForChange().clearAll(contexts);
         await this.commit();
     }
 

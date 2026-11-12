@@ -61,6 +61,19 @@ export interface PhysicalDeviceProperties {
 }
 
 export namespace PhysicalDeviceProperties {
+    /**
+     * The MinIntervalFloor and MaxIntervalCeiling to request when subscribing to a peer with `properties`.  A bound in
+     * `request` overrides the default, except that an ICD always gets a floor of 0.
+     *
+     * The default ceiling depends on how the peer is connected and powered, plus up to max(10%, 10 s) of jitter.  For
+     * an ICD whose IdleModeDuration is at least that long, the ceiling is the IdleModeDuration instead, without
+     * jitter, so the peer can report once per idle cycle.  An ICD with a shorter IdleModeDuration gets the default
+     * ceiling: the ICD may still choose any MaxInterval up to the greatest of its IdleModeDuration, 60 minutes and the
+     * ceiling, so a lower ceiling would only allow it to report more often.  A ceiling in `request` is sent without
+     * jitter.  Every ceiling is limited to 65535 s.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 2.11.2.2, § 8.5.3.2
+     */
     export function subscriptionIntervalBoundsFor(options?: {
         properties?: PhysicalDeviceProperties;
         description?: string;
@@ -114,16 +127,17 @@ export namespace PhysicalDeviceProperties {
                     : DEFAULT_SUBSCRIPTION_FLOOR_DEFAULT;
         }
 
-        const isIcdCeiling = isIntermittentlyConnected && idleModeDuration !== undefined;
-        const defaultCeiling = isIcdCeiling
-            ? Duration.min(idleModeDuration, MAX_SUBSCRIPTION_CEILING)
-            : isBatteryPowered && !isMainsPowered
-              ? DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED
-              : isThreadSleepyEndDevice
-                ? DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY
-                : supportsThread
-                  ? DEFAULT_SUBSCRIPTION_CEILING_THREAD
-                  : DEFAULT_SUBSCRIPTION_CEILING_WIFI;
+        const deviceCeiling =
+            isBatteryPowered && !isMainsPowered
+                ? DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED
+                : isThreadSleepyEndDevice
+                  ? DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY
+                  : supportsThread
+                    ? DEFAULT_SUBSCRIPTION_CEILING_THREAD
+                    : DEFAULT_SUBSCRIPTION_CEILING_WIFI;
+        const isIcdCeiling =
+            isIntermittentlyConnected && idleModeDuration !== undefined && idleModeDuration >= deviceCeiling;
+        const defaultCeiling = isIcdCeiling ? Duration.min(idleModeDuration, MAX_SUBSCRIPTION_CEILING) : deviceCeiling;
         const isExplicitCeiling = maxIntervalCeiling !== undefined;
         if (maxIntervalCeiling === undefined) {
             maxIntervalCeiling = defaultCeiling;
@@ -135,8 +149,7 @@ export namespace PhysicalDeviceProperties {
         }
 
         if (isIcdCeiling) {
-            // The ICD peer reports on its own idleModeDuration clock regardless of our requested ceiling, so jitter
-            // would only push our request above idle for no benefit.
+            // Jitter would move the ceiling away from the idle cycle the ICD reports on
             maxIntervalCeiling = Duration.max(minIntervalFloor, maxIntervalCeiling);
         } else if (isExplicitCeiling) {
             // A caller-supplied ceiling is transmitted as requested, with no jitter; only the floor clamp still

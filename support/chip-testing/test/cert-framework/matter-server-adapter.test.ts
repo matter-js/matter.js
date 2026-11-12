@@ -34,9 +34,10 @@ import { fileURLToPath } from "node:url";
 import { ControllerCommandError } from "../../src/cert/controller-command-error.js";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
 import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAdapter.js";
+import { describesController, MATTERJS_SERVER_CONTROLLER_PICS } from "../../src/cert/matter-server-controller-pics.js";
+import { MATTERJS_SERVER_PICS } from "../../src/cert/matter-server-pics.js";
 import {
     MATTERJS_SERVER_CAPABILITY_GAPS,
-    MATTERJS_SERVER_CONTROLLER_PICS,
     MATTERJS_SERVER_OUT_OF_SCOPE,
     MatterServerCommissioningError,
     MatterServerControllerAdapter,
@@ -329,6 +330,72 @@ describe("MatterServerControllerAdapter", () => {
 
             expect(error).instanceOf(ImplementationError);
             expect(server.requests).deep.equals([]);
+        });
+    });
+
+    describe("commissionable discovery", () => {
+        /** One `CommissionableNodeData` entry as `#handleDiscoverCommissionableNodes` maps a discovered peer. */
+        function serverNode(overrides: Record<string, unknown> = {}) {
+            return {
+                instance_name: "5E6B9D0C1A2F3B4C",
+                host_name: "000000000000",
+                port: 5540,
+                long_discriminator: 3840,
+                vendor_id: 65521,
+                product_id: 32769,
+                commissioning_mode: 1,
+                device_type: 0,
+                device_name: "",
+                pairing_instruction: "",
+                pairing_hint: 33,
+                supports_tcp: false,
+                addresses: ["fe80::1"],
+                rotating_id: "",
+                ...overrides,
+            };
+        }
+
+        it("reports every node discover_commissionable_nodes answers, whatever the filter", async () => {
+            replies.discover_commissionable_nodes = {
+                result: [serverNode(), serverNode({ instance_name: "OTHER", long_discriminator: 1234 })],
+            };
+
+            expect(await adapter.discoverCommissionableNodes({ longDiscriminator: 3840 })).deep.equals([
+                {
+                    instanceName: "5E6B9D0C1A2F3B4C",
+                    longDiscriminator: 3840,
+                    vendorId: 65521,
+                    productId: 32769,
+                    commissioningMode: 1,
+                },
+                {
+                    instanceName: "OTHER",
+                    longDiscriminator: 1234,
+                    vendorId: 65521,
+                    productId: 32769,
+                    commissioningMode: 1,
+                },
+            ]);
+            expect(sent()).deep.equals([{ command: "discover_commissionable_nodes", args: {} }]);
+        });
+
+        it("reports a vendor and product the server sent as -1 as absent", async () => {
+            replies.discover_commissionable_nodes = { result: [serverNode({ vendor_id: -1, product_id: -1 })] };
+
+            const [discovered] = await adapter.discoverCommissionableNodes();
+            expect(discovered.vendorId).undefined;
+            expect(discovered.productId).undefined;
+        });
+
+        it("rejects an answer that is no list, or a node missing a field it relies on", async () => {
+            replies.discover_commissionable_nodes = { result: {} };
+            expect(await rejectionOf(adapter.discoverCommissionableNodes())).instanceOf(UnexpectedDataError);
+
+            replies.discover_commissionable_nodes = { result: [42] };
+            expect(await rejectionOf(adapter.discoverCommissionableNodes())).instanceOf(UnexpectedDataError);
+
+            replies.discover_commissionable_nodes = { result: [serverNode({ long_discriminator: undefined })] };
+            expect(await rejectionOf(adapter.discoverCommissionableNodes())).instanceOf(UnexpectedDataError);
         });
     });
 
@@ -2123,6 +2190,7 @@ describe("MatterServerControllerAdapter", () => {
             ["basic-commissioning-window", () => n.openCommissioningWindow({ timeout: 180, enhanced: false })],
             ["ota-provider-script", () => n.announceOtaProvider()],
             ["ota-provider-script", () => n.scriptOtaProvider({})],
+            ["noc-update", () => n.updateOperationalCertificate?.()],
         ];
 
         for (const [capability, call] of refusals) {
@@ -2458,15 +2526,15 @@ describe("MatterServerControllerAdapter construction", () => {
         });
     });
 
-    it("declares the Switch client of an action switch, as the other controllers do", () => {
+    it("declares the Switch client of release and action switches alike, as the other controllers do", () => {
         expect(MATTERJS_SERVER_CONTROLLER_PICS).deep.include({
             "SWTCH.C": 1,
-            "SWTCH.C.F02": 0,
+            "SWTCH.C.F02": 1,
             "SWTCH.C.F05": 1,
         });
     });
 
-    it("declares the roles it lacks only through this adapter as capability gaps, not as PICS it does not support", () => {
+    it("keeps declared roles at 1 where this adapter cannot drive them, which a capability gap records instead", () => {
         expect(MATTERJS_SERVER_CONTROLLER_PICS).deep.include({
             "MCORE.OTA.Provider": 1,
             "MCORE.BDX.Sender": 1,
@@ -2474,7 +2542,7 @@ describe("MatterServerControllerAdapter construction", () => {
             "MCORE.BRIDGECLIENT": 1,
             "MCORE.DEVLIST.UseDevices": 1,
         });
-        expect(MATTERJS_SERVER_CONTROLLER_PICS).not.have.property("ICDM.C");
+        expect(MATTERJS_SERVER_CONTROLLER_PICS).deep.include({ "ICDM.C": 1 });
         expect(Object.keys(MATTERJS_SERVER_CAPABILITY_GAPS)).include("sustained-subscription");
     });
 
@@ -2493,6 +2561,138 @@ describe("MatterServerControllerAdapter construction", () => {
             "MCORE.BDX.AsynchronousReceiver": 0,
         });
         expect(MATTERJS_SERVER_CONTROLLER_PICS).deep.include({ "CGEN.C.F00": 0 });
+    });
+
+    it("follows the server's certification declaration except for the listed deviations", () => {
+        const deviations = Object.entries(MATTERJS_SERVER_CONTROLLER_PICS).filter(
+            ([key, value]) => MATTERJS_SERVER_PICS[key] !== value,
+        );
+        expect(Object.fromEntries(deviations)).deep.equal({
+            "MCORE.DD.SCAN_QR_CODE": 1,
+            "MCORE.OTA.HTTPS": 0,
+            "OTAP.S.M.UserConsentNeeded": 1,
+            "CADMIN.M.UserInterfaceDisplay": 0,
+            "CADMIN.M.AudioInterface": 0,
+        });
+        expect(MATTERJS_SERVER_PICS).deep.include({
+            "MCORE.DD.SCAN_QR_CODE": 0,
+            "MCORE.OTA.HTTPS": 1,
+            "OTAP.S.M.UserConsentNeeded": 0,
+            "CADMIN.C.M.UserInterfaceDisplay": 0,
+            "CADMIN.C.M.AudioInterface": 0,
+        });
+    });
+
+    it("takes only the controller side of the declaration, so the TH's own PICS answer the device side", () => {
+        const declaredMcore = Object.keys(MATTERJS_SERVER_PICS).filter(key => key.startsWith("MCORE."));
+
+        // A regenerated declaration that adds an MCORE key fails one of the two lists until someone decides its side;
+        // only a new MCORE.SC key (device side) or MCORE.IDM.C key (controller side) joins without that
+        expect(declaredMcore.filter(key => !describesController(key))).deep.equal([
+            "MCORE.BRIDGE",
+            "MCORE.BRIDGE.AllowDeviceRename",
+            "MCORE.BRIDGE.BatInfo",
+            "MCORE.BRIDGE.OtherControl",
+            "MCORE.COM.BLE",
+            "MCORE.COM.ETH",
+            "MCORE.COM.PAF",
+            "MCORE.COM.THR",
+            "MCORE.COM.WIFI",
+            "MCORE.COM.WIFI_2P4GHZ",
+            "MCORE.COM.WIFI_5GHZ",
+            "MCORE.COM.WIRELESS",
+            "MCORE.DD.CHIP_DEV",
+            "MCORE.DD.COMMISSIONING_SUBTYPE_T",
+            "MCORE.DD.COMMISSIONING_SUBTYPE_V",
+            "MCORE.DD.COMM_DISCOVERY",
+            "MCORE.DD.CONCATENATED_QR_CODE",
+            "MCORE.DD.DISCOVERY_BLE",
+            "MCORE.DD.DISCOVERY_IP",
+            "MCORE.DD.DISCOVERY_PAF",
+            "MCORE.DD.ESF_TC_COMMISSIONER",
+            "MCORE.DD.EXTENDED_DISCOVERY",
+            "MCORE.DD.MANUAL_PC",
+            "MCORE.DD.NFC",
+            "MCORE.DD.NON_CONCURRENT_CONNECTION",
+            "MCORE.DD.NTL",
+            "MCORE.DD.PHYSICAL_TAMPERING",
+            "MCORE.DD.QR",
+            "MCORE.DD.TXT_KEY_DN",
+            "MCORE.DD.TXT_KEY_DT",
+            "MCORE.DD.TXT_KEY_PH",
+            "MCORE.DD.TXT_KEY_PI",
+            "MCORE.DD.TXT_KEY_RI",
+            "MCORE.DD.TXT_KEY_VP",
+            "MCORE.DD.UI",
+            "MCORE.DLOG.S.TIMESINCEBOOT",
+            "MCORE.DLOG.S.UTCTIMESTAMP",
+            "MCORE.FS",
+            "MCORE.G.MULTIENDPOINT",
+            "MCORE.IDM.S",
+            "MCORE.IDM.S.LargeData",
+            "MCORE.IDM.S.PersistentSubscription",
+            "MCORE.OTA.Requestor",
+            "MCORE.OTA.RequestorConsent",
+            "MCORE.OTA.Resume",
+            "MCORE.OTA.Retry",
+            "MCORE.ROLE.COMMISSIONEE",
+            ...declaredMcore.filter(key => key.startsWith("MCORE.SC.")),
+        ]);
+        expect(declaredMcore.filter(describesController)).deep.equal([
+            "MCORE.ACL.Administrator",
+            "MCORE.BDX.AsynchronousReceiver",
+            "MCORE.BDX.AsynchronousSender",
+            "MCORE.BDX.BlockQueryWithSkip",
+            "MCORE.BDX.Driver",
+            "MCORE.BDX.Initiator",
+            "MCORE.BDX.Receiver",
+            "MCORE.BDX.Responder",
+            "MCORE.BDX.Sender",
+            "MCORE.BDX.SynchronousReceiver",
+            "MCORE.BDX.SynchronousSender",
+            "MCORE.BRIDGECLIENT",
+            "MCORE.DD.11_MANUAL_PC",
+            "MCORE.DD.21_MANUAL_PC",
+            "MCORE.DD.CTRL_CONCATENATED_QR_CODE_1",
+            "MCORE.DD.CTRL_CONCATENATED_QR_CODE_2",
+            "MCORE.DD.CUSTOM_COMM_FLOW",
+            "MCORE.DD.MANUAL_PC_COMMISSIONING",
+            "MCORE.DD.QR_COMMISSIONING",
+            "MCORE.DD.SCAN_NFC",
+            "MCORE.DD.SCAN_QR_CODE",
+            "MCORE.DD.STANDARD_COMM_FLOW",
+            "MCORE.DD.USER_INTENT_COMM_FLOW",
+            "MCORE.DEVLIST.UseBatInfo",
+            "MCORE.DEVLIST.UseDeviceName",
+            "MCORE.DEVLIST.UseDeviceState",
+            "MCORE.DEVLIST.UseDevices",
+            "MCORE.DT_SW_COMP",
+            ...declaredMcore.filter(key => /^MCORE\.IDM\.C(\.|$)/.test(key)),
+            "MCORE.OTA.HTTPS",
+            "MCORE.OTA.Provider",
+            "MCORE.OTA.VendorSpecific",
+            "MCORE.ROLE.COMMISSIONER",
+            "MCORE.ROLE.CONTROLLER",
+        ]);
+
+        // A supported server cluster the declaration adds has to be placed on a side as well
+        const supportedServerClusters = Object.entries(MATTERJS_SERVER_PICS)
+            .filter(([key, value]) => value === 1 && key.split(".")[1] === "S")
+            .map(([key]) => key.split(".")[0]);
+        expect([...new Set(supportedServerClusters)]).deep.equal(["OTAP", "WEBRTCR"]);
+
+        for (const key of ["OO.C", "CADMIN.C.M.AudioInterface", "OTAP.S.M.DelayedActionTime", "WEBRTCR.S"]) {
+            expect(describesController(key), key).equal(true);
+        }
+        for (const key of ["OO.S", "OO.M.ManuallyControlled", "WEBRTCP.S", "MCORE.IDM.S", "MCORE.OTA.Requestor"]) {
+            expect(describesController(key), key).equal(false);
+            expect(MATTERJS_SERVER_CONTROLLER_PICS, key).not.have.property(key);
+        }
+
+        // Keys the declaration does not hold today, so a regenerated one cannot widen the split unnoticed
+        for (const key of ["OTAP.M.UserConsent", "WEBRTCR.A.Session", "MCORE.IDM.CX", "MCORE.BDXX", "MCORE.DEVLISTX"]) {
+            expect(describesController(key), key).equal(false);
+        }
     });
 
     it("declares scripted OTA provider answers out of scope, not a gap", () => {

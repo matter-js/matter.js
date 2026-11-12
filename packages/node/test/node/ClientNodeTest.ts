@@ -23,6 +23,7 @@ import { LevelControlClient } from "#behaviors/level-control";
 import { OnOffClient } from "#behaviors/on-off";
 import { PowerSourceServer } from "#behaviors/power-source";
 import { TimeSynchronizationClient } from "#behaviors/time-synchronization";
+import { UnitLocalizationClient, UnitLocalizationServer } from "#behaviors/unit-localization";
 import { WindowCoveringClient, WindowCoveringServer } from "#behaviors/window-covering";
 import { ContactSensorDevice } from "#devices/contact-sensor";
 import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light";
@@ -48,6 +49,7 @@ import {
     Crypto,
     deepCopy,
     Entropy,
+    Hours,
     ImplementationError,
     InternalError,
     MatterAggregateError,
@@ -77,11 +79,13 @@ import {
     CommissionableDevice,
     CommissionableDeviceIdentity,
     CommissioningError,
+    ConstraintError,
     ControllerCommissioner,
     ControllerCommissioningFlow,
     EstablishPaseOptions,
     FabricAuthority,
     FabricManager,
+    IntegerRangeError,
     MessageCodec,
     PasscodeMismatchError,
     PeerSet,
@@ -92,6 +96,7 @@ import {
     SessionManager,
     Val,
     ValidateError,
+    WriteError,
 } from "@matter/protocol";
 import {
     AttributeId,
@@ -112,6 +117,7 @@ import { Descriptor } from "@matter/types/clusters/descriptor";
 import { LevelControl } from "@matter/types/clusters/level-control";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { PowerSource } from "@matter/types/clusters/power-source";
+import { UnitLocalization } from "@matter/types/clusters/unit-localization";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { captureErrorsOf, captureWarningsOf } from "../endpoint/validation/validation-helpers.js";
@@ -1272,6 +1278,32 @@ describe("ClientNode", () => {
         });
     });
 
+    describe("writes TemperatureUnit to a peer without SupportedTemperatureUnits", () => {
+        // A device modelled before the list existed does not report it, so the peer holds an empty list.  The device,
+        // not the local model, decides which units it accepts; this device has the list, the peer's cache does not.
+
+        it("reaches the device", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: ServerNode.RootEndpoint.with(UnitLocalizationServer) },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await seedPeerCache(
+                peer1,
+                peer1,
+                UnitLocalizationClient,
+                new Map([[UnitLocalization.attributes.supportedTemperatureUnits.id, []]]),
+            );
+            expect(peer1.stateOf(UnitLocalizationClient).supportedTemperatureUnits).deep.equals([]);
+
+            await MockTime.resolve(
+                peer1.setStateOf(UnitLocalizationClient, { temperatureUnit: UnitLocalization.TempUnit.Fahrenheit }),
+            );
+
+            expect(device.stateOf(UnitLocalizationServer).temperatureUnit).equals(UnitLocalization.TempUnit.Fahrenheit);
+        });
+    });
+
     class DecliningBsc extends BooleanStateConfigurationServer.with("SensitivityLevel") {
         override initialize() {
             super.initialize();
@@ -1427,6 +1459,101 @@ describe("ClientNode", () => {
 
             expect(ep1Server.state.onOff.startUpOnOff).equals(before);
             expect(ep1Client.stateOf(OnOffClient).startUpOnOff).equals(before);
+        });
+    });
+
+    describe("sends a write that breaks a model constraint to the device", () => {
+        const BscWithLevels = BooleanStateConfigurationServer.with("SensitivityLevel").set({
+            supportedSensitivityLevels: 3,
+            currentSensitivityLevel: 0,
+            defaultSensitivityLevel: 0,
+        });
+        const SensorWithLevels = ContactSensorDevice.with(BscWithLevels);
+
+        async function setup() {
+            const site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: ServerNode.RootEndpoint, device: SensorWithLevels },
+            });
+            const peer1 = await subscribedPeer(controller, "peer1");
+            return { site, peer1, device };
+        }
+
+        it("device rejects a value outside a range constraint and the local cache keeps its value", async () => {
+            const { site, peer1, device } = await setup();
+            await using _site = site;
+            const ep1Client = peer1.parts.get("ep1")!;
+
+            const caught = await captureRejection(() =>
+                ep1Client.setStateOf(BooleanStateConfigurationClient, { currentSensitivityLevel: 5 }),
+            );
+
+            expect(caught).instanceOf(ReceivedStatusResponseError).property("code", Status.ConstraintError);
+            expect(device.parts.get(1)!.stateOf(BscWithLevels).currentSensitivityLevel).equals(0);
+            expect(ep1Client.stateOf(BooleanStateConfigurationClient).currentSensitivityLevel).equals(0);
+        });
+
+        it("device rejects a string beyond a length constraint and the local cache keeps its value", async () => {
+            const { site, peer1, device } = await setup();
+            await using _site = site;
+            const before = peer1.stateOf(BasicInformationClient).nodeLabel;
+
+            const caught = await captureRejection(() =>
+                peer1.setStateOf(BasicInformationClient, { nodeLabel: "x".repeat(33) }),
+            );
+
+            expect(caught).instanceOf(ReceivedStatusResponseError).property("code", Status.ConstraintError);
+            expect(device.stateOf(BasicInformationServer).nodeLabel).equals(before);
+            expect(peer1.stateOf(BasicInformationClient).nodeLabel).equals(before);
+        });
+
+        it("sends a direct assignment beyond a length constraint and the device rejects it", async () => {
+            const { site, peer1, device } = await setup();
+            await using _site = site;
+            const before = peer1.stateOf(BasicInformationClient).nodeLabel;
+
+            let writes = 0;
+            const { interaction } = peer1;
+            const write = interaction.write.bind(interaction);
+            interaction.write = request => {
+                writes++;
+                return write(request);
+            };
+
+            const caught = await captureRejection(() =>
+                peer1.act(agent => {
+                    agent.get(BasicInformationClient).state.nodeLabel = "x".repeat(33);
+                }),
+            );
+
+            expect(caught).instanceOf(ReceivedStatusResponseError).property("code", Status.ConstraintError);
+            expect(writes).equals(1);
+            expect(device.stateOf(BasicInformationServer).nodeLabel).equals(before);
+        });
+
+        // Characterization: a value the wire type cannot hold never reaches the device
+        it("refuses locally a value its wire datatype cannot encode", async () => {
+            const { site, peer1, device } = await setup();
+            await using _site = site;
+            const ep1Client = peer1.parts.get("ep1")!;
+
+            const caught = await captureRejection(() =>
+                ep1Client.setStateOf(IdentifyClient, { identifyTime: 0x10000 }),
+            );
+
+            expect(caught).instanceOf(IntegerRangeError);
+            expect(device.parts.get(1)!.stateOf(IdentifyServer).identifyTime).equals(0);
+        });
+
+        it("refuses locally a constraint violation on client-local CommissioningClient state", async () => {
+            const { site, peer1 } = await setup();
+            await using _site = site;
+
+            const caught = await captureRejection(() =>
+                peer1.setStateOf(CommissioningClient, { advertisedIntervals: { idleInterval: Hours(2) } }),
+            );
+
+            expect(caught).instanceOf(ConstraintError);
         });
     });
 
@@ -1759,6 +1886,7 @@ describe("ClientNode", () => {
             expect(peer1.stateOf(AccessControlClient).acl).deep.equals(written);
         });
 
+        // Characterization: guards that a value outside its wire type stays a local refusal and sends nothing
         it("does not send an assignment refused locally", async () => {
             const { site, peer1 } = await setup();
             await using _site = site;
@@ -1766,16 +1894,16 @@ describe("ClientNode", () => {
             const writes = countWrites(peer1);
             let refusal: unknown;
             await MockTime.resolve(
-                peer1.act(agent => {
+                peer1.parts.get("ep1")!.act(agent => {
                     try {
-                        agent.get(BasicInformationClient).state.nodeLabel = "x".repeat(33);
+                        agent.get(IdentifyClient).state.identifyTime = 0x10000;
                     } catch (e) {
                         refusal = e;
                     }
                 }),
             );
 
-            expect((refusal as StatusResponseError).code).equals(Status.ConstraintError);
+            expect(refusal).instanceOf(IntegerRangeError);
             expect(writes.count).equals(0);
         });
 
@@ -2768,8 +2896,8 @@ describe("ClientNode", () => {
     });
 
     describe("writes a fabric-scoped struct attribute via setStateOf", () => {
-        // Matter §7.13.6: callers pass OMIT_FABRIC for the mandatory FabricIndex field; the validator
-        // substitutes the peer's assigned index (or skips on a relaxed remote-write context).
+        // Matter § 7.13.6: the device stores a written entry under the accessing fabric, so a client node caches its
+        // own index for the OMIT_FABRIC placeholder
 
         it("accepts FabricIndex.OMIT_FABRIC as the mandatory placeholder", async () => {
             await using site = new MockSite();
@@ -2804,32 +2932,85 @@ describe("ClientNode", () => {
             expect(cached!.fabricIndex).equals(written!.fabricIndex);
         });
 
-        it("rejects FabricIndex.NO_FABRIC (0)", async () => {
-            // Matter §7.5.2: fabric-scoped data SHALL NOT use fabric-index 0.  Caller bug surface preserved.
-
-            await using site = new MockSite();
-            const { controller } = await site.addCommissionedPair();
-            const peer1 = await subscribedPeer(controller, "peer1");
-
-            const caught = await captureRejection(() =>
-                peer1.setStateOf(AccessControlClient, {
-                    acl: [
-                        {
-                            privilege: AccessControl.AccessControlEntryPrivilege.Administer,
-                            authMode: AccessControl.AccessControlEntryAuthMode.Case,
-                            subjects: [NodeId(BigInt(0x56))],
-                            targets: null,
-                            fabricIndex: FabricIndex.NO_FABRIC,
-                        },
-                    ],
+        async function commissionedWithoutSubscription() {
+            const site = new MockSite();
+            const { controller, device } = await site.addUncommissionedPair();
+            await controller.start();
+            const { passcode, discriminator } = device.state.commissioning;
+            await MockTime.resolve(
+                controller.peers.commission({
+                    passcode,
+                    discriminator,
+                    timeout: Seconds(90),
+                    autoSubscribe: false,
                 }),
+                { macrotasks: true },
             );
+            return { site, device, peer1: controller.peers.get("peer1")! };
+        }
 
-            expect((caught as Error)?.message).match(/Constraint .*Value 0 is not within bounds/);
+        function aclEntry(subject: NodeId, fabricIndex: FabricIndex) {
+            return {
+                privilege: AccessControl.AccessControlEntryPrivilege.Administer,
+                authMode: AccessControl.AccessControlEntryAuthMode.Case,
+                subjects: [subject],
+                targets: null,
+                fabricIndex,
+            };
+        }
+
+        // Characterization: the written value already equals the cached one.  The peer has no subscription, so no
+        // report corrects the cached entry after the write
+        it("caches an entry written with the peer's own fabric index", async () => {
+            const { site, device, peer1 } = await commissionedWithoutSubscription();
+            await using _site = site;
+            const newSubject = NodeId(BigInt(0x56));
+            const ownIndex = peer1.state.commissioning.fabricIndexOnPeer!;
+
+            await MockTime.resolve(peer1.setStateOf(AccessControlClient, { acl: [aclEntry(newSubject, ownIndex)] }), {
+                macrotasks: true,
+            });
+
+            const written = device.state.accessControl.acl.find(entry => entry.subjects?.[0] === newSubject);
+            expect(written?.fabricIndex).equals(ownIndex);
+            const cached = peer1.stateOf(AccessControlClient).acl.find(entry => entry.subjects?.[0] === newSubject);
+            expect(cached?.fabricIndex).equals(ownIndex);
         });
 
+        // Matter § 7.13.6: the server stores the entry under the accessing fabric whatever FabricIndex the client
+        // wrote, so another value cannot mean what the caller intended
+        for (const [label, fabricIndex] of [
+            ["FabricIndex.NO_FABRIC (0)", FabricIndex.NO_FABRIC],
+            ["another fabric's index", FabricIndex(7)],
+        ] as const) {
+            it(`refuses an entry written with ${label} without sending it`, async () => {
+                const { site, device, peer1 } = await commissionedWithoutSubscription();
+                await using _site = site;
+                const newSubject = NodeId(BigInt(0x56));
+
+                const caught = await captureRejection(() =>
+                    peer1.setStateOf(AccessControlClient, {
+                        acl: [...peer1.stateOf(AccessControlClient).acl, aclEntry(newSubject, fabricIndex)],
+                    }),
+                );
+
+                if (!(caught instanceof WriteError)) {
+                    expect.fail(`Expected a WriteError, got ${String(caught)}`);
+                }
+                expect(caught.code).equals(Status.ConstraintError);
+                expect(caught.message).contains(
+                    fabricIndex === FabricIndex.NO_FABRIC
+                        ? "Cannot write an entry of no fabric (FabricIndex.NO_FABRIC)"
+                        : `Cannot write an entry with fabricIndex ${fabricIndex}`,
+                );
+                expect(device.state.accessControl.acl.find(entry => entry.subjects?.[0] === newSubject)).undefined;
+                expect(peer1.stateOf(AccessControlClient).acl.find(entry => entry.subjects?.[0] === newSubject))
+                    .undefined;
+            });
+        }
+
         it("does not relax server-side fabricIndex validation", async () => {
-            // Guards against leakage of `underClientNode` onto server-rooted contexts.
+            // OMIT_FABRIC is accepted only in a value sent to a remote node, never in the state of our own node
 
             await using site = new MockSite();
             const { device } = await site.addCommissionedPair();

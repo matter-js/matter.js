@@ -49,9 +49,9 @@ import {
     NoCommissionedPeerError,
     SessionStateError,
 } from "../../src/cert/InProcessControllerAdapter.js";
+import { MATTERJS_SERVER_CONTROLLER_PICS } from "../../src/cert/matter-server-controller-pics.js";
 import {
     MATTERJS_SERVER_CAPABILITY_GAPS,
-    MATTERJS_SERVER_CONTROLLER_PICS,
     MATTERJS_SERVER_OUT_OF_SCOPE,
 } from "../../src/cert/MatterServerControllerAdapter.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
@@ -995,7 +995,7 @@ describe("InProcessControllerAdapter attestation", () => {
         expect(adapter.judgeAttestation([])).equal(true);
         expect(
             adapter.judgeAttestation([
-                { level: "warning", type: DeviceAttestationCheck.CdSignerVerificationSkipped, message: "no signer" },
+                { level: "warning", type: DeviceAttestationCheck.CertificationTypeProvisional, message: "provisional" },
             ]),
         ).equal(true);
     });
@@ -1367,6 +1367,64 @@ describe("ControllerAdapter registry", () => {
         }
     });
 
+    it("declares the Channel program guide client keys of TC-CHANNEL-5.8", () => {
+        const keys = ["CHANNEL.C.C04.Tx", "CHANNEL.C.C06.Tx", "CHANNEL.C.C07.Tx"];
+        const asDevice = new PicsFile(keys.map(key => `${key}=0`));
+
+        for (const implementation of IMPLEMENTATIONS) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of keys) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
+        }
+    });
+
+    it("declares the Network Commissioning client features of TC-CNET-4.20 and TC-CNET-4.21", () => {
+        // CHIP's PICS file answers both features 0
+        const keys = ["CNET.C.F00", "CNET.C.F01"];
+        const asDevice = new PicsFile(keys.map(key => `${key}=0`));
+
+        for (const implementation of IMPLEMENTATIONS) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of keys) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
+        }
+    });
+
+    it("declares the AdministratorCommissioning client of the TC-CADMIN cases", () => {
+        // A file answering every key 0 shows that each one comes from the overlay; the real device files answer 1.
+        // Only the matterjs-server opens no basic window, which skips TC-CADMIN-1.2 and 1.18 there as a whole.
+        const commands = ["CADMIN.C.C00.Tx", "CADMIN.C.C01.Tx", "CADMIN.C.C02.Tx"];
+        const asDevice = new PicsFile(["CADMIN.C=0", ...commands.map(key => `${key}=0`)]);
+
+        for (const implementation of IMPLEMENTATIONS) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of ["CADMIN.C", ...commands]) {
+                const expected = !(implementation === "matterjs-server" && key === "CADMIN.C.C01.Tx");
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(expected);
+            }
+        }
+    });
+
+    it("declares that no controller has a user interface display or an audio interface", () => {
+        // The CHIP PICS file answers 1 for both, which would have TC-CADMIN-1.1 step 3.b enter a code into a display
+        // and run TC-CADMIN-1.7/1.8 steps 3.a-3.c, which only a person can check
+        const keys = ["CADMIN.M.UserInterfaceDisplay", "CADMIN.M.AudioInterface"];
+        const asDevice = new PicsFile(keys.map(key => `${key}=1`));
+
+        for (const implementation of IMPLEMENTATIONS) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of keys) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(false);
+            }
+        }
+    });
+
     it("declares the group-administration client commands TC-SC-6.1 sends", () => {
         // ViewGroup is 0 in the device file; the two GroupKeyManagement keys are absent from it
         // entirely, and an absent key evaluates false, so either omission skips a step silently.
@@ -1666,6 +1724,20 @@ describe("controller capabilities", () => {
         env.MATTER_CERT_CONTROLLER = "chip-tool";
         expect(controllerCapabilityGap(required)).equal(
             `controller "chip-tool" lacks chunked-write: ${CHIP_TOOL_CAPABILITY_GAPS["chunked-write"]}`,
+        );
+    });
+
+    it("records an operational certificate update as a gap of matterjs-server only", () => {
+        const required = ["noc-update"] as const;
+
+        for (const controller of ["matterjs", "chip-tool"]) {
+            env.MATTER_CERT_CONTROLLER = controller;
+            expect(controllerCapabilityGap(required), controller).undefined;
+        }
+
+        env.MATTER_CERT_CONTROLLER = "matterjs-server";
+        expect(controllerCapabilityGap(required)).equal(
+            `controller "matterjs-server" lacks noc-update: ${MATTERJS_SERVER_CAPABILITY_GAPS["noc-update"]}`,
         );
     });
 

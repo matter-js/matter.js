@@ -52,6 +52,7 @@ import {
     ClientSubscriptions,
     FabricAuthority,
     FileDesignator,
+    NodeSession,
     OtaStorageMode,
     OtaUpdateError,
     OtaUpdateSource,
@@ -902,19 +903,19 @@ describe("Ota", () => {
 
         // Spy on the collaborators the armer drives. No restore is needed: each initOtaSite test gets its
         // own Environment, so these patches die with the site (same rationale as the BDX test below).
-        const shutdownCalls = new Array<{ address: PeerAddress; asOf?: Timestamp }>();
+        const shutdownCalls = new Array<{ address: PeerAddress; keep?: NodeSession | Timestamp }>();
         const closeForPeerCalls = new Array<PeerAddress>();
         // A device-pushed (non-initiator) session for this peer is the reboot return the armer keys on; capturing
-        // its createdAt lets us prove the armer's Mechanism A fired (it passes session.createdAt), distinct from the
+        // it lets us prove the armer's Mechanism A fired (it passes the returning session), distinct from the
         // Peers.#onStartUp reboot path that also calls handlePeerShutdown.
-        const rebootSessionCreatedAts = new Array<Timestamp>();
+        const rebootSessions = new Array<NodeSession>();
         await otaProvider.act(agent => {
             const sessionManager = agent.env.get(SessionManager);
             const subscriptions = agent.env.get(ClientSubscriptions);
             const originalShutdown = sessionManager.handlePeerShutdown.bind(sessionManager);
-            sessionManager.handlePeerShutdown = (address, asOf) => {
-                shutdownCalls.push({ address, asOf });
-                return originalShutdown(address, asOf);
+            sessionManager.handlePeerShutdown = (address, keep) => {
+                shutdownCalls.push({ address, keep });
+                return originalShutdown(address, keep);
             };
             const originalCloseForPeer = subscriptions.closeForPeer.bind(subscriptions);
             subscriptions.closeForPeer = address => {
@@ -923,7 +924,7 @@ describe("Ota", () => {
             };
             sessionManager.sessions.added.on(session => {
                 if (!session.isInitiator && PeerAddress.is(session.peerAddress, peerAddress)) {
-                    rebootSessionCreatedAts.push(session.createdAt);
+                    rebootSessions.push(session);
                 }
             });
         });
@@ -961,15 +962,15 @@ describe("Ota", () => {
         await MockTime.advance(Seconds(30));
         await MockTime.macrotasks;
 
-        // Mechanism A ran for the returning peer with the reboot session's createdAt (the armer's asOf), not merely
-        // the general Peers.#onStartUp shutdown.
-        expect(rebootSessionCreatedAts.length).greaterThan(0);
+        // Mechanism A ran for the returning peer with the reboot session, not merely the general Peers.#onStartUp
+        // shutdown.
+        expect(rebootSessions.length).greaterThan(0);
         expect(
             shutdownCalls.some(
                 c =>
                     PeerAddress.is(c.address, peerAddress) &&
-                    c.asOf !== undefined &&
-                    rebootSessionCreatedAts.includes(c.asOf),
+                    typeof c.keep === "object" &&
+                    rebootSessions.includes(c.keep),
             ),
         ).equals(true);
 

@@ -143,4 +143,28 @@ describe("Peers load failures", () => {
         await MockTime.macrotask;
         expect(tracker.rejections.filter(reason => `${reason}`.includes("Behaviors have errors"))).deep.equals([]);
     });
+
+    it("finds a peer that cannot load and the peers after it by address", async () => {
+        await using site = new MockSite();
+
+        const { controller } = await site.addCommissionedPair();
+        await commissionAdditionalDevice(site, controller);
+
+        const id = controller.id;
+        const storage = site.storageFor(id);
+        const [address1, address2] = ["peer1", "peer2"].map(peerId => controller.peers.get(peerId)!.peerAddress!);
+
+        await controller.close();
+        const key = "nodes.peer1.endpoints.0.commissioning";
+        storage[key] = { ...storage[key], commissionedAt: "not a timestamp" };
+
+        const rebooted = await reboot(site, id);
+        const broken = rebooted.peers.get("peer1")!;
+        const healthy = rebooted.peers.get("peer2")!;
+        await expect(broken.construction).rejected;
+
+        expect(rebooted.peers.get(address1)).equals(broken);
+        expect(rebooted.peers.get(address2)).equals(healthy);
+        expect(await rebooted.peers.forAddress(address2)).equals(healthy);
+    });
 });

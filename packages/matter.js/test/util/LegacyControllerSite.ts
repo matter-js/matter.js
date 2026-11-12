@@ -41,12 +41,19 @@ export class LegacyControllerSite {
     }
 
     /**
+     * The storage the next {@link addController} opens, so a test can seed it beforehand.
+     */
+    storageForNextController() {
+        return this.#site.storageFor(controllerIdFor(this.#nextControllerIndex));
+    }
+
+    /**
      * Creates and starts a {@link CommissioningController}.  `autoConnect` defaults to `false` so a test decides when
      * paired nodes connect.
      */
     async addController(options?: Partial<Omit<CommissioningControllerOptions, "environment">>) {
         const index = this.#nextControllerIndex++;
-        const id = `legacy-controller${index}`;
+        const id = controllerIdFor(index);
 
         const environment = new Environment(id);
         this.#environments.add(environment);
@@ -169,4 +176,8 @@ export class LegacyControllerSite {
 
 function isMockCrypto(crypto: Crypto): crypto is MockCrypto {
     return "entropic" in crypto;
+}
+
+function controllerIdFor(index: number) {
+    return `legacy-controller${index}`;
 }

@@ -43,12 +43,14 @@ import type {
     CertNodeApi,
     CertNodeRef,
     ClientEndpointEntry,
+    CommissionableNodeFilter,
     CommissioningTarget,
     ControllerAdapter,
     ControllerAdapterOptions,
     ControllerCapabilitiesOutOfScope,
     ControllerCapability,
     ControllerCapabilityGaps,
+    DiscoveredCommissionableNode,
     EventPathSpec,
     EventReadEntry,
     GroupKeySetSpec,
@@ -57,7 +59,6 @@ import type {
     OtaAnnouncement,
     OtaAnnouncementRecord,
     OtaBdxTransfer,
-    PicsValues,
     ReadAttributeOptions,
     ReadEventOptions,
     ServeOtaUpdateOptions,
@@ -139,154 +140,6 @@ const SERVER_LIST: AttributePathSpec = {
 };
 
 /**
- * What this controller claims about itself, overlaying the device's PICS for a run (see `controllerPicsOverridesFor`).
- * Only what differs from the CHIP PICS file, which describes a device.
- */
-export const MATTERJS_SERVER_CONTROLLER_PICS: PicsValues = {
-    // `batched_device_commands` sends the batch as one InvokeRequest.
-    "MCORE.IDM.C.InvokeRequest.BatchCommands": 1,
-
-    "MCORE.ROLE.COMMISSIONER": 1,
-
-    // `commission_with_code` takes either onboarding payload, the scanned `MT:…` form included.
-    "MCORE.DD.QR_COMMISSIONING": 1,
-    "MCORE.DD.MANUAL_PC_COMMISSIONING": 1,
-    "MCORE.DD.SCAN_QR_CODE": 1,
-
-    // A concatenated payload names several commissionees and is refused; the caller is told to split it.
-    "MCORE.DD.CTRL_CONCATENATED_QR_CODE_1": 0,
-
-    // `open_commissioning_window` ignores its `option` and always opens an enhanced window.
-    "CADMIN.C.C01.Tx": 0,
-
-    // matter.js commissioning sends no SetTCAcknowledgements.
-    "CGEN.C.F00": 0,
-
-    // The server hosts matter.js's OTA provider, so it takes the BDX and OTA roles the in-process controller declares.
-    // The CHIP PICS file answers these for a device. Scripted provider answers are out of scope
-    // (`ota-provider-script`).
-    "MCORE.BDX.Sender": 1,
-    "MCORE.BDX.Responder": 1,
-    "MCORE.BDX.SynchronousSender": 1,
-    "MCORE.BDX.AsynchronousSender": 0,
-    "MCORE.BDX.BlockQueryWithSkip": 0,
-
-    // The server only sends images, on a requestor's ReceiveInit: it never receives a transfer or opens one, and as
-    // the sender it sends no BlockQuery, which the test plans check for the driver role. The CHIP PICS file answers 1
-    // for the initiator and the driver.
-    "MCORE.BDX.Receiver": 0,
-    "MCORE.BDX.Initiator": 0,
-    "MCORE.BDX.Driver": 0,
-    "MCORE.BDX.SynchronousReceiver": 0,
-    "MCORE.BDX.AsynchronousReceiver": 0,
-    "MCORE.OTA.Provider": 1,
-    "MCORE.OTA.HTTPS": 0,
-    "OTAR.C.M.AnnounceOTAProvider": 1,
-    "OTAR.C.M.NotifyUpdateApplied": 0,
-    "OTAP.S.M.DelayedActionTime": 1,
-    "OTAP.S.M.UserConsentNeeded": 1,
-
-    // The server registers as an ICD Check-In client (`register_icd`). The CHIP PICS file answers only the server
-    // side.
-    "ICDB.C": 1,
-
-    // The IcdManagement client commands the server sends: RegisterClient and UnregisterClient through `register_icd`
-    // and `unregister_icd`, StayActiveRequest through `device_command`. The CHIP PICS file does not answer these.
-    "ICDM.C.C00.Tx": 1,
-    "ICDM.C.C02.Tx": 1,
-    "ICDM.C.C03.Tx": 1,
-
-    // The server is a bridge client that maintains the devices behind a bridge. The CHIP PICS file answers these for
-    // a device. That it maintains them only through a subscription of its own, which it runs without here, is the
-    // `sustained-subscription` capability gap.
-    "MCORE.BRIDGECLIENT": 1,
-    "MCORE.DEVLIST.UseDevices": 1,
-    "MCORE.DEVLIST.UseDeviceName": 1,
-    "MCORE.DEVLIST.UseDeviceState": 1,
-    "MCORE.DEVLIST.UseBatInfo": 1,
-
-    // Client commands `device_command` sends for the cases that need them. The CHIP PICS file answers 0 for these
-    // because it describes a device; here the client is the controller.
-    "ACT.C.C00.Tx": 1,
-    "ACT.C.C01.Tx": 1,
-    "ACT.C.C02.Tx": 1,
-    "ACT.C.C03.Tx": 1,
-    "ACT.C.C04.Tx": 1,
-    "ACT.C.C05.Tx": 1,
-    "ACT.C.C06.Tx": 1,
-    "ACT.C.C07.Tx": 1,
-    "ACT.C.C08.Tx": 1,
-    "ACT.C.C09.Tx": 1,
-    "ACT.C.C0a.Tx": 1,
-    "ACT.C.C0b.Tx": 1,
-    "G.C.C00.Tx": 1,
-    "G.C.C01.Tx": 1,
-    "G.C.C02.Tx": 1,
-    "G.C.C03.Tx": 1,
-    "G.C.C04.Tx": 1,
-    "G.C.C05.Tx": 1,
-    "GRPKEY.C.C03.Tx": 1,
-    "GRPKEY.C.C04.Tx": 1,
-    "S.C": 1,
-    "S.C.C00.Tx": 1,
-    "S.C.C01.Tx": 1,
-    "S.C.C02.Tx": 1,
-    "S.C.C03.Tx": 1,
-    "S.C.C04.Tx": 1,
-    "S.C.C05.Tx": 1,
-    "S.C.C06.Tx": 1,
-    "S.C.C40.Tx": 1,
-
-    // The client commands and the attribute the single-command client cases send or read (TC-OO-3.2, TC-I-3.2,
-    // TC-MOD-2.2, TC-LOWPOWER-2.2, TC-WNCV-6.1, TC-WNCV-7.1). Only `OO.C` (0 in matter.js's own PICS file) and `WNCV.C`
-    // (0 in CHIP's) need the overlay; the other keys state the server's full client surface for these cases.
-    "OO.C": 1,
-    "OO.C.C00.Tx": 1,
-    "OO.C.C01.Tx": 1,
-    "OO.C.C02.Tx": 1,
-    "OO.C.C40.Tx": 1,
-    "OO.C.C41.Tx": 1,
-    "OO.C.C42.Tx": 1,
-    "I.C": 1,
-    "I.C.C00.Tx": 1,
-    "I.C.C40.Tx": 1,
-    "MOD.C": 1,
-    "MOD.C.A0002": 1,
-    "MOD.C.C00.Tx": 1,
-    "LOWPOWER.C": 1,
-    "LOWPOWER.C.C00.Tx": 1,
-    "WNCV.C": 1,
-    "WNCV.C.C00.Tx": 1,
-    "WNCV.C.C01.Tx": 1,
-    "WNCV.C.C02.Tx": 1,
-    "WNCV.C.C05.Tx": 1,
-    "WNCV.C.C08.Tx": 1,
-
-    // The diagnostics client commands, and the one attribute, that TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and
-    // TC-DGWIFI-3.2 send or read. Only `DGTHREAD.C` and `DGWIFI.C.C00.Tx` need the overlay, because CHIP's file
-    // answers them 0; the other keys state the server's full client surface for these cases.
-    "DGETH.C": 1,
-    "DGETH.C.C00.Tx": 1,
-    "DGSW.C": 1,
-    "DGSW.C.C00.Tx": 1,
-    "DGTHREAD.C": 1,
-    "DGTHREAD.C.C00.Tx": 1,
-    "DGTHREAD.C.A0006": 1,
-    "DGWIFI.C": 1,
-    "DGWIFI.C.C00.Tx": 1,
-
-    // The same Switch client declaration as the other controllers: the switch it observes is an action switch
-    "SWTCH.C": 1,
-    "SWTCH.C.F02": 0,
-    "SWTCH.C.F05": 1,
-    "TBRM.C": 1,
-    "TBRM.C.C00.Tx": 1,
-    "TBRM.C.C01.Tx": 1,
-    "TBRM.C.C03.Tx": 1,
-    "TBRM.C.C04.Tx": 1,
-};
-
-/**
  * What this controller lacks, declared with its registration so a step needing one of these is skipped before it acts
  * (see `controllerCapabilityGap`). Every operation that needs one of them refuses naming it before it sends anything.
  */
@@ -304,6 +157,10 @@ export const MATTERJS_SERVER_CAPABILITY_GAPS = {
     "sustained-subscription":
         "this adapter keeps the server's own subscription to a node off except while an OTA update or an ICD " +
         "registration needs it, so it has none to observe events through or to keep its device list current",
+    "noc-update":
+        "the WebSocket API has no command that replaces a node's operational certificate, and a device_command " +
+        "UpdateNOC cannot stand in: the NOC must be issued by the server's certificate authority, which the API " +
+        "does not expose. The server gets a NOC update command later, with the node-management rollout",
 } as const satisfies ControllerCapabilityGaps;
 
 const MULTI_PATH_WRITE_OUT_OF_SCOPE =
@@ -673,6 +530,20 @@ export class MatterServerControllerAdapter implements ControllerAdapter {
             );
         }
         return parsed;
+    }
+
+    /**
+     * `discover_commissionable_nodes` takes no filter, so this reports every node the server found, whatever
+     * `filter` asks for. The server searches over IP only, for a window of its own.
+     */
+    async discoverCommissionableNodes(_filter?: CommissionableNodeFilter): Promise<DiscoveredCommissionableNode[]> {
+        const nodes = await this.#started.client.command("discover_commissionable_nodes", {});
+        if (!Array.isArray(nodes)) {
+            throw new UnexpectedDataError(
+                `matterjs-server answered discover_commissionable_nodes with ${Diagnostic.json(nodes)}`,
+            );
+        }
+        return nodes.map(discoveredNodeOf);
     }
 
     node(ref: CertNodeRef): MatterServerCertNodeApi {
@@ -1370,6 +1241,10 @@ class MatterServerCertNodeApi implements CertNodeApi {
         await this.#command("remove_node", { node_id: this.#nodeId });
     }
 
+    async updateOperationalCertificate(): Promise<never> {
+        throw refusal("noc-update", "updating the operational certificate of a node");
+    }
+
     async operationalMdnsInstanceName(): Promise<string> {
         const compressedFabricId = GlobalFabricId(BigInt(this.#client().serverInfo.compressed_fabric_id));
         return getOperationalDeviceQname(compressedFabricId, this.#nodeId);
@@ -1591,6 +1466,42 @@ function parsedIdentifier(parsed: Record<string, unknown>, name: string, code: s
         throw new UnexpectedDataError(`matterjs-server parsed ${name} of ${code} as 0 instead of leaving it out`);
     }
     return value;
+}
+
+/**
+ * One `CommissionableNodeData` entry of a `discover_commissionable_nodes` answer. The server reports a vendor or
+ * product the advertisement leaves out as -1.
+ */
+function discoveredNodeOf(entry: unknown): DiscoveredCommissionableNode {
+    const malformed = (field: string) =>
+        new UnexpectedDataError(
+            `matterjs-server reported a discovered node without ${field}: ${Diagnostic.json(entry)}`,
+        );
+    if (!isObject(entry)) {
+        throw malformed("any field");
+    }
+    const integer = (field: string) => {
+        const value = entry[field];
+        if (typeof value !== "number" || !Number.isInteger(value)) {
+            throw malformed(field);
+        }
+        return value;
+    };
+    const identifier = (field: string) => {
+        const value = integer(field);
+        return value === -1 ? undefined : value;
+    };
+    const { instance_name } = entry;
+    if (typeof instance_name !== "string") {
+        throw malformed("instance_name");
+    }
+    return {
+        instanceName: instance_name,
+        longDiscriminator: integer("long_discriminator"),
+        vendorId: identifier("vendor_id"),
+        productId: identifier("product_id"),
+        commissioningMode: integer("commissioning_mode"),
+    };
 }
 
 /** The `timed_request_timeout_ms` field of a `device_command`, `batched_device_commands` or `write_attribute`. */

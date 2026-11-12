@@ -4,17 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { OperationalMdnsAdvertisement } from "#advertisement/mdns/OperationalMdnsAdvertisement.js";
 import { Fabric } from "#fabric/Fabric.js";
+import { TestFabric } from "#fabric/TestFabric.js";
 import { Advertisement, CommissioningMode, MdnsAdvertiser, MdnsServer, ServiceDescription } from "#index.js";
 import {
     Bytes,
     createPromise,
     DnsCodec,
     DnsMessage,
+    DnsRecordClass,
+    DnsMessageType,
     DnsRecordType,
     Duration,
     Instant,
     InternalError,
+    MatterAggregateError,
     MAX_MDNS_MESSAGE_SIZE,
     MdnsSocket,
     Millis,
@@ -43,6 +48,7 @@ const PORT3 = 5542;
 const GLOBAL_ID = GlobalFabricId(0x18);
 const NODE_ID = NodeId(1);
 
+// The expected qnames below spell this global ID; a real Fabric derives its ID from its root key
 const FABRIC = { globalId: GLOBAL_ID, nodeId: NODE_ID } as Fabric;
 const OPERATIONAL_SERVICE = ServiceDescription.Operational({
     fabric: FABRIC,
@@ -275,7 +281,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 expect(crypto.randomUint8).equals(0x80, "Crypto mocking is broken, tests will fail");
             });
 
-            it("it broadcasts the device fabric on one port and expires", async () => {
+            it("broadcasts the device fabric on one port and expires", async () => {
                 const announcement = waitForMessage();
 
                 advertise({
@@ -350,7 +356,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 const expiryResult = await expiration;
 
-                // Expiry is the same as the announcement result but with ttl = 0
+                // Expiry is the announcement with ttl = 0; unique records keep the cache-flush bit (RFC 6762 §10.2)
                 expectMessage(expiryResult, {
                     transactionId: 0,
                     messageType: 0x8400,
@@ -411,7 +417,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 });
             });
 
-            it("it broadcasts the device commissionable info on one port", async () => {
+            it("broadcasts the device commissionable info on one port", async () => {
                 const announcement = waitForMessage();
 
                 advertise(COMMISSIONABLE_SERVICE);
@@ -543,7 +549,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 await close();
             });
 
-            it("it broadcasts the controller commissioner on one port", async () => {
+            it("broadcasts the controller commissioner on one port", async () => {
                 const announcement = waitForMessage();
 
                 advertise(
@@ -634,7 +640,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 await close();
             });
 
-            it("it omits vendor details from commissioner broadcasts when privacy masked", async () => {
+            it("omits vendor details from commissioner broadcasts when privacy masked", async () => {
                 const announcement = waitForMessage();
 
                 advertise(
@@ -711,8 +717,9 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 await close();
             });
 
-            it("it allows announcements of multiple devices on different ports", async () => {
-                const announcements = waitForMessages({ count: 3 });
+            it("announces devices that start together in one announcement with each shared record once", async () => {
+                // One publication, split into two datagrams by size
+                const announcement = waitForMessages({ count: 2 });
 
                 advertise(OPERATIONAL_SERVICE);
                 advertise(COMMISSIONABLE_SERVICE, PORT2);
@@ -726,268 +733,18 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     PORT3,
                 );
 
-                const [message1, message2, message3] = await announcements;
+                const answers = (await announcement).flatMap(({ answers }) => answers);
 
-                expectMessage(message1, {
-                    transactionId: 0,
-                    messageType: 0x8400,
-                    queries: [],
-                    answers: [
-                        {
-                            flushCache: false,
-                            name: "_services._dns-sd._udp.local",
-                            recordType: 12,
-                            recordClass: 1,
-                            ttl: Seconds(120),
-                            value: "_matter._tcp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_services._dns-sd._udp.local",
-                            recordType: 12,
-                            recordClass: 1,
-                            ttl: Seconds(120),
-                            value: "_I0000000000000018._sub._matter._tcp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_matter._tcp.local",
-                            recordType: 12,
-                            recordClass: 1,
-                            ttl: Seconds(120),
-                            value: "0000000000000018-0000000000000001._matter._tcp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_I0000000000000018._sub._matter._tcp.local",
-                            recordType: 12,
-                            recordClass: 1,
-                            ttl: Seconds(120),
-                            value: "0000000000000018-0000000000000001._matter._tcp.local",
-                        },
-                        {
-                            flushCache: true,
-                            name: "0000000000000018-0000000000000001._matter._tcp.local",
-                            recordType: 33,
-                            recordClass: 1,
-                            ttl: Seconds(120),
-                            value: { priority: 0, weight: 0, port: PORT, target: "00B0D063C2260000.local" },
-                        },
-                        {
-                            flushCache: true,
-                            name: "0000000000000018-0000000000000001._matter._tcp.local",
-                            recordType: 16,
-                            recordClass: 1,
-                            ttl: Seconds(120),
-                            // RFC 6763 §6.1 empty TXT record: single zero byte, decoded as one empty string
-                            value: [""],
-                        },
-                        ...IPDnsRecords,
-                    ],
-                    authorities: [],
-                    additionalRecords: [],
-                });
-
-                expectMessage(message2, {
-                    additionalRecords: [],
-                    answers: [
-                        {
-                            flushCache: true,
-                            name: "8080808080808080._matterc._udp.local",
-                            recordClass: 1,
-                            recordType: 33,
-                            ttl: Seconds(120),
-                            value: { port: PORT2, priority: 0, target: "00B0D063C2260000.local", weight: 0 },
-                        },
-                        {
-                            flushCache: true,
-                            name: "8080808080808080._matterc._udp.local",
-                            recordClass: 1,
-                            recordType: 16,
-                            ttl: Seconds(120),
-                            value: ["VP=1+32768", "DT=1", "DN=Test Device", "D=1234", "CM=1", "PH=33"],
-                        },
-                        ...IPDnsRecords,
-                        {
-                            flushCache: false,
-                            name: "_services._dns-sd._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "_matterc._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_services._dns-sd._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "_V1._sub._matterc._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_services._dns-sd._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "_T1._sub._matterc._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_services._dns-sd._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "_S4._sub._matterc._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_services._dns-sd._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "_L1234._sub._matterc._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_services._dns-sd._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "_CM._sub._matterc._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_matterc._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "8080808080808080._matterc._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_V1._sub._matterc._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "8080808080808080._matterc._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_T1._sub._matterc._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "8080808080808080._matterc._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_S4._sub._matterc._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "8080808080808080._matterc._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_L1234._sub._matterc._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "8080808080808080._matterc._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_CM._sub._matterc._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "8080808080808080._matterc._udp.local",
-                        },
-                    ],
-                    authorities: [],
-                    messageType: 0x8400,
-                    queries: [],
-                    transactionId: 0,
-                });
-
-                expectMessage(message3, {
-                    additionalRecords: [],
-                    answers: [
-                        {
-                            flushCache: true,
-                            name: "8080808080808080._matterd._udp.local",
-                            recordClass: 1,
-                            recordType: 33,
-                            ttl: Seconds(120),
-                            value: { port: PORT3, priority: 0, target: "00B0D063C2260000.local", weight: 0 },
-                        },
-                        {
-                            flushCache: true,
-                            name: "8080808080808080._matterd._udp.local",
-                            recordClass: 1,
-                            recordType: 16,
-                            ttl: Seconds(120),
-                            value: ["VP=1+32768", "DT=1", "DN=Test Commissioner"],
-                        },
-                        ...IPDnsRecords,
-                        {
-                            flushCache: false,
-                            name: "_services._dns-sd._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "_matterd._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_matterd._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "8080808080808080._matterd._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_services._dns-sd._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "_V1._sub._matterd._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_V1._sub._matterd._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "8080808080808080._matterd._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_services._dns-sd._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "_T1._sub._matterd._udp.local",
-                        },
-                        {
-                            flushCache: false,
-                            name: "_T1._sub._matterd._udp.local",
-                            recordClass: 1,
-                            recordType: 12,
-                            ttl: Seconds(120),
-                            value: "8080808080808080._matterd._udp.local",
-                        },
-                    ],
-                    authorities: [],
-                    messageType: 0x8400,
-                    queries: [],
-                    transactionId: 0,
-                });
-
-                // And expire the announcement for all via close
-                await closeAll();
+                expect(
+                    answers
+                        .filter(({ recordType }) => recordType === DnsRecordType.SRV)
+                        .map(({ value }) => value.port)
+                        .sort(),
+                ).deep.equals([PORT, PORT2, PORT3].sort());
+                const addresses = answers.filter(
+                    ({ recordType }) => recordType === DnsRecordType.A || recordType === DnsRecordType.AAAA,
+                );
+                expect(addresses).deep.equals(IPDnsRecords);
             });
         });
     });
@@ -1069,6 +826,175 @@ describe("MDNS announcement overflow", () => {
             await serverSocket.close();
             await listener.close();
         }
+    });
+});
+
+describe("MDNS goodbye of one advertisement among several", () => {
+    before(MockTime.enable);
+
+    const HOST = "00B0D063C2260000.local";
+    const SERVICE_DISCOVERY = "_services._dns-sd._udp.local";
+
+    let serverSocket: MdnsSocket;
+    let server: MdnsServer;
+    let listener: MockUdpSocket;
+    let dataListener: Transport.Listener;
+    let advertisers: MdnsAdvertiser[];
+    let messages: DnsMessage[];
+    let messageTimes: number[];
+
+    beforeEach(async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+        serverSocket = await MdnsSocket.create(serverNetwork, { netInterface: "fake0" });
+        server = new MdnsServer(serverSocket);
+        advertisers = [
+            new MdnsAdvertiser(MockCrypto(0x80), server, { port: PORT }),
+            new MdnsAdvertiser(MockCrypto(0x81), server, { port: PORT2 }),
+        ];
+
+        listener = new MockUdpSocket(clientNetwork, {
+            listeningPort: 5353,
+            listeningAddress: CLIENT_IPv4,
+            type: "udp4",
+        });
+        listener.addMembership("224.0.0.251");
+        messages = new Array<DnsMessage>();
+        messageTimes = new Array<number>();
+        dataListener = listener.onData((_intf, _peer, _port, data) => {
+            const message = DnsCodec.decode(data);
+            if (message === undefined) {
+                throw new InternalError("DNS message decode failure");
+            }
+            messages.push(message);
+            messageTimes.push(Time.nowUs);
+        });
+    });
+
+    afterEach(async () => {
+        await dataListener.close();
+        await MockTime.resolve(MatterAggregateError.allSettled(advertisers.map(advertiser => advertiser.close())));
+        await server.close();
+        await serverSocket.close();
+        await listener.close();
+    });
+
+    async function advertise(service: ServiceDescription, advertiser = advertisers[0]) {
+        const ad = advertiser.advertise({ ...service, port: advertiser.port }, "startup");
+        if (ad === undefined) {
+            throw new InternalError("Advertiser refused the service");
+        }
+        await MockTime.resolve(Time.sleep("first announcement", Seconds(2)));
+        return ad;
+    }
+
+    async function goodbyeOf(ad: Advertisement) {
+        messages.length = 0;
+        await MockTime.resolve(ad.close());
+        await MockTime.resolve(Time.sleep("goodbye delivery", Millis(500)));
+        return messages
+            .flatMap(({ answers }) => answers)
+            .filter(({ ttl }) => ttl === 0)
+            .map(({ name, recordType, value }) => {
+                const target = typeof value === "string" ? value : recordType === DnsRecordType.SRV ? value.target : "";
+                return `${DnsRecordType[recordType]} ${name} ${target}`.trim();
+            });
+    }
+
+    function hostRecordsOf(goodbye: string[]) {
+        return goodbye.filter(record => record.startsWith("A ") || record.startsWith("AAAA "));
+    }
+
+    it("keeps the host addresses when a commissionable advertisement ends and the operational one stays", async () => {
+        await advertise(OPERATIONAL_SERVICE);
+        const commissionable = await advertise(COMMISSIONABLE_SERVICE);
+
+        const goodbye = await goodbyeOf(commissionable);
+
+        expect(hostRecordsOf(goodbye)).deep.equals([]);
+        expect(goodbye).includes(`PTR ${SERVICE_DISCOVERY} _matterc._udp.local`);
+    });
+
+    it("keeps the host addresses and the service type when one of two operational advertisements ends", async () => {
+        await advertise(OPERATIONAL_SERVICE);
+        const second = await advertise(ServiceDescription.Operational({ fabric: await TestFabric({ index: 2 }) }));
+
+        const goodbye = await goodbyeOf(second);
+
+        expect(hostRecordsOf(goodbye)).deep.equals([]);
+        expect(goodbye).not.includes(`PTR ${SERVICE_DISCOVERY} _matter._tcp.local`);
+        expect(goodbye.filter(record => record.startsWith("SRV "))).length(1);
+    });
+
+    it("keeps the shared service type pointers when one of two commissionable advertisements ends", async () => {
+        await advertise(COMMISSIONABLE_SERVICE);
+        const second = await advertise(COMMISSIONABLE_SERVICE, advertisers[1]);
+
+        const goodbye = await goodbyeOf(second);
+
+        expect(goodbye.filter(record => record.startsWith(`PTR ${SERVICE_DISCOVERY} `))).deep.equals([]);
+        expect(hostRecordsOf(goodbye)).deep.equals([]);
+        expect(goodbye.filter(record => record.startsWith("SRV "))).length(1);
+    });
+
+    it("says goodbye to the host addresses and the service type once the last advertisement ends", async () => {
+        const operational = await advertise(OPERATIONAL_SERVICE);
+        const commissionable = await advertise(COMMISSIONABLE_SERVICE);
+        await goodbyeOf(commissionable);
+
+        const goodbye = await goodbyeOf(operational);
+
+        expect(hostRecordsOf(goodbye).sort()).deep.equals([`A ${HOST} ${SERVER_IPv4}`, `AAAA ${HOST} ${SERVER_IPv6}`]);
+        expect(goodbye).includes(`PTR ${SERVICE_DISCOVERY} _matter._tcp.local`);
+    });
+
+    it("keeps answering for an advertisement that replaced one of the same service", async () => {
+        const description = ServiceDescription.Operational({ fabric: FABRIC, port: PORT });
+        const first = new OperationalMdnsAdvertisement(advertisers[0], description);
+        await MockTime.resolve(Time.sleep("first registration", Millis(10)));
+        const second = new OperationalMdnsAdvertisement(advertisers[0], description);
+        await MockTime.resolve(Time.sleep("second registration", Millis(10)));
+        await MockTime.resolve(server.broadcast());
+
+        await MockTime.resolve(first.close());
+        messages.length = 0;
+        await listener.send(
+            "224.0.0.251",
+            5353,
+            DnsCodec.encode({
+                messageType: DnsMessageType.Query,
+                queries: [{ name: second.qname, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.SRV }],
+            }),
+        );
+        await MockTime.resolve(Time.sleep("answer delivery", Millis(1500)));
+
+        const answers = messages
+            .flatMap(({ answers }) => answers)
+            .filter(({ recordType, ttl }) => recordType === DnsRecordType.SRV && ttl > 0);
+        expect(answers.map(({ name }) => name)).deep.equals([second.qname]);
+    });
+    it("says goodbye to the vendor pointer when the commissioning window becomes privacy masked", async () => {
+        await advertise(COMMISSIONABLE_SERVICE);
+        // Announcements every 90 s at most keep the vendor pointer cached until the extended announcement at 15 min
+        await MockTime.resolve(Time.sleep("until shortly before the extended announcement", Seconds(850)));
+        messages.length = messageTimes.length = 0;
+
+        await MockTime.resolve(Time.sleep("past the next broadcast", Seconds(150)));
+
+        const switched = messages.findIndex(({ answers }) =>
+            answers.some(({ name, ttl }) => name === "_V1._sub._matterc._udp.local" && ttl === 0),
+        );
+        expect(switched).least(0);
+        expect(messages[switched].answers.some(({ recordType, ttl }) => recordType === DnsRecordType.SRV && ttl > 0))
+            .true;
+        // The publication may be split into datagrams by size; no record of it goes out again in the next 1.5 s
+        const withinSecond = messages
+            .filter((_, index) => messageTimes[index] - messageTimes[switched] < Millis(1500) && index >= switched)
+            .flatMap(({ answers }) =>
+                answers.map(({ name, recordType, value }) => `${recordType} ${name} ${JSON.stringify(value)}`),
+            );
+        expect(withinSecond.length).equals(new Set(withinSecond).size);
     });
 });
 

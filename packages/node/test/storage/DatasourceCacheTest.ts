@@ -5,11 +5,44 @@
  */
 
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
-import { createPromise } from "@matter/general";
+import { createPromise, MemoryStorageDriver, Seconds } from "@matter/general";
 import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
-import { attrs, createCache, gatedWriter, recordingConsumer, trackingWriter } from "./cache-test-helpers.js";
+import {
+    attrs,
+    createCache,
+    gatedWriter,
+    recordingConsumer,
+    sendingWriter,
+    trackingWriter,
+} from "./cache-test-helpers.js";
+
+const OURS = { fabricIndex: 1, value: "ours" };
+const FOREIGN = { fabricIndex: 2, value: "foreign" };
+const REPORTED_LIST = [{ fabricIndex: 1, value: "old ours" }, FOREIGN];
+
+/**
+ * A cache merge that keeps the cached entries of other fabrics, as a fabric-scoped list write does, and records the
+ * cached list it merged with.
+ */
+function fabricMerge() {
+    const seen = new Array<Val>();
+    const merges = new Map([
+        [
+            "1",
+            (cached: Val) => {
+                seen.push(cached);
+                const foreign = Array.isArray(cached)
+                    ? cached.filter(entry => entry.fabricIndex !== OURS.fabricIndex)
+                    : [];
+                return [...foreign, OURS];
+            },
+        ],
+    ]);
+    return { seen, merges };
+}
 
 describe("DatasourceCache settlement order", () => {
     it("does not let a write answered later override one accepted since it was queued", async () => {
@@ -22,6 +55,22 @@ describe("DatasourceCache settlement order", () => {
         await cache.settleAccepted({ "1": "earlier" }, 0);
 
         expect(integrated).deep.equals([{ "1": "later" }]);
+    });
+
+    it("caches what the write derives from the value cached when it settles", async () => {
+        const cache = createCache();
+        const { integrated, consumer } = recordingConsumer();
+        cache.consumer = consumer;
+        await cache.externalSet(attrs({ "1": "first report" }));
+        await cache.externalSet(attrs({ "1": "second report" }));
+
+        await cache.settleAccepted(
+            { "1": "written", "2": "plain" },
+            2,
+            new Map([["1", (cached: unknown) => `written on ${String(cached)}`]]),
+        );
+
+        expect(integrated.at(-1)).deep.equals({ "1": "written on second report", "2": "plain" });
     });
 
     it("applies an accepted value at once and announces it, and what follows, on release", async () => {
@@ -70,7 +119,90 @@ describe("DatasourceCache settlement order", () => {
         writer.pending[1].finish();
         await report;
 
-        expect(integrated).deep.equals([{ "1": "reported" }]);
+        expect(integrated).deep.equals([{ "1": "accepted" }, { "1": "reported" }]);
+    });
+
+    it("merges an accepted write with a report that arrived before it and still persists", async () => {
+        const writer = gatedWriter();
+        const cache = createCache({ localWriter: writer });
+        const { values, consumer } = recordingConsumer();
+        cache.consumer = consumer;
+        const { seen, merges } = fabricMerge();
+
+        const report = cache.externalSet(attrs({ "1": REPORTED_LIST }));
+        const accepted = cache.settleAccepted({ "1": [OURS] }, 1, merges);
+        await writer.finishNewestFirst(2);
+        await Promise.all([report, accepted]);
+
+        expect(seen).deep.equals([REPORTED_LIST]);
+        expect(values["1"]).deep.equals([FOREIGN, OURS]);
+        expect(writer.stored["1"]).deep.equals([FOREIGN, OURS]);
+    });
+
+    it("merges an accepted write with a buffered report that arrived before it", async () => {
+        const writer = trackingWriter();
+        const buffer = new ClientCacheBuffer(MemoryStorageDriver.create(), Seconds(60));
+        const cache = createCache({ buffer, localWriter: writer });
+        const { values, announced, consumer } = recordingConsumer();
+        cache.consumer = consumer;
+        const { seen, merges } = fabricMerge();
+
+        await cache.externalSet(attrs({ "1": REPORTED_LIST }));
+        const { release } = await cache.settleAccepted({ "1": [OURS] }, 1, merges);
+        await release();
+        await buffer.close();
+
+        expect(seen).deep.equals([REPORTED_LIST]);
+        expect(values["1"]).deep.equals([FOREIGN, OURS]);
+        expect(announced).deep.equals([{ "1": REPORTED_LIST }, { "1": [FOREIGN, OURS] }]);
+        expect(writer.persisted).deep.equals([{ "1": [FOREIGN, OURS], __version__: -1 }]);
+    });
+
+    it("applies a report before it persists and announces it once persisted", async () => {
+        const writer = gatedWriter();
+        const cache = createCache({ localWriter: writer });
+        const { values, announced, consumer } = recordingConsumer();
+        cache.consumer = consumer;
+
+        const report = cache.externalSet(attrs({ "1": "reported" }));
+        await MockTime.yield();
+
+        expect(writer.pending).length(1);
+        expect(values).deep.equals({ "1": "reported" });
+        expect(announced).deep.equals([]);
+
+        writer.pending[0].finish();
+        await report;
+
+        expect(announced).deep.equals([{ "1": "reported" }]);
+    });
+
+    it("seeds a report before it persists while no consumer is attached", async () => {
+        const writer = gatedWriter();
+        const cache = createCache({ localWriter: writer });
+
+        const report = cache.externalSet(attrs({ "1": "reported" }));
+        await MockTime.yield();
+
+        expect(writer.pending).length(1);
+        expect(cache.initialValues).deep.equals({ "1": "reported" });
+
+        writer.pending[0].finish();
+        await report;
+    });
+
+    it("keeps a report still persisting in the values it reclaims", async () => {
+        const writer = gatedWriter();
+        const cache = createCache({ localWriter: writer });
+        cache.consumer = recordingConsumer().consumer;
+
+        const report = cache.externalSet(attrs({ "1": "reported" }));
+        await MockTime.yield();
+        cache.reclaimValues();
+        writer.pending[0].finish();
+        await report;
+
+        expect(cache.initialValues).deep.equals({ "1": "reported" });
     });
 
     it("stores the latest settlement of a key when an older one would finish persisting last", async () => {
@@ -85,7 +217,7 @@ describe("DatasourceCache settlement order", () => {
         await Promise.all([accepted, report]);
 
         const restarted = new DatasourceCache({
-            writer: async () => [],
+            writer: sendingWriter([]),
             nodeId: "test-peer",
             endpointNumber: EndpointNumber(1),
             behaviorId: "test",

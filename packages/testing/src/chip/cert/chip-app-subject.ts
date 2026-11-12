@@ -139,6 +139,18 @@ function hasStdinCommands(app: string) {
     return STDIN_COMMANDS[app] !== undefined;
 }
 
+/**
+ * The apps CHIP's own builds, chip-cert-bins among them, compile with the interactive shell (`chip_build_libshell` in the
+ * app's `args.gni`). The shell reads standard input and stops the app at end of input, so such an app needs a standard
+ * input that stays open. This project's image builds every app without the shell.
+ */
+const SHELL_APPS = new Set(["tv"]);
+
+/** Whether `app` needs a standard input pipe: for its simulation commands, or to keep its shell from ending it. */
+function needsStdin(app: string) {
+    return hasStdinCommands(app) || SHELL_APPS.has(app);
+}
+
 /** The character `app` reads for `command`, or `undefined` for a command it does not take that way. */
 function stdinCommandFor(app: string, command: BackchannelCommand): string | undefined {
     return STDIN_COMMANDS[app]?.get(command.name);
@@ -386,8 +398,52 @@ export async function resolveChipLocalAppDir(): Promise<string> {
 }
 
 /**
+ * The files a chip Linux app keeps its factory data, configuration and counters in, such as the
+ * product ID `--product-id` stores. CHIP fixes these paths at build time (`CHIP_DEFAULT_FACTORY_PATH`,
+ * `CHIP_DEFAULT_CONFIG_PATH` and `CHIP_DEFAULT_DATA_PATH` in `src/platform/Linux/CHIPLinuxStorage.h`),
+ * whatever `TMPDIR` says, and `--KVS` moves only the key-value store. Every chip-local app on the host
+ * therefore shares them.
+ */
+const HOST_PLATFORM_STATE_FILES = ["/tmp/chip_factory.ini", "/tmp/chip_config.ini", "/tmp/chip_counters.ini"];
+
+/**
+ * Thrown when the harness cannot delete one of the {@link HOST_PLATFORM_STATE_FILES}, so a chip-local
+ * test case would start with the state an earlier case left.
+ *
+ * A plain `Error` because `packages/testing` carries no dependency on the library and therefore no `MatterError`.
+ */
+export class ChipPlatformStateError extends Error {}
+
+/**
+ * Deletes the {@link HOST_PLATFORM_STATE_FILES}, so the chip-local apps of a test case start without the
+ * factory data, configuration and counters of an earlier case, as the apps in a freshly cleaned
+ * container do.
+ *
+ * Call it once per test case, before its first device starts. A call while a device runs removes the
+ * files from under that device, and a restart inside the case expects to find them again. Nothing
+ * protects the files from chip-local runs in other processes on the host; cert runs on one host
+ * coordinate through an external lock file, outside this code.
+ *
+ * @throws ChipPlatformStateError when a file exists and cannot be deleted
+ */
+export async function clearChipLocalPlatformState(): Promise<void> {
+    for (const path of HOST_PLATFORM_STATE_FILES) {
+        try {
+            await rm(path, { force: true });
+        } catch (cause) {
+            throw new ChipPlatformStateError(
+                `Cannot delete ${path}, which every chip-local app reads its factory data, configuration or ` +
+                    `counters from, so this test case would start with the state an earlier one left: ${String(cause)}`,
+                { cause },
+            );
+        }
+    }
+}
+
+/**
  * A chip-app device spawned as a local process.  Binary path, KVS storage, and process lifecycle
- * are entirely local to this instance; nothing here touches Docker.
+ * are local to this instance, except for the {@link HOST_PLATFORM_STATE_FILES} all chip-local apps
+ * share (see {@link clearChipLocalPlatformState}); nothing here touches Docker.
  */
 class ChipLocalDevice implements CertDevice {
     readonly flavor: DeviceFlavor = "chip-local";
@@ -397,6 +453,8 @@ class ChipLocalDevice implements CertDevice {
     readonly commissioning: Subject.CommissioningParameters;
     readonly log: LogFollower;
 
+    /** The arguments that name the ports of this device's identity, which every start passes. */
+    #portArgs: string[];
     #appArgs: string[];
 
     /** What the app was last spawned with, which is what the evidence bundle reports. */
@@ -420,7 +478,8 @@ class ChipLocalDevice implements CertDevice {
         this.id = domain;
         this.commissioning = commissioningFor(options?.identity);
         this.log = new LogFollower(this.#hub.follow(), domain);
-        this.#appArgs = [...portArgs(options?.identity), ...(options?.appArgs ?? [])];
+        this.#portArgs = portArgs(options?.identity);
+        this.#appArgs = [...this.#portArgs, ...(options?.appArgs ?? [])];
     }
 
     /**
@@ -494,7 +553,7 @@ class ChipLocalDevice implements CertDevice {
 
         let generation: LocalGeneration | undefined;
         const app = ManagedChildProcess.spawn(binPath, args, {
-            stdin: hasStdinCommands(this.app) ? "pipe" : "ignore",
+            stdin: needsStdin(this.app) ? "pipe" : "ignore",
             onExit: exit => {
                 if (generation !== undefined) {
                     this.#ended(generation, exit);
@@ -762,18 +821,28 @@ class ChipLocalDevice implements CertDevice {
         }
     }
 
+    /** Stops the app and drops its key-value store, so the next start() is factory-new. */
+    async #factoryReset() {
+        await this.stop();
+
+        // A chip app is factory-new only once its key-value store is gone. Dropping the whole storage directory keeps
+        // this independent of the file layout the app's KVS implementation chooses; start() creates a fresh one.
+        if (this.#storageDir !== undefined) {
+            await rm(this.#storageDir, { recursive: true, force: true });
+            this.#storageDir = undefined;
+        }
+    }
+
     async backchannel(command: BackchannelCommand): Promise<void> {
         switch (command.name) {
             case "factoryReset":
-                await this.stop();
+                await this.#factoryReset();
+                await startForBackchannel(this, command.name);
+                break;
 
-                // A chip app is factory-new only once its key-value store is gone. Dropping the
-                // whole storage directory keeps this independent of the file layout the app's KVS
-                // implementation chooses; start() creates a fresh one.
-                if (this.#storageDir !== undefined) {
-                    await rm(this.#storageDir, { recursive: true, force: true });
-                    this.#storageDir = undefined;
-                }
+            case "factoryResetWithAppArgs":
+                await this.#factoryReset();
+                this.#appArgs = [...this.#portArgs, ...command.appArgs];
                 await startForBackchannel(this, command.name);
                 break;
 

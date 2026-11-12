@@ -6,6 +6,7 @@
 
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { InternalError, Logger, MaybePromise, StorageDriver, Transaction } from "@matter/general";
+import type { DataModelPath } from "@matter/model";
 import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 import type { ClientCacheBuffer } from "./ClientCacheBuffer.js";
@@ -16,6 +17,11 @@ import type { RemoteWriter } from "./RemoteWriter.js";
 const logger = Logger.get("DatasourceCache");
 
 const nothingToRelease = async () => {};
+
+interface Announcement {
+    open: boolean;
+    announce: () => MaybePromise<void>;
+}
 
 /**
  * The default implementation of {@link Datasource.ExternallyMutableStore}.
@@ -48,17 +54,19 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
     #epoch = 0;
 
     /**
-     * The arrival {@link #epoch} of the peer's latest word on each attribute.  A settlement counts from its arrival,
-     * also while it persists.  Its values apply in memory even when persisting them fails: memory always follows the
-     * device, and only the stored copy lags until the next settlement.
+     * The arrival {@link #epoch} of the peer's latest word on each attribute.  While the cache is neither erased nor
+     * reclaimed, a stamped settlement is in memory: its values apply when it arrives, before they persist, and stay even
+     * when persisting them fails.  Memory always
+     * follows the device; only the stored copy lags until the next settlement.
      */
     #settledAt = new Map<string, number>();
 
     /**
-     * Change announcements in the order the changes were settled.  An entry stays closed until the transaction that
-     * settled it ends; every entry behind it waits.
+     * Change announcements in the order the changes were settled.  An entry stays closed until its values are
+     * persisted or handed to the buffer and, for an accepted write, until the transaction that settled it ends; every
+     * entry behind it waits.
      */
-    #announcements = new Array<{ open: boolean; announce: () => MaybePromise<void> }>();
+    #announcements = new Array<Announcement>();
     #draining = false;
 
     #erased = false;
@@ -102,60 +110,72 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
         return this.#consumer && !this.#reclaimed ? this.#consumer.snapshot() : this.initialValues;
     }
 
-    async set(transaction: Transaction, values: Val.Struct) {
+    prepare(values: Val.Struct, path: DataModelPath): Datasource.ExternallyMutableStore.Send {
+        const write = this.#writer.prepare({
+            number: this.#endpointNumber,
+            behaviorId: this.#behaviorId,
+            values,
+            cached: this.currentValues,
+            path,
+        });
+        return transaction => this.#propose(transaction, write);
+    }
+
+    assertWritable(path: DataModelPath) {
+        this.#writer.assertWritable(path);
+    }
+
+    #propose(transaction: Transaction, write: RemoteWriter.PreparedWrite) {
         let participant = transaction.getParticipant(this.#writer);
         if (participant === undefined) {
             participant = new RemoteWriteParticipant(this.#writer, this.#nodeId);
             transaction.addParticipants(participant);
         }
-        (participant as RemoteWriteParticipant).set(this.#endpointNumber, this.#behaviorId, values, this, this.#epoch);
+        (participant as RemoteWriteParticipant).set(write, this, this.#epoch);
     }
 
-    async settleAccepted(values: Val.Struct, epoch: number): Promise<RemoteWriteParticipant.Settled> {
+    async settleAccepted(
+        values: Val.Struct,
+        epoch: number,
+        cacheMerges?: RemoteWriter.PreparedWrite["cacheMerges"],
+    ): Promise<RemoteWriteParticipant.Settled> {
         const accepted = new Map<string, Val>();
         for (const id in values) {
-            if ((this.#settledAt.get(id) ?? -1) <= epoch) {
-                accepted.set(id, values[id]);
+            if ((this.#settledAt.get(id) ?? -1) > epoch) {
+                continue;
             }
+            const merge = cacheMerges?.get(id);
+            accepted.set(id, merge === undefined ? values[id] : merge(this.currentValues?.[id]));
         }
         if (!accepted.size) {
             return { release: nothingToRelease, persistFailure: undefined };
         }
 
-        const { announce, persistFailure } = await this.#settle(accepted);
-        if (announce === undefined) {
+        const { announcement, persistFailure } = await this.#settle(accepted);
+        if (announcement === undefined) {
             return { release: nothingToRelease, persistFailure };
         }
-
-        const entry = { open: false, announce };
-        this.#announcements.push(entry);
-        const release = async () => {
-            entry.open = true;
-            await this.#drain();
-        };
-        return { release, persistFailure };
+        return { release: () => this.#open(announcement), persistFailure };
     }
 
     async externalSet(values: Val.StructMap): Promise<Datasource.ExternallyMutableStore.Applied> {
-        const { announce, persistFailure } = await this.#settle(values);
-        if (announce !== undefined) {
-            this.#announcements.push({ open: true, announce });
-            await this.#drain();
+        const { announcement, persistFailure } = await this.#settle(values);
+        if (announcement !== undefined) {
+            await this.#open(announcement);
         }
         return { persistFailure };
     }
 
     /**
-     * Stamp values the peer settled with their arrival epoch, persist them, and apply those no later settlement has
-     * claimed meanwhile, also when persisting failed.  A report that confirms a value we already hold is stamped too:
-     * it leaves no other trace, and it still outranks a write in flight.
+     * Settle values the peer reported or accepted.  Before its first await this stamps them with their arrival epoch,
+     * applies them in memory and queues their announcement, closed; then it persists them in arrival order.  Memory
+     * keeps the values when persisting fails.  A report that confirms a value we already hold is stamped too: it leaves
+     * no other trace, and it still outranks a write in flight.
      *
-     * Returns the announcement of the changes, if any, and the persist failure, if any.
+     * Resolves once the values are persisted, or handed to the buffer, with the closed announcement of the changes, if
+     * any, and the persist failure, if any.  The caller opens the announcement.
      */
-    async #settle(values: Val.StructMap): Promise<{
-        announce: undefined | (() => MaybePromise<void>);
-        persistFailure: unknown;
-    }> {
+    async #settle(values: Val.StructMap): Promise<{ announcement?: Announcement; persistFailure?: unknown }> {
         const epoch = ++this.#epoch;
         for (const key of values.keys()) {
             const id = String(key);
@@ -165,7 +185,7 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
         }
 
         if (this.#erased || this.#reclaimed) {
-            return { announce: undefined, persistFailure: undefined };
+            return {};
         }
 
         const versionVal = values.get(DatasourceCache.VERSION_KEY);
@@ -173,69 +193,56 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             this.#version = versionVal;
         }
 
-        let persistFailure: unknown;
+        const announcement = this.#apply(values);
+
         if (this.#buffer) {
             for (const key of values.keys()) {
                 this.#dirtyKeys.add(String(key));
             }
             this.#buffer.markDirty(this);
-        } else if (this.#localWriter) {
-            const valuesStruct = Object.fromEntries(values) as Val.Struct;
-            try {
-                await this.#persistInOrder(localWriter =>
-                    localWriter.persist(this.#endpointNumber, this.#behaviorId, valuesStruct),
-                );
-            } catch (error) {
-                persistFailure = error;
-            }
-            if (this.#erased || this.#reclaimed) {
-                return { announce: undefined, persistFailure };
-            }
+            return { announcement };
         }
 
-        const current = this.#stillOwned(values, epoch);
-        if (current === undefined) {
-            return { announce: undefined, persistFailure };
+        const valuesStruct = Object.fromEntries(values) as Val.Struct;
+        try {
+            await this.#persistInOrder(localWriter =>
+                localWriter.persist(this.#endpointNumber, this.#behaviorId, valuesStruct),
+            );
+        } catch (error) {
+            return { announcement, persistFailure: error };
         }
-
-        if (this.#consumer) {
-            return { announce: this.#consumer.integrate(current), persistFailure };
-        }
-
-        this.#seed(current);
-        return { announce: undefined, persistFailure };
+        return { announcement };
     }
 
     /**
-     * The part of {@link values} no settlement that arrived after {@link epoch} has claimed: {@link values} itself
-     * unless one has, undefined if nothing is left.
+     * Apply settled values to the consumer, or to the seed while none is attached, and queue the announcement of the
+     * changes, closed.
      */
-    #stillOwned(values: Val.StructMap, epoch: number) {
-        let owned: Val.StructMap | undefined;
-        for (const key of values.keys()) {
-            const id = String(key);
-            if (id.startsWith("__") || this.#settledAt.get(id) === epoch) {
-                owned?.set(id, values.get(key));
-            } else if (owned === undefined) {
-                owned = new Map();
-                for (const [earlier, value] of values) {
-                    if (earlier === key) {
-                        break;
-                    }
-                    owned.set(String(earlier), value);
-                }
-            }
+    #apply(values: Val.StructMap) {
+        if (!this.#consumer) {
+            this.#seed(values);
+            return;
         }
-        if (owned === undefined) {
-            return values;
+
+        const announce = this.#consumer.integrate(values);
+        if (announce === undefined) {
+            return;
         }
-        return owned.size ? owned : undefined;
+
+        const announcement = { open: false, announce };
+        this.#announcements.push(announcement);
+        return announcement;
+    }
+
+    async #open(announcement: Announcement) {
+        announcement.open = true;
+        await this.#drain();
     }
 
     /**
      * Emit the open announcements at the head of the queue, one drain at a time.  A caller that finds a drain running
-     * returns, and that drain announces what opens meanwhile.  A caller never waits for its own entry: the observer
-     * holding the queue may be the one awaiting this caller.  For the same reason, a post-commit observer of a writing
+     * returns, and that drain announces what opens meanwhile.  A caller that finds a drain running does not wait for its
+     * own entry: the observer holding the queue may be the one awaiting this caller.  For the same reason, a post-commit observer of a writing
      * transaction must not await a change of the same cluster that sits behind the transaction's own closed entry; it
      * opens only when that transaction ends.
      *
