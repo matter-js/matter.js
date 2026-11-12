@@ -62,7 +62,8 @@ const STAGES = {
     },
     case: {
         chip: /CASE Session established to peer/,
-        matterjs: /CaseServer .*New session with/,
+        // CaseServer logs "New session" only once Sigma3's status report is acked, which may follow CommissioningComplete
+        matterjs: /SecureSession +Created secure CASE session/,
     },
     commissioningComplete: {
         chip: /GeneralCommissioning: Received CommissioningComplete/,

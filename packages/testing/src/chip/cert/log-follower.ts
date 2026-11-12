@@ -60,15 +60,21 @@ export interface LogExpectOptions {
 /**
  * Thrown by {@link LogFollower.expect} when no buffered or newly-arrived line matches before the
  * deadline.
+ *
+ * `nearMiss` names the last candidate a multi-line search rejected, so a wrong value in an otherwise
+ * matching block reads as that mismatch rather than as a log that never arrived.
  */
 export class CertLogTimeoutError extends Error {
     constructor(
         readonly pattern: string,
         readonly from: number,
         readonly tail: LogLine[],
+        readonly nearMiss?: string,
     ) {
         super(
-            `Timed out waiting for ${pattern} (from index ${from}); last lines: ` +
+            `Timed out waiting for ${pattern} (from index ${from})` +
+                (nearMiss === undefined ? "" : `; last rejected candidate: ${nearMiss}`) +
+                "; last lines: " +
                 tail
                     .slice(-20)
                     .map(line => line.text)

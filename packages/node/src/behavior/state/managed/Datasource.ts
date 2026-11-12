@@ -241,9 +241,10 @@ export namespace Datasource {
         defaults?: Val.Struct;
 
         /**
-         * Optional storage for non-volatile values.
+         * Optional storage for non-volatile values: a {@link PersistentStore}, or an {@link ExternallyMutableStore}
+         * for the values of a remote node.
          */
-        store?: Store | ExternallyMutableStore;
+        store?: PersistentStore | ExternallyMutableStore;
 
         /**
          * Adjusts persisted values in an outdated format, see {@link Behavior.migrate}.  Does not apply to values that
@@ -271,14 +272,19 @@ export namespace Datasource {
     }
 
     /**
-     * The interface {@link Datasource} uses to read and write non-volatile values.
+     * What every store of a {@link Datasource} holds.
      */
     export interface Store {
         /**
          * Initial values must be loaded beforehand.  That allows the behavior to initialize synchronously.
          */
         initialValues?: Val.Struct;
+    }
 
+    /**
+     * A {@link Store} the datasource writes changed values to.
+     */
+    export interface PersistentStore extends Store {
         /**
          * Updates the values.
          *
@@ -289,17 +295,49 @@ export namespace Datasource {
     }
 
     /**
-     * An extended {@link Store} that represents cached values that may mutate independently from the datasource.
+     * A {@link Store} that holds cached values of a remote node, which may mutate independently from the datasource.
+     *
+     * The datasource proposes a write to the remote node in two steps: {@link prepare} decides whether the values may
+     * go to the remote node, and the step it returns sends them.
      */
     export interface ExternallyMutableStore extends Store {
         /**
+         * Decide whether a transaction may propose {@link values} to the remote node, and return the step that sends
+         * them in commit phase one.
+         *
+         * Invoked once per commit cycle, after pre-commit settled and before any participant's commit phase one, so a
+         * refusal rejects the commit before any remote node receives a write.  Must complete synchronously and must
+         * not write.
+         *
+         * The values are TLV-encoded only when the returned step sends them, so a value the encoder cannot write fails in
+         * commit phase one, when another remote node may already have received its write.
+         *
+         * @param path the path of the values, for a refusal
+         * @throws WriteError to refuse the values.  Any other error, such as an `InternalError`, passes through the same
+         * way.  Either rejects the commit and rolls the transaction back.
+         * @see {@link Transaction.Participant.settled}
+         */
+        prepare(values: Val.Struct, path: DataModelPath): ExternallyMutableStore.Send;
+
+        /**
+         * Refuse every change of the values when the remote node takes no writes through this store.  The datasource
+         * asks before it applies a change and before it joins the transaction, so the refusal comes where the change
+         * is made; {@link ValReference.assertWritable} states which checks run before and after.  Must not write.
+         *
+         * @param path the path of the values, for the refusal
+         * @throws an error that says why the remote node takes no writes
+         */
+        assertWritable(path: DataModelPath): void;
+
+        /**
          * Apply values the peer reported.
          *
-         * Uses the same patch semantics as {@link set}, but the values are the peer's own and take effect at once.  On a
-         * mirror, {@link set} instead proposes values to the peer and leaves the local values unchanged until the peer
-         * accepts them, so never route a report through {@link set}.  Resolves once the values are applied, also when
-         * storing them locally failed; the result then carries that failure for the caller to report.  Their change
-         * notifications may follow later, when notifications of an earlier change are still held; do not await them.
+         * Uses the same patch semantics as {@link PersistentStore.set}, but the values are the peer's own and take
+         * effect at once.  A write instead goes through {@link prepare} and leaves the local values unchanged until the
+         * peer accepts them.  The values apply in memory before this first awaits, so a write the peer answers while
+         * they are still being stored sees them.  Resolves once they are stored locally or queued for storage, also when storing them failed;
+         * the result then carries that failure for the caller to report.  Their change notifications may follow later,
+         * when notifications of an earlier change are still held; do not await them.
          */
         externalSet(values: Val.StructMap): Promise<ExternallyMutableStore.Applied>;
 
@@ -342,6 +380,14 @@ export namespace Datasource {
 
     export namespace ExternallyMutableStore {
         /**
+         * Sends prepared values to the remote node in commit phase one of {@link transaction}.  The local values stay
+         * unchanged until the remote node accepts them.
+         */
+        export interface Send {
+            (transaction: Transaction): MaybePromise<void>;
+        }
+
+        /**
          * The result of {@link ExternallyMutableStore.externalSet}.
          */
         export interface Applied {
@@ -352,7 +398,7 @@ export namespace Datasource {
             persistFailure?: unknown;
         }
 
-        export function is(store?: Store | ExternallyMutableStore): store is ExternallyMutableStore {
+        export function is(store?: PersistentStore | ExternallyMutableStore): store is ExternallyMutableStore {
             return store !== undefined && "externalSet" in store;
         }
 
@@ -426,7 +472,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     supervisor;
     location;
     entropy;
-    store?: Datasource.Store | Datasource.ExternallyMutableStore;
+    store?: Datasource.PersistentStore | Datasource.ExternallyMutableStore;
     owner?: any;
     onChange?: (attrs: string[]) => MaybePromise<void>;
 
@@ -457,10 +503,20 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     supervisionConfig?: GlobalConfig;
 
     /**
-     * True when {@link store} is a {@link Datasource.ExternallyMutableStore}, i.e. the values mirror a remote node and
-     * {@link Datasource.ExternallyMutableStore.set} conveys changes to that node rather than to local persistence.
+     * {@link store} when it is a {@link Datasource.ExternallyMutableStore}, i.e. the values are a copy of a remote
+     * node's values and a write goes to that node rather than to local persistence.
      */
-    readonly mirrorsRemote: boolean;
+    readonly remoteStore?: Datasource.ExternallyMutableStore;
+
+    /**
+     * True when the datasource has a {@link remoteStore}.
+     *
+     * A validation error of a value sent to the remote node is left to the device, and a session of our own server
+     * node sees a fabric-scoped list unfiltered, as its fabric is not one of the remote node.
+     */
+    get mirrorsRemote() {
+        return this.remoteStore !== undefined;
+    }
 
     observedInteractions?: Set<
         | NonNullable<ValueSupervisor.RemoteActorSession["interactionComplete"]>
@@ -477,7 +533,9 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         this.location = options.location;
         this.entropy = options.entropy;
         this.store = options.store;
-        this.mirrorsRemote = Datasource.ExternallyMutableStore.is(options.store);
+        if (Datasource.ExternallyMutableStore.is(options.store)) {
+            this.remoteStore = options.store;
+        }
         this.owner = options.owner;
         this.onChange = options.onChange;
         this.primaryKey = options.primaryKey === "id" ? "id" : "name";
@@ -963,6 +1021,19 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     #fields: Set<string>;
     #context!: SessionContext;
 
+    /**
+     * The step the remote store prepared in {@link settled}, for this commit cycle's phase one.
+     */
+    #send: Datasource.ExternallyMutableStore.Send | undefined;
+
+    /**
+     * Present only on a reference to the values of a remote node.  The remote store decides on the proposal before any
+     * participant's commit phase one, so a refusal by one remote node leaves every remote node of the transaction
+     * unwritten.  Absent on other references, because a transaction enters its settled status only when a participant
+     * has this hook.
+     */
+    readonly settled?: () => void;
+
     constructor(resource: Transaction.Resource, internals: DatasourceImpl, session: ValueSupervisor.Session) {
         this.#resource = resource;
         this.#internals = internals;
@@ -996,6 +1067,14 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         } else {
             this.supervisionConfig = new LocalConfig(internals.supervisionConfig);
         }
+
+        const store = internals.remoteStore;
+        if (store !== undefined) {
+            this.settled = () => {
+                const proposed = this.#proposedValues();
+                this.#send = proposed === undefined ? undefined : store.prepare(proposed, internals.location.path);
+            };
+        }
     }
 
     /**
@@ -1012,7 +1091,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             onChange: (oldValues: Val.Struct) => {
                 if (this.#values === oldValues) {
                     this.#values = this.#internals.values;
-                    this.#refreshSubrefs();
+                    this.#refreshSubrefs("external");
                 }
             },
         };
@@ -1069,6 +1148,10 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         return this.#internals.owner;
     }
 
+    get mirrorsRemote() {
+        return this.#internals.mirrorsRemote;
+    }
+
     owns(container: Val) {
         return typeof container === "object" && container !== null && this.#owned.has(container);
     }
@@ -1079,10 +1162,15 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         }
     }
 
-    change(mutator: () => void, member: string | number) {
+    assertWritable() {
         if (this.#expired) {
             throw new ExpiredReferenceError(this.location);
         }
+        this.#internals.remoteStore?.assertWritable(this.location.path);
+    }
+
+    change(mutator: () => void, member: string | number) {
+        this.assertWritable();
 
         // Join the transaction
         this.#startWrite();
@@ -1122,7 +1210,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             }
 
             // Point subreferences to the clone
-            this.#refreshSubrefs();
+            this.#refreshSubrefs("session");
         }
 
         // A mutator that throws may already have changed or restored values
@@ -1133,7 +1221,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
                 mutator();
             }
         } finally {
-            this.#refreshSubrefs();
+            this.#refreshSubrefs("session");
         }
     }
 
@@ -1222,23 +1310,35 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     }
 
     /**
-     * For commit phase one we pass values to the store if present.  For a mirror the store is the remote node.
+     * For commit phase one we pass values to the store if present.  For the values of a remote node the store is the
+     * remote store, and phase one runs the step the store prepared in {@link settled}.
      */
     commit1() {
         // Staging is per commit: a claim from a cycle the store refused must not be honoured by a later one
         this.#stagedFeaturesKey = false;
         this.#stagedMigration = false;
 
-        const stored = this.#computePostCommitChanges();
+        const { store } = this.#internals;
+        if (Datasource.ExternallyMutableStore.is(store)) {
+            const send = this.#send;
+            this.#send = undefined;
+            if (send !== undefined) {
+                return send(this.#session.transaction);
+            }
+            if (this.#proposedValues() !== undefined) {
+                throw new InternalError(
+                    `${this} reached commit phase one with values the remote store did not prepare`,
+                );
+            }
+            return;
+        }
+
+        const stored = this.#computeStoredChanges();
         if (!stored) {
             return;
         }
 
-        if (
-            !this.#internals.mirrorsRemote &&
-            this.#internals.featuresKey !== undefined &&
-            !this.#internals.featuresKeyPersisted
-        ) {
+        if (this.#internals.featuresKey !== undefined && !this.#internals.featuresKeyPersisted) {
             stored[FEATURES_KEY] = this.#internals.featuresKey;
             for (const key of this.#internals.discardedStoreKeys ?? []) {
                 if (!(key in stored)) {
@@ -1258,7 +1358,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             this.#stagedMigration = true;
         }
 
-        return this.#internals.store?.set(this.#session.transaction, stored);
+        return store?.set(this.#session.transaction, stored);
     }
 
     /**
@@ -1332,12 +1432,13 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         this.#values = this.#internals.values;
         this.#assigned = undefined;
         this.#owned = new WeakSet();
+        this.#send = undefined;
 
         // A rolled back value was never adopted, so it must not stand as the baseline the next announcement diffs
         // against
         this.#precommitValues = undefined;
 
-        this.#refreshSubrefs();
+        this.#refreshSubrefs("session");
     }
 
     // -- Private helpers --
@@ -1385,11 +1486,11 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
         }
     }
 
-    #refreshSubrefs() {
+    #refreshSubrefs(cause: ValReference.RefreshCause) {
         const subrefs = this.subrefs;
         if (subrefs) {
             for (const key in subrefs) {
-                subrefs[key].refresh();
+                subrefs[key].refresh(cause);
             }
         }
     }
@@ -1418,25 +1519,32 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     }
 
     /**
-     * Compute the local changes of this commit and return the values that go to the store.
+     * The values a session proposes to the remote node whose values the datasource holds, or undefined if none.
      *
-     * For a mirror the peer is the only writer of its values, so nothing changes locally.  Every member this session
-     * assigned goes to the store as a proposal, also an unchanged one: the device decides, not our copy of its state.
-     * The store settles what the device accepts.
+     * The remote node is the only writer of its values, so nothing changes locally.  Every member this session assigned
+     * goes to the remote node, also an unchanged one: the device decides, not our copy of its state.  The store settles
+     * what the device accepts.
      */
-    #computePostCommitChanges() {
-        this.#changes = undefined;
-
+    #proposedValues() {
         if (this.#internals.values === this.#values) {
             return;
         }
 
-        if (this.#internals.mirrorsRemote) {
-            let proposed: Val.Struct | undefined;
-            for (const name of this.#assigned ?? []) {
-                (proposed ??= {})[name] = this.#values[name];
-            }
-            return proposed;
+        let proposed: Val.Struct | undefined;
+        for (const name of this.#assigned ?? []) {
+            (proposed ??= {})[name] = this.#values[name];
+        }
+        return proposed;
+    }
+
+    /**
+     * Compute the local changes of this commit and return the values that go to the store.
+     */
+    #computeStoredChanges() {
+        this.#changes = undefined;
+
+        if (this.#internals.values === this.#values) {
+            return;
         }
 
         const { storeFields } = this.#internals;

@@ -23,7 +23,6 @@ import {
 } from "../MemberKeys.js";
 import { NameResolver } from "../NameResolver.js";
 import { ValReference } from "../ValReference.js";
-import { isFabricScopedList } from "./ListManager.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
 
 /**
@@ -140,11 +139,11 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
     const { access, manage, validate } = supervisor.get(schema);
 
-    const fabricScopedList = isFabricScopedList(schema) && schema.effectiveMetatype === Metatype.array;
+    const fabricScopedList = schema.fabricScopedList;
 
     // We generally do not deal with default values.  If the schema defines a default it is assigned before the manager
-    // is created.  The one exception is for field references.  These we must look up dynamically at runtime because the
-    // value should always track the referenced value
+    // is created.  Field references are the exception: a name-keyed container reads the referenced value at runtime so
+    // it tracks that value, and a mirror's default is a copy of it, made in readDefault
     let defaultReader: ((val: Val) => Val) | undefined;
     if (typeof FieldValue.referenced(schema.default) === "string") {
         defaultReader = NameResolver(supervisor, schema.parent, camelize(FieldValue.referenced(schema.default)!));
@@ -153,8 +152,8 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
     // A member mandatory under the mirror's active features always reads a value even when the peer's
     // AttributeList omits it, and an optional member stays undefined even when the peer's AttributeList reports
     // it -- this mirrors the conformance-aware TypeScript typings, which know nothing about runtime AttributeList
-    // data. The container itself never holds this value, so it can't masquerade as peer data in persistence,
-    // change detection or external-change integration.
+    // data. The container never holds this value, so it can't masquerade as peer data in persistence, change
+    // detection or external-change integration; a change in place of a default container throws UncachedValueError.
     const scope = supervisor.scope;
     const isMandatory = scope.isMandatory(schema);
 
@@ -176,7 +175,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
     const referencedDefault = defaultReader;
     const readDefault: ((self: Struct) => Val | undefined) | undefined = synthesizeDefault
         ? referencedDefault
-            ? (self: Struct) => referencedDefault(self) ?? synthesizeDefault()
+            ? (self: Struct) => Internal.copy(referencedDefault(self)) ?? synthesizeDefault()
             : () => synthesizeDefault()
         : undefined;
 
@@ -215,9 +214,9 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                         if (fabricScopedList || validate) {
                             // A dynamic member's previous value lives in the provider, not the container slot;
                             // read it only when rollback or the fabric-scoped merge check may consume it, as the
-                            // provider's getter may be costly.  Copy in case the provider serves a managed value —
+                            // provider's getter may be costly.  Unwrap in case the provider serves a managed value —
                             // rollback must not plant a proxy that expires with this session
-                            previousValue = Internal.copy(properties[name]);
+                            previousValue = Internal.rawOf(properties[name]);
                         }
                     } else {
                         target = struct;
@@ -250,7 +249,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                         }
 
                         // The direct write above bypasses the cached reference; the merge below reads through it
-                        this[Internal.reference].subrefs?.[memberKeyFor(pk, name, id)]?.refresh();
+                        this[Internal.reference].subrefs?.[memberKeyFor(pk, name, id)]?.refresh("session");
                     }
 
                     // In the case of fabric-scoped write to established list we use the managed proxy to perform update
@@ -290,6 +289,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                             path: this[Internal.reference].location.path,
                             siblings: struct,
                             owner: this[Internal.reference].rootOwner,
+                            remote: this[Internal.reference].mirrorsRemote ? "outbound" : undefined,
                         });
                     } catch (e) {
                         undo();
@@ -378,7 +378,12 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             }
 
             if (value === undefined) {
-                return primaryKey === "name" ? defaultReader?.(this) : readDefault?.(this);
+                if (primaryKey === "name") {
+                    return defaultReader?.(this);
+                }
+                if (readDefault === undefined) {
+                    return undefined;
+                }
             }
 
             // Value is null or a dynamic property, so just return it
@@ -387,23 +392,24 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 return value;
             }
 
-            const managed = this[Internal.reference].subrefs?.[key];
-            if (managed) {
-                return managed.owner;
+            // The reference makes the default of an absent member, once for as long as the member stays absent
+            const ref =
+                this[Internal.reference].subrefs?.[key] ??
+                new ManagedReference(
+                    this[Internal.reference],
+                    name,
+                    id,
+                    cloneContainer,
+                    this[Internal.session],
+                    "member",
+                    primaryKey === "id" && readDefault ? () => readDefault(this) : undefined,
+                );
+
+            if (ref.value === undefined || ref.value === null) {
+                return ref.value;
             }
 
-            // Clone the container before write
-            const ref = new ManagedReference(
-                this[Internal.reference],
-                name,
-                id,
-                cloneContainer,
-                this[Internal.session],
-            );
-
-            ref.owner = manage(ref, this[Internal.session]);
-
-            return ref.owner;
+            return (ref.owner ??= manage(ref, this[Internal.session]));
         };
     }
 

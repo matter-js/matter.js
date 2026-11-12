@@ -45,10 +45,10 @@ import {
     MATTERJS_CONTROLLER_PICS,
 } from "./InProcessControllerAdapter.js";
 import { forgetLogOriginClaims, logOriginsAreClaimed, OriginDestination, registerLogOrigin } from "./log-origins.js";
+import { MATTERJS_SERVER_CONTROLLER_PICS } from "./matter-server-controller-pics.js";
 import {
     MATTERJS_SERVER_CAPABILITY_GAPS,
     MATTERJS_SERVER_OUT_OF_SCOPE,
-    MATTERJS_SERVER_CONTROLLER_PICS,
     MatterServerControllerAdapter,
 } from "./MatterServerControllerAdapter.js";
 
@@ -104,6 +104,10 @@ const deviceQueues = new Map<string, LineQueue>();
 // lines from the second cert-test file onward. Boot.init re-runs this on every reboot instead.
 Boot.init(() => {
     forgetLogOriginClaims();
+
+    // Certification checks read message payloads and secret field values from the logs of in-process nodes
+    Logger.logPayloads = true;
+    Logger.redactSecrets = false;
 
     Logger.destinations["cert-matterjs-device"] = OriginDestination("cert-matterjs-device", "device", text => {
         const id = activeDeviceId.getStore();

@@ -107,7 +107,7 @@ export const NetworkCommissioning = Cluster(
             response: "NetworkConfigResponse"
         },
         Field({ name: "Ssid", id: 0x0, type: "octstr", conformance: "M", constraint: "max 32" }),
-        Field({ name: "Credentials", id: 0x1, type: "octstr", conformance: "M", constraint: "max 64" }),
+        Field({ name: "Credentials", id: 0x1, type: "octstr", conformance: "M", constraint: "max 64", isSecret: true }),
         Field({ name: "Breadcrumb", id: 0x2, type: "uint64", conformance: "O" })
     ),
 
@@ -116,7 +116,10 @@ export const NetworkCommissioning = Cluster(
             name: "AddOrUpdateThreadNetwork", id: 0x3, access: "A", conformance: "TH", direction: "request",
             response: "NetworkConfigResponse"
         },
-        Field({ name: "OperationalDataset", id: 0x0, type: "octstr", conformance: "M", constraint: "max 254" }),
+        Field({
+            name: "OperationalDataset", id: 0x0, type: "octstr", conformance: "M", constraint: "max 254",
+            isSecret: true
+        }),
         Field({ name: "Breadcrumb", id: 0x1, type: "uint64", conformance: "O" })
     ),
 

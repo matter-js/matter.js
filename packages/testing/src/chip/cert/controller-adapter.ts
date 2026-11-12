@@ -1111,6 +1111,25 @@ export interface CertNodeApi {
         enhanced: boolean;
     }): Promise<{ manualPairingCode?: string; qrPairingCode?: string }>;
     decommission(): Promise<void>;
+
+    /**
+     * Replaces this node's operational certificate (NOC) with one the controller issues for a new operational key pair,
+     * keeping the node ID and fabric.
+     *
+     * Over CASE, the controller arms the fail-safe, sends CSRRequest with IsForUpdateNOC set, issues a NOC for the
+     * returned CSR, sends UpdateNOC, opens a new CASE session and sends CommissioningComplete. Resolves once
+     * CommissioningComplete answered with success, or once a later read shows that a CommissioningComplete whose answer
+     * was lost took effect. Rejects where any of these steps fails. A rejection does not prove that the node holds its
+     * previous certificate: another operation of the same fabric may have committed the new one, or the outcome may be
+     * unknown.
+     *
+     * Present where the controller can issue a certificate for a node it commissioned; a step that needs it declares
+     * `noc-update` (see {@link ControllerCapability}).
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.6.9
+     */
+    updateOperationalCertificate?(): Promise<void>;
+
     /**
      * The operational mDNS instance name (`<compressed-fabric-id>-<node-id>._matter._tcp.local`) this node
      * advertises on the fabric it was commissioned onto — the same value matter.js's own advertiser computes
@@ -1586,6 +1605,7 @@ export type ControllerRoleKind = "dut" | "helper";
  * - `sustained-subscription` — a subscription the controller keeps to a node on its own, which
  *   {@link CertNodeApi.observeEvents} reports through and which keeps what {@link CertNodeApi.clientEndpoints} and
  *   {@link CertNodeApi.clientAttribute} answer following the node
+ * - `noc-update` — {@link CertNodeApi.updateOperationalCertificate}
  *
  * An implementation states the ones it lacks, and the ones it deliberately does not offer, when it registers (see
  * {@link registerControllerAdapterFactory}), and a step or test case states the ones it needs, so the engine skips it
@@ -1616,7 +1636,8 @@ export type ControllerCapability =
     | "ota-provider"
     | "ota-provider-script"
     | "icd-client"
-    | "sustained-subscription";
+    | "sustained-subscription"
+    | "noc-update";
 
 /** The {@link ControllerCapability | capabilities} an implementation lacks, each with the reason it lacks it. */
 export type ControllerCapabilityGaps = Readonly<Partial<Record<ControllerCapability, string>>>;
@@ -1802,8 +1823,9 @@ export function resolveControllerSelection(): ControllerSelection {
  * run (see `cert-dsl.ts`'s test-level gate).
  *
  * A cert test's DUT is the controller, so a capability like batched invoke is the controller's to
- * declare — but the PICS file a run loads describes the device. Rather than maintain a whole PICS file
- * per controller, an adapter states only what differs, beside the code that implements or refuses it.
+ * declare — but the PICS file a run loads describes the device. An adapter declares its controller-side entries,
+ * either written by hand as its client surface or taken from the controller side of its own certification
+ * declaration.
  */
 export function controllerPicsOverridesFor(implementation: ControllerImplementation): PicsValues {
     return registrations.get(implementation)?.pics ?? {};

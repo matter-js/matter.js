@@ -332,8 +332,9 @@ export class CommissionedRefs<Role extends string = "dut"> {
  * carrying an extra `Attribute =` line where the request's wildcard block has none, possibly still
  * in flight from an earlier step — the follower pumps the device stream asynchronously, so a
  * previous step's response can surface after this step's `mark()`). Such a candidate is skipped and
- * the search resumes at the next one; genuine absence of the block surfaces as
- * `log.expectPattern`'s own timeout error. The whole search shares one `timeout` budget.
+ * the search resumes at the next one. When no candidate completes before `timeout`, the
+ * {@link CertLogTimeoutError} names the last rejected candidate, so a block that arrived with a wrong
+ * value reads as that mismatch rather than as a missing log. The whole search shares one `timeout` budget.
  */
 export async function expectAdjacentLines(
     log: LogFollower,
@@ -349,29 +350,50 @@ export async function expectAdjacentLines(
     return { verdict: "pass", last: await adjacentRun(log, sequence, from, timeout) };
 }
 
+const ANY_LINE = /(?:)/;
+
+/**
+ * The run of consecutive lines `sequence` describes, at or after `from`; see {@link expectAdjacentLines}.
+ *
+ * Throws {@link CertLogTimeoutError} naming the pattern it was waiting for when the budget ran out, the
+ * lines from `from`, and the last candidate it rejected, if any.  A closed log throws as
+ * {@link LogFollower.expectPattern} does.
+ */
 async function adjacentRun(log: LogFollower, sequence: RegExp[], from: number, timeout: Duration): Promise<LogLine> {
     const deadline = Time.nowUs + timeout;
     const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     let cursor = from;
-    for (;;) {
-        const anchor = await log.expectPattern(sequence[0], { timeoutMs: remaining(), from: cursor });
+    let awaited = sequence[0];
+    let nearMiss: string | undefined;
+    try {
+        for (;;) {
+            awaited = sequence[0];
+            const anchor = await log.expectPattern(awaited, { timeoutMs: remaining(), from: cursor });
 
-        let last = anchor;
-        let interleaved = false;
-        for (const pattern of sequence.slice(1)) {
-            const matched = await log.expectPattern(pattern, { timeoutMs: remaining(), from: last.index + 1 });
-            if (matched.index !== last.index + 1) {
-                interleaved = true;
-                break;
+            let last = anchor;
+            let rejected: string | undefined;
+            for (const pattern of sequence.slice(1)) {
+                awaited = pattern;
+                const next = await log.expectPattern(ANY_LINE, { timeoutMs: remaining(), from: last.index + 1 });
+                if (next.index !== last.index + 1 || log.lastMatchBefore(pattern, next.index + 1, 1)?.line !== next) {
+                    rejected = `line ${next.index} after the match at line ${anchor.index} is not ${pattern}: ${next.text}`;
+                    break;
+                }
+                last = next;
             }
-            last = matched;
-        }
 
-        if (!interleaved) {
-            return last;
+            if (rejected === undefined) {
+                return last;
+            }
+            nearMiss = rejected;
+            cursor = anchor.index + 1;
         }
-        cursor = anchor.index + 1;
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError) {
+            throw new CertLogTimeoutError(String(awaited), from, log.window(from, Number.MAX_SAFE_INTEGER), nearMiss);
+        }
+        throw e;
     }
 }
 

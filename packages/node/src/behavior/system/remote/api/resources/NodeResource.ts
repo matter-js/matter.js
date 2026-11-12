@@ -65,6 +65,10 @@ export class NodeResource extends EndpointResource {
         return this.agent.endpoint as Node;
     }
 
+    override get isRemote() {
+        return this.node.nodeType !== "server";
+    }
+
     get isSelfReferential() {
         return this.parent instanceof NodeResource && this.parent.node === this.node;
     }

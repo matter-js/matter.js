@@ -14,6 +14,13 @@ export const TlvAttestation = TlvObject({
     firmwareInfo: TlvOptionalField(4, TlvByteString),
 });
 
+/**
+ * RESP_MAX, the maximum length in bytes of AttestationElements and NOCSRElements.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 11.18.4.1
+ */
+export const OPERATIONAL_CREDENTIALS_RESP_MAX = 900;
+
 /** @see {@link MatterSpecification.v161.Core} § 11.18.4.8 */
 export const TlvCertSigningRequest = TlvObject({
     certSigningRequest: TlvField(1, TlvByteString),

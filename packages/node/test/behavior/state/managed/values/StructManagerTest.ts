@@ -7,8 +7,9 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { UncachedValueError } from "#behavior/state/managed/errors.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
-import { isObject, MaybePromise, MockCrypto } from "@matter/general";
+import { ImplementationError, isObject, MaybePromise, MockCrypto } from "@matter/general";
 import {
     ClusterModel,
     DataModelPath,
@@ -17,11 +18,26 @@ import {
     FieldElement,
     FieldModel,
     FieldValue,
+    Model,
 } from "@matter/model";
 import { MockExchange } from "@matter/node/testing";
-import { ConstraintError, Val } from "@matter/protocol";
-import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
+import { ConformanceError, ConstraintError, ExpiredReferenceError, PhantomReferenceError, Val } from "@matter/protocol";
+import { EndpointNumber, FabricIndex, NodeId, Status } from "@matter/types";
 import { aclEndpoint, listOf, rawValuesOf, structOf, TestStruct } from "./value-utils.js";
+
+function listIn(value: unknown) {
+    if (!Array.isArray(value)) {
+        expect.fail(`${value} is not a list`);
+    }
+    return value;
+}
+
+function structIn(value: unknown) {
+    if (!isObject(value)) {
+        expect.fail(`${value} is not a struct`);
+    }
+    return value;
+}
 
 export type Nested = {
     substruct: {
@@ -317,7 +333,7 @@ describe("StructManager", () => {
             );
 
             await struct.online(TestContext(), ref => {
-                expect(ref.sub).deep.equals({});
+                expect(ref.sub).deep.equals({ foo: undefined });
             });
         });
 
@@ -363,6 +379,433 @@ describe("StructManager", () => {
                 expect(ref.acl).deep.equals([]);
                 expect(() => (ref.acl = ["x"])).not.throws();
                 expect(ref.acl).deep.equals(["x"]);
+            });
+        });
+
+        describe("an unreported mandatory collection", () => {
+            const unreportedFields = {
+                list: {
+                    id: 0,
+                    type: "list",
+                    conformance: "M",
+                    children: [FieldElement({ name: "entry", type: "string" })],
+                },
+                sub: {
+                    id: 1,
+                    type: "struct",
+                    conformance: "M",
+                    children: [
+                        FieldElement({ name: "foo", id: 0, type: "string" }),
+                        FieldElement({
+                            name: "inner",
+                            id: 1,
+                            type: "list",
+                            conformance: "M",
+                            children: [FieldElement({ name: "entry", type: "string" })],
+                        }),
+                    ],
+                },
+            };
+
+            function unreported(values: Val.Struct = {}) {
+                return TestStruct(unreportedFields, values, "id");
+            }
+
+            it("reads the same managed value on every read", async () => {
+                const struct = unreported();
+
+                await struct.online(TestContext(), ref => {
+                    expect(ref.list).equals(ref.list);
+                    expect(ref.sub).equals(ref.sub);
+                });
+            });
+
+            it("keeps its default while another member changes", async () => {
+                const struct = unreported();
+
+                await struct.online(TestContext(), ref => {
+                    const list = listIn(ref.list);
+                    const before = rawValuesOf(list);
+
+                    ref.sub = { foo: "bar", inner: [] };
+
+                    expect(rawValuesOf(list)).equals(before);
+                });
+            });
+
+            it("stores nothing and announces nothing when only read", async () => {
+                const struct = unreported();
+
+                await struct.online(TestContext(), async (ref, cx) => {
+                    expect(ref.list).deep.equals([]);
+                    expect(ref.sub).deep.equals({ foo: undefined, inner: [] });
+
+                    await cx.transaction.commit();
+
+                    expect(rawValuesOf(ref)).deep.equals({});
+                });
+                expect(struct.notifies).deep.equals([]);
+            });
+
+            it("refuses a list changed in place, storing and announcing nothing", async () => {
+                const struct = unreported();
+
+                await struct.online(TestContext(), async (ref, cx) => {
+                    expect(() => listIn(ref.list).push("one"))
+                        .throws(UncachedValueError)
+                        .with.property("code", Status.InvalidInState);
+
+                    await cx.transaction.commit();
+
+                    expect(rawValuesOf(ref)).deep.equals({});
+                    expect(ref.list).deep.equals([]);
+                });
+                expect(struct.notifies).deep.equals([]);
+            });
+
+            it("refuses a struct changed in place, storing and announcing nothing", async () => {
+                const struct = unreported();
+
+                await struct.online(TestContext(), async (ref, cx) => {
+                    expect(() => (structIn(ref.sub).foo = "bar")).throws(UncachedValueError);
+
+                    await cx.transaction.commit();
+
+                    expect(rawValuesOf(ref)).deep.equals({});
+                });
+                expect(struct.notifies).deep.equals([]);
+            });
+
+            it("refuses a change of a container inside its default", async () => {
+                const struct = unreported();
+
+                await struct.online(TestContext(), ref => {
+                    expect(() => listIn(structIn(ref.sub).inner).push("one")).throws(UncachedValueError);
+
+                    expect(rawValuesOf(ref)).deep.equals({});
+                    expect(ref.sub).deep.equals({ foo: undefined, inner: [] });
+                });
+            });
+
+            it("reads its default after a rollback that follows a refused change", async () => {
+                const struct = unreported();
+
+                await struct.online(TestContext(), async (ref, cx) => {
+                    const list = listIn(ref.list);
+                    expect(() => list.push("one")).throws(UncachedValueError);
+
+                    await cx.transaction.rollback();
+
+                    expect(rawValuesOf(ref)).deep.equals({});
+                    expect(ref.list).deep.equals([]);
+                    expect(() => listIn(ref.list).push("two")).throws(UncachedValueError);
+                });
+            });
+
+            it("refuses a change in place in each context that reads it", async () => {
+                const struct = unreported();
+
+                await struct.online2(TestContext(), TestContext(), ({ ref1, ref2 }) => {
+                    const list1 = listIn(ref1.list);
+                    const list2 = listIn(ref2.list);
+                    expect(list1).not.equals(list2);
+
+                    expect(() => list1.push("one")).throws(UncachedValueError);
+                    expect(() => list2.push("two")).throws(UncachedValueError);
+
+                    expect(rawValuesOf(ref1)).deep.equals({});
+                    expect(rawValuesOf(ref2)).deep.equals({});
+                });
+            });
+
+            it("accepts a complete value, which a held reference then serves", async () => {
+                const struct = unreported();
+
+                await struct.online(TestContext(), ref => {
+                    const held = listIn(ref.list);
+
+                    ref.list = ["one"];
+                    held.push("two");
+
+                    expect(held).deep.equals(["one", "two"]);
+                    expect(rawValuesOf(ref)[0]).deep.equals(["one", "two"]);
+                });
+            });
+
+            // Characterization: a value assigned whole is changed in place as before
+            it("changes a value assigned whole in place, when read again", async () => {
+                const struct = unreported();
+
+                await struct.online(TestContext(), ref => {
+                    ref.list = ["one"];
+                    listIn(ref.list).push("two");
+                    ref.sub = { foo: "bar", inner: [] };
+                    structIn(ref.sub).foo = "baz";
+
+                    expect(rawValuesOf(ref)).deep.equals({ 0: ["one", "two"], 1: { foo: "baz", inner: [] } });
+                });
+            });
+
+            // Characterization: a nullable mandatory struct reads null as before
+            it("reads null for a nullable struct", async () => {
+                const struct = TestStruct(
+                    {
+                        sub: {
+                            id: 0,
+                            type: "struct",
+                            conformance: "M",
+                            quality: "X",
+                            children: [FieldElement({ name: "foo", id: 0, type: "string" })],
+                        },
+                    },
+                    {},
+                    "id",
+                );
+
+                await struct.online(TestContext(), ref => {
+                    expect(ref.sub).equals(null);
+                });
+            });
+
+            // Characterization: a reported list is changed in place as before
+            it("changes a reported list in place", async () => {
+                const struct = unreported({ 0: ["one"] });
+
+                await struct.online(TestContext(), ref => {
+                    listIn(ref.list).push("two");
+
+                    expect(rawValuesOf(ref)[0]).deep.equals(["one", "two"]);
+                });
+            });
+
+            // Characterization: a reported struct and the list inside it are changed in place as before
+            it("changes a field and a list inside a reported struct in place", async () => {
+                const struct = unreported({ 1: { foo: "bar", inner: ["in"] } });
+
+                await struct.online(TestContext(), ref => {
+                    const sub = structIn(ref.sub);
+                    sub.foo = "baz";
+                    listIn(sub.inner).push("two");
+
+                    expect(rawValuesOf(ref)[1]).deep.equals({ foo: "baz", inner: ["in", "two"] });
+                });
+            });
+
+            describe("patched on a client node", () => {
+                const entry = FieldElement({
+                    name: "entry",
+                    type: "struct",
+                    children: [
+                        FieldElement({ name: "foo", id: 0, type: "string" }),
+                        FieldElement({ name: "bar", id: 1, type: "string", default: "dflt" }),
+                    ],
+                });
+                const patchFields = {
+                    list: { id: 0, type: "list", children: [entry] },
+                    sub: {
+                        id: 1,
+                        type: "struct",
+                        quality: "X",
+                        children: [
+                            FieldElement({ name: "foo", id: 0, type: "string" }),
+                            FieldElement({ name: "bar", id: 1, type: "string", default: "dflt" }),
+                            FieldElement({ name: "inner", id: 2, type: "list", children: [entry] }),
+                        ],
+                    },
+                };
+                const supervisor = RootSupervisor.for(withSupportedBar(new FieldModel(structOf(patchFields))));
+                const members = supervisor.membersOf(supervisor.schema);
+                const path = new DataModelPath("TestStruct");
+
+                /** Marks each "bar" field supported, so the local defaults of its struct hold its default. */
+                function withSupportedBar<T extends Model>(model: T): T {
+                    for (const child of model.children) {
+                        if (child.name === "bar") {
+                            child.operationalIsSupported = true;
+                        }
+                        withSupportedBar(child);
+                    }
+                    return model;
+                }
+
+                function patch(changes: Val.Struct, ref: Val.Struct) {
+                    supervisor.patch(changes, ref, path);
+                }
+
+                function patchSub(changes: Val.Struct, sub: Val) {
+                    supervisor.get(members.require("sub")).patch(changes, structIn(sub), path.at("sub"));
+                }
+
+                function patchList(changes: Val.Struct, list: Val) {
+                    supervisor.get(members.require("list")).patch(changes, listIn(list), path.at("list"));
+                }
+
+                function mirrored(values: Val.Struct = {}) {
+                    return TestStruct(patchFields, values, { mirrorsRemote: true });
+                }
+
+                it("replaces a struct with the given one, without the fields it leaves out", async () => {
+                    const struct = mirrored({ 1: { foo: "one", bar: "two", inner: [] } });
+
+                    await struct.online(TestContext(), ref => {
+                        patch({ sub: { foo: "three" } }, ref);
+
+                        expect(rawValuesOf(ref)[1]).deep.equals({ foo: "three" });
+                    });
+                });
+
+                it("assigns a struct to an absent member without local defaults", async () => {
+                    const struct = mirrored();
+
+                    await struct.online(TestContext(), ref => {
+                        patch({ sub: { foo: "three" } }, ref);
+
+                        expect(rawValuesOf(ref)[1]).deep.equals({ foo: "three" });
+                    });
+                });
+
+                it("assigns a struct to a null member without local defaults", async () => {
+                    const struct = mirrored({ 1: null });
+
+                    await struct.online(TestContext(), ref => {
+                        patch({ sub: { foo: "three" } }, ref);
+
+                        expect(rawValuesOf(ref)[1]).deep.equals({ foo: "three" });
+                    });
+                });
+
+                it("replaces a list without the entry fields the given entries leave out", async () => {
+                    const struct = mirrored({ 0: [{ foo: "one", bar: "two" }] });
+
+                    await struct.online(TestContext(), ref => {
+                        patch({ list: [{ foo: "three" }] }, ref);
+
+                        expect(rawValuesOf(ref)[0]).deep.equals([{ foo: "three" }]);
+                    });
+                });
+
+                it("assigns a list to an absent member without entry defaults", async () => {
+                    const struct = mirrored();
+
+                    await struct.online(TestContext(), ref => {
+                        patch({ list: [{ foo: "three" }] }, ref);
+
+                        expect(rawValuesOf(ref)[0]).deep.equals([{ foo: "three" }]);
+                    });
+                });
+
+                it("replaces a list inside a struct as part of the struct", async () => {
+                    const struct = mirrored({ 1: { foo: "one", inner: [{ foo: "in", bar: "two" }] } });
+
+                    await struct.online(TestContext(), ref => {
+                        patch({ sub: { inner: [{ foo: "three" }] } }, ref);
+
+                        expect(rawValuesOf(ref)[1]).deep.equals({ inner: [{ foo: "three" }] });
+                    });
+                });
+
+                it("assigns a member of a cached struct whole when the patch targets the struct", async () => {
+                    const struct = mirrored({ 1: { foo: "one", inner: [{ foo: "in", bar: "two" }] } });
+
+                    await struct.online(TestContext(), ref => {
+                        patchSub({ inner: [{ foo: "three" }] }, ref.sub);
+
+                        expect(rawValuesOf(ref)[1]).deep.equals({ foo: "one", inner: [{ foo: "three" }] });
+                    });
+                });
+
+                it("assigns an entry of a cached list whole when the patch targets the list", async () => {
+                    const struct = mirrored({ 0: [{ foo: "one", bar: "two" }] });
+
+                    await struct.online(TestContext(), ref => {
+                        patchList({ 0: { foo: "three" } }, ref.list);
+
+                        expect(rawValuesOf(ref)[0]).deep.equals([{ foo: "three" }]);
+                    });
+                });
+
+                it("appends an entry by index without entry defaults when the patch targets the list", async () => {
+                    const struct = mirrored({ 0: [{ foo: "one", bar: "two" }] });
+
+                    await struct.online(TestContext(), ref => {
+                        patchList({ 1: { foo: "x" } }, ref.list);
+
+                        expect(rawValuesOf(ref)[0]).deep.equals([{ foo: "one", bar: "two" }, { foo: "x" }]);
+                    });
+                });
+
+                it("refuses a list member given as an object, storing nothing", async () => {
+                    const struct = mirrored({ 0: [{ foo: "one", bar: "two" }] });
+
+                    await struct.online(TestContext(), ref => {
+                        expect(() => patch({ list: { 0: { foo: "three" } } }, ref)).throws(
+                            ImplementationError,
+                            "a list is written whole, so give the complete list as an array",
+                        );
+
+                        expect(rawValuesOf(ref)[0]).deep.equals([{ foo: "one", bar: "two" }]);
+                    });
+                });
+
+                // A patch inside an uncached value changes it in place, so it is refused
+                it("refuses a patch that targets a struct the cache does not hold", async () => {
+                    const struct = TestStruct(unreportedFields, {}, { mirrorsRemote: true });
+                    const unreportedSupervisor = RootSupervisor.for(new FieldModel(structOf(unreportedFields)));
+                    const sub = unreportedSupervisor.membersOf(unreportedSupervisor.schema).require("sub");
+
+                    await struct.online(TestContext(), ref => {
+                        expect(() =>
+                            unreportedSupervisor.get(sub).patch({ foo: "bar" }, structIn(ref.sub), path.at("sub")),
+                        ).throws(UncachedValueError);
+
+                        expect(rawValuesOf(ref)).deep.equals({});
+                    });
+                });
+
+                // Characterization: a local node merges a struct into its struct and a list into its list
+                it("patches a struct and the entries of a list on a local node", async () => {
+                    const struct = TestStruct(patchFields, {
+                        list: [{ foo: "one", bar: "two" }],
+                        sub: { foo: "one", bar: "two", inner: [] },
+                    });
+
+                    await struct.online(TestContext(), ref => {
+                        patch({ list: [{ foo: "three" }], sub: { foo: "three" } }, ref);
+
+                        expect(rawValuesOf(ref).list).deep.equals([{ foo: "three", bar: "two" }]);
+                        expect(rawValuesOf(ref).sub).deep.equals({ foo: "three", bar: "two", inner: [] });
+                    });
+                });
+            });
+
+            it("refuses a change through a held reference after a rollback removed its member", async () => {
+                const struct = unreported();
+
+                await struct.online(TestContext(), async (ref, cx) => {
+                    const held = listIn(ref.list);
+                    ref.list = ["one"];
+                    expect(held).deep.equals(["one"]);
+
+                    await cx.transaction.rollback();
+
+                    expect(held).deep.equals([]);
+                    expect(() => held.push("two")).throws(UncachedValueError);
+                    expect(rawValuesOf(ref)).deep.equals({});
+                });
+            });
+
+            // Characterization: validation refuses to remove a mandatory member, so the held reference stays live
+            it("keeps a held reference live when its member cannot be assigned undefined", async () => {
+                const struct = unreported({ 0: ["one"] });
+
+                await struct.online(TestContext(), ref => {
+                    const held = listIn(ref.list);
+
+                    expect(() => (ref.list = undefined)).throws(ConformanceError);
+                    held.push("two");
+
+                    expect(rawValuesOf(ref)[0]).deep.equals(["one", "two"]);
+                });
             });
         });
 
@@ -492,11 +935,11 @@ describe("StructManager", () => {
             );
 
             await struct.online(TestContext(), ref => {
-                expect(ref.sub).deep.equals({ req: 0 });
+                expect(ref.sub).deep.equals({ req: 0, opt: undefined });
             });
         });
 
-        it("hands out a fresh copy of an explicit struct default, so consumer mutation cannot corrupt the model's own default or a later read", async () => {
+        it("refuses a change of an explicit struct default without changing the model's own default", async () => {
             const explicitDefault = { foo: "bar" };
             const struct = TestStruct(
                 {
@@ -513,12 +956,13 @@ describe("StructManager", () => {
             );
 
             await struct.online(TestContext(), ref => {
-                const first = ref.sub as Val.Struct;
+                const first = structIn(ref.sub);
                 expect(first).deep.equals({ foo: "bar" });
 
-                first.foo = "mutated";
+                expect(() => (first.foo = "mutated")).throws(UncachedValueError);
 
                 expect(ref.sub).deep.equals({ foo: "bar" });
+                expect(rawValuesOf(ref)).deep.equals({});
                 expect(explicitDefault).deep.equals({ foo: "bar" });
             });
         });
@@ -533,6 +977,28 @@ describe("StructManager", () => {
             });
         });
 
+        // Characterization: a name-keyed container has no default, as before
+        it("does not synthesize a default through a held value of a mandatory member of a name-keyed container that a rollback removed", async () => {
+            const struct = TestStruct({
+                sub: {
+                    id: 0,
+                    type: "struct",
+                    conformance: "M",
+                    children: [FieldElement({ name: "foo", id: 0, type: "string" })],
+                },
+            });
+
+            await struct.online(TestContext(), async (ref, cx) => {
+                ref.sub = { foo: "bar" };
+                const held = ref.sub as Val.Struct;
+                expect(held.foo).equals("bar");
+
+                await cx.transaction.rollback();
+
+                expect(() => held.foo).throws(PhantomReferenceError);
+            });
+        });
+
         it("does not compute a referenced default for an optional unreported member of an id-keyed container", async () => {
             const struct = TestStruct(referencedDefaultFields("O"), { 1: { foo: "bar" } }, "id");
 
@@ -541,18 +1007,33 @@ describe("StructManager", () => {
             });
         });
 
-        it("computes a referenced default for a mandatory unreported member of an id-keyed container, tracking the sibling uncopied", async () => {
+        // A default taken from a sibling is a copy made on first read
+        it("computes a referenced default for a mandatory unreported member of an id-keyed container as a copy", async () => {
             const struct = TestStruct(referencedDefaultFields("M"), { 1: { foo: "bar" } }, "id");
 
             await struct.online(TestContext(), ref => {
-                const mirror = ref.mirror as Val.Struct;
+                const mirror = structIn(ref.mirror);
                 expect(mirror).deep.equals({ foo: "bar" });
 
-                // The reference resolves the sibling's live raw value, not a copy: mutating it here reaches the
-                // sibling directly.
-                mirror.foo = "changed";
+                ref.src = { foo: "changed" };
 
-                expect((ref.src as Val.Struct).foo).equals("changed");
+                expect(mirror).deep.equals({ foo: "bar" });
+                expect(() => (mirror.foo = "mutated")).throws(UncachedValueError);
+                expect(ref.src).deep.equals({ foo: "changed" });
+            });
+        });
+
+        it("keeps a referenced default when the transaction changes the source in place", async () => {
+            const struct = TestStruct(referencedDefaultFields("M"), {}, "id");
+
+            await struct.online(TestContext(), ref => {
+                ref.src = { foo: "bar" };
+                const mirror = structIn(ref.mirror);
+                expect(mirror).deep.equals({ foo: "bar" });
+
+                structIn(ref.src).foo = "changed";
+
+                expect(mirror).deep.equals({ foo: "bar" });
             });
         });
 
@@ -561,6 +1042,30 @@ describe("StructManager", () => {
 
             await struct.online(TestContext(), ref => {
                 expect(ref.mirror).deep.equals({ foo: "bar" });
+            });
+        });
+
+        // Characterization: a name-keyed struct reads a referenced default from its parent as before
+        it("computes a referenced default from a member of the parent struct", async () => {
+            const struct = TestStruct(
+                {
+                    src: { id: 1, type: "struct", children: [FieldElement({ name: "foo", type: "string" })] },
+                    sub: {
+                        id: 2,
+                        type: "struct",
+                        children: [
+                            FieldElement(
+                                { name: "mirror", id: 0, type: "struct", default: FieldValue.Reference("src") },
+                                FieldElement({ name: "foo", type: "string" }),
+                            ),
+                        ],
+                    },
+                },
+                { src: { foo: "bar" }, sub: {} },
+            );
+
+            await struct.online(TestContext(), ref => {
+                expect(structIn(ref.sub).mirror).deep.equals({ foo: "bar" });
             });
         });
 
@@ -768,6 +1273,91 @@ describe("StructManager", () => {
                 expect(() => (state.foo = "too long")).throws();
 
                 expect(state.foo).equals("old");
+            });
+        });
+
+        describe("held entry of a dynamic list", () => {
+            type Entry = { value: number };
+
+            function listBacked(backing: { list: Entry[] } = { list: [{ value: 1 }, { value: 2 }] }) {
+                class ListBackedState {
+                    [Val.properties]() {
+                        return {
+                            get list() {
+                                return backing.list;
+                            },
+
+                            set list(value: Entry[]) {
+                                if (value.length < 2) {
+                                    throw new ImplementationError("The list keeps at least two entries");
+                                }
+                                backing.list = value;
+                            },
+                        };
+                    }
+                }
+
+                return Datasource({
+                    entropy: MockCrypto(),
+                    type: ListBackedState,
+                    supervisor: RootSupervisor.for(
+                        new FieldModel(
+                            FieldElement(
+                                { name: "Struct", type: "struct" },
+                                FieldElement(
+                                    { name: "list", id: 0, type: "list" },
+                                    FieldElement(
+                                        { name: "entry", type: "struct" },
+                                        FieldElement({ name: "value", id: 0, type: "uint8", constraint: "max 10" }),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                    location: { endpoint: EndpointNumber(1), path: new DataModelPath("ListBackedState") },
+                });
+            }
+
+            it("stays live when the setter rejects a list method", async () => {
+                const datasource = listBacked();
+
+                await LocalActorContext.act("test", cx => {
+                    const state = datasource.reference(cx) as unknown as { list: Entry[] };
+                    const held = state.list[1];
+
+                    expect(() => state.list.shift()).throws(ImplementationError);
+
+                    held.value = 7;
+                    expect(state.list[1].value).equals(7);
+                });
+            });
+
+            it("stays live when a rejected write restores the list", async () => {
+                const datasource = listBacked();
+
+                await LocalActorContext.act("test", cx => {
+                    const state = datasource.reference(cx) as unknown as { list: Entry[] };
+                    const held = state.list[1];
+
+                    expect(() => (state.list = [{ value: 99 }, { value: 98 }])).throws(ConstraintError);
+
+                    held.value = 7;
+                    expect(state.list[1].value).equals(7);
+                });
+            });
+
+            it("refuses its first write when the provider serves another entry at its index", async () => {
+                const backing = { list: [{ value: 1 }, { value: 2 }] };
+                const datasource = listBacked(backing);
+
+                await LocalActorContext.act("test", cx => {
+                    const state = datasource.reference(cx) as unknown as { list: Entry[] };
+                    const held = state.list[0];
+                    backing.list = [{ value: 5 }, { value: 6 }];
+
+                    expect(() => (held.value = 7)).throws(ExpiredReferenceError);
+                    expect(backing.list[0].value).equals(5);
+                });
             });
         });
     });

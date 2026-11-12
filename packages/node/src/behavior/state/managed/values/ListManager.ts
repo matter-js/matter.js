@@ -6,7 +6,7 @@
 
 import { InternalError, isObject, serialize } from "@matter/general";
 import type { Schema } from "@matter/model";
-import { Access, AttributeModel, DataModelPath, ValueModel } from "@matter/model";
+import { AttributeModel, DataModelPath, ValueModel } from "@matter/model";
 import { AccessControl, hasRemoteActor, ReadError, SchemaImplementationError, Val, WriteError } from "@matter/protocol";
 import { Status } from "@matter/types";
 import type { RootSupervisor } from "../../../supervision/RootSupervisor.js";
@@ -46,18 +46,6 @@ export function ListManager(owner: RootSupervisor, schema: Schema): ValueSupervi
     };
 }
 
-/**
- * Whether a list holds fabric-scoped entries that a remote actor may see filtered by fabric: `F` access, or an attribute
- * with `S` access.  `S` on a struct field only hides that field from other fabrics.
- */
-export function isFabricScopedList(schema: Schema) {
-    return schema.effectiveAccess.fabric === Access.Fabric.Scoped || isFabricSensitiveList(schema);
-}
-
-function isFabricSensitiveList(schema: Schema) {
-    return schema instanceof AttributeModel && schema.fabricSensitive;
-}
-
 function createConfig(owner: RootSupervisor, schema: Schema): ListConfig {
     const entry = schema instanceof ValueModel ? schema.listEntry : undefined;
     if (entry === undefined) {
@@ -67,12 +55,10 @@ function createConfig(owner: RootSupervisor, schema: Schema): ListConfig {
     const entryManager = owner.get(entry);
 
     const access = AccessControl(schema);
-    const fabricSensitive = isFabricSensitiveList(schema);
-
     return {
         schema,
-        fabricScoped: fabricSensitive || schema.effectiveAccess.fabric === Access.Fabric.Scoped,
-        fabricSensitive,
+        fabricScoped: schema instanceof ValueModel && schema.fabricScopedList,
+        fabricSensitive: schema instanceof AttributeModel && schema.fabricSensitive,
         manageEntries: entryManager.manage !== PrimitiveManager,
         manageEntry: entryManager.manage,
         validateEntry: entryManager.validate,
@@ -146,6 +132,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
             ...reference.location,
             path: reference.location.path.at(-1),
             owner: reference.rootOwner,
+            remote: reference.mirrorsRemote ? "outbound" : undefined,
         };
     }
 
@@ -169,14 +156,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
         if (length > this.getListLength()) {
             throw new WriteError(this.reference.location, `Length ${length} would leave a gap after the last entry`);
         }
-        this.truncate(length);
-    }
-
-    /**
-     * Remove the visible entries from `length` on.
-     */
-    protected truncate(length: number) {
-        this.reference.change(() => (this.writeVal().length = length), "length");
+        this.storeEntries(this.visibleEntries().slice(0, length));
     }
 
     protected hasEntry(index: number) {
@@ -206,7 +186,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
             let subref = this.reference.subrefs?.[index];
 
             if (subref === undefined) {
-                subref = new ManagedReference(this.reference, index, undefined, cloneEntry, this.session);
+                subref = new ManagedReference(this.reference, index, undefined, cloneEntry, this.session, "entry");
 
                 this.config.manageEntry(subref, this.session);
             }
@@ -247,14 +227,11 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     }
 
     /**
-     * Remove an entry.  Only the last entry may go, so the list never has a gap.  An index beyond the end is ignored.
+     * Remove the entry at `index`, which is below {@link getListLength}.  Only the last entry may go, so the list never
+     * has a gap.
      */
     protected deleteEntry(index: number, location: AccessControl.Location) {
-        const length = this.getListLength();
-        if (index >= length) {
-            return;
-        }
-        if (index !== length - 1) {
+        if (index !== this.getListLength() - 1) {
             throw new WriteError(location, `Deleting entry ${index} would leave a gap; use splice to remove it`);
         }
         this.setListLength(index);
@@ -271,8 +248,9 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
      * Replace the entries {@link visibleEntries} returns with `entries` in a single change.  Throws {@link WriteError}
      * when the list would exceed {@link MAX_LIST_LENGTH}.
      *
-     * An entry that `entries` holds more than once is stored as a copy from its second slot on.  The transaction may
-     * own the entry, and a nested write changes an owned entry in place (see {@link ValReference.owns}).
+     * An entry that `entries` holds more than once is stored once and copied into its other slots, because the
+     * transaction may own the entry and a nested write changes an owned entry in place (see {@link ValReference.owns}).
+     * The original stays at the slot that already holds it, so the reference held for that slot stays live.
      */
     protected storeEntries(entries: Val[]) {
         if (entries.length > MAX_LIST_LENGTH) {
@@ -282,17 +260,22 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
             );
         }
 
-        const seen = new Set<Val>();
-        const placed = entries.map(entry => {
+        const current = this.readVal();
+        const originalSlot = new Map<Val, number>();
+        entries.forEach((entry, index) => {
             if (typeof entry !== "object" || entry === null) {
-                return entry;
+                return;
             }
-            if (seen.has(entry)) {
-                return Internal.copy(entry);
+            const slot = originalSlot.get(entry);
+            if (slot === undefined || current[index] === entry) {
+                originalSlot.set(entry, index);
             }
-            seen.add(entry);
-            return entry;
         });
+        const placed = entries.map((entry, index) =>
+            typeof entry === "object" && entry !== null && originalSlot.get(entry) !== index
+                ? Internal.copy(entry)
+                : entry,
+        );
 
         this.reference.change(() => {
             const list = this.writeVal();
@@ -304,8 +287,8 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     /**
      * Apply an array method that changes entries, and return its result.
      *
-     * The method runs on a plain array of the visible entries, because entry proxies follow their index.  A stored
-     * entry keeps its value.  Every other value is new: it is copied, prepared and validated before anything is
+     * The method runs on a plain array of the visible entries, so it moves entry objects rather than entry proxies.  A
+     * stored entry keeps its value.  Every other value is new: it is copied, prepared and validated before anything is
      * stored.  The result is stored in a single change, so a rejected entry leaves the list unchanged.
      *
      * A stored entry leaves this method only as a read-only view (see {@link ReadOnlyReference}): the entries `pop`,
@@ -363,7 +346,12 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
                 }
 
                 const location = { ...this.reference.location, path: this.reference.location.path.at(index) };
-                const reference = new ReadOnlyReference(entry, location, this.reference.rootOwner);
+                const reference = new ReadOnlyReference(
+                    entry,
+                    location,
+                    this.reference.rootOwner,
+                    this.reference.mirrorsRemote,
+                );
                 this.config.manageEntry(reference, this.session);
                 view = reference.owner;
                 views.set(entry, view);
@@ -451,6 +439,11 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     deleteProperty(_target: Val.List, property: PropertyKey) {
         const index = entryIndexFor(property);
         if (index !== undefined) {
+            if (index >= this.getListLength()) {
+                // Ignored as on an array, but the list must still be writable, so an uncached or group list refuses
+                this.reference.assertWritable();
+                return true;
+            }
             this.#sublocation.path.id = index;
             this.deleteEntry(index, this.#sublocation);
             return true;
@@ -463,8 +456,30 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
         return Reflect.ownKeys(this.readVal());
     }
 
+    /**
+     * The descriptors of the entries and of `length` carry what {@link get} returns: the managed entry and the length
+     * this session sees.
+     */
     getOwnPropertyDescriptor(_target: Val.List, key: PropertyKey) {
-        return Reflect.getOwnPropertyDescriptor(this.readVal(), key);
+        const index = entryIndexFor(key);
+        if (index === undefined) {
+            const descriptor = Reflect.getOwnPropertyDescriptor(this.readVal(), key);
+            if (key === "length" && descriptor !== undefined) {
+                descriptor.value = this.getListLength();
+            }
+            return descriptor;
+        }
+        if (index >= this.getListLength()) {
+            return undefined;
+        }
+
+        this.#sublocation.path.id = index;
+        return {
+            value: this.readEntry(index, this.#sublocation),
+            writable: true,
+            enumerable: true,
+            configurable: true,
+        };
     }
 }
 
@@ -539,13 +554,10 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
     }
 
     /**
-     * Remove an entry.  Any entry may go, because the later entries of this fabric move up to fill the gap.  An index
-     * beyond the end is ignored.
+     * Remove the entry at `index`, which is below {@link getListLength}.  Any entry may go, because the later entries
+     * of this fabric move up to fill the gap.
      */
     protected override deleteEntry(index: number, location: AccessControl.Location) {
-        if (index >= this.getListLength()) {
-            return;
-        }
         this.config.authorizeWrite(this.session, location);
         const entries = this.visibleEntries();
         entries.splice(index, 1);
@@ -580,10 +592,6 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
         return this.visibleEntries().length;
     }
 
-    protected override truncate(length: number) {
-        this.storeEntries(this.visibleEntries().slice(0, length));
-    }
-
     override ownKeys() {
         const length = this.getListLength();
 
@@ -595,15 +603,6 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
             return index === undefined || index < length;
         });
     }
-
-    override getOwnPropertyDescriptor(_target: Val.List, key: PropertyKey) {
-        key = entryIndexFor(key) ?? key;
-        if (typeof key !== "number") {
-            return Reflect.getOwnPropertyDescriptor(this.readVal(), key);
-        }
-
-        return Reflect.getOwnPropertyDescriptor(this.readVal(), this.#mapScopedToActual(key, true));
-    }
 }
 
 function createProxy(config: ListConfig, reference: ValReference<Val.List>, session: ValueSupervisor.Session) {
@@ -611,6 +610,9 @@ function createProxy(config: ListConfig, reference: ValReference<Val.List>, sess
         config.manageEntries &&
         config.fabricScoped &&
         hasRemoteActor(session) &&
+        // The session's fabric belongs to our server node, not to the remote node, so it does not filter a copy of
+        // that node's list
+        !reference.mirrorsRemote &&
         // Fabric-sensitive lists are filtered for reads and writes; command handlers see all entries, as data access
         // rules do not apply to them
         (session.fabricFiltered || (config.fabricSensitive && !session.command));

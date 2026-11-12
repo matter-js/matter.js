@@ -208,7 +208,10 @@ describe("Schedules local write", () => {
         await using ctx = await thermostat();
         const { deviceEp } = ctx;
 
-        const revert = (schedules: Thermostat.Schedule[]) => {
+        const revert = (schedules: Thermostat.Schedule[] | undefined) => {
+            if (schedules === undefined) {
+                return;
+            }
             schedules[0].scheduleHandle = null;
         };
         deviceEp.events.thermostat.persistedSchedules$Changing.on(revert);
@@ -232,6 +235,9 @@ describe("Schedules local write", () => {
         const { deviceEp } = ctx;
 
         deviceEp.events.thermostat.persistedSchedules$Changing.on(schedules => {
+            if (schedules === undefined) {
+                return;
+            }
             if (schedules[0].scheduleHandle !== null) {
                 schedules[0].builtIn = true;
             }
@@ -252,6 +258,9 @@ describe("Schedules local write", () => {
         // An application observer registers after the behavior, so it runs after normalization; only the first
         // announcement that follows is the normalization coming back around
         deviceEp.events.thermostat.persistedSchedules$Changing.on(schedules => {
+            if (schedules === undefined) {
+                return;
+            }
             if (schedules[0].transitions[0].heatingSetpoint === 2000) {
                 schedules[0].transitions[0].heatingSetpoint = 3100;
             }

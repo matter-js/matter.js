@@ -123,6 +123,7 @@ certTest("TC-DRLK-3.2", { plan: "door_lock_Cluster.adoc", pics: ["DRLK.C"], app:
         sendsLockCommand("clearWeekDaySchedule", { weekDayIndex: SCHEDULE_INDEX, userIndex: USER_INDEX }),
         { pics: "DRLK.C.F04 & DRLK.C.C0d.Tx", expected: received("ClearWeekDaySchedule") },
     )
+    // The plan gates steps 7 to 12 on WDSCH (F04); the commands belong to YDSCH (F0a) and HDSCH (F0b).
     .step(
         7,
         "DUT sends SetYearDaySchedule command to TH.",
@@ -132,19 +133,19 @@ certTest("TC-DRLK-3.2", { plan: "door_lock_Cluster.adoc", pics: ["DRLK.C"], app:
             localStartTime: LOCAL_START_TIME,
             localEndTime: LOCAL_END_TIME,
         }),
-        { pics: "DRLK.C.F04 & DRLK.C.C0e.Tx", expected: received("SetYearDaySchedule") },
+        { pics: "DRLK.C.F0a & DRLK.C.C0e.Tx", expected: received("SetYearDaySchedule") },
     )
     .step(
         8,
         "DUT sends GetYearDaySchedule command to TH.",
         sendsLockCommand("getYearDaySchedule", { yearDayIndex: SCHEDULE_INDEX, userIndex: USER_INDEX }),
-        { pics: "DRLK.C.F04 & DRLK.C.C0f.Tx", expected: received("GetYearDaySchedule") },
+        { pics: "DRLK.C.F0a & DRLK.C.C0f.Tx", expected: received("GetYearDaySchedule") },
     )
     .step(
         9,
         "DUT sends ClearYearDaySchedule command to TH.",
         sendsLockCommand("clearYearDaySchedule", { yearDayIndex: SCHEDULE_INDEX, userIndex: USER_INDEX }),
-        { pics: "DRLK.C.F04 & DRLK.C.C10.Tx", expected: received("ClearYearDaySchedule") },
+        { pics: "DRLK.C.F0a & DRLK.C.C10.Tx", expected: received("ClearYearDaySchedule") },
     )
     .step(
         10,
@@ -155,19 +156,19 @@ certTest("TC-DRLK-3.2", { plan: "door_lock_Cluster.adoc", pics: ["DRLK.C"], app:
             localEndTime: LOCAL_END_TIME,
             operatingMode: DoorLock.OperatingMode.Normal,
         }),
-        { pics: "DRLK.C.F04 & DRLK.C.C11.Tx", expected: received("SetHolidaySchedule") },
+        { pics: "DRLK.C.F0b & DRLK.C.C11.Tx", expected: received("SetHolidaySchedule") },
     )
     .step(
         11,
         "DUT sends Get Holiday Day Schedule command to TH.",
         sendsLockCommand("getHolidaySchedule", { holidayIndex: SCHEDULE_INDEX }),
-        { pics: "DRLK.C.F04 & DRLK.C.C12.Tx", expected: received("GetHolidaySchedule") },
+        { pics: "DRLK.C.F0b & DRLK.C.C12.Tx", expected: received("GetHolidaySchedule") },
     )
     .step(
         12,
         "DUT sends Clear Holiday Day Schedule command to TH.",
         sendsLockCommand("clearHolidaySchedule", { holidayIndex: SCHEDULE_INDEX }),
-        { pics: "DRLK.C.F04 & DRLK.C.C13.Tx", expected: received("ClearHolidaySchedule") },
+        { pics: "DRLK.C.F0b & DRLK.C.C13.Tx", expected: received("ClearHolidaySchedule") },
     )
     .step(13, "DUT sends SetUser command to TH.", sendsLockCommand("setUser", addUser(SECOND_USER_INDEX)), {
         pics: "DRLK.C.F08 & DRLK.C.C1a.Tx",

@@ -273,7 +273,10 @@ describe("Schedules atomic write", () => {
         await using ctx = await commissionedThermostat();
         const { device, deviceEp, ep1 } = ctx;
 
-        deviceEp.events.thermostat.persistedSchedules$Changing.on((schedules: Thermostat.Schedule[]) => {
+        deviceEp.events.thermostat.persistedSchedules$Changing.on(schedules => {
+            if (schedules === undefined) {
+                return;
+            }
             for (const schedule of schedules) {
                 schedule.scheduleHandle = null;
             }

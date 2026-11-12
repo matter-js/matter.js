@@ -11,16 +11,18 @@ import {
     ImplementationError,
     InternalError,
     isObject,
+    Logger,
     MatterError,
     UnexpectedDataError,
 } from "@matter/main";
 import {
     Descriptor,
+    GeneralCommissioning,
     OperationalCredentials,
     OtaSoftwareUpdateProvider,
     OtaSoftwareUpdateRequestor,
 } from "@matter/main/clusters";
-import { getOperationalDeviceQname, ResultStatus } from "@matter/main/protocol";
+import { getOperationalDeviceQname, OperationalCertificateUpdateError, ResultStatus } from "@matter/main/protocol";
 import { FabricId, GlobalFabricId, NodeId, statedIdentifier, Status, StatusResponseError } from "@matter/main/types";
 import { ClusterModel, CommandModel, ValueModel } from "@matter/model";
 import type {
@@ -79,6 +81,8 @@ import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /** Name {@link UnsupportedByControllerError} reports for this adapter. */
 const CONTROLLER = "chip-tool";
+
+const logger = Logger.get("ChipToolControllerAdapter");
 
 /**
  * What this controller claims about itself, overlaying the device's PICS for a run (see
@@ -271,11 +275,14 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "DGWIFI.C": 1,
     "DGWIFI.C.C00.Tx": 1,
 
-    // The DoorLock client commands TC-DRLK-3.2 sends, and the WDSCH and USR features its steps name. CHIP's PICS file
-    // answers these 1 already; the overlay states the controller's client surface for this case.
+    // The DoorLock client commands TC-DRLK-3.2 sends, and the WDSCH, YDSCH, HDSCH and USR features its steps use.
+    // CHIP's PICS file answers these 1 already, except YDSCH and HDSCH; the overlay states the controller's client
+    // surface.
     "DRLK.C": 1,
     "DRLK.C.F04": 1,
     "DRLK.C.F08": 1,
+    "DRLK.C.F0a": 1,
+    "DRLK.C.F0b": 1,
     "DRLK.C.C00.Tx": 1,
     "DRLK.C.C01.Tx": 1,
     "DRLK.C.C03.Tx": 1,
@@ -326,13 +333,12 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
 
     // The Switch client flags TC-SWTCH-3.2 rests on. The CHIP PICS file answers 0 for `SWTCH.C` and
     // declares F00..F04 for a *device*; here the switch client is the controller, and this overlay is
-    // the DUT-as-client declaration the plan's steps 0a-0h check for self-consistency.
+    // the DUT-as-client declaration the plan's steps 0a-0g check for self-consistency.
     "SWTCH.C": 1,
 
-    // CHIP's PICS file has no entry for the action-switch client flag, and it answers 1 for the release
-    // flag, which the cluster forbids alongside an action switch (Application Clusters § 1.13.4). The
-    // switch this controller observes is an action switch, so that is what it declares.
-    "SWTCH.C.F02": 0,
+    // The controller handles switches with momentary switch release and action switches alike. CHIP's PICS file
+    // answers 1 for the release flag and has no entry for the action-switch flag; both are stated here.
+    "SWTCH.C.F02": 1,
     "SWTCH.C.F05": 1,
 
     // Bridge-client flags. `MCORE.BRIDGECLIENT` asks whether the DUT supports a bridge, and the
@@ -348,6 +354,20 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "MCORE.DEVLIST.UseDeviceName": 0,
     "MCORE.DEVLIST.UseDeviceState": 0,
     "MCORE.DEVLIST.UseBatInfo": 0,
+    // The Operational Credentials client surface TC-OPCREDS-3.3 rests on: the commands a commissioning and a
+    // certificate update send, and the attributes the case reads. CHIP's ci-pics-values answers them 1 already; the
+    // overlay states the controller's own client surface, as for the other client cases.
+    "OPCREDS.C": 1,
+    "OPCREDS.C.A0002": 1,
+    "OPCREDS.C.A0003": 1,
+    "OPCREDS.C.A0004": 1,
+    "OPCREDS.C.A0005": 1,
+    "OPCREDS.C.C04.Tx": 1,
+    "OPCREDS.C.C06.Tx": 1,
+    "OPCREDS.C.C07.Tx": 1,
+    "OPCREDS.C.C09.Tx": 1,
+    "OPCREDS.C.C0a.Tx": 1,
+    "OPCREDS.C.C0b.Tx": 1,
 };
 
 /**
@@ -1693,6 +1713,110 @@ class ChipToolCertNodeApi implements CertNodeApi {
         assertCommandSucceeded(reply, `decommission of node ${this.#node}`);
     }
 
+    /**
+     * chip-tool has no single command for this, so the update runs as separate commands in its interactive process,
+     * which keeps the CASE session between them as CSRRequest and UpdateNOC require. `pairing issue-noc-chain` has
+     * chip-tool's own certificate issuer sign a NOC for the CSR the node returned. After UpdateNOC the node keeps the
+     * CASE session only until its NOCResponse is delivered (§ 11.18.6.9.1), so `sessionmanagement
+     * expire-case-sessions` drops chip-tool's side of it and CommissioningComplete opens a new one.
+     *
+     * Rejects with {@link OperationalCertificateUpdateError}, the failure as its cause. A failure after the fail-safe
+     * was armed first sends ArmFailSafe with expiry 0, so the node drops the update at once.
+     */
+    async updateOperationalCertificate(): Promise<void> {
+        const operation = `operational certificate update of node ${this.#node}`;
+        try {
+            await this.#generalCommissioning("armFailSafe", {
+                expiryLengthSeconds: NOC_UPDATE_FAILSAFE_SECONDS,
+                breadcrumb: 0,
+            });
+        } catch (error) {
+            throw new OperationalCertificateUpdateError(`${operation} could not arm the fail-safe`, { cause: error });
+        }
+        try {
+            const csr = await this.invoke(
+                "OperationalCredentials",
+                "csrRequest",
+                { csrNonce: Environment.default.get(Crypto).randomBytes(CSR_NONCE_LENGTH), isForUpdateNoc: true },
+                ROOT_ENDPOINT,
+            );
+            if (!isObject(csr) || !Bytes.isBytes(csr.nocsrElements)) {
+                throw new UnexpectedDataError(`Node ${this.#node} answered CSRRequest with ${describeValue(csr)}`);
+            }
+
+            const issued = await this.#adapter.executeWithLogs(
+                `pairing issue-noc-chain hex:${Bytes.toHex(csr.nocsrElements)} ${this.#node}`,
+            );
+            const chain = issuedNocChainOf(issued.results);
+            if (chain === undefined) {
+                assertCommandSucceeded(issued.reply, "issue-noc-chain");
+                throw new UnexpectedDataError(
+                    `chip-tool issue-noc-chain reported no certificate chain: ${JSON.stringify(issued.results)}`,
+                );
+            }
+
+            const response = await this.invoke(
+                "OperationalCredentials",
+                "updateNoc",
+                { nocValue: chain.noc, ...(chain.icac === undefined ? {} : { icacValue: chain.icac }) },
+                ROOT_ENDPOINT,
+            );
+            if (!isObject(response) || response.statusCode !== OperationalCredentials.NodeOperationalCertStatus.Ok) {
+                throw new UnexpectedDataError(`Node ${this.#node} answered UpdateNOC with ${describeValue(response)}`);
+            }
+
+            assertCommandSucceeded(
+                await this.#adapter.execute(`sessionmanagement expire-case-sessions ${this.#node}`),
+                "expire-case-sessions",
+            );
+            await this.#generalCommissioning("commissioningComplete", {});
+        } catch (error) {
+            await this.#disarmFailSafe();
+            throw new OperationalCertificateUpdateError(`${operation} failed`, { cause: error });
+        }
+    }
+
+    /** Invokes a GeneralCommissioning command and requires its ErrorCode to be OK. */
+    async #generalCommissioning(command: string, args: object) {
+        const response = await this.invoke("GeneralCommissioning", command, args, ROOT_ENDPOINT);
+        if (!isObject(response) || response.errorCode !== GeneralCommissioning.CommissioningError.Ok) {
+            throw new UnexpectedDataError(
+                `Node ${this.#node} answered GeneralCommissioning.${command} with ${describeValue(response)}`,
+            );
+        }
+    }
+
+    /**
+     * Best effort: where this fails, the node still drops the update when its fail-safe ends.  The disarm runs on a new
+     * CASE session because the node may already have dropped the one chip-tool holds, and the rollback clears the
+     * fabric's sessions on the node again, so chip-tool's sessions are expired before and after.
+     */
+    async #disarmFailSafe() {
+        await this.#expireCaseSessions();
+        try {
+            await this.invoke(
+                "GeneralCommissioning",
+                "armFailSafe",
+                { expiryLengthSeconds: 0, breadcrumb: 0 },
+                ROOT_ENDPOINT,
+            );
+        } catch (error) {
+            logger.info(`Disarming the fail-safe of node ${this.#node} failed`, error);
+        }
+        await this.#expireCaseSessions();
+    }
+
+    async #expireCaseSessions() {
+        try {
+            assertCommandSucceeded(
+                await this.#adapter.execute(`sessionmanagement expire-case-sessions ${this.#node}`),
+                "expire-case-sessions",
+            );
+        } catch (error) {
+            logger.info(`Expiring the CASE sessions of node ${this.#node} failed`, error);
+        }
+    }
+
     async operationalMdnsInstanceName(): Promise<string> {
         return getOperationalDeviceQname(await this.#adapter.globalFabricId(this.#nodeId), this.#nodeId);
     }
@@ -1829,6 +1953,48 @@ export function discoveredCommissionableNodesOf(results: unknown[]): DiscoveredC
         });
     }
     return nodes;
+}
+
+/** Fail-safe armed for a whole certificate update, the new CASE session included. */
+const NOC_UPDATE_FAILSAFE_SECONDS = 60;
+
+/** § 11.18.6.5: the CSRNonce is 32 octets. */
+const CSR_NONCE_LENGTH = 32;
+
+const ROOT_ENDPOINT = 0;
+
+/** chip-tool's prefix for a byte string it writes as base64 (`ToBase64` in `commands/pairing/ToTLVCert.cpp`). */
+const BASE64_PREFIX = "base64:";
+
+/**
+ * The certificates `pairing issue-noc-chain` issued, from its one result entry
+ * `{"value": {"NOC", "ICAC", "RCAC", "IPK"}}` (`RemoteDataModelLogger::LogIssueNOCChain`). Each certificate is a
+ * Matter TLV certificate written as `base64:<data>`; an empty ICAC means the chain has none. `undefined` where the
+ * results carry no such entry.
+ */
+function issuedNocChainOf(results: unknown[]): { noc: Bytes; icac?: Bytes } | undefined {
+    for (const result of results) {
+        if (!isObject(result) || "clusterId" in result || !isObject(result.value) || !("NOC" in result.value)) {
+            continue;
+        }
+        const { NOC, ICAC } = result.value;
+        const noc = base64CertificateOf(NOC, "NOC");
+        if (noc === undefined) {
+            throw new UnexpectedDataError(`chip-tool issued no NOC: ${JSON.stringify(result.value)}`);
+        }
+        return { noc, icac: base64CertificateOf(ICAC, "ICAC") };
+    }
+    return undefined;
+}
+
+function base64CertificateOf(value: unknown, name: string): Bytes | undefined {
+    if (value === "" || value === undefined) {
+        return undefined;
+    }
+    if (typeof value !== "string" || !value.startsWith(BASE64_PREFIX)) {
+        throw new UnexpectedDataError(`chip-tool wrote the issued ${name} as ${JSON.stringify(value)}`);
+    }
+    return Bytes.fromBase64(value.slice(BASE64_PREFIX.length));
 }
 
 function matchLog(logs: string[], pattern: RegExp) {

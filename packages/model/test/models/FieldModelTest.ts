@@ -39,4 +39,26 @@ describe("FieldModel", () => {
             expect(field.effectiveId).equals(0);
         });
     });
+
+    describe("fabricScopedList", () => {
+        function listField(access: string) {
+            return new FieldModel(
+                { name: "Entries", type: "list", access },
+                new FieldModel({ name: "entry", type: "uint8" }),
+            );
+        }
+
+        it("is true for a list field with fabric-scoped access", () => {
+            expect(listField("RW F").fabricScopedList).true;
+        });
+
+        it("is false for a field with fabric-scoped access that is not a list", () => {
+            expect(new FieldModel({ name: "Index", type: "uint8", access: "RW F" }).fabricScopedList).false;
+        });
+
+        // Fabric-sensitive access on a field hides only that field from other fabrics
+        it("is false for a list field with fabric-sensitive access", () => {
+            expect(listField("RW S").fabricScopedList).false;
+        });
+    });
 });

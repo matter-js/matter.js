@@ -9,12 +9,14 @@ import {
     ChipDockerDevice,
     ChipDockerSubject,
     ChipLocalSubject,
+    ChipPlatformStateError,
+    clearChipLocalPlatformState,
     HARNESS_DBUS_CONTAINER,
     requiredAppArgs,
     StdinPacer,
 } from "@matter/testing";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { env } from "node:process";
@@ -120,19 +122,17 @@ async function collectLines(source: AsyncIterable<string>, count: number, timeou
     return lines;
 }
 
-/** Reads the next `kvs <path> <generations>` line the test app prints for the store it was started with. */
-async function nextStore(
-    source: AsyncIterable<string>,
-    timeoutMs: number,
-): Promise<{ path: string; generations: number }> {
+/** Reads the next line the test app prints that starts with `prefix`. */
+async function nextLine(source: AsyncIterable<string>, prefix: string, timeoutMs: number): Promise<string> {
     const seen = new Array<string>();
     const iterator = source[Symbol.asyncIterator]();
     const deadline = Date.now() + timeoutMs;
+    const missing = () => new Error(`No "${prefix}" line in ${JSON.stringify(seen)}`);
 
     for (;;) {
         const remaining = deadline - Date.now();
         if (remaining <= 0) {
-            throw new Error(`No store line in ${JSON.stringify(seen)}`);
+            throw missing();
         }
 
         let timer!: NodeJS.Timeout;
@@ -141,7 +141,7 @@ async function nextStore(
             result = await Promise.race([
                 iterator.next(),
                 new Promise<never>((_, reject) => {
-                    timer = setTimeout(() => reject(new Error(`No store line in ${JSON.stringify(seen)}`)), remaining);
+                    timer = setTimeout(() => reject(missing()), remaining);
                 }),
             ]);
         } finally {
@@ -149,15 +149,23 @@ async function nextStore(
         }
 
         if (result.done) {
-            throw new Error(`Log ended before a store line; saw ${JSON.stringify(seen)}`);
+            throw new Error(`Log ended before a "${prefix}" line; saw ${JSON.stringify(seen)}`);
         }
 
         seen.push(result.value);
-        if (result.value.startsWith("kvs ")) {
-            const [, path, generations] = result.value.split(" ");
-            return { path, generations: Number(generations) };
+        if (result.value.startsWith(prefix)) {
+            return result.value;
         }
     }
+}
+
+/** Reads the next `kvs <path> <generations>` line the test app prints for the store it was started with. */
+async function nextStore(
+    source: AsyncIterable<string>,
+    timeoutMs: number,
+): Promise<{ path: string; generations: number }> {
+    const [, path, generations] = (await nextLine(source, "kvs ", timeoutMs)).split(" ");
+    return { path, generations: Number(generations) };
 }
 
 /** The pids in `pids` that still name a running process. */
@@ -270,9 +278,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             const lines = await collectLines(device.log.follow(), 2, 5_000);
             expect(lines).deep.equal(["known-line-one", "known-line-two"]);
 
@@ -298,9 +305,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             expect(await device.exit).deep.equal({ code: 3, signal: null });
         } finally {
             await device.close();
@@ -320,10 +326,9 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         let holder: number | undefined;
         try {
+            await device.start();
             const [line] = await collectLines(device.log.follow(), 1, 5_000);
             holder = Number(line.split(" ")[1]);
             await new Promise(resolve => setTimeout(resolve, 200));
@@ -348,9 +353,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             const follow = device.log.follow();
             await nextStore(follow, 5_000);
 
@@ -377,9 +381,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             expect(await device.exit).deep.equal({ code: 3, signal: null });
 
             await writeFile(binary, sleeper, { mode: 0o755 });
@@ -400,9 +403,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await Promise.all([device.start(), device.start()]);
-
         try {
+            await Promise.all([device.start(), device.start()]);
             expect((await nextStore(device.log.follow(), 5_000)).generations).equal(1);
         } finally {
             await device.close();
@@ -439,9 +441,8 @@ describe("ChipLocalSubject", () => {
             }
 
             await device.initialize();
-            await device.start();
-
             try {
+                await device.start();
                 await device.backchannel({ name: "stop" });
                 await rm(join(appDir, `chip-${app}-app`));
 
@@ -468,10 +469,10 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-        await collectLines(device.log.follow(), 1, 5_000);
-
         try {
+            await device.start();
+            await collectLines(device.log.follow(), 1, 5_000);
+
             await device.backchannel({ name: "stop" });
             await device.backchannel({ name: "start" });
 
@@ -496,9 +497,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             const follow = device.log.follow();
             const first = await nextStore(follow, 5_000);
             expect(first.generations).equal(1);
@@ -549,9 +549,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             const lines = startLines(device.log.follow());
             const [firstArgs, firstStore] = await collectLines(lines, 2, 5_000);
             expect(firstArgs).match(/--secured-device-port 5598 .*--vector first/);
@@ -584,12 +583,16 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-        await collectLines(device.log.follow(), 1, 5_000);
+        let reset: Promise<void> | undefined;
+        try {
+            await device.start();
+            await collectLines(device.log.follow(), 1, 5_000);
 
-        // A cleanup the run abandoned keeps running while the run closes the device under it
-        const reset = device.backchannel({ name: "factoryReset" });
-        await device.close();
+            // A cleanup the run abandoned keeps running while the run closes the device under it
+            reset = device.backchannel({ name: "factoryReset" });
+        } finally {
+            await device.close();
+        }
         await reset;
 
         const pids = (await readFile(pidFile, "utf8")).trim().split("\n").map(Number);
@@ -617,9 +620,12 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-        await collectLines(device.log.follow(), 1, 5_000);
-        await device.close();
+        try {
+            await device.start();
+            await collectLines(device.log.follow(), 1, 5_000);
+        } finally {
+            await device.close();
+        }
 
         const unhandled = new Array<unknown>();
         const onUnhandledRejection = (reason: unknown) => unhandled.push(reason);
@@ -680,9 +686,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             const follow = device.log.follow();
             const first = await nextStore(follow, 5_000);
 
@@ -694,6 +699,83 @@ describe("ChipLocalSubject", () => {
         } finally {
             await device.close();
         }
+    });
+
+    // These tests use the real files in /tmp, because CHIP fixes their paths; a chip-local cert run on the same host
+    // at the same time would lose its files
+    describe("chip platform files in /tmp", () => {
+        const factoryFile = "/tmp/chip_factory.ini";
+        const platformFiles = [factoryFile, "/tmp/chip_config.ini", "/tmp/chip_counters.ini"];
+
+        beforeEach(async () => {
+            // Stands in for a chip app: reports the factory data it finds, then stores `--product-id` there
+            await writeFile(
+                join(appDir, `chip-${app}-app`),
+                [
+                    "#!/bin/sh",
+                    `if [ -f ${factoryFile} ]; then echo "factory $(cat ${factoryFile})"; else echo "factory none"; fi`,
+                    "while [ $# -gt 0 ]; do",
+                    `    if [ "$1" = "--product-id" ]; then echo "product-id=$2" > ${factoryFile}; echo stored; fi`,
+                    "    shift",
+                    "done",
+                    "exec sleep 300",
+                    "",
+                ].join("\n"),
+                { mode: 0o755 },
+            );
+        });
+
+        afterEach(async () => {
+            await Promise.all(platformFiles.map(path => rm(path, { force: true, recursive: true })));
+        });
+
+        function localDevice(appArgs?: string[]): CertDevice {
+            const device = ChipLocalSubject(app)("cert", { appArgs });
+            if (!isCertDevice(device)) {
+                throw new Error("Expected a CertDevice");
+            }
+            return device;
+        }
+
+        it("starts the device of a new test case without the factory data an earlier case left", async function () {
+            this.timeout(15_000);
+
+            await writeFile("/tmp/chip_config.ini", "stale\n");
+            await writeFile("/tmp/chip_counters.ini", "stale\n");
+
+            const earlier = localDevice(["--product-id", "1"]);
+            try {
+                await earlier.initialize();
+                await earlier.start();
+                await nextLine(earlier.log.follow(), "stored", 5_000);
+            } finally {
+                await earlier.close();
+            }
+
+            await clearChipLocalPlatformState();
+
+            const later = localDevice();
+            try {
+                await later.initialize();
+                await later.start();
+                expect(await nextLine(later.log.follow(), "factory ", 5_000)).equal("factory none");
+                expect(platformFiles.filter(path => existsSync(path))).deep.equal([]);
+            } finally {
+                await later.close();
+            }
+        });
+
+        it("names the file it cannot delete", async () => {
+            // A directory stands in for a file the harness may not delete, such as one root left behind
+            await mkdir(join(factoryFile, "content"), { recursive: true });
+
+            const error = await clearChipLocalPlatformState().then(
+                () => undefined,
+                (e: unknown) => e,
+            );
+            expect(error).instanceOf(ChipPlatformStateError);
+            expect(String(error)).contains(factoryFile);
+        });
     });
 
     it("spawns the variant binary CHIP builds beside the plain one", async function () {
@@ -710,9 +792,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             expect(await collectLines(device.log.follow(), 1, 5_000)).deep.equal(["variant-line"]);
         } finally {
             await device.stop();
@@ -733,9 +814,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             expect(await collectLines(device.log.follow(), 1, 5_000)).deep.equal(["nm-line"]);
         } finally {
             await device.stop();
@@ -773,9 +853,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             const lines = device.log.follow();
             expect(await collectLines(lines, 1, 5_000)).deep.equal(["ready"]);
 
@@ -820,9 +899,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             const lines = device.log.follow();
             expect(await collectLines(lines, 1, 5_000)).deep.equal(["ready"]);
 
@@ -852,9 +930,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             const lines = device.log.follow();
             expect(await collectLines(lines, 1, 5_000)).deep.equal(["ready"]);
             await expect(collectLines(lines, 1, 1_000)).rejectedWith("timeout");
@@ -890,9 +967,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             await expect(device.backchannel({ name: "addBridgedLight" })).rejectedWith("addBridgedLight");
         } finally {
             await device.stop();
@@ -909,9 +985,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             await expect(device.backchannel({ name: "simulateSwitchIdle", endpointId: 3 })).rejectedWith(
                 "simulateSwitchIdle",
             );
@@ -947,9 +1022,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             const [reported] = await collectLines(device.log.follow(), 1, 5_000);
             const pipePath = reported.replace("pipe-is ", "");
 
@@ -993,9 +1067,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             const lines = device.log.follow();
             expect(await collectLines(lines, 1, 5_000)).deep.equal(["ready"]);
 
@@ -1041,9 +1114,8 @@ describe("ChipLocalSubject", () => {
         }
 
         await device.initialize();
-        await device.start();
-
         try {
+            await device.start();
             expect(await collectLines(device.log.follow(), 1, 5_000)).deep.equal(["ready"]);
 
             await expect(device.backchannel({ name: "simulateSwitchIdle", endpointId: 3 })).rejectedWith(

@@ -11,9 +11,18 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/examples
+    - Fix: The controller examples log only the discovery options when commissioning, not the passcode or network credentials
+
 - @matter/general
+    - Feature: `Logger.logPayloads`, also set by the `log.payloads` variable, leaves decrypted message payloads out of message logs when set to false
+    - Feature: `Logger.redactSecrets`, also set by the `log.redactSecrets` variable, turns off the replacement of secret values in log output when set to false
     - Feature: `Network.interfacesChanged` reports interface and address changes, checked every 60 seconds while observed
+    - Feature: The `mdns.statistics` variable (`MATTER_MDNS_STATISTICS`) logs the mDNS traffic counts at info level
+    - Enhancement: `MdnsSocket` logs some traffic statistics once per minute - set `mdns.statistics` (`MATTER_MDNS_STATISTICS`) to true for info loglevel, otherwise debug
     - Enhancement: WAL storage logs at notice level when an open restores entries from its log and when it has saved the restored state, with the time each took
+    - Adjustment: Falling back to standard crypto, for example on Bun where Node.js crypto has no AES-CCM, logs one line at info level instead of two at notice level
+    - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
     - Adjustment: Removed the unused WAL storage history API (`WalStorageDriver.snapshotAtTime()`/`snapshotAtCommit()`, the `headSnapshot` and `cleanInterval` options) and the `WalSnapshot` export
     - Fix: WAL storage deletes old log segments after each periodic snapshot instead of only on close, and restores from the previous snapshot when the current one is unreadable
     - Fix: WAL storage loads its data when it opens, so a write during the first reads after opening is no longer lost
@@ -24,38 +33,132 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Both crypto implementations throw `CryptoInputError` for AES-CCM input outside the limits in `CryptoConstants`, where the Node.js implementation threw `RangeError` or `TypeError`
     - Fix: `StandardCrypto` encrypts and decrypts AES-CCM plaintext of 65521 to 65535 bytes, which Matter messages reach only with `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: `StandardCrypto` computes the correct AES-CCM tag for AAD of 65280 bytes or more
-    - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
+    - Fix: `X520.DomainComponent` encodes the domainComponent OID 0.9.2342.19200300.100.1.25 instead of the emailAddress OID with tag and length bytes in its content
+
+- @matter/model
+    - Feature: `ValueModel.fabricScopedList` tells whether a value is a fabric-scoped list
+    - Feature: The `isSecret` element property and the `secret` decorator mark a value as secret, and `SecretRedaction` replaces secret values for logging; standard fields that carry network credentials, keys, passcodes and PINs are marked secret
 
 - @matter/node
+    - Feature: The default `ThermostatServer` implementation supports the `MatterScheduleConfiguration` (MSCH) feature — the `Schedules`/`ActiveScheduleHandle` attributes with atomic-write handling, and the `SetActiveScheduleRequest` command — mirroring the existing `Presets` implementation
+    - Feature: `ClientNode.updateOperationalCertificate()` replaces a commissioned node's operational certificate with one for a new key pair (UpdateNOC)
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
+    - Enhancement: `ClientNode.fabricIndexOnPeer` returns our fabric index on the peer
+    - Enhancement: `RemoteDescriptor.legacyRecordToLongForm()` converts a peer record of the legacy controller storage
+    - Adjustment: The Thermostat `persistedPresets$Changing` and `persistedPresets$Changed` events type `value` and `oldValue` as `Thermostat.Preset[] | undefined`; `oldValue` is `undefined` when the presets are first stored
+    - Adjustment: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow check the session fabric first and Busy before the other parameters, as CHIP does
+    - Adjustment: Conformance and enum errors on client-local state of a client node, such as `CommissioningClient`, are refused locally
+    - Adjustment: On behavior types derived with `.with()`, `.alter()` or `.enable()`, `LocalizationConfigurationServer.detectedLocale` is declared as a getter, and the extension methods of `GeneralDiagnosticsServer` and `AccessControlServer` as methods, so they can be overridden with `get` or a method that calls `super`; a property override of `detectedLocale` no longer compiles
+    - Adjustment: `SubscriptionsServer` stores its active subscriptions with one storage key per peer instead of in `state.subscriptions`, which is deprecated and stays empty; subscriptions stored there by an older version are taken over at start
+    - Adjustment: On the cluster state of a client node, `set()` and `setStateOf()` write each given struct or list whole instead of merging it into the cached value
+    - Adjustment: A change in place of a mandatory list, struct or bitmap that a client node's cache does not hold throws `UncachedValueError` instead of being ignored
+    - Adjustment: A mandatory struct that a client node's cache does not hold reads as a managed struct, with its absent fields as undefined keys
+    - Adjustment: A client node other than a group refuses to write a fabric-scoped list while its fabric index on the peer is unknown
+    - Adjustment: A client node other than a group refuses a fabric-scoped list entry of another fabric or of no fabric unless it equals a cached entry
+    - Adjustment: Internal client store and validation APIs for writes to a remote node changed
+    - Adjustment: A ClientNode reads its root's PartsList as listing every endpoint, whatever device types the root reports
+    - Adjustment: `ServerSubscriptionContext.initiateExchange()` takes only a `Session`, no longer a `PeerAddress`
+    - Adjustment: `SessionsBehavior` events `opened` and `closed` no longer fire for a session whose handshake fails
+    - Fix: `TimeFormatLocalizationServer` `detectedHourFormat` and `detectedCalendarType` have their enum types instead of `string`, so an override can return any value of the enum
     - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
+    - Fix: (@cmatte) A peer whose stored discovery TTL is invalid loads again
+    - Fix: (@cmatte) A peer that fails to load no longer makes address lookups of the other peers fail
+    - Fix: A discovered peer address expires after its TTL instead of after 1000 times its TTL
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
     - Fix: A local write that removes the last GroupKeyMap entry of a fabric also clears the fabric's operational group key map
     - Fix: Groupcast testing reports NoAvailableKey to the fabric under test when only an unmapped key set of another fabric authenticated a group message, instead of reporting nothing
     - Fix: Groupcast testing derives DestinationIpAddress from the fabric that owns the group id and the groups the node joins
-    - Fix: A group that Groupcast JoinGroup creates has no GroupName in the GroupKeyManagement GroupTable, instead of an empty name    - Fix: A list or struct assigned to state is stored as a copy, so a later nested write no longer changes the value it came from
+    - Fix: A group that Groupcast JoinGroup creates has no GroupName in the GroupKeyManagement GroupTable, instead of an empty name
+    - Fix: A list or struct assigned to state is stored as a copy, so a later nested write no longer changes the value it came from
     - Fix: Removing an entry from a fabric-filtered list emits the change and is undone by a rollback
     - Fix: `sort()`, `reverse()`, `unshift()` and `splice()` on a state list no longer duplicate entries or throw when they move them, and `shift()` and `pop()` return the removed entry
     - Fix: Array methods that change a state list apply all of their change or none of it, hand removed entries and `sort()` comparator arguments out as read-only views, and a later nested write to an entry they moved is rolled back with the transaction
     - Fix: Iterating a fabric-filtered state list yields managed entries, so a change to an entry is tracked and rolled back
     - Fix: A state list write that would leave a gap, an `undefined` entry, an invalid length or an index above 65535 throws `WriteError`
     - Fix: Deleting from a fabric-filtered state list, or setting the length of any state list, requires write access
+    - Fix: A ClientNode whose root endpoint reports an empty DeviceTypeList installs its other endpoints, gets seeded and logs one warning per node each time it starts
+    - Fix: A ClientNode places and keeps an endpoint that its root's PartsList omits while another endpoint on the node names it and the peer has reported its DeviceTypeList or PartsList, and warns once per node each time it starts about such a root PartsList
     - Fix: Thermostat accepts a preset write that sends an existing built-in preset with a null `BuiltIn`
+    - Fix: A held proxy for a state list entry expires when its transaction moves, removes or replaces that entry, also by assigning the whole list, instead of serving the entry now at its index
+    - Fix: The property descriptors of a state list's entries and length carry the managed entry and the visible length instead of the raw stored values
+    - Fix: Thermostat rejects clearing `persistedPresets` after initialization with an `ImplementationError` instead of failing with a `TypeError`
     - Fix: A `$Changing` event reports the stored value as the old value when another transaction committed since the previous commit of the same transaction
+    - Fix: AdministratorCommissioning OpenCommissioningWindow answers INVALID_COMMAND to a discriminator above 4095 instead of CONSTRAINT_ERROR
+    - Fix: AdministratorCommissioning OpenCommissioningWindow and OpenBasicCommissioningWindow answer PAKEParameterError on a session without fabric, as CHIP does, instead of UNSUPPORTED_ACCESS
+    - Fix: LocalizationConfiguration, TimeFormatLocalization and UnitLocalization start with a value from their supported list when the detected, default or stored value is not in it
+    - Fix: `TimeFormatLocalizationServer` starts without the CalendarFormat feature
+    - Fix: UnitLocalization answers a `TemperatureUnit` write outside `SupportedTemperatureUnits` with CONSTRAINT_ERROR
+    - Fix: A client node other than a group writes only its own entries of a fabric-scoped list and keeps the other fabrics' entries in its cache
+    - Fix: A state write on a group endpoint fails with `InvalidGroupOperationError`
+    - Fix: The Remote API `add` to a mandatory list that a client node's cache does not hold fails with `UncachedValueError` instead of replacing the device's list with the new entry alone
+    - Fix: A client node sends a write that breaks a model constraint to the device instead of refusing it locally, and the Remote API accepts such a value in a command response from the device
+    - Fix: A subscription moves to each newer CASE session of its subscriber
+    - Fix: A subscription sends its reports on its own session instead of the most recently active session with its subscriber
+    - Fix: A subscription whose SubscribeResponse cannot be sent is closed
+    - Fix: Corrects extension typing of `registerHardwareFault()`, `registerRadioFault()` and `registerNetworkFault()` of a GeneralDiagnostics server
+    - Fix: GeneralDiagnostics registering a fault that is already active no longer emits a fault change event
+    - Fix: GeneralDiagnostics TimeSnapshot `SystemTimeMs` counts from when the node came online, like `UpTime`, instead of from the host boot
+    - Fix: GeneralDiagnostics `TestEventTriggersEnabled` is true exactly when a non-zero `deviceTestEnableKey` is configured, and PayloadTestRequest accepts that key without also setting the attribute
+    - Fix: GeneralDiagnostics test commands compare the EnableKey in constant time and never accept a key that is not 16 bytes, and the node refuses to start with a non-zero `deviceTestEnableKey` of another length
+    - Fix: `VendorIdVerification.verifyData` returns false for a VVSC that breaks its certificate profile instead of throwing
+    - Fix: A device logs secret fields of received commands and of its command responses, and endpoint diagnostics show secret attribute values, as `(redacted)`
+
+- @matter/nodejs
+    - Fix: (@delu999) SQLite storage accepts overlapping transactions instead of failing with "Transaction is in progress", so concurrent node state writes are no longer lost
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
+    - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
 
 - @matter/protocol
+    - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair
+    - Feature: `NocsrValidator` validates a CSRResponse and throws `NocsrError` when a check fails
+    - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
+    - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
+    - Enhancement: The commissioning attestation policy also receives the findings collected before a hard failure, and a policy rejection names the error findings
+    - Enhancement: A connection to a peer logs at debug level which transports it tries and why
+    - Enhancement: Device attestation reports a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as a finding instead of stopping validation
+    - Enhancement: `SessionManager` stores each CASE resumption record under its own key with the new `PeerAddressStore` instead of rewriting all records on every change; after a downgrade each peer establishes a new session once
+    - Enhancement: `NodeSession` has an establishing state, see `isEstablishing`, `completeEstablishment()` and `established`
+    - Enhancement: `NodeSession.superseded` emits the newer CASE session with the same peer and CASE Authenticated Tags
+    - Enhancement: `SessionManager.registeredSessions` holds every session that receives messages, including those whose handshake still runs
+    - Enhancement: `ExchangeSendOptions.onTransmitted` runs once the first transmission of a message went out
+    - Enhancement: `SecureChannelMessenger.sendSuccess()` takes an optional `onTransmitted` callback
+    - Enhancement: Message logs show the I flag in `msgFlags` for messages from the exchange initiator
+    - Adjustment: Exchange logs show `maxTrans` and `retransTimeLimit` on the first transmission of a message that has its own retransmission budget, instead of always `maxTrans: 5` when the exchange opens
+    - Adjustment: `DeviceAttestationValidator.validate()` returns a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as an error-level finding instead of throwing
+    - Adjustment: A CSRResponse that is empty, lacks a field, has NOCSRElements over 900 bytes, or cannot be decoded fails commissioning with `NocsrError`
+    - Adjustment: Device attestation refuses AttestationElements over 900 bytes with `DeviceAttestationCheck.AttestationElementsTooLong`, as the CHIP SDK does
     - Adjustment: `CdSigners`, `CertificationDeclarationFormatError` and the attestation checks `CertificationDeclarationFormatInvalid`, `CdSignerUnknown` and `OfficialCdSignedByTestSigner` are new exports; `CdSignerVerificationSkipped` is deprecated
     - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
     - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
-    - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec`, `MessageCodec` and `ExchangeManager`
+    - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec` and `ExchangeManager`
+    - Adjustment: `DeviceAttestationValidator.validate()` returns a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as an error-level finding instead of throwing
+    - Adjustment: Peer loss and peer shutdown compare sessions by registration order instead of creation time; `PeerLossContext.asOf` is deprecated for `registeredBefore`
     - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
     - Adjustment: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
     - Adjustment: `DclCertificateService.addCertificate()` refuses a CD signer certificate that is known to be untrusted because the CSA did not issue it
     - Adjustment: DER certificate parsing requires the basic constraints extension when the required extensions list it
+    - Adjustment: Stored CASE resumption records carry a format version; records without a version that carry CATs and records of another version are deleted on load
+    - Adjustment: `SessionManager.sessions` is read-only and holds only established sessions
+    - Adjustment: `SecureSession` subclasses implement the new abstract `isEstablishing`
+    - Adjustment: `SessionManager.maybeSessionFor()` and `sessionFor()` skip a session whose handshake is still running
+    - Adjustment: A new CASE session we respond to is established once our SigmaFinished went out for the first time
+    - Adjustment: `Peer.sessions` holds only established sessions
+    - Adjustment: `Fabric.hasSessionForPeer()` counts only established sessions
+    - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
+    - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
+    - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
+    - Fix: A node sends its DNS-SD goodbyes when the runtime shuts down
+    - Fix: The client stops its subscription timeout timer when its last peer subscription closes, so the timer no longer keeps the process running until it expires
+    - Fix: A client subscription is replaced early when the peer does not acknowledge our status response to a report chunk, or to a final report while the replacement would prime compactly
+    - Fix: Commissioning that stops on an unexpected error expires the device's fail-safe, so the device accepts a new commissioning attempt right away
+    - Fix: `ClientInteraction.close()` closes only the subscriptions established through that interaction, no longer every subscription to the same peer
+    - Fix: CASE sessions that matter.js initiates use the CATs from the peer's NOC for access checks
+    - Fix: A CASE responder closes a session whose resumption the peer does not confirm
+    - Fix: The commissioner stops commissioning when the CSRResponse carries a CSRNonce other than the one it sent
+    - Fix: A CASE responder closes a new session whose SigmaFinished cannot be sent
     - Fix: Device attestation reports a DAC or PAI that violates its certificate profile as a `DacFormatInvalid` or `PaiFormatInvalid` finding, which the attestation policy may still accept
     - Fix: A received secured message whose header is over 65535 bytes fails decryption, which needs `network.tcp.maxMessageSize` raised above its 64000-byte default
     - Fix: A group message whose key set GroupKeyMap does not map to its destination group fails authentication instead of reaching access control
@@ -63,9 +166,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Groupcast testing reports a group message for which only another fabric had a candidate key as NoAvailableKey instead of FailedAuth
     - Fix: Starting an exchange skips exchange ids that are still open on the session, instead of reusing one after the 16-bit counter wraps
     - Fix: An exchange is identified by its session, so a message on another session with the same exchange id no longer reaches or replaces it, nor counts toward its session's exchange limit
+    - Fix: The exchange opened to ack an unsolicited message is closed even when sending the ack fails, instead of staying open
+    - Fix: A standalone ack for a received message without the initiator flag that matches no open exchange, such as a retransmission after the local exchange closed, sets the initiator flag, so the peer accepts it instead of retransmitting until it drops the session
     - Fix: A privacy group message with message extensions is decoded with the extensions in the additional authenticated data, as specified in section 4.8.2, instead of refused
-    - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
-    - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Fix: The mDNS responder no longer sends a goodbye for host addresses or shared pointers that another of its services still publishes
     - Fix: The mDNS responder answers a multicast pointer query with the pointer of every service of that type
     - Fix: The mDNS responder multicasts an answer at most once per second and interface, and sends a held-back answer when the second has passed
@@ -78,6 +181,35 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Device attestation refuses a Certification Declaration that breaks a rule of its CMS envelope, `format_version` or `certification_type`
     - Fix: Device attestation refuses an official Certification Declaration signed by the Matter test CD signer
     - Fix: Device attestation reports a Certification Declaration from the Matter test CD signer as `TrustedAsTestCertificate` when test certificates are not accepted
+    - Fix: A VVSC with is-ca false loads
+    - Fix: Operational certificate verification refuses a VVSC with is-ca true or a key usage other than digitalSignature
+    - Fix: Operational certificate verification refuses a VVSC, ICAC or RCAC key usage that sets a bit without a name
+    - Fix: Operational certificate verification refuses a NOC whose extended key usage lacks serverAuth
+    - Fix: Operational certificate verification counts each CASE Authenticated Tag as an RDN, so a DN with more than 5 RDNs is refused
+    - Fix: Matter-TLV operational certificates that repeat a single-valued Matter-specific DN attribute, or whose NOC, ICAC or RCAC subject has a matter-vvs-id, are refused with an error that names the attribute
+    - Fix: DER certificate parsing refuses Matter-specific DN values that are not exactly twice their octet length in uppercase hexadecimal, and a repeated single-valued Matter-specific DN attribute, with a `CertificateError` (`CertificateProfileError` for VendorID and ProductID)
+    - Fix: Device attestation reports a DAC or PAI with a malformed or repeated VendorID or ProductID as `DacFormatInvalid` or `PaiFormatInvalid`
+    - Fix: `matter-firmware-signing-id` in an operational certificate holds 64 bits instead of 32
+    - Fix: A NOC, ICAC or RCAC that repeats a standard DN attribute, such as organizationalUnitName, or has CASE Authenticated Tags between other DN attributes re-encodes in TLV and DER to the bytes its issuer signed
+    - Fix: DER certificate parsing reads domainComponent, and the first value of a repeated standard DN attribute instead of the last
+    - Fix: DER certificate parsing reads VendorID and ProductID from the first commonName that carries a VendorID or ProductID, within its first 64 bytes, as the CHIP SDK does
+    - Fix: Encoding a subject or issuer built in code keeps a VendorID or ProductID that differs from the one in its commonName
+    - Fix: (@quasistatic-setup) Commissioning over BLE ends PASE as soon as the BLE connection closes, instead of waiting up to 35 seconds for a reply the device can no longer send, and continues with the device's other addresses
+    - Fix: A PASE session over BLE, also one returned by `ControllerCommissioner.establishPase()`, closes at once when the BLE connection closes, also when it closed while PASE completed
+    - Fix: A BLE connection that cannot be opened during commissioning no longer cancels the device's other addresses
+    - Fix: A subscription to an ICD whose IdleModeDuration is shorter than the default ceiling requests the default ceiling instead of the IdleModeDuration
+    - Fix: Removing a fabric closes all its sessions, also those established before its operational certificate was replaced
+    - Fix: Invoke, read and write logs show secret values such as Thread datasets and Wi-Fi credentials as `(redacted)`
+    - Fix: The commissioning options log no longer contains the network credentials, the passcode or the fabric's identity protection key
+    - Fix: `DatatypeError` messages show the first 60 characters of a long value instead of the characters after them
+
+- @matter/types
+    - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
+
+- @project-chip/matter.js
+    - Fix: Migrating a legacy controller's peers no longer fails on a stored discovery TTL that is invalid
+    - Fix: (@cwedgwood) `PairedNode` waits for concurrent network state updates when it enables the subscription, so a lock conflict no longer leaves the node unsubscribed
+    - Fix: Attribute write, attribute update and endpoint structure logs of the legacy controller show secret values as `(redacted)`
 
 ## 0.18.0 (2026-10-20)
 
@@ -89,180 +221,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The composed OnOff device example creates as many endpoints as `--num` asks for (default 2)
 
 - @matter/general
-    - Breaking: `camelize()` treats a pluralised acronym as one word wherever it occurs in an identifier, so `TariffComponentIDs` normalises to `tariffComponentIds` where it previously passed through unchanged
-    - Enhancement: A log message names where it came from via `Diagnostic.Message.origin`, which `Logger.get()` accepts and `Environment.logger()` supplies from `Environment.logOrigin`, so a destination can attribute a line written from a socket or timer callback
-    - Enhancement: Log output names a message's origin in brackets after the facility, at the start of the message text, for the environments below the outermost one
-    - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
-    - Enhancement: `StorageService.isBlobConfigured` reports whether blob drivers are registered
-    - Fix: `NodeJsStyleCrypto.computeHash` names a digest the way Node.js's crypto API does. It passed the Web Crypto spelling, which Node.js accepts as an alias while stricter emulations of its API reject it
-    - Fix: `NodeJsStyleCrypto.computeHash` reports `CryptoInputError` naming an algorithm it does not support, where an untyped caller previously reached the underlying API with it
-    - Fix: Crypto auto-detection claims the default `Crypto` only where the detected API offers the SHA-256 digest and the `aes-128-ccm` cipher and decipher, so `StandardCrypto` serves a runtime whose emulation lacks them rather than being shut out by load order. The detected API is claimed regardless where the runtime offers no Web Crypto, and where the process restricts its cryptographic provider as FIPS mode does, so nothing is left without crypto and no deliberate restriction is evaded
-    - Enhancement: `nodeCryptoDefect` reports which of those primitives a Node.js-style crypto API cannot offer, and `NodeJsCryptoApiLike` gains an optional `getFips()` for runtimes that report a restricted provider
-    - Fix: Crypto auto-detection no longer aborts the import of this package where the runtime offers neither a usable Node.js-style API nor a usable Web Crypto. It reports that it found none and leaves `Crypto` unset
-    - Fix: `MockCrypto` defaults to the standard implementation where the detected Node.js-style API cannot serve Matter, via the new `NodeJsStyleCrypto.providesDefault`. It keyed on a Node.js-style API merely being present, which an incomplete emulation also satisfies
-
-- @matter/nodejs
-    - Fix: Ensure that `FileStorageDriver.contexts()` lists only contexts that hold keys, so a context emptied by `clearAll` or `delete`, or one that was only read, is no longer listed
-    - Fix: The Node.js environment uses standard crypto where Node.js's crypto module offers no SHA-256 digest, or no `aes-128-ccm` cipher or decipher, which is the case on Bun and Deno, and says which was missing. It previously made that choice by runtime name, so it covered Bun alone and left Deno on an implementation that fails commissioning. Where the process restricts its cryptographic provider it keeps Node.js crypto rather than evading the restriction, and reports that Matter will fail where it needs the missing primitive
-    - Enhancement: `NodeJsCrypto.defect` states which primitive Node.js's crypto module cannot offer, `NodeJsCrypto.providerIsRestricted` whether this process restricts its cryptographic provider, and `cryptoFor` chooses an implementation from a reported defect
-    - Fix: `NodeJsUdpSocket.create()` closes the bound socket when it cannot configure it, such as for a network interface that does not exist, so the port is not held
-
-- @matter/nodejs-ble
-    - Enhancement: `NobleBleClient` reports how long its radio actually scanned as `BleScannerClient.listeningTime`
-    - Fix: `NobleBleClient` asks noble to scan again once the Bluetooth adapter powers on
-    - Fix: `NobleBleClient` stops a scan it requested that only took effect after it was no longer wanted
-
-- @matter/protocol
-    - Breaking: `ClientSubscriptions.lastReportStartedAtFor()` and `PeerSubscription.lastReportStartedAt` are removed; the new `ClientSubscriptions.reportStarted` observable emits the session each inbound report arrives over
-    - Fix: A subscription report a peer flushed while shutting down no longer counts as evidence that its subscription survived the reboot, so the controller re-subscribes after the grace window instead of waiting out the full subscription timeout
-    - Enhancement: `DclCertificateService` can be constructed `offline`, where it reaches no network and answers from what it was seeded and told about revocation
-    - Enhancement: A commissioner can be given revocation information the DCL does not publish, through `DclCertificateService.installRevocations()` or the new `revocations` option. `DclCertificateService.parseRevocationSet()` reads such a set in the format the CHIP SDK's revocation-set tool writes. The entries stay in memory and only add revocations — a serial they do not name is still checked against the DCL
-    - Enhancement: A BDX message the node sends names its block counter on the log line the exchange already writes for it, with a Block's or BlockEof's data length, a BlockQueryWithSkip's skip offset, and the counter and length of the block an ack or a driving receiver's next query reports having received. A transfer flow also names the negotiated maximum block size and the start offset when it starts
-    - Enhancement: `BdxSession` reports the `*Init` a responder received and what its transfer settled on, so a responder's own account of what it granted is readable without decoding the wire
-    - Enhancement: `ExchangeManager` and `SessionManager` take a log origin through their context and are given their node's, so their log lines name the node that wrote them. Other components still log without one
-    - Enhancement: `ClientRequest.largeMessage` requires a session that permits large payloads for any interaction, not only a command invocation; such an interaction establishes a TCP-backed session or fails rather than falling back to MRP
-    - Enhancement: A `BleScannerClient` may state via the new optional `isPeripheralReachable()` whether a peripheral it discovered can still be reached, and the scanner offers only reachable peripherals for commissioning. A transport that routes BLE through remote proxies no longer offers peripherals whose proxy is gone
-    - Fix: A running BLE discovery is woken by any advertisement of a device matching its query, not only by an address it has never seen, so a device that becomes a candidate again during the discovery is handed to it. Each device is still offered once per discovery
-    - Fix: A later BLE discovery no longer offers a device that was just commissioned over BLE, via the new optional `Scanner.forgetCommissionedDevice()`
-    - Fix: A later BLE discovery no longer offers a device that was just commissioned through another transport and advertises its vendor, as the commissioner passes the new `CommissionableDeviceIdentity` to `Scanner.forgetCommissionedDevice()`
-    - Fix: A BLE peripheral silent through a minute of listening, as reported by the new optional `BleScannerClient.listeningTime`, is no longer offered for commissioning
-    - Enhancement: New `BleListeningClock` accumulates a BLE client's scan time for `BleScannerClient.listeningTime`
-    - Fix: Concurrent BLE discoveries share one scan and each waits for its own result
-    - Fix: A BLE scan start that never completes fails the waiting discoveries after 10 s instead of leaving them waiting
-    - Fix: A session or exchange ending because its transport connection dropped reports `TransportClosedError` instead of an untyped error
-    - Fix: A CASE pairing failure reaches the caller even when reporting it to the peer fails; the report's own failure is logged instead of replacing the pairing error
-
-- @matter/model
-    - Fix: The Base device type records the revision its specification section states, which is 3. It has no device type id, so no Descriptor `DeviceTypeList` entry carried one and `DeviceTypeModel.revision` answered 1
-    - Enhancement: `DeviceTypeModel.declaredRevision` states the revision a device type records for itself, or `undefined` where it records none, which `revision` cannot express because it answers 1 for both
-    - Fix: A device type's documentation carries the prose its specification chapter states below a subsection heading. Sixty-two device types gain text, and the Base device type is documented at all for the first time. Each subsection appears under a heading of its own depth, so a chapter that repeats a subsection name states which operation each one belongs to
-    - Fix: A condition carries the prose of the section that describes it, and an element requirement carries the section its table came from, so a section such as `device§8.5.6` has a cross reference
-    - Fix: Scraping says which device library chapter it ignores and how many sections below it go with it, rather than dropping them without a word
-    - Fix: Generated documentation drops an image's alt text and a table or figure caption, which name the artifact rather than describing the subject, and resolves a reference link such as `[[Aliro]](#ref_Aliro)` to the name it refers to
-    - Fix: The Heat Pump device type carries the eight element requirements its specification section states; the column heading that section uses discarded every row
-    - Fix: The Base device type's conditions carry their descriptions; nine of twenty-three were discarded because their table heads the column `Summary`
-    - Fix: A device type requirement carries the instance-count constraint the specification states, such as `min 1`
-    - Fix: `AnnounceOtaProvider` is fabric-scoped, which its command's field table states and its Access column omits
-    - Breaking: Eleven model elements whose names contain a pluralised acronym are renamed for consistency with the singular form, such as `TariffComponentIDs` to `TariffComponentIds`
-    - Enhancement: `Conformance.isProvisional` states whether the specification has not finished an element, which reads as optional and so cannot be told from a plain optional otherwise
-    - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children
-    - Fix: The constraint parser no longer reads `any` or `MS` as stating no bound. Both are artifacts of the specification's tables and are now removed while scraping, so a hand-written cluster definition may state a bound naming a value spelled `Any` or `MS`, and one that states neither name reports `UNRESOLVED_CONSTRAINT_NAME`
-    - Enhancement: `Constraint.referencesOf` states each name a constraint holds along with what the constraint does with it — compare a bound against it, take the values allowed from it, or take a member of it — where it previously stated the name alone. `Constraint.validateReferences` is replaced by it
-    - Enhancement: `Metatype.boundKind` states what a constraint on a value of a metatype states, and `Metatype.holdsNumber` and `Metatype.holdsRecord` how such a value is held, which decides what a bound may compare against and what a member access may take. `Metatype.native` now reports a bitmap as an object, agreeing with `Metatype.Native`, and `Metatype.Native` covers durations
-    - Enhancement: `ValueModel.memberNamed` resolves the name a constraint or conformance states for a value of an enumerated type. Constraint encoding, definition validation, the conformance aspect and the conformance compiler now share it; the compiler previously read a member's `id` rather than its effective id, so a member whose definition omits one resolved to nothing
-    - Fix: The operand of `in` states its name in the case every other name a constraint holds uses, so `Constraint.referencesOf` reports one spelling
-    - Fix: The operand of `in` names an element holding the values allowed, so a value of the constrained type no longer answers it
-    - Fix: A constraint taking a member of a computed value, such as `min minOf(A, B).C` or `min A.minOf(B, C)`, reports `UNEVALUABLE_MEMBER_ACCESS` rather than reporting its member as an unresolved name. An access evaluates only where the value before `.` is a record and the name after it a member of one, so such a bound admits every value
-    - Fix: A name a constraint states that resolves to a value the constraint cannot use — a bound comparing against a record, a membership set naming a single value, an access taking a member of a value held as a number — reports `UNUSABLE_CONSTRAINT_NAME`. It reports that alone, where before a name could be reported both unusable and unresolved
-    - Fix: A constraint bounding a value with neither a magnitude nor a length reports `UNBOUNDABLE_TYPE`
-    - Fix: A constraint bounding the entries of a list in one of its alternatives reports `UNENFORCEABLE_ENTRY_BOUND`, as nothing enforces such a bound
-    - Fix: `TlsClientManagement.FindEndpointResponse.Endpoint` states no bound. The specification bounds it by `0 to 65534`, which is the bound of the endpoint ID rather than of the struct the field holds
-    - Enhancement: A condition requirement records where it asserts its condition via `RequirementModel.location` (`Root`, `Self` or `Descendant`), and carries the constraint the specification states for it
-    - Enhancement: `RequirementModel.componentCountRange` gives the range of endpoint counts that a component device type requirement's constraint allows
-    - Enhancement: New `RequirementResolver` resolves the condition and feature names a device type requirement's conformance references, the endpoint scope they resolve in, and the cluster, feature, attribute, command, event or component device type a requirement names; new `requirementApplicability()` evaluates a requirement's conformance against the names true for an endpoint
-    - Fix: A condition reference in a device type requirement's conformance is spelled as the model declares the condition, such as `Sit | Lit` rather than `SIT | LIT`, so evaluating the conformance matches the condition
-    - Breaking: `Conformance.validateReferences` checks a name inside optional conformance or a choice, such as `[X]` or `[X].a+`, so a model whose bracketed conformance names something undefined no longer validates
-    - Breaking: Model validation checks device type requirements and reports a conformance name that does not resolve (`UNRESOLVED_CONFORMANCE_NAME`) or is spelled other than as declared (`NONCANONICAL_CONFORMANCE_NAME`), a condition requirement naming no condition (`UNRESOLVED_CONDITION`), a location on a requirement that is not a condition requirement (`LOCATION_NOT_APPLICABLE`), a component requirement naming no defined device type (`UNRESOLVED_DEVICE_TYPE`), a cluster requirement naming no defined cluster (`UNRESOLVED_CLUSTER`), and a required feature, element or command field its cluster does not define (`UNSATISFIABLE_REQUIREMENT`)
-    - Breaking: A feature, attribute, command, event or command field requirement must be parented by a server or client cluster requirement (`ILLEGAL_REQUIREMENT_PARENT`); any parent previously passed. A command field requirement is now also checked against its cluster's commands
-
-- @matter/node
-    - Feature: The default `ThermostatServer` implementation supports the `MatterScheduleConfiguration` (MSCH) feature — the `Schedules`/`ActiveScheduleHandle` attributes with atomic-write handling, and the `SetActiveScheduleRequest` command — mirroring the existing `Presets` implementation
-    - Documentation: `ClientNode`, `Peers.get` and `ClientNodeStores.allocateId` say how long a `PeerAddress` names the same device, and `ControllerBehavior.allocatePeerAddress` states when an address of a removed peer can be issued to another one
-    - Breaking: A device type requirement that states an exact value emits that value as both bounds. `MinLevel` accepted 2 and `MaxLevel` accepted 255 on eight device types, where the specification mandates exactly 1 and exactly 254
-    - Enhancement: (@RaHehl) `ClientNode.openEnhancedCommissioningWindow` (and `CommissioningClient`) also returns the passcode, long discriminator, vendor and product ID it encodes into the pairing codes, and the commissioning timeout sent to the device
-    - Enhancement: A device type that relaxes a cluster's mandatory element to optional is honoured. Temperature Sensor and Room Air Conditioner required `KeypadLockout`, which the specification makes optional for them
-    - Enhancement: A device type feature gated on `Rev >= vN` is enabled when the device type's revision satisfies it, which enables `ChangeEvent` on Water Freeze Detector, Water Leak Detector and Rain Sensor
-    - Enhancement: A generated requirement's documentation says when the specification states a cluster is provisional, rather than reporting it as plainly optional
-    - Fix: A generated device type no longer emits an empty `mandatory: {}`, and states `mandatory` before `optional` regardless of which it has
-    - Enhancement: An OTA requestor's wait before querying a provider that announced an update can be set through `announcedUpdateQueryDelay`, so a node alone with its provider can shorten the random window the specification prefers
-    - Enhancement: `WebRtcTransportRequestorServer` reports signaling it answered `NotFound` via its new `refused` event, which names the session id the peer asked about
-    - Fix: `WebRtcTransportRequestorServer.iceCandidates` reports `ConstraintError` for an empty candidate list, which is what the field's `min 1` constraint states and what a peer already receives from schema validation. It reported `InvalidCommand`
-    - Fix: A constraint error naming an entry of a list states the position of that entry, where an entry holding no value previously shifted every position after it
-    - Fix: A bound the specification states on a bitmap is enforced. An upper bound states what the reserved-bit check already enforces, but a lower bound such as `FanControl.RockSupport`'s `min 1` states a flag that must be set, which nothing checked. A cluster implementation that supports rocking or wind and leaves the corresponding attribute with no flag set now fails validation where it previously passed
-    - Fix: A bound on a duration is enforced rather than ignored. A duration is held as a number of milliseconds, and a constraint bounding one states milliseconds too
-    - Fix: A constraint on a value no bound can be checked against, such as a struct or a date, no longer fails behavior creation with `Cannot define constraint for unsupported metatype`. A list whose entries are of such a type reaches this when the constraint bounds its entries
-    - Fix: A value of an enumerated type whose definition states no ID is judged by its effective ID, which is its position among its siblings. Such a value was refused as undefined in the enumeration, and a conformance naming it resolved to nothing
-    - Fix: A node that factory resets keeps the services it already opened, rather than installing a second set over them. Closing the node then releases its share of the mDNS service, so a process that resets a node can exit, and releases its storage handle and directory lock
-    - Fix: A holder of `ChangeNotificationService.change` keeps receiving updates after a node factory resets
-    - Fix: A node whose construction fails releases the storage its store had already opened
-    - Fix: A factory reset erases the blobs a BDX transfer left behind
-    - Fix: `Endpoint.behaviors.has()` answers `false` rather than `undefined` for a behavior the endpoint does not support at all
-    - Fix: A peer's endpoint tree follows the `PartsList` of the endpoint each part belongs to, so a bridged composed device's own endpoints are no longer attached to the aggregator
-    - Fix: A peer's endpoint whose device types are all utility types, as a bridge's composed device is, reports those device types rather than remaining of unknown type
-    - Fix: A peer endpoint that no `PartsList` names is left out of the node rather than taking the endpoints it claims out of the tree with it; a root composes its list of every descendant, so an endpoint absent from it is not part of the node
-    - Fix: A peer endpoint the root stops naming while it still holds endpoints the root does name is kept rather than erased, which would have closed those endpoints with it
-    - Fix: `DoorLockServer` reserves credential index 0 for the programming PIN, refusing it for any other credential type and refusing any other index for the programming PIN. The programming PIN counts as one credential rather than one of the PIN credentials, and reports no next index
-    - Fix: (@Luligu) Corrects status codes returned by `DoorLockServer.setCredential` for duplicating another credential of the same type and adding an occupied credential index
-    - Fix: `DoorLockServer.setCredential` creates the user alongside the credential when the request carries no user index
-    - Fix: `DoorLockServer.setCredential` reports `NextCredentialIndex` on a failing response as well as a successful one
-    - Fix: `DoorLockServer.setCredential` reports `OCCUPIED` when no user slot remains for a new credential
-    - Fix: `DoorLockServer.setCredential` answers `INVALID_COMMAND` when the user fields a request carries do not match the use case it states
-    - Fix: `DoorLockServer` stores each enumerated field of a user or credential record as its Matter enumeration, so a value the enumeration does not define is refused rather than kept
-    - Fix: A bridged node's `PartsList` names its own children rather than every endpoint below it
-    - Fix: A constraint that bounds an enumerated value to named values of its own type, such as the `add, modify` of a door lock's operation type, is now applied. A cluster that refuses a payload it cannot validate, as `DoorLock` does, answers a client naming another value with `INVALID_COMMAND` instead of acting on it
-    - Fix: Creating a struct fills in a default only for a field the cluster supports, so a field a device does not set stays absent instead of carrying the fallback its schema states. A write of a list entry that omits a feature-gated field is accepted, where it previously failed validation against the field it had filled in. Affects `Thermostat` preset names and setpoints, `Descriptor` tag labels, `MediaPlayback` track attributes and the feature-gated members of `ClosureControl`, `ClosureDimension`, `ElectricalEnergyMeasurement`, `CommodityPrice` and `CommodityTariff`
-    - Fix: A struct field's default is stored in the units and shape of its datatype: a preset created without a cooling setpoint reads `2600` rather than the schema's `26°C` notation, and a bitmap default arrives decoded
-    - Fix: Each struct created by a write receives its own copy of a list or bitmap default instead of sharing one instance
-    - Fix: A nullable field the active features make mandatory holds `null` when a write omits it, where a field made mandatory by a feature expression previously stayed absent
-    - Fix: A write that names an inherited property, such as `__proto__` or `toString`, is refused like any other property the cluster does not declare; `__proto__` previously replaced the prototype of the value being written
-    - Fix: `ClientStructure.applyWireChanges` applies the change it is given. A client node keys each member of a cluster by attribute ID, and a change from the remote API addresses members by property name, so values landed under a key reads were never served from: the update was invisible and never persisted. Values now convert as the change is applied
-    - Fix: `ClientStructure.applyWireChanges` regenerates a behavior whose cluster definition changed and prunes attributes the cluster dropped, as the Matter protocol path already did
-    - Fix: Validation honors the conformance and quality an element inherits, so an element overridden by an operational extension is no longer judged as if it stated neither
-    - Fix: A write from local code that adds an entry to a fabric-scoped list without a `fabricIndex` now fails validation instead of storing an entry that belongs to no fabric. Writes from a peer are unaffected — the accessing fabric is supplied for them
-    - Fix: Assigning a whole list to a fabric-scoped attribute that held none merges through the managed list, so its entries are fabric-filtered and carry the accessing fabric; it previously bypassed both
-    - Fix: A `ConformanceError` names the conformance the decision was made on rather than the element's own
-    - Fix: A mandatory command a cluster leaves unimplemented is no longer dispatched; an invoke answers `UNSUPPORTED_COMMAND`, matching what the cluster advertises in `AcceptedCommandList`
-    - Fix: A discovered peer cluster records the `ClusterRevision` the peer reports rather than the standard cluster's, and peers differing only in revision no longer share a behavior
-    - Fix: (@lboue) `DoorLockServer` denies a `WeekDayScheduleUser`, `YearDayScheduleUser` or `ScheduleRestrictedUser` outside its schedules, and when it has none
-    - Fix: (@lboue) `DoorLockServer` disables a user of type `ExpiringUser` once `ExpiringUserTimeout` minutes have passed since its first use, also across a restart, and emits `LockUserChange`; it denies such a user while `ExpiringUserTimeout` is not set
-    - Breaking: Ensure that `DoorLockServer` refuses remote lock operations in the `Privacy` and `NoRemoteLockUnlock` operating modes, during a wrong-code lockout and for a `NonAccessUser`, and accepts only an `OperatingMode` that `SupportedOperatingModes` marks as supported
-    - Breaking: The `DoorLockServer` lock command handlers are `async`; an override must `await` its `super` call, and hardware belongs in `handleLockOperation`
-    - Fix: Ensure that `DoorLockServer` disables a `DisposableUser` after it unlocks once, reports `ForcedUser` operations with the `ForcedUser` alarm, counts an omitted required PIN as a wrong code and reports `UnboltDoor` as an `Unlock` to `Unlocked`
-    - Fix: Ensure that `DoorLockServer` emits `LockUserChange` for schedule changes and reports the affected user and index in its `LockUserChange` and `LockOperationError` events
-    - Feature: Ensure that a lock implementation can drive its hardware by overriding `DoorLockServer.handleLockOperation` and report a failure reason with `LockOperationFailedError`
-
-- @matter/types
-    - Enhancement: `hasNumberTlvMapping()` states whether a model's integer or bitmap width has a TLV codec. Generation uses it to refuse a model that declares a width with none, rather than letting the width reach an invoke or write and throw there
-    - Breaking: A property whose name contains a pluralised acronym is now camelised the way the singular already was, so `tariffComponentIDs` is `tariffComponentIds`. Eight properties are renamed: `tariffComponentIDs`, `dayEntryIDs`, `dayPatternIDs`, `uniqueLocationIDs`, `uniqueLocationIDsLastEdit`, `groupKeySetIDs`, `messageIDs` and `activeMessageIDs`
-    - Fix: A `status` field in a cluster that defines its own status codes is now `Status | <Cluster>.StatusCode`, so producing a cluster-specific code needs no cast and consuming one needs narrowing. This affects `DoorLock.SetCredentialResponse` and the DoorLock schedule responses
-
-- @matter/protocol
-    - Fix: A peer that negotiates zero paths per invoke is treated as accepting one path; invoking a command on such a peer previously exhausted the heap and crashed the process
-    - Enhancement: `SessionManager` refuses a local `maxPathsPerInvoke` below one, on construction and via `sessionParameters`
-    - Enhancement: A group message's log line names the port beside the multicast address it went to, in the usual IPv6 form (`dest: [ff35:40:…]:5540`)
-    - Fix: A command whose payload does not match the command's schema is answered with `INVALID_COMMAND` instead of `FAILURE`
-    - Fix: `UpdateFabricLabel` accepts an empty label, as the specification's `max 32` constraint sets no minimum; it previously failed the command
-    - Enhancement: An interaction can be abandoned by the caller: `ClientRequest.abort` takes an `AbortSignal`, honored for read, write, invoke and subscribe
-    - Fix: An error escaping a command handler with no defined status code answers that command with `FAILURE` inside the `InvokeResponse` instead of terminating the message with a status response, so the other commands of a batch invoke keep their results. Under `SuppressResponse` such a command now sends no response at all, as for any other generated status
-    - Fix: A device that returns an empty or malformed DAC, PAI, attestation elements or Certification Declaration during commissioning now fails attestation with a finding that names the unreadable field, instead of an opaque decoder message
-    - Fix: A certificate extension matter.js does not interpret is no longer decoded, so a proprietary extension can no longer fail the whole certificate; an extension matter.js does read is rejected with a `CertificateError` when its value is missing
-
-- @project-chip/matter.js
-    - Enhancement: `InteractionClient`'s read, write, invoke and subscribe options take an `abort` signal, forwarded to the interaction
-    - Fix: `InteractionClient.setAttribute()` and `setMultipleAttributes()` send a timed write only when the caller asks for one or an attribute requires it; every write was sent as a timed write, so every group write failed
-
-- @matter/general
-    - Fix: A worker cancelled while it was still starting is no longer closed once the runtime has taken on work again
-    - Fix: A worker cancelled more than once while it was still starting is closed once rather than once per cancellation
-    - Fix: `deepCopy` copies a `Date` as a `Date` rather than an empty object
-    - Fix: A log destination that throws no longer propagates the failure into the code that logged; the remaining destinations still receive the message and the broken destination is reported once
-    - Fix: `DataReader` throws `DataReadError` when a read would pass the end of the buffer; `readByteArray` and `readUtf8String` no longer return short data
-    - Fix: `DerCodec.decode` reports truncated input as `DerError` instead of a `RangeError`, and rejects a length that overflows or uses the indefinite-length encoding instead of decoding a value as present and empty
-    - Fix: One unreadable record in an mDNS message no longer discards the whole message
-    - Enhancement: `Transaction.lock()` takes an exclusive lock on resources without a promise where they are free, and waits instead of throwing where another transaction holds them
-    - Breaking: `DnssdNames.Context.goodbyeProtectionWindow` and `DnssdNames.defaults.goodbyeProtectionWindow` are now `evictionDelay`, and `DnssdName.deleteRecord` no longer takes an `ifOlderThan` argument
-    - Enhancement: New `MatterAggregateError.settleSeries()` runs tasks in order, continuing past a failure, and reports the accumulated errors
-    - Enhancement: A storage driver states how long a consumer may buffer dirty values via `StorageDriver.writeCoalescingInterval`, defaulting to 20 minutes; `MemoryStorageDriver` reports `Instant`
-    - Enhancement: `Transaction.Participant` gains `settled()`, invoked once after every participant's pre-commit reports no further mutation and before any of them writes; throwing there rejects the commit, and writes and further participants are refused while it runs
-    - Enhancement: `Transaction.Participant` gains `conclusion(outcome)`, which runs once per commit cycle or rollback — including the commit phase two failure that skips both `postCommit` and `rollback` — and states whether the transaction committed, rolled back, or ended inconsistent; it runs with the transaction's locks released and further writes refused
-    - Fix: A post-commit handler that rejects no longer detaches the remaining participants' post-commit work from the transaction
-    - Adjustment: `postCommit` and the new `conclusion` reach the participants commit phase two dispatched, so a participant that joins while its values are written — as a store does — is now told the outcome; one that joins after phase two has passed it is not, having run no phase at all
-    - Adjustment: A rollback completes once its participants have been told the outcome; where a participant reports asynchronously, a rollback that failed now rejects instead of throwing synchronously
-    - Fix: Opening a namespace whose `driver.json` names an unregistered storage driver now throws `NoProviderError` instead of silently opening the existing data with a mismatched driver
-    - Fix: DNS-SD ignores SRV records with port 0, an empty target or an out-of-range port
-    - Fix: DNS-SD honors a goodbye that arrives shortly after the same record was re-announced
-    - Fix: DNS-SD honors the mDNS cache-flush bit
-    - Fix: DNS-SD resolution queries A/AAAA for the SRV target host instead of the service instance name
     - Breaking: A transaction commit that fails in phase one rejects with the participant's error, or an aggregate of several, instead of `FinalizationError`
     - Feature: `Crypto` creates, signs and verifies ML-DSA-44 and ML-DSA-65 (FIPS 204) keys, natively on Node.js where available and via `@noble/post-quantum` otherwise
     - Enhancement: Log messages name the environment they come from (`Diagnostic.Message.origin`), shown in brackets after the facility

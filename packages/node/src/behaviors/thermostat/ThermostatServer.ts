@@ -1394,12 +1394,21 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
      * Pre-commit announces the presets again after any change in flight, with the previous announcement as
      * `oldPresets`.  Every announcement is therefore validated against the presets the first announcement of the
      * transaction replaces.
+     *
+     * Once initialized, the presets stay stored: a transaction that leaves `persistedPresets` undefined fails with an
+     * {@link ImplementationError}.
      */
     #handlePersistedPresetsChanging(
-        newPresets: Thermostat.Preset[],
+        newPresets: Thermostat.Preset[] | undefined,
         oldPresets: Thermostat.Preset[] | undefined,
         context: ActionContext,
     ) {
+        if (newPresets === undefined) {
+            throw new ImplementationError(
+                `Cannot clear persistedPresets of ${this.endpoint}; store an empty list to remove all presets`,
+            );
+        }
+
         const presets = this.#presetsIn(context);
         presets.stored ??= { presets: oldPresets };
         const storedPresets = presets.stored.presets;
@@ -1720,12 +1729,21 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
      * Pre-commit announces the schedules again after any change in flight, with the previous announcement as
      * `oldSchedules`. Every announcement is therefore validated against the schedules the first announcement of the
      * transaction replaces.
+     *
+     * Once initialized, the schedules stay stored: a transaction that leaves `persistedSchedules` undefined fails with
+     * an {@link ImplementationError}.
      */
     #handlePersistedSchedulesChanging(
-        newSchedules: Thermostat.Schedule[],
+        newSchedules: Thermostat.Schedule[] | undefined,
         oldSchedules: Thermostat.Schedule[] | undefined,
         context: ActionContext,
     ) {
+        if (newSchedules === undefined) {
+            throw new ImplementationError(
+                `Cannot clear persistedSchedules of ${this.endpoint}; store an empty list to remove all schedules`,
+            );
+        }
+
         const schedules = this.#schedulesIn(context);
         schedules.stored ??= { schedules: oldSchedules };
         const storedSchedules = schedules.stored.schedules;
@@ -2299,12 +2317,13 @@ export namespace ThermostatBaseServer {
                             return pendingValue as Thermostat.Preset[];
                         }
 
-                        return (
-                            state.persistedPresets ??
-                            configuredPresets(endpoint) ??
-                            presetsIn(thermostat.defaults) ??
-                            []
-                        );
+                        if (state.persistedPresets !== undefined) {
+                            return state.persistedPresets;
+                        }
+
+                        const internal = endpoint.behaviors.internalsOf(ThermostatBaseServer);
+                        return (internal.defaultPresets ??=
+                            configuredPresets(endpoint) ?? presetsIn(thermostat.defaults) ?? []);
                     },
 
                     set(value: Thermostat.Preset[]) {
@@ -2346,12 +2365,13 @@ export namespace ThermostatBaseServer {
                             return pendingValue as Thermostat.Schedule[];
                         }
 
-                        return (
-                            state.persistedSchedules ??
-                            configuredSchedules(endpoint) ??
-                            schedulesIn(thermostat.defaults) ??
-                            []
-                        );
+                        if (state.persistedSchedules !== undefined) {
+                            return state.persistedSchedules;
+                        }
+
+                        const internal = endpoint.behaviors.internalsOf(ThermostatBaseServer);
+                        return (internal.defaultSchedules ??=
+                            configuredSchedules(endpoint) ?? schedulesIn(thermostat.defaults) ?? []);
                     },
 
                     set(value: Thermostat.Schedule[]) {
@@ -2382,13 +2402,37 @@ export namespace ThermostatBaseServer {
             Observable<[value: number, oldValue: number, context: ActionContext]>();
         externallyMeasuredOccupancy$Changed = Observable<[value: boolean, oldValue: boolean, context: ActionContext]>();
         persistedPresets$Changed =
-            Observable<[value: Thermostat.Preset[], oldValue: Thermostat.Preset[], context: ActionContext]>();
+            Observable<
+                [
+                    value: Thermostat.Preset[] | undefined,
+                    oldValue: Thermostat.Preset[] | undefined,
+                    context: ActionContext,
+                ]
+            >();
         persistedPresets$Changing =
-            Observable<[value: Thermostat.Preset[], oldValue: Thermostat.Preset[], context: ActionContext]>();
+            Observable<
+                [
+                    value: Thermostat.Preset[] | undefined,
+                    oldValue: Thermostat.Preset[] | undefined,
+                    context: ActionContext,
+                ]
+            >();
         persistedSchedules$Changed =
-            Observable<[value: Thermostat.Schedule[], oldValue: Thermostat.Schedule[], context: ActionContext]>();
+            Observable<
+                [
+                    value: Thermostat.Schedule[] | undefined,
+                    oldValue: Thermostat.Schedule[] | undefined,
+                    context: ActionContext,
+                ]
+            >();
         persistedSchedules$Changing =
-            Observable<[value: Thermostat.Schedule[], oldValue: Thermostat.Schedule[], context: ActionContext]>();
+            Observable<
+                [
+                    value: Thermostat.Schedule[] | undefined,
+                    oldValue: Thermostat.Schedule[] | undefined,
+                    context: ActionContext,
+                ]
+            >();
 
         /**
          * Custom event emitted when the calibrated temperature changes.
@@ -2451,6 +2495,24 @@ export namespace ThermostatBaseServer {
          * This value will be initialized when the behavior is initialized and is static afterward.
          */
         controlSequenceOfOperation!: Thermostat.ControlSequenceOfOperation;
+
+        /**
+         * The presets the `presets` getter serves until `persistedPresets` is set.  One copy, because a getter returns
+         * the same list on every read (see {@link Val.Dynamic}).
+         *
+         * After initialization the getter serves it only inside a transaction that sets `persistedPresets` to
+         * undefined, which cannot commit unless it stores presets again.
+         */
+        defaultPresets?: Thermostat.Preset[];
+
+        /**
+         * The schedules the `schedules` getter serves until `persistedSchedules` is set.  One copy, because a getter
+         * returns the same list on every read (see {@link Val.Dynamic}).
+         *
+         * After initialization the getter serves it only inside a transaction that sets `persistedSchedules` to
+         * undefined, which cannot commit unless it stores schedules again.
+         */
+        defaultSchedules?: Thermostat.Schedule[];
 
         /**
          * What this behavior did to the presets of each transaction in flight: the handles it issued, the presets the

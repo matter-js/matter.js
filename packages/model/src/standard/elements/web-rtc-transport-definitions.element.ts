@@ -37,7 +37,7 @@ export const WebRtcTransportDefinitions = Cluster(
             Field({ name: "entry", type: "string" })
         ),
         Field({ name: "Username", id: 0x1, type: "string", conformance: "O", constraint: "max 508" }),
-        Field({ name: "Credential", id: 0x2, type: "string", conformance: "O", constraint: "max 512" }),
+        Field({ name: "Credential", id: 0x2, type: "string", conformance: "O", constraint: "max 512", isSecret: true }),
         Field({ name: "Caid", id: 0x3, type: "TlsCertificateManagement.TLSCAID", conformance: "O", constraint: "0 to 65534" })
     ),
 

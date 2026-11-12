@@ -60,7 +60,7 @@ export class ClientEndpointStore extends EndpointStore {
     }
 
     /**
-     * Create a {@link Datasource.Store} for a behavior that does not track a remote cluster.
+     * Create a {@link Datasource.PersistentStore} for a behavior that does not track a remote cluster.
      */
     createStoreForLocalBehavior(behaviorId: string) {
         const initialValues = this.consumeInitialValues(behaviorId);
