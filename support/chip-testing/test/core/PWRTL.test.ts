@@ -10,4 +10,9 @@ describe("PWRTL", () => {
         // our runner reports a skip as a failure
         "PWRTL/2.2",
     );
+    // Selects the runs of multi-run tests, which "PWRTL/*" does not
+    chip("PWRTL/*/run*").exclude("PWRTL/2.2/*").exclude(
+        // Runs for CHIP apps matter.js has no test subject for: evse
+        "PWRTL/2.1/run1",
+    );
 });
