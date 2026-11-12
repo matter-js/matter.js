@@ -344,6 +344,18 @@ describe("ClientNodeStores", () => {
         await stores.close();
     });
 
+    it("gives the new store of an erased cache the buffer of the store it replaces", async () => {
+        const { driver, stores, store } = await storesWithPeer();
+        const buffer = new ClientCacheBuffer(driver, Seconds(60));
+        store.buffer = buffer;
+
+        await stores.eraseCaches("peer1");
+
+        expect(stores.storeOf("peer1")?.buffer).equals(buffer);
+        await stores.close();
+        await buffer.close();
+    });
+
     it("hands out a new store also when the cache erase fails", async () => {
         const { stores, store } = await storesWithPeer();
         store.eraseCaches = async () => {

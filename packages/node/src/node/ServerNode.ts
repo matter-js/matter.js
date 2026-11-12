@@ -138,8 +138,9 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      * Perform a factory reset of the node.
      *
      * Rejects with a {@link MatterAggregateError} if a step fails.  A failed reset still erases the storage and
-     * restarts the node.  The node crashes if it cannot go offline first, in which case nothing is erased, if the storage
-     * erase fails, or if it cannot go online again.
+     * restarts the node.  The node crashes if it cannot go offline first, in which case nothing is erased, if the
+     * storage erase fails, or if it cannot go online again.  A crashed node that the runtime did not close recovers on
+     * {@link start}.
      */
     override async erase() {
         using _erasing = this.construction.join("erasing");
@@ -204,9 +205,9 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
     }
 
     /**
-     * By default, on factory reset and on {@link delete} we erase all stored data.  Runs after the endpoints of the node
-     * reset, while the node holds its lifecycle mutexes, so it must not await {@link start}, {@link stop} or a lifecycle
-     * verb of the node or one of its endpoints.
+     * By default, on factory reset and on {@link delete} we erase all stored data.  Runs after the endpoints of the
+     * node reset, while the node holds its lifecycle mutexes, so it must not await {@link start}, {@link stop} or a
+     * lifecycle verb of the node or one of its endpoints.
      *
      * If this is inappropriate for your application, you may override to alter the behavior.  Matter requires that all
      * "security- and privacy-related data and key material" is removed on factory reset.

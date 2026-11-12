@@ -19,6 +19,7 @@ import {
     BooleanStateConfigurationClient,
     BooleanStateConfigurationServer,
 } from "#behaviors/boolean-state-configuration";
+import { DescriptorClient } from "#behaviors/descriptor";
 import { GeneralDiagnosticsClient } from "#behaviors/general-diagnostics";
 import { IdentifyClient, IdentifyServer } from "#behaviors/identify";
 import { LevelControlClient } from "#behaviors/level-control";
@@ -31,10 +32,8 @@ import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light"
 import { WindowCoveringDevice } from "#devices/window-covering";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { IdentityConflictError } from "#endpoint/errors.js";
-import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
-import type { ClientEndpointInitializer } from "#node/client/ClientEndpointInitializer.js";
 import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
 import { ClientStructure } from "#node/client/ClientStructure.js";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
@@ -182,7 +181,8 @@ class FailingCommissioningFlow extends ControllerCommissioningFlow {
 }
 
 /**
- * Fail each cache persist into an endpoint store of {@link peer} until disposed, also for endpoint stores created later.
+ * Fail each cache persist into an endpoint store of {@link peer} until disposed, also for endpoint stores created
+ * later.
  */
 function failCachePersists(peer: ClientNode) {
     const nodeStore = peer.env.get(ServerNodeStore).clientStores.storeForNode(peer);
@@ -198,6 +198,16 @@ function failCachePersists(peer: ClientNode) {
             ClientEndpointStore.prototype.persistCache = persistCache;
         },
     };
+}
+
+/**
+ * The errors of {@link error}, which must be a {@link MatterAggregateError}.
+ */
+function aggregatedErrorsOf(error: unknown) {
+    if (!(error instanceof MatterAggregateError)) {
+        expect.fail(`Expected a MatterAggregateError but got ${String(error)}`);
+    }
+    return error.errors;
 }
 
 describe("ClientNode", () => {
@@ -302,8 +312,8 @@ describe("ClientNode", () => {
         const peer1b = controllerB.peers.get("peer1")!;
         expect(peer1b).not.undefined;
 
-        // Client nodes should fully initialize on the initial load.  We could initialize asynchronously during ServerNode
-        // initialization, but currently we don't
+        // Client nodes should fully initialize on the initial load.  We could initialize asynchronously during
+        // ServerNode initialization, but currently we don't
         expect(peer1b.construction.status).equals("active");
 
         // Validate the root endpoint
@@ -544,7 +554,8 @@ describe("ClientNode", () => {
         const peer1 = controller.peers.get("peer1")!;
         expect(peer1).not.undefined;
 
-        // Opting out leaves the node uninitialized: no post-commission read, so no cluster state and no endpoint structure
+        // Opting out leaves the node uninitialized: no post-commission read, so no cluster state and no endpoint
+        // structure
         expect(peer1.maybeStateOf(BasicInformationBehavior)).equals(undefined);
         expect(peer1.parts.size).equals(0);
     });
@@ -1533,6 +1544,21 @@ describe("ClientNode", () => {
         expect(peer1.parts.size).equals(0);
     });
 
+    it("rejects an erase once its close was requested with DestroyedDependencyError", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+
+        const closing = peer1.close();
+
+        const refusal = await peer1.erase().then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+        await MockTime.resolve(closing);
+
+        expect(refusal).instanceOf(DestroyedDependencyError);
+    });
+
     it("crashes without reconnecting and rejects when the storage of an endpoint fails to erase", async () => {
         const { site, controller, peer1 } = await peerWithLightOn();
         await using _site = site;
@@ -1552,8 +1578,7 @@ describe("ClientNode", () => {
         );
         await MockTime.resolve(MockTime.sleep("reconnect window", Millis(10_000)));
 
-        expect(error).instanceOf(MatterAggregateError);
-        const errors = (error as MatterAggregateError).errors;
+        const errors = aggregatedErrorsOf(error);
         expect(errors.some(e => e instanceof MatterAggregateError)).equals(false);
         expect(errors.map(e => (e instanceof Error ? e.message : String(e)))).deep.equals([
             "Endpoint erase refused for test",
@@ -1581,8 +1606,7 @@ describe("ClientNode", () => {
             (e: unknown) => e,
         );
 
-        expect(error).instanceOf(MatterAggregateError);
-        const errors = (error as MatterAggregateError).errors;
+        const errors = aggregatedErrorsOf(error);
         expect(errors.some(e => e instanceof MatterAggregateError)).equals(false);
         expect(errors.map(e => (e instanceof Error ? e.message : String(e)))).deep.equals([
             "Endpoint erase refused for test",
@@ -1611,8 +1635,7 @@ describe("ClientNode", () => {
         );
         driver.clearAll = clearAll;
 
-        expect(error).instanceOf(MatterAggregateError);
-        const errors = (error as MatterAggregateError).errors;
+        const errors = aggregatedErrorsOf(error);
         expect(errors.map(e => (e instanceof StorageError ? e.message : String(e)))).deep.equals([
             `Cannot erase storage:${endpoints}.1`,
             `Cannot erase the cache of storage:${endpoints}.0`,
@@ -1639,8 +1662,7 @@ describe("ClientNode", () => {
         );
         peers.get = get;
 
-        expect(error).instanceOf(MatterAggregateError);
-        const errors = (error as MatterAggregateError).errors;
+        const errors = aggregatedErrorsOf(error);
         expect(errors.some(e => e instanceof MatterAggregateError)).equals(false);
         const messages = errors.map(e => (e instanceof Error ? e.message : String(e)));
         expect(messages.length).equals(2);
@@ -1674,7 +1696,7 @@ describe("ClientNode", () => {
      * Report one attribute value of {@link peer} to its structure as a separate interaction would.
      */
     function reporterOf(peer: ClientNode) {
-        const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+        const structure = clientStructureOf(peer);
         const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
         const report = (endpointId: EndpointNumber, clusterId: ClusterId, attributeId: number, value: unknown) => {
             async function* result(): ReadResult {
@@ -2527,6 +2549,170 @@ describe("ClientNode", () => {
         expect(peer1.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
     });
 
+    describe("start() of a peer that crashed in an erase", () => {
+        /**
+         * Make the storage of endpoint 1 and the cache record of {@link peer} refuse to clear until the returned
+         * function runs.
+         */
+        function refuseClear(controller: ServerNode, peer: ClientNode) {
+            const driver = controller.env.get(StorageManager).driver;
+            const clearAll = driver.clearAll.bind(driver);
+            const endpoint = `nodes.${peer.id}.endpoints.1`;
+            driver.clearAll = contexts => {
+                const path = contexts.join(".");
+                if (path === endpoint || path.startsWith(`${endpoint}.`) || path === `nodes.${peer.id}.cache`) {
+                    throw new StorageError("Clear refused for test");
+                }
+                return clearAll(contexts);
+            };
+            return () => {
+                driver.clearAll = clearAll;
+            };
+        }
+
+        async function peerCrashedInErase() {
+            const { site, controller, peer1 } = await peerWithLightOn();
+            const allowClear = refuseClear(controller, peer1);
+            const error = await MockTime.resolve(peer1.erase()).then(
+                () => undefined,
+                (e: unknown) => e,
+            );
+            expect(error).instanceOf(MatterAggregateError);
+            expect(peer1.construction.status).equals(Lifecycle.Status.Crashed);
+            return { site, controller, peer1, allowClear };
+        }
+
+        function storedEndpointsOf(site: MockSite, controller: ServerNode, peer: ClientNode) {
+            const prefix = `nodes.${peer.id}.endpoints.`;
+            return new Set(
+                Object.keys(site.storageFor(controller))
+                    .filter(key => key.startsWith(prefix))
+                    .map(key => Number(key.slice(prefix.length).split(".")[0])),
+            );
+        }
+
+        it("finishes the erase and reads the peer again", async () => {
+            const { site, controller, peer1, allowClear } = await peerCrashedInErase();
+            await using _site = site;
+            allowClear();
+            let seeded = 0;
+            peer1.lifecycle.seeded.on(() => {
+                seeded++;
+            });
+
+            await MockTime.resolve(peer1.start(), { macrotasks: true });
+            await subscribedPeer(controller, "peer1");
+
+            expect(peer1.construction.status).equals(Lifecycle.Status.Active);
+            expect(peer1.lifecycle.isSeeded).equals(true);
+            expect(seeded).equals(1);
+            expect([...peer1.parts].map(part => part.number)).deep.equals([1]);
+            expect(peer1.parts.get("ep1")!.stateOf("onOff").onOff).equals(true);
+            expect([...peer1.stateOf(DescriptorClient).partsList]).deep.equals([1]);
+            expect([...storedEndpointsOf(site, controller, peer1)].sort()).deep.equals([0, 1]);
+        });
+
+        it("rejects and stays crashed while the storage still fails", async () => {
+            const { site, peer1, allowClear } = await peerCrashedInErase();
+            await using _site = site;
+
+            const error = await MockTime.resolve(peer1.start(), { macrotasks: true }).then(
+                () => undefined,
+                (e: unknown) => e,
+            );
+            allowClear();
+
+            expect(aggregatedErrorsOf(error).some(e => e instanceof StorageError)).equals(true);
+            expect(peer1.construction.status).equals(Lifecycle.Status.Crashed);
+            expect(peer1.lifecycle.isOnline).equals(false);
+        });
+
+        /**
+         * Hold the cache erase of {@link peer} until {@link release} is called, and count the cache erases.
+         */
+        function holdCacheErase(controller: ServerNode, peer: ClientNode) {
+            const stores = controller.env.get(ServerNodeStore).clientStores;
+            const eraseCaches = stores.eraseCaches.bind(stores);
+            const gate = createPromise<void>();
+            const entered = createPromise<void>();
+            let erases = 0;
+            stores.eraseCaches = async id => {
+                if (id === peer.id) {
+                    erases++;
+                    entered.resolver();
+                    await gate.promise;
+                }
+                await eraseCaches(id);
+            };
+            return {
+                entered: entered.promise,
+                release: () => gate.resolver(),
+                get erases() {
+                    return erases;
+                },
+            };
+        }
+
+        it("lets an act() during the recovery wait for it and a concurrent erase() join it", async () => {
+            const { site, controller, peer1, allowClear } = await peerCrashedInErase();
+            await using _site = site;
+            allowClear();
+            const held = holdCacheErase(controller, peer1);
+
+            const starting = peer1.start();
+            await MockTime.resolve(held.entered);
+            const acting = outcomeOf(
+                Promise.resolve(
+                    peer1.act(agent => {
+                        expect(agent.commissioning.state.peerAddress).not.undefined;
+                    }),
+                ),
+            );
+            const erasing = outcomeOf(peer1.erase());
+            held.release();
+            await MockTime.resolve(starting, { macrotasks: true });
+
+            expect(await MockTime.resolve(acting)).equals("ok");
+            expect(await MockTime.resolve(erasing)).equals("ok");
+            expect(held.erases).equals(1);
+            expect(peer1.construction.status).equals(Lifecycle.Status.Active);
+        });
+
+        it("rejects a start() whose turn comes while an erase waits, and lets that erase recover the node", async () => {
+            const { site, peer1, allowClear } = await peerCrashedInErase();
+            await using _site = site;
+            allowClear();
+            const gate = createPromise<void>();
+            const blocking = peer1.lifecycle.mutex.hold("blocking for test", () => gate.promise);
+
+            const starting = outcomeOf(peer1.start());
+            await MockTime.macrotask;
+            const erasing = outcomeOf(peer1.erase());
+            gate.resolver();
+            await blocking;
+
+            expect(await MockTime.resolve(starting, { macrotasks: true })).instanceOf(Error);
+            expect(await MockTime.resolve(erasing, { macrotasks: true })).equals("ok");
+            expect(peer1.construction.status).equals(Lifecycle.Status.Active);
+        });
+
+        it("recovers on a restart of its server node", async () => {
+            const { site, controller, peer1, allowClear } = await peerCrashedInErase();
+            await using _site = site;
+            allowClear();
+
+            await MockTime.resolve(controller.stop(), { macrotasks: true });
+            const warnings = await captureWarningsOf(() => MockTime.resolve(controller.start(), { macrotasks: true }));
+            await subscribedPeer(controller, "peer1");
+
+            expect(warnings.map(({ text }) => text).filter(text => text.includes("Error starting peer"))).deep.equals(
+                [],
+            );
+            expect(peer1.construction.status).equals(Lifecycle.Status.Active);
+            expect(peer1.lifecycle.isSeeded).equals(true);
+        });
+    });
+
     describe("of a crashed peer", () => {
         async function crashedPeer() {
             const { site, peer1 } = await peerWithLightOn();
@@ -2557,20 +2743,17 @@ describe("ClientNode", () => {
             expect(peer1.lifecycle.shouldBeOnline).equals(false);
         });
 
-        it("enables it and rejects as it cannot go online", async () => {
+        it("enables it and finishes its erase", async () => {
             const { site, peer1 } = await crashedPeer();
             await using _site = site;
             await MockTime.resolve(peer1.disable(), { macrotasks: true });
 
-            const error = await MockTime.resolve(peer1.enable(), { macrotasks: true }).then(
-                () => undefined,
-                (e: unknown) => e,
-            );
+            await MockTime.resolve(peer1.enable(), { macrotasks: true });
 
-            expect(error).instanceOf(Error);
+            expect(peer1.construction.status).equals(Lifecycle.Status.Active);
             expect(peer1.isDisabled).equals(false);
             expect(persistedDisabledOf(peer1)).equals(false);
-            expect(peer1.lifecycle.shouldBeOnline).equals(false);
+            expect(peer1.lifecycle.shouldBeOnline).equals(true);
         });
     });
 
@@ -5110,7 +5293,8 @@ describe("ClientNode", () => {
     it("properly supports unknown clusters", async () => {
         // *** SETUP ***
 
-        // Create a List attribute with 5x500byte data which will be transferred chunked in any case to ensure correct decoding
+        // Create a List attribute with 5x500byte data which will be transferred chunked in any case to ensure correct
+        // decoding
         const crypto = MockCrypto();
         const optList = new Array<Bytes>();
         for (let i = 0; i < 5; i++) {
@@ -5281,7 +5465,7 @@ describe("ClientNode", () => {
             },
         });
         const peer1 = controller.peers.get("peer1")!;
-        const { structure } = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+        const structure = clientStructureOf(peer1);
         const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
         const filteredClusters = (options?: { refreshChangesOmitted?: boolean }) =>
@@ -5301,7 +5485,7 @@ describe("ClientNode", () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
         const peer1 = controller.peers.get("peer1")!;
-        const { structure } = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+        const structure = clientStructureOf(peer1);
         const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
         // Time Synchronization with an empty AttributeList and without UTCTime, its changes-omitted attribute
@@ -6432,8 +6616,7 @@ describe("ClientNode", () => {
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
 
-            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
-            const structure = initializer.structure;
+            const structure = clientStructureOf(peer1);
 
             const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
@@ -6468,8 +6651,7 @@ describe("ClientNode", () => {
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
 
-            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
-            const structure = initializer.structure;
+            const structure = clientStructureOf(peer1);
             const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             const neoActive = () => {
@@ -6511,8 +6693,7 @@ describe("ClientNode", () => {
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
 
-            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
-            const structure = initializer.structure;
+            const structure = clientStructureOf(peer1);
             const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             const neoStorageKeys = () =>
@@ -6549,8 +6730,7 @@ describe("ClientNode", () => {
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
 
-            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
-            const structure = initializer.structure;
+            const structure = clientStructureOf(peer1);
             const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
             await drain(structure.mutate(request, readResult(neoReports(10), descriptorServerListReport(10))));
 
@@ -6568,8 +6748,7 @@ describe("ClientNode", () => {
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
 
-            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
-            const structure = initializer.structure;
+            const structure = clientStructureOf(peer1);
             const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             const nodeStore = controller.env.get(ServerNodeStore).clientStores.storeOf(peer1.id);
@@ -6586,8 +6765,7 @@ describe("ClientNode", () => {
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
 
-            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
-            const structure = initializer.structure;
+            const structure = clientStructureOf(peer1);
             const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             const neoActive = () => {
@@ -6617,7 +6795,7 @@ describe("ClientNode", () => {
             await using site = new MockSite();
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
-            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const structure = clientStructureOf(peer1);
             const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             await drain(structure.mutate(request, readResult(descriptorServerListWithNeoReport(10), neoReports(10))));
@@ -6652,7 +6830,7 @@ describe("ClientNode", () => {
             await using site = new MockSite({ createStorageDriver: store => new BufferingStorageDriver(store) });
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
-            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const structure = clientStructureOf(peer1);
             const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
             const buffer = controller.env.get(ClientCacheBuffer);
 
@@ -6685,7 +6863,7 @@ describe("ClientNode", () => {
             await using site = new MockSite();
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
-            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const structure = clientStructureOf(peer1);
             const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             const neoType = () => {
@@ -6721,7 +6899,7 @@ describe("ClientNode", () => {
             await using site = new MockSite();
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
-            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const structure = clientStructureOf(peer1);
             const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             const neoType = () => {
@@ -6750,7 +6928,7 @@ describe("ClientNode", () => {
             await using site = new MockSite();
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
-            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const structure = clientStructureOf(peer1);
             const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             await drain(structure.mutate(request, readResult(descriptorServerListReport(10))));
@@ -6804,7 +6982,7 @@ describe("ClientNode", () => {
             await using site = new MockSite();
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
-            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const structure = clientStructureOf(peer1);
             const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             await drain(structure.mutate(request, readResult(descriptorServerListReport(10))));
@@ -6858,7 +7036,7 @@ describe("ClientNode", () => {
             await using site = new MockSite();
             const { controller } = await site.addCommissionedPair();
             const peer1 = await subscribedPeer(controller, "peer1");
-            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const structure = clientStructureOf(peer1);
             const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
 
             const neoType = () => {

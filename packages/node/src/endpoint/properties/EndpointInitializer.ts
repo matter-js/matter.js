@@ -46,8 +46,8 @@ export abstract class EndpointInitializer {
     abstract prepareEraseDescendant(_endpoint: Endpoint): Promise<EndpointInitializer.Erasure>;
 
     /**
-     * Prepare {@link Endpoint.delete} of an endpoint and its parts.  The wipe erases their persisted data and, on a server
-     * node, releases their endpoint numbers.
+     * Prepare {@link Endpoint.delete} of an endpoint and its parts.  The wipe erases their persisted data and, on a
+     * server node, releases their endpoint numbers.
      */
     abstract prepareDeleteDescendant(_endpoint: Endpoint): Promise<EndpointInitializer.Erasure>;
 
@@ -93,6 +93,13 @@ export namespace EndpointInitializer {
      * The storage side of {@link Endpoint.erase} and {@link Endpoint.delete}.
      */
     export interface Erasure {
+        /**
+         * Whether an erase deletes the parts of the endpoint before the endpoint resets, so the owner of the structure
+         * creates them again.  The deletes run while the index of the node is live, so each reports its "delete"
+         * change.  A failed part delete fails the wipe.  Only an erase reads this.
+         */
+        deletesParts?: boolean;
+
         /**
          * Erase the persisted data of the endpoint and its parts.  Runs after the endpoint reset.
          */

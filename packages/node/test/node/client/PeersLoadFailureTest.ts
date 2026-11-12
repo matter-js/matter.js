@@ -144,6 +144,55 @@ describe("Peers load failures", () => {
         expect(tracker.rejections.filter(reason => `${reason}`.includes("Behaviors have errors"))).deep.equals([]);
     });
 
+    it("keeps a peer that cannot load crashed with its stored data on start()", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const id = controller.id;
+        const storage = site.storageFor(id);
+        await controller.close();
+        orphanPeerFromFabric(storage, "peer1");
+        const cacheKeys = Object.keys(storage).filter(key => /^nodes\.peer1\.endpoints\.0\.\d+$/.test(key));
+        expect(cacheKeys.length).greaterThan(0);
+
+        const rebooted = await reboot(site, id);
+        const broken = rebooted.peers.get("peer1")!;
+        await expect(broken.construction).rejected;
+
+        const error = await MockTime.resolve(broken.start(), { macrotasks: true }).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(error).instanceOf(EndpointBehaviorsError);
+        expect(broken.construction.status).equals(Lifecycle.Status.Crashed);
+        expect(cacheKeys.filter(key => storage[key] === undefined)).deep.equals([]);
+        await MockTime.resolve(rebooted.close(), { macrotasks: true });
+    });
+
+    it("rejects enable() of a disabled peer that cannot load and keeps the flag", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const id = controller.id;
+        const storage = site.storageFor(id);
+        await controller.close();
+        orphanPeerFromFabric(storage, "peer1");
+        storage["nodes.peer1.settings"] = { isDisabled: true };
+
+        const rebooted = await reboot(site, id);
+        const broken = rebooted.peers.get("peer1")!;
+        await expect(broken.construction).rejected;
+
+        const error = await MockTime.resolve(broken.enable(), { macrotasks: true }).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(error).instanceOf(EndpointBehaviorsError);
+        expect(broken.isDisabled).equals(true);
+        expect(storage["nodes.peer1.settings"]).deep.equals({ isDisabled: true });
+        await MockTime.resolve(rebooted.close(), { macrotasks: true });
+    });
+
     it("stops and closes a controller with a peer that cannot load", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();

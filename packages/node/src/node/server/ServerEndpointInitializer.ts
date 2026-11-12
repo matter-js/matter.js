@@ -87,8 +87,8 @@ export class ServerEndpointInitializer extends EndpointInitializer {
     }
 
     /**
-     * The bridged ConfigurationVersion of an endpoint about to be erased: the live value of a running endpoint, else the
-     * persisted value, so a crashed endpoint does not restart with a lower version.
+     * The bridged ConfigurationVersion of an endpoint about to be erased: the live value of a running endpoint, else
+     * the persisted value, so a crashed endpoint does not restart with a lower version.
      */
     async #erasedConfigurationVersionOf(part: Endpoint) {
         if (!part.behaviors.has(BridgedDeviceBasicInformationServer)) {

@@ -67,6 +67,10 @@ export class ClientNodeStore extends NodeStore {
         this.#write = write;
     }
 
+    /**
+     * The buffer the caches of the store persist through.  Must be set before the first cache on the store is created,
+     * as a cache without a buffer persists nothing.
+     */
     get buffer() {
         return this.#buffer;
     }
@@ -190,12 +194,10 @@ export class ClientNodeStore extends NodeStore {
                 await MatterAggregateError.settleSeries(
                     [
                         ...stores.map(store => () => store.eraseCaches()),
-                        async () => {
-                            this.#cacheFabricFiltered = undefined;
-                            await namingStoreFailure(this, "erase the cache fabric filter of", async () => {
+                        () =>
+                            namingStoreFailure(this, "erase the cache fabric filter of", async () => {
                                 await this.#cacheStorage?.clearAll();
-                            });
-                        },
+                            }),
                     ],
                     `Error while erasing the cache of ${this}`,
                 );
@@ -253,7 +255,7 @@ export class ClientNodeStore extends NodeStore {
 
         let store = this.#stores.get(number);
         if (store === undefined) {
-            if (endpoint.isDestructionRequested) {
+            if (endpoint.lifecycle.isDestructionRequested) {
                 throw new StoreClosedError(`Cannot hand out a new store for ${endpoint}, which is being destroyed`);
             }
             store = new ClientEndpointStore(this, number, this.#storage.createContext(number.toString()));

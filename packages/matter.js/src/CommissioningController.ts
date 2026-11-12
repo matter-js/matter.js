@@ -867,11 +867,32 @@ export class CommissioningController {
 
         await this.#controllerInstance.start();
 
+        if (this.#options.autoConnect !== false) {
+            await this.#enablePeers(this.#controllerInstance);
+        }
+
         const changeNotifications = this.#controllerInstance.node.env.get(ChangeNotificationService);
         this.#observers.on(changeNotifications.change, this.#handleNodeChange.bind(this));
 
         if (this.#options.autoConnect !== false && this.#controllerInstance.isCommissioned()) {
             await this.connect();
+        }
+    }
+
+    /**
+     * Enable every commissioned peer that is disabled, such as by an earlier start with `autoConnect: false`.  A peer
+     * that fails to enable is logged and stays as it is.
+     */
+    async #enablePeers(controller: MatterController) {
+        for (const peer of controller.node.peers) {
+            if (!peer.lifecycle.isCommissioned || !peer.isDisabled) {
+                continue;
+            }
+            try {
+                await peer.enable();
+            } catch (error) {
+                logger.warn(`Error enabling ${peer}:`, error);
+            }
         }
     }
 

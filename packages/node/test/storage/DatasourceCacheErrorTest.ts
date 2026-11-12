@@ -44,14 +44,20 @@ function endedWriter() {
     };
 }
 
-/** A buffer that records the caches it is asked to persist */
-function dirtyRecordingBuffer(dirty: DatasourceCache[]) {
-    return {
-        persist: async (cache: DatasourceCache) => {
-            dirty.push(cache);
-        },
-        clear: (clear: () => Promise<void>) => clear(),
-    } as any;
+/** A buffer that records the caches it is asked to persist instead of persisting them */
+class DirtyRecordingBuffer extends ClientCacheBuffer {
+    constructor(readonly dirty: DatasourceCache[]) {
+        super(MemoryStorageDriver.create(), Instant);
+    }
+
+    override async persist(cache: DatasourceCache) {
+        this.dirty.push(cache);
+        return undefined;
+    }
+
+    override async clear(clear: () => Promise<void>) {
+        await clear();
+    }
 }
 
 const buffers = new Array<ClientCacheBuffer>();
@@ -124,7 +130,7 @@ describe("DatasourceCache error handling", () => {
     describe("externalSet guard", () => {
         it("blocks after erase", async () => {
             const dirty: DatasourceCache[] = [];
-            const buffer = dirtyRecordingBuffer(dirty);
+            const buffer = new DirtyRecordingBuffer(dirty);
             const cache = createCache({ buffer });
 
             await cache.externalSet(attrs({ onOff: true }));
@@ -138,7 +144,7 @@ describe("DatasourceCache error handling", () => {
 
         it("blocks after reclaimValues but re-enables on consumer assignment", async () => {
             const dirty: DatasourceCache[] = [];
-            const buffer = dirtyRecordingBuffer(dirty);
+            const buffer = new DirtyRecordingBuffer(dirty);
             const cache = createCache({ buffer });
 
             await cache.externalSet(attrs({ onOff: true }));
@@ -470,7 +476,7 @@ describe("settlement errors", () => {
         const begin = driver.begin.bind(driver);
         driver.begin = () => {
             driver.begin = begin;
-            throw new Error("begin failure");
+            throw new StorageError("begin failure");
         };
         const writer = trackingWriter();
         const buffer = newBuffer(driver, Instant);
@@ -480,7 +486,7 @@ describe("settlement errors", () => {
         const { persistFailure } = await cache.externalSet(attrs({ "1": "reported" }));
         await buffer.flush();
 
-        expect((persistFailure as Error).message).equals("begin failure");
+        expect(persistFailure).property("message", "begin failure");
         expect(writer.persisted).deep.equals([{ "1": "reported", __version__: Datasource.UNKNOWN_VERSION }]);
     });
 
@@ -492,7 +498,7 @@ describe("settlement errors", () => {
             localWriter: {
                 persistInTransaction: async () => {
                     failingCalls++;
-                    throw new Error("persist failure");
+                    throw new StorageError("persist failure");
                 },
             },
         });
@@ -503,7 +509,7 @@ describe("settlement errors", () => {
 
         const warnings = await captureWarningsOf(async () => {
             const { persistFailure } = await failing.externalSet(attrs({ "1": "failing" }));
-            expect((persistFailure as Error).message).equals("persist failure");
+            expect(persistFailure).property("message", "persist failure");
             expect((await healthy.externalSet(attrs({ "1": "healthy" }))).persistFailure).undefined;
         });
 
@@ -625,7 +631,8 @@ describe("settlement errors", () => {
         expect(storedAtClear?.["1"]).equals("second");
     });
 
-    // Characterization: the dirty set drops a discarded cache at the next job either way; this pins that it writes nothing
+    // Characterization: the dirty set drops a discarded cache at the next job either way; this pins that it writes
+    // nothing
     it("does not flush a cache again that was discarded while its commit failed", async () => {
         const driver = new FailingCommitDriver();
         driver.initialize();
@@ -685,7 +692,7 @@ describe("settlement errors", () => {
             ({ persistFailure } = await cache.externalSet(attrs({ "1": "reported" })));
         });
 
-        expect((persistFailure as Error).message).equals("Simulated commit failure");
+        expect(persistFailure).property("message", "Simulated commit failure");
         expect(
             log.filter(({ text }) => text.includes("Simulated rollback failure")).map(({ level }) => level),
         ).deep.equals([LogLevel.WARN]);
@@ -740,7 +747,7 @@ describe("settlement errors", () => {
         const { persistFailure } = await cache.externalSet(attrs({ "1": "first" }));
         await cache.externalSet(attrs({ "2": "second" }));
 
-        expect((persistFailure as Error).message).equals("Simulated commit failure");
+        expect(persistFailure).property("message", "Simulated commit failure");
         expect(writer.persisted.at(-1)).deep.equals({
             "1": "first",
             "2": "second",

@@ -96,8 +96,8 @@ export class ClientCacheBuffer {
     /**
      * Flush all dirty caches.  Resolves once the flush ended; a cache that fails is logged and stays dirty.
      *
-     * A lasting storage failure fails every flush, and each resubscribe of a peer queues one.  So only the first failure
-     * of each kind is a warning; repeats log at debug level until a flush ends without failure.
+     * A lasting storage failure fails every flush, and each resubscribe of a peer queues one.  So only the first
+     * failure of each kind is a warning; repeats log at debug level until a flush ends without failure.
      */
     async flush(): Promise<void> {
         this.#logFailures(await this.#enqueueFlush());

@@ -73,7 +73,7 @@ describe("ClientGroup", () => {
         expect(threw).to.be.true;
     });
 
-    it("deletes an endpoint and requires it again", async () => {
+    it("resolves the number of a deleted endpoint to a new endpoint that applies changes", async () => {
         const { node, group, endpoint } = await groupWithEndpoint();
         await using _node = node;
 

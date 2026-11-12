@@ -170,7 +170,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         const autoStart = this.owner.stateOf(NetworkServer).autoStartCommissionedPeers;
         for (const peer of this) {
             if (autoStart && peer.onlineBlocker === undefined) {
-                peer.lifecycle.seedIntent({ target: "online" });
+                peer.lifecycle.autoStart();
             }
             try {
                 await peer.applyIntent();

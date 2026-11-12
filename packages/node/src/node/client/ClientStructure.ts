@@ -1291,7 +1291,7 @@ export class ClientStructure {
         );
 
         try {
-            await endpoint.deleteDroppedByPeer();
+            await endpoint.verbs.run("delete", "structure");
         } catch (e) {
             // The endpoint is closed already, or it, the node or an ancestor is closing or being deleted
             if (e instanceof DestroyedDependencyError) {

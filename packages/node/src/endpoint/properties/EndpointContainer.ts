@@ -129,7 +129,7 @@ export class EndpointContainer<T extends Endpoint = Endpoint>
     }
 
     /**
-     * Destroy all parts.  Invoked automatically by the owner on destroy.
+     * Close every endpoint in the container.  The owner does not call this; it destroys its parts itself.
      */
     async close() {
         await MatterAggregateError.settleSeries(this.#closeTasks(), `Error closing endpoints owned by ${this.#owner}`);

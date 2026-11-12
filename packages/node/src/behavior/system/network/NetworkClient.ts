@@ -41,7 +41,11 @@ const logger = Logger.get("NetworkClient");
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
 
-let disabledWriteNoticed = false;
+/**
+ * The server nodes that logged the deprecation of the write of {@link NetworkClient.State.isDisabled}, so each logs it
+ * once.
+ */
+const disabledWriteNoticed = new WeakSet<Node>();
 
 export class NetworkClient extends NetworkBehavior {
     declare internal: NetworkClient.Internal;
@@ -49,7 +53,7 @@ export class NetworkClient extends NetworkBehavior {
     declare readonly events: NetworkClient.Events;
 
     override initialize() {
-        this.state.isDisabled = this.#node.lifecycle.isDisabled;
+        this.#mirrorDisabled();
         this.reactTo(this.#node.lifecycle.intentChanged, this.#mirrorDisabled, { offline: true, lock: true });
         this.internal.mirrorDisabled = this.callback(this.#mirrorDisabled, { offline: true, lock: true });
         this.reactTo(this.events.isDisabled$Changed, this.#forwardDisabledWrite);
@@ -127,6 +131,9 @@ export class NetworkClient extends NetworkBehavior {
         this.internal.runtime!.isReady = true;
     }
 
+    /**
+     * Set {@link State.isDisabled} to the intent of the node, the only place that writes the field.
+     */
     #mirrorDisabled() {
         const { isDisabled } = this.#node.lifecycle;
         if (this.state.isDisabled !== isDisabled) {
@@ -147,8 +154,8 @@ export class NetworkClient extends NetworkBehavior {
             return;
         }
 
-        if (!disabledWriteNoticed) {
-            disabledWriteNoticed = true;
+        if (!disabledWriteNoticed.has(node.owner)) {
+            disabledWriteNoticed.add(node.owner);
             logger.notice(
                 "Writing the network state isDisabled of a peer is deprecated; use ClientNode.disable() or enable() instead",
             );
@@ -407,8 +414,8 @@ export class NetworkClient extends NetworkBehavior {
 
     /**
      * Returns if we actually have an active and established subscription
-     * When a Sustained subscription is used we return the active value, otherwise we know when the subscription instance
-     * is set.
+     * When a Sustained subscription is used we return the active value, otherwise we know when the subscription
+     * instance is set.
      */
     get subscriptionActive() {
         const activeSubscription = this.internal.activeSubscription;
@@ -658,8 +665,8 @@ export namespace NetworkClient {
         mirrorDisabled?: () => MaybePromise<void>;
 
         /**
-         * The contexts that wrote the intent of the node to {@link State.isDisabled}, so their change is not passed back
-         * to the node as a write.
+         * The contexts that wrote the intent of the node to {@link State.isDisabled}, so their change is not passed
+         * back to the node as a write.
          */
         mirrorWrites = new WeakSet<ActionContext>();
     }
@@ -672,11 +679,12 @@ export namespace NetworkClient {
          * {@link Subscribe.Options} are merged into the default: all attributes and urgent events, fabric filtered.
          *
          * A built {@link Subscribe} or `Read` is sent as given, with its paths and fabric filter.  The node sets the
-         * event filter from the higher of the stored and the emitted event number, adds data versions as for any subscription and sets
-         * `keepSubscriptions` to false where the request has none.  A built request that should keep the node's
-         * Leave handling needs the attributes and events of the Basic Information cluster and the `fabrics` attribute
-         * of the Operational Credentials cluster.  Without them the node notices a device going offline only through
-         * the subscription timeout, and it does not see the Leave of a device that leaves the fabric.
+         * event filter from the higher of the stored and the emitted event number, adds data versions as for any
+         * subscription and sets `keepSubscriptions` to false where the request has none.  A built request that should
+         * keep the node's Leave handling needs the attributes and events of the Basic Information cluster and the
+         * `fabrics` attribute of the Operational Credentials cluster.  Without them the node notices a device going
+         * offline only through the subscription timeout, and it does not see the Leave of a device that leaves the
+         * fabric.
          *
          * Only values selected by this subscription update automatically.
          *

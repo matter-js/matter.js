@@ -48,6 +48,7 @@ export class ClientNodeLifecycle extends NodeLifecycle<ClientNodeLifecycle.Inten
     #connectionStateChanged = Observable<[state: NodeConnectionState]>();
     #isSeeded = false;
     #connectionState = NodeConnectionState.Disconnected;
+    #isDisabledRequested = false;
 
     constructor(endpoint: Endpoint) {
         super(endpoint, { target: "offline", isDisabled: false });
@@ -61,6 +62,33 @@ export class ClientNodeLifecycle extends NodeLifecycle<ClientNodeLifecycle.Inten
      */
     get isDisabled(): boolean {
         return this.intent.isDisabled;
+    }
+
+    /**
+     * Adopt the persisted disabled flag when the node first initializes.  Does nothing once a call asked for the flag,
+     * so a call before the first initialization keeps its value.
+     *
+     * @internal
+     */
+    initializeDisabled(isDisabled: boolean) {
+        if (!this.#isDisabledRequested) {
+            this.adopt({ isDisabled });
+        }
+    }
+
+    override request(change: Partial<ClientNodeLifecycle.Intent>) {
+        if ("isDisabled" in change) {
+            this.#isDisabledRequested = true;
+        }
+        return super.request(change);
+    }
+
+    override restore(ticket: NodeLifecycle.IntentTicket, applied: ClientNodeLifecycle.Intent) {
+        const restored = super.restore(ticket, applied);
+        if (restored) {
+            this.#isDisabledRequested = false;
+        }
+        return restored;
     }
 
     /**

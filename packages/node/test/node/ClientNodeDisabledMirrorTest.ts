@@ -151,7 +151,7 @@ describe("ClientNode deprecated network isDisabled", () => {
         expect(networkStorageOf(site, controller)).not.has.property("isDisabled");
     });
 
-    it("passes a write once and notices the deprecation once", async () => {
+    it("passes a write once and notices the deprecation once per server node", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
         const peer = await subscribedPeer(controller, PEER);
@@ -175,8 +175,22 @@ describe("ClientNode deprecated network isDisabled", () => {
 
         expect(disables).equals(1);
         expect(changes).deep.equals([true, false]);
-        // Once per process, so an earlier test may have logged it already
-        expect(capture.notices.length).lessThanOrEqual(1);
+        expect(capture.notices.length).equals(1);
+    });
+
+    it("keeps a write of false that waits for an erase that initializes the node again", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, PEER);
+        await MockTime.resolve(peer.disable());
+        await settle(peer);
+
+        const erasing = peer.erase();
+        const clearing = peer.applyDisabledWrite(false);
+        await MockTime.resolve(Promise.all([erasing, clearing]), { macrotasks: true });
+
+        expect(peer.isDisabled).false;
+        expect(settingsOf(site, controller)?.isDisabled).equals(false);
     });
 
     it("ends enabled whatever the delay between disable() and enable()", async () => {

@@ -277,7 +277,10 @@ A wrong passcode fails with `PasscodeMismatchError` (`@matter/protocol`), possib
 `onAttestationFailure(findings)` replaces the legacy attestation callback — return `true` to accept, `false` to
 reject, or a string to reject with that message; each finding carries `level` (`"error"` / `"warn"` / `"info"`),
 `type` and `message`. To decommission, use `node.decommission()` (contacts the device, so call it only while
-`lifecycle.isConnected`) or `node.delete()` (force-drop locally when the peer is unreachable).
+`lifecycle.isConnected`) or `node.delete()` (force-drop locally when the peer is unreachable). `node.delete()` rejects
+with `DestroyedDependencyError` once a close or delete of the server node was requested, for example when the server
+node shuts down at the same time. A close of the server node then closes the peer and keeps its storage; a delete of
+the server node removes it.
 
 ### Delegated / split commissioning (legacy `PaseCommissioner`)
 
@@ -360,7 +363,7 @@ state:
 
 | Legacy | New (`NetworkClient` state, via `clientNode.set({ network: … })`, except `autoConnect`) |
 | --- | --- |
-| `autoConnect` | `clientNode.disable()` / `enable()`: `autoConnect: false` → `disable()`. They persist the flag; read it with `clientNode.isDisabled`. The `NetworkClient` state `isDisabled` is deprecated and only mirrors that flag. |
+| `autoConnect` | `clientNode.disable()` / `enable()`: `autoConnect: false` → `disable()`. They persist the flag; read it with `clientNode.isDisabled`. The `NetworkClient` state `isDisabled` is deprecated and mirrors that flag; a write still disables the node or clears the flag, but takes effect asynchronously. |
 | `autoSubscribe` | `autoSubscribe` (same meaning) |
 | `subscribeAllAttributesAndEvents(opts)` / interval tuning | `defaultSubscription`: `Subscribe.Options` (interval floor/ceiling, filters) merged into the default wildcard subscription, or a built `Subscribe`/`Read` sent as given, with its paths and fabric filter; the node sets the event filter from the higher of the stored and the emitted event number, injects known data versions and defaults `keepSubscriptions` to false. To keep Leave handling, a built request needs the Basic Information attributes and events and the Operational Credentials `fabrics` attribute; without them the node notices a device going offline only through the subscription timeout and does not see a fabric Leave. The subscription re-applies automatically when you change it |
 | `node.connect()` | `clientNode.enable()` (subscription follows automatically). `PairedNode.connect()` itself calls `enable()`, so it also starts a stopped peer that is not disabled |
@@ -483,7 +486,7 @@ connects only the peers you ask for.
 `NodeConnectionState` uses the same numeric values as legacy `NodeStates`
 (`Connected=0, Disconnected=1, Reconnecting=2, WaitingForDeviceDiscovery=3`), so a consumer migrates by
 type-swap. Semantics: `Connected` = live subscription; `Disconnected` = node stopped / not started /
-disabled / not commissioned, or its server node is offline; `Reconnecting` = started and (re-)establishing;
+disabled / not commissioned, its server node is offline, or its start failed; `Reconnecting` = started and (re-)establishing;
 `WaitingForDeviceDiscovery` = peer appears offline (establishment past the MRP budget, a missed ICD check-in for
 registered LIT ICDs, or no known address to try). The
 2-state `lifecycle.isOnline` still exists for simple online/offline needs.
@@ -772,7 +775,7 @@ read is done, and `lifecycle.seeded` then emits again.
 | Server node offline | The node stays offline |
 | `close()` or `delete()` of an endpoint below the node | Refused, unless that endpoint is already being deleted; then the call waits for that delete |
 | `close()` or `delete()` of the node | Runs after the erase; the node does not restart |
-| The stored data of the root or of an endpoint fails to erase | The endpoints below the root are still removed; the node crashes and stays offline until you call `start()`, and `erase()` rejects with the failures |
+| The stored data of the root or of an endpoint fails to erase | The endpoints below the root are still removed; the node crashes and `erase()` rejects with the failures. The node stays offline until `start()`, `enable()` or a restart of the server node finishes the erase and reconnects; a disabled node needs `enable()`, as `start()` refuses it. If the storage still fails, the call rejects and the node stays crashed |
 
 Endpoints of a client node mirror the device, so their own `erase()`, `delete()` and `close()` reject with
 `ImplementationError`. Erase, delete or close the node instead.

@@ -1279,6 +1279,17 @@ describe("ServerNode", () => {
         expect(lock.released).equals(true);
     });
 
+    it("refuses the client cache buffer once its services closed", async () => {
+        await using site = new MockSite();
+        const node = await site.addNode(undefined, { device: undefined, commissioning: { enabled: false } });
+        const buffer = ServerEnvironment.clientCacheBufferOf(node);
+        expect(ServerEnvironment.clientCacheBufferOf(node)).equals(buffer);
+
+        await MockTime.resolve(node.close(), { macrotasks: true });
+
+        expect(() => ServerEnvironment.clientCacheBufferOf(node)).throws(DestroyedDependencyError);
+    });
+
     it("releases the storage lock when an endpoint fails to close", async () => {
         await using site = new MockSite();
         const node = await site.addNode(undefined, { device: undefined, commissioning: { enabled: false } });
@@ -1869,6 +1880,41 @@ describe("ServerNode", () => {
 
         expect(resets).equals(0);
         expect(node.construction.status).not.equals(Lifecycle.Status.Active);
+    });
+
+    it("reports an auto-start only if it changes the intent and keeps a target a call asked for", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { online: false });
+        let changes = 0;
+        node.lifecycle.intentChanged.on(() => {
+            changes++;
+        });
+
+        node.lifecycle.autoStart();
+        node.lifecycle.autoStart();
+        expect(changes).equals(1);
+
+        node.lifecycle.request({ target: "offline" });
+        node.lifecycle.autoStart();
+
+        expect(changes).equals(2);
+        expect(node.lifecycle.intent.target).equals("offline");
+    });
+
+    it("recovers on start() after a factory reset whose storage erase failed", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { online: false });
+        const store = node.env.get(ServerNodeStore);
+        const erase = store.erase.bind(store);
+        store.erase = async () => {
+            throw new ImplementationError("Storage erase refused for test");
+        };
+        await expect(MockTime.resolve(node.erase(), { macrotasks: true })).rejectedWith(MatterAggregateError);
+        expect(node.construction.status).equals(Lifecycle.Status.Crashed);
+        store.erase = erase;
+
+        await MockTime.resolve(node.start(), { macrotasks: true });
+
+        expect(node.construction.status).equals(Lifecycle.Status.Active);
+        expect(node.lifecycle.isOnline).equals(true);
     });
 
     it("crashes when it cannot go online again after a factory reset", async () => {

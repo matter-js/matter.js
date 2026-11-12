@@ -21,13 +21,6 @@ export class ClientGroup extends ClientNode {
 
     override readonly nodeType = "group" as const;
 
-    /**
-     * The application adds the endpoints of a group, so they stay across an erase and accept every lifecycle verb.
-     */
-    protected override get endpointsMirrorPeer() {
-        return false;
-    }
-
     override async get(_selector?: unknown, _options?: unknown): Promise<never> {
         throw new InvalidGroupOperationError("Groups do not support reading attributes");
     }

@@ -9,7 +9,6 @@ import { CommissioningClient } from "#behavior/system/commissioning/Commissionin
 import { ClientNetworkRuntime } from "#behavior/system/network/ClientNetworkRuntime.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
-import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
 import { Agent } from "#endpoint/Agent.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { ClientNodeEndpoints } from "#endpoint/properties/ClientNodeEndpoints.js";
@@ -17,25 +16,23 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { awaitLifecycleOperation } from "#endpoint/properties/LifecycleMutex.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
-import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import type { ClientNodeStores } from "#storage/client/ClientNodeStores.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { StoreClosedError } from "#storage/StoreLifecycle.js";
 import {
+    CrashedDependencyError,
     Diagnostic,
     Duration,
     Identity,
     ImplementationError,
-    Instant,
     InternalError,
     Lifecycle,
     Logger,
     MatterAggregateError,
     MatterError,
     MaybePromise,
-    StorageManager,
 } from "@matter/general";
 import { Matter, MatterModel } from "@matter/model";
 import { Interactable, OccurrenceManager, PeerAddress, PeerSet } from "@matter/protocol";
@@ -44,6 +41,7 @@ import { ClientNodeInteraction } from "./client/ClientNodeInteraction.js";
 import { ClientStructure } from "./client/ClientStructure.js";
 import { ClientNodeLifecycle } from "./ClientNodeLifecycle.js";
 import { Node } from "./Node.js";
+import { ServerEnvironment } from "./server/ServerEnvironment.js";
 import type { ServerNode } from "./ServerNode.js";
 
 const logger = Logger.get("ClientNode");
@@ -81,6 +79,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     #blockInteractions = false;
     #cachedPeerAddress?: PeerAddress;
     #stores?: ClientNodeStores;
+    #isInitialized = false;
 
     constructor(options: ClientNode.Options) {
         const opts = {
@@ -107,10 +106,13 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
     /**
      * Whether the endpoints below the root mirror the peer.  The structure of such a node adds and removes them as the
-     * peer reports them, so only the verbs of the node erase, delete or close them.
+     * peer reports them, so they refuse their own lifecycle verbs and an erase of the node deletes them.  The endpoints
+     * of a `ClientGroup` are added by the application and do not mirror anything.
+     *
+     * @internal
      */
-    protected get endpointsMirrorPeer() {
-        return true;
+    get endpointsMirrorPeer() {
+        return this.nodeType === "client";
     }
 
     /**
@@ -151,17 +153,18 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         this.#stores = this.env.get(ServerNodeStore).clientStores;
         const store = this.openStore(this.#stores);
 
-        const initializer = new ClientEndpointInitializer(this, store, {
-            endpointsMirrorPeer: this.endpointsMirrorPeer,
-        });
+        const initializer = new ClientEndpointInitializer(this, store);
         this.env.set(EndpointInitializer, initializer);
         this.env.set(ClientStructure, initializer.structure);
 
         store.write = RemoteWriter(this, initializer.structure);
 
-        this.lifecycle.seedIntent({ isDisabled: store.isNodeDisabled });
+        if (!this.#isInitialized) {
+            this.#isInitialized = true;
+            this.lifecycle.initializeDisabled(store.isNodeDisabled);
+        }
 
-        this.#installCacheBuffer(store);
+        store.buffer ??= ServerEnvironment.clientCacheBufferOf(this.owner);
 
         initializer.structure.loadCache(store.endpointStores);
 
@@ -178,26 +181,6 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         }
 
         return promise;
-    }
-
-    /**
-     * Give {@link store} the buffer of the owning server node, unless the store has its own.  The first node creates
-     * the buffer with the configured flush interval, which defaults to the
-     * {@link StorageDriver#writeCoalescingInterval} of the storage driver.
-     */
-    #installCacheBuffer(store: ClientNodeStore) {
-        if (store.buffer !== undefined) {
-            return;
-        }
-
-        const parentEnv = this.owner.env;
-        if (!parentEnv.has(ClientCacheBuffer)) {
-            const driver = parentEnv.get(StorageManager).driver;
-            const flushInterval =
-                this.owner.stateOf(NetworkServer).clientCacheFlushInterval ?? driver.writeCoalescingInterval;
-            parentEnv.set(ClientCacheBuffer, new ClientCacheBuffer(driver, flushInterval ?? Instant));
-        }
-        store.buffer = parentEnv.get(ClientCacheBuffer);
     }
 
     override get owner(): ServerNode {
@@ -295,30 +278,20 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * For a node whose own close or delete is in progress, this waits for that to end, then erases the storage of the
      * node and removes its protocol peer.  The erase counts as requested at once, so a close of the stores of the
      * server node waits for it; once that close began, the node still closes and the call then rejects with
-     * `DestroyedDependencyError`, as its storage is not erased.  A node erases its storage once at most, as a later node
-     * may receive the same ID.
+     * `DestroyedDependencyError`, as its storage is not erased.  A node erases its storage once at most, as a later
+     * node may receive the same ID.
      *
      * @internal
      */
     async deleteDespiteServerTeardown() {
         if (!this.lifecycle.isTerminal) {
-            return this.deleteDespiteOwnerTeardown();
+            return this.verbs.run("delete", "despiteOwnerTeardown");
         }
         const address = this.peerAddress;
         try {
             const close = () => this.close();
             const stores = this.#forgetStores();
             await (stores === undefined ? close() : stores.eraseStore(this.id, close));
-        } finally {
-            await this.#forgetProtocolPeer(address);
-        }
-    }
-
-    protected override async deleteWithMutex(prepared: (erasure: EndpointInitializer.Erasure) => void) {
-        const address = this.peerAddress;
-
-        try {
-            await super.deleteWithMutex(prepared);
         } finally {
             await this.#forgetProtocolPeer(address);
         }
@@ -358,21 +331,30 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * | server node offline                      | stays offline                                                 |
      * | `close()`/`delete()` of an endpoint      | refused, unless its delete began; then waits for that delete  |
      * | `close()` or `delete()` of the node      | runs after the erase, which then skips the restart            |
-     * | an endpoint's storage fails to erase     | endpoint destroyed, node crashed until `start()`, rejects     |
+     * | an endpoint's storage fails to erase     | endpoint destroyed, node crashed, rejects; see below          |
      *
      * A `ClientGroup` keeps its endpoints, as the application adds them; the erase drops their data and restarts them.
      *
      * Rejects with a {@link MatterAggregateError} that lists every failure at one level if a step fails, a failed
      * reconnect included.  A storage failure is a `StorageError` that names the store, with the error of the storage
-     * driver as its cause.  A failed reset still erases the storage and initializes the node again.  The node crashes if it cannot disconnect first,
-     * in which case nothing is erased, if the storage of the root or of an endpoint fails to erase, or if it cannot
-     * reconnect for another reason than its server node being offline.  A crashed node stays offline until
-     * {@link start}.  If its server node is offline by then, the node stays offline instead.  Throws
-     * `DestroyedDependencyError` once a close or delete of the node or of its server node was requested.
+     * driver as its cause.  A failed reset still erases the storage and initializes the node again.  The node crashes
+     * if it cannot disconnect first, in which case nothing is erased, if the storage of the root or of an endpoint
+     * fails to erase, or if it cannot reconnect for another reason than its server node being offline.  A crashed node
+     * stays offline until {@link start}, {@link enable} or a restart of its server node finishes the erase and
+     * reconnects; a disabled node needs {@link enable}, as {@link start} refuses it.  If the erase fails again, the
+     * call rejects with those failures and the node stays crashed.  Throws `DestroyedDependencyError` once a close or
+     * delete of the node or of its server node was requested.
      */
     override async erase() {
+        await this.#flattenEraseFailures(() => super.erase());
+    }
+
+    /**
+     * Run an erase of the node and list its failures at one level.
+     */
+    async #flattenEraseFailures(erase: () => Promise<void>) {
         try {
-            await super.erase();
+            await erase();
         } catch (e) {
             if (e instanceof MatterAggregateError) {
                 throw new MatterAggregateError(leafErrorsOf(e), `Error erasing ${this}`);
@@ -401,7 +383,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * the node may not go online at its turn.
      */
     override async start() {
-        if (this.lifecycle.isDisabled && this.terminalCause === undefined) {
+        if (this.lifecycle.isDisabled && this.lifecycle.terminalCause === undefined) {
             throw this.#disabledError();
         }
         await super.start();
@@ -417,14 +399,6 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         if (this.#ownBlocker === undefined && !this.owner.lifecycle.isOnline) {
             await this.owner.start();
         }
-    }
-
-    /**
-     * The server node of a peer destroys the peer once the close or delete of the server node was requested.
-     */
-    protected override get terminalAncestor(): Endpoint | undefined {
-        const owner = super.owner;
-        return owner?.lifecycle.isTerminal ? owner : undefined;
     }
 
     /**
@@ -489,14 +463,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * too.  Throws `DestroyedDependencyError` if the node or its server node is closing or closed.
      */
     async disable() {
-        const change: ClientNode.TargetChange = {
-            target: "offline",
-            isDisabled: true,
-            policy: "refused-once-terminal",
-            action: "disable",
-            operation: "disabling",
-        };
-        await this.changeTarget(change);
+        await this.requestIntent(disabling(true), "disable");
     }
 
     /**
@@ -504,18 +471,13 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      *
      * The node persists the flag before it goes online.  Calls take effect as {@link start} describes.  An enable that
      * a later {@link stop} reverses still clears the flag, which that stop persists.  A failed enable leaves the node
-     * enabled only if it persisted the flag.  A crashed node persists the flag and then rejects, as it cannot go
-     * online.  Throws `DestroyedDependencyError` if the node or its server node is closing or closed.
+     * enabled only if it persisted the flag.  A node that crashed in {@link erase} finishes the erase before it
+     * persists the flag, as {@link start} does.  A node that crashed for another reason rejects with the cause of the
+     * crash and does not persist the flag.  Throws `DestroyedDependencyError` if the node or its server node is closing
+     * or closed.
      */
     async enable() {
-        const change: ClientNode.TargetChange = {
-            target: "online",
-            isDisabled: false,
-            policy: "refused-once-terminal",
-            action: "enable",
-            operation: "enabling",
-        };
-        await this.changeTarget(change);
+        await this.requestIntent(disabling(false), "enable");
     }
 
     /**
@@ -530,32 +492,8 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
             await this.disable();
             return;
         }
-        const change: ClientNode.TargetChange = {
-            target: this.lifecycle.intent.target,
-            isDisabled: false,
-            keepsTarget: true,
-            policy: "refused-once-terminal",
-            action: "clear the disabled flag",
-            operation: "clearing the disabled flag of",
-        };
-        await this.changeTarget(change);
-    }
-
-    protected override recordIntent(change: ClientNode.TargetChange) {
-        return this.lifecycle.recordIntent(
-            {
-                target: change.target,
-                isDisabled: change.isDisabled ?? this.lifecycle.isDisabled,
-            },
-            { keepsTarget: change.keepsTarget },
-        );
-    }
-
-    protected override isInDirectionOf(intent: ClientNodeLifecycle.Intent, change: ClientNode.TargetChange) {
-        return (
-            super.isInDirectionOf(intent, change) &&
-            (change.isDisabled === undefined || change.isDisabled === intent.isDisabled)
-        );
+        const change: Partial<ClientNodeLifecycle.Intent> = { isDisabled: false };
+        await this.requestIntent(change, "clear-disabled");
     }
 
     protected override async persistIntentWithMutex() {
@@ -574,38 +512,27 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     /**
-     * Delete erases the store of the node itself, also when the node crashed before it installed its initializer.
+     * Delete erases the store of the node itself, also when the node crashed before it installed its initializer, and
+     * then removes the protocol peer of the node.
      */
     protected override async prepareDelete(): Promise<EndpointInitializer.Erasure> {
-        return { wipe: async () => this.#forgetStores()?.eraseStore(this.id) };
+        const address = this.peerAddress;
+        return {
+            wipe: async () => this.#forgetStores()?.eraseStore(this.id),
+            finish: () => this.#forgetProtocolPeer(address),
+        };
     }
 
     /**
-     * Erase drops what the root cached from the peer and keeps its commissioning and connection settings.  If the
-     * endpoints mirror the peer, it deletes the endpoints below the root, and the read of the peer creates them again.
-     * The delete runs before the root resets, as the reset clears the index of the node, without which the endpoints
-     * report no "delete" change.  A failed delete fails the wipe, so the node crashes as after a failed cache erase.
+     * Erase drops what the root cached from the peer and keeps its commissioning and connection settings.  The
+     * endpoints below the root of a peer mirror the peer, so the erase deletes them and the read of the peer creates
+     * them again; a group keeps the endpoints the application added.
      */
     protected override async prepareErase(): Promise<EndpointInitializer.Erasure> {
-        const failures = new Array<unknown>();
-        if (this.endpointsMirrorPeer) {
-            try {
-                await this.deletePartsWithMutex();
-            } catch (e) {
-                failures.push(e);
-            }
-        }
-
         return {
+            deletesParts: this.endpointsMirrorPeer,
             wipe: async () => {
-                try {
-                    await this.#stores?.eraseCaches(this.id);
-                } catch (e) {
-                    failures.push(e);
-                }
-                if (failures.length) {
-                    throw new MatterAggregateError(failures, `Error erasing the storage of ${this}`);
-                }
+                await this.#stores?.eraseCaches(this.id);
             },
         };
     }
@@ -618,6 +545,22 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         const stores = this.#stores;
         this.#stores = undefined;
         return stores;
+    }
+
+    /**
+     * A node that crashed in {@link erase} finishes the erase as the erase verb: it deletes its remaining endpoints,
+     * resets, erases its caches and initializes again.  An {@link erase} meanwhile joins it.  An {@link act} meanwhile
+     * waits for it once the reset made the node inactive; before that, while the endpoints are deleted, the node is
+     * still crashed and the act fails with the crash, as during an {@link erase} of a crashed node.  Rejects with the
+     * failures of that erase, which leave the node crashed.  A node that crashed for another reason, or whose erase
+     * waits for its turn and recovers it then, stays crashed, and this rejects with the cause of the crash; erase or
+     * delete such a node.
+     */
+    protected override async recoverWithMutex() {
+        if (!this.verbs.isEraseUnfinished || this.verbs.inProgress !== undefined) {
+            throw this.construction.error ?? new CrashedDependencyError(this.toString(), "crashed");
+        }
+        await this.#flattenEraseFailures(() => this.verbs.run("erase", "recovery"));
     }
 
     protected override async resetWithMutex() {
@@ -688,7 +631,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         if (this.construction.status === Lifecycle.Status.Inactive) {
             this.lifecycle.assertNotGone();
 
-            const operation = this.lifecycleOperation;
+            const operation = this.verbs.inProgress;
             if (operation !== undefined) {
                 return awaitLifecycleOperation(`acting on ${this}`, `a lifecycle operation of ${this}`, operation).then(
                     () => this.#readyToAct(),
@@ -757,6 +700,13 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 }
 
 /**
+ * The intent of `enable()` (false) and `disable()` (true).
+ */
+function disabling(isDisabled: boolean): Partial<ClientNodeLifecycle.Intent> {
+    return { target: isDisabled ? "offline" : "online", isDisabled };
+}
+
+/**
  * The errors in {@link error} that are not aggregates, so nested aggregates report at one level.
  */
 function leafErrorsOf(error: unknown): unknown[] {
@@ -766,22 +716,6 @@ function leafErrorsOf(error: unknown): unknown[] {
 export namespace ClientNode {
     export interface Options extends Node.Options<RootEndpoint> {
         matter?: MatterModel;
-    }
-
-    /**
-     * A call of `changeTarget()` of a client node.
-     */
-    export interface TargetChange extends Node.TargetChange {
-        /**
-         * Whether the node is disabled, or undefined if the call keeps it as it is.
-         */
-        isDisabled?: boolean;
-
-        /**
-         * True if the call asks for no target and keeps the one of the intent, so the auto-start of the server node may
-         * still give the node an online intent.
-         */
-        keepsTarget?: boolean;
     }
 
     export const RootEndpoint = MutableEndpoint({

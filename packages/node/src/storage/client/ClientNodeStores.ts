@@ -84,8 +84,8 @@ export class ClientNodeStores {
      *
      * The ID is not an identity that outlives the peer.  The counter starts from the IDs already in storage, so once a
      * peer is removed and its data is gone, a peer commissioned later may receive the same ID.  Anything stored for
-     * longer than the peer itself cannot rely on either identifier. A `PeerAddress` names one device only for as long as
-     * that device stays commissioned. Past that it may be issued to another device under the rules
+     * longer than the peer itself cannot rely on either identifier. A `PeerAddress` names one device only for as long
+     * as that device stays commissioned. Past that it may be issued to another device under the rules
      * `ControllerBehavior.allocatePeerAddress` documents, and a lookup can then name that other device.
      */
     allocateId() {
@@ -97,8 +97,8 @@ export class ClientNodeStores {
     /**
      * Get the store for a single {@link ClientNode} or peer Id, and open one if there is none.
      *
-     * Throws `StoreClosedError` while an erase of the ID or {@link erase} runs, as the erase may still clear the storage
-     * a new store would load from.
+     * Throws `StoreClosedError` while an erase of the ID or {@link erase} runs, as the erase may still clear the
+     * storage a new store would load from.
      */
     storeForNode(nodeOrId: ClientNode | string): ClientNodeStore {
         const id = typeof nodeOrId === "string" ? nodeOrId : nodeOrId.id;
@@ -168,10 +168,10 @@ export class ClientNodeStores {
 
     /**
      * Erase the values cached from the node with {@link id} and open a new store of the node that loads what remains.
-     * The new store comes from the same storage as the store it replaces, also if the erase fails.  It keeps the buffer
-     * of a group store; a node store has no buffer until {@link ClientNode} initializes again and installs the buffer of
-     * its server node.  A new store that fails to load leaves the index, so the next {@link storeForNode} opens another
-     * one.  The erase counts as requested at once, like {@link eraseStore}.  Without a current store this does nothing.
+     * The new store comes from the same storage as the store it replaces, also if the erase fails, and persists its
+     * caches through the buffer of the store it replaces.  A new store that fails to load leaves the index, so the next {@link storeForNode} opens
+     * another one.  The erase counts as requested at once, like {@link eraseStore}.  Without a current store this does
+     * nothing.
      *
      * Rejects with a `MatterAggregateError` of the failures, or with `DestroyedDependencyError` once {@link close} was
      * called.
@@ -254,8 +254,8 @@ export class ClientNodeStores {
         return this.#stores.get(id)?.store;
     }
 
-    async #renew(id: string, { store, storage, ownBuffer }: ClientNodeStores.Entry) {
-        const renewed = this.#open(id, storage, store.isPreexisting, ownBuffer);
+    async #renew(id: string, { store, storage }: ClientNodeStores.Entry) {
+        const renewed = this.#open(id, storage, store.isPreexisting, store.buffer);
         try {
             await renewed.construction.ready;
         } catch (e) {
@@ -266,11 +266,11 @@ export class ClientNodeStores {
         }
     }
 
-    #open(id: string, storage: StorageContext, isPreexisting: boolean, ownBuffer?: ClientCacheBuffer) {
+    #open(id: string, storage: StorageContext, isPreexisting: boolean, buffer?: ClientCacheBuffer) {
         const store = new ClientNodeStore(id, storage, isPreexisting);
-        store.buffer = ownBuffer;
+        store.buffer = buffer;
         store.construction.start();
-        this.#stores.set(id, { store, storage, ownBuffer });
+        this.#stores.set(id, { store, storage });
         return store;
     }
 
@@ -326,6 +326,5 @@ export namespace ClientNodeStores {
     export interface Entry {
         store: ClientNodeStore;
         storage: StorageContext;
-        ownBuffer?: ClientCacheBuffer;
     }
 }

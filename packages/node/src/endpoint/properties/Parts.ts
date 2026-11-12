@@ -121,6 +121,22 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
         return true;
     }
 
+    /**
+     * Take {@link endpoint} out of the parts before it is destroyed, so no verb of the owner that iterates the parts
+     * reaches it.  Unlike {@link remove}, the endpoint keeps passing its lifecycle changes to the owner until it is
+     * destroyed, so its `Destroyed` change still reaches the index of the node, which releases its number.
+     *
+     * @internal
+     */
+    detachUntilDestroyed(endpoint: Endpoint) {
+        if (!super.remove(endpoint)) {
+            return;
+        }
+        endpoint.lifecycle.destroyed.once(() => {
+            endpoint.lifecycle.changed.off(this.#bubbleChange);
+        });
+    }
+
     require(id: string) {
         const part = this.get(id);
 

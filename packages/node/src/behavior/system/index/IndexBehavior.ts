@@ -60,8 +60,8 @@ export class IndexBehavior extends Behavior {
      * {@link number}.  Does nothing if that tree is not part of a node.
      *
      * A claimant that joins the tree under {@link parent} yields to any holder.  A claimant that is already part of the
-     * tree ({@link parent} omitted) yields only to an installed holder, as the endpoints of a tree built before the node
-     * starts claim their numbers in the order they install.
+     * tree ({@link parent} omitted) yields only to an installed holder, as the endpoints of a tree built before the
+     * node starts claim their numbers in the order they install.
      *
      * @throws {@link IdentityConflictError} if another endpoint holds the number
      * @internal
@@ -79,8 +79,8 @@ export class IndexBehavior extends Behavior {
     /**
      * The endpoint of {@link tree}'s node that holds {@link number}, including the node root for 0, or undefined if
      * {@link tree} is not part of a node.  The tree also holds the endpoints that are not installed, such as while the
-     * node resets or before it starts, so unlike the index this answers in every state of the node.  Of several holders,
-     * which a tree built before start may contain, the installed one is preferred.
+     * node resets or before it starts, so unlike the index this answers in every state of the node.  Of several
+     * holders, which a tree built before start may contain, the installed one is preferred.
      *
      * Visits the whole tree, so the server interaction path uses the index instead.
      *

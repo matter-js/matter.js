@@ -23,8 +23,8 @@ export class NodeLifecycle<I extends NodeLifecycle.Intent = NodeLifecycle.Intent
     #onlineAt?: Date;
     #isCommissioned = false;
     #intent: I;
-    #lastRequest = 0;
-    #isAsked = false;
+    #lastTicket = 0;
+    #isTargetRequested = false;
     #intentChanged = Observable<[]>();
     #mutex: LifecycleMutex;
 
@@ -80,8 +80,8 @@ export class NodeLifecycle<I extends NodeLifecycle.Intent = NodeLifecycle.Intent
     }
 
     /**
-     * Emits when the network runtime of the node is about to stop, whether or not the node went online.  {@link offline}
-     * follows only if it did.
+     * Emits when the network runtime of the node is about to stop, whether or not the node went online.  {@link
+     * offline} follows only if it did.
      */
     get goingOffline() {
         return this.#goingOffline;
@@ -116,13 +116,11 @@ export class NodeLifecycle<I extends NodeLifecycle.Intent = NodeLifecycle.Intent
     }
 
     /**
-     * Mutex for protecting node lifecycle transitions.
+     * Mutex for protecting node lifecycle transitions, the node mutex.
      *
      * {@link Node.start}, {@link Node.stop} and the lifecycle verbs of the node hold this mutex.  The verbs of the
      * node's other endpoints do not; they hold {@link treeMutex}, which the verbs of the node take after this one.
-     *
-     * {@link Node.startWithMutex} and {@link Node.cancelWithMutex} expect this mutex; the other "*WithMutex" methods
-     * expect {@link treeMutex}.
+     * See {@link LifecycleMutex} for the lock order.
      *
      * @internal
      */
@@ -135,10 +133,17 @@ export class NodeLifecycle<I extends NodeLifecycle.Intent = NodeLifecycle.Intent
     }
 
     /**
-     * What the last call of `start()`, `stop()` or a call that changes the target like them asked for, or what the node
-     * is if that call failed.  A call records its whole intent before it waits for its turn.  Before the first call it
-     * is what {@link seedIntent} adopted.  After a last call that failed it is what the node is, until
-     * {@link seedIntent} adopts values again.
+     * What the last call of `start()`, `stop()`, `enable()` or `disable()` asked for, or what the node is if that call
+     * failed.  A call records its intent with {@link request} before it waits for its turn.  The auto-start of the
+     * server node gives the target online with {@link autoStart} unless a call asked for a target.
+     *
+     * | event                              | intent after                    | target asked for after |
+     * |------------------------------------|---------------------------------|------------------------|
+     * | {@link request}                    | the change applied              | true if it has target  |
+     * | {@link autoStart}, target not asked | target online                  | unchanged (false)      |
+     * | {@link autoStart}, target asked    | unchanged                       | unchanged (true)       |
+     * | {@link restore} of the last call   | what the node is                | false                  |
+     * | {@link restore} of an earlier call | unchanged                       | unchanged              |
      *
      * @internal
      */
@@ -156,41 +161,55 @@ export class NodeLifecycle<I extends NodeLifecycle.Intent = NodeLifecycle.Intent
     }
 
     /**
-     * Record the intent of a call.  The returned request names the call in {@link restoreIntent}.  A call that keeps
-     * the target asks for none, so {@link seedIntent} still adopts a target unless an earlier call asked for one.
+     * Record the intent of a call.  The returned ticket names the call in {@link restore}.
      *
      * @internal
      */
-    recordIntent(change: Partial<I>, options?: { keepsTarget?: boolean }): NodeLifecycle.IntentRequest {
+    request(change: Partial<I>): NodeLifecycle.IntentTicket {
+        if ("target" in change) {
+            this.#isTargetRequested = true;
+        }
         this.#setIntent({ ...this.#intent, ...change });
-        if (!options?.keepsTarget) {
-            this.#isAsked = true;
-        }
-        return ++this.#lastRequest;
+        return ++this.#lastTicket;
     }
 
     /**
-     * Set the intent to what the node is, {@link applied}, after the call of {@link request} failed, unless a later
-     * call recorded an intent meanwhile.  A restored intent was not asked for, so {@link seedIntent} applies again.
+     * Give the node the target online for the auto-start of its server node, unless a call asked for a target.  Emits
+     * {@link intentChanged} only if the target changes.
      *
      * @internal
      */
-    restoreIntent(request: NodeLifecycle.IntentRequest, applied: I) {
-        if (request === this.#lastRequest) {
-            this.#setIntent(applied);
-            this.#isAsked = false;
+    autoStart() {
+        if (!this.#isTargetRequested && this.#intent.target !== "online") {
+            this.#setIntent({ ...this.#intent, target: "online" });
         }
     }
 
     /**
-     * Adopt intent values that hold until a call records an intent: the persisted part when the node loads, or the
-     * online intent the auto-start of its server node gives.  Does nothing while the intent is what a call asked for.
+     * Set the intent to what the node is, {@link applied}, after the call of {@link ticket} failed, unless a later call
+     * recorded an intent meanwhile.  The auto-start applies again afterwards.  Returns whether the intent was restored.
      *
      * @internal
      */
-    seedIntent(seed: Partial<I>) {
-        if (!this.#isAsked) {
-            this.#setIntent({ ...this.#intent, ...seed });
+    restore(ticket: NodeLifecycle.IntentTicket, applied: I) {
+        if (ticket !== this.#lastTicket) {
+            return false;
+        }
+        this.#isTargetRequested = false;
+        this.#setIntent(applied);
+        return true;
+    }
+
+    /**
+     * Take over the values of {@link change} without a call asking for them.  Emits {@link intentChanged} only if a
+     * value changes.
+     */
+    protected adopt(change: Partial<I>) {
+        for (const key in change) {
+            if (change[key] !== this.#intent[key]) {
+                this.#setIntent({ ...this.#intent, ...change });
+                return;
+            }
         }
     }
 
@@ -225,7 +244,7 @@ export namespace NodeLifecycle {
     }
 
     /**
-     * Names the call of {@link NodeLifecycle.recordIntent} that recorded an intent.
+     * Names the call of {@link NodeLifecycle.request} that recorded an intent.
      */
-    export type IntentRequest = number;
+    export type IntentTicket = number;
 }

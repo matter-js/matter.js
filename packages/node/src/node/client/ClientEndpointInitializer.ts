@@ -22,26 +22,24 @@ export class ClientEndpointInitializer extends EndpointInitializer {
     #node: ClientNode;
     #store: ClientNodeStore;
     #structure?: ClientStructure;
-    #endpointsMirrorPeer: boolean;
 
     /**
      * @param store the store this initialization of {@link node} loaded; it serves the behaviors of that
      * initialization only
      */
-    constructor(node: ClientNode, store: ClientNodeStore, options: ClientEndpointInitializer.Options) {
+    constructor(node: ClientNode, store: ClientNodeStore) {
         super();
         this.#node = node;
         this.#store = store;
-        this.#endpointsMirrorPeer = options.endpointsMirrorPeer;
     }
 
     /**
-     * Throw {@link ImplementationError} for an erase, delete or close of an endpoint below a node whose endpoints
+     * Throw {@link ImplementationError} for an erase, delete or close of an endpoint below a peer, as its endpoints
      * mirror the peer.  The structure of the node removes an endpoint the peer drops, and a verb of the node covers its
      * endpoints.  Every verb is admitted for the endpoints of a group.
      */
     override assertVerbAdmitted(endpoint: Endpoint, verb: EndpointInitializer.Verb) {
-        if (this.#endpointsMirrorPeer && endpoint !== this.#node) {
+        if (this.#node.endpointsMirrorPeer && endpoint !== this.#node) {
             throw new ImplementationError(
                 `Cannot ${verb} ${endpoint} because the endpoint mirrors the peer; ${verb} the node ${this.#node} instead`,
             );
@@ -112,14 +110,5 @@ export class ClientEndpointInitializer extends EndpointInitializer {
             this.#structure.eventEmitter = ClientEventEmitter(this.#node as ClientNode, this.#structure);
         }
         return this.#structure;
-    }
-}
-
-export namespace ClientEndpointInitializer {
-    export interface Options {
-        /**
-         * Whether the endpoints below the root mirror the peer, which refuses their own lifecycle verbs.
-         */
-        endpointsMirrorPeer: boolean;
     }
 }

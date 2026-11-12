@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Behavior } from "#behavior/Behavior.js";
 import { BasicInformationServer } from "#behaviors/basic-information";
 import { BridgedDeviceBasicInformationServer } from "#behaviors/bridged-device-basic-information";
 import { DescriptorServer } from "#behaviors/descriptor";
@@ -15,6 +16,7 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import {
+    createPromise,
     DestroyedDependencyError,
     ImplementationError,
     Lifecycle,
@@ -116,23 +118,14 @@ class UnpreparedEndpoint extends Endpoint {
 class StepCountingEndpoint extends Endpoint {
     steps = 0;
 
-    protected override async eraseWithMutex(prepared: (erasure: EndpointInitializer.Erasure) => void) {
+    protected override prepareErase(): Promise<EndpointInitializer.Erasure> {
         this.steps++;
-        await super.eraseWithMutex(prepared);
+        return super.prepareErase();
     }
 
-    protected override async deleteWithMutex(prepared: (erasure: EndpointInitializer.Erasure) => void) {
+    protected override prepareDelete(): Promise<EndpointInitializer.Erasure> {
         this.steps++;
-        await super.deleteWithMutex(prepared);
-    }
-}
-
-class CountingEndpoint extends Endpoint {
-    closes = 0;
-
-    protected override async closeWithMutex() {
-        this.closes++;
-        await super.closeWithMutex();
+        return super.prepareDelete();
     }
 }
 
@@ -407,6 +400,76 @@ describe("Endpoint.erase", () => {
         expect(first.construction.status).equals(Lifecycle.Status.Active);
     });
 
+    it("removes an essential part that fails while a behavior adds it during the restart of an erase", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const other = await node.add(AggregatorEndpoint, { id: "other" });
+        let adding: Promise<unknown> | undefined;
+        let armed = false;
+        class AddingOnOffServer extends OnOffServer {
+            override async initialize() {
+                if (armed) {
+                    adding = other.add(OnOffLightDevice.with(FailingOnOffServer), { id: "failing" }).then(
+                        () => undefined,
+                        (e: unknown) => e,
+                    );
+                    await adding;
+                }
+            }
+        }
+        const adder = await node.add(OnOffLightDevice.with(AddingOnOffServer), { id: "adder" });
+
+        armed = true;
+        await MockTime.resolve(adder.erase());
+
+        expect(await adding).instanceOf(EndpointBehaviorsError);
+        expect(other.parts.has("failing")).equals(false);
+    });
+
+    it("destroys a failed essential part once while its parent erases", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const parent = await node.add(AggregatorEndpoint, { id: "parent" });
+        const closing = createPromise<void>();
+        const gate = createPromise<void>();
+        class GatedCloseBehavior extends Behavior {
+            static override readonly id = "gatedClose";
+            static override readonly early = true;
+
+            override async [Symbol.asyncDispose]() {
+                closing.resolver();
+                await gate.promise;
+            }
+        }
+        const failing = new Endpoint(OnOffLightDevice.with(GatedCloseBehavior, FailingOnOffServer), { id: "failing" });
+
+        const adding = parent.add(failing).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+        await MockTime.resolve(closing.promise);
+        const erasing = parent.erase().then(
+            () => "ok",
+            (e: unknown) => e,
+        );
+        gate.resolver();
+
+        expect(await MockTime.resolve(adding)).instanceOf(EndpointBehaviorsError);
+        expect(await MockTime.resolve(erasing)).equals("ok");
+        expect(failing.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(parent.parts.has("failing")).equals(false);
+    });
+
+    it("releases the number of a failed essential part before add() rejects", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+
+        await expect(
+            node.add(new Endpoint(OnOffLightDevice.with(FailingOnOffServer), { id: "failing", number: 5 })),
+        ).rejectedWith(EndpointBehaviorsError);
+        expect(node.endpoints.has(5)).equals(false);
+        const again = await node.add(new Endpoint(OnOffLightDevice, { id: "again", number: 5 }));
+
+        expect(again.number).equals(5);
+    });
+
     it("does not restart a part whose close waits behind the erase of its parent", async () => {
         const { node, parent, light } = await nodeWithNestedLight();
         await using _node = node;
@@ -503,8 +566,11 @@ describe("Endpoint.erase", () => {
     it("does not close a part again that its owner destroyed while the close of the part waited", async () => {
         const { node, parent } = await nodeWithNestedLight();
         await using _node = node;
-        const part = new CountingEndpoint(OnOffLightDevice, { id: "counted" });
-        await parent.add(part);
+        const part = await parent.add(new Endpoint(OnOffLightDevice, { id: "counted" }));
+        let destroyed = 0;
+        part.lifecycle.destroyed.on(() => {
+            destroyed++;
+        });
         const reset = blockReset(parent);
 
         const erasing = parent.erase();
@@ -516,7 +582,7 @@ describe("Endpoint.erase", () => {
         await closingParent;
         await closingPart;
 
-        expect(part.closes).equals(0);
+        expect(destroyed).equals(1);
         expect(part.construction.status).equals(Lifecycle.Status.Destroyed);
     });
 
@@ -812,6 +878,22 @@ describe("Endpoint.erase", () => {
         await light.delete();
 
         await expect(light.erase()).rejectedWith(DestroyedDependencyError, /is deleted, so it cannot be erased/);
+    });
+
+    it("names the delete of its parent when it refuses an erase of a deleted part", async () => {
+        const { node, parent, light } = await nodeWithNestedLight();
+        await using _node = node;
+        await parent.delete();
+
+        const refusal = await light.erase().then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(refusal).instanceOf(DestroyedDependencyError);
+        expect(refusal)
+            .property("message")
+            .match(/light is deleted, so it cannot be erased/);
     });
 
     for (const verb of ["erase", "delete"] as const) {

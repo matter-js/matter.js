@@ -35,6 +35,29 @@ describe("CommissioningController autoConnect", () => {
         expect(enabled.lifecycle.shouldBeOnline).true;
     });
 
+    it("enables its peers when it starts with autoConnect true, also before it connects them", async () => {
+        await using site = new LegacyControllerSite();
+        const { controller } = await site.addCommissionedPair();
+        const disconnected = await site.restartController(controller, { autoConnect: false });
+        expect(onlyPeerOf(disconnected).isDisabled).true;
+
+        const connect = CommissioningController.prototype.connect;
+        CommissioningController.prototype.connect = async function () {
+            return [];
+        };
+        let started: CommissioningController;
+        try {
+            started = await site.restartController(disconnected, { autoConnect: true });
+        } finally {
+            CommissioningController.prototype.connect = connect;
+        }
+
+        const peer = onlyPeerOf(started);
+        expect(peer.isDisabled).false;
+        expect(peer.lifecycle.shouldBeOnline).true;
+        expect(peer.behaviors.internalsOf(NetworkClient).runtime).not.undefined;
+    });
+
     it("starts with autoConnect false when a peer refuses its disable(), and still applies autoSubscribe", async () => {
         await using site = new LegacyControllerSite();
         const { controller } = await site.addCommissionedPair();

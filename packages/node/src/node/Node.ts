@@ -40,6 +40,29 @@ import { NodeLifecycle } from "./NodeLifecycle.js";
 const logger = Logger.get("Node");
 
 /**
+ * How each {@link Node.IntentCall} is admitted and named: `action` in errors, `operation` in the warning of a long
+ * wait.
+ */
+const INTENT_CALLS: Record<Node.IntentCall, { admission: Node.IntentAdmission; action: string; operation: string }> = {
+    start: { admission: "intent", action: "start", operation: "starting" },
+    stop: { admission: "stop", action: "stop", operation: "stopping" },
+    enable: { admission: "intent", action: "enable", operation: "enabling" },
+    disable: { admission: "intent", action: "disable", operation: "disabling" },
+    "clear-disabled": {
+        admission: "intent",
+        action: "clear the disabled flag",
+        operation: "clearing the disabled flag of",
+    },
+};
+
+/**
+ * Whether every value of {@link change} holds in {@link intent}.
+ */
+function holdsIn(intent: object, change: object) {
+    return Object.entries(change).every(([key, value]) => Reflect.get(intent, key) === value);
+}
+
+/**
  * A Matter Node.
  *
  * In Matter, a "node" is an individually addressable top-level network resource.
@@ -128,16 +151,14 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
      *    is then what the node is, unless a later call recorded another intent.
      * 3. A call followed by a later call of the same direction does not resolve before that direction is applied.
      *
+     * A crashed node recovers first as {@link recoverWithMutex} describes; if that fails, the call rejects with the
+     * failure and the node stays crashed.
+     *
      * Throws {@link DestroyedDependencyError} once a close or delete of the node was requested, and the error of the
      * {@link onlineBlocker} if the node may not go online at its turn.
      */
     async start() {
-        await this.changeTarget({
-            target: "online",
-            policy: "refused-once-terminal",
-            action: "start",
-            operation: "starting",
-        });
+        await this.requestIntent({ target: "online" }, "start");
     }
 
     /**
@@ -147,32 +168,34 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
      * @internal
      */
     get onlineBlocker(): Node.OnlineBlocker | undefined {
-        const cause = this.terminalCause;
+        const cause = this.lifecycle.terminalCause;
         if (cause !== undefined) {
-            return { error: () => this.refusalOf(cause, "go online") };
+            return { error: () => this.verbs.refusal(cause, "go online") };
         }
     }
 
     /**
-     * Record the intent of a call and apply it at its turn on the node mutex as {@link start} describes.
+     * Record {@link change} as the intent of {@link call} and apply it at its turn on the node mutex as {@link start}
+     * describes.  At its turn the call applies the current intent only if every value of {@link change} still holds in
+     * it, so no later call reversed it.
      */
-    protected async changeTarget(change: Node.TargetChange) {
-        const { target, policy, action, operation } = change;
-        if (!this.#admitOrThrow(policy, action)) {
+    protected async requestIntent(change: Partial<NodeLifecycle.Intent>, call: Node.IntentCall) {
+        const { admission, action, operation } = INTENT_CALLS[call];
+        if (!this.#admitOrThrow(admission, action)) {
             return;
         }
         if (
-            target === "online" &&
+            change.target === "online" &&
             this.lifecycle.isOnline &&
             this.lifecycle.shouldBeOnline &&
-            this.isInDirectionOf(this.appliedIntent, change)
+            holdsIn(this.appliedIntent, change)
         ) {
             return;
         }
 
-        const request = this.recordIntent(change);
+        const ticket = this.lifecycle.request(change);
         try {
-            if (target === "online") {
+            if (change.target === "online") {
                 const preparing = this.prepareStart();
                 if (MaybePromise.is(preparing)) {
                     await preparing;
@@ -180,48 +203,28 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
             }
             await this.lifecycle.mutex.hold(`${operation} ${this}`, async () => {
                 // A close or delete may have been requested while this call waited for the mutex
-                if (this.isIntended(change) && this.#admitOrThrow(policy, action)) {
+                if (holdsIn(this.lifecycle.intent, change) && this.#admitOrThrow(admission, action)) {
                     await this.#applyIntentWithMutex();
                 }
             });
         } catch (error) {
-            this.lifecycle.restoreIntent(request, this.appliedIntent);
+            this.lifecycle.restore(ticket, this.appliedIntent);
             throw error;
         }
     }
 
     /**
-     * Record the whole intent of a {@link changeTarget} call.
-     */
-    protected recordIntent(change: Node.TargetChange): NodeLifecycle.IntentRequest {
-        return this.lifecycle.recordIntent({ target: change.target });
-    }
-
-    /**
-     * Whether the current intent still points in the direction of {@link change}, so no later call reversed it.
-     */
-    protected isIntended(change: Node.TargetChange) {
-        return this.isInDirectionOf(this.lifecycle.intent, change);
-    }
-
-    /**
-     * Whether {@link intent} points in the direction of {@link change}.
-     */
-    protected isInDirectionOf(intent: NodeLifecycle.Intent, change: Node.TargetChange) {
-        return intent.target === change.target;
-    }
-
-    /**
      * Bring the node online if its intent is online and no {@link onlineBlocker} keeps it offline, else take it
-     * offline.  Records no intent.  The owner of a blocker calls this when the blocker appears or lifts, and only after
-     * its own `isOnline` reflects the change.  Does nothing once a close or delete of the node was requested, as that
-     * takes the node offline itself.  A failed apply is logged by the caller; the next apply or a {@link start} tries
-     * again.
+     * offline.  Bringing a crashed node online recovers it first as {@link recoverWithMutex} describes, which for a
+     * client node that crashed in an erase is a whole erase.  Records no intent.  The owner of a blocker calls this
+     * when the blocker appears or lifts, and only after its own `isOnline` reflects the change.  Does nothing once a
+     * close or delete of the node was requested, as that takes the node offline itself.  A failed apply is logged by
+     * the caller; the next apply or a {@link start} tries again.
      *
      * @internal
      */
     async applyIntent() {
-        if (!this.#admitOrThrow("skipped-once-terminal", "apply its intent")) {
+        if (!this.#admitOrThrow("stop", "apply its intent")) {
             return;
         }
         await this.lifecycle.mutex.hold(`applying the intent of ${this}`, async () => {
@@ -234,7 +237,8 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
     }
 
     /**
-     * Persist the parts of the intent that outlive a restart.  The caller holds the node mutex.
+     * Persist the parts of the intent that outlive a restart.  The caller holds the node mutex (level 1 or 4 of the
+     * lock order in `LifecycleMutex`).
      */
     protected async persistIntentWithMutex() {}
 
@@ -252,6 +256,9 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
      */
     async #applyIntentWithMutex() {
         if (this.lifecycle.shouldBeOnline) {
+            if (this.construction.status === Lifecycle.Status.Crashed) {
+                await this.recoverWithMutex();
+            }
             await this.persistIntentWithMutex();
             await this.startWithMutex();
             return;
@@ -274,12 +281,24 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
     }
 
     /**
-     * Admit a call of {@link changeTarget}.  Returns whether the call runs, or throws if it is refused.
+     * Bring a crashed node back before it goes online, or reject with the reason it cannot come back.  By default the
+     * node resets and initializes again; if the cause of the crash persists, the node crashes again and this rejects
+     * with that failure.  An override either recovers the node or rejects.  The caller holds the node mutex (level 1 or
+     * 4 of the lock order in `LifecycleMutex`) and the node is offline.
      */
-    #admitOrThrow(policy: Endpoint.TerminalPolicy, action: string) {
-        const admission = this.admit(policy);
+    protected async recoverWithMutex() {
+        await this.lifecycle.treeMutex.hold(`recovering ${this}`, () => this.resetWithMutex());
+        this.construction.start();
+        await this.construction;
+    }
+
+    /**
+     * Admit a call of {@link requestIntent} or {@link applyIntent}.  Returns whether the call runs, or throws if it is refused.
+     */
+    #admitOrThrow(call: Node.IntentAdmission, action: string) {
+        const admission = this.verbs.admit(call);
         if (admission.decision === "refuse") {
-            throw this.refusalOf(admission.cause, action);
+            throw this.verbs.refusal(admission.cause, action);
         }
         return admission.decision !== "skip";
     }
@@ -289,6 +308,9 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
      */
     protected prepareStart(): MaybePromise<void> {}
 
+    /**
+     * Bring the node online.  The caller holds the node mutex (level 1 or 4 of the lock order in `LifecycleMutex`).
+     */
     protected async startWithMutex() {
         if (this.isRuntimeWorker) {
             this.env.runtime.add(this);
@@ -365,12 +387,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
      * Does nothing once a close or delete of the node was requested, as that takes the node offline itself.
      */
     async stop() {
-        await this.changeTarget({
-            target: "offline",
-            policy: "skipped-once-terminal",
-            action: "stop",
-            operation: "stopping",
-        });
+        await this.requestIntent({ target: "offline" }, "stop");
     }
 
     /**
@@ -390,6 +407,9 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
         return new Endpoints(this);
     }
 
+    /**
+     * Take the node offline.  The caller holds the node mutex (level 1 or 4 of the lock order in `LifecycleMutex`).
+     */
     protected async cancelWithMutex() {
         if (!this.#runtime) {
             return;
@@ -560,22 +580,18 @@ export namespace Node {
     }
 
     /**
-     * A call of {@link Node.changeTarget}.
+     * A call that records an intent with `Node.requestIntent()`.
+     *
+     * @internal
      */
-    export interface TargetChange {
-        target: NodeLifecycle.TargetState;
-        policy: Endpoint.TerminalPolicy;
+    export type IntentCall = "start" | "stop" | "enable" | "disable" | "clear-disabled";
 
-        /**
-         * Names the call in errors, such as "start".
-         */
-        action: string;
-
-        /**
-         * Names the call in the warning of a long wait, such as "starting".
-         */
-        operation: string;
-    }
+    /**
+     * How a requested close or delete affects a call; see `EndpointVerbs.admit()`.
+     *
+     * @internal
+     */
+    export type IntentAdmission = "intent" | "stop";
 
     export interface NodeOptions extends Endpoint.EndpointOptions {
         environment?: Environment;

@@ -141,9 +141,9 @@ export class EndpointLifecycle {
     }
 
     /**
-     * Has the {@link Endpoint} begun closing or deleting, or has its construction crashed?  A closing or deleted endpoint
-     * does not become readable again; a crashed one may be restarted.  Unlike "not {@link isReadable}", this is false
-     * while the endpoint initializes or while a reset runs outside of a delete or close.
+     * Has the {@link Endpoint} begun closing or deleting, or has its construction crashed?  A closing or deleted
+     * endpoint does not become readable again; a crashed one may be restarted.  Unlike "not {@link isReadable}", this
+     * is false while the endpoint initializes or while a reset runs outside of a delete or close.
      */
     get isGone() {
         if (this.#destructionBegun) {
@@ -224,8 +224,8 @@ export class EndpointLifecycle {
     /**
      * Mutex that {@link Endpoint.erase}, {@link Endpoint.delete} and {@link Endpoint.close} hold, so a verb never
      * overlaps with a verb on an ancestor or a part of the same node.  All endpoints of a node share the tree mutex of
-     * the node, and the endpoints of a tree not added to a node share the mutex of its topmost endpoint.  It is not held
-     * while a node starts or stops.
+     * the node, and the endpoints of a tree not added to a node share the mutex of its topmost endpoint.  It is not
+     * held while a node starts or stops.  See {@link LifecycleMutex} for the lock order.
      *
      * @internal
      */
@@ -254,12 +254,53 @@ export class EndpointLifecycle {
 
     /**
      * Whether a {@link Endpoint.delete} or {@link Endpoint.close} was requested.  The endpoint does not restart and
-     * refuses a later {@link Endpoint.erase}, and a later {@link Endpoint.delete} unless it joins the delete in progress.
+     * refuses a later {@link Endpoint.erase}, and a later {@link Endpoint.delete} unless it joins the delete in
+     * progress.
      *
      * @internal
      */
     get isTerminal() {
         return this.#destructionBegun;
+    }
+
+    /**
+     * The endpoint whose requested delete or close destroys this endpoint: this endpoint if {@link isTerminal}, else
+     * the nearest terminal ancestor that shares the {@link treeMutex} of this endpoint, as that ancestor destroys this
+     * endpoint once its turn on the mutex comes.  For a node it is the owner of the node if that owner is terminal, as
+     * the owner of a node destroys the node in its own teardown.
+     *
+     * @internal
+     */
+    get terminalCause(): Endpoint | undefined {
+        if (this.isTerminal) {
+            return this.#endpoint;
+        }
+        if (this.isNode) {
+            const owner = this.#endpoint.owner;
+            return owner?.lifecycle.isTerminal ? owner : undefined;
+        }
+        if (this.ownsTreeMutex) {
+            return;
+        }
+        for (let owner = this.#endpoint.owner; owner !== undefined; owner = owner.owner) {
+            if (owner.lifecycle.isTerminal) {
+                return owner;
+            }
+            if (owner.lifecycle.ownsTreeMutex) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * Whether a delete or close was requested that destroys this endpoint, of this endpoint or of an ancestor (see
+     * {@link terminalCause}).  Unlike {@link isTerminal} this is true for a part from the moment the verb on an
+     * ancestor in the same node begins, before the part itself begins to close.
+     *
+     * @internal
+     */
+    get isDestructionRequested() {
+        return this.terminalCause !== undefined;
     }
 
     /**
