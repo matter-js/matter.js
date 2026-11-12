@@ -97,6 +97,7 @@ import { GenericSwitchDevice, OnOffLightDevice } from "@matter/main/devices";
 import { MdnsAdvertiser } from "@matter/main/protocol";
 import { CommissioningFlowType, DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
 import { BackchannelCommand } from "@matter/testing";
+import { UnitTestingServer } from "./cert/unit-testing-cluster.js";
 import { TestActivatedCarbonFilterMonitoringServer } from "./cluster/TestActivatedCarbonFilterMonitoringServer.js";
 import { TestDishwasherModeServer } from "./cluster/TestDishwasherModeServer.js";
 import { TestGeneralDiagnosticsServer } from "./cluster/TestGeneralDiagnosticsServer.js";
@@ -1176,6 +1177,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 },
             },
         );
+        endpoint1.behaviors.require(UnitTestingServer);
         await serverNode.add(endpoint1);
 
         const endpoint2 = new Endpoint(OnOffLightDevice.with(DescriptorServer.with(Descriptor.Feature.TagList)), {

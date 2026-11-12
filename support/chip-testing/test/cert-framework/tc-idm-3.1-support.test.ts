@@ -23,11 +23,13 @@ import {
 } from "@matter/testing";
 import { expect } from "chai";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
-import { UnitTestingCluster } from "../../src/cert/unit-testing-cluster.js";
+import { LONG_OCTET_STRING_ENTRY, UnitTestingServer } from "../../src/cert/unit-testing-cluster.js";
 import { chunkedWriteNotApplicable, expectChunkedWrite } from "../cert/tc-idm-3.1-support.js";
 import { expectMessageWithPath } from "../cert/tc-support.js";
-import { LONG_OCTET_STRING_ENTRY, unitTestingNotApplicable } from "../cert/unit-testing-cluster.js";
 import { fakeCertNode } from "./fake-cert-node.js";
+
+// The matter.js log patterns name the cluster only once it is registered
+registerCertCustomCluster(UnitTestingServer);
 
 const EXCHANGE = 18367;
 const OTHER_EXCHANGE = 18399;
@@ -224,8 +226,12 @@ describe("expectChunkedWrite", function () {
         );
     });
 
-    it("reports a TH of another flavor unverified, whose log has no chunked-write pattern", async () => {
-        const record = await check([...chunk(true), response(1001), ...chunk(false, 1001)], Seconds(1), "matterjs");
+    it("reports a TH of a flavor without a chunked-write pattern unverified", async () => {
+        const record = await check(
+            [...chunk(true), response(1001), ...chunk(false, 1001)],
+            Seconds(1),
+            "python-wrapped",
+        );
 
         expect(record.verdict).equal("unverified");
     });
@@ -239,6 +245,219 @@ describe("expectChunkedWrite", function () {
         ]);
 
         expect(record.verdict).equal("fail");
+    });
+});
+
+// Shapes verified against a matter.js all-clusters TH's log: the inbound request, the write the TH handled (with
+// `moreChunkedMessages` on every chunk but the last), and the TH's answer
+const MATTERJS_SESSION = "@1:3b9d4b0a8593f934•9da9";
+const OTHER_MATTERJS_SESSION = "@1:3b9d4b0a8593f934•9daa";
+let nextMatterjsCounter = 0x07afa978;
+const hex = (counter: number) => counter.toString(16).padStart(8, "0");
+const matterjsRequest = (exchange: string, ack?: number) =>
+    `DEBUG MessageExchange Message « for: I/WriteRequest id: ${MATTERJS_SESSION}⇵${exchange}✉${hex(nextMatterjsCounter++)} type: 0x1/0x6${ack === undefined ? "" : ` acked: ${hex(ack)}`} I reqAck size: 1102`;
+const matterjsHandled = (exchange: string, more: boolean, session = MATTERJS_SESSION) =>
+    `INFO InteractionServer Write « ${session}⇵${exchange}${more ? " moreChunkedMessages" : ""} 1.unitTesting.state.listLongOctetString[ADD]`;
+const matterjsResponse = (counter: number, exchange: string, last = false) =>
+    `DEBUG MessageChannel Message » for: ${last ? "I/WriteResponse" : "WriteResponse-chunk"} backOff: 356ms id: ${MATTERJS_SESSION}⇵${exchange}✉${hex(counter)} type: 0x1/0x7 reqAck size: 81`;
+const matterjsStandaloneAck = (ack: number, exchange: string, session = MATTERJS_SESSION) =>
+    `DEBUG MessageExchange Message « for: SC/StandaloneAck id: ${session}⇵${exchange}✉07afa97a type: 0x0/0x10 acked: ${hex(ack)} I`;
+const matterjsChunk = (exchange: string, more: boolean, ack?: number) => [
+    matterjsRequest(exchange, ack),
+    matterjsHandled(exchange, more),
+];
+
+async function checkMatterjs(lines: string[], budget = Seconds(1)) {
+    async function* source() {
+        yield* lines;
+        await new Promise(() => {});
+    }
+    const follower = new LogFollower(source(), "th");
+    try {
+        const deadline = Time.nowUs + budget;
+        const request = await expectMessageWithPath(follower, "matterjs", "write", PATH, 0, budget);
+        return await expectChunkedWrite(follower, "matterjs", request, Millis(Math.max(1, deadline - Time.nowUs)));
+    } finally {
+        await follower.close();
+    }
+}
+
+describe("expectChunkedWrite on a matter.js TH", function () {
+    this.timeout(10_000);
+
+    it("passes a write chunked over three messages, each next one acknowledging the previous response", async () => {
+        const record = await checkMatterjs([
+            ...matterjsChunk("5471", true),
+            matterjsResponse(0x0caa82d0, "5471"),
+            ...matterjsChunk("5471", true, 0x0caa82d0),
+            matterjsResponse(0x0caa82d1, "5471"),
+            ...matterjsChunk("5471", false, 0x0caa82d1),
+            matterjsResponse(0x0caa82d2, "5471", true),
+        ]);
+
+        expect(record.verdict).equal("pass");
+        expect(record.detail).contains("3 WriteRequestMessage chunks on Exchange 5471");
+    });
+
+    it("accepts a standalone acknowledgement of the response before the next chunk", async () => {
+        const record = await checkMatterjs([
+            ...matterjsChunk("5471", true),
+            matterjsResponse(0x0caa82d0, "5471"),
+            matterjsStandaloneAck(0x0caa82d0, "5471"),
+            ...matterjsChunk("5471", false),
+        ]);
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("skips a write of another exchange between the chunks", async () => {
+        const record = await checkMatterjs([
+            ...matterjsChunk("5471", true),
+            matterjsResponse(0x0caa82d0, "5471"),
+            ...matterjsChunk("5480", false),
+            ...matterjsChunk("5471", false, 0x0caa82d0),
+        ]);
+
+        expect(record.verdict).equal("pass");
+        expect(record.detail).contains("2 WriteRequestMessage chunks on Exchange 5471");
+    });
+
+    it("fails a write that arrived as one message", async () => {
+        const record = await checkMatterjs([
+            ...matterjsChunk("5471", false),
+            matterjsResponse(0x0caa82d0, "5471", true),
+        ]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).contains("did not chunk");
+    });
+
+    it("fails a chunk announcing more that nothing follows", async () => {
+        const record = await checkMatterjs([...matterjsChunk("5471", true), matterjsResponse(0x0caa82d0, "5471")]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).contains("announced a further chunk");
+    });
+
+    it("fails when the TH sent no response between two chunks", async () => {
+        const record = await checkMatterjs([...matterjsChunk("5471", true), ...matterjsChunk("5471", false)]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).contains("sent no WriteResponse");
+    });
+
+    it("fails a next chunk sent before the DUT acknowledged the response", async () => {
+        const record = await checkMatterjs([
+            ...matterjsChunk("5471", true),
+            matterjsResponse(0x0caa82d0, "5471"),
+            ...matterjsChunk("5471", false),
+        ]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).contains("without having acknowledged");
+    });
+
+    it("does not take an acknowledgement on another exchange for the response's", async () => {
+        const record = await checkMatterjs([
+            ...matterjsChunk("5471", true),
+            matterjsResponse(0x0caa82d0, "5471"),
+            matterjsStandaloneAck(0x0caa82d0, "5480"),
+            ...matterjsChunk("5471", false),
+        ]);
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not take an acknowledgement of another message for the response's", async () => {
+        const record = await checkMatterjs([
+            ...matterjsChunk("5471", true),
+            matterjsResponse(0x0caa82d0, "5471"),
+            ...matterjsChunk("5471", false, 0x0caa82cf),
+        ]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).contains("without having acknowledged the TH's WriteResponse 0caa82d0");
+    });
+
+    it("does not take the TH's answer on another exchange for the chunk's", async () => {
+        const record = await checkMatterjs([
+            ...matterjsChunk("5471", true),
+            matterjsResponse(0x0caa82d0, "5480"),
+            ...matterjsChunk("5471", false, 0x0caa82d0),
+        ]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).contains("sent no WriteResponse");
+    });
+
+    it("does not take an acknowledgement on another session for the response's", async () => {
+        const record = await checkMatterjs([
+            ...matterjsChunk("5471", true),
+            matterjsResponse(0x0caa82d0, "5471"),
+            matterjsStandaloneAck(0x0caa82d0, "5471", OTHER_MATTERJS_SESSION),
+            ...matterjsChunk("5471", false),
+        ]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).contains("without having acknowledged");
+    });
+
+    // The TH queues a chunk that arrives while its answer to the previous one waits for the DUT's acknowledgement, and
+    // handles it only once that acknowledgement arrived
+    it("fails a next chunk received before the TH answered the previous one", async () => {
+        const record = await checkMatterjs([
+            ...matterjsChunk("5471", true),
+            matterjsRequest("5471"),
+            matterjsResponse(0x0caa82d0, "5471"),
+            matterjsStandaloneAck(0x0caa82d0, "5471"),
+            matterjsHandled("5471", false),
+        ]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).contains("without having acknowledged");
+    });
+
+    it("fails a next chunk received after the TH's answer but before the DUT acknowledged it", async () => {
+        const record = await checkMatterjs([
+            ...matterjsChunk("5471", true),
+            matterjsResponse(0x0caa82d0, "5471"),
+            matterjsRequest("5471"),
+            matterjsStandaloneAck(0x0caa82d0, "5471"),
+            matterjsHandled("5471", false),
+        ]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).contains("without having acknowledged");
+    });
+
+    it("fails when the TH logged no receipt of the next chunk", async () => {
+        const record = await checkMatterjs([
+            ...matterjsChunk("5471", true),
+            matterjsResponse(0x0caa82d0, "5471"),
+            matterjsStandaloneAck(0x0caa82d0, "5471"),
+            matterjsHandled("5471", false),
+        ]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).contains("no receipt of write chunk 2");
+    });
+
+    it("skips a chunk of the same exchange number on another session", async () => {
+        const record = await checkMatterjs([
+            ...matterjsChunk("5471", true),
+            matterjsResponse(0x0caa82d0, "5471"),
+            matterjsHandled("5471", false, OTHER_MATTERJS_SESSION),
+            ...matterjsChunk("5471", false, 0x0caa82d0),
+        ]);
+
+        expect(record.verdict).equal("pass");
+        expect(record.detail).contains("2 WriteRequestMessage chunks on Exchange 5471");
+    });
+
+    it("finds a write over TCP not applicable", async () => {
+        await expect(
+            checkMatterjs([matterjsRequest("5471"), matterjsHandled("5471", true, `${MATTERJS_SESSION}(tcp)`)]),
+        ).rejectedWith(CertStepNotApplicableError);
     });
 });
 
@@ -384,7 +603,7 @@ describe("chunkedWriteNotApplicable", function () {
 });
 
 describe("UnitTesting cluster declaration", () => {
-    const model = registerCertCustomCluster(UnitTestingCluster);
+    const model = registerCertCustomCluster(UnitTestingServer);
     const encode = (name: string, value: unknown) =>
         Bytes.toHex(TlvOfModel(model.attributes.require(name)).encode(value));
 
@@ -411,18 +630,6 @@ describe("UnitTesting cluster declaration", () => {
         ).equal("152400072901240202300302dead2c04002405052a060000c03f2b07000000000000d0bf18");
         expect(encode("listLongOctetString", [LONG_OCTET_STRING_ENTRY])).equal(
             `1611${"0002"}${Bytes.toHex(LONG_OCTET_STRING_ENTRY)}18`,
-        );
-    });
-});
-
-describe("unitTestingNotApplicable", () => {
-    it("runs the steps on a chip TH", () => {
-        expect(unitTestingNotApplicable({ deviceFlavor: "chip-local" })).undefined;
-    });
-
-    it("skips them on the matter.js TH, naming the missing cluster", () => {
-        expect(unitTestingNotApplicable({ deviceFlavor: "matterjs" })).equal(
-            "the matter.js all-clusters app has no UnitTesting cluster",
         );
     });
 });

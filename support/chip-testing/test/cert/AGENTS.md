@@ -132,10 +132,7 @@ The convention this series has followed, worth stating explicitly for the next T
   controller has no such callback — not for a pattern nobody has written yet, and it belongs on the one
   check that cannot be settled rather than on the step, so a second gap in the same step still fails
   the run. `RunRecord.unverifiedChecks` counts every unverified check, accepted or not, so a bundle
-  says how much of the run rests on nothing observed. As of this writing every device-log check in this
-  directory carries both flavors' patterns, and the whole matterjs leg reports one unverified check,
-  accepted: TC-IDM-2.1 step 21's "matter.js's all-clusters app defines no manufacturer-specific
-  cluster".
+  says how much of the run rests on nothing observed.
 
   Two things bite when writing the matterjs half:
 
@@ -738,7 +735,7 @@ answer: a controller that cannot send a command says nothing about the device, a
   `cx.controllerSelection` and `cx.deviceFlavor`. Changing either variable after collection has no effect on the case.
   Case and step code never reads the variables: a helper takes `cx` (`dutControllerLogFlavor(cx)`), and a step option
   that depends on them (`notApplicable`, `longRunning`) is a function of the `CertRunSetup` the engine passes, such as
-  `unitTestingNotApplicable` or `longRunningReason(...)`. `skipOnControllerGap()` reads the controller when the test
+  `longRunningReason(...)`. `skipOnControllerGap()` reads the controller when the test
   runs and returns the selection it judged by; the case builds its controller and writes its evidence from that
   value.
 - A refusal that still reaches the step runner is a framework error (step verdict `error`, run verdict `error`,
@@ -1352,38 +1349,39 @@ matterjs-server controller refuses a write outside it and outside the UnitTestin
 - list: `UserLabel.labelList` on endpoint 1. CHIP keeps at most 4 entries of 16-character strings
   (`kMaxUserLabelListLength`), so the values stay within that.
 
-Float, octet string and struct have no writable attribute on both apps, and no attribute there holds a list
-larger than one MTU. CHIP has them only in its `UnitTesting` cluster (0xfff1fc05, endpoint 1), which neither
-matter.js's app nor the model defines. Those steps (3.1 steps 7, 8, 9, 13; 4.1 step 7) run only on a chip TH,
-against `float_single`, `octet_string`, `struct_attr` and `list_long_octet_string`:
+Float, octet string and struct have no writable standard attribute on both apps, and no standard attribute there
+holds a list larger than one MTU. CHIP has them in its `UnitTesting` cluster (0xfff1fc05, endpoint 1), which the
+Matter model does not define. Those steps (3.1 steps 7, 8, 9, 13; 4.1 step 7) write `float_single`, `octet_string`,
+`struct_attr` and `list_long_octet_string`:
 
-- `src/cert/unit-testing-cluster.ts` declares the four attributes as a custom cert cluster (see `FaultInjection`
-  below), so the in-process and chip-tool adapters encode them by id. matterjs-server models the same four
+- `src/cert/unit-testing-cluster.ts` declares the four attributes once, as `UnitTestingServer`. The controller
+  adapters register it as a custom cert cluster (see `FaultInjection` below), so the in-process and chip-tool adapters
+  encode them by id, and the matter.js all-clusters app serves it on endpoint 1. So both TH flavors run the steps, and
+  a matter.js TH also answers TC-IDM-2.1 step 21's manufacturer-specific read.
+- Log patterns resolve a cluster by `findCertCluster`, so a matter.js TH's lines name a registered custom cluster
+  (`1.unitTesting.state.floatSingle`) as they name a standard one. matterjs-server models the same four
   attributes (its `custom-clusters` package), and `SERVER_CUSTOM_CLUSTERS` in `matter-server-wire.ts` lists the
   definition, so the matterjs-server adapter writes, reads and subscribes them through the server and decodes them by
   the declared model: a struct comes back keyed by field name, as from chip-tool. Every other cluster outside the
   Matter model stays refused.
-- On a matter.js TH the steps carry `notApplicable` with the reason "the matter.js all-clusters app has no
-  UnitTesting cluster", decided by `unitTestingNotApplicable` from the device flavor the case was collected for. A
-  step's `flavors` option would skip them too, but the reason it records names only the flavor (`unsupported on device
-  flavor "matterjs"`). The engine checks `notApplicable` before the controller gaps, so the matterjs-server leg also
-  records the TH's reason there.
-- The TH accepts only what `test-cluster-server.cpp` allows: `octet_string` at most 10 bytes, `struct_attr` with an
+- A chip TH accepts only what `test-cluster-server.cpp` allows: `octet_string` at most 10 bytes, `struct_attr` with an
   empty `e` and at most 6 bytes in `d`, and `list_long_octet_string` entries that are exactly the 512-byte
-  `0123456789abcdef…` buffer. Step 13 writes 3 entries because the TH starts with 4, so the read-back shows the
-  write took effect.
+  `0123456789abcdef…` buffer. The matter.js TH stores any value the model allows; the steps stay within chip's limits.
+  Step 13 writes 3 entries because both THs start with 4, so the read-back shows the write took effect.
 - Each step reads the value back. The in-process controller decodes a cluster outside the Matter model generically,
   so a struct comes back keyed by field id; chip-tool decodes it by the declared field names.
 - matter.js encodes a `map8` without declared bits as 0, so `SimpleStruct.f` is declared `uint8`.
 
 Step 13 asks for a chunked write (Matter Core § 10.2.3). `expectChunkedWrite` (`tc-idm-3.1-support.ts`) reads it off
-the chip TH's log, starting at the Write Request whose path the step's own path check matched, so an earlier write to
+the TH's log, starting at the Write Request whose path the step's own path check matched, so an earlier write to
 another attribute in the window is not taken for it: two or more `WriteRequestMessage`s on one exchange,
 `moreChunkedMessages = true` on all but the last, and the DUT's MRP acknowledgement of each `WriteResponse` logged
 before the TH decodes the next chunk. Line order alone cannot show the DUT waited, because the TH answers an early
-chunk in turn anyway. A non-chip TH's log has no pattern, so the check would report `unverified`; the matter.js
-all-clusters app has no UnitTesting cluster, so on a matter.js TH the step is not applicable before it gets there. Over
-TCP the step does not apply (see "A step that applies only over UDP" above). The in-process controller and
+chunk in turn anyway. On a matter.js TH the chunks are its `InteractionServer Write «` lines on the request's session
+and exchange, each but the last with `moreChunkedMessages`. The TH logs the next chunk's `Write «` line only after the
+DUT acknowledged its `WriteResponse-chunk`, so that line proves nothing; the proof is the TH's receipt of the next chunk
+(`MessageExchange Message « for: I/WriteRequest`), which must follow the response and carry or follow the DUT's
+acknowledgement of its counter. Over TCP the step does not apply (see "A step that applies only over UDP" above). The in-process controller and
 matterjs-server send the write as two chunks, and the step passes against a chip TH. The server reaches the chip TH
 over TCP, so it skips there unless the server runs with `MATTER_NETWORK_TCP=false` (see the matterjs-server section).
 chip-tool's `write-by-id` sends the list as one REPLACE `AttributeDataIB` and fails with
