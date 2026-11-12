@@ -67,7 +67,17 @@ export interface MatterServerIcdHost {
      */
     enableAutoSubscription(): Promise<boolean>;
 
+    /**
+     * Switches the server's own subscription to the node off again, except one the adapter keeps for a case that
+     * declares `sustained-subscription`.
+     */
     disableAutoSubscription(): Promise<void>;
+
+    /**
+     * As {@link disableAutoSubscription}, but throws `ImplementationError` for the subscription a case declares as
+     * `sustained-subscription`, which the case needs for its whole run.
+     */
+    endAutoSubscription(): Promise<void>;
 
     /** The node id the server holds on the node's fabric. */
     ownNodeId(): Promise<bigint>;
@@ -130,7 +140,6 @@ export class MatterServerIcdClient implements CertIcdClientApi {
         }
         await this.#host.command("unregister_icd", { node_id: nodeId, force: false });
 
-        // Switched on for the registration, which has ended
         await this.#host.disableAutoSubscription();
     }
 
@@ -139,7 +148,7 @@ export class MatterServerIcdClient implements CertIcdClientApi {
     }
 
     stopSubscription(): Promise<void> {
-        return this.#host.disableAutoSubscription();
+        return this.#host.endAutoSubscription();
     }
 
     events(): CertIcdEvent[] {

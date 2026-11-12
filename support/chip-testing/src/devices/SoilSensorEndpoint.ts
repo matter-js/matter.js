@@ -21,7 +21,7 @@ registerDeviceType({
                     measured: true,
                     minMeasuredValue: 0,
                     maxMeasuredValue: 99,
-                    accuracyRanges: [{ rangeMin: 0, rangeMax: 99, percentMax: 500 }],
+                    accuracyRanges: [{ rangeMin: 0, rangeMax: 99, percentMax: 10 }],
                 },
                 soilMoistureMeasuredValue: 50,
             },

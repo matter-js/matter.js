@@ -24,6 +24,7 @@ import {
     Timestamp,
     TxtRecord,
 } from "@matter/general";
+import { IcdManagement } from "@matter/types/clusters/icd-management";
 import type { MdnsAdvertiser } from "./MdnsAdvertiser.js";
 
 const logger = Logger.get("MdnsAdvertisement");
@@ -184,15 +185,22 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
     }
 
     get #txtValues() {
-        const { idleInterval, activeInterval, activeThreshold } = this.description;
+        const { idleInterval, activeInterval, activeThreshold, icd } = this.description;
 
         const values: Record<string, unknown> = {};
 
-        // Spec §4.3.4: SII/SAI/SAT are optional overrides of the MRP defaults, so omit them when at default
-        if (idleInterval !== SessionIntervals.defaults.idleInterval) {
+        // Spec §4.3.4: SII/SAI/SAT are optional overrides of the MRP defaults, so omit them when at default.  An ICD
+        // advertises SAI, and SII while it operates as SIT, whatever their value (§9.15)
+        if (
+            idleInterval !== undefined &&
+            (idleInterval !== SessionIntervals.defaults.idleInterval || icd === IcdManagement.OperatingMode.Sit)
+        ) {
             values.SII = idleInterval; /* Session Idle Interval */
         }
-        if (activeInterval !== SessionIntervals.defaults.activeInterval) {
+        if (
+            activeInterval !== undefined &&
+            (activeInterval !== SessionIntervals.defaults.activeInterval || icd !== undefined)
+        ) {
             values.SAI = activeInterval; /* Session Active Interval */
         }
         if (activeThreshold !== SessionIntervals.defaults.activeThreshold) {

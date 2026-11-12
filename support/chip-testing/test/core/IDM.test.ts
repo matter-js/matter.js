@@ -16,6 +16,8 @@ describe("IDM", () => {
         "IDM/10.5",
         // Registered below on its own subject
         "IDM/1.5",
+        // Registered below with its own arguments
+        "IDM/13.1",
     );
     // Selects the runs of multi-run tests, which "IDM/*" does not
     chip("IDM/*/run*").exclude("IDM/10.4/*", "IDM/10.5/*", "IDM/1.5/*").exclude("IDM/*/run1").exclude(
@@ -84,6 +86,8 @@ describe("IDM", () => {
     // AllClustersApp intentionally adds clusters beyond what OnOffLightDevice requires,
     // so disable strict extra-cluster checking
     chip("IDM/10.5").args("--bool-arg", "fail_on_extra_clusters:False");
+    // No lock subject is registered, so IDM 13.1 runs on AllClustersApp, which serves CHIP's UnitTesting cluster
+    chip("IDM/13.1").args("--bool-arg", "pixit_allow_unit_testing_cluster:True");
     // IDM 1.5 exercises DelayReportData, which the forward features enabled in support.ts switch on.  It asserts that the
     // negotiated MaxInterval equals its requested ceiling of 3600 s, which the default subject does not grant
     chip("IDM/1.5").subject(AllClustersFullMaxIntervalApp);

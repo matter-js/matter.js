@@ -8,6 +8,7 @@ import { OperationalMdnsAdvertisement } from "#advertisement/mdns/OperationalMdn
 import { Fabric } from "#fabric/Fabric.js";
 import { TestFabric } from "#fabric/TestFabric.js";
 import { Advertisement, CommissioningMode, MdnsAdvertiser, MdnsServer, ServiceDescription } from "#index.js";
+import { SessionIntervals } from "#session/SessionIntervals.js";
 import {
     Bytes,
     createPromise,
@@ -34,6 +35,7 @@ import {
     UdpSocket,
 } from "@matter/general";
 import { GlobalFabricId, NodeId, VendorId } from "@matter/types";
+import { IcdManagement } from "@matter/types/clusters/icd-management";
 
 const SERVER_IPv4 = "192.168.200.1";
 const SERVER_IPv6 = "fe80::e777:4f5e:c61e:7314";
@@ -947,6 +949,50 @@ describe("MDNS goodbye of one advertisement among several", () => {
 
         expect(hostRecordsOf(goodbye).sort()).deep.equals([`A ${HOST} ${SERVER_IPv4}`, `AAAA ${HOST} ${SERVER_IPv6}`]);
         expect(goodbye).includes(`PTR ${SERVICE_DISCOVERY} _matter._tcp.local`);
+    });
+
+    describe("session intervals of an ICD", () => {
+        async function txtOf(service: ServiceDescription) {
+            await advertise(service);
+            const txt = messages
+                .flatMap(({ answers }) => answers)
+                .find(({ recordType, ttl }) => recordType === DnsRecordType.TXT && ttl > 0);
+            if (txt === undefined || !Array.isArray(txt.value)) {
+                throw new InternalError("No TXT record announced");
+            }
+            return txt.value.map(entry => (typeof entry === "string" ? entry : Bytes.toString(entry)));
+        }
+
+        it("advertises SII and SAI while operating as SIT, also at the MRP defaults", async () => {
+            expect(
+                await txtOf({
+                    ...OPERATIONAL_SERVICE,
+                    icd: IcdManagement.OperatingMode.Sit,
+                    idleInterval: SessionIntervals.defaults.idleInterval,
+                    activeInterval: SessionIntervals.defaults.activeInterval,
+                }),
+            ).deep.equals(["SII=500", "SAI=300", "ICD=0"]);
+        });
+
+        it("advertises SAI but no SII while operating as LIT", async () => {
+            expect(
+                await txtOf({
+                    ...OPERATIONAL_SERVICE,
+                    icd: IcdManagement.OperatingMode.Lit,
+                    activeInterval: SessionIntervals.defaults.activeInterval,
+                }),
+            ).deep.equals(["SAI=300", "ICD=1"]);
+        });
+
+        it("omits SII and SAI at the MRP defaults for a node that is no ICD", async () => {
+            expect(
+                await txtOf({
+                    ...OPERATIONAL_SERVICE,
+                    idleInterval: SessionIntervals.defaults.idleInterval,
+                    activeInterval: SessionIntervals.defaults.activeInterval,
+                }),
+            ).deep.equals([""]);
+        });
     });
 
     it("keeps answering for an advertisement that replaced one of the same service", async () => {
