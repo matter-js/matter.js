@@ -2062,6 +2062,39 @@ describe("Ota", () => {
         expect((await phaseOf()).map(({ state }) => state)).deep.equals(["announcing"]);
     }).timeout(10_000);
 
+    it("logs a rejecting async update event listener instead of leaving an unhandled rejection", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+
+        let listenerCalls = 0;
+        await otaProvider.act(async agent => {
+            const manager = agent.get(SoftwareUpdateManager);
+            // The event type has no async listeners; plain JavaScript listeners can still be async
+            const failingAsyncListener: (peer: PeerAddress) => any = async () => {
+                listenerCalls++;
+                throw new Error("async listener failure");
+            };
+            manager.events.updateApplying.on(failingAsyncListener);
+            await manager.addUpdateConsent(peerAddress, {
+                vendorId: VendorId(vendorId),
+                productId,
+                targetSoftwareVersion,
+            });
+            reportStatus(manager, peerAddress, targetSoftwareVersion, OtaUpdateStatus.Applying);
+        });
+        await MockTime.macrotasks;
+
+        expect(listenerCalls).equals(1);
+    }).timeout(10_000);
+
     it("moves an update whose apply did not take to the version consented while it applied", async () => {
         const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
         const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });

@@ -29,6 +29,7 @@ import {
     InternalError,
     Logger,
     MatterError,
+    MaybePromise,
     Millis,
     Minutes,
     Observable,
@@ -542,8 +543,8 @@ export class SoftwareUpdateManager extends Behavior {
      * The change must be synchronous; its type refuses a callback that returns a promise.
      *
      * An error of the change propagates unchanged; the events it queued before are still emitted.  The emits run one
-     * after the other, and an error that escapes one emit is logged, so it fails neither the change nor the other
-     * events.  This does not isolate the listeners of one event from each other: `Observable` stops an emit at the
+     * after the other, and an error of a listener, sync or async, is logged, so it fails neither the change nor the
+     * other events.  This does not isolate the listeners of one event from each other: `Observable` stops an emit at the
      * first listener that throws.
      */
     #mutate<T>(change: () => T & (T extends PromiseLike<unknown> ? never : unknown)): T {
@@ -560,7 +561,7 @@ export class SoftwareUpdateManager extends Behavior {
     }
 
     /** Queues an event of the running change, see {@link #mutate}. */
-    #queueEvent(emit: () => void) {
+    #queueEvent(emit: () => MaybePromise<void> | undefined) {
         if (this.internal.mutationDepth === 0) {
             throw new InternalError("An OTA update event was queued outside of a state change");
         }
@@ -568,11 +569,15 @@ export class SoftwareUpdateManager extends Behavior {
     }
 
     #emitQueuedEvents() {
+        const logListenerError = (error: unknown) => logger.warn(`An OTA update event listener failed:`, error);
         for (const emit of this.internal.outbox.splice(0)) {
             try {
-                emit();
+                const result = emit();
+                if (MaybePromise.is(result)) {
+                    Promise.resolve(result).catch(logListenerError);
+                }
             } catch (error) {
-                logger.warn(`An OTA update event listener failed:`, error);
+                logListenerError(error);
             }
         }
     }
@@ -2217,7 +2222,7 @@ export namespace SoftwareUpdateManager {
          *
          * @internal
          */
-        outbox = new Array<() => void>();
+        outbox = new Array<() => MaybePromise<void> | undefined>();
 
         /**
          * How many changes run through `#mutate` inside each other.

@@ -852,8 +852,11 @@ export default function commands(theNode: MatterNode) {
                                         return;
                                     }
                                     const updateVersion = updateInfo.softwareVersion;
-                                    // A stored image, of any source, has no URL; downloading it again would replace it
                                     if (updateInfo.otaUrl === undefined) {
+                                        if (forceDownload) {
+                                            console.log(`A stored image has no URL; --force has no effect on it.`);
+                                        }
+                                        await (await theNode.otaService()).downloadUpdate(updateInfo);
                                         console.log(
                                             `Update to version ${updateVersion} (${updateInfo.softwareVersionString}) found in local storage`,
                                         );
