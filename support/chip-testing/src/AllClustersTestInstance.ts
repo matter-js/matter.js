@@ -111,6 +111,7 @@ import { TestLevelControlServer } from "./cluster/TestLevelControlServer.js";
 import { TestOperationalStateServer } from "./cluster/TestOperationalStateServer.js";
 import { TestOvenCavityOperationalStateServer } from "./cluster/TestOvenCavityOperationalStateServer.js";
 import { TestWindowCoveringServer } from "./cluster/TestWindowCoveringServer.js";
+import { thermostatScheduleState } from "./devices/thermostat-schedules.js";
 import { DeviceTestInstanceConfig } from "./GenericTestApp.js";
 import { disableEndpointValidation, NodeTestInstance } from "./NodeTestInstance.js";
 import { SwitchSimulator } from "./simulators/SwitchSimulator.js";
@@ -577,6 +578,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                     Thermostat.Feature.AutoMode,
                     Thermostat.Feature.Occupancy,
                     Thermostat.Feature.Presets,
+                    Thermostat.Feature.MatterScheduleConfiguration,
                 ),
                 ThermostatUserInterfaceConfigurationServer,
                 TotalVolatileOrganicCompoundsConcentrationMeasurementServer.with(
@@ -1116,6 +1118,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                         },
                     ],
                     setpointHoldExpiryTimestamp: null,
+                    ...thermostatScheduleState(),
                 },
                 thermostatUserInterfaceConfiguration: {
                     scheduleProgrammingVisibility:
