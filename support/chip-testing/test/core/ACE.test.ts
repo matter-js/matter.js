@@ -23,6 +23,9 @@ describe("ACE", () => {
 
     chip("ACE/*");
 
+    // Selects the runs of multi-run tests, which "ACE/*" does not
+    chip("ACE/*/run*").exclude("ACE/*/run1", "ACE/*/run2");
+
     // run1 = all-clusters-no-groupcast (legacy Groups path),
     // run2 = all-devices on-off-light + --groupcast (groupcast path).
     chip("ACE/*/run1");
