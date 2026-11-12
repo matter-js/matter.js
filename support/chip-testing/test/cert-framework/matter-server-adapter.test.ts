@@ -3287,6 +3287,7 @@ describe("MatterServerControllerAdapter with a sustained subscription", () => {
         const error = await rejectionOf(adapter.commission({ passcode: 20202021, discriminator: 3840 }));
 
         expectSustainedSubscriptionFailure(error);
+        expect(messageOf(error)).contains("the node was removed again");
         expect(sent().slice(1)).deep.equals([
             { command: "enable_auto_subscription", args: { node_id: 5 } },
             { command: "remove_node", args: { node_id: 5 } },
@@ -3304,6 +3305,8 @@ describe("MatterServerControllerAdapter with a sustained subscription", () => {
         const error = await rejectionOf(adapter.commission({ passcode: 20202021, discriminator: 3840 }));
 
         expectSustainedSubscriptionFailure(error);
+        expect(messageOf(error)).contains("removing the node failed too").and.contains("NodeNotExists");
+        expect(messageOf(error)).not.contains("was removed again");
         expect(sent().map(({ command }) => command)).include("remove_node");
     });
 

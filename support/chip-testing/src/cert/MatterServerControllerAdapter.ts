@@ -5,6 +5,7 @@
  */
 
 import {
+    asError,
     ClosedError,
     Diagnostic,
     ImplementationError,
@@ -509,16 +510,15 @@ export class MatterServerControllerAdapter implements ControllerAdapter {
         try {
             await this.#autoSubscriptions.sustain(nodeId.toString());
         } catch (error) {
+            let cleanup = "the node was removed again";
             try {
                 await this.#started.client.command("remove_node", { node_id: nodeId });
-            } catch (cleanup) {
-                if (!this.#closing.signal.aborted) {
-                    logger.warn(`Removing node ${nodeId} after its subscription failed to start failed:`, cleanup);
-                }
+            } catch (removal) {
+                cleanup = `removing the node failed too, so it may still be commissioned (${asError(removal).message})`;
             }
             throw new MatterServerSustainedSubscriptionError(
                 `matterjs-server commissioned node ${nodeId}, but switching its own subscription to the node on ` +
-                    "failed, so the node was removed again",
+                    `failed; ${cleanup}`,
                 { cause: error },
             );
         }
