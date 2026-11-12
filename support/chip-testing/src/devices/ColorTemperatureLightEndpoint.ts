@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { ColorControl } from "@matter/main/clusters";
 import { ColorTemperatureLightDevice } from "@matter/main/devices/color-temperature-light";
 import { EndpointNumber } from "@matter/main/types";
@@ -15,7 +15,7 @@ import { dimmableLevelControlState } from "./dimmable-load.js";
 
 registerDeviceType({
     name: "color-temperature-light",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(ColorTemperatureLightDevice, {
             number: endpoint,
             scenesManagement: { sceneTableSize: TEST_SCENE_TABLE_SIZE },
@@ -25,7 +25,7 @@ registerDeviceType({
                 ColorControl.EnhancedColorMode.ColorTemperatureMireds,
             ),
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
         return { endpoint: ep };
     },
 });

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { GroupsServer } from "@matter/main/behaviors/groups";
 import { ThermostatServer } from "@matter/main/behaviors/thermostat";
 import { ThermostatUserInterfaceConfigurationServer } from "@matter/main/behaviors/thermostat-user-interface-configuration";
@@ -34,7 +34,7 @@ function builtInPreset(presetScenario: Thermostat.PresetScenario) {
 
 registerDeviceType({
     name: "thermostat",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(FullThermostat, {
             number: endpoint,
             // Setpoints in 0.01 °C, deadband in 0.1 °C; limits and setpoints are CHIP's thermostat-server defaults
@@ -81,7 +81,7 @@ registerDeviceType({
                     ThermostatUserInterfaceConfiguration.ScheduleProgrammingVisibility.ScheduleProgrammingPermitted,
             },
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
         return { endpoint: ep };
     },
 });

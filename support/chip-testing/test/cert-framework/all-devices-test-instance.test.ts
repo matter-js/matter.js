@@ -5,6 +5,7 @@
  */
 
 import { Endpoint } from "@matter/main";
+import { BridgedDeviceBasicInformationServer } from "@matter/main/behaviors/bridged-device-basic-information";
 import { ValidationError } from "@matter/main/types";
 import { AllDevicesTestInstance } from "../../src/AllDevicesTestInstance.js";
 import { listLeafDeviceTypes } from "../../src/devices/DeviceTypeRegistry.js";
@@ -75,4 +76,80 @@ describe("AllDevicesTestInstance --device", () => {
             "Endpoint 3 declared twice in --device flags",
         );
     });
+
+    it("adds a device below the endpoint parent= names", async () => {
+        const node = await setupWith("--device", "aggregator:1", "--device", "on-off-light:5,parent=1");
+        try {
+            expect(structureOf(node)).deep.equals([[1, "Aggregator", [[5, "OnOffLight", []]]]]);
+        } finally {
+            await node.close();
+        }
+    });
+
+    it("wraps a bridged device in a bridged node named after it", async () => {
+        const node = await setupWith("--device", "aggregator:1", "--device", "on-off-light:2,parent=1,bridged");
+        try {
+            expect(structureOf(node)).deep.equals([[1, "Aggregator", [[2, "BridgedNode", [[3, "OnOffLight", []]]]]]]);
+            const [bridgedNode] = [...[...node.parts][0].parts];
+            expect(bridgedNode.stateOf(BridgedDeviceBasicInformationServer).nodeLabel).equals("On Off Light");
+        } finally {
+            await node.close();
+        }
+    });
+
+    it("bridges every leaf device below the aggregator for *,parent=1,bridged", async () => {
+        const node = await setupWith("--device", "aggregator:1", "--device", "*,parent=1,bridged");
+        try {
+            const [aggregator, ...others] = [...node.parts];
+            expect(aggregator.number).equals(1);
+            expect(others).deep.equals([]);
+
+            const bridgedNodes = [...aggregator.parts];
+            expect(bridgedNodes.map(({ number }) => number)).deep.equals(
+                listLeafDeviceTypes().map((_type, index) => 2 + 2 * index),
+            );
+            for (const bridgedNode of bridgedNodes) {
+                expect(bridgedNode.type.name).equals("BridgedNode");
+                expect([...bridgedNode.parts].map(({ number }) => number)).deep.equals([bridgedNode.number + 1]);
+            }
+        } finally {
+            await node.close();
+        }
+    });
+
+    it("refuses a --device value CHIP refuses", async () => {
+        await expect(setupWith("--device", "on-off-light:2,color=red")).rejectedWith(
+            ValidationError,
+            'Unknown option "color=red"',
+        );
+        await expect(setupWith("--device", "bridged-node:2")).rejectedWith(ValidationError, "needs parent=");
+        await expect(setupWith("--device", "on-off-light:1", "--device", "bridged-node:2,parent=1")).rejectedWith(
+            ValidationError,
+            'must be an aggregator, but endpoint 1 is "on-off-light"',
+        );
+        await expect(setupWith("--device", "on-off-light:2,parent=1")).rejectedWith(
+            ValidationError,
+            "Parent endpoint 1",
+        );
+    });
+
+    it("refuses a parent declared after its child", async () => {
+        await expect(setupWith("--device", "on-off-light:2,parent=1", "--device", "aggregator:1")).rejectedWith(
+            ValidationError,
+            "Parent endpoint 1",
+        );
+    });
+
+    it("refuses bridged without an endpoint number", async () => {
+        await expect(setupWith("--device", "aggregator:1", "--device", "chime,parent=1,bridged")).rejectedWith(
+            ValidationError,
+            '"bridged" needs an endpoint number',
+        );
+    });
 });
+
+type Structure = [number, string, Structure[]];
+
+function structureOf(endpoint: Endpoint): Structure[] {
+    return [...endpoint.parts].map(part => [part.number, part.type.name, structureOf(part)]);
+}

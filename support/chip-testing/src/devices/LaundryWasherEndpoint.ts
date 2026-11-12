@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { LaundryWasherControlsServer } from "@matter/main/behaviors/laundry-washer-controls";
 import { LaundryWasherModeServer } from "@matter/main/behaviors/laundry-washer-mode";
 import { LaundryWasherControls, LaundryWasherMode, OperationalState } from "@matter/main/clusters";
@@ -21,7 +21,7 @@ const Washer = LaundryWasherDevice.with(
 
 registerDeviceType({
     name: "laundry-washer",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(Washer, {
             number: endpoint,
             operationalState: {
@@ -55,7 +55,7 @@ registerDeviceType({
                 ],
             },
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
 
         return { endpoint: ep };
     },

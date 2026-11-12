@@ -8,6 +8,7 @@
 // Adding a future device type is a one-line edit here plus a new file.
 import "./AggregatorEndpoint.js";
 import "./AirQualitySensorEndpoint.js";
+import "./BridgedNodeEndpoint.js";
 import "./ChimeEndpoint.js";
 import "./ColorTemperatureLightEndpoint.js";
 import "./ContactSensorEndpoint.js";

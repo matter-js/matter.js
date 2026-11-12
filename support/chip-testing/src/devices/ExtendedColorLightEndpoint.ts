@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { ColorControlServer } from "@matter/main/behaviors";
 import { ColorControl } from "@matter/main/clusters";
 import { ExtendedColorLightDevice } from "@matter/main/devices/extended-color-light";
@@ -26,7 +26,7 @@ const ExtendedColorControlServer = ColorControlServer.with(
 
 registerDeviceType({
     name: "extended-color-light",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(ExtendedColorLightDevice.with(ExtendedColorControlServer), {
             number: endpoint,
             scenesManagement: { sceneTableSize: TEST_SCENE_TABLE_SIZE },
@@ -36,7 +36,7 @@ registerDeviceType({
                 ColorControl.EnhancedColorMode.CurrentXAndCurrentY,
             ),
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
         return { endpoint: ep };
     },
 });
