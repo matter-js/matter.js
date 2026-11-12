@@ -16,6 +16,7 @@ import "./CooktopEndpoint.js";
 import "./DimmableLightEndpoint.js";
 import "./DimmablePlugInUnitEndpoint.js";
 import "./DishwasherEndpoint.js";
+import "./ElectricalSensorEndpoint.js";
 import "./ExtendedColorLightEndpoint.js";
 import "./ExtractorHoodEndpoint.js";
 import "./FlowSensorEndpoint.js";

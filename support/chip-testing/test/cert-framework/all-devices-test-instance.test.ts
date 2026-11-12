@@ -4,8 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "@matter/general";
 import { Endpoint } from "@matter/main";
 import { BridgedDeviceBasicInformationServer } from "@matter/main/behaviors/bridged-device-basic-information";
+import { ElectricalEnergyMeasurementServer } from "@matter/main/behaviors/electrical-energy-measurement";
+import { ElectricalPowerMeasurementServer } from "@matter/main/behaviors/electrical-power-measurement";
+import { GeneralDiagnosticsServer } from "@matter/main/behaviors/general-diagnostics";
 import { ValidationError } from "@matter/main/types";
 import { AllDevicesTestInstance } from "../../src/AllDevicesTestInstance.js";
 import { listLeafDeviceTypes } from "../../src/devices/DeviceTypeRegistry.js";
@@ -145,6 +149,53 @@ describe("AllDevicesTestInstance --device", () => {
             ValidationError,
             '"bridged" needs an endpoint number',
         );
+    });
+});
+
+describe("AllDevicesTestInstance electrical-sensor", () => {
+    const enableKey = Bytes.fromHex("000102030405060708090a0b0c0d0e0f");
+
+    async function trigger(node: Awaited<ReturnType<typeof setupWith>>, eventTrigger: bigint) {
+        await node.act(agent => agent.get(GeneralDiagnosticsServer).testEventTrigger({ enableKey, eventTrigger }));
+    }
+
+    it("reads a fake 1 kW load on the start trigger", async () => {
+        const node = await setupWith(
+            "--device",
+            "electrical-sensor:1",
+            "--enable-key",
+            "000102030405060708090a0b0c0d0e0f",
+        );
+        try {
+            await trigger(node, 0x0091_0000_0000_0001n);
+            const [sensor] = [...node.parts];
+            expect(sensor.stateOf(ElectricalPowerMeasurementServer).activePower).equals(980_000);
+            expect(sensor.stateOf(ElectricalPowerMeasurementServer).voltage).equals(229_000);
+            const energy = sensor.stateOf(ElectricalEnergyMeasurementServer);
+            expect(energy).nested.property("cumulativeEnergyImported.energy", 544);
+            expect(energy).nested.property("periodicEnergyExported.energy", 0);
+
+            await new Promise(resolve => setTimeout(resolve, 2_500));
+            expect(sensor.stateOf(ElectricalPowerMeasurementServer).activePower).equals(985_000);
+
+            await trigger(node, 0x0091_0000_0000_0000n);
+        } finally {
+            await node.close();
+        }
+    });
+
+    it("refuses a trigger for another endpoint", async () => {
+        const node = await setupWith(
+            "--device",
+            "electrical-sensor:1",
+            "--enable-key",
+            "000102030405060708090a0b0c0d0e0f",
+        );
+        try {
+            await expect(trigger(node, 0x0091_0002_0000_0001n)).rejectedWith("Wrong test event");
+        } finally {
+            await node.close();
+        }
     });
 });
 
