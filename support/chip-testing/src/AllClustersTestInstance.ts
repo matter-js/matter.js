@@ -60,12 +60,14 @@ import {
     TimeFormatLocalizationServer,
     TotalVolatileOrganicCompoundsConcentrationMeasurementServer,
     UnitLocalizationServer,
+    LaundryDryerControlsServer,
     UserLabelServer,
     WaterHeaterModeServer,
 } from "@matter/main/behaviors";
 import {
     AdministratorCommissioning,
     AirQuality,
+    LaundryDryerControls,
     BasicInformation,
     ColorControl,
     ConcentrationMeasurement,
@@ -1174,7 +1176,19 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 },
             },
         );
+
         endpoint1.behaviors.require(UnitTestingServer);
+        
+        // Added separately because one more server in the endpoint's static type exceeds TypeScript's instantiation depth
+        endpoint1.behaviors.require(LaundryDryerControlsServer, {
+            // CHIP's all-clusters app supports these levels
+            supportedDrynessLevels: [
+                LaundryDryerControls.DrynessLevel.Low,
+                LaundryDryerControls.DrynessLevel.Normal,
+                LaundryDryerControls.DrynessLevel.Max,
+            ],
+            selectedDrynessLevel: null,
+        });
         await serverNode.add(endpoint1);
 
         const endpoint2 = new Endpoint(OnOffLightDevice.with(DescriptorServer.with(Descriptor.Feature.TagList)), {
