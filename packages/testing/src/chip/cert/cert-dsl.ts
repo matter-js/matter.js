@@ -393,6 +393,13 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
                 );
             }
 
+            if (opts?.controllerCapabilities?.includes("sustained-subscription")) {
+                throw new Error(
+                    `certTest "${tc}" step ${number} declares sustained-subscription, which a controller has to hold ` +
+                        "from commissioning on — only certTest() takes it, so declare it there and not on the step",
+                );
+            }
+
             if (typeof opts?.notApplicable === "string" && opts.notApplicable.trim() === "") {
                 throw new Error(
                     `certTest "${tc}" step ${number} declares an empty "notApplicable" reason, which would skip it ` +
@@ -1057,6 +1064,8 @@ class WiredCertTest extends CertTest {
                     {
                         transport: this.definition.transport,
                         attestation: this.definition.attestation,
+                        sustainedSubscription:
+                            this.definition.controllerCapabilities?.includes("sustained-subscription"),
                         groups: kind === "dut" ? this.#controllerGroups() : undefined,
                     },
                     kind,

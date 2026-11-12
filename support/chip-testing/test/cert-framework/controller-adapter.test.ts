@@ -1863,11 +1863,14 @@ describe("controller capabilities", () => {
 
     it("derives what adapter options need of a controller", () => {
         expect(capabilitiesFor()).deep.equal([]);
-        expect(capabilitiesFor({ transport: "tcp", attestation: true, webRtcRequestor: true })).deep.equal([
-            "tcp-transport",
-            "attestation",
-            "webrtc-requestor",
-        ]);
+        expect(
+            capabilitiesFor({
+                transport: "tcp",
+                attestation: true,
+                webRtcRequestor: true,
+                sustainedSubscription: true,
+            }),
+        ).deep.equal(["tcp-transport", "attestation", "webrtc-requestor", "sustained-subscription"]);
     });
 
     it("answers no gaps for an implementation without a registration", () => {

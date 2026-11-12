@@ -42,6 +42,7 @@ import {
     MatterServerCommissioningError,
     MatterServerControllerAdapter,
     MatterServerReadError,
+    MatterServerSustainedSubscriptionError,
 } from "../../src/cert/MatterServerControllerAdapter.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import { type CertContextFile, certContextFor } from "../../src/matter-server/matter-server-cert-context.js";
@@ -2182,9 +2183,6 @@ describe("MatterServerControllerAdapter", () => {
                         { path: { endpoint: 1, cluster: ON_OFF, attribute: ON_TIME }, value: 1, dataVersion: 1 },
                     ]),
             ],
-            ["sustained-subscription", () => n.observeEvents([{ endpoint: 1 }], {})],
-            ["sustained-subscription", () => n.clientEndpoints()],
-            ["sustained-subscription", () => n.clientAttribute({ endpoint: 1, cluster: ON_OFF, attribute: 0 })],
             ["session-introspection", () => n.sessions()],
             ["session-introspection", () => n.severTransportConnection(1)],
             ["basic-commissioning-window", () => n.openCommissioningWindow({ timeout: 180, enhanced: false })],
@@ -2534,16 +2532,24 @@ describe("MatterServerControllerAdapter construction", () => {
         });
     });
 
-    it("keeps declared roles at 1 where this adapter cannot drive them, which a capability gap records instead", () => {
+    it("declares the OTA provider and ICD client PICS keys", () => {
         expect(MATTERJS_SERVER_CONTROLLER_PICS).deep.include({
             "MCORE.OTA.Provider": 1,
             "MCORE.BDX.Sender": 1,
             "ICDB.C": 1,
+            "ICDM.C": 1,
+        });
+    });
+
+    it("declares the bridge client and device list PICS keys, and no sustained-subscription gap", () => {
+        expect(MATTERJS_SERVER_CONTROLLER_PICS).deep.include({
             "MCORE.BRIDGECLIENT": 1,
             "MCORE.DEVLIST.UseDevices": 1,
+            "MCORE.DEVLIST.UseDeviceName": 1,
+            "MCORE.DEVLIST.UseDeviceState": 1,
+            "MCORE.DEVLIST.UseBatInfo": 1,
         });
-        expect(MATTERJS_SERVER_CONTROLLER_PICS).deep.include({ "ICDM.C": 1 });
-        expect(Object.keys(MATTERJS_SERVER_CAPABILITY_GAPS)).include("sustained-subscription");
+        expect(Object.keys(MATTERJS_SERVER_CAPABILITY_GAPS)).not.include("sustained-subscription");
     });
 
     it("declares the BDX sender roles only, and no Terms and Conditions client feature", () => {
@@ -3090,5 +3096,545 @@ describe("MatterServerControllerAdapter started from the environment", () => {
         await waitFor(() => texts().some(text => text.startsWith("fake-server args: ")), "args line");
         expect(texts().some(text => text.includes("Loaded group key configuration"))).equals(false);
         expect(texts().some(text => text.includes("--revocation-sets-dir"))).equals(false);
+    });
+});
+
+describe("MatterServerControllerAdapter with a sustained subscription", () => {
+    const DESCRIPTOR = 0x1d;
+    const BRIDGED_INFO = 0x39;
+    const NODE_LABEL = 5;
+    const BASIC_INFORMATION = 0x28;
+    const START_UP = 0;
+    const SHUT_DOWN = 1;
+
+    /** `get_node` as the server answers it for a bridge that no longer has its light on endpoint 3. */
+    const HELD_NODE = {
+        node_id: 5,
+        available: true,
+        attributes: {
+            "0/29/0": [{ "0": 22, "1": 3 }],
+            "0/29/3": [1, 2],
+            "1/29/0": [{ "0": 14, "1": 2 }],
+            "1/29/3": [2],
+            "2/29/0": [
+                { "0": 256, "1": 3 },
+                { "0": 19, "1": 3 },
+            ],
+            "2/29/3": [],
+            "2/6/0": true,
+            "2/57/5": "Light 2",
+            "4/6/0": false,
+        },
+    };
+
+    let server: FakeMatterServer;
+    let adapter: MatterServerControllerAdapter;
+    let replies: Record<string, FakeServerReply>;
+    let client: MatterServerClient | undefined;
+
+    async function started(options: ControllerAdapterOptions | undefined) {
+        adapter = new MatterServerControllerAdapter("dut", options, async () => {
+            const connected = await MatterServerClient.connect(server.url);
+            client = connected;
+            const lines = new LineQueue();
+            return {
+                client,
+                entry: "fake-entry",
+                httpUrl: server.httpUrl,
+                log: new LogFollower(lines.follow(), "dut"),
+                close: async () => {
+                    await connected.close();
+                    lines.close();
+                },
+            };
+        });
+        await adapter.start();
+    }
+
+    /** The listeners added to and removed from the client's events from now on. */
+    function trackListeners() {
+        const events = client?.events;
+        if (events === undefined) {
+            throw new InternalError("The adapter has not connected");
+        }
+        const added = new Array<unknown>();
+        const removed = new Array<unknown>();
+        const on = events.on;
+        const off = events.off;
+        events.on = observer => {
+            added.push(observer);
+            on.call(events, observer);
+        };
+        events.off = observer => {
+            removed.push(observer);
+            off.call(events, observer);
+        };
+        return { added, removed };
+    }
+
+    /** The error `commission()` rejects with where the server's subscription did not start. */
+    function expectSustainedSubscriptionFailure(error: unknown) {
+        if (!(error instanceof MatterServerSustainedSubscriptionError)) {
+            expect.fail(`expected a MatterServerSustainedSubscriptionError, got ${messageOf(error)}`);
+        }
+        expect(messageOf(error)).contains("node 5");
+        expect(error.cause).instanceOf(MatterServerCommandError);
+        expect(messageOf(error.cause)).contains("NodeNotReady");
+    }
+
+    /** Commissions node 5 and forgets the commands that took. */
+    async function commissioned() {
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        server.requests.length = 0;
+        return adapter.node(ref);
+    }
+
+    function sent() {
+        return server.requests.map(({ command, args }) => ({ command, args }));
+    }
+
+    /** Leaves every `command` request unanswered and reports the message id of the last one. */
+    function holding(command: string) {
+        let messageId: string | undefined;
+        server.reply = request => {
+            if (request.command === command) {
+                messageId = request.messageId;
+                return undefined;
+            }
+            return replies[request.command];
+        };
+        return {
+            answer(reply: Exclude<FakeServerReply, undefined>) {
+                if (messageId === undefined) {
+                    throw new InternalError(`No ${command} arrived`);
+                }
+                server.respond(messageId, reply);
+            },
+            get arrived() {
+                return messageId !== undefined;
+            },
+        };
+    }
+
+    function nodeEvent(eventNumber: number, overrides: object = {}) {
+        return {
+            node_id: 5,
+            endpoint_id: 0,
+            cluster_id: BASIC_INFORMATION,
+            event_id: START_UP,
+            event_number: eventNumber,
+            priority: 2,
+            timestamp: 0,
+            timestamp_type: 0,
+            data: { softwareVersion: eventNumber },
+            ...overrides,
+        };
+    }
+
+    function startUp(eventNumber: number) {
+        return {
+            endpoint: 0,
+            cluster: BASIC_INFORMATION,
+            event: START_UP,
+            eventNumber: BigInt(eventNumber),
+            value: { softwareVersion: eventNumber },
+        };
+    }
+
+    beforeEach(async () => {
+        server = await FakeMatterServer.start();
+        replies = {
+            commission_on_network: { result: { node_id: 5, attributes: {} } },
+            enable_auto_subscription: { result: null },
+            disable_auto_subscription: { result: null },
+            start_listening: { result: [] },
+            get_node: { result: HELD_NODE },
+            read: { result: { attributes: {}, events: [] } },
+        };
+        server.reply = ({ command }) => replies[command];
+    });
+
+    afterEach(async () => {
+        await adapter.close();
+        await server.close();
+        expect(server.failures).deep.equals([]);
+    });
+
+    it("switches the server's own subscription to a node on before commission() returns", async () => {
+        await started({ sustainedSubscription: true });
+        const enabling = holding("enable_auto_subscription");
+
+        let returned = false;
+        const commissioning = adapter.commission({ passcode: 20202021, discriminator: 3840 }).finally(() => {
+            returned = true;
+        });
+        await Promise.race([waitFor(() => enabling.arrived, "enable_auto_subscription"), commissioning]);
+        expect(returned).equals(false);
+
+        enabling.answer({ result: null });
+        expect(await commissioning).equals(NODE);
+        expect(sent()).deep.equals([
+            { command: "commission_on_network", args: { setup_pin_code: 20202021, filter_type: 2, filter: 3840 } },
+            { command: "enable_auto_subscription", args: { node_id: 5 } },
+        ]);
+    });
+
+    it("fails commission() and removes the node where the server cannot start its subscription to it", async () => {
+        await started({ sustainedSubscription: true });
+        replies.enable_auto_subscription = { errorCode: 3, details: "NodeNotReady" };
+        replies.remove_node = { result: null };
+
+        const error = await rejectionOf(adapter.commission({ passcode: 20202021, discriminator: 3840 }));
+
+        expectSustainedSubscriptionFailure(error);
+        expect(messageOf(error)).contains("the node was removed again");
+        expect(sent().slice(1)).deep.equals([
+            { command: "enable_auto_subscription", args: { node_id: 5 } },
+            { command: "remove_node", args: { node_id: 5 } },
+        ]);
+        server.requests.length = 0;
+        expect(await rejectionOf(adapter.node(NODE).clientEndpoints())).instanceOf(ImplementationError);
+        expect(server.requests).deep.equals([]);
+    });
+
+    it("fails commission() with the subscription's error where removing the node fails too", async () => {
+        await started({ sustainedSubscription: true });
+        replies.enable_auto_subscription = { errorCode: 3, details: "NodeNotReady" };
+        replies.remove_node = { errorCode: 5, details: "NodeNotExists" };
+
+        const error = await rejectionOf(adapter.commission({ passcode: 20202021, discriminator: 3840 }));
+
+        expectSustainedSubscriptionFailure(error);
+        expect(messageOf(error)).contains("removing the node failed too").and.contains("NodeNotExists");
+        expect(messageOf(error)).not.contains("was removed again");
+        expect(sent().map(({ command }) => command)).include("remove_node");
+    });
+
+    it("refuses to sustain a node that already has a server subscription record", async () => {
+        await started({ sustainedSubscription: true });
+        await rejectionOf(adapter.node(NODE).icdClient().register());
+        replies.remove_node = { result: null };
+
+        const error = await rejectionOf(adapter.commission({ passcode: 20202021, discriminator: 3840 }));
+
+        if (!(error instanceof MatterServerSustainedSubscriptionError)) {
+            expect.fail(`expected a MatterServerSustainedSubscriptionError, got ${messageOf(error)}`);
+        }
+        expect(error.cause).instanceOf(ImplementationError);
+        expect(sent().filter(({ command }) => command === "enable_auto_subscription")).lengthOf(1);
+    });
+
+    it("keeps a newer subscription record when an earlier switch-on for the node fails", async () => {
+        await started(undefined);
+        const enables = new Array<string>();
+        server.reply = request => {
+            if (request.command === "enable_auto_subscription") {
+                enables.push(request.messageId);
+                return undefined;
+            }
+            return replies[request.command];
+        };
+        replies.remove_node = { result: null };
+        const n = adapter.node(NODE);
+
+        const first = rejectionOf(n.icdClient().register());
+        await waitFor(() => enables.length === 1, "the first enable_auto_subscription");
+        await n.decommission();
+        const second = rejectionOf(n.icdClient().register());
+        await waitFor(() => enables.length === 2, "the second enable_auto_subscription");
+        server.respond(enables[0], { errorCode: 3, details: "NodeNotReady" });
+        await first;
+        server.respond(enables[1], { result: null });
+        await second;
+
+        server.requests.length = 0;
+        await n.icdClient().stopSubscription();
+        expect(sent()).deep.equals([{ command: "disable_auto_subscription", args: { node_id: 5 } }]);
+    });
+
+    it("answers no held state after decommissioning", async () => {
+        await started({ sustainedSubscription: true });
+        const n = await commissioned();
+        replies.remove_node = { result: null };
+
+        await n.decommission();
+
+        expect(await rejectionOf(n.clientEndpoints())).instanceOf(ImplementationError);
+        expect(sent()).deep.equals([{ command: "remove_node", args: { node_id: 5 } }]);
+    });
+
+    it("leaves the server's subscription off and refuses held state where the case did not declare it", async () => {
+        await started(undefined);
+        const n = adapter.node(await adapter.commission({ passcode: 20202021, discriminator: 3840 }));
+
+        expect(sent().map(({ command }) => command)).deep.equals(["commission_on_network"]);
+        server.requests.length = 0;
+        for (const call of [
+            () => n.clientEndpoints(),
+            () => n.clientAttribute({ endpoint: 2, cluster: ON_OFF, attribute: 0 }),
+            () => n.observeEvents([{ endpoint: 0 }], {}),
+        ]) {
+            const error = await rejectionOf(call());
+            if (!(error instanceof UnsupportedByControllerError)) {
+                expect.fail(`expected an UnsupportedByControllerError, got ${messageOf(error)}`);
+            }
+            expect(error.capability).equals("sustained-subscription");
+        }
+        expect(server.requests).deep.equals([]);
+    });
+
+    it("answers no held state for a node it did not commission", async () => {
+        await started({ sustainedSubscription: true });
+
+        expect(await rejectionOf(adapter.node(NODE).clientEndpoints())).instanceOf(ImplementationError);
+        expect(server.requests).deep.equals([]);
+    });
+
+    it("leaves the subscription off for a node commissioned without one, and answers no held state for it", async () => {
+        await started({ sustainedSubscription: true });
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840, withoutSubscription: true });
+
+        expect(sent().map(({ command }) => command)).deep.equals(["commission_on_network"]);
+        expect(await rejectionOf(adapter.node(ref).clientEndpoints())).instanceOf(ImplementationError);
+    });
+
+    it("answers no held state for a node whose subscription only the ICD client switched on, and lets it end it", async () => {
+        await started({ sustainedSubscription: true });
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840, withoutSubscription: true });
+        const n = adapter.node(ref);
+        await rejectionOf(n.icdClient().register());
+        expect(sent().map(({ command }) => command)).include("enable_auto_subscription");
+
+        expect(await rejectionOf(n.clientEndpoints())).instanceOf(ImplementationError);
+
+        server.requests.length = 0;
+        await n.icdClient().stopSubscription();
+        expect(sent()).deep.equals([{ command: "disable_auto_subscription", args: { node_id: 5 } }]);
+    });
+
+    it("lists endpoints in ascending order whatever order get_node holds them in", async () => {
+        await started({ sustainedSubscription: true });
+        const n = await commissioned();
+        replies.get_node = { result: { node_id: 5, attributes: { "4/6/0": false, "2/6/0": true, "0/29/0": [] } } };
+
+        expect((await n.clientEndpoints()).map(({ endpoint }) => endpoint)).deep.equals([0, 2, 4]);
+    });
+
+    it("fails clientEndpoints for a DeviceTypeList entry without a device type", async () => {
+        await started({ sustainedSubscription: true });
+        const n = await commissioned();
+        replies.get_node = { result: { node_id: 5, attributes: { "1/29/0": [{ "1": 2 }] } } };
+
+        expect(await rejectionOf(n.clientEndpoints())).instanceOf(UnexpectedDataError);
+    });
+
+    it("fails a get_node answer that is not an object as unexpected data", async () => {
+        await started({ sustainedSubscription: true });
+        const n = await commissioned();
+        replies.get_node = { result: null };
+
+        expect(await rejectionOf(n.clientEndpoints())).instanceOf(UnexpectedDataError);
+    });
+
+    it("answers clientEndpoints from the endpoints and Descriptor values of get_node", async () => {
+        await started({ sustainedSubscription: true });
+        const n = await commissioned();
+
+        expect(await n.clientEndpoints()).deep.equals([
+            { endpoint: 0, deviceTypes: [22], parts: [1, 2] },
+            { endpoint: 1, deviceTypes: [14], parts: [2] },
+            { endpoint: 2, deviceTypes: [256, 19], parts: [] },
+            { endpoint: 4, deviceTypes: [], parts: [] },
+        ]);
+        expect(sent()).deep.equals([{ command: "get_node", args: { node_id: 5 } }]);
+    });
+
+    it("answers clientAttribute with the decoded value get_node holds, and undefined where it holds none", async () => {
+        await started({ sustainedSubscription: true });
+        const n = await commissioned();
+
+        expect(await n.clientAttribute({ endpoint: 2, cluster: BRIDGED_INFO, attribute: NODE_LABEL })).equals(
+            "Light 2",
+        );
+        expect(await n.clientAttribute({ endpoint: 4, cluster: ON_OFF, attribute: 0 })).equals(false);
+        expect(await n.clientAttribute({ endpoint: 1, cluster: DESCRIPTOR, attribute: 0 })).deep.equals([
+            { deviceType: 14, revision: 2 },
+        ]);
+        expect(await n.clientAttribute({ endpoint: 3, cluster: ON_OFF, attribute: 0 })).equals(undefined);
+        expect(sent().map(({ command }) => command)).deep.equals(["get_node", "get_node", "get_node", "get_node"]);
+    });
+
+    it("fails clientAttribute for a held value that does not fit its model", async () => {
+        await started({ sustainedSubscription: true });
+        const n = await commissioned();
+        replies.get_node = { result: { ...HELD_NODE, attributes: { "2/6/0": "on" } } };
+
+        expect(await rejectionOf(n.clientAttribute({ endpoint: 2, cluster: ON_OFF, attribute: 0 }))).instanceOf(
+            MatterServerWireError,
+        );
+    });
+
+    it("fails a get_node answer without attributes as unexpected data", async () => {
+        await started({ sustainedSubscription: true });
+        const n = await commissioned();
+        replies.get_node = { result: { node_id: 5 } };
+
+        expect(await rejectionOf(n.clientEndpoints())).instanceOf(UnexpectedDataError);
+    });
+
+    it("keeps the subscription on when an ICD registration ends", async () => {
+        await started({ sustainedSubscription: true });
+        const n = await commissioned();
+        replies.get_icd_state = { result: { registered: true } };
+        replies.unregister_icd = { result: null };
+
+        await n.icdClient().unregister();
+
+        expect(sent().map(({ command }) => command)).deep.equals(["get_icd_state", "unregister_icd"]);
+    });
+
+    it("refuses to stop the subscription the case declared as sustained", async () => {
+        await started({ sustainedSubscription: true });
+        const n = await commissioned();
+
+        expect(await rejectionOf(n.icdClient().stopSubscription())).instanceOf(ImplementationError);
+        expect(server.requests).deep.equals([]);
+    });
+
+    describe("observeEvents", () => {
+        it("answers with what a read returns and reports the node's later node_events once each", async () => {
+            await started({ sustainedSubscription: true });
+            const n = await commissioned();
+            replies.read = { result: { attributes: {}, events: [nodeEvent(7)] } };
+
+            const updates = new Array<unknown>();
+            const seed = await n.observeEvents([{ endpoint: 0, cluster: BASIC_INFORMATION, event: START_UP }], {
+                onUpdate: entry => updates.push(entry),
+            });
+
+            expect(seed).deep.equals([startUp(7)]);
+            expect(sent()).deep.equals([
+                { command: "start_listening", args: {} },
+                { command: "read", args: { node_id: 5, event_paths: [{ path: "0/40/0" }], fabric_filtered: true } },
+            ]);
+
+            server.pushEvent("node_event", nodeEvent(7));
+            server.pushEvent("node_event", nodeEvent(8, { node_id: 6 }));
+            server.pushEvent("node_event", nodeEvent(9, { event_id: SHUT_DOWN, data: null }));
+            server.pushEvent("node_event", nodeEvent(10));
+            server.pushEvent("node_event", nodeEvent(10));
+            // The reply follows the events on the one connection, so they have all been handled once it arrives
+            await n.readEvents([{ endpoint: 0 }]);
+
+            expect(updates).deep.equals([startUp(10)]);
+        });
+
+        it("reports a node_event that arrives during the seed read after it, unless the read answered it", async () => {
+            await started({ sustainedSubscription: true });
+            const n = await commissioned();
+            const reading = holding("read");
+
+            const updates = new Array<unknown>();
+            const observing = n.observeEvents([{ cluster: BASIC_INFORMATION }], {
+                onUpdate: entry => updates.push(entry),
+            });
+            await Promise.race([waitFor(() => reading.arrived, "the seed read"), observing]);
+            server.pushEvent("node_event", nodeEvent(3));
+            server.pushEvent("node_event", nodeEvent(4));
+            reading.answer({ result: { attributes: {}, events: [nodeEvent(3)] } });
+
+            expect(await observing).deep.equals([startUp(3)]);
+            expect(updates).deep.equals([startUp(4)]);
+        });
+
+        it("ignores events of other endpoints and clusters, and other event names", async () => {
+            await started({ sustainedSubscription: true });
+            const n = await commissioned();
+            const updates = new Array<unknown>();
+            await n.observeEvents([{ endpoint: 0, cluster: BASIC_INFORMATION, event: START_UP }], {
+                onUpdate: entry => updates.push(entry),
+            });
+
+            server.pushEvent("node_event", nodeEvent(11, { endpoint_id: 1 }));
+            server.pushEvent("node_event", nodeEvent(12, { cluster_id: BRIDGED_INFO }));
+            server.pushEvent("attribute_updated", nodeEvent(13));
+            server.pushEvent("node_event", nodeEvent(14));
+            await n.readEvents([{ endpoint: 0 }]);
+
+            expect(updates).deep.equals([startUp(14)]);
+        });
+
+        it("keeps reporting after a malformed node_event and after an observer that throws", async () => {
+            await started({ sustainedSubscription: true });
+            const n = await commissioned();
+            const updates = new Array<unknown>();
+            await n.observeEvents([{ endpoint: 0 }], {
+                onUpdate: entry => {
+                    updates.push(entry);
+                    if (updates.length === 1) {
+                        throw new InternalError("observer failed");
+                    }
+                },
+            });
+
+            const seenByLaterListener = new Array<string>();
+            client?.events.on(event => {
+                seenByLaterListener.push(event);
+            });
+
+            server.pushEvent("node_event", nodeEvent(15));
+            server.pushEvent("node_event", { node_id: 5, endpoint_id: "x" });
+            server.pushEvent("node_event", nodeEvent(16));
+            await n.readEvents([{ endpoint: 0 }]);
+
+            expect(updates).deep.equals([startUp(15), startUp(16)]);
+            expect(seenByLaterListener).deep.equals(["node_event", "node_event", "node_event"]);
+        });
+
+        it("still answers when the observer throws on an event held during the seed read", async () => {
+            await started({ sustainedSubscription: true });
+            const n = await commissioned();
+            const reading = holding("read");
+            const observing = n.observeEvents([{ endpoint: 0 }], {
+                onUpdate: () => {
+                    throw new InternalError("observer failed");
+                },
+            });
+            await Promise.race([waitFor(() => reading.arrived, "the seed read"), observing]);
+            server.pushEvent("node_event", nodeEvent(4));
+            reading.answer({ result: { attributes: {}, events: [nodeEvent(3)] } });
+
+            expect(await observing).deep.equals([startUp(3)]);
+        });
+
+        it("stops observing where the seed read fails", async () => {
+            await started({ sustainedSubscription: true });
+            const n = await commissioned();
+            replies.read = { errorCode: 3, details: "NodeNotReady" };
+            const listeners = trackListeners();
+
+            expect(await rejectionOf(n.observeEvents([{ endpoint: 0 }], {}))).instanceOf(MatterServerCommandError);
+
+            expect(listeners.added).lengthOf(1);
+            expect(listeners.removed).deep.equals(listeners.added);
+        });
+
+        it("refuses no paths as an implementation error before any command is sent", async () => {
+            await started({ sustainedSubscription: true });
+            const n = await commissioned();
+
+            expect(await rejectionOf(n.observeEvents([], {}))).instanceOf(ImplementationError);
+            expect(server.requests).deep.equals([]);
+        });
+
+        it("sends start_listening once per connection", async () => {
+            await started({ sustainedSubscription: true });
+            const n = await commissioned();
+
+            await n.observeEvents([{ endpoint: 0 }], {});
+            await n.observeEvents([{ endpoint: 1 }], {});
+
+            expect(sent().filter(({ command }) => command === "start_listening")).lengthOf(1);
+        });
     });
 });
