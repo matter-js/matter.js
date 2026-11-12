@@ -347,11 +347,14 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "DGWIFI.C": 1,
     "DGWIFI.C.C00.Tx": 1,
 
-    // The DoorLock client commands TC-DRLK-3.2 sends, and the WDSCH and USR features its steps name. CHIP's PICS file
-    // answers these 1 already; the overlay states the controller's client surface for this case.
+    // The DoorLock client commands TC-DRLK-3.2 sends, and the WDSCH, YDSCH, HDSCH and USR features its steps use.
+    // CHIP's PICS file answers these 1 already, except YDSCH and HDSCH; the overlay states the controller's client
+    // surface.
     "DRLK.C": 1,
     "DRLK.C.F04": 1,
     "DRLK.C.F08": 1,
+    "DRLK.C.F0a": 1,
+    "DRLK.C.F0b": 1,
     "DRLK.C.C00.Tx": 1,
     "DRLK.C.C01.Tx": 1,
     "DRLK.C.C03.Tx": 1,
@@ -401,13 +404,12 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
 
     // The Switch client flags TC-SWTCH-3.2 rests on. The CHIP PICS file answers 0 for `SWTCH.C` and
     // declares F00..F04 for a *device*; here the switch client is the controller, and this overlay is
-    // the DUT-as-client declaration the plan's steps 0a-0h check for self-consistency.
+    // the DUT-as-client declaration the plan's steps 0a-0g check for self-consistency.
     "SWTCH.C": 1,
 
-    // CHIP's PICS file has no entry for the action-switch client flag, and it answers 1 for the release
-    // flag, which the cluster forbids alongside an action switch (Application Clusters § 1.13.4). The
-    // switch this controller observes is an action switch, so that is what it declares.
-    "SWTCH.C.F02": 0,
+    // The controller handles switches with momentary switch release and action switches alike. CHIP's PICS file
+    // answers 1 for the release flag and has no entry for the action-switch flag; both are stated here.
+    "SWTCH.C.F02": 1,
     "SWTCH.C.F05": 1,
 
     // BDX roles the controller takes when it serves an OTA image (TC-BDX-1.4, TC-BDX-2.1). The CHIP

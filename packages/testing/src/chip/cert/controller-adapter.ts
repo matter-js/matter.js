@@ -1823,8 +1823,9 @@ export function resolveControllerSelection(): ControllerSelection {
  * run (see `cert-dsl.ts`'s test-level gate).
  *
  * A cert test's DUT is the controller, so a capability like batched invoke is the controller's to
- * declare — but the PICS file a run loads describes the device. Rather than maintain a whole PICS file
- * per controller, an adapter states only what differs, beside the code that implements or refuses it.
+ * declare — but the PICS file a run loads describes the device. An adapter declares its controller-side entries,
+ * either written by hand as its client surface or taken from the controller side of its own certification
+ * declaration.
  */
 export function controllerPicsOverridesFor(implementation: ControllerImplementation): PicsValues {
     return registrations.get(implementation)?.pics ?? {};

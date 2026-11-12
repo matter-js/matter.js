@@ -857,13 +857,34 @@ with `outOfScope` naming the reason, no devices and verdict `skipped`.
   pass it on the command line: `MATTER_CERT_SERVER_ENTRY="/usr/bin/env MATTER_NETWORK_TCP=false node <entry>"`.
   `env` execs the server, so SIGTERM still reaches it. Over UDP step 20 runs and proves the chunked read.
 
-**PICS.** `MATTERJS_SERVER_CONTROLLER_PICS` declares what the server is, as `MATTERJS_CONTROLLER_PICS` does for
-matter.js: commissioner roles, batched invoke, no concatenated QR code, no basic commissioning window, no Terms and
-Conditions client feature (`CGEN.C.F00`), and the OTA provider, ICD client and bridge client roles the server has. Of
-the BDX keys only `Sender`, `Responder` and `SynchronousSender` are 1; every other `MCORE.BDX.*` key is set to 0
-explicitly, because CHIP's file answers 1 for `Initiator`, `Driver` and `BlockQueryWithSkip`. A key is never set to 0 only
-because this adapter cannot drive what the server does: that is a capability gap, so the step counts as a coverage
-gap of the controller (`controllerUnsupportedSkips`) instead of `picsSkips`.
+**PICS.** `MATTERJS_SERVER_CONTROLLER_PICS` (`src/cert/matter-server-controller-pics.ts`) is the server's own
+certification declaration, not a hand-written list. `src/cert/matter-server-pics.ts` holds every item of that
+declaration (`MATTERJS_SERVER_PICS`, Matter 1.6.1 re-certification). It is generated from the declaration's zip with
+`node support/chip-testing/generate-server-pics.mjs <declaration>.zip`; a key the zip declares on several endpoints
+is 1 where any endpoint supports it. The leg takes only the keys `describesController` accepts: every `<cluster>.C`
+key, the server clusters the server hosts as a controller (`OTAP.S`, `WEBRTCR.S`), and the MCORE keys of the
+controller roles (`IDM.C`, commissioner and controller roles, `DD` commissioning keys, `BDX`, OTA provider,
+`BRIDGECLIENT`, `DEVLIST`). The rest of the declaration describes the server as a device; in a run the TH's own PICS
+answer those keys, so they stay out. `MCORE.DD.DISCOVERY_*` stays out too, because in this suite it names what the TH
+advertises. A test pins the MCORE split: a regenerated declaration with a new MCORE key fails it until someone decides
+the key's side, except a new `MCORE.IDM.C.*` key (controller side) or `MCORE.SC.*` key (device side).
+
+The leg deviates from the declaration only in `DEVIATIONS`, each with its reason:
+
+- `MCORE.DD.SCAN_QR_CODE` is 1 (declared 0): `commission_with_code` takes a scanned `MT:…` payload.
+- `MCORE.OTA.HTTPS` is 0 (declared 1): the server's OTA provider hands out images over BDX only.
+- `OTAP.S.M.UserConsentNeeded` is 1 (declared 0): the server answers QueryImage with UserConsentNeeded when an update
+  needs consent and the requestor can give it.
+- The declaration names the CADMIN manual keys `CADMIN.C.M.*`, so the leg sets the `CADMIN.M.*` keys the cases use to
+  the same 0.
+
+A key is never set to 0 because this adapter cannot drive what the server declares: that is a capability gap, so the
+step counts as a coverage gap of the controller (`controllerUnsupportedSkips`) instead of `picsSkips`, and the
+declared feature stays visible in the report. Apart from the deviations, a key the declaration answers 0 is 0 on the
+leg, and the steps it gates skip: `TC-DD-3.12` and `TC-DD-3.13` (`MCORE.DD.USER_INTENT_COMM_FLOW`,
+`MCORE.DD.CUSTOM_COMM_FLOW`). The server does not support the user-intent and custom commissioning flows yet; the
+todo for that work names both cases. `MCORE.OTA.HTTPS` is one key for both OTA roles, so a 1 would fail `TC-SU-3.2`
+step 4 and the HTTPS check of `TC-SU-2.1`.
 
 **WebSocket client.** `MatterServerClient` runs on `WebSocketClient` from `@matter/general` with Node's global
 `WebSocket`, so `support/chip-testing` needs Node 22.13 or later (`engines`). The `ws`-backed `WebSocketClient` of
@@ -1671,9 +1692,12 @@ it only proves the cert run's own timeout is short enough to stay inside the ste
 ## A cert test's PICS is the controller's, overlaid on the device's
 
 A cert test's DUT is the **controller**, so a `MCORE.IDM.C.*` capability is the controller's to claim —
-but the PICS file a run loads is CHIP's `ci-pics-values`, which describes a *device*. Rather than keep a
-whole PICS file per controller, each adapter declares only what differs
-(`MATTERJS_CONTROLLER_PICS`, `CHIP_TOOL_CONTROLLER_PICS`, `MATTERJS_SERVER_CONTROLLER_PICS`), and the run evaluates
+but the PICS file a run loads is CHIP's `ci-pics-values`, which describes a *device*. matter.js and
+chip-tool declare their client surface by hand (`MATTERJS_CONTROLLER_PICS`, `CHIP_TOOL_CONTROLLER_PICS`):
+everything they support, as far as they can, also where CHIP's file already agrees. The matterjs-server leg declares
+the controller side of the
+server's certification declaration (`MATTERJS_SERVER_CONTROLLER_PICS`, from the generated
+`matter-server-pics.ts`), plus a short list of deviations with their reasons. The run evaluates
 `chip.defaultPics.with(those)`. Everything the controller says nothing about still comes from the
 device's file.
 
@@ -1806,8 +1830,8 @@ overlay declares it; it is not a question about owning a camera. `MCORE.ROLE.COM
 test would be filtered out. `MCORE.DD.CTRL_CONCATENATED_QR_CODE_1` is declared 0 — no controller
 splits a concatenated payload, which is the one piece of § 5.1.6 missing here.
 `CTRL_CONCATENATED_QR_CODE_2` (does the commissioner *tell the user* to commission the devices
-individually) is deliberately left to the device's file: the adapters' own refusal says exactly that,
-but nothing here proves a user ever sees it.
+individually) is left to the device's file on the matter.js and chip-tool legs: the adapters' own refusal says
+exactly that, but nothing here proves a user ever sees it. matterjs-server's declaration answers it 0.
 
 **The plan's 255-character payload is the specification's own maximum.** § 5.1.3.2: a single product's
 onboarding payload "SHALL NOT exceed 255 characters", yielding 1208 bits and "1120 bits (140 octets) of
@@ -2462,6 +2486,9 @@ the LAN answering it would make matter.js record a failure for an unrelated reas
 deterministic, so if that ever happens it happens every run.
 
 ## A TH that waits for the user, and a flow written into its payload (`TC-DD-3.12`, `TC-DD-3.13`)
+
+On the matterjs-server leg both cases skip: the server's declaration answers `MCORE.DD.USER_INTENT_COMM_FLOW` and
+`MCORE.DD.CUSTOM_COMM_FLOW` 0.
 
 These two are one test case with one field changed — user-intent flow (1) and custom flow (2) — so
 they are declared from one place, `tc-dd-flow-support.ts`, and differ only in the constant they pass.
@@ -3175,6 +3202,13 @@ that is the server's own startup line (matter.js `Fabric`, debug), logged before
 `LineQueue` keeps every line and `follow()` replays from the first, so the adapter's log follower sees it.
 
 ## Operating a device, and observing the events it sends (`TC-SWTCH-3.2`)
+
+**The client flags say which switches a controller handles, not what one switch is.** Step 0h applies the
+conformance of MSR for a single switch device, `[MS & !AS]` (Application Clusters § 1.13.4), to the client flags,
+and is not applicable here: every controller declares MSR and AS together, because it handles both kinds of switch.
+Steps 0a-0g run as the plan states them, and the controllers pass them. Which kind of switch steps 4b-4f exercise
+is the TH's: its momentary switch is an action switch (FeatureMap 0x3A, step 3b), so 4b and 4d are not applicable
+whatever the client declares.
 
 Three mechanics this TC needed, all reusable.
 
@@ -4331,9 +4365,10 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl.
   separate commands in its interactive process: ArmFailSafe, CSRRequest with IsForUpdateNOC, `pairing issue-noc-chain
   hex:<NOCSRElements> <node-id>` (its result entry carries `NOC`/`ICAC` as `base64:` TLV certificates), UpdateNOC,
   `sessionmanagement expire-case-sessions <node-id>`, CommissioningComplete. matterjs-server has no WebSocket command
-  for it and keeps its certificate authority to itself, so a `device_command` UpdateNOC has no NOC to send; the step
-  settles as a controller gap there. Besides the TH's received and OK lines, the step checks that the UpdateNOC NOC
-  names the same node and fabric as the AddNOC one with a different public key.
+  for it and keeps its certificate authority to itself, so a `device_command` UpdateNOC has no NOC to send.
+  matterjs-server gets a NOC update command later, with the node-management rollout; until then step 11 settles as
+  the `noc-update` controller gap there. Besides the TH's received and OK lines, the step checks that the UpdateNOC
+  NOC names the same node and fabric as the AddNOC one with a different public key.
 - **chip logs no outcome for UpdateFabricLabel**, so step 12's success is the NOCResponse the DUT got.
 - **Step 17 uses the DUT's `decommission()`, not a raw RemoveFabric invoke.** Removing the accessing fabric ends the
   session, and § 11.18.6.12.2 says the invoker "SHOULD NOT expect a response". A raw invoke on the in-process
@@ -4343,8 +4378,8 @@ from the command's model, the way `tc-cc-support.ts` does for ColorControl.
   (chip: `Received a RemoveFabric Command for FabricIndex 0x<n>`) must match the index step 8 read.
 - **PICS:** the base PICS file is CHIP's `ci-pics-values`, which answers every `OPCREDS.C` key of the case 1, and
   `matter-js-pics.properties` does not override them. The three controller overlays declare them anyway, as for the
-  other client cases, to state each controller's own client surface. matterjs-server's step 11 settles as the
-  `noc-update` gap through the capability mechanism.
+  other client cases, to state each controller's own client surface (matterjs-server's from its certification
+  declaration). matterjs-server's step 11 settles as the `noc-update` gap until the server has a NOC update command.
 
 ## The door lock client case (`TC-DRLK-3.2`)
 
@@ -4364,7 +4399,8 @@ Each step goes through `sendCommand` with `commandPayload`, and a command with t
 - **`commandPayload` also renders an octet string** (chip's three-line byte list, matter.js's hex), **a bitmap** given
   as its set bits (chip's number, matter.js's object with every bit) **and a null** (chip prints `0x<id> = NULL` with
   no comma, matter.js `null`).
-- **The year-day and holiday steps are gated on `DRLK.C.F04` (WDSCH)**, as in the plan and in CHIP's yaml, although
-  the commands belong to YDSCH and HDSCH (`F0a`, `F0b`). CHIP's PICS file answers those two 0 for a client.
-- **PICS:** CHIP's file answers every key the case uses 1; all three overlays declare them anyway, as the controller's
-  client surface.
+- **The year-day steps are gated on `DRLK.C.F0a` (YDSCH), the holiday steps on `DRLK.C.F0b` (HDSCH).** The plan and
+  CHIP's yaml gate both on `F04` (WDSCH), which the commands do not belong to. CHIP's PICS file answers `F0a` and
+  `F0b` with 0 for a client, so the matter.js and chip-tool overlays declare them; the server's declaration has both.
+- **PICS:** CHIP's file answers every other key the case uses 1; all three overlays declare them anyway, as the
+  controller's client surface.
