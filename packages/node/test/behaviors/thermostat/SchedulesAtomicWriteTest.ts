@@ -10,10 +10,11 @@ import { ClientNode } from "#node/ClientNode.js";
 import { Bytes } from "@matter/general";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { Write } from "@matter/protocol";
-import { EndpointNumber, Status } from "@matter/types";
+import { EndpointNumber, Status, StatusResponseError } from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { newPreset, PRESETS_ATTRIBUTE } from "./preset-helpers.js";
 import {
+    heatingOnlySchedulesEndpoint,
     newSchedule,
     newScheduleTransition,
     recordThermostatChanges,
@@ -92,6 +93,8 @@ function writeSchedules(ep1: Endpoint, schedules: Thermostat.Schedule[]) {
 }
 
 describe("Schedules atomic write", () => {
+    MockForwardFeatures.enable("thermostat-msch");
+
     before(() => {
         MockTime.init();
     });
@@ -152,9 +155,12 @@ describe("Schedules atomic write", () => {
 
     it("declines a write outside an atomic write", async () => {
         await using ctx = await commissionedThermostat();
-        const { deviceEp, ep1 } = ctx;
+        const { deviceEp, ep1, peer1 } = ctx;
 
-        await expect(writeSchedules(ep1, [newSchedule()])).rejectedWith("Multiple writes failed");
+        expect(await writeSchedulesUnchecked(peer1, [newSchedule()])).deep.equals([
+            Status.InvalidInState,
+            Status.InvalidInState,
+        ]);
 
         expect(deviceEp.state.thermostat.persistedSchedules).deep.equals([]);
         expect(cachedSchedules(ep1).length).equals(0);
@@ -321,6 +327,119 @@ describe("Schedules atomic write", () => {
         expect(deviceEp.state.thermostat.persistedSchedules).deep.equals([]);
     });
 
+    describe("with a built-in and an active schedule", () => {
+        const BUILT_IN = Uint8Array.of(1);
+        const ACTIVE = Uint8Array.of(2);
+
+        async function thermostatWithActiveSchedule() {
+            const ctx = await commissioned(
+                schedulesEndpoint(5, [
+                    newSchedule({ scheduleHandle: BUILT_IN, builtIn: true }),
+                    newSchedule({ scheduleHandle: ACTIVE }),
+                ]),
+            );
+            await MockTime.resolve(
+                ctx.ep1.commandsOf(ThermostatClient).setActiveScheduleRequest({ scheduleHandle: ACTIVE }),
+            );
+            return ctx;
+        }
+
+        it("sets ActiveScheduleHandle through SetActiveScheduleRequest", async () => {
+            await using ctx = await thermostatWithActiveSchedule();
+
+            expect(ctx.deviceEp.state.thermostat.activeScheduleHandle).deep.equals(ACTIVE);
+        });
+
+        it("declines SetActiveScheduleRequest for an unknown handle and keeps the active schedule", async () => {
+            await using ctx = await thermostatWithActiveSchedule();
+            const { deviceEp, ep1 } = ctx;
+
+            const error = await MockTime.resolve(
+                ep1.commandsOf(ThermostatClient).setActiveScheduleRequest({ scheduleHandle: Uint8Array.of(9) }),
+            ).then(
+                () => undefined,
+                (e: unknown) => e,
+            );
+
+            expect(error).instanceOf(StatusResponseError);
+            expect(error instanceof StatusResponseError && error.code).equals(Status.InvalidCommand);
+
+            expect(deviceEp.state.thermostat.activeScheduleHandle).deep.equals(ACTIVE);
+        });
+
+        it("refuses a CommitWrite that removes the active schedule with INVALID_IN_STATE", async () => {
+            await using ctx = await thermostatWithActiveSchedule();
+            const { deviceEp, peer1, ep1 } = ctx;
+            const stored = deviceEp.state.thermostat.persistedSchedules;
+
+            await beginWrite(ep1);
+            await writeSchedulesUnchecked(peer1, [newSchedule({ scheduleHandle: BUILT_IN, builtIn: true })]);
+
+            expect(await commitWrite(ep1)).deep.equals({
+                statusCode: Status.Failure,
+                attributeStatus: [{ attributeId: SCHEDULES_ATTRIBUTE, statusCode: Status.InvalidInState }],
+            });
+            expect(deviceEp.state.thermostat.persistedSchedules).deep.equals(stored);
+        });
+
+        it("refuses a CommitWrite that removes a built-in schedule with CONSTRAINT_ERROR", async () => {
+            await using ctx = await thermostatWithActiveSchedule();
+            const { deviceEp, peer1, ep1 } = ctx;
+            const stored = deviceEp.state.thermostat.persistedSchedules;
+
+            await beginWrite(ep1);
+            await writeSchedulesUnchecked(peer1, [newSchedule({ scheduleHandle: ACTIVE })]);
+
+            expect(await commitWrite(ep1)).deep.equals({
+                statusCode: Status.Failure,
+                attributeStatus: [{ attributeId: SCHEDULES_ATTRIBUTE, statusCode: Status.ConstraintError }],
+            });
+            expect(deviceEp.state.thermostat.persistedSchedules).deep.equals(stored);
+        });
+    });
+
+    describe("on a thermostat without Cooling and AutoMode", () => {
+        const PRESET_HANDLE = Uint8Array.of(0xaa);
+
+        // A transition that takes its setpoints from a preset carries no setpoint field the thermostat could refuse
+        function presetTransition(systemMode?: Thermostat.SystemMode): Thermostat.ScheduleTransition {
+            return { dayOfWeek: { monday: true }, transitionTime: 360, presetHandle: PRESET_HANDLE, systemMode };
+        }
+
+        async function write(transition: Thermostat.ScheduleTransition) {
+            await using ctx = await commissioned(
+                heatingOnlySchedulesEndpoint([
+                    {
+                        presetHandle: PRESET_HANDLE,
+                        presetScenario: Thermostat.PresetScenario.Occupied,
+                        heatingSetpoint: 2000,
+                        builtIn: false,
+                    },
+                ]),
+            );
+            const { deviceEp, peer1, ep1 } = ctx;
+
+            await beginWrite(ep1);
+            const statuses = await writeSchedulesUnchecked(peer1, [
+                newSchedule({ systemMode: Thermostat.SystemMode.Heat, transitions: [transition] }),
+            ]);
+            return { statuses, stored: deviceEp.state.thermostat.persistedSchedules };
+        }
+
+        it("accepts a transition that only references a preset", async () => {
+            expect((await write(presetTransition())).statuses).deep.equals([Status.Success, Status.Success]);
+        });
+
+        for (const systemMode of [Thermostat.SystemMode.Cool, Thermostat.SystemMode.Auto]) {
+            it(`declines the same transition switching to systemMode ${Thermostat.SystemMode[systemMode]}`, async () => {
+                const { statuses, stored } = await write(presetTransition(systemMode));
+
+                expect(statuses).deep.equals([Status.Success, Status.ConstraintError]);
+                expect(stored).deep.equals([]);
+            });
+        }
+    });
+
     describe("with Presets in the same atomic write", () => {
         const PRESET_HANDLE = Bytes.fromHex("aa");
         const SCHEDULE_HANDLE = Bytes.fromHex("01");
@@ -402,8 +521,13 @@ describe("Schedules atomic write", () => {
             expect(await writeSchedulesUnchecked(peer1, [usingPreset()])).deep.equals([Status.Success, Status.Success]);
             expect(await writePresetsUnchecked(peer1, [])).deep.equals([Status.Success]);
 
-            const { statusCode } = await atomicRequest(ep1, Thermostat.RequestType.CommitWrite);
-            expect(statusCode).equals(Status.Failure);
+            expect(await atomicRequest(ep1, Thermostat.RequestType.CommitWrite)).deep.equals({
+                statusCode: Status.Failure,
+                attributeStatus: [
+                    { attributeId: Thermostat.attributes.presets.id, statusCode: Status.InvalidInState },
+                    { attributeId: SCHEDULES_ATTRIBUTE, statusCode: Status.ConstraintError },
+                ],
+            });
             expect(deviceEp.state.thermostat.persistedPresets?.length).equals(1);
             expect(deviceEp.state.thermostat.persistedSchedules?.[0].transitions[0].presetHandle).deep.equals(
                 PRESET_HANDLE,

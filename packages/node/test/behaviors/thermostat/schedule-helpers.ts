@@ -109,8 +109,11 @@ const HeatingOnlySchedulesThermostat = ThermostatDevice.with(
     ThermostatServer.with("Heating", "Presets", "MatterScheduleConfiguration"),
 );
 
-/** A thermostat without the Cooling and AutoMode features, whose only schedule type is Heat. */
-export function heatingOnlySchedulesEndpoint() {
+/**
+ * A thermostat without the Cooling and AutoMode features, whose only schedule type is Heat.  With {@link presets} its
+ * schedules may also use presets.
+ */
+export function heatingOnlySchedulesEndpoint(presets?: Thermostat.Preset[]) {
     const { occupiedCoolingSetpoint, minSetpointDeadBand, ...config } = thermostatConfig();
     void occupiedCoolingSetpoint;
     void minSetpointDeadBand;
@@ -121,11 +124,12 @@ export function heatingOnlySchedulesEndpoint() {
             ...config,
             controlSequenceOfOperation: Thermostat.ControlSequenceOfOperation.HeatingOnly,
             systemMode: Thermostat.SystemMode.Heat,
+            presets: presets ?? config.presets,
             scheduleTypes: [
                 {
                     systemMode: Thermostat.SystemMode.Heat,
                     numberOfSchedules: 5,
-                    scheduleTypeFeatures: { supportsSetpoints: true },
+                    scheduleTypeFeatures: { supportsSetpoints: true, supportsPresets: presets !== undefined },
                 },
             ],
         },

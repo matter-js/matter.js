@@ -191,6 +191,15 @@ export interface DeviceTestInstanceConstructor<T extends DeviceTestInstance = De
     pics?: PicsFile;
 }
 
+/**
+ * Enables every forward Matter feature for the whole test app process, because the test apps run against CHIP master,
+ * which is on the next Matter line.  Must run before the test instance initializes its nodes.
+ */
+function enableForwardMatterFeatures() {
+    // Importing @matter/testing installs the MockForwardFeatures global; the handle stays open for the process lifetime
+    MockForwardFeatures.enableAll();
+}
+
 export async function startDeviceTestApp(
     testInstanceClass: DeviceTestInstanceConstructor,
     storageType: typeof StorageBackendAsyncJsonFile = StorageBackendAsyncJsonFile,
@@ -227,6 +236,7 @@ export async function startDeviceTestApp(
 }
 
 export async function startTestApp(testInstance: TestInstance) {
+    enableForwardMatterFeatures();
     await testInstance.initialize();
     await testInstance.start();
 

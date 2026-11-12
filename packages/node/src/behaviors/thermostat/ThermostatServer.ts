@@ -23,7 +23,7 @@ import {
     Observable,
     type Transaction,
 } from "@matter/general";
-import { FieldElement } from "@matter/model";
+import { FieldElement, Specification } from "@matter/model";
 import { hasLocalActor, Val } from "@matter/protocol";
 import { StatusResponse } from "@matter/types";
 import { OccupancySensing } from "@matter/types/clusters/occupancy-sensing";
@@ -109,7 +109,11 @@ const schema = ThermostatBehaviorLogicBase.schema.extend({
  * We implement all features beside the following:
  * * ScheduleConfiguration: This feature is deprecated and not allowed to be enabled.
  * * Setback: This feature is considered deprecated.
+ * * Events and ThermostatSuggestions are not implemented.
  * * The use of the "setpointHoldExpiryTimestamp" attribute is currently not supported.
+ *
+ * MatterScheduleConfiguration is implemented, but may only be enabled while the "thermostat-msch" forward feature is
+ * active (see {@link Specification.isForwardFeatureEnabled}), until certification tests have validated it.
  *
  * This implementation mainly provides all validation and base logic required by the Matter specification.
  * It implements some thermostat logic, partially beyond Matter specification definition, notably:
@@ -118,8 +122,13 @@ const schema = ThermostatBehaviorLogicBase.schema.extend({
  * handleSetActivePresetRequest() to ensure compliance with the specification.
  *
  * For MatterScheduleConfiguration, setActiveScheduleRequest only records the requested ScheduleHandle; it does not
- * evaluate the schedule's transitions against wall-clock time to drive setpoints. An application that wants real
- * time-of-day scheduling needs to implement that evaluation itself and adjust setpoints accordingly.
+ * evaluate the schedule's transitions against wall-clock time to drive setpoints. An application that runs schedules
+ * implements:
+ * * time synchronization, which the feature requires (§ 4.3.4.2)
+ * * selecting the active transition by local time, including earlier days and daylight saving changes (§ 4.3.10.26.5)
+ * * applying a transition's preset (setting ActivePresetHandle) or setpoints, and the Occupied/Unoccupied setpoint
+ *   with the Occupancy feature (§ 4.3.10.27)
+ * * reporting setpoint changes it makes with SetpointChangeSource "Schedule"
  *
  * The implementation also adds enhanced system mode logic that can be enabled by setting the state field
  * useAutomaticModeManagement to true. When enabled, the thermostat will:
@@ -154,16 +163,41 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         if (this.features.setback) {
             throw new ImplementationError("Setback feature is deprecated and not allowed to be enabled");
         }
+        if (this.features.matterScheduleConfiguration && !Specification.isForwardFeatureEnabled("thermostat-msch")) {
+            throw new ImplementationError(
+                `MatterScheduleConfiguration feature is not released yet; it requires the "thermostat-msch" forward feature until certification tests have validated it`,
+            );
+        }
         if (!this.features.presets && !this.features.matterScheduleConfiguration) {
             this.atomicRequest = Behavior.unimplemented;
         }
 
-        if (this.features.presets && this.state.persistedPresets === undefined) {
-            // A behavior type carries its own configured value, which reaches neither of the endpoint's channels
-            this.state.persistedPresets = configuredPresets(this.endpoint) ?? presetsIn(this.type.defaults) ?? [];
+        // Add this check because we currently do not have a max in Schema and might have old invalid max values
+        if (this.state.minSetpointDeadBand > 127) {
+            this.state.minSetpointDeadBand = 20;
+        }
+        if (this.state.minSetpointDeadBand < 0 || this.state.minSetpointDeadBand > 127) {
+            throw new ImplementationError("minSetpointDeadBand is out of valid range 0..127");
         }
 
+        // We store these values internally because we need to restore them after any write try; the setpoint
+        // and schedule validation reads the deadband from here
+        this.internal.minSetpointDeadBand = this.state.minSetpointDeadBand;
+        this.internal.controlSequenceOfOperation = this.state.controlSequenceOfOperation;
+
         if (this.features.presets) {
+            if (this.state.persistedPresets === undefined) {
+                // A behavior type carries its own configured value, which reaches neither of the endpoint's channels
+                this.state.persistedPresets = configuredPresets(this.endpoint) ?? presetsIn(this.type.defaults) ?? [];
+            } else {
+                this.state.numberOfPresets = this.#limitCoveringStored(
+                    "NumberOfPresets",
+                    this.state.numberOfPresets,
+                    this.state.persistedPresets.length,
+                    `${this.state.persistedPresets.length} presets are stored`,
+                );
+            }
+
             const { activePresetHandle } = this.state;
             if (
                 activePresetHandle !== null &&
@@ -178,20 +212,36 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             }
         }
 
-        if (this.features.matterScheduleConfiguration && this.state.persistedSchedules === undefined) {
-            // A behavior type carries its own configured value, which reaches neither of the endpoint's channels
-            this.state.persistedSchedules = configuredSchedules(this.endpoint) ?? schedulesIn(this.type.defaults) ?? [];
-        }
-
         if (this.features.matterScheduleConfiguration) {
             this.#assertScheduleTypes();
 
-            // Every later write resends the whole list, so a configured schedule the rules refuse would block them all
-            const schedules = this.state.persistedSchedules ?? [];
-            try {
-                this.#validateScheduleWriteRequest(schedules, schedules, new Set());
-            } catch (error) {
-                throw new ImplementationError(`Configured schedules are invalid: ${asError(error).message}`);
+            if (this.state.persistedSchedules === undefined) {
+                // A behavior type carries its own configured value, which reaches neither of the endpoint's channels
+                const configured = configuredSchedules(this.endpoint) ?? schedulesIn(this.type.defaults) ?? [];
+
+                // Every later write resends the whole list, so a configured schedule the rules refuse would block them
+                // all
+                try {
+                    this.#validateScheduleWriteRequest(configured, configured, new Set());
+                } catch (error) {
+                    throw new ImplementationError(`Configured schedules are invalid: ${asError(error).message}`);
+                }
+                this.state.persistedSchedules = configured;
+            } else {
+                const stored = this.state.persistedSchedules;
+                this.state.numberOfSchedules = this.#limitCoveringStored(
+                    "NumberOfSchedules",
+                    this.state.numberOfSchedules,
+                    stored.length,
+                    `${stored.length} schedules are stored`,
+                );
+                const transitions = Math.max(0, ...stored.map(schedule => schedule.transitions.length));
+                this.state.numberOfScheduleTransitions = this.#limitCoveringStored(
+                    "NumberOfScheduleTransitions",
+                    this.state.numberOfScheduleTransitions,
+                    transitions,
+                    `a stored schedule has ${transitions} transitions`,
+                );
             }
 
             const { activeScheduleHandle } = this.state;
@@ -210,19 +260,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             }
         }
 
-        // Add this check because we currently do not have a max in Schema and might have old invalid max values
-        if (this.state.minSetpointDeadBand > 127) {
-            this.state.minSetpointDeadBand = 20;
-        }
-        if (this.state.minSetpointDeadBand < 0 || this.state.minSetpointDeadBand > 127) {
-            throw new ImplementationError("minSetpointDeadBand is out of valid range 0..127");
-        }
-
-        // We store these values internally because we need to restore them after any write try; the setpoint
-        // validation in #setupValidations reads the deadband from here
-        this.internal.minSetpointDeadBand = this.state.minSetpointDeadBand;
-        this.internal.controlSequenceOfOperation = this.state.controlSequenceOfOperation;
-
         const node = Node.forEndpoint(this.endpoint);
         this.reactTo(node.lifecycle.online, this.#nodeOnline);
 
@@ -232,10 +269,22 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         this.#setupThermostatLogic();
         this.#setupPresets();
         this.#setupSchedules();
+    }
 
-        // We store these values internally because we need to restore them after any write try
-        this.internal.minSetpointDeadBand = this.state.minSetpointDeadBand;
-        this.internal.controlSequenceOfOperation = this.state.controlSequenceOfOperation;
+    /**
+     * The value for a limit attribute that the stored list does not exceed.  A configuration that lowers a limit below
+     * what clients already stored would otherwise fail the limit's schema constraint, and the endpoint would not start.
+     *
+     * The stored entries stay.  Only limits with a schema constraint are raised; the per-type limits of PresetTypes and
+     * ScheduleTypes and NumberOfScheduleTransitionPerDay keep their configured value, so a client that resends the
+     * stored list unchanged may be refused until it removes entries.
+     */
+    #limitCoveringStored(name: string, limit: number, required: number, found: string) {
+        if (required <= limit) {
+            return limit;
+        }
+        logger.notice(`${name} of ${this.endpoint} is ${limit} but ${found}; raising ${name} to ${required}`);
+        return required;
     }
 
     #nodeOnline() {
@@ -352,7 +401,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 throw new StatusResponse.InvalidCommandError("Requested PresetHandle not found");
             }
         }
-        logger.info(`Setting active preset handle to`, presetHandle);
+        logger.debug(`Setting active preset handle to`, presetHandle);
         this.state.activePresetHandle = presetHandle;
 
         return preset;
@@ -396,7 +445,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         if (schedule === undefined) {
             throw new StatusResponse.InvalidCommandError("Requested ScheduleHandle not found");
         }
-        logger.info(`Setting active schedule handle to`, scheduleHandle);
+        logger.debug(`Setting active schedule handle to`, scheduleHandle);
         this.state.activeScheduleHandle = scheduleHandle;
     }
 
@@ -1664,7 +1713,8 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             }
         }
 
-        // A preset a schedule (or one of its transitions) still references cannot be removed
+        // § 4.3.11.50 names only transition references; a schedule-level reference is refused too, as CHIP does, so no
+        // stored PresetHandle names a missing preset
         if (this.features.matterScheduleConfiguration) {
             for (const schedule of this.state.persistedSchedules ?? []) {
                 if (schedule.presetHandle && !newPresetHandles.has(Bytes.toHex(schedule.presetHandle))) {
@@ -2442,7 +2492,7 @@ export namespace ThermostatBaseServer {
 
         /**
          * Custom event emitted when the Presets attribute is "virtually" changing as part of an atomic write operation.
-         * Info: The events is currently needed to be a pure Observable to get errors thrown in the event handler be
+         * Info: The event currently needs to be a pure Observable to get errors thrown in the event handler be
          *  reported back to the emitter.
          */
         presets$AtomicChanging =
@@ -2450,7 +2500,7 @@ export namespace ThermostatBaseServer {
 
         /**
          * Custom event emitted when the Presets attribute has "virtually" changed as part of an atomic write operation.
-         * Info: The events is currently needed to be a pure Observable to get errors thrown in the event handler be
+         * Info: The event currently needs to be a pure Observable to get errors thrown in the event handler be
          * reported back to the emitter.
          */
         presets$AtomicChanged =
@@ -2459,7 +2509,7 @@ export namespace ThermostatBaseServer {
         /**
          * Custom event emitted when the Schedules attribute is "virtually" changing as part of an atomic write
          * operation.
-         * Info: The events is currently needed to be a pure Observable to get errors thrown in the event handler be
+         * Info: The event currently needs to be a pure Observable to get errors thrown in the event handler be
          *  reported back to the emitter.
          */
         schedules$AtomicChanging =
@@ -2468,7 +2518,7 @@ export namespace ThermostatBaseServer {
         /**
          * Custom event emitted when the Schedules attribute has "virtually" changed as part of an atomic write
          * operation.
-         * Info: The events is currently needed to be a pure Observable to get errors thrown in the event handler be
+         * Info: The event currently needs to be a pure Observable to get errors thrown in the event handler be
          * reported back to the emitter.
          */
         schedules$AtomicChanged =

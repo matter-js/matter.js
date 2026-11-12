@@ -5,7 +5,14 @@
  */
 
 import { Endpoint } from "#endpoint/index.js";
-import { Entropy, Environment, MemoryStorageDriver, StorageManager, StorageService } from "@matter/general";
+import {
+    Entropy,
+    Environment,
+    ImplementationError,
+    MemoryStorageDriver,
+    StorageManager,
+    StorageService,
+} from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 import { ConformanceError } from "@matter/protocol";
 import { StatusResponse } from "@matter/types";
@@ -66,6 +73,8 @@ async function offCapableThermostat() {
 }
 
 describe("Schedules local write", () => {
+    MockForwardFeatures.enable("thermostat-msch");
+
     before(() => MockTime.init());
 
     it("stores a locally written schedule and generates a handle", async () => {
@@ -202,6 +211,42 @@ describe("Schedules local write", () => {
         ).rejectedWith(StatusResponse.NotFoundError, "does not exist in old Schedules");
 
         expect(storedSchedules(deviceEp)).deep.equals(stored);
+    });
+
+    it("keeps a held schedule live while the schedules are the configured ones", async () => {
+        await using ctx = await thermostat(undefined, [newSchedule()]);
+        const { deviceEp } = ctx;
+
+        await MockTime.resolve(
+            deviceEp.act(agent => {
+                const state = agent.get(SchedulesThermostatServer).state;
+                state.persistedSchedules = undefined;
+                const held = state.schedules[0];
+
+                // Any write refreshes the schedules reference, which reads the getter again
+                state.occupiedHeatingSetpoint = 1900;
+                held.transitions[0].heatingSetpoint = 2100;
+            }),
+            { macrotasks: true },
+        );
+
+        expect(storedSchedules(deviceEp)[0].transitions[0].heatingSetpoint).equals(2100);
+    });
+
+    it("refuses to clear the stored schedules and keeps them", async () => {
+        await using ctx = await thermostat(undefined, [newSchedule()]);
+        const { deviceEp } = ctx;
+
+        await expect(
+            MockTime.resolve(
+                deviceEp.act(async agent => {
+                    agent.get(SchedulesThermostatServer).state.persistedSchedules = undefined;
+                }),
+                { macrotasks: true },
+            ),
+        ).rejectedWith(ImplementationError, "Cannot clear persistedSchedules");
+
+        expect(storedSchedules(deviceEp).length).equals(1);
     });
 
     it("refuses a schedule an observer stripped the handle from, and stays writable", async () => {
