@@ -1583,23 +1583,11 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 );
             }
 
-            const scenarioNames = presetScenarioNames.get(preset.presetScenario) ?? [];
-
-            // The specification counts null - "no name" - as a value that may not repeat within a scenario
-            if (scenarioNames.includes(name)) {
-                throw new StatusResponse.ConstraintErrorError(
-                    `Duplicate preset name ${JSON.stringify(name)} for scenario ${Thermostat.PresetScenario[preset.presetScenario]}`,
-                );
-            }
-
             if (name !== null && !presetType.presetTypeFeatures.supportsNames) {
                 throw new StatusResponse.ConstraintErrorError(
                     `Preset names are not supported for scenario ${Thermostat.PresetScenario[preset.presetScenario]}`,
                 );
             }
-
-            scenarioNames.push(name);
-            presetScenarioNames.set(preset.presetScenario, scenarioNames);
 
             if (index === this.state.numberOfPresets) {
                 throw new StatusResponse.ResourceExhaustedError(
@@ -1614,6 +1602,17 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 );
             }
             presetScenarioCounts.set(preset.presetScenario, count + 1);
+
+            // A field rule, not one of the Presets write steps, so it applies after the count limits; the specification
+            // counts null - "no name" - as a value that may not repeat within a scenario
+            const scenarioNames = presetScenarioNames.get(preset.presetScenario) ?? [];
+            if (scenarioNames.includes(name)) {
+                throw new StatusResponse.ConstraintErrorError(
+                    `Duplicate preset name ${JSON.stringify(name)} for scenario ${Thermostat.PresetScenario[preset.presetScenario]}`,
+                );
+            }
+            scenarioNames.push(name);
+            presetScenarioNames.set(preset.presetScenario, scenarioNames);
 
             if (this.features.cooling) {
                 if (preset.coolingSetpoint === undefined) {

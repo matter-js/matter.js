@@ -492,6 +492,16 @@ describe("Presets local write", () => {
         expect(storedPresets(deviceEp)).deep.equals([]);
     });
 
+    it("applies the scenario limit before refusing a repeated name", async () => {
+        const deviceEp = namedPresetsEndpoint(5, 1);
+        await using _node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: deviceEp });
+
+        await expect(writePresets(deviceEp, [newPreset(), newPreset()])).rejectedWith(
+            StatusResponse.ResourceExhaustedError,
+            "for scenario Occupied exceeds allowed number",
+        );
+    });
+
     it("checks a preset's own rules before the NumberOfPresets limit", async () => {
         const deviceEp = namedPresetsEndpoint(2, 5);
         await using _node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: deviceEp });
