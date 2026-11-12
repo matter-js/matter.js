@@ -26,10 +26,24 @@ const logger = Logger.get("MDNS");
  * so the ingress filter can `endsWith` them directly. */
 const MATTER_SERVICE_SUFFIXES = ["._matter._tcp.local", "._matterc._udp.local", "._matterd._udp.local"];
 
+/**
+ * The mDNS socket, responder and DNS-SD name cache, shared by all nodes of a root {@link Environment}.
+ *
+ * The root environment owns the service.  Hold it through {@link Environment.asDependent}: the last dependent to
+ * release it closes it and removes it from the environment, and the next {@link Environment.get} creates a new
+ * instance.  A reference taken with a plain {@link Environment.get} does not hold the service and may point to a closed
+ * instance once the last dependent released it.
+ *
+ * A {@link RuntimeService} cancel closes the service once no dependent holds it, so a node that is still closing can
+ * send its DNS-SD goodbyes.  The runtime stays active until the service has closed, so a dependent that is not itself
+ * a runtime worker keeps the runtime active until it releases the service.  A dependent that only starts loading the
+ * service after the cancel does not hold it yet.
+ */
 export class MdnsService {
     readonly #entropy: Entropy;
     readonly #construction: Construction<MdnsService>;
     readonly #runtime: RuntimeService;
+    readonly #worker: RuntimeWorker;
     readonly #enableIpv4: boolean;
     readonly limitedToNetInterface?: string;
 
@@ -47,9 +61,10 @@ export class MdnsService {
         const rootEnvironment = environment.root;
         rootEnvironment.set(MdnsService, this);
         this.#runtime = rootEnvironment.runtime;
+        this.#worker = new RuntimeWorker(this, rootEnvironment);
 
         // Added before #construction exists so a failed mDNS start does not crash the runtime; close() removes it
-        this.#runtime.add(this);
+        this.#runtime.add(this.#worker);
 
         const vars = environment.get(VariableService);
         this.#enableIpv4 = vars.boolean("mdns.ipv4") ?? options?.ipv4 ?? true;
@@ -67,7 +82,7 @@ export class MdnsService {
             } catch (cause) {
                 // Withdraw before rejecting so a retry constructs a new instance instead of awaiting this crashed one
                 rootEnvironment.delete(MdnsService, this);
-                rootEnvironment.runtime.delete(this);
+                this.#runtime.delete(this.#worker);
                 throw cause;
             }
 
@@ -124,8 +139,37 @@ export class MdnsService {
                 this.#server = this.#names = undefined;
             });
         } finally {
-            this.#runtime.delete(this);
+            this.#runtime.delete(this.#worker);
         }
+    }
+}
+
+/**
+ * Represents an {@link MdnsService} in the {@link RuntimeService}, so the runtime stays active until the service has
+ * closed.  A runtime cancel closes the service through the root environment, which waits until no dependent holds it.
+ */
+class RuntimeWorker {
+    readonly #service: MdnsService;
+    readonly #root: Environment;
+
+    constructor(service: MdnsService, root: Environment) {
+        this.#service = service;
+        this.#root = root;
+    }
+
+    /** Lets the runtime defer a cancel until the service started, and drop it if work resumed meanwhile. */
+    get construction() {
+        return this.#service.construction;
+    }
+
+    async close() {
+        const closed = this.#service.construction.closed;
+        await this.#root.close(MdnsService);
+        await closed;
+    }
+
+    get [Diagnostic.value]() {
+        return "MDNS runtime worker";
     }
 }
 
