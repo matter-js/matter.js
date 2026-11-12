@@ -85,6 +85,9 @@ describe("CADMIN", () => {
         "CADMIN/1.28",
     );
 
+    // Selects the runs of multi-run tests, which "CADMIN/*" does not
+    chip("CADMIN/*/run*").exclude("CADMIN/1.19/*", "CADMIN/1.27/*", "CADMIN/1.28/*");
+
     chip("CADMIN/1.19").beforeTest(subject => {
         const node = NodeTestInstance.nodeOf(subject);
 
