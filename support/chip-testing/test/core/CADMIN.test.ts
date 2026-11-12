@@ -86,7 +86,11 @@ describe("CADMIN", () => {
     );
 
     // Selects the runs of multi-run tests, which "CADMIN/*" does not
-    chip("CADMIN/*/run*").exclude("CADMIN/1.19/*", "CADMIN/1.27/*", "CADMIN/1.28/*");
+    chip("CADMIN/*/run*")
+        .exclude("CADMIN/1.19/*", "CADMIN/1.27/*", "CADMIN/1.28/*")
+        // The basic commissioning method tests open their window with the setup code the descriptor drops from
+        // CHIP's arguments
+        .args("--passcode", 20202021, "--discriminator", 3840);
 
     chip("CADMIN/1.19").beforeTest(subject => {
         const node = NodeTestInstance.nodeOf(subject);
