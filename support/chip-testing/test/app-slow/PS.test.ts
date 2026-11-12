@@ -10,7 +10,8 @@ describe("PS", () => {
     chip("PS/*").args("--endpoint", 1).exclude("PS/2.3");
     // Selects the runs of multi-run tests, which "PS/*" does not
     chip("PS/*/run*").args("--endpoint", 1).exclude("PS/2.3/*").exclude("PS/3.1/run1", "PS/3.1/run12").exclude(
-        // Runs for CHIP apps matter.js has no test subject for: electrical-protection, evse, lighting-app-no-unique-id, lock, microwave-oven, network-management
+        // Runs for CHIP apps, and the all-devices default device (run16), matter.js has no test subject for: electrical-protection, evse, lighting-app-no-unique-id, lock, microwave-oven, network-management
+        "PS/3.1/run16",
         "PS/3.1/run2",
         "PS/3.1/run3",
         "PS/3.1/run4",
