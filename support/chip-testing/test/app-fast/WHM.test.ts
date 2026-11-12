@@ -6,4 +6,6 @@
 
 describe("WHM", () => {
     chip("WHM/*");
+    // Selects the runs of multi-run tests, which "WHM/*" does not
+    chip("WHM/*/run*");
 });
