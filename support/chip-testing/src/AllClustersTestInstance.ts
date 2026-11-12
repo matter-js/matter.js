@@ -97,6 +97,7 @@ import { GenericSwitchDevice, OnOffLightDevice } from "@matter/main/devices";
 import { MdnsAdvertiser } from "@matter/main/protocol";
 import { CommissioningFlowType, DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
 import { BackchannelCommand } from "@matter/testing";
+import { TEST_SCENE_TABLE_SIZE } from "./cluster/scene-table.js";
 import { TestActivatedCarbonFilterMonitoringServer } from "./cluster/TestActivatedCarbonFilterMonitoringServer.js";
 import { TestDishwasherModeServer } from "./cluster/TestDishwasherModeServer.js";
 import { TestGeneralDiagnosticsServer } from "./cluster/TestGeneralDiagnosticsServer.js";
@@ -594,6 +595,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
             {
                 number: EndpointNumber(1),
                 id: "ep1",
+                scenesManagement: { sceneTableSize: TEST_SCENE_TABLE_SIZE },
                 activatedCarbonFilterMonitoring: {
                     condition: 20,
                     degradationDirection: ResourceMonitoring.DegradationDirection.Down,
@@ -1181,6 +1183,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
         const endpoint2 = new Endpoint(OnOffLightDevice.with(DescriptorServer.with(Descriptor.Feature.TagList)), {
             number: EndpointNumber(2),
             id: "ep2",
+            scenesManagement: { sceneTableSize: TEST_SCENE_TABLE_SIZE },
             descriptor: {
                 tagList: [
                     {
