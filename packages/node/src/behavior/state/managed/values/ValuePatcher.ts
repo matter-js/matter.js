@@ -10,9 +10,18 @@ import { DataModelPath, Metatype, StoredDefaultValue, ValueModel } from "@matter
 import { SchemaImplementationError, Val, WriteError } from "@matter/protocol";
 import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
+import { Internal } from "../Internal.js";
 
 /**
  * Obtain a {@link ValueSupervisor.Patch} function for the given schema.
+ *
+ * The patch decides per target.  A target that mirrors a remote node, such as the cluster state of a client node or a
+ * value inside it, takes each given member or entry as a whole value: the patch assigns it like `state.x = value` in an
+ * act, without merging it into the cached value and without local defaults.  A list member must then be given as an
+ * array.  Assigning to a member of a value inside an attribute changes that attribute in place, so it fails with
+ * `UncachedValueError` while the attribute reads its uncached default.  Any other target is patched: a struct given for
+ * a struct member is merged into it, a list is merged entry by entry, and a missing struct or list entry starts from
+ * the schema defaults.
  */
 export function ValuePatcher(schema: Schema, supervisor: RootSupervisor) {
     switch (schema.effectiveMetatype) {
@@ -118,6 +127,8 @@ function StructPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSup
             throw new WriteError(path, `cannot patch ${target} because it is not an object`);
         }
 
+        const assignsWhole = mirrorsRemote(target);
+
         for (let key in changes as Val.Struct) {
             let newValue = (changes as Val.Struct)[key];
 
@@ -129,9 +140,14 @@ function StructPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSup
                 key = memberAltKeys[key];
             }
 
-            // If this is not a subcollection or the new value is not an object, just do direct set
+            if (assignsWhole && memberArrays[key] && isObject(newValue)) {
+                throw new ImplementationError(
+                    `Cannot patch ${path.at(key)} with an object: on the cluster state of a client node a list is written whole, so give the complete list as an array`,
+                );
+            }
+
             const subpatch = memberPatchers[key];
-            if (!subpatch || newValue === null || typeof newValue !== "object") {
+            if (assignsWhole || !subpatch || newValue === null || typeof newValue !== "object") {
                 target[key] = newValue;
                 continue;
             }
@@ -194,6 +210,8 @@ function ListPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSuper
             throw new WriteError(path, `patch definition ${changes} is not an object`);
         }
 
+        const assignsWhole = mirrorsRemote(target);
+
         // eslint reports error here when linting entire project but not individual file.  Unsure if this is a bug but
         // disabling as code is correct as written
         // oxlint-disable-next-line @typescript-eslint/no-for-in-array
@@ -207,7 +225,7 @@ function ListPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSuper
             // Changes may be an array or object but JS allows string indices either way even though TS doesn't
             let newValue = (changes as Val.Struct)[indexStr];
 
-            if (patchEntry) {
+            if (patchEntry && !assignsWhole) {
                 const oldValue = index < target.length ? target[index] : undefined;
                 if (newValue === undefined || newValue === null || oldValue === undefined || oldValue === null) {
                     // If creating a new object, apply as a patch to the object's defaults before insertion
@@ -230,6 +248,10 @@ function ListPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSuper
 
         return target;
     };
+}
+
+function mirrorsRemote(target: Val.Collection) {
+    return Internal.referenceOf(target)?.mirrorsRemote === true;
 }
 
 function PrimitivePatcher(): ValueSupervisor.Patch {

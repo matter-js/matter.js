@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ActionContext } from "#behavior/context/ActionContext.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { ChangesResource } from "./ChangesResource.js";
@@ -64,19 +63,9 @@ export class ServerNodeResource extends NodeResource {
     }
 
     /**
-     * A peer resource acts in this request's transaction but validates as the peer's own actions do, so the device
-     * rather than the local model decides on conformance.
+     * A peer resource acts in this request's transaction.
      */
     #resourceForPeer(peer: ClientNode) {
-        return new NodeResource(peer.agentFor(withClientPeer(this.agent.context, peer.clientPeerContext)), this);
+        return new NodeResource(peer.agentFor(this.agent.context), this);
     }
-}
-
-function withClientPeer(context: ActionContext, clientPeerContext: ClientNode["clientPeerContext"]): ActionContext {
-    return Object.freeze(
-        Object.create(Object.getPrototypeOf(context), {
-            ...Object.getOwnPropertyDescriptors(context),
-            clientPeerContext: { value: clientPeerContext ?? {}, enumerable: true },
-        }),
-    );
 }

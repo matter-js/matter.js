@@ -4,15 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-    Environment,
-    isObject,
-    Logger,
-    StorageManager,
-    StorageService,
-    SupportedStorageTypes,
-    Time,
-} from "@matter/general";
+import { Environment, isObject, Logger, StorageManager, StorageService, SupportedStorageTypes } from "@matter/general";
 import {
     ClientNode,
     CommissioningClient,
@@ -169,12 +161,7 @@ export async function migrateLegacyCommissionedNodes(
         const oldNode = baseStorage.createContext(`node-${nodeId}`);
 
         const legacyState = async () => ({
-            commissioning: RemoteDescriptor.toLongForm({
-                // Fallback only — a peer with its own discoveredAt keeps it.
-                discoveredAt: Time.nowMs,
-                ...discoveryData,
-                addresses: operationalServerAddress ? [operationalServerAddress] : [],
-            }),
+            commissioning: RemoteDescriptor.legacyRecordToLongForm(discoveryData, operationalServerAddress),
             network: {
                 maxEventNumber: await oldNode.get<EventNumber>("__maxEventNumber__", EventNumber(0)),
                 autoSubscribe: false,

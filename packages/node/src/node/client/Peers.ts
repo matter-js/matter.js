@@ -43,7 +43,6 @@ import {
     Minutes,
     Mutex,
     Observable,
-    Seconds,
     Time,
     Timestamp,
     UninitializedDependencyError,
@@ -78,10 +77,17 @@ const logger = Logger.get("Peers");
 const DEFAULT_TTL = Minutes(15);
 const EXPIRATION_INTERVAL = Minutes.one;
 
-type FabricOperation = "commission" | "decommission";
+type FabricOperation = "commission" | "decommission" | "certificate update";
+
+const FABRIC_OPERATION_VERBS: Record<FabricOperation, string> = {
+    commission: "commission",
+    decommission: "decommission",
+    "certificate update": "update the operational certificate of",
+};
 
 /**
- * Thrown when a commission or decommission of a {@link ClientNode} is requested while one is already in progress.
+ * Thrown when a commission, decommission or certificate update of a {@link ClientNode} is requested while one of them
+ * is already in progress.
  */
 export class FabricOperationInProgressError extends CommissioningError {}
 
@@ -413,8 +419,9 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     /**
-     * Look up a peer by numeric/string id or {@link PeerAddress}. A {@link PeerAddress} matches the commissioned
-     * peer whose {@link CommissioningClient} peer address equals it; otherwise the container's id lookup is used.
+     * Look up a peer by numeric/string id or {@link PeerAddress}. A {@link PeerAddress} matches the peer whose
+     * {@link ClientNode.peerAddress} equals it, also a peer that failed to load; otherwise the container's id lookup is
+     * used.
      *
      * Look up by {@link PeerAddress} for anything held while a peer is commissioned: a local id may be reissued to a
      * different device once the peer it named is gone, so the same string can resolve to a peer that never saw the
@@ -426,11 +433,9 @@ export class Peers extends EndpointContainer<ClientNode> {
         if (typeof id !== "string" && typeof id !== "number") {
             const address = PeerAddress(id);
             for (const node of this) {
-                if (node.behaviors.active.some(behavior => behavior.id === "commissioning")) {
-                    const nodeAddress = node.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined;
-                    if (nodeAddress !== undefined && PeerAddress.is(nodeAddress, address)) {
-                        return node;
-                    }
+                const nodeAddress = node.peerAddress;
+                if (nodeAddress !== undefined && PeerAddress.is(nodeAddress, address)) {
+                    return node;
                 }
             }
             return undefined;
@@ -594,8 +599,9 @@ export class Peers extends EndpointContainer<ClientNode> {
      * Run a commission attempt on {@link node} while protecting the node from the expired-node cull.
      *
      * Rejects with `DestroyedDependencyError` or `CrashedDependencyError` if the node is gone (its closing or deletion
-     * began, or it crashed), so the attempt fails fast instead of crashing later when the closed backing is accessed, and with {@link FabricOperationInProgressError} if a commission or decommission attempt on it
-     * is already in progress, as parallel attempts on the same {@link ClientNode} would race on device-side state.
+     * began, or it crashed), so the attempt fails fast instead of crashing later when the closed backing is accessed,
+     * and with {@link FabricOperationInProgressError} if a commission, decommission or certificate update of it is
+     * already in progress, as parallel attempts on the same {@link ClientNode} would race on device-side state.
      * Calling {@link ClientNode.commission} inside {@link fn} therefore rejects.
      */
     async runCommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
@@ -607,10 +613,22 @@ export class Peers extends EndpointContainer<ClientNode> {
      * the node, and {@link forDescriptor} waits for it to end before handing out a node for the device.
      *
      * Rejects like {@link runCommissioning}: with `DestroyedDependencyError` or `CrashedDependencyError` if the node is
-     * gone, with {@link FabricOperationInProgressError} if a commission or decommission of it is already in progress.
+     * gone, with {@link FabricOperationInProgressError} if a commission, decommission or certificate update of it is already
+     * in progress.
      */
     async runDecommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
         return this.#runFabricOperation(node, "decommission", fn);
+    }
+
+    /**
+     * Run an operational certificate update of {@link node}.
+     *
+     * Rejects like {@link runCommissioning}: with `DestroyedDependencyError` or `CrashedDependencyError` if the node is
+     * gone, with {@link FabricOperationInProgressError} if a commission, decommission or certificate update of it is
+     * already in progress.
+     */
+    async runOperationalCertificateUpdate<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
+        return this.#runFabricOperation(node, "certificate update", fn);
     }
 
     /**
@@ -624,7 +642,7 @@ export class Peers extends EndpointContainer<ClientNode> {
             const running = this.#fabricOperations.get(node);
             if (running !== undefined) {
                 throw new FabricOperationInProgressError(
-                    `Cannot ${operation} ${node.toString()} because a ${running.operation} attempt is already in progress`,
+                    `Cannot ${FABRIC_OPERATION_VERBS[operation]} ${node.toString()} because a ${running.operation} attempt is already in progress`,
                 );
             }
             this.#fabricOperations.set(node, { operation, settled });
@@ -924,11 +942,9 @@ export class Peers extends EndpointContainer<ClientNode> {
             return;
         }
 
-        // Use the current session's createdAt as asOf so it (and newer sessions) are preserved
-        // while older sessions (from before the reboot) are closed.  If the currentSession is
-        // undefined (no known session), handlePeerShutdown uses the current Time.nowUs value as its cutoff.
+        // Sessions registered before the current session are treated as from before the restart
         const sessionManager = this.owner.env.get(SessionManager);
-        await sessionManager.handlePeerShutdown(peerAddress, sessionManager.maybeSessionFor(peerAddress)?.createdAt);
+        await sessionManager.handlePeerShutdown(peerAddress, sessionManager.maybeSessionFor(peerAddress));
     }
 }
 
@@ -995,11 +1011,11 @@ class Factory extends ClientNodeFactory {
     }
 }
 
-function expirationOf<T extends { discoveredAt?: Timestamp; ttl?: Duration | number }>(
+function expirationOf<T extends { discoveredAt?: Timestamp; ttl?: Duration }>(
     lifespan: T,
 ): T extends { discoveredAt: Timestamp } ? Timestamp : Timestamp | undefined {
     if (lifespan.discoveredAt !== undefined) {
-        return Timestamp(lifespan.discoveredAt + (Seconds(lifespan.ttl) ?? DEFAULT_TTL));
+        return Timestamp(lifespan.discoveredAt + (lifespan.ttl ?? DEFAULT_TTL));
     }
     return undefined as unknown as Timestamp;
 }

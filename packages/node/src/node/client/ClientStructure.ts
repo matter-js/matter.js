@@ -134,24 +134,36 @@ export class ClientStructure {
     #attributeIds = new Map<ClusterId, Map<string, number>>();
 
     /**
-     * Which endpoints have named each part in a `PartsList`, and what each of those lists contained.
+     * The parts each endpoint's current `PartsList` names.
      *
      * Parenthood cannot be decided from a single list, because a device type composing its list of
      * every descendant ({@link EndpointComposition.FullFamily}) says nothing about which endpoint owns
-     * a part. A claim stays here until it can be decided; nothing is ever reparented, so an
-     * undecidable claim waits for the read that settles it rather than being guessed at.
+     * a part. {@link #placeParts} reads all lists together; nothing is ever reparented, so a part
+     * whose owner cannot be told yet waits for the read that settles it rather than being guessed at.
      */
-    #partClaims = new Map<EndpointStructure, Set<EndpointStructure>>();
     #partsListOf = new Map<EndpointStructure, Set<EndpointNumber>>();
 
     /**
-     * How each endpoint composes its `PartsList`, for the endpoints that have said.
+     * The endpoints on the node as of the last structural apply, or `undefined` while the root has not reported its
+     * `PartsList`; see {@link #findEndpointsOnTheNode}.
+     */
+    #endpointsOnTheNode?: Set<EndpointNumber>;
+
+    /** Endpoints that left the node but stay placed, because they hold endpoints on the node. */
+    #keptOffTheNode = new Set<EndpointNumber>();
+
+    #warnedIncompleteRootPartsList = false;
+
+    /**
+     * How each endpoint composes its `PartsList`, for the endpoints that have said. Read it through
+     * {@link #compositionOf}, which does not use the root's entry.
      *
      * Absent means the endpoint has not reported its device types yet, which is not the same as
      * composing a tree: a list from an endpoint whose composition is unknown says nothing about who
-     * owns what, so claims from it wait rather than being read as a parent's.
+     * owns what, so it is not weighed in deciding a part's owner yet.
      */
     #composition = new Map<EndpointStructure, EndpointComposition>();
+    #warnedRootWithoutDeviceType = false;
     #events: ClientStructureEvents;
     #changed = Observable<[void]>();
     #applying = 0;
@@ -241,7 +253,9 @@ export class ClientStructure {
             }
         }
 
-        this.#resolvePartClaims();
+        this.#endpointsOnTheNode = this.#findEndpointsOnTheNode();
+        this.#checkRootPartsList();
+        this.#placeParts();
 
         const changes = this.#pendingChanges;
         this.#pendingChanges = new Map();
@@ -996,6 +1010,10 @@ export class ClientStructure {
             | undefined;
         if (Array.isArray(deviceTypeList)) {
             this.#noteComposition(structure, deviceTypeList);
+            // The behavior's state holds an empty list until the peer reports one
+            if (!endpoint.number && structure.reportedLists?.has(DEVICE_TYPE_LIST_ATTR_ID)) {
+                this.#checkRootDeviceTypes(deviceTypeList);
+            }
 
             const endpointType = endpoint.type;
             for (const dt of deviceTypeList) {
@@ -1080,68 +1098,21 @@ export class ClientStructure {
             return;
         }
 
-        // Which claimant owns a part is decided by #resolvePartClaims, once every list this
-        // interaction carries is in.
+        // Which endpoint owns a part is decided by #placeParts, once every list this interaction
+        // carries is in.
         const named = new Set<EndpointNumber>();
         for (const value of partsList) {
             // The peer's own value, so it is checked rather than trusted; one out of range names no
-            // endpoint this could hold
-            if (typeof value !== "number" || !EndpointNumber.isValid(value)) {
+            // endpoint this could hold, and the root is no endpoint's part (Matter Core § 9.2.8)
+            if (typeof value !== "number" || !EndpointNumber.isValid(value) || value === ROOT_ENDPOINT_NUMBER) {
                 continue;
             }
 
             const partNo = EndpointNumber(value);
             named.add(partNo);
-
-            const part = this.#endpointFor(partNo);
-            let claimants = this.#partClaims.get(part);
-            if (claimants === undefined) {
-                claimants = new Set();
-                this.#partClaims.set(part, claimants);
-            }
-            claimants.add(structure);
+            this.#endpointFor(partNo);
         }
-        this.#retractClaimsOf(structure, named);
         this.#partsListOf.set(structure, named);
-
-        // For the root partsList specifically, if an endpoint is no longer present then it has been removed from the
-        // node.  Schedule for erase
-        if (endpoint.maybeNumber === 0) {
-            const numbersUsed = new Set(partsList);
-            for (const descendent of (endpoint as Node).endpoints) {
-                // Skip root endpoint and uninitialized numbers (though latter shouldn't be possible)
-                if (!descendent.maybeNumber) {
-                    continue;
-                }
-
-                if (!numbersUsed.has(descendent.number)) {
-                    const endpoint = this.#endpoints.get(descendent.number);
-                    if (endpoint === undefined) {
-                        continue;
-                    }
-
-                    // Erasing an endpoint closes everything below it, and nothing can move what it
-                    // held elsewhere first. A peer that drops an endpoint while still naming what
-                    // hangs from it contradicts itself, and the endpoints it still names are worth
-                    // more than a tree that matches its list exactly.
-                    const named = new Array<Endpoint>();
-                    descendent.visit(below => {
-                        if (below !== descendent && below.maybeNumber !== undefined && numbersUsed.has(below.number)) {
-                            named.push(below);
-                        }
-                    });
-                    if (named.length) {
-                        logger.warn(
-                            `Keeping ${descendent} although the peer's root no longer names it:`,
-                            `it holds ${named.join(", ")}, which the root does name`,
-                        );
-                        continue;
-                    }
-
-                    this.#scheduleStructureChange(endpoint, "erase");
-                }
-            }
-        }
     }
 
     #endpointFor(number: EndpointNumber) {
@@ -1273,15 +1244,9 @@ export class ClientStructure {
         );
 
         this.#endpoints.delete(endpoint.number);
-        this.#partClaims.delete(structure);
         this.#partsListOf.delete(structure);
         this.#composition.delete(structure);
-        for (const [part, claimants] of this.#partClaims) {
-            claimants.delete(structure);
-            if (claimants.size === 0) {
-                this.#partClaims.delete(part);
-            }
-        }
+        this.#keptOffTheNode.delete(endpoint.number);
 
         // Skip deletion if the endpoint was already destroyed, e.g. because a parent endpoint was erased first and
         // recursively closed its children
@@ -1399,11 +1364,18 @@ export class ClientStructure {
     }
 
     /**
-     * Decide the owner of every part whose owner is now known, then apply the structural changes that
-     * fall out of it.
+     * Decide which endpoints are on the node and the owner of every part whose owner is now known, then apply the
+     * structural changes that fall out of it.
      */
     async #applyPendingChanges() {
-        this.#resolvePartClaims();
+        const previous = this.#endpointsOnTheNode;
+        const current = this.#findEndpointsOnTheNode();
+        this.#endpointsOnTheNode = current;
+        this.#checkRootPartsList();
+        if (previous !== undefined && current !== undefined) {
+            this.#eraseEndpointsOffTheNode(previous, current);
+        }
+        this.#placeParts();
 
         for (const [endpoint, change] of this.#pendingChanges.entries()) {
             this.#pendingChanges.delete(endpoint);
@@ -1424,24 +1396,40 @@ export class ClientStructure {
     }
 
     /**
-     * Give every part whose owner is now known an owner, and schedule its installation.
+     * Give every part on the node whose owner is now known an owner, and schedule its installation.
      *
      * A part named by an ordinary endpoint's list is that endpoint's child. A part named only by
      * full-family lists is a child of the innermost of them — but only once every endpoint those lists
      * name has reported its own parts, because until then a list naming it says no more than that it
      * is somewhere below. A part is placed only below an owner that is itself placed, so it is never
-     * installed or announced below an endpoint that is not on the node. A claim that is undecided, or
-     * whose owner is not placed yet, stays for a later interaction to settle.
+     * installed or announced below an endpoint that is not on the node. Each call reads the current
+     * lists, so a part that cannot be placed yet is considered again on the next apply.
      */
-    #resolvePartClaims() {
+    #placeParts() {
+        const claimantsOf = new Map<EndpointStructure, Set<EndpointStructure>>();
+        for (const [claimant, parts] of this.#partsListOf) {
+            for (const partNo of parts) {
+                const part = this.#endpoints.get(partNo);
+                if (part === undefined) {
+                    continue;
+                }
+
+                let claimants = claimantsOf.get(part);
+                if (claimants === undefined) {
+                    claimants = new Set();
+                    claimantsOf.set(part, claimants);
+                }
+                claimants.add(claimant);
+            }
+        }
+
         let placedAny: boolean;
         do {
             placedAny = false;
-            for (const [part, claimants] of [...this.#partClaims]) {
+            for (const [part, claimants] of claimantsOf) {
                 // Nothing is reparented: an endpoint the peer has already placed keeps its parent, and
                 // Matter has no operation that would move it (Core § 9.2.7.3's single-parent requirement)
-                if (this.#ownerOf(part) !== undefined) {
-                    this.#partClaims.delete(part);
+                if (this.#isPlaced(part) || !this.#isOnTheNode(part)) {
                     continue;
                 }
 
@@ -1450,15 +1438,6 @@ export class ClientStructure {
                     continue;
                 }
                 const { owner, contenders } = decision;
-
-                this.#partClaims.delete(part);
-
-                // The root names every endpoint the peer has, and its removal scan runs while attribute
-                // data is read — before this. Installing a part the root no longer names would resurrect
-                // an endpoint that scan has already passed over.
-                if (!this.#isOnTheNode(part)) {
-                    continue;
-                }
 
                 if (contenders.length) {
                     logger.warn(
@@ -1485,21 +1464,120 @@ export class ClientStructure {
     }
 
     /**
-     * Whether the peer's root names `structure`, so far as the root has said.
-     *
-     * A root endpoint composes its `PartsList` of every descendant (Matter Core § 9.2.8), so an
-     * endpoint the root does not name is not a descendant of the node at all — whether it has gone
-     * away or was never part of the tree the peer describes. Until the root has reported a list there
-     * is nothing to judge against and every endpoint is taken as present.
+     * Whether `structure` is on the node as of the last structural apply; see {@link #findEndpointsOnTheNode}. Until
+     * the root has reported a list there is nothing to judge against and every endpoint is taken as present.
      */
     #isOnTheNode(structure: EndpointStructure) {
-        if (structure.endpoint.maybeNumber === 0) {
-            return true;
+        const number = structure.endpoint.maybeNumber;
+        return number === undefined || this.#isNumberOnTheNode(number);
+    }
+
+    #isNumberOnTheNode(number: EndpointNumber) {
+        return (
+            number === ROOT_ENDPOINT_NUMBER ||
+            this.#endpointsOnTheNode === undefined ||
+            this.#endpointsOnTheNode.has(number)
+        );
+    }
+
+    /**
+     * The endpoints on the node other than the root, or `undefined` while the root has not reported its `PartsList`.
+     *
+     * A `PartsList` names only endpoints that exist (Matter Core § 9.2.7.3), and the root's names every endpoint on the
+     * node (§ 9.2.8). Some peers name only part of their endpoints there. An endpoint that the `PartsList` of an
+     * endpoint on the node names is on the node too, once the peer has reported its DeviceTypeList or PartsList; until
+     * then the entry may name an endpoint that does not exist.
+     */
+    #findEndpointsOnTheNode() {
+        const rootParts = this.#rootPartsList();
+        if (rootParts === undefined) {
+            return undefined;
         }
 
+        const found = new Set(rootParts);
+        const pending = [...found];
+        for (let number = pending.pop(); number !== undefined; number = pending.pop()) {
+            const structure = this.#endpoints.get(number);
+            const named = structure === undefined ? undefined : this.#partsListOf.get(structure);
+            for (const part of named ?? []) {
+                if (found.has(part) || !this.#hasReportedDescriptorList(part)) {
+                    continue;
+                }
+                found.add(part);
+                pending.push(part);
+            }
+        }
+        return found;
+    }
+
+    #hasReportedDescriptorList(number: EndpointNumber) {
+        return !!this.#endpoints.get(number)?.reportedLists?.size;
+    }
+
+    #rootPartsList() {
         const root = this.#endpoints.get(ROOT_ENDPOINT_NUMBER);
-        const rootParts = root === undefined ? undefined : this.#partsListOf.get(root);
-        return rootParts === undefined || rootParts.has(structure.endpoint.number);
+        return root === undefined ? undefined : this.#partsListOf.get(root);
+    }
+
+    /**
+     * Schedule the erase of every placed endpoint that left the node since `previous`.
+     *
+     * Only an endpoint the peer had on the node is erased, so an endpoint the peer never named stays, such as one
+     * added locally. An endpoint that holds an endpoint still on the node is kept, because erasing it would close that
+     * endpoint too; it is checked again on every apply.
+     */
+    #eraseEndpointsOffTheNode(previous: Set<EndpointNumber>, current: Set<EndpointNumber>) {
+        const candidates = new Set([...previous, ...this.#keptOffTheNode]);
+        for (const number of candidates) {
+            const structure = this.#endpoints.get(number);
+            if (current.has(number) || structure === undefined || !this.#isPlaced(structure)) {
+                this.#keptOffTheNode.delete(number);
+                continue;
+            }
+
+            const { endpoint } = structure;
+            const held = new Array<Endpoint>();
+            endpoint.visit(below => {
+                if (below !== endpoint && below.maybeNumber !== undefined && current.has(below.number)) {
+                    held.push(below);
+                }
+            });
+            if (!held.length) {
+                this.#keptOffTheNode.delete(number);
+                this.#scheduleStructureChange(structure, "erase");
+                continue;
+            }
+
+            const message = [
+                `Keeping ${endpoint} although it is no longer on the node:`,
+                `it holds ${held.join(", ")}, which are on the node`,
+            ];
+            if (this.#keptOffTheNode.has(number)) {
+                logger.debug(...message);
+            } else {
+                logger.warn(...message);
+                this.#keptOffTheNode.add(number);
+            }
+        }
+    }
+
+    /** Warn once per node when the root's `PartsList` does not name every endpoint on the node. */
+    #checkRootPartsList() {
+        const rootParts = this.#rootPartsList();
+        if (this.#warnedIncompleteRootPartsList || rootParts === undefined || this.#endpointsOnTheNode === undefined) {
+            return;
+        }
+
+        const unnamed = [...this.#endpointsOnTheNode].filter(number => !rootParts.has(number)).sort((a, b) => a - b);
+        if (!unnamed.length) {
+            return;
+        }
+
+        this.#warnedIncompleteRootPartsList = true;
+        logger.warn(
+            `Peer ${this.#node} does not name endpoints ${unnamed.join(", ")} in the PartsList of its root endpoint,`,
+            "although Matter requires the root to list every endpoint; other endpoints name them, so they are on the node",
+        );
     }
 
     /**
@@ -1510,9 +1588,8 @@ export class ClientStructure {
         const ordinary = new Array<EndpointStructure>();
         const fullFamily = new Array<EndpointStructure>();
         for (const claimant of claimants) {
-            // An endpoint the root does not name is not on the node, so it owns nothing. It would
-            // otherwise take parts the root does name and hold them below itself, where nothing
-            // installs them.
+            // An endpoint not on the node owns nothing. It would otherwise take parts that are on the
+            // node and hold them below itself, where nothing installs them.
             if (!this.#isOnTheNode(claimant)) {
                 continue;
             }
@@ -1520,7 +1597,7 @@ export class ClientStructure {
             // What a list means depends on how its endpoint composes one, so a claimant that has not
             // said cannot be weighed against the others yet. Deciding without it would place the part
             // under a parent that a later report cannot correct.
-            if (!this.#composition.has(claimant)) {
+            if (this.#compositionOf(claimant) === undefined) {
                 return undefined;
             }
 
@@ -1581,14 +1658,12 @@ export class ClientStructure {
 
     /**
      * Whether every endpoint `structure` names has reported a `PartsList` of its own, which is what
-     * makes the parts it names and nobody else's its own children.  An endpoint the root no longer
-     * names reports nothing more, so it is not waited for.
+     * makes the parts it names and nobody else's its own children. An endpoint that is not on the
+     * node reports nothing more, so it is not waited for.
      */
     #partsAccountedFor(structure: EndpointStructure) {
-        const root = this.#endpoints.get(ROOT_ENDPOINT_NUMBER);
-        const rootParts = root === undefined ? undefined : this.#partsListOf.get(root);
         for (const partNo of this.#partsListOf.get(structure) ?? []) {
-            if (rootParts !== undefined && !rootParts.has(partNo)) {
+            if (!this.#isNumberOnTheNode(partNo)) {
                 continue;
             }
 
@@ -1598,36 +1673,6 @@ export class ClientStructure {
             }
         }
         return true;
-    }
-
-    /**
-     * Withdraw `structure`'s claim on the parts its previous `PartsList` named and `named` does not.
-     *
-     * A claim that outlives the list it came from would let an endpoint the peer has dropped be
-     * installed later, once the claim became decidable — the peer's current lists are the only
-     * statement of what it has.
-     */
-    #retractClaimsOf(structure: EndpointStructure, named: Set<EndpointNumber>) {
-        for (const partNo of this.#partsListOf.get(structure) ?? []) {
-            if (named.has(partNo)) {
-                continue;
-            }
-
-            const part = this.#endpoints.get(partNo);
-            if (part === undefined) {
-                continue;
-            }
-
-            const claimants = this.#partClaims.get(part);
-            if (claimants === undefined) {
-                continue;
-            }
-
-            claimants.delete(structure);
-            if (claimants.size === 0) {
-                this.#partClaims.delete(part);
-            }
-        }
     }
 
     /**
@@ -1661,9 +1706,37 @@ export class ClientStructure {
         }
     }
 
+    /**
+     * How `structure` composes its `PartsList`, or `undefined` while it has not said.
+     *
+     * The root's `PartsList` lists every endpoint on the node (Matter Core § 9.2.8), so its composition is known
+     * whatever device types it reports.
+     */
+    #compositionOf(structure: EndpointStructure) {
+        if (structure.endpoint.maybeNumber === 0) {
+            return EndpointComposition.FullFamily;
+        }
+        return this.#composition.get(structure);
+    }
+
     /** Whether `structure`'s `PartsList` names every descendant rather than its own children. */
     #isFullFamily(structure: EndpointStructure) {
-        return this.#composition.get(structure) === EndpointComposition.FullFamily;
+        return this.#compositionOf(structure) === EndpointComposition.FullFamily;
+    }
+
+    /**
+     * Warn once per node when the root reports no device type, although its DeviceTypeList needs at least one entry
+     * (Matter Core § 9.5.6.1). Placing the endpoints does not depend on it; see {@link #compositionOf}.
+     */
+    #checkRootDeviceTypes(deviceTypeList: Descriptor.DeviceType[]) {
+        if (this.#warnedRootWithoutDeviceType || deviceTypeList.some(dt => typeof dt?.deviceType === "number")) {
+            return;
+        }
+        this.#warnedRootWithoutDeviceType = true;
+        logger.warn(
+            `Peer ${this.#node} reports no device type on its root endpoint, although Matter requires at least one;`,
+            "its PartsList is read as listing every endpoint on the node",
+        );
     }
 
     /**

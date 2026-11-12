@@ -96,7 +96,7 @@ const GenericMatterAttCertObject = <T>(id: number, fieldName: string, valueConve
 export const NodeId_Matter = GenericMatterOpCertObject<NodeId>(1, "nodeId");
 
 /** matter-firmware-signing-id = ASN.1 OID 1.3.6.1.4.1.37244.1.2 */
-export const FirmwareSigningId_Matter = GenericMatterOpCertObject<number>(2, "firmwareSigningId");
+export const FirmwareSigningId_Matter = GenericMatterOpCertObject<bigint | number>(2, "firmwareSigningId");
 
 /** matter-icac-id = ASN.1 OID 1.3.6.1.4.1.37244.1.3 */
 export const IcacId_Matter = GenericMatterOpCertObject<bigint | number>(3, "icacId");

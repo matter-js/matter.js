@@ -14,6 +14,7 @@ import {
     DerNode,
     DerTag,
     DerType,
+    Diagnostic,
     EcdsaSignature,
     ImplementationError,
     Key,
@@ -24,14 +25,7 @@ import {
     X520,
     X962,
 } from "@matter/general";
-import {
-    CaseAuthenticatedTag,
-    FabricId,
-    MATTER_EPOCH_OFFSET_S,
-    NodeId,
-    TypeFromPartialBitSchema,
-    VendorId,
-} from "@matter/types";
+import { CaseAuthenticatedTag, MATTER_EPOCH_OFFSET_S, TypeFromPartialBitSchema } from "@matter/types";
 import {
     CertificatePublicKey,
     CertificateSignature,
@@ -44,21 +38,18 @@ import {
     MAX_PQC_DER_CERTIFICATE_SIZE,
     Unsigned,
 } from "./common.js";
-import {
-    FabricId_Matter,
-    FirmwareSigningId_Matter,
-    IcacId_Matter,
-    MATTER_OID_TO_FIELD_MAP,
-    matterToJsDate,
-    NocCat_Matter,
-    NodeId_Matter,
-    ProductId_Matter,
-    RcacId_Matter,
-    VendorId_Matter,
-    VvsId_Matter,
-} from "./definitions/asn.js";
+import { MATTER_OID_TO_FIELD_MAP, matterToJsDate } from "./definitions/asn.js";
 import { ExtensionKeyUsageBitmap, ExtensionKeyUsageSchema, MatterCertificate } from "./definitions/base.js";
 import { CertificateExtension } from "./definitions/operational.js";
+import {
+    CertificateProfileError,
+    decodeDistinguishedName,
+    DistinguishedName,
+    distinguishedNameToAsn1,
+    rdnOf,
+} from "./DistinguishedName.js";
+
+export { CertificateProfileError, DistinguishedName, parseMatterFallbackVidPid } from "./DistinguishedName.js";
 
 /**
  * Abstract definition of a X.509 certificate that can be signed and converted to ASN.1 DER format.
@@ -241,20 +232,24 @@ export abstract class Certificate<CT extends MatterCertificate> {
 }
 
 /**
- * Extract a VendorID or ProductID encoded via the "fallback method" (Matter spec 6.2.2.2): the
- * prefix `Mvid:`/`Mpid:` followed by 4 uppercase hexadecimal characters, anywhere within a
- * `commonName`. Returns the leftmost correctly-encoded value, or `undefined` if the prefix is
- * absent. Throws if the prefix appears but no correctly-encoded value exists (spec 6.2.2.2.1).
+ * Decodes the text of a Matter-specific DN attribute from an X.509 certificate.
+ *
+ * The text must be exactly twice {@link octets} characters of uppercase hexadecimal, without prefix or separators and
+ * with leading zeroes kept. Anything else is refused because the text comes from the certificate sender.
+ *
+ * @see {@link MatterSpecification.v161.Core} §6.1.1
  */
-export function parseMatterFallbackVidPid(commonName: string, prefix: "Mvid:" | "Mpid:"): number | undefined {
-    const match = commonName.match(new RegExp(`${prefix}([0-9A-F]{4})`));
-    if (match !== null) {
-        return parseInt(match[1], 16);
+function parseMatterRdnHex(field: string, text: string, octets: number, ErrorType = CertificateError) {
+    if (!new RegExp(`^[0-9A-F]{${octets * 2}}$`).test(text)) {
+        throw new ErrorType(
+            `Invalid ${field} ${Diagnostic.json(text)}: expected exactly ${octets * 2} uppercase hexadecimal digits`,
+        );
     }
-    if (commonName.includes(prefix)) {
-        throw new CertificateError(`commonName contains ${prefix} not followed by 4 uppercase hex digits`);
-    }
-    return undefined;
+    return BigInt(`0x${text}`);
+}
+
+function numberIfSafe(value: bigint) {
+    return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : value;
 }
 
 export namespace Certificate {
@@ -279,29 +274,42 @@ export namespace Certificate {
     /**
      * Map an OID to a subject/issuer field name.
      * Uses auto-generated lookup maps from X520 and Matter OID definitions.
-     * Returns the field name and whether the value is a PrintableString variant.
+     * Returns the field name and whether it is a Matter-specific attribute.
      */
     function oidToSubjectField(oid: Bytes) {
         const oidHex = Bytes.toHex(oid);
 
-        const field = X520.OID_TO_FIELD_MAP[oidHex] ?? MATTER_OID_TO_FIELD_MAP[oidHex];
-        if (field !== undefined) {
-            return { field, isPrintable: false };
+        const standardField = X520.OID_TO_FIELD_MAP[oidHex];
+        if (standardField !== undefined) {
+            return { field: standardField, isMatterSpecific: false };
+        }
+        const matterField = MATTER_OID_TO_FIELD_MAP[oidHex];
+        if (matterField !== undefined) {
+            return { field: matterField, isMatterSpecific: true };
         }
     }
 
     /**
      * Parse a subject or issuer field from ASN.1 DER format.
+     *
+     * Attributes of an unknown type are left out.  A malformed VendorID or ProductID is left out too with
+     * `acceptMalformedVidPid`, and makes that field undefined.  A domainComponent is read without a check of its DER
+     * string tag, and is encoded as IA5String.  The CHIP SDK refuses a tag other than UTF8String, PrintableString and
+     * IA5String.  Matter TLV has no tag for a PrintableString domainComponent
+     * (§ 6.5.6.1 lists `-ps` tags 129 to 143 only), so it is written with tag 16.  CHIP writes tag 144 for it,
+     * which matter.js reads as an unknown tag and ignores.
      */
-    function parseSubjectOrIssuer(node: DerNode) {
-        const result: { [field: string]: unknown } = {};
-
+    function parseSubjectOrIssuer(node: DerNode, acceptMalformedVidPid: boolean) {
         const { _elements: rdnSequence } = node;
         if (!rdnSequence) {
             throw new CertificateError("Invalid subject/issuer structure");
         }
 
-        // Iterate through RDN SEQUENCEs
+        const rdns = new Array<DistinguishedName.Rdn>();
+        const malformed = new Set<"vendorId" | "productId">();
+        const commonNames = new Array<Uint8Array>();
+        let hasVidPidAttribute = false;
+
         for (const rdnSet of rdnSequence) {
             const { _elements: attributeSets } = rdnSet;
             if (!attributeSets) continue;
@@ -311,87 +319,66 @@ export namespace Certificate {
                 if (!attrElements || attrElements.length !== 2) continue;
 
                 const [oidNode, valueNode] = attrElements;
-                const oid = oidNode._bytes;
-                const fieldInfo = oidToSubjectField(oid);
-
+                const fieldInfo = oidToSubjectField(oidNode._bytes);
                 if (fieldInfo === undefined) continue;
 
                 let { field } = fieldInfo;
+                const text = Bytes.toString(Bytes.of(valueNode._bytes));
                 let value;
 
-                // Parse the value based on the field type
-                const valueBytes = Bytes.of(valueNode._bytes);
-                const valueTag = valueNode._tag;
-
-                // Matter-specific fields are encoded as UTF8 strings containing hex values
+                // Matter-specific fields are encoded as text containing hex values
                 switch (field) {
                     case "nodeId":
-                    case "fabricId": {
-                        // 16-byte hex string -> BigInt
-                        const hexString = Bytes.toString(valueBytes);
-                        value = BigInt("0x" + hexString);
+                    case "fabricId":
+                        value = parseMatterRdnHex(field, text, 8);
                         break;
-                    }
                     case "icacId":
                     case "rcacId":
-                    case "vvsId": {
-                        // 8-byte hex string -> BigInt, but convert to number if it fits
-                        const hexString = Bytes.toString(valueBytes);
-                        const bigIntValue = BigInt("0x" + hexString);
-                        // Convert to number if it fits in Number.MAX_SAFE_INTEGER
-                        value = bigIntValue <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(bigIntValue) : bigIntValue;
-                        break;
-                    }
+                    case "vvsId":
                     case "firmwareSigningId":
-                    case "productId":
-                    case "vendorId": {
-                        // 4-byte or 2-byte hex string -> number
-                        const hexString = Bytes.toString(valueBytes);
-                        value = parseInt(hexString, 16);
+                        value = numberIfSafe(parseMatterRdnHex(field, text, 8));
                         break;
-                    }
-                    case "caseAuthenticatedTag": {
-                        // CAT tags - 4-byte hex string -> number
-                        const hexString = Bytes.toString(valueBytes);
-                        const catValue = parseInt(hexString, 16);
-                        if (result.caseAuthenticatedTags !== undefined) {
-                            (result.caseAuthenticatedTags as number[]).push(catValue);
+                    case "productId":
+                    case "vendorId":
+                        hasVidPidAttribute = true;
+                        try {
+                            value = Number(parseMatterRdnHex(field, text, 2, CertificateProfileError));
+                        } catch (error) {
+                            if (!acceptMalformedVidPid || !(error instanceof CertificateProfileError)) {
+                                throw error;
+                            }
+                            malformed.add(field);
                             continue;
                         }
-                        field = "caseAuthenticatedTags";
-                        value = [catValue];
                         break;
-                    }
-                    default: {
-                        // String fields
-                        value = Bytes.toString(valueBytes);
-
-                        // Handle PrintableString variants
-                        if (valueTag === DerType.PrintableString) {
+                    case "caseAuthenticatedTag":
+                        value = Number(parseMatterRdnHex(field, text, 4));
+                        if (!CaseAuthenticatedTag.isValid(value)) {
+                            throw new CertificateError(`Invalid CASE Authenticated Tag ${Diagnostic.json(text)}`);
+                        }
+                        break;
+                    default:
+                        value = text;
+                        if (field === "commonName") {
+                            commonNames.push(Bytes.of(valueNode._bytes));
+                        }
+                        if (valueNode._tag === DerType.PrintableString && field !== "domainComponent") {
                             field += "Ps";
                         }
-                    }
                 }
-                result[field] = value;
-            }
-        }
 
-        // Spec 6.2.2.2: an OID VID/PID anywhere in the field disables fallback parsing for that field.
-        if (result.vendorId === undefined && result.productId === undefined) {
-            const commonName = (result.commonName ?? result.commonNamePs) as string | undefined;
-            if (commonName !== undefined) {
-                const vendorId = parseMatterFallbackVidPid(commonName, "Mvid:");
-                if (vendorId !== undefined) {
-                    result.vendorId = vendorId;
-                }
-                const productId = parseMatterFallbackVidPid(commonName, "Mpid:");
-                if (productId !== undefined) {
-                    result.productId = productId;
+                const rdn = rdnOf(field, value);
+                if (rdn !== undefined) {
+                    rdns.push(rdn);
                 }
             }
         }
 
-        return result;
+        return decodeDistinguishedName(rdns, {
+            acceptMalformedVidPid,
+            fallbackCommonNames: hasVidPidAttribute ? undefined : commonNames,
+            malformed,
+        });
     }
 
     /** These extensions are minimum required for all Matter certificates. */
@@ -658,6 +645,13 @@ export namespace Certificate {
          * ML-DSA is rejected.
          */
         postQuantum?: boolean;
+
+        /**
+         * Read a certificate whose VendorID or ProductID is malformed or repeated, leaving the affected field
+         * undefined, instead of throwing {@link CertificateProfileError}.  Other malformed Matter-specific attributes
+         * still throw.
+         */
+        acceptMalformedVidPid?: boolean;
     }
 
     /**
@@ -732,7 +726,7 @@ export namespace Certificate {
 
         // Issuer — retain raw DER for exact-match comparisons (CRL revocation lookup)
         const issuerDer = Bytes.of(DerCodec.encode(certElements[idx]));
-        const issuer = parseSubjectOrIssuer(certElements[idx++]);
+        const issuer = parseSubjectOrIssuer(certElements[idx++], options.acceptMalformedVidPid === true);
 
         // Validity
         const { _elements: validityElements } = certElements[idx++];
@@ -743,7 +737,7 @@ export namespace Certificate {
         const notAfter = parseDate(validityElements[1]);
 
         const subjectDer = Bytes.of(DerCodec.encode(certElements[idx]));
-        const subject = parseSubjectOrIssuer(certElements[idx++]);
+        const subject = parseSubjectOrIssuer(certElements[idx++], options.acceptMalformedVidPid === true);
 
         // Public key
         const publicKeyNode = certElements[idx++];
@@ -931,8 +925,8 @@ function matterToX509(cert: Unsigned<MatterCertificate>): X509.UnsignedCertifica
             notBefore: matterToJsDate(notBefore),
             notAfter: matterToJsDate(notAfter),
         },
-        issuer: astOfDistinguishedName(issuer),
-        subject: astOfDistinguishedName(subject),
+        issuer: distinguishedNameToAsn1(issuer),
+        subject: distinguishedNameToAsn1(subject),
         extensions,
         signatureAlgorithm:
             mlDsaSignature === undefined ? X962.EcdsaWithSHA256 : MlDsa.AlgorithmIdentifier(mlDsaSignature),
@@ -956,169 +950,4 @@ function maxDerSize({ mlDsaSignature, mlDsaPublicKey }: Unsigned<MatterCertifica
 
 function describeSignatureAlgorithm({ mlDsaSignature }: Unsigned<MatterCertificate>) {
     return mlDsaSignature ?? "ecdsa-with-SHA256";
-}
-
-/**
- * Convert the subject or issuer field of a certificate to a DER AST.
- *
- * Preserve order of keys from original subject and also copy potential custom elements
- */
-function astOfDistinguishedName(data: { [field: string]: any }) {
-    const ast = {} as { [field: string]: any[] };
-
-    // Spec 6.2.2.2 forbids mixing fallback (Mvid:/Mpid: in commonName) and OID VID/PID in one field.
-    const commonName = (data.commonName ?? data.commonNamePs) as string | undefined;
-    const usesFallbackVidPid =
-        commonName !== undefined &&
-        (parseMatterFallbackVidPid(commonName, "Mvid:") !== undefined ||
-            parseMatterFallbackVidPid(commonName, "Mpid:") !== undefined);
-
-    Object.entries(data).forEach(([key, value]) => {
-        if (value === undefined) {
-            return;
-        }
-        if (usesFallbackVidPid && (key === "vendorId" || key === "productId")) {
-            return;
-        }
-        switch (key) {
-            case "commonName":
-                ast.commonName = X520.CommonName(value as string);
-                break;
-            case "surName":
-                ast.surName = X520.SurName(value as string);
-                break;
-            case "serialNum":
-                ast.serialNum = X520.SerialNumber(value as string);
-                break;
-            case "countryName":
-                ast.countryName = X520.CountryName(value as string);
-                break;
-            case "localityName":
-                ast.localityName = X520.LocalityName(value as string);
-                break;
-            case "stateOrProvinceName":
-                ast.stateOrProvinceName = X520.StateOrProvinceName(value as string);
-                break;
-            case "orgName":
-                ast.orgName = X520.OrganisationName(value as string);
-                break;
-            case "orgUnitName":
-                ast.orgUnitName = X520.OrganizationalUnitName(value as string);
-                break;
-            case "title":
-                ast.title = X520.Title(value as string);
-                break;
-            case "name":
-                ast.name = X520.Name(value as string);
-                break;
-            case "givenName":
-                ast.givenName = X520.GivenName(value as string);
-                break;
-            case "initials":
-                ast.initials = X520.Initials(value as string);
-                break;
-            case "genQualifier":
-                ast.genQualifier = X520.GenerationQualifier(value as string);
-                break;
-            case "dnQualifier":
-                ast.dnQualifier = X520.DnQualifier(value as string);
-                break;
-            case "pseudonym":
-                ast.pseudonym = X520.Pseudonym(value as string);
-                break;
-            case "domainComponent":
-                ast.domainComponent = X520.DomainComponent(value as string);
-                break;
-            case "nodeId":
-                ast.nodeId = NodeId_Matter(value as NodeId);
-                break;
-            case "firmwareSigningId":
-                ast.firmwareSigningId = FirmwareSigningId_Matter(value as number);
-                break;
-            case "icacId":
-                ast.icacId = IcacId_Matter(value as number | bigint);
-                break;
-            case "rcacId":
-                ast.rcacId = RcacId_Matter(value as number | bigint);
-                break;
-            case "vvsId":
-                ast.vvsId = VvsId_Matter(value as number | bigint);
-                break;
-            case "fabricId":
-                ast.fabricId = FabricId_Matter(value as FabricId);
-                break;
-            case "caseAuthenticatedTags":
-                // In theory if someone mixes multiple caseAuthenticatedTag fields with other fields we currently would
-                // code them in ASN.1 as fields at the first position from the original data which might fail
-                // certificate validation. Changing this would require to change Tlv decoding, so lets try that way for now.
-                const caseAuthenticatedTags = value as CaseAuthenticatedTag[];
-                CaseAuthenticatedTag.validateNocTagList(caseAuthenticatedTags);
-
-                const cat0 = caseAuthenticatedTags[0];
-                const cat1 = caseAuthenticatedTags[1];
-                const cat2 = caseAuthenticatedTags[2];
-                if (cat0 !== undefined) {
-                    ast.caseAuthenticatedTag0 = NocCat_Matter(cat0);
-                }
-                if (cat1 !== undefined) {
-                    ast.caseAuthenticatedTag1 = NocCat_Matter(cat1);
-                }
-                if (cat2 !== undefined) {
-                    ast.caseAuthenticatedTag2 = NocCat_Matter(cat2);
-                }
-                break;
-            case "vendorId": // Only relevant for ASN.1 encoding of DAC/PAA/PAI certificates
-                ast.vendorId = VendorId_Matter(value as VendorId);
-                break;
-            case "productId": // Only relevant for ASN.1 encoding of DAC/PAA/PAI certificates
-                ast.productId = ProductId_Matter(value as number);
-                break;
-            case "commonNamePs":
-                ast.commonNamePs = X520.CommonName(value as string, true);
-                break;
-            case "surNamePs":
-                ast.surNamePs = X520.SurName(value as string, true);
-                break;
-            case "serialNumPs":
-                ast.serialNumPs = X520.SerialNumber(value as string, true);
-                break;
-            case "countryNamePs":
-                ast.countryNamePs = X520.CountryName(value as string, true);
-                break;
-            case "localityNamePs":
-                ast.localityNamePs = X520.LocalityName(value as string, true);
-                break;
-            case "stateOrProvinceNamePs":
-                ast.stateOrProvinceNamePs = X520.StateOrProvinceName(value as string, true);
-                break;
-            case "orgNamePs":
-                ast.orgNamePs = X520.OrganisationName(value as string, true);
-                break;
-            case "orgUnitNamePs":
-                ast.orgUnitNamePs = X520.OrganizationalUnitName(value as string, true);
-                break;
-            case "titlePs":
-                ast.titlePs = X520.Title(value as string, true);
-                break;
-            case "namePs":
-                ast.namePs = X520.Name(value as string, true);
-                break;
-            case "givenNamePs":
-                ast.givenNamePs = X520.GivenName(value as string, true);
-                break;
-            case "initialsPs":
-                ast.initialsPs = X520.Initials(value as string, true);
-                break;
-            case "genQualifierPs":
-                ast.genQualifierPs = X520.GenerationQualifier(value as string, true);
-                break;
-            case "dnQualifierPs":
-                ast.dnQualifierPs = X520.DnQualifier(value as string, true);
-                break;
-            case "pseudonymPs":
-                ast.pseudonymPs = X520.Pseudonym(value as string, true);
-                break;
-        }
-    });
-    return ast;
 }

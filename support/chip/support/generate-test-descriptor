@@ -68,18 +68,6 @@ def read_json_file(path):
     with open(path) as input:
         return json.load(input)
 
-def normalize_app_name(name):
-    """Reduce a chip app reference such as "${ALL_DEVICES_APP}" to the harness app name "all-devices"."""
-    return (
-        str(name)
-            .removeprefix("${")
-            .removeprefix("CHIP_")
-            .removesuffix("}")
-            .removesuffix("_APP")
-            .replace("_", "-")
-            .lower()
-    )
-
 tests = []
 
 def load_yaml():
@@ -188,7 +176,7 @@ def load_yaml():
                 config["test-args"] = test_args
             if config:
                 result["config"] = config
-            return result, normalize_app_name(run["app"]) if "app" in run else None
+            return result, str(run["app"]) if "app" in run else None
 
         if len(runs) == 1:
             single, app = run_props(runs[0])
@@ -393,9 +381,6 @@ def load_python():
                 else:
                     run_tests[run] = all_test_methods
 
-                if "app" in config:
-                    config["app"] = normalize_app_name(config["app"])
-
         # Add a test for every test/run pair
         for test_method_name in all_test_methods:
             name = test_method_name.removeprefix("test_").removeprefix("TC_")
@@ -468,7 +453,7 @@ def load_python():
                             # All tests have an "app" specified except now one in TC_DeviceBasicComposition.py.  Just
                             # ignore that
                             if "app" in config:
-                                suite["members"].append({**props, "name": run, "app": config["app"]})
+                                suite["members"].append({**props, "name": run, "app": str(config["app"])})
                         else:
                             tests.append(props)
                 else:

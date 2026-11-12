@@ -38,7 +38,6 @@ import {
     EventReadResponse,
     InteractionServerMessenger,
     NumberedOccurrence,
-    PeerAddress,
     Read,
     ReadResult,
     SessionClosedError,
@@ -118,10 +117,10 @@ export namespace ServerSubscriptionConfig {
  * Interface between {@link ServerSubscription} and the local Matter environment.
  */
 export interface ServerSubscriptionContext {
-    // TODO - remove this.  Subscriptions are associated with a peer, not a session
+    /** The session the subscription is set up on.  {@link ServerSubscription.session} changes when it is superseded. */
     session: NodeSession;
     node: ServerNode;
-    initiateExchange(addressOrSession: PeerAddress | Session, protocolId: number): MessageExchange;
+    initiateExchange(session: Session, protocolId: number): MessageExchange;
 }
 
 /**
@@ -153,7 +152,7 @@ export class ServerSubscription implements Subscription {
     #seededClusterDetails? = new Map<string, number>();
     #latestSeededEventNumber? = EventNumber(0);
     readonly #sendInterval: Duration;
-    readonly #peerAddress: PeerAddress;
+    #session: NodeSession;
 
     #sendNextUpdateImmediately = false;
     /** The send interval timer fired since the last pass started, so the next pass sends even without data. */
@@ -176,8 +175,8 @@ export class ServerSubscription implements Subscription {
         this.#request = request;
 
         this.#context = context;
-
-        this.#peerAddress = this.session.peerAddress;
+        this.#session = context.session;
+        this.#session.superseded.on(this.#follow);
 
         let maxInterval: Duration;
         let sendInterval: Duration;
@@ -211,8 +210,12 @@ export class ServerSubscription implements Subscription {
         return hex.fixed(this.#id, 8);
     }
 
+    /**
+     * The session the subscription reports on.  It changes when a newer session of the subscriber supersedes it, see
+     * {@link NodeSession.superseded}.
+     */
     get session() {
-        return this.#context.session;
+        return this.#session;
     }
 
     get isTerminated() {
@@ -414,13 +417,14 @@ export class ServerSubscription implements Subscription {
             // The owning session is already tearing down and its subscriptions have been swept, so registering here
             // would orphan us on a dead session and spin the update timer against a closing session manager.  Drop the
             // change handlers registered while seeding and stay inert; the controller re-subscribes on reconnect.
+            this.#session.superseded.off(this.#follow);
             this.#changeHandlers.close();
             this.#isClosed = true;
             return false;
         }
         this.session.subscriptions.add(this);
         logger.debug(this.session.via, "New subscription", Diagnostic.strong(this.idStr));
-        this.#lifetime = this.#context.session.join("subscription", Diagnostic.strong(this.#id));
+        this.#lifetime = this.session.join("subscription", Diagnostic.strong(this.#id));
 
         // We do not need these data anymore, so we can free some memory
         if (this.request.eventFilters !== undefined) this.request.eventFilters.length = 0;
@@ -550,9 +554,10 @@ export class ServerSubscription implements Subscription {
             this.#lastUpdateTime = Time.nowUs;
             this.#reportDueAt = Timestamp(this.#lastUpdateTime + this.#sendInterval);
 
+            const sentOn = session ?? this.session;
             try {
                 using sending = updating?.join("sending");
-                if (await this.#sendUpdateMessage(sending, attributeFilter, eventsMinNumber, onlyWithData, session)) {
+                if (await this.#sendUpdateMessage(sending, attributeFilter, eventsMinNumber, onlyWithData, sentOn)) {
                     this.#sendUpdateErrorCounter = 0;
                 }
             } catch (error) {
@@ -561,48 +566,45 @@ export class ServerSubscription implements Subscription {
                     return;
                 }
 
-                this.#sendUpdateErrorCounter++;
-                logger.info(
-                    `Error sending subscription update message (error count=${this.#sendUpdateErrorCounter}):`,
-                    (error instanceof MatterError && error.message) || error,
-                );
-                if (this.#sendUpdateErrorCounter <= 2) {
-                    // fill the data back in the queue to resend with next try
-                    if (attributeFilter !== undefined) {
-                        for (const [endpointId, clusters] of Object.entries(attributeFilter)) {
-                            for (const [clusterId, attributes] of Object.entries(clusters)) {
-                                this.#addOutstandingAttributes(
-                                    EndpointNumber(parseInt(endpointId), false),
-                                    ClusterId(parseInt(clusterId), false),
-                                    Array.from(attributes),
-                                );
-                            }
-                        }
-                    }
-                    if (eventsMinNumber !== undefined) {
-                        this.#outstandingEventsMinNumber = eventsMinNumber; // newer number are always higher, so we can just set it
-                    }
-                } else {
-                    logger.notice(
-                        `Giving up on subscription ${this.idStr} after 3 failed updates; the controller must subscribe again`,
+                if (sentOn !== this.session) {
+                    // A failure on a session the subscription has left says nothing about the session it reports on
+                    logger.debug(
+                        `Resending update of subscription ${this.idStr} on its new session after a failure on its former one:`,
+                        (error instanceof MatterError && error.message) || error,
                     );
-                    this.#sendNextUpdateImmediately = false;
-                    if (
-                        causedBy(
-                            error,
-                            TransientPeerCommunicationError,
-                            NoResponseTimeoutError,
-                            NetworkError,
-                            SessionClosedError,
-                        )
-                    ) {
-                        // The session is left alone: failing to push reports says nothing about whether the
-                        // controller can still reach us, and recovery is its call regardless
-                        using _messaging = updating?.join("abandoning");
-                        await this.#closeFromUpdate();
-                        break;
+                    this.#requeueUpdate(attributeFilter, eventsMinNumber);
+                    this.#keepAliveOwed ||= !onlyWithData;
+                    this.#sendNextUpdateImmediately = true;
+                } else {
+                    this.#sendUpdateErrorCounter++;
+                    logger.info(
+                        `Error sending subscription update message (error count=${this.#sendUpdateErrorCounter}):`,
+                        (error instanceof MatterError && error.message) || error,
+                    );
+                    if (this.#sendUpdateErrorCounter <= 2) {
+                        this.#requeueUpdate(attributeFilter, eventsMinNumber);
                     } else {
-                        throw error;
+                        logger.notice(
+                            `Giving up on subscription ${this.idStr} after 3 failed updates; the controller must subscribe again`,
+                        );
+                        this.#sendNextUpdateImmediately = false;
+                        if (
+                            causedBy(
+                                error,
+                                TransientPeerCommunicationError,
+                                NoResponseTimeoutError,
+                                NetworkError,
+                                SessionClosedError,
+                            )
+                        ) {
+                            // The session is left alone: failing to push reports says nothing about whether the
+                            // controller can still reach us, and recovery is its call regardless
+                            using _messaging = updating?.join("abandoning");
+                            await this.#closeFromUpdate();
+                            break;
+                        } else {
+                            throw error;
+                        }
                     }
                 }
             }
@@ -620,6 +622,24 @@ export class ServerSubscription implements Subscription {
 
             logger.debug("Sending delayed update immediately after last one was sent");
             onlyWithData = this.#isClosed || !this.#keepAliveOwed;
+        }
+    }
+
+    /** Put the data of an update that failed back into the queue, so the next update sends it. */
+    #requeueUpdate(attributeFilter: DirtyState.ForCluster | undefined, eventsMinNumber: EventNumber | undefined) {
+        if (attributeFilter !== undefined) {
+            for (const [endpointId, clusters] of Object.entries(attributeFilter)) {
+                for (const [clusterId, attributes] of Object.entries(clusters)) {
+                    this.#addOutstandingAttributes(
+                        EndpointNumber(parseInt(endpointId), false),
+                        ClusterId(parseInt(clusterId), false),
+                        Array.from(attributes),
+                    );
+                }
+            }
+        }
+        if (eventsMinNumber !== undefined) {
+            this.#outstandingEventsMinNumber = eventsMinNumber; // newer number are always higher, so we can just set it
         }
     }
 
@@ -796,6 +816,23 @@ export class ServerSubscription implements Subscription {
         await this.#cancel();
     }
 
+    /** Continue on {@link newer}, which superseded the session of the subscription. */
+    readonly #follow = (newer: NodeSession) => {
+        const former = this.#session;
+        former.superseded.off(this.#follow);
+        newer.superseded.on(this.#follow);
+        this.#session = newer;
+
+        if (this.#lifetime !== undefined) {
+            former.subscriptions.delete(this);
+            newer.subscriptions.add(this);
+            this.#lifetime.owner = newer.activate();
+            // Failures on the former session say nothing about the new one
+            this.#sendUpdateErrorCounter = 0;
+        }
+        logger.debug(newer.via, "Subscription", Diagnostic.strong(this.idStr), "moved from", former.via);
+    };
+
     /** Returns false if the subscription was already closed. */
     #markClosed(terminate: boolean) {
         if (this.#isClosed) {
@@ -818,6 +855,7 @@ export class ServerSubscription implements Subscription {
 
         this.#sendUpdatesActivated = false;
 
+        this.#session.superseded.off(this.#follow);
         this.#changeHandlers.close();
 
         if (flushViaSession !== undefined) {
@@ -895,9 +933,9 @@ export class ServerSubscription implements Subscription {
         attributeFilter: DirtyState.ForCluster | undefined,
         eventsMinNumber: EventNumber | undefined,
         onlyWithData: boolean,
-        session?: Session,
+        session: Session,
     ) {
-        const exchange = this.#context.initiateExchange(session ?? this.#peerAddress, INTERACTION_PROTOCOL_ID);
+        const exchange = this.#context.initiateExchange(session, INTERACTION_PROTOCOL_ID);
         if (exchange === undefined) {
             return false;
         }

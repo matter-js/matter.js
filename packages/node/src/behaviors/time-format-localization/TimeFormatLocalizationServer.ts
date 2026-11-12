@@ -18,16 +18,31 @@ export class TimeFormatLocalizationServer extends TimeFormatLocalizationBehavior
         if (this.state.hourFormat === undefined) {
             this.state.hourFormat = this.detectedHourFormat;
         }
-        if (this.state.activeCalendarType === undefined) {
-            this.state.activeCalendarType = this.detectedCalendarType;
+        if (!this.features.calendarFormat) {
+            return;
         }
-        if (this.state.supportedCalendarTypes === undefined) {
-            this.state.supportedCalendarTypes = [this.state.activeCalendarType];
+        if (!this.state.supportedCalendarTypes?.length) {
+            const calendarType = this.state.activeCalendarType ?? this.detectedCalendarType;
+            this.state.supportedCalendarTypes = [calendarType];
+            this.state.activeCalendarType = calendarType;
         }
+        const { activeCalendarType, supportedCalendarTypes } = this.state;
+        if (activeCalendarType !== undefined && supportedCalendarTypes.includes(activeCalendarType)) {
+            return;
+        }
+
+        const detected = this.detectedCalendarType;
+        const calendarType = supportedCalendarTypes.includes(detected) ? detected : supportedCalendarTypes[0];
+        if (activeCalendarType !== undefined) {
+            logger.warn(
+                `Active calendar type ${TimeFormatLocalization.CalendarType[activeCalendarType]} is not in supportedCalendarTypes, using ${TimeFormatLocalization.CalendarType[calendarType]}`,
+            );
+        }
+        this.state.activeCalendarType = calendarType;
     }
 
     /** Override this getter with own implementation to detect the hour format of the system. */
-    get detectedHourFormat() {
+    get detectedHourFormat(): TimeFormatLocalization.HourFormat {
         if (Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12) {
             return TimeFormatLocalization.HourFormat["12Hr"];
         }
@@ -35,7 +50,7 @@ export class TimeFormatLocalizationServer extends TimeFormatLocalizationBehavior
     }
 
     /** Override this getter with own implementation to detect the calendar type of the system. */
-    get detectedCalendarType() {
+    get detectedCalendarType(): TimeFormatLocalization.CalendarType {
         const type = Intl.DateTimeFormat().resolvedOptions().calendar;
         switch (type) {
             case "buddhist":
@@ -75,7 +90,7 @@ export class TimeFormatLocalizationServer extends TimeFormatLocalizationBehavior
                 return TimeFormatLocalization.CalendarType.Persian;
 
             default:
-                logger.warn(`Unmapped calendar type "${type}"; falling back to Gregorian`);
+                logger.info(`Unmapped calendar type "${type}"; falling back to Gregorian`);
                 return TimeFormatLocalization.CalendarType.Gregorian;
         }
     }
@@ -83,7 +98,7 @@ export class TimeFormatLocalizationServer extends TimeFormatLocalizationBehavior
 
 export namespace TimeFormatLocalizationServer {
     export declare const ExtensionInterface: {
-        detectedHourFormat: string;
-        detectedCalendarType: string;
+        get detectedHourFormat(): TimeFormatLocalization.HourFormat;
+        get detectedCalendarType(): TimeFormatLocalization.CalendarType;
     };
 }

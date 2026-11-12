@@ -26,10 +26,13 @@ export class ReadOnlyReference implements ValReference {
     #value: Val;
     #rootOwner: unknown;
 
-    constructor(value: Val, location: AccessControl.Location, rootOwner: unknown) {
+    readonly mirrorsRemote: boolean;
+
+    constructor(value: Val, location: AccessControl.Location, rootOwner: unknown, mirrorsRemote: boolean) {
         this.#value = value;
         this.location = location;
         this.#rootOwner = rootOwner;
+        this.mirrorsRemote = mirrorsRemote;
     }
 
     get value() {
@@ -41,6 +44,10 @@ export class ReadOnlyReference implements ValReference {
     }
 
     change() {
+        throw new ExpiredReferenceError(this.location);
+    }
+
+    assertWritable() {
         throw new ExpiredReferenceError(this.location);
     }
 

@@ -22,6 +22,9 @@ export abstract class SecureSession extends Session {
     abstract fabric: Fabric | undefined;
     abstract peerAddress: PeerAddress;
     abstract subjectFor(message?: Message): Subject;
+
+    /** Whether the handshake of this session still has to complete. */
+    abstract readonly isEstablishing: boolean;
 }
 
 export namespace SecureSession {

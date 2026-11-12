@@ -27,6 +27,7 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
     byteSize?: ValueElement.ByteSize;
     default?: FieldValue;
     metatype?: Metatype;
+    isSecret?: boolean;
     override isType? = true;
 
     #constraint: Constraint;
@@ -72,6 +73,19 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
     }
     get effectiveQuality(): Quality {
         return new ModelTraversal().findAspect(this, "quality", Quality) ?? this.#quality;
+    }
+
+    /**
+     * Whether this model or a model in its {@link base} chain is marked {@link ValueElement.isSecret}.  The chain
+     * includes the field a derived cluster's field shadows if both have the same type or the derived field has none.
+     */
+    get effectiveIsSecret(): boolean {
+        for (let model: ValueModel | undefined = this; model !== undefined; model = model.base) {
+            if (model.isSecret) {
+                return true;
+            }
+        }
+        return false;
     }
 
     get fields() {
@@ -150,6 +164,19 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
      */
     get definingModel() {
         return new ModelTraversal().findDefiningModel(this);
+    }
+
+    /**
+     * Whether the value is a list whose entries a session of one fabric may see filtered by its fabric: a list with
+     * fabric-scoped (`F`) access.  An `AttributeModel` also counts fabric-sensitive (`S`) access, which on a
+     * struct field only hides that field from other fabrics.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 7.6.4.1
+     * @see {@link MatterSpecification.v161.Core} § 7.6.5.1
+     * @see {@link MatterSpecification.v161.Core} § 7.19.1.8.1
+     */
+    get fabricScopedList() {
+        return this.effectiveAccess.fabric === Access.Fabric.Scoped && this.effectiveMetatype === Metatype.array;
     }
 
     /**
@@ -320,6 +347,7 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
 
         this.byteSize = definition.byteSize;
         this.default = definition.default;
+        this.isSecret = definition.isSecret;
         this.#constraint = Constraint.create(definition.constraint);
         this.#conformance = Conformance.create(definition.conformance);
         this.#access = Access.create(definition.access);
@@ -336,6 +364,7 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
         return super.toElement(omitResources, {
             byteSize: this.byteSize,
             default: this.default,
+            isSecret: this.isSecret,
             constraint: this.#constraint.valueOf(),
             conformance: this.#conformance.valueOf(),
             access: this.#access.valueOf(),

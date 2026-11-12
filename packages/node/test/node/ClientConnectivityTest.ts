@@ -771,6 +771,42 @@ describe("ClientConnectivityTest", () => {
         expect(errorsLogged).equals(0);
     });
 
+    it("replaces a subscription that primes compactly once the peer does not acknowledge a report status", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+        const ep1 = peer1.parts.get("ep1")!;
+        const subscription = peer1.behaviors.internalsOf(NetworkClient).activeSubscription;
+        if (!(subscription instanceof SustainedSubscription)) {
+            expect.fail("Expected a sustained default subscription");
+        }
+        await MockTime.resolve(subscription.active, { macrotasks: true });
+        const { maxInterval } = subscription;
+
+        const deviceNetwork = device.env.get(Network) as MockNetwork;
+        const { ipV4, ipV6 } = deviceNetwork.getIpMac("fake0");
+        const deviceAddresses = new Set([...ipV4, ...ipV6]);
+        let isolated = false;
+        deviceNetwork.simulator.router.intercept((packet, route) => {
+            if (isolated && (deviceAddresses.has(packet.sourceAddress) || deviceAddresses.has(packet.destAddress))) {
+                return;
+            }
+            route(packet);
+        });
+
+        const reported = new Promise<void>(resolve => ep1.eventsOf(OnOffClient).onOff$Changed.once(() => resolve()));
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(), { macrotasks: true });
+        await MockTime.resolve(reported, { macrotasks: true });
+
+        isolated = true;
+        const lostAt = Time.nowUs;
+        await MockTime.resolve(subscription.inactive);
+        expect(Time.nowUs - lostAt).below(Seconds(maxInterval));
+
+        isolated = false;
+        await MockTime.resolve(subscription.active, { macrotasks: true });
+    });
+
     it("subscribes to a peer that is not initially available (start/stop)", async () => {
         await testEventualSubscription(async ({ controller, device }) => {
             await controller.stop();

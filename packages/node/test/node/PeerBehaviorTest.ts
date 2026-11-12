@@ -201,10 +201,12 @@ describe("PeerBehavior", () => {
                 matter: REV_GATED_MODEL,
             });
             const supervisor = RootSupervisor.for(schema).get(schema);
-            const session = { ...LocalActorContext.ReadOnly, clientPeerContext: {} };
 
             expect(() =>
-                supervisor.validate?.({ gated: 1 }, session, { path: new DataModelPath("RevGated") }),
+                supervisor.validate?.({ gated: 1 }, LocalActorContext.ReadOnly, {
+                    path: new DataModelPath("RevGated"),
+                    remote: "outbound",
+                }),
             ).not.throw();
         });
 

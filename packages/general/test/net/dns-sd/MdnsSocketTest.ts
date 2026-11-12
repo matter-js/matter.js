@@ -12,12 +12,14 @@ import {
     DnsMessageType,
     DnsRecordClass,
     DnsRecordType,
+    Diagnostic,
     LogDestination,
     Logger,
     LogLevel,
     MAX_MDNS_MESSAGE_SIZE,
     MatterAggregateError,
     MdnsSocket,
+    Minutes,
     MockNetwork,
     NetworkError,
     NetworkSimulator,
@@ -982,6 +984,124 @@ describe("MdnsSocket", () => {
                 network.lookupFails = false;
                 await socket.close();
             }
+        });
+    });
+    describe("traffic statistics", () => {
+        let env: TestEnv;
+        let counts: unknown[];
+        let levels: LogLevel[];
+
+        before(() => MockTime.enable());
+
+        beforeEach(async () => {
+            env = await createTestEnv({ enableIpv4: true });
+            counts = new Array<unknown>();
+            levels = new Array<LogLevel>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    if (message.facility === "MdnsListener" && String(message.values[0]).startsWith("mDNS stats")) {
+                        counts.push(message.values[1]);
+                        levels.push(message.level);
+                    }
+                },
+            });
+        });
+
+        afterEach(async () => {
+            delete Logger.destinations.capture;
+            await closeTestEnv(env);
+        });
+
+        it("logs the counts of one minute and nothing for a minute without traffic", async () => {
+            env.socket.registerRelevantNames("test", ["_matter._tcp.local"]);
+
+            await sendFromPeer(env, completeDnsMessage(createQuery("_googlecast._tcp.local")));
+            let receipt = waitForReceipt(env.socket);
+            await sendFromPeer(env, completeDnsMessage(createQuery("_matter._tcp.local")));
+            await receipt;
+            receipt = waitForReceipt(env.socket);
+            await sendFromPeer(
+                env,
+                completeDnsMessage(createMatterServiceResponse("TestDevice", 5540, "device.local", "192.168.1.100")),
+            );
+            await receipt;
+
+            await MockTime.advance(Minutes(1));
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({
+                rx: 3,
+                skipped: 1,
+                undecodable: 0,
+                queries: 1,
+                responses: 1,
+                tx: 0,
+                txPackets: 0,
+                filter: "on",
+            });
+
+            await MockTime.advance(Minutes(1));
+            expect(counts).to.have.length(1);
+        });
+
+        it("logs at debug level by default and at info level with logStatistics", async () => {
+            await env.socket.send(createQuery("_matter._tcp.local"));
+            await MockTime.advance(Minutes(1));
+
+            await closeTestEnv(env);
+            env = await createTestEnv({ enableIpv4: true, logStatistics: true });
+            await env.socket.send(createQuery("_matter._tcp.local"));
+            await MockTime.advance(Minutes(1));
+
+            expect(levels).deep.equal([LogLevel.DEBUG, LogLevel.INFO]);
+        });
+
+        it("counts received bytes and undecodable packets", async () => {
+            const query = completeDnsMessage(createQuery("_matter._tcp.local"));
+            const garbage = Bytes.fromHex("000000000001000000000000");
+            await env.peerChannel.send(MdnsSocket.BROADCAST_IPV4, MdnsSocket.BROADCAST_PORT, garbage);
+            const receipt = waitForReceipt(env.socket);
+            await sendFromPeer(env, query);
+            await receipt;
+
+            await MockTime.advance(Minutes(1));
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({
+                rx: 2,
+                rxBytes: garbage.byteLength + DnsCodec.encode(query).byteLength,
+                undecodable: 1,
+                queries: 1,
+            });
+        });
+
+        it("counts a message split into several packets once", async () => {
+            await env.socket.send(createOversizedResponse(100));
+
+            await MockTime.advance(Minutes(1));
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({ tx: 1 });
+            expect(counts[0]).to.have.property("txPackets").greaterThan(1);
+        });
+
+        it("logs the remaining counts on close and stops logging", async () => {
+            await env.socket.send(createQuery("_matter._tcp.local"));
+
+            await env.socket.close();
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({ tx: 1, txPackets: 1 });
+
+            await MockTime.advance(Minutes(1));
+            expect(counts).to.have.length(1);
+        });
+
+        it("reports the relevance filter as off while an owner registered all names", async () => {
+            env.socket.registerRelevantNames("test", "all");
+            const receipt = waitForReceipt(env.socket);
+            await sendFromPeer(env, completeDnsMessage(createQuery("_googlecast._tcp.local")));
+            await receipt;
+
+            await MockTime.advance(Minutes(1));
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({ skipped: 0, filter: "off" });
         });
     });
 });

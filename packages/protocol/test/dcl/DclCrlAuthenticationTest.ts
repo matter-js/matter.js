@@ -33,6 +33,7 @@ const crypto = new StandardCrypto();
 const REVOKED = "01AB";
 const OTHER_REVOKED = "02CD";
 const DAY_MS = 86_400_000;
+const VENDOR_ID_OID = "2b0601040182a27c0201";
 
 /** A generated certificate with its key, in the forms the tests need. */
 interface Issued {
@@ -40,14 +41,17 @@ interface Issued {
     key: PrivateKey;
     skid: Bytes;
     name: string;
-    ids: { vendorId?: number; productId?: number };
+    ids: { vendorId?: number; productId?: number; vendorIdText?: string };
     crlSigner: TestCrlSigner;
 }
 
-function nameOf(commonName: string, ids: { vendorId?: number; productId?: number } = {}) {
+function nameOf(commonName: string, ids: { vendorId?: number; productId?: number; vendorIdText?: string } = {}) {
     return {
         commonName: X520.CommonName(commonName),
         ...(ids.vendorId === undefined ? {} : { vendorId: VendorId_Matter(VendorId(ids.vendorId)) }),
+        ...(ids.vendorIdText === undefined
+            ? {}
+            : { vendorId: [DerObject(VENDOR_ID_OID, { value: ids.vendorIdText })] }),
         ...(ids.productId === undefined ? {} : { productId: ProductId_Matter(ids.productId) }),
     };
 }
@@ -68,6 +72,8 @@ async function issue(
         signingKey?: PrivateKey;
         vendorId?: number;
         productId?: number;
+        /** State a VendorID as this text instead of a valid one, e.g. in lowercase */
+        vendorIdText?: string;
         /** Omit the cRLSign key usage */
         withoutCrlSign?: boolean;
         /** Omit the keyCertSign key usage of a CA */
@@ -116,7 +122,7 @@ async function issue(
         key,
         skid,
         name,
-        ids: { vendorId: options.vendorId, productId: options.productId },
+        ids: { vendorId: options.vendorId, productId: options.productId, vendorIdText: options.vendorIdText },
         crlSigner: { key, subjectKeyId: skid, subjectDer: Bytes.of(DerCodec.encode(nameOf(name, options))) },
     };
 }
@@ -449,6 +455,22 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
                     REVOKED,
                     [vendorPaa.der],
                 ),
+            ).false;
+        });
+
+        it("ignores a PAA-delegated signer whose VendorID is malformed", async () => {
+            const delegate = await issue("PAA CRL signer", { issuer: paa, ca: false, vendorIdText: "fff1" });
+            expect(
+                await revoked(paa.skid, [
+                    { signer: delegate, isPAA: true, vid: 0xfff1, crl: await crlBy(delegate.crlSigner) },
+                ]),
+            ).false;
+        });
+
+        it("ignores a PAI signer whose VendorID is malformed", async () => {
+            const pai = await issue("Test PAI", { issuer: paa, ca: true, vendorIdText: "fff1" });
+            expect(
+                await revoked(pai.skid, [{ signer: pai, isPAA: false, vid: 0xfff1, crl: await crlBy(pai.crlSigner) }]),
             ).false;
         });
 

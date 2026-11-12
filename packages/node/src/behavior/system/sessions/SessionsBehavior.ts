@@ -25,6 +25,7 @@ export class SessionsBehavior extends Behavior {
 
     declare readonly state: SessionsBehavior.State;
     declare readonly events: SessionsBehavior.Events;
+    declare internal: SessionsBehavior.Internal;
 
     override initialize() {
         const env = this.env;
@@ -77,8 +78,9 @@ export class SessionsBehavior extends Behavior {
             return;
         }
 
-        // When subscription was added then inform SubscriptionsBehavior
-        if (session.subscriptions.has(subscription)) {
+        // When subscription was added then inform SubscriptionsBehavior, but not again when it moves to another session
+        if (session.subscriptions.has(subscription) && !this.internal.announcedSubscriptions.has(subscription)) {
+            this.internal.announcedSubscriptions.add(subscription);
             this.events.subscriptionAdded.emit(subscription);
         }
 
@@ -118,6 +120,10 @@ export namespace SessionsBehavior {
          * (SII/SAI/SAT).
          */
         intervals?: Partial<SessionIntervals>;
+    }
+
+    export class Internal {
+        announcedSubscriptions = new WeakSet<Subscription>();
     }
 
     export class Events extends EventEmitter {
