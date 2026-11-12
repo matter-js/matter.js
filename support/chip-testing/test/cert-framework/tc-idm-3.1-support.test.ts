@@ -256,6 +256,8 @@ let nextMatterjsCounter = 0x07afa978;
 const hex = (counter: number) => counter.toString(16).padStart(8, "0");
 const matterjsRequest = (exchange: string, ack?: number) =>
     `DEBUG MessageExchange Message « for: I/WriteRequest id: ${MATTERJS_SESSION}⇵${exchange}✉${hex(nextMatterjsCounter++)} type: 0x1/0x6${ack === undefined ? "" : ` acked: ${hex(ack)}`} I reqAck size: 1102`;
+const matterjsDuplicateRequest = (exchange: string, counter: number) =>
+    `DEBUG MessageExchange Message « for: I/WriteRequest id: ${MATTERJS_SESSION}⇵${exchange}✉${hex(counter)} type: 0x1/0x6 I reqAck dup size: 1102`;
 const matterjsHandled = (exchange: string, more: boolean, session = MATTERJS_SESSION) =>
     `INFO InteractionServer Write « ${session}⇵${exchange}${more ? " moreChunkedMessages" : ""} 1.unitTesting.state.listLongOctetString[ADD]`;
 const matterjsResponse = (counter: number, exchange: string, last = false) =>
@@ -428,6 +430,20 @@ describe("expectChunkedWrite on a matter.js TH", function () {
 
         expect(record.verdict).equal("fail");
         expect(record.detail).contains("without having acknowledged");
+    });
+
+    // The DUT retransmits a chunk whose answer it did not get; the TH drops it as a duplicate and resends its answer
+    it("passes a write whose response was lost and resent", async () => {
+        const record = await checkMatterjs([
+            matterjsRequest("5471"),
+            matterjsHandled("5471", true),
+            matterjsResponse(0x0caa82d0, "5471"),
+            matterjsDuplicateRequest("5471", nextMatterjsCounter - 1),
+            matterjsResponse(0x0caa82d0, "5471"),
+            ...matterjsChunk("5471", false, 0x0caa82d0),
+        ]);
+
+        expect(record.verdict).equal("pass");
     });
 
     it("fails when the TH logged no receipt of the next chunk", async () => {

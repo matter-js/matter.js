@@ -49,8 +49,10 @@ function matterjsWriteExchange(session: string, exchange: string) {
             `MessageChannel Message » for: (?:WriteResponse-chunk|I/WriteResponse) .*id: ${id}([0-9a-f]+) `,
         ),
 
-        /** The TH's receipt of a chunk from the DUT. */
-        requestReceived: new RegExp(`MessageExchange Message « for: (?:I/)?WriteRequest id: ${id}[0-9a-f]+ `),
+        /** The TH's receipt of a chunk from the DUT, not of a retransmission it drops as a duplicate. */
+        requestReceived: new RegExp(
+            `MessageExchange Message « for: (?:I/)?WriteRequest id: ${id}[0-9a-f]+ (?!.* dup(?: |$))`,
+        ),
 
         /** The TH's receipt of a message acknowledging the TH's message `counter`. */
         ackOf: (counter: string) =>

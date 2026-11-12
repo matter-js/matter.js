@@ -16,6 +16,8 @@ describe("IDM", () => {
         "IDM/10.5",
         // Registered below on its own subject
         "IDM/1.5",
+        // Registered below with its own arguments
+        "IDM/13.1",
     );
     chip("IDM/*/run1").exclude(
         // Spec issues for DoorLock, see https://github.com/CHIP-Specifications/connectedhomeip-spec/issues/11712
