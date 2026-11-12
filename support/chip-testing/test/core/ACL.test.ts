@@ -14,4 +14,6 @@ describe("ACL", () => {
         "ACL/2.6",
         "ACL/2.8",
     );
+    // Selects the runs of multi-run tests, which "ACL/*" does not
+    chip("ACL/*/run*").exclude("ACL/2.11/*", "ACL/2.6/*", "ACL/2.8/*");
 });
