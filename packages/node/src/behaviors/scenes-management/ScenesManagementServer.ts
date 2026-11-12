@@ -256,7 +256,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
     #addOrReplaceSceneEntry(sceneData: ScenesManagementServer.ScenesTableEntry, existingSceneIndex = -1) {
         const { fabricIndex, sceneGroupId: groupId, sceneId } = sceneData;
         if (existingSceneIndex === -1) {
-            if (this.#scenesForFabric(fabricIndex).length >= this.#fabricSceneCapacity) {
+            if (this.#remainingCapacityForFabric(fabricIndex) === 0) {
                 return { status: Status.ResourceExhausted, groupId, sceneId };
             }
             this.state.sceneTable.push(sceneData);
@@ -467,10 +467,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         // • 0 < Capacity < 0xFE - Capacity holds the number of scenes that MAY be added.
         // • 0xFE - At least 1 further scene MAY be added (exact number is unknown).
         // Formally 0xfe can never happen because the scene capacity is bound to max 253 scenes per fabric
-        const capacity = Math.max(
-            Math.min(this.#fabricSceneCapacity - this.#scenesForFabric(fabricIndex).length, 0xfe),
-            0,
-        );
+        const capacity = Math.min(this.#remainingCapacityForFabric(fabricIndex), 0xfe);
 
         return {
             status: Status.Success,
@@ -1021,14 +1018,34 @@ export class ScenesManagementServer extends ScenesManagementBase {
         } else {
             this.state.fabricSceneInfo[infoEntryIndex] = entry;
         }
+
+        // Every fabric draws on the same table, so a change by one fabric moves the others' remaining capacity
+        for (const other of this.state.fabricSceneInfo) {
+            if (other.fabricIndex === fabricIndex) {
+                continue;
+            }
+            const remaining = this.#remainingCapacityForFabric(other.fabricIndex);
+            if (other.remainingCapacity !== remaining) {
+                other.remainingCapacity = remaining;
+            }
+        }
     }
 
     #countsForFabric(fabricIndex: FabricIndex) {
-        const sceneCount = this.#scenesForFabric(fabricIndex).length;
         return {
-            sceneCount,
-            remainingCapacity: Math.max(this.#fabricSceneCapacity - sceneCount, 0),
+            sceneCount: this.#scenesForFabric(fabricIndex).length,
+            remainingCapacity: this.#remainingCapacityForFabric(fabricIndex),
         };
+    }
+
+    /**
+     * The scenes {@link fabricIndex} may still add: limited by its own share of the Scene Table and by the entries other
+     * fabrics leave free, so it changes when another fabric adds or removes scenes (§ 1.4.7.2.5).
+     */
+    #remainingCapacityForFabric(fabricIndex: FabricIndex) {
+        const ownShare = this.#fabricSceneCapacity - this.#scenesForFabric(fabricIndex).length;
+        const tableFree = this.state.sceneTableSize - this.state.sceneTable.length;
+        return Math.max(Math.min(ownShare, tableFree), 0);
     }
 
     /** Activates the given scene in the fabric scene info, invalidating all others. */
