@@ -19,7 +19,11 @@ describe("IDM", () => {
     );
     // Selects the runs of multi-run tests, which "IDM/*" does not
     chip("IDM/*/run*").exclude("IDM/10.4/*", "IDM/10.5/*", "IDM/1.5/*").exclude("IDM/*/run1").exclude(
-        // Runs for CHIP apps matter.js has no test subject for: camera, electrical-protection, evse, lighting-app-no-unique-id, lock, microwave-oven, network-management
+        // Runs for CHIP apps matter.js has no test subject for: camera, electrical-protection, evse, lighting-app-no-unique-id, lock, microwave-oven, network-management, and the all-devices default
+        // device (run16)
+        "IDM/10.1/run16",
+        "IDM/11.1/run16",
+        "IDM/12.1/run16",
         "IDM/2.2/run3",
         "IDM/2.2/run4",
         "IDM/4.3/run3",
