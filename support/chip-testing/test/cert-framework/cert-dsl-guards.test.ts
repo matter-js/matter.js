@@ -110,6 +110,27 @@ describe("certTest step declaration guard", () => {
         }
     });
 
+    it("rejects a step that declares sustained-subscription, which only a whole case can", () => {
+        const originalDescribe = Reflect.get(globalThis, "describe");
+        Reflect.set(globalThis, "describe", () => {});
+        try {
+            const builder = certTest("TC-STEP-SUSTAINED-GUARD-0.0", { plan: "n/a", pics: [], app: "all-clusters" });
+
+            expect(() =>
+                builder.step(1, "Step needing a sustained subscription", async () => {}, {
+                    controllerCapabilities: ["sustained-subscription"],
+                }),
+            ).to.throw("only certTest() takes it");
+            expect(() =>
+                builder.step(2, "Step needing another capability", async () => {}, {
+                    controllerCapabilities: ["batch-invoke"],
+                }),
+            ).to.not.throw();
+        } finally {
+            Reflect.set(globalThis, "describe", originalDescribe);
+        }
+    });
+
     it("rejects a blank notApplicable reason at declaration time", () => {
         const originalDescribe = Reflect.get(globalThis, "describe");
         Reflect.set(globalThis, "describe", () => {});
@@ -885,7 +906,7 @@ describe("certTest under a controller that serves only the DUT role", () => {
         }
     });
 
-    describe("controller groups", () => {
+    describe("controller options per role", () => {
         const KEY_SET = {
             groupKeySetId: 1,
             groupKeySecurityPolicy: 0,
@@ -895,15 +916,18 @@ describe("certTest under a controller that serves only the DUT role", () => {
         const GROUPS = [{ groupId: 1, keySet: KEY_SET, addressPolicy: "ianaAddr" as const }];
 
         /** Runs a case under `matterjs-server` with a `matterjs` helper and returns the options each role was built with. */
-        async function optionsPerRole(controllerGroups: Parameters<typeof certTest>[1]["controllerGroups"]) {
+        async function optionsPerRole(
+            controllerGroups: Parameters<typeof certTest>[1]["controllerGroups"],
+            controllerCapabilities?: Parameters<typeof certTest>[1]["controllerCapabilities"],
+        ) {
             const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
             const app = `groups-app-${suffix}`;
             const tc = `TC-GROUPS-WIRING-${suffix}`;
             registerMatterJsCertSubject(app, fakeMatterJsCertDevice(app));
 
-            const built = new Map<string, unknown>();
+            const built = new Map<string, Parameters<ControllerAdapterFactory>[1]>();
             const factory = (id: string, options?: Parameters<ControllerAdapterFactory>[1]) => {
-                built.set(id, options?.groups);
+                built.set(id, options);
                 return fakeAdapter(id);
             };
             const restoreMatterJs = replaceControllerAdapterRegistrationForTesting("matterjs", { factory });
@@ -925,6 +949,7 @@ describe("certTest under a controller that serves only the DUT role", () => {
                             app,
                             controllers: { dut: "dut", th: "helper" },
                             controllerGroups,
+                            controllerCapabilities,
                         }).step(1, "Nothing to do", passes);
                     }),
                 );
@@ -961,9 +986,9 @@ describe("certTest under a controller that serves only the DUT role", () => {
         it("hands a declared group list to the DUT controller only", async () => {
             const built = await optionsPerRole(GROUPS);
 
-            expect(built.get("dut")).equals(GROUPS);
+            expect(built.get("dut")?.groups).equals(GROUPS);
             expect(built.has("th")).equals(true);
-            expect(built.get("th")).equals(undefined);
+            expect(built.get("th")?.groups).equals(undefined);
         });
 
         it("resolves a group function against the run's controller selection and device flavor, for the DUT only", async () => {
@@ -976,15 +1001,31 @@ describe("certTest under a controller that serves only the DUT role", () => {
             expect(calls).deep.equals([
                 { controllerSelection: { dut: "matterjs-server", helper: "matterjs" }, deviceFlavor: "matterjs" },
             ]);
-            expect(built.get("dut")).equals(GROUPS);
-            expect(built.get("th")).equals(undefined);
+            expect(built.get("dut")?.groups).equals(GROUPS);
+            expect(built.get("th")?.groups).equals(undefined);
         });
 
         it("builds the DUT without groups where the case declares none", async () => {
             const built = await optionsPerRole(undefined);
 
             expect(built.has("dut")).equals(true);
-            expect(built.get("dut")).equals(undefined);
+            expect(built.get("dut")?.groups).equals(undefined);
+        });
+
+        it("builds every role with a sustained subscription where the case declares it", async () => {
+            const built = await optionsPerRole(undefined, ["sustained-subscription"]);
+
+            expect(built.get("dut")?.sustainedSubscription).equals(true);
+            expect(built.get("th")?.sustainedSubscription).equals(true);
+        });
+
+        it("builds no role with a sustained subscription where the case does not declare it", async () => {
+            const built = await optionsPerRole(undefined, ["batch-invoke"]);
+
+            expect(built.has("dut")).equals(true);
+            expect(built.has("th")).equals(true);
+            expect(built.get("dut")?.sustainedSubscription).not.equals(true);
+            expect(built.get("th")?.sustainedSubscription).not.equals(true);
         });
     });
 
