@@ -42,6 +42,7 @@ import {
     forFlavor,
     UnsupportedByControllerError,
 } from "@matter/testing";
+import { findCertCluster } from "../../src/cert/custom-clusters.js";
 
 /**
  * The log family the DUT controller's own output is written in, for a check that reads that log. matterjs-server is a
@@ -488,7 +489,7 @@ function matterjsReportAckPattern(session: string, exchange: string, counter: st
     );
 }
 
-function escapeRegExp(text: string): string {
+export function escapeRegExp(text: string): string {
     return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
@@ -715,7 +716,7 @@ function matterjsPath(fields: AttributePathSpec): string {
     // matter.js resolves a name off the addressed endpoint's own cluster, so a path wildcarding
     // either the endpoint or the cluster names nothing at all, whatever the model knows.
     const resolvable = fields.endpoint !== undefined && fields.cluster !== undefined;
-    const cluster = fields.cluster === undefined ? undefined : Matter.clusters(fields.cluster);
+    const cluster = fields.cluster === undefined ? undefined : findCertCluster(fields.cluster);
 
     const elements = [
         fields.endpoint === undefined ? "\\*" : `${fields.endpoint}`,
@@ -838,7 +839,7 @@ export function matterjsSubscribePaths(paths: AttributePathSpec[], ...flags: str
  */
 function matterjsEventPath(fields: EventPathSpec): string {
     const resolvable = fields.endpoint !== undefined && fields.cluster !== undefined;
-    const cluster = fields.cluster === undefined ? undefined : Matter.clusters(fields.cluster);
+    const cluster = fields.cluster === undefined ? undefined : findCertCluster(fields.cluster);
 
     const elements = [
         fields.endpoint === undefined ? "\\*" : `${fields.endpoint}`,
@@ -922,7 +923,7 @@ function matterjsInvokePath(endpoint: number, cluster: number, command: number):
  * its own line around it.
  */
 export function matterjsCommandPath(endpoint: number, cluster: number, command: number): string {
-    const model = Matter.clusters(cluster);
+    const model = findCertCluster(cluster);
     const path = [
         `${endpoint}`,
         matterjsElement(model?.name, cluster),
@@ -956,7 +957,7 @@ function matterjsFieldValue(value: CommandFieldValue["value"]): string {
  * numbering it: `<name>: <value>`, in payload order, on the line that names the command.
  */
 function matterjsCommandFields(cluster: number, command: number, fields: CommandFieldValue[]): RegExp {
-    const model = Matter.clusters(cluster)?.commands(command);
+    const model = findCertCluster(cluster)?.commands(command);
     const named = fields.map(({ id, value }) => {
         const name = model?.fields(id)?.name;
         if (name === undefined) {
@@ -1327,7 +1328,7 @@ function chipGroupId(group: number) {
 
 /** A group command's path as matter.js renders it: no endpoint, then cluster and command by name or hex id. */
 function matterjsGroupCommandPath(cluster: number, command: number) {
-    const model = Matter.clusters(cluster);
+    const model = findCertCluster(cluster);
     return (
         `\\*\\.${matterjsElement(model?.name, cluster)}\\.` +
         `${matterjsElement(model?.commands(command)?.name, command)}${MATTERJS_PATH_END}`
@@ -1390,7 +1391,7 @@ export function groupCommandDispatch(
     fields: CommandFieldValue[] = [],
     exchange?: string,
 ) {
-    const model = Matter.clusters(cluster);
+    const model = findCertCluster(cluster);
     const commandModel = model?.commands(command);
     const named = fields.map(({ id, value }) => {
         const name = commandModel?.fields(id)?.name;

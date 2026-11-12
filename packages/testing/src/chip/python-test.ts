@@ -276,7 +276,7 @@ export async function createCommand(
     // Uncommissioned subjects read the setup code in setup_class (self-commission, or assert it like TC_SC_7_1).
     // The QR pairing code encodes discriminator + passcode, so it satisfies both get_setup_payload_info_config and
     // setup-code tests that reject bare discriminator/passcode.
-    if (uncommissioned && !command.includes("--qr-code")) {
+    if (uncommissioned && !SETUP_CODE_ARGS.some(arg => command.includes(arg))) {
         command.push("--qr-code", subject.commissioning.qrPairingCode);
     }
 
@@ -284,12 +284,24 @@ export async function createCommand(
         command.push("--PICS", await PicsSource.install(container, subject.pics));
     }
 
-    const qrCodePos = command.indexOf("--qr-code");
-    if (qrCodePos !== -1) {
-        command[qrCodePos + 1] = subject.commissioning.qrPairingCode;
-    }
+    // CHIP's arguments carry the setup codes of CHIP's apps; the subject commissions with its own
+    replaceArgValue(command, ["--qr-code", "-q"], subject.commissioning.qrPairingCode);
+    replaceArgValue(command, ["--manual-code"], subject.commissioning.manualPairingCode);
 
     return command;
+}
+
+const SETUP_CODE_ARGS = ["--qr-code", "-q", "--manual-code"];
+
+function replaceArgValue(command: string[], names: string[], value: string | undefined) {
+    if (value === undefined) {
+        return;
+    }
+    for (let i = 0; i < command.length - 1; i++) {
+        if (names.includes(command[i])) {
+            command[i + 1] = value;
+        }
+    }
 }
 
 async function isExecutable(container: Container, path: string) {
