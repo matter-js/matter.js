@@ -27,7 +27,10 @@ import {
 } from "./preset-helpers.js";
 
 async function thermostat(numberOfPresets?: number, presets?: Thermostat.Preset[]) {
-    const deviceEp = presetsEndpoint(numberOfPresets, presets);
+    return online(presetsEndpoint(numberOfPresets, presets));
+}
+
+async function online(deviceEp: Endpoint<typeof PresetsThermostat>) {
     const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: deviceEp });
     return { node, deviceEp, [Symbol.asyncDispose]: () => node.close() };
 }
@@ -38,24 +41,6 @@ function writePresets(deviceEp: Endpoint<typeof PresetsThermostat>, presets: The
 
 function storedPresets(deviceEp: Endpoint<typeof PresetsThermostat>) {
     return deviceEp.state.thermostat.persistedPresets!;
-}
-
-/** A thermostat whose Occupied presets support names, with separate total and per-scenario limits. */
-function namedPresetsEndpoint(numberOfPresets: number, numberOfOccupiedPresets: number) {
-    return new Endpoint(PresetsThermostat, {
-        id: "thermostat",
-        number: 1,
-        thermostat: {
-            ...thermostatConfig(numberOfPresets),
-            presetTypes: [
-                {
-                    presetScenario: Thermostat.PresetScenario.Occupied,
-                    numberOfPresets: numberOfOccupiedPresets,
-                    presetTypeFeatures: { supportsNames: true },
-                },
-            ],
-        },
-    });
 }
 
 describe("Presets local write", () => {
@@ -482,37 +467,62 @@ describe("Presets local write", () => {
     });
 
     it("rejects more presets than the thermostat supports", async () => {
-        const deviceEp = namedPresetsEndpoint(2, 5);
-        await using _node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: deviceEp });
+        const config = thermostatConfig(2);
+        await using ctx = await online(
+            new Endpoint(PresetsThermostat, {
+                id: "thermostat",
+                number: 1,
+                thermostat: {
+                    ...config,
+                    presetTypes: [
+                        { ...config.presetTypes[0], numberOfPresets: 3, presetTypeFeatures: { supportsNames: true } },
+                    ],
+                },
+            }),
+        );
+        const { deviceEp } = ctx;
 
         await expect(
-            writePresets(deviceEp, [newPreset({ name: "A" }), newPreset({ name: "B" }), newPreset({ name: "C" })]),
-        ).rejectedWith("exceeds NumberOfPresets");
+            writePresets(deviceEp, [newPreset({ name: "a" }), newPreset({ name: "b" }), newPreset({ name: "c" })]),
+        ).rejectedWith(StatusResponse.ResourceExhaustedError, "exceeds NumberOfPresets");
 
         expect(storedPresets(deviceEp)).deep.equals([]);
     });
 
-    it("applies the scenario limit before refusing a repeated name", async () => {
-        const deviceEp = namedPresetsEndpoint(5, 1);
-        await using _node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: deviceEp });
+    it("rejects an unknown handle before the count it would exceed", async () => {
+        await using ctx = await thermostat(1);
+        const { deviceEp } = ctx;
 
-        await expect(writePresets(deviceEp, [newPreset(), newPreset()])).rejectedWith(
-            StatusResponse.ResourceExhaustedError,
-            "for scenario Occupied exceeds allowed number",
-        );
-    });
-
-    it("checks a preset's own rules before the NumberOfPresets limit", async () => {
-        const deviceEp = namedPresetsEndpoint(2, 5);
-        await using _node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: deviceEp });
+        await writePresets(deviceEp, [newPreset()]);
+        const stored = [...storedPresets(deviceEp)];
 
         await expect(
-            writePresets(deviceEp, [
-                newPreset({ name: "A" }),
-                newPreset({ name: "B" }),
-                newPreset({ name: "C", presetHandle: Uint8Array.of(0xee) }),
-            ]),
+            writePresets(deviceEp, [...stored, newPreset({ presetHandle: new Uint8Array([1, 2, 3, 4]) })]),
         ).rejectedWith(StatusResponse.NotFoundError, "does not exist in old Presets");
+
+        expect(storedPresets(deviceEp)).deep.equals(stored);
+    });
+
+    it("rejects one more unnamed preset for a full scenario as exhausted, not as a duplicate name", async () => {
+        const config = thermostatConfig(2);
+        await using ctx = await online(
+            new Endpoint(PresetsThermostat, {
+                id: "thermostat",
+                number: 1,
+                thermostat: { ...config, presetTypes: [{ ...config.presetTypes[0], numberOfPresets: 1 }] },
+            }),
+        );
+        const { deviceEp } = ctx;
+
+        await writePresets(deviceEp, [newPreset()]);
+        const stored = [...storedPresets(deviceEp)];
+
+        await expect(writePresets(deviceEp, [...stored, newPreset()])).rejectedWith(
+            StatusResponse.ResourceExhaustedError,
+            "for scenario",
+        );
+
+        expect(storedPresets(deviceEp)).deep.equals(stored);
     });
 
     it("rejects a named preset when the preset type does not support names", async () => {

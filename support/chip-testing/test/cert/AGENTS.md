@@ -725,8 +725,11 @@ answer: a controller that cannot send a command says nothing about the device, a
   requires) that its implementation declares as a gap or out of scope, with the registered text as its detail. chip-tool declares `tcp-transport`, `attestation`, `webrtc-requestor`,
   `chunked-write`, `batch-invoke`, `batch-arrival-order`, `many-paths-per-request`, `mixed-version-write`,
   `typed-list-write-with-others`, `session-introspection`, `sustained-subscription`, `ota-provider`,
-  `ota-provider-script` and `icd-client`.
-- A test declares `controllerCapabilities` on `certTest()`, and a step declares it on `step()`. A test is skipped
+  `ota-provider-script` and `icd-client`. `sustained-subscription` is the one capability a step cannot declare
+  (`step()` throws); a case declares it on `certTest()`, which builds its controllers with
+  `ControllerAdapterOptions.sustainedSubscription`.
+- A test declares `controllerCapabilities` on `certTest()`, and a step declares them on `step()`, except
+  `sustained-subscription`, which only `certTest()` takes. A test is skipped
   when any controller role lacks one, helper roles included (each role is judged by the implementation that fills
   it). `transport: "tcp"` implies `tcp-transport`. A skipped step is counted in `controllerUnsupportedSkips`.
 - A python-wrapped case that needs a capability (`TC-DA-1.9`, the `certCameraCase` WebRTC cases) does not go through
@@ -795,9 +798,25 @@ with `outOfScope` naming the reason, no devices and verdict `skipped`.
   data version (TC-IDM-3.1 step 15) are out of scope (`multi-path-write`): the server writes one attribute per request
   and handles conditional writes itself. They skip as "not reachable for controller use cases" and the TC passes on
   its other steps. A timed write (TC-IDM-5.1 step 2) sends `timed_request_timeout_ms`.
-- The TCP block (`tcp-transport`) is capability-gated the same way, and so is TC-BR-4 (`sustained-subscription`), at
-  test level. TC-SC-3.5 runs: it does not wait for any commissioning result (see "A commissioner that retries turns a
-  one-shot fault into a pass" below).
+- The TCP block (`tcp-transport`) is capability-gated the same way, at test level. TC-SC-3.5 runs: it does not wait
+  for any commissioning result (see "A commissioner that retries turns a one-shot fault into a pass" below).
+- TC-BR-4 runs (matterjs flavor only, see the bridge block section). A case that declares `sustained-subscription` on
+  `certTest()` gets its controllers built with `ControllerAdapterOptions.sustainedSubscription`. This adapter then
+  sends `enable_auto_subscription` for each node it commissions (except with `withoutSubscription`) before
+  `commission()` returns, and waits until the server reports its own subscription active. Where switching it
+  on fails, the adapter removes the node from the server again (`remove_node`) and `commission()` rejects. The
+  subscription stays on until `decommission()` or the adapter closes: an ICD `unregister()` and the end of an OTA
+  update leave it on, and an ICD `stopSubscription()` throws `ImplementationError`, because its contract is to end
+  the subscription. The server refuses `subscribe` for such a node, so these cases cannot open subscriptions of their
+  own on this leg. A case that does not declare it gets the server's own subscription only while an OTA update or ICD
+  registration needs it.
+- With that subscription, `clientEndpoints` and `clientAttribute` answer from `get_node`, whose `attributes`
+  (`endpoint/cluster/attribute`, tag-keyed values) the subscription keeps current. The server drops every attribute
+  of an endpoint the node removed, so a removed endpoint is absent. `observeEvents` sends `start_listening` and
+  reports the `node_event`s the subscription forwards, after the events a `read` of the paths answers with. A
+  fabric-filtered `read` also merges into the server's node data, as a read feeds the in-process `ClientNode`, so
+  TC-BR-4 takes every held value before its own read (`heldBefore`). Without the declaration the three calls refuse as
+  `sustained-subscription`.
 - The OTA provider cases that script the server's provider or announce it with nothing staged (TC-SU-3.2–3.4) are out
   of scope (`ota-provider-script` in `MATTERJS_SERVER_OUT_OF_SCOPE`), not a gap: the server's provider answers only
   with a staged image, and scripted answers stay excluded until the test plans' need for them is clarified. They skip
@@ -808,7 +827,8 @@ with `outOfScope` naming the reason, no devices and verdict `skipped`.
   client needs the subscription as well is inferred, not verified. The adapter sends `enable_auto_subscription` for the
   node the first time one of them is used, and `disable_auto_subscription` once the use ended: when `serveOtaUpdate`
   returns or fails, where that call switched it on; after a successful `unregister()`; and on `stopSubscription()`.
-  It sends no `disable_auto_subscription` for a node it did not switch on. The ICD client and the OTA provider share
+  It sends no `disable_auto_subscription` for a node it did not switch on, nor for a node whose subscription a
+  `sustained-subscription` case holds (see the TC-BR-4 bullet above). The ICD client and the OTA provider share
   the one switch per node: an `unregister()` during an update switches the update's subscription off too. No case
   mixes them on one node. The server refuses `subscribe` for an auto-subscribed node, and switching the
   subscription on ends the node's client subscriptions (`ControllerCommandHandler.subscribe`, `setAutoSubscription`),
@@ -1579,8 +1599,9 @@ updates the same shape (see "One subscription over several paths" above). `optio
 request's `EventFilters`; omitting it sends no filter at all, which is the optional case both plans
 describe.
 
-The in-process, chip-tool and matterjs-server adapters implement them (the matterjs-server adapter refuses
-`observeEvents` as its `sustained-subscription` gap). `InProcessControllerAdapter` passes the paths straight to
+The in-process, chip-tool and matterjs-server adapters implement them (`observeEvents` is chip-tool's
+`sustained-subscription` gap; the matterjs-server adapter reports it through the server's own subscription, see
+"What skips on the matterjs-server leg"). `InProcessControllerAdapter` passes the paths straight to
 `Read`/`Subscribe`'s own `events`/`eventFilters` options (`packages/protocol/src/action/request/`);
 `ChipToolControllerAdapter` runs `any read-event-by-id <clusters> <events> <node> <endpoints>` and
 `any subscribe-event-by-id <clusters> <events> <min> <max> <node> <endpoints>`, whose JSON results
@@ -3249,7 +3270,9 @@ what the bridge exposes now, so it passes whether or not the controller ever not
 
 `CertNodeApi` therefore gained `clientEndpoints()` and `clientAttribute()`, which report what the
 controller holds without issuing an interaction — the matter.js adapter walks the `ClientNode`'s
-endpoint tree and its behaviors' state. chip-tool keeps nothing between commands, so it refuses both,
+endpoint tree and its behaviors' state, the matterjs-server adapter reads the server's node data (`get_node`,
+kept current by the subscription the case's `sustained-subscription` declaration switches on at commissioning).
+chip-tool keeps nothing between commands, so it refuses both,
 and its overlay answers 0 for `MCORE.BRIDGECLIENT` and every `MCORE.DEVLIST.*` flag: **the whole case
 is not applicable on a chip-tool controller**, which is the honest declaration, not a gap. The device
 file answers 1 for the `DEVLIST` flags because it describes a device, so the overlay has to override
@@ -3998,7 +4021,9 @@ chip-cert-bins' stock `lit-icd-app`. Four things had to line up before any Check
   `stopSubscription()` turns the peer's `autoSubscribe` off. A CHIP TH sets SuppressResponse only on read reports, never
   on subscription reports, so each report asks for an answer, and a DUT without the subscription answers
   INVALID_SUBSCRIPTION, which ends it. Step 1 has TH2 write TH1's NodeLabel, which makes TH1 send a report at once
-  rather than at the next max interval. The server leg ends the DUT's subscription this way. The in-process leg drops
+  rather than at the next max interval. The server leg ends the DUT's subscription this way; it refuses
+  `stopSubscription()` for a node a `sustained-subscription` case holds, so these cases cannot declare that
+  capability. The in-process leg drops
   the recreated subscription while its priming report is in flight, and matter.js answers that report with
   INVALID_SUBSCRIPTION too, so the TH ends the subscription and deletes its persisted entry.
 - **The controller has to advertise operationally**, or the TH fails with "Node Address resolution failed for ICD

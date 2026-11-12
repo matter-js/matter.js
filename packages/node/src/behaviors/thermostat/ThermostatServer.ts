@@ -1589,7 +1589,8 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 );
             }
 
-            if (index === this.state.numberOfPresets) {
+            // The write rules check each appended preset in order: its handle, scenario and name, then both counts
+            if (index + 1 > this.state.numberOfPresets) {
                 throw new StatusResponse.ResourceExhaustedError(
                     `Number of presets (${newPresets.length}) exceeds NumberOfPresets (${this.state.numberOfPresets})`,
                 );
@@ -1603,9 +1604,9 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             }
             presetScenarioCounts.set(preset.presetScenario, count + 1);
 
-            // A field rule, not one of the Presets write steps, so it applies after the count limits; the specification
-            // counts null - "no name" - as a value that may not repeat within a scenario
             const scenarioNames = presetScenarioNames.get(preset.presetScenario) ?? [];
+
+            // The specification counts null - "no name" - as a value that may not repeat within a scenario
             if (scenarioNames.includes(name)) {
                 throw new StatusResponse.ConstraintErrorError(
                     `Duplicate preset name ${JSON.stringify(name)} for scenario ${Thermostat.PresetScenario[preset.presetScenario]}`,
