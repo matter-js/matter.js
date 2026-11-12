@@ -690,7 +690,7 @@ export class SoftwareUpdateManager extends Behavior {
             return undefined;
         }
 
-        const consentedVersion = this.internal.consents.get(peerAddress)?.targetSoftwareVersion;
+        const consentedVersion = this.#targetOf(peerAddress, { vendorId, productId });
         const consented = candidates.find(({ softwareVersion }) => softwareVersion === consentedVersion);
         const delegated = this.mayDelegateConsentTo(peerAddress, { requestorCanConsent }) ? candidates[0] : undefined;
         const candidate = consented ?? delegated;

@@ -4642,6 +4642,23 @@ describe("Ota", () => {
             expect((await offerToRequestor({ requestorCanConsent: true }))?.newSoftwareVersion).equals(1);
         }).timeout(10_000);
 
+        it("does not offer an image on the consent of another product, also when its version matches", async () => {
+            const { site, otaProvider, peerAddress, storeImage, offerToRequestor } = await initSiteWithoutTestImages();
+            await using _localSite = site;
+
+            await storeImage(1, "prod");
+            await otaProvider.act(agent => {
+                agent.get(SoftwareUpdateManager).internal.consents.set(peerAddress, {
+                    peerAddress,
+                    vendorId: VendorId(0xfff1),
+                    productId: 0x8001,
+                    targetSoftwareVersion: 1,
+                });
+            });
+
+            expect(await offerToRequestor({ requestorCanConsent: false })).undefined;
+        }).timeout(10_000);
+
         it("asks for consent instead of delegating it when an override requires consent while delegation is off", async () => {
             const { site, otaRequestor, requestor, provider, storeImage, forceUpdate } =
                 await initSiteWithoutTestImages({ requireConsent: true, grantUserConsent: true });
