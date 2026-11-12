@@ -115,6 +115,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
 
 - @matter/protocol
+    - Fix: An ICD advertises SAI in its operational DNS-SD record, and SII while it operates as SIT, also when the value equals the MRP default, as the specification requires
     - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair
     - Feature: `NocsrValidator` validates a CSRResponse and throws `NocsrError` when a check fails
     - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one

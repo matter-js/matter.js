@@ -12,6 +12,7 @@ import { afterOne, beforeOne } from "../mocha.js";
 import { getCurrentNodejsMocha } from "../nodejs.js";
 import { TestDescriptor } from "../test-descriptor.js";
 import { PicsFile } from "./pics/file.js";
+import { splitShellArgs } from "./shell-args.js";
 import { State } from "./state.js";
 
 /**
@@ -376,12 +377,13 @@ function parseTestArgs(descriptor: TestDescriptor): string[] {
 
 function parseArgs(raw: unknown): string[] | undefined {
     if (raw === undefined) return undefined;
-    if (Array.isArray(raw)) return raw.map(String);
-    if (typeof raw === "string") {
-        const trimmed = raw.trim();
-        return trimmed === "" ? undefined : trimmed.split(/\s+/);
-    }
-    return undefined;
+
+    // The descriptor generator splits arguments at whitespace only, so an array still carries the shell quoting
+    const joined = Array.isArray(raw) ? raw.map(String).join(" ") : typeof raw === "string" ? raw : undefined;
+    if (joined === undefined) return undefined;
+
+    const args = splitShellArgs(joined);
+    return args.length ? args : undefined;
 }
 
 function chipFn(subjectOrFirstInclusion: Subject.Factory | string | undefined, ...include: string[]): chip.Builder {
