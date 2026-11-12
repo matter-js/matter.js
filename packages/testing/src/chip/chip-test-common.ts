@@ -22,3 +22,11 @@ export function parseStep(line: string, step: (name: string) => void) {
     }
     return line;
 }
+
+/**
+ * Whether a line of a CHIP python test is the one MatterBaseTest.mark_current_step_skipped (matter_testing.py) logs for
+ * a skipped step, also for each step of mark_step_range_skipped.
+ */
+export function isSkippedStepLine(line: string) {
+    return /\*{4} Skipping: \S/.test(line);
+}

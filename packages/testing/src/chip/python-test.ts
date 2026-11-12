@@ -12,7 +12,7 @@ import type { Container } from "../docker/container.js";
 import { Terminal } from "../docker/terminal.js";
 import { TestFileDescriptor } from "../test-descriptor.js";
 import { expandAppPlaceholders } from "./app-reference.js";
-import { parseStep } from "./chip-test-common.js";
+import { isSkippedStepLine, parseStep } from "./chip-test-common.js";
 import { Constants, ContainerPaths } from "./config.js";
 import { PicsSource } from "./pics/source.js";
 import { RestartFlagMonitor } from "./restart-flag-monitor.js";
@@ -175,8 +175,12 @@ export class PythonTest extends BaseTest {
         );
 
         let passed = false;
+        let skippedSteps = 0;
         for await (let line of terminal) {
             line = parseStep(line, step);
+            if (isSkippedStepLine(line)) {
+                skippedSteps++;
+            }
 
             if (line.indexOf("Final result: PASS") !== -1) {
                 // Old format
@@ -188,6 +192,8 @@ export class PythonTest extends BaseTest {
 
             MockLogger.injectExternalMessage("CHIP", spiffy(line));
         }
+
+        this.descriptor.skippedSteps = skippedSteps;
 
         if (!passed) {
             throw new Error("Python test exited without error but did not indicate successful test");
