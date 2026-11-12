@@ -12,8 +12,6 @@ import type { PicsValues } from "@matter/testing";
  * Every PICS item of matterjs-server's certification declaration. A key declared on several endpoints is supported
  * where any endpoint supports it.
  *
- * Source: `Matter-All-Client-PICS_withServer_161recert_v2.zip`
- *
  * Regenerate with `node support/chip-testing/generate-server-sve-pics.mjs <declaration>.zip`.
  */
 export const MATTERJS_SERVER_SVE_PICS: PicsValues = {
