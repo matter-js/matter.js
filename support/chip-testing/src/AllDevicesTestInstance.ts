@@ -9,7 +9,7 @@ import { ServerNode } from "@matter/main";
 import { EndpointNumber, ValidationError } from "@matter/main/types";
 import { BackchannelCommand } from "@matter/testing";
 import "./devices/all-devices.js";
-import { EndpointHandle, getDeviceType, listDeviceTypes } from "./devices/DeviceTypeRegistry.js";
+import { EndpointHandle, getDeviceType, listDeviceTypes, listLeafDeviceTypes } from "./devices/DeviceTypeRegistry.js";
 import { EndpointNumberAllocator } from "./devices/EndpointNumberAllocator.js";
 import { buildRootNode } from "./devices/RootEndpoint.js";
 import { DeviceTestInstanceConfig } from "./GenericTestApp.js";
@@ -60,13 +60,20 @@ function parseRuntimeArgs(args: string[]): RuntimeArgs {
 
     const specs = new Array<DeviceSpec>();
     for (const token of tokens) {
-        // As in the CHIP all-devices-app, "*" selects every device type
+        // As in the CHIP all-devices-app, "*" selects every leaf device type, and "*:N" numbers them from N
         if (token === "*") {
-            specs.push(...listDeviceTypes().map(type => ({ type })));
+            specs.push(...listLeafDeviceTypes().map(type => ({ type })));
             continue;
         }
-        if (token.startsWith("*:") || token.startsWith("*,")) {
-            throw new ValidationError(`--device "${token}": "*" takes no endpoint number or options`);
+        if (token.startsWith("*:")) {
+            const first = parseEndpoint(token, token.substring(2));
+            for (const [offset, type] of listLeafDeviceTypes().entries()) {
+                addSpec(specs, token, { type, endpoint: first + offset });
+            }
+            continue;
+        }
+        if (token.startsWith("*,")) {
+            throw new ValidationError(`--device "${token}": "*" takes no options`);
         }
 
         const colonIdx = token.indexOf(":");
@@ -74,18 +81,36 @@ function parseRuntimeArgs(args: string[]): RuntimeArgs {
             specs.push({ type: token });
             continue;
         }
-        const epStr = token.substring(colonIdx + 1);
-        const ep = Number.parseInt(epStr, 10);
-        if (!Number.isInteger(ep) || ep < 1 || ep > 0xfffe || String(ep) !== epStr) {
-            throw new ValidationError(`Invalid endpoint in --device "${token}"`);
-        }
-        if (specs.some(({ endpoint }) => endpoint === ep)) {
-            throw new ValidationError(`Endpoint ${ep} declared twice in --device flags`);
-        }
-        specs.push({ type: token.substring(0, colonIdx), endpoint: ep });
+        addSpec(specs, token, {
+            type: token.substring(0, colonIdx),
+            endpoint: parseEndpoint(token, token.substring(colonIdx + 1)),
+        });
+    }
+
+    // As in the CHIP all-devices-app, which falls back to the first device type it registers
+    if (specs.length === 0) {
+        specs.push({ type: DEFAULT_DEVICE_TYPE, endpoint: 1 });
     }
 
     return { specs, wifi, groupcast, enableKeyHex };
+}
+
+/** The device CHIP's all-devices app starts when no --device is given. */
+const DEFAULT_DEVICE_TYPE = "aggregator";
+
+function parseEndpoint(token: string, text: string) {
+    const ep = Number.parseInt(text, 10);
+    if (!Number.isInteger(ep) || ep < 1 || ep > 0xfffe || String(ep) !== text) {
+        throw new ValidationError(`Invalid endpoint in --device "${token}"`);
+    }
+    return ep;
+}
+
+function addSpec(specs: DeviceSpec[], token: string, spec: Required<DeviceSpec>) {
+    if (specs.some(({ endpoint }) => endpoint === spec.endpoint)) {
+        throw new ValidationError(`Endpoint ${spec.endpoint} declared twice in --device flags ("${token}")`);
+    }
+    specs.push(spec);
 }
 
 export class AllDevicesTestInstance extends NodeTestInstance {
@@ -109,12 +134,6 @@ export class AllDevicesTestInstance extends NodeTestInstance {
         // invocations (chip-tool-tests CI binary, local smoke runs).
         const sourceArgs = this.#appArgs ?? process.argv.slice(2);
         const { specs, wifi, groupcast, enableKeyHex } = parseRuntimeArgs(sourceArgs);
-
-        if (specs.length === 0) {
-            throw new ValidationError(
-                `--device <type[:endpoint]|*> required (supported: ${listDeviceTypes().join(", ")})`,
-            );
-        }
 
         // Every type resolves before the node exists, so a bad --device leaves no node holding storage and a socket
         const factories = specs.map(({ type }) => {

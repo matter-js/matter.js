@@ -7,7 +7,7 @@
 import { Endpoint } from "@matter/main";
 import { ValidationError } from "@matter/main/types";
 import { AllDevicesTestInstance } from "../../src/AllDevicesTestInstance.js";
-import { listDeviceTypes } from "../../src/devices/DeviceTypeRegistry.js";
+import { listLeafDeviceTypes } from "../../src/devices/DeviceTypeRegistry.js";
 
 function setupWith(...appArgs: string[]) {
     return new AllDevicesTestInstance({ commandPipeFactory: async () => {}, appArgs }).setupServer();
@@ -29,10 +29,19 @@ describe("AllDevicesTestInstance --device", () => {
         );
     });
 
-    it("adds every device type for * on a node with groupcast", async () => {
+    it("adds an aggregator on endpoint 1 without --device", async () => {
+        const node = await setupWith();
+        try {
+            expect([...node.parts].map(({ number, type }) => [number, type.name])).deep.equals([[1, "Aggregator"]]);
+        } finally {
+            await node.close();
+        }
+    });
+
+    it("adds every leaf device type for * on a node with groupcast", async () => {
         const node = await setupWith("--device", "*", "--groupcast");
         try {
-            expect([...node.parts].length).equals(listDeviceTypes().length);
+            expect([...node.parts].length).equals(listLeafDeviceTypes().length);
 
             const numbers = new Array<number>();
             const collect = (endpoint: Endpoint) => {
@@ -48,9 +57,16 @@ describe("AllDevicesTestInstance --device", () => {
         }
     });
 
-    it("refuses an endpoint number or options for *", async () => {
-        await expect(setupWith("--device", "*:3")).rejectedWith(ValidationError, '"*" takes no endpoint number');
-        await expect(setupWith("--device", "*,parent=1,bridged")).rejectedWith(ValidationError, '"*" takes no');
+    it("numbers the devices of *:N from N", async () => {
+        const node = await setupWith("--device", "*:3");
+        try {
+            const numbers = [...node.parts].map(({ number }) => number);
+            expect(numbers.slice(0, listLeafDeviceTypes().length)).deep.equals(
+                listLeafDeviceTypes().map((_type, index) => 3 + index),
+            );
+        } finally {
+            await node.close();
+        }
     });
 
     it("refuses an endpoint number given twice", async () => {

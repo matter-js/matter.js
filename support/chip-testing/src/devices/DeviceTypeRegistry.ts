@@ -24,6 +24,12 @@ export interface DeviceTypeEntry {
     name: string;
 
     /**
+     * False for a device that only structures others, such as an aggregator.  As in CHIP's all-devices app, "*"
+     * selects only leaf devices.
+     */
+    leaf?: boolean;
+
+    /**
      * Adds the device on {@link endpoint}. A device with child endpoints numbers them from {@link numbers}.
      */
     create(serverNode: ServerNode, endpoint: EndpointNumber, numbers: EndpointNumberAllocator): Promise<EndpointHandle>;
@@ -44,4 +50,9 @@ export function getDeviceType(name: string): DeviceTypeEntry | undefined {
 
 export function listDeviceTypes(): string[] {
     return [...registry.keys()].sort();
+}
+
+/** The device types "*" selects. */
+export function listLeafDeviceTypes(): string[] {
+    return listDeviceTypes().filter(name => registry.get(name)?.leaf !== false);
 }
