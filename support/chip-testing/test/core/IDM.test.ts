@@ -21,6 +21,10 @@ describe("IDM", () => {
     chip("IDM/*/run*").exclude("IDM/10.4/*", "IDM/10.5/*", "IDM/1.5/*").exclude("IDM/*/run1").exclude(
         // Runs for CHIP apps matter.js has no test subject for: camera, electrical-protection, evse, lighting-app-no-unique-id, lock, microwave-oven, network-management, and the all-devices default
         // device (run16)
+        // run19 places every device below a bridged node ("*,parent=1,bridged"), which the all-devices app lacks
+        "IDM/10.1/run19",
+        "IDM/11.1/run19",
+        "IDM/12.1/run19",
         "IDM/10.1/run16",
         "IDM/11.1/run16",
         "IDM/12.1/run16",
