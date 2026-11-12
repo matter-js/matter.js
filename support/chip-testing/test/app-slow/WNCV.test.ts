@@ -6,4 +6,6 @@
 
 describe("WNCV", () => {
     chip("WNCV/*");
+    // Selects the runs of multi-run tests, which "WNCV/*" does not
+    chip("WNCV/*/run*");
 });
