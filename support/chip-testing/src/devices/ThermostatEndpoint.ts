@@ -12,9 +12,10 @@ import { Thermostat, ThermostatUserInterfaceConfiguration } from "@matter/main/c
 import { ThermostatDevice } from "@matter/main/devices/thermostat";
 import { EndpointNumber } from "@matter/main/types";
 import { registerDeviceType } from "./DeviceTypeRegistry.js";
+import { thermostatScheduleState } from "./thermostat-schedules.js";
 
 const FullThermostat = ThermostatDevice.with(
-    ThermostatServer.with("Heating", "Cooling", "AutoMode", "Presets"),
+    ThermostatServer.with("Heating", "Cooling", "AutoMode", "Occupancy", "Presets", "MatterScheduleConfiguration"),
     GroupsServer,
     ThermostatUserInterfaceConfigurationServer,
 );
@@ -51,6 +52,9 @@ registerDeviceType({
                 absMaxCoolSetpointLimit: 3200,
                 occupiedHeatingSetpoint: 2000,
                 occupiedCoolingSetpoint: 2600,
+                occupancy: { occupied: true },
+                unoccupiedHeatingSetpoint: 1800,
+                unoccupiedCoolingSetpoint: 2800,
                 minSetpointDeadBand: 20,
                 localTemperatureCalibration: 0,
                 remoteSensing: {},
@@ -70,6 +74,7 @@ registerDeviceType({
                     builtInPreset(Thermostat.PresetScenario.Unoccupied),
                 ],
                 activePresetHandle: null,
+                ...thermostatScheduleState(),
             },
             thermostatUserInterfaceConfiguration: {
                 scheduleProgrammingVisibility:

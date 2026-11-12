@@ -42,6 +42,7 @@ const INTERNAL_ELEMENTS: Record<string, string[]> = {
     Switch: ["debounceDelay", "longPressDelay", "momentaryNeutralPosition", "multiPressDelay", "rawPosition"],
     Thermostat: [
         "PersistedPresets",
+        "PersistedSchedules",
         "externalMeasuredIndoorTemperature",
         "externallyMeasuredOccupancy",
         "localIndoorTemperatureMeasurementEndpoint",

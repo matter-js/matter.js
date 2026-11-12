@@ -136,7 +136,7 @@ function decodeAtomicResponse(chunks: InvokeResult.Data[]) {
     return atomicResponseSchema.decodeTlv(response.data);
 }
 
-async function writePresetsAs(node: MockServerNode, fabric: Fabric, peerNodeId: NodeId) {
+async function writeAs(node: MockServerNode, fabric: Fabric, peerNodeId: NodeId, attribute: "presets" | "schedules") {
     const exchange = await node.createExchange({ fabric, peerNodeId });
     const request = {
         suppressResponse: false,
@@ -144,7 +144,7 @@ async function writePresetsAs(node: MockServerNode, fabric: Fabric, peerNodeId: 
             Write.Attribute({
                 endpoint: node.endpoints.for(1),
                 cluster: Thermostat,
-                attributes: "presets",
+                attributes: attribute,
                 value: [],
             }),
         ),
@@ -233,6 +233,8 @@ async function createNodeFor(device: Endpoint, privilege = AccessControl.AccessC
 }
 
 describe("AtomicWriteHandler", () => {
+    MockForwardFeatures.enable("thermostat-msch");
+
     it("rejects a second BeginWrite on the same cluster/endpoint with INVALID_IN_STATE (§7.15.6.4.1)", async () => {
         const { node, fabric, device } = await createNode();
 
@@ -368,15 +370,39 @@ describe("AtomicWriteHandler", () => {
         });
     });
 
+    it("rejects a Schedules write held by a different peer with INVALID_IN_STATE", async () => {
+        const { node, fabric, device } = await createPresetsAndSchedulesNode();
+
+        const first = await invokeAs(node, fabric, beginWrite(device, [SCHEDULES_ATTRIBUTE]), NodeId(1));
+        expect(first.some(c => c.kind === "cmd-response")).true;
+
+        const write = await writeAs(node, fabric, NodeId(2), "schedules");
+        expect(write).deep.equals([
+            {
+                kind: "attr-status",
+                path: {
+                    attributeId: SCHEDULES_ATTRIBUTE,
+                    clusterId: Thermostat.id,
+                    endpointId: 1,
+                    listIndex: undefined,
+                },
+                status: Status.InvalidInState,
+                clusterStatus: undefined,
+            },
+        ]);
+
+        await node.close();
+    });
+
     // §7.15.3 mandates INVALID_IN_STATE, but CHIP and TC_TSTAT_4_2 step 15 expect BUSY when another peer holds the
-    // atomic write; we match CHIP for certification (see the spec-enhancement tracking the §7.15.3 rewording)
-    it("rejects a write to an attribute held by a different peer with BUSY", async () => {
+    // atomic write; we match CHIP for Presets (see the spec-enhancement tracking the §7.15.3 rewording)
+    it("rejects a write to Presets held by a different peer with BUSY", async () => {
         const { node, fabric, device } = await createNode();
 
         const first = await invokeAs(node, fabric, beginWrite(device, [PRESETS_ATTRIBUTE]), NodeId(1));
         expect(first.some(c => c.kind === "cmd-response")).true;
 
-        const write = await writePresetsAs(node, fabric, NodeId(2));
+        const write = await writeAs(node, fabric, NodeId(2), "presets");
         expect(write).deep.equals([
             {
                 kind: "attr-status",

@@ -48,6 +48,14 @@ import { AtomicWriteState } from "./AtomicWriteState.js";
 const logger = Logger.get("AtomicWriteHandler");
 
 /**
+ * Attributes that answer a write from a peer that does not hold their atomic write with BUSY instead of the
+ * INVALID_IN_STATE of §7.15.3, because CHIP does so for Thermostat Presets and TC_TSTAT_4_2 expects it.
+ */
+function answersBusyToOtherPeer(cluster: ClusterBehavior.Type, attribute: AttributeId) {
+    return cluster.cluster.id === Thermostat.id && attribute === Thermostat.attributes.presets.id;
+}
+
+/**
  * Handles atomic write handling according to Matter definitions.
  * The implementation tries to be generic, but is currently only used by the Thermostat cluster, so the atomic write
  * types are imported from there.
@@ -464,9 +472,11 @@ export class AtomicWriteHandler {
             throw new StatusResponse.InvalidInStateError("There is no atomic write in progress for this peer");
         }
         if (!PeerAddress.is(attrWriteState.peerAddress, peerAddress)) {
-            // CHIP and TC_TSTAT_4_2 require BUSY here, not the §7.15.3 INVALID_IN_STATE, when another peer holds the
-            // atomic write (INVALID_IN_STATE is reserved for when no atomic write is open on the attribute)
-            throw new StatusResponse.BusyError("Attribute is part of an atomic write in progress for a different peer");
+            const message = "Attribute is part of an atomic write in progress for a different peer";
+            if (answersBusyToOtherPeer(cluster, attribute)) {
+                throw new StatusResponse.BusyError(message);
+            }
+            throw new StatusResponse.InvalidInStateError(message);
         }
         return attrWriteState;
     }
