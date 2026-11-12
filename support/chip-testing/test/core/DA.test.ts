@@ -26,4 +26,14 @@ describe("DA", () => {
             // TC_DA_1_2.py looks for certs in a relative path by default
             "--string-arg=cd_cert_dir:/credentials/development/cd-certs",
         );
+    // Selects the runs of multi-run tests, which "DA/*" does not
+    chip("DA/*/run*")
+        .exclude("DA/1.9/*", "DA/1.10/*", "DA/1.12/*")
+        .args(
+            "--passcode",
+            20202021,
+            "--discriminator",
+            3840,
+            "--string-arg=cd_cert_dir:/credentials/development/cd-certs",
+        );
 });
