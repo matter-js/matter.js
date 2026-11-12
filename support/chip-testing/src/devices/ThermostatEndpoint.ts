@@ -15,7 +15,7 @@ import { registerDeviceType } from "./DeviceTypeRegistry.js";
 import { thermostatScheduleState } from "./thermostat-schedules.js";
 
 const FullThermostat = ThermostatDevice.with(
-    ThermostatServer.with("Heating", "Cooling", "AutoMode", "Presets", "MatterScheduleConfiguration"),
+    ThermostatServer.with("Heating", "Cooling", "AutoMode", "Occupancy", "Presets", "MatterScheduleConfiguration"),
     GroupsServer,
     ThermostatUserInterfaceConfigurationServer,
 );
@@ -52,6 +52,9 @@ registerDeviceType({
                 absMaxCoolSetpointLimit: 3200,
                 occupiedHeatingSetpoint: 2000,
                 occupiedCoolingSetpoint: 2600,
+                occupancy: { occupied: true },
+                unoccupiedHeatingSetpoint: 1800,
+                unoccupiedCoolingSetpoint: 2800,
                 minSetpointDeadBand: 20,
                 localTemperatureCalibration: 0,
                 remoteSensing: {},
