@@ -22,3 +22,12 @@ export function parseStep(line: string, step: (name: string) => void) {
     }
     return line;
 }
+
+/**
+ * The step a line of a CHIP python test reports as skipped, from the line MatterBaseTest.mark_current_step_skipped
+ * (matter_testing.py) logs, also for each step of mark_step_range_skipped.  The python runner writes each log line
+ * more than once, so callers count distinct steps.
+ */
+export function skippedStepOf(line: string) {
+    return line.match(/\*{4} Skipping: (\S+)/)?.[1];
+}

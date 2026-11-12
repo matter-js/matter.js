@@ -42,6 +42,13 @@ export interface TestDescriptor {
     runAt?: Date;
     passed?: boolean;
     durationMs?: number;
+
+    /**
+     * The number of steps the test reported as skipped in its last run.  A test that skips most of its steps still
+     * passes, so the report shows this next to the step count.
+     */
+    skippedSteps?: number;
+
     picsValues?: PicsFile;
 }
 
@@ -233,7 +240,7 @@ export namespace TestDescriptor {
             ...updates,
         };
 
-        for (const name of ["durationMs", "passed", "runAt"] as const) {
+        for (const name of ["durationMs", "passed", "runAt", "skippedSteps"] as const) {
             if (previous[name] !== undefined && descriptor[name] === undefined) {
                 (descriptor as Record<string, unknown>)[name] = previous[name];
             }
