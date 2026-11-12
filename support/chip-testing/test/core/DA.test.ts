@@ -28,7 +28,15 @@ describe("DA", () => {
         );
     // Selects the runs of multi-run tests, which "DA/*" does not
     chip("DA/*/run*")
-        .exclude("DA/1.9/*", "DA/1.10/*", "DA/1.12/*")
+        .exclude(
+            "DA/1.9/*",
+            "DA/1.10/*",
+            "DA/1.12/*",
+
+            // Starts the app with another vendor's DAC (--vendor-id, --product-id, --dac_provider), which the matter.js
+            // all-devices app does not support
+            "DA/1.1/run4",
+        )
         .args(
             "--passcode",
             20202021,
