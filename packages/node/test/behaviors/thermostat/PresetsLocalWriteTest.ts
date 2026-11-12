@@ -481,7 +481,14 @@ describe("Presets local write", () => {
     });
 
     it("rejects one more unnamed preset for a full scenario as exhausted, not as a duplicate name", async () => {
-        await using ctx = await thermostat(1);
+        const config = thermostatConfig(2);
+        await using ctx = await online(
+            new Endpoint(PresetsThermostat, {
+                id: "thermostat",
+                number: 1,
+                thermostat: { ...config, presetTypes: [{ ...config.presetTypes[0], numberOfPresets: 1 }] },
+            }),
+        );
         const { deviceEp } = ctx;
 
         await writePresets(deviceEp, [newPreset()]);
@@ -489,6 +496,7 @@ describe("Presets local write", () => {
 
         await expect(writePresets(deviceEp, [...stored, newPreset()])).rejectedWith(
             StatusResponse.ResourceExhaustedError,
+            "for scenario",
         );
 
         expect(storedPresets(deviceEp)).deep.equals(stored);
