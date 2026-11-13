@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { UnexpectedDataError } from "@matter/general";
+import { isObject, Millis, UnexpectedDataError } from "@matter/general";
 import { WebRtcTransportProvider } from "@matter/main/clusters";
 import { NodeId } from "@matter/main/types";
 import type { WebRtcSignalRecord } from "@matter/testing";
 import { LineQueue, LogFollower } from "@matter/testing";
 import { expect } from "chai";
-import { MatterServerWebRtcRequestor } from "../../src/cert/matter-server-webrtc.js";
+import { MatterServerWebRtcError, MatterServerWebRtcRequestor } from "../../src/cert/matter-server-webrtc.js";
 import { MatterServerClient } from "../../src/matter-server/matter-server-client.js";
 import { FakeMatterServer, type FakeServerRequest } from "./fake-matter-server.js";
 
@@ -43,6 +43,10 @@ function registrationLine(id: number, node: string, originatingEndpointId = OWN_
         `peerEndpointId=${PEER_ENDPOINT} fabricIndex=1 streamUsage=${STREAM_USAGE} ` +
         `originatingEndpointId=${originatingEndpointId}`
     );
+}
+
+function removalLine(id: number) {
+    return `2026-11-13 10:00:00.300 DEBUG WebRtcProviderSessions WebRTC session ${id} removed from the requestor`;
 }
 
 function incomingEndLine(id: number) {
@@ -80,7 +84,12 @@ describe("matterjs-server WebRTC requestor", () => {
         log = new LogFollower(lines.follow(), "dut");
         server.reply = request => {
             if (request.command === "send_webrtc_provider_command") {
-                return { result: { webRtcSessionId: 7 } };
+                const name = isObject(request.args) ? request.args.command_name : undefined;
+                if (name === "SolicitOffer" || name === "ProvideOffer") {
+                    lines.push(registrationLine(7, PEER));
+                    return { result: { webRtcSessionId: 7 } };
+                }
+                return { result: null };
             }
             return { result: null };
         };
@@ -90,6 +99,7 @@ describe("matterjs-server WebRTC requestor", () => {
             log,
             nodeIdOf: peer => NodeId(BigInt(peer)),
             endpoint: OWN_ENDPOINT,
+            logTimeout: Millis(200),
         });
     });
 
@@ -320,14 +330,62 @@ describe("matterjs-server WebRTC requestor", () => {
         expect(await requestor.sessions()).deep.equals([]);
     });
 
-    it("sessions drops a session after the case ended it", async () => {
+    it("endSession keeps the session held until the removal line arrives", async () => {
         const id = await requestor.solicitOffer({ peer: PEER, endpoint: PEER_ENDPOINT, streamUsage: STREAM_USAGE });
-        lines.push(registrationLine(id, PEER));
-        await log.settled();
+        let ended = false;
 
-        await requestor.endSession(PEER, PEER_ENDPOINT, id, 0);
+        const ending = requestor.endSession(PEER, PEER_ENDPOINT, id, 0).then(() => (ended = true));
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        expect(ended).equals(false);
+        expect((await requestor.sessions()).map(session => session.id)).deep.equals([7]);
+
+        lines.push(removalLine(id));
+        await ending;
 
         expect(await requestor.sessions()).deep.equals([]);
+    });
+
+    it("endSession throws where the server never logs the removal", async () => {
+        const id = await requestor.solicitOffer({ peer: PEER, endpoint: PEER_ENDPOINT, streamUsage: STREAM_USAGE });
+
+        const error = await rejectionOf(requestor.endSession(PEER, PEER_ENDPOINT, id, 0));
+
+        expect(error).instanceOf(MatterServerWebRtcError);
+        expect((await requestor.sessions()).map(session => session.id)).deep.equals([7]);
+    });
+
+    it("solicitOffer resolves only after the server logged the registration", async () => {
+        server.reply = request => {
+            if (request.command === "send_webrtc_provider_command") {
+                return { result: { webRtcSessionId: 7 } };
+            }
+            return { result: null };
+        };
+        let id: number | undefined;
+
+        const soliciting = requestor
+            .solicitOffer({ peer: PEER, endpoint: PEER_ENDPOINT, streamUsage: STREAM_USAGE })
+            .then(minted => (id = minted));
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        expect(id).equals(undefined);
+
+        lines.push(registrationLine(7, PEER));
+        await soliciting;
+
+        expect(id).equals(7);
+        expect((await requestor.sessions()).map(session => session.id)).deep.equals([7]);
+    });
+
+    it("solicitOffer throws where the server never logs the registration", async () => {
+        server.reply = () => ({ result: { webRtcSessionId: 7 } });
+
+        const error = await rejectionOf(
+            requestor.solicitOffer({ peer: PEER, endpoint: PEER_ENDPOINT, streamUsage: STREAM_USAGE }),
+        );
+
+        expect(error).instanceOf(MatterServerWebRtcError);
     });
 
     it("stops recording after close", async () => {

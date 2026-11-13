@@ -4,7 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, isObject, Logger, Millis, type Observable, Time, UnexpectedDataError } from "@matter/general";
+import {
+    Diagnostic,
+    Duration,
+    isObject,
+    Logger,
+    MatterError,
+    Millis,
+    type Observable,
+    Seconds,
+    Time,
+    UnexpectedDataError,
+} from "@matter/general";
 import { WebRtcTransportProvider } from "@matter/main/clusters";
 import type { NodeId } from "@matter/main/types";
 import type {
@@ -45,6 +56,23 @@ export const WEBRTC_SESSION_REGISTERED_LINE =
  */
 export const WEBRTC_SESSION_ENDED_LINE = /WebRtcTransportRequestorServer incoming End webRtcSessionId=(?<id>\d+)/;
 
+/**
+ * Matches the server's debug line for a session it dropped from its requestor after the session ended or was never
+ * tracked, which is when the requestor refuses the peer's signaling for it again.
+ *
+ * Provisional until verified against a live server log. The server logs only the "is not tracked" form today
+ * (`WebRtcProviderSessions.removeTracked`); the "removed from the requestor" form is the line a successful removal
+ * would need.
+ */
+export const WEBRTC_SESSION_REMOVED_LINE =
+    /WebRtcProviderSessions WebRTC session (?<id>\d+) (?:removed from the requestor|is not tracked for node)/;
+
+/** How long the server may take to log what it already did, once its response or command result arrived. */
+const LOG_LAG = Seconds(10);
+
+/** The server did not log the session registration or removal the harness waits for. */
+export class MatterServerWebRtcError extends MatterError {}
+
 /** The `event_type` of a `webrtc_callback` to the signal kind. */
 const CALLBACK_KINDS = new Map<string, WebRtcSignalRecord["kind"]>([
     ["offer", "offer"],
@@ -75,6 +103,9 @@ export interface MatterServerWebRtcHost {
 
     /** The server's own camera-controller endpoint (requestor). */
     readonly endpoint: number;
+
+    /** How long to wait for the server's log to show a registration or removal; defaults to ten seconds. */
+    readonly logTimeout?: Duration;
 }
 
 /**
@@ -82,7 +113,9 @@ export interface MatterServerWebRtcHost {
  *
  * Commands go through the WebSocket API. What the server's requestor accepted arrives as `webrtc_callback` events.
  * What it refused, and which sessions it holds, the API does not report, so both are read from the server's log:
- * see {@link WEBRTC_REFUSAL_LINE}, {@link WEBRTC_SESSION_REGISTERED_LINE} and {@link WEBRTC_SESSION_ENDED_LINE}.
+ * see {@link WEBRTC_REFUSAL_LINE}, {@link WEBRTC_SESSION_REGISTERED_LINE}, {@link WEBRTC_SESSION_ENDED_LINE} and
+ * {@link WEBRTC_SESSION_REMOVED_LINE}. {@link solicitOffer}, {@link provideOffer} and {@link endSession} resolve only
+ * once the log shows the registration or removal, and throw {@link MatterServerWebRtcError} where it does not.
  *
  * The log is shared by every peer of the server, so refusals and registrations count only for peers this instance has
  * sent a command to. A `webrtc_callback` is routed to this connection by the server and counts for every peer.
@@ -94,6 +127,7 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
     readonly #waiters = new Set<(signal: WebRtcSignalRecord | undefined) => void>();
     readonly #peers = new Set<bigint>();
     readonly #held = new Set<number>();
+    readonly #logWaiters = new Set<() => void>();
     readonly #streams = new Map<number, Pick<WebRtcSessionRecord, "videoStreamId" | "audioStreamId">>();
     readonly #listener: (event: string, data: unknown) => void;
     readonly #stopped: Promise<undefined>;
@@ -154,7 +188,7 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
             command_name: "EndSession",
             payload: { webRtcSessionId: id, reason },
         });
-        this.#held.delete(id);
+        await this.#until(`removal of session ${id}`, () => !this.#held.has(id));
     }
 
     async sessions(): Promise<readonly WebRtcSessionRecord[]> {
@@ -212,6 +246,7 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
         this.#closed = true;
         this.#host.events.off(this.#listener);
         this.#stop();
+        this.#logWaiters.clear();
         for (const waiter of [...this.#waiters]) {
             waiter(undefined);
         }
@@ -231,6 +266,7 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
         });
 
         const id = sessionIdOf(response, command);
+        await this.#until(`registration of session ${id}`, () => this.#held.has(id));
         this.#streams.set(id, { videoStreamId: videoStreamId ?? null, audioStreamId: audioStreamId ?? null });
         return id;
     }
@@ -241,6 +277,35 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
             endpoint_id: endpoint,
             command_name: commandName,
             payload,
+        });
+    }
+
+    async #until(what: string, done: () => boolean) {
+        if (done()) {
+            return;
+        }
+        const timeout = this.#host.logTimeout ?? LOG_LAG;
+        await new Promise<void>((resolve, reject) => {
+            const waiter = () => {
+                if (done()) {
+                    settle();
+                    resolve();
+                }
+            };
+            const timer = Time.getTimer("webrtc log wait", timeout, () => {
+                settle();
+                reject(
+                    new MatterServerWebRtcError(
+                        `The server's log showed no ${what} within ${Duration.format(timeout)}`,
+                    ),
+                );
+            });
+            const settle = () => {
+                timer.stop();
+                this.#logWaiters.delete(waiter);
+            };
+            this.#logWaiters.add(waiter);
+            timer.start();
         });
     }
 
@@ -281,6 +346,9 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
             }
             if (index++ >= start) {
                 this.#onLine(next.value);
+                for (const waiter of [...this.#logWaiters]) {
+                    waiter();
+                }
             }
         }
     }
@@ -303,7 +371,7 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
             return;
         }
 
-        const ended = WEBRTC_SESSION_ENDED_LINE.exec(text)?.groups;
+        const ended = (WEBRTC_SESSION_ENDED_LINE.exec(text) ?? WEBRTC_SESSION_REMOVED_LINE.exec(text))?.groups;
         if (ended !== undefined) {
             this.#held.delete(Number(ended.id));
         }
