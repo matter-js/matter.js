@@ -152,7 +152,7 @@ describe("expectRefusal", () => {
 
         expect(outcome.passed).equal(false);
         expect(checks.map(check => check.verdict)).deep.equal(["fail"]);
-        expect(checks[0].detail).match(/the very session it registered/);
+        expect(checks[0].detail).match(/naming session 7, the session it holds with TH_SERVER/);
     });
 });
 

@@ -32,13 +32,15 @@ import type {
 const logger = Logger.get("MatterServerWebRtc");
 
 /**
- * Matches the interaction layer's log line for a signal the server's requestor answered `NotFound`: peer node id (hex)
- * in the exchange token, the signal's command and the refused session id in the status text.
+ * Matches the requestor's debug line for a signal it refused because it holds no such session for the peer
+ * (`WebRtcTransportRequestorServer`, where it emits `refused`). The line carries no peer endpoint: a command does not
+ * name the endpoint it was sent from, and no session was found to take it from. The server runs matter.js at debug
+ * level; the line reaches a server build only with a matter.js version that logs it.
  *
  * Provisional until verified against a live server log.
  */
-export const WEBRTC_REFUSAL_LINE =
-    /Invoke error @[0-9a-f]+:(?<peer>[0-9a-f]+)•\S+ \S*webRtcTransportRequestor\.(?<kind>offer|answer|iceCandidates|end): Status=NotFound\b.*WebRTC session (?<id>\d+) not found/;
+export const WEBRTC_SIGNAL_REFUSED_LINE =
+    /WebRtcTransportRequestorServer session refused signal=(?<kind>\w+) webRtcSessionId=(?<id>\d+) fabricIndex=\d+ peerNodeId=(?<peer>\d+) requestorEndpointId=(?<endpoint>\d+)/;
 
 /**
  * Matches the requestor's debug line for a session registered with it (`WebRtcTransportRequestorServer.upsertSession`),
@@ -79,6 +81,9 @@ const LOG_LAG = Seconds(10);
  */
 export class MatterServerWebRtcError extends MatterError {}
 
+/** The requestor was closed while a call still waited for the server's log. */
+export class MatterServerWebRtcClosedError extends MatterServerWebRtcError {}
+
 /**
  * The number of the server's camera-controller endpoint, its WebRTC requestor, read from the server's log (see
  * {@link CAMERA_CONTROLLER_READY_LINE}). Reads the whole log, so call it on the log of the server's whole run.
@@ -110,7 +115,7 @@ const CALLBACK_KINDS = new Map<string, WebRtcSignalRecord["kind"]>([
     ["end", "end"],
 ]);
 
-/** The requestor command named in a refusal line to the signal kind. */
+/** The signal named in a refusal line to the signal kind. */
 const REFUSED_KINDS = new Map<string, WebRtcSignalRecord["kind"]>([
     ["offer", "offer"],
     ["answer", "answer"],
@@ -125,7 +130,7 @@ export interface MatterServerWebRtcHost {
     /** What the server pushes to this connection, `webrtc_callback` among it. */
     readonly events: Observable<[event: string, data: unknown]>;
 
-    /** The server's log, which carries the requestor's refusals and its session registrations. */
+    /** The server's log, which carries the requestor's refusals and its session registrations and removals. */
     readonly log: LogFollower;
 
     nodeIdOf(peer: CertNodeRef): NodeId;
@@ -137,26 +142,33 @@ export interface MatterServerWebRtcHost {
     readonly logTimeout?: Duration;
 }
 
+/** A wait for the server's log, which {@link MatterServerWebRtcRequestor.close} ends early. */
+interface LogWait {
+    check(): void;
+    abort(): void;
+}
+
 /**
  * The requestor side of WebRTC signaling on a matterjs-server controller.
  *
  * Commands go through the WebSocket API. What the server's requestor accepted arrives as `webrtc_callback` events.
- * What it refused, and which sessions it holds, the API does not report, so both are read from the server's log:
- * see {@link WEBRTC_REFUSAL_LINE}, {@link WEBRTC_SESSION_REGISTERED_LINE} and {@link WEBRTC_SESSION_REMOVED_LINE}. {@link solicitOffer}, {@link provideOffer} and {@link endSession} resolve only
+ * What it refused, and which sessions it holds, the API does not report, so both are read from the requestor's own
+ * debug lines in the server's log: {@link WEBRTC_SIGNAL_REFUSED_LINE}, {@link WEBRTC_SESSION_REGISTERED_LINE} and
+ * {@link WEBRTC_SESSION_REMOVED_LINE}. {@link solicitOffer}, {@link provideOffer} and {@link endSession} resolve only
  * once the log shows the registration or removal, and throw {@link MatterServerWebRtcError} where it does not.
  *
- * The log is shared by every peer of the server, so refusals and registrations count only for peers this instance has
- * sent a command to. A `webrtc_callback` is routed to this connection by the server and counts for every peer.
- * Lines logged before construction are not read.
+ * A session is held per peer node and session id, because each provider mints its own ids. The log is shared by every
+ * peer and endpoint of the server, so its lines count only for peers this instance has sent a command to and for the
+ * host's requestor endpoint. A `webrtc_callback` names the peer but not the requestor endpoint; the server routes it
+ * to this connection, and it counts for every peer. Lines logged before construction are not read.
  */
 export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
     readonly #host: MatterServerWebRtcHost;
     readonly #signals = new Array<WebRtcSignalRecord>();
     readonly #waiters = new Set<(signal: WebRtcSignalRecord | undefined) => void>();
     readonly #peers = new Set<bigint>();
-    readonly #held = new Set<number>();
-    readonly #logWaiters = new Set<() => void>();
-    readonly #streams = new Map<number, Pick<WebRtcSessionRecord, "videoStreamId" | "audioStreamId">>();
+    readonly #held = new Map<string, WebRtcSessionRecord>();
+    readonly #logWaits = new Set<LogWait>();
     readonly #listener: (event: string, data: unknown) => void;
     readonly #stopped: Promise<undefined>;
     #stop!: () => void;
@@ -209,23 +221,21 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
     }
 
     async endSession(peer: CertNodeRef, endpoint: number, id: number, reason: number): Promise<void> {
+        const nodeId = this.#addressed(peer);
         await this.#host.command("device_command", {
-            node_id: this.#addressed(peer),
+            node_id: nodeId,
             endpoint_id: endpoint,
             cluster_id: WebRtcTransportProvider.Cluster.id,
             command_name: "EndSession",
             payload: { webRtcSessionId: id, reason },
         });
-        await this.#until(`removal of session ${id}`, () => !this.#held.has(id));
+        const key = heldKey(BigInt(nodeId), id);
+        await this.#until(`removal of session ${id} of node ${nodeId}`, () => !this.#held.has(key));
     }
 
     async sessions(): Promise<readonly WebRtcSessionRecord[]> {
         await this.#host.log.settled();
-        return [...this.#held].map(id => ({
-            id,
-            videoStreamId: this.#streams.get(id)?.videoStreamId ?? null,
-            audioStreamId: this.#streams.get(id)?.audioStreamId ?? null,
-        }));
+        return [...this.#held.values()].map(session => ({ ...session }));
     }
 
     signals(): readonly WebRtcSignalRecord[] {
@@ -266,7 +276,10 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
         });
     }
 
-    /** Stops reading events and log, and settles every wait: nothing more will arrive for it. */
+    /**
+     * Stops reading events and log. A pending {@link nextSignal} resolves `undefined`; a pending {@link solicitOffer},
+     * {@link provideOffer} or {@link endSession} throws {@link MatterServerWebRtcClosedError}.
+     */
     close() {
         if (this.#closed) {
             return;
@@ -274,18 +287,25 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
         this.#closed = true;
         this.#host.events.off(this.#listener);
         this.#stop();
-        this.#logWaiters.clear();
+        for (const wait of [...this.#logWaits]) {
+            wait.abort();
+        }
         for (const waiter of [...this.#waiters]) {
             waiter(undefined);
         }
         this.#waiters.clear();
     }
 
+    /**
+     * Where the server's log does not show the registration in time, the provider and possibly the server still hold
+     * the session; the error names its id so the case can end it.
+     */
     async #establish(
         command: "SolicitOffer" | "ProvideOffer",
         { peer, endpoint, streamUsage, videoStreamId, audioStreamId }: WebRtcOfferRequest,
         fields: object,
     ): Promise<number> {
+        const nodeId = this.#addressed(peer);
         const response = await this.#providerCommand(peer, endpoint, command, {
             ...fields,
             streamUsage,
@@ -294,8 +314,9 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
         });
 
         const id = sessionIdOf(response, command);
-        await this.#until(`registration of session ${id}`, () => this.#held.has(id));
-        this.#streams.set(id, { videoStreamId: videoStreamId ?? null, audioStreamId: audioStreamId ?? null });
+        const key = heldKey(BigInt(nodeId), id);
+        await this.#until(`registration of session ${id} of node ${nodeId}`, () => this.#held.has(key));
+        this.#held.set(key, { id, videoStreamId: videoStreamId ?? null, audioStreamId: audioStreamId ?? null });
         return id;
     }
 
@@ -309,16 +330,29 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
     }
 
     async #until(what: string, done: () => boolean) {
+        if (this.#closed) {
+            throw new MatterServerWebRtcClosedError(`The WebRTC requestor was closed before the ${what}`);
+        }
         if (done()) {
             return;
         }
         const timeout = this.#host.logTimeout ?? LOG_LAG;
         await new Promise<void>((resolve, reject) => {
-            const waiter = () => {
-                if (done()) {
+            const wait: LogWait = {
+                check: () => {
+                    if (done()) {
+                        settle();
+                        resolve();
+                    }
+                },
+                abort: () => {
                     settle();
-                    resolve();
-                }
+                    reject(
+                        new MatterServerWebRtcClosedError(
+                            `The WebRTC requestor was closed while waiting for the ${what}`,
+                        ),
+                    );
+                },
             };
             const timer = Time.getTimer("webrtc log wait", timeout, () => {
                 settle();
@@ -330,11 +364,17 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
             });
             const settle = () => {
                 timer.stop();
-                this.#logWaiters.delete(waiter);
+                this.#logWaits.delete(wait);
             };
-            this.#logWaiters.add(waiter);
+            this.#logWaits.add(wait);
             timer.start();
         });
+    }
+
+    #checkLogWaits() {
+        for (const wait of [...this.#logWaits]) {
+            wait.check();
+        }
     }
 
     #addressed(peer: CertNodeRef): NodeId {
@@ -347,21 +387,25 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
         if (event !== "webrtc_callback" || !isObject(data)) {
             return;
         }
-        const { event_type: type, webrtc_session_id: sessionId, data: payload } = data;
+        const { event_type: type, webrtc_session_id: sessionId, node_id: node, data: payload } = data;
         const kind = typeof type === "string" ? CALLBACK_KINDS.get(type) : undefined;
-        if (kind === undefined || typeof sessionId !== "number") {
-            logger.debug("Ignoring a webrtc_callback of an unknown kind or without session id:", Diagnostic.json(data));
+        const peer = nodeIdValueOf(node);
+        if (kind === undefined || typeof sessionId !== "number" || peer === undefined) {
+            logger.debug(
+                "Ignoring a webrtc_callback of an unknown kind or without session id or node id:",
+                Diagnostic.json(data),
+            );
             return;
         }
 
         const body = isObject(payload) ? payload : {};
-        if (kind === "end") {
-            this.#held.delete(sessionId);
-        }
         this.#record(kind, sessionId, "accepted", {
             ...(typeof body.sdp === "string" ? { sdp: body.sdp } : {}),
             ...(kind === "iceCandidates" ? { candidates: candidatesOf(body.ice_candidates) } : {}),
         });
+        if (kind === "end" && this.#held.delete(heldKey(peer, sessionId))) {
+            this.#checkLogWaits();
+        }
     }
 
     async #readLog(start: number) {
@@ -374,38 +418,37 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
             }
             if (index++ >= start) {
                 this.#onLine(next.value);
-                for (const waiter of [...this.#logWaiters]) {
-                    waiter();
-                }
+                this.#checkLogWaits();
             }
         }
     }
 
     #onLine(text: string) {
-        const refusal = WEBRTC_REFUSAL_LINE.exec(text)?.groups;
-        if (refusal !== undefined) {
-            const kind = REFUSED_KINDS.get(refusal.kind);
-            if (kind !== undefined && this.#peers.has(BigInt(`0x${refusal.peer}`))) {
-                this.#record(kind, Number(refusal.id), "refused");
+        const refused = WEBRTC_SIGNAL_REFUSED_LINE.exec(text)?.groups;
+        if (refused !== undefined) {
+            const kind = REFUSED_KINDS.get(refused.kind);
+            if (kind !== undefined && this.#isOwn(refused)) {
+                this.#record(kind, Number(refused.id), "refused");
             }
             return;
         }
 
         const registered = WEBRTC_SESSION_REGISTERED_LINE.exec(text)?.groups;
         if (registered !== undefined) {
-            if (this.#isOwn(registered)) {
-                this.#held.add(Number(registered.id));
+            const key = heldKey(BigInt(registered.peer), Number(registered.id));
+            if (this.#isOwn(registered) && !this.#held.has(key)) {
+                this.#held.set(key, { id: Number(registered.id), videoStreamId: null, audioStreamId: null });
             }
             return;
         }
 
         const removed = WEBRTC_SESSION_REMOVED_LINE.exec(text)?.groups;
         if (removed !== undefined && this.#isOwn(removed)) {
-            this.#held.delete(Number(removed.id));
+            this.#held.delete(heldKey(BigInt(removed.peer), Number(removed.id)));
         }
     }
 
-    /** A session of a peer this instance addressed, held by the requestor on the host's endpoint. */
+    /** A line about a peer this instance addressed and the requestor on the host's endpoint. */
     #isOwn({ peer, endpoint }: Record<string, string>) {
         return this.#peers.has(BigInt(peer)) && Number(endpoint) === this.#host.endpoint;
     }
@@ -422,6 +465,21 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
             waiter(signal);
         }
     }
+}
+
+function heldKey(peer: bigint, id: number) {
+    return `${peer}/${id}`;
+}
+
+/** A `webrtc_callback`'s `node_id`, which the client reads as a bigint where it exceeds the safe integer range. */
+function nodeIdValueOf(value: unknown): bigint | undefined {
+    if (typeof value === "bigint") {
+        return value;
+    }
+    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
+        return BigInt(value);
+    }
+    return undefined;
 }
 
 function candidatesOf(candidates: unknown): WebRtcIceCandidate[] {

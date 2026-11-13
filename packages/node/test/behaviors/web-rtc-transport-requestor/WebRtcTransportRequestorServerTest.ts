@@ -330,6 +330,34 @@ describe("WebRtcTransportRequestorServer", () => {
             expect(refusals).to.deep.equal([{ signal: "offer", sessionId: 999 }]);
         });
 
+        it("logs the signal it refused with the peer and its own endpoint", async () => {
+            const messages = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    if (message.facility === "WebRtcTransportRequestorServer" && message.level === LogLevel.DEBUG) {
+                        messages.push(String(message.values[0]));
+                    }
+                },
+            });
+            try {
+                await expect(
+                    withPeerContext(node, FABRIC, PEER_NODE, async context => {
+                        await cameraEndpoint!
+                            .agentFor(context)
+                            .get(WebRtcTransportRequestorServer)
+                            .answer({ webRtcSessionId: 999, sdp: "answer" });
+                    }),
+                ).to.be.rejectedWith(/NotFound|not found/i);
+            } finally {
+                delete Logger.destinations.capture;
+            }
+
+            expect(messages.filter(message => message.startsWith("session refused"))).deep.equals([
+                `session refused signal=answer webRtcSessionId=999 fabricIndex=1 peerNodeId=42 ` +
+                    `requestorEndpointId=${cameraEndpoint!.number}`,
+            ]);
+        });
+
         it("refused does not fire for a session the peer holds", async () => {
             let refusals = 0;
             cameraEndpoint!.eventsOf(WebRtcTransportRequestorServer).refused.on(() => {

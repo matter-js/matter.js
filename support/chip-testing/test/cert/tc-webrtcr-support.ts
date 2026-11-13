@@ -747,11 +747,9 @@ export async function expectRefusal(
         verdict: refusedForeignId ? "pass" : "fail",
         detail: refusedForeignId
             ? `the DUT refused the ${signalName(kind)} naming session ${refusal.sessionId}, which is not the ` +
-              `session ` +
-              `${held} it holds with TH_SERVER`
-            : `the DUT refused the ${signalName(kind)} naming session ${held}, the very session it registered, so ` +
-              `the ` +
-              `refusal rests on something other than the corrupted id`,
+              `session ${held} it holds with TH_SERVER`
+            : `the DUT refused the ${signalName(kind)} naming session ${held}, the session it holds with ` +
+              `TH_SERVER, so the refusal rests on something other than the corrupted id`,
     });
 
     return { passed: refusedForeignId, refusedId: refusal.sessionId };

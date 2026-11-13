@@ -27,6 +27,7 @@ import {
     Millis,
     MockFilesystem,
     MockStorageService,
+    Mutex,
     Observable,
     ObserverGroup,
     Seconds,
@@ -2629,8 +2630,9 @@ export class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
     readonly #dispatch = new Array<WebRtcSignalRecord>();
     readonly #nodeOf: (peer: CertNodeRef) => CertNodeApi;
 
-    /** Per provider (`peer/endpoint`), the session id it minted last. */
+    /** Per peer node, the session id its provider minted last. */
     readonly #lastMinted = new Map<string, number>();
+    readonly #establishing = new Mutex(this);
     #dispatching?: Timer;
     #closed = false;
 
@@ -2794,17 +2796,35 @@ export class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
 
     /**
      * Registers the id the provider is about to mint, then asks for the session and confirms the id
-     * against the response. The provider signals for the new session from inside its own handling of
-     * the request, so a registration made after the response is too late. chip mints ids in sequence
-     * per provider (`WebRTCTransportProviderCluster::GenerateSessionId`), starting at 0.
+     * against the response. The provider's signaling for the new session can arrive before its
+     * response is processed (chip's camera app schedules its `Offer` to run right after it handles `SolicitOffer`),
+     * so a registration made after the response is too late.
+     *
+     * chip mints ids from one counter per process, the function-local `static uint16_t nextSessionId`
+     * in `WebRTCTransportProviderCluster::GenerateSessionId`, starting at 0. The prediction is therefore
+     * kept per peer node and covers all of its provider endpoints. Establishes run one at a time, so
+     * two of them never predict the same id.
+     *
+     * A request the provider refuses after it minted an id (chip can fail `SolicitOffer` after
+     * `GenerateSessionId`) uses up that id without this side seeing it. The next prediction is then
+     * one behind and fails with {@link WebRtcSessionPredictionError}, which names the id the provider
+     * minted; the prediction after that is right again.
      */
     async #establish(
         request: WebRtcOfferRequest,
         command: "solicitOffer" | "provideOffer",
         fields: object,
     ): Promise<number> {
+        return this.#establishing.produce(() => this.#establishOne(request, command, fields));
+    }
+
+    async #establishOne(
+        request: WebRtcOfferRequest,
+        command: "solicitOffer" | "provideOffer",
+        fields: object,
+    ): Promise<number> {
         const { peer, endpoint, streamUsage, videoStreamId, audioStreamId } = request;
-        const provider = `${peer}/${endpoint}`;
+        const provider = String(this.#nodeIdOf(peer));
         const lastMinted = this.#lastMinted.get(provider);
         const predicted = lastMinted === undefined ? 0 : lastMinted + 1;
         await this.upsertSession({

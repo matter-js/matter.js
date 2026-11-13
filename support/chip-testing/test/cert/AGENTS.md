@@ -3347,12 +3347,13 @@ none of them is visible from the plan document:
   adds a camera-controller endpoint to the in-process controller; chip-tool's adapter refuses the
   option, since a commissioner process is not a node. A case wanting this must therefore skip on any
   other controller implementation, which is what makes it matter.js-only rather than a flavor gap.
-- **The provider's Offer beats a registration made after the solicitation's response.** chip's camera
-  invokes `Offer` from inside its own handling of `SolicitOffer`, so where controller and provider
-  share a host the Offer lands first and a session registered on the response is refused — a failure
+- **The provider's Offer can beat a registration made after the solicitation's response.** chip's
+  camera app schedules its `Offer` to run right after it handles `SolicitOffer`, so the Offer can
+  arrive before the response is processed, and a session registered on the response is refused — a failure
   that looks exactly like the defect the case hunts. The in-process adapter's
   `WebRtcRequestorApi.solicitOffer`/`provideOffer` register the id the provider is about to mint
-  *before* sending (ids are sequential, `WebRTCTransportProviderCluster::GenerateSessionId`) and
+  *before* sending (chip mints ids in sequence from one counter per process,
+  `WebRTCTransportProviderCluster::GenerateSessionId`, so the prediction is kept per peer node) and
   confirm it against the answer; a mismatch throws `WebRtcSessionPredictionError`, a harness error.
   A local run over a Docker bridge is slow enough to hide this race; CI is not.
 - **A refusal is only evidence once something comparable was accepted.** The requestor refuses
@@ -3431,12 +3432,14 @@ those cases settled:
     [connectedhomeip#74310](https://github.com/project-chip/connectedhomeip/issues/74310); both the
     substitution and the check that records it go when the camera app answers with a settled role.
   - Ending a session is two things: `EndSession` tells the provider, and the requestor stops reporting
-    the session. `WebRtcRequestorApi.endSession` does both. The cluster drops a session by itself only
-    when the *peer* ends it (chip's camera answers `EndSession` by cleaning up its own side and sends
-    no `End` back), so a controller that skips the second half keeps a session it ended in
-    `CurrentSessions`. Read `TC-WEBRTCR-2.5`'s last read for what it is: the in-process adapter
-    performs the removal, so that read states the controller stopped reporting the session, not that
-    the cluster decided to.
+    the session. `WebRtcRequestorApi.endSession` resolves only once both happened. The cluster drops a
+    session by itself only when the *peer* ends it (chip's camera answers `EndSession` by cleaning up
+    its own side and sends no `End` back), so a controller that skips the second half keeps a session
+    it ended in `CurrentSessions`. The in-process adapter removes the session itself; matterjs-server
+    removes it while it handles the `EndSession` the adapter sends through `device_command`, and the
+    adapter waits for the requestor's removal line in the server's log. Read `TC-WEBRTCR-2.5`'s last
+    read for what it is: it states the controller stopped reporting the session, not that the
+    cluster decided to.
 
 A prompt-driven script's multi-line prompt is one more trap of its own: each line arrives separately,
 so a `PromptHandler` pattern that matches a hint line inside the prompt writes a second answer, which

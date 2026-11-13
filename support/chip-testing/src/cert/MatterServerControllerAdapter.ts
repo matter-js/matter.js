@@ -163,8 +163,9 @@ export const MATTERJS_SERVER_CAPABILITY_GAPS = {
     "batch-arrival-order":
         "batched_device_commands answers in request order, so the order the device's answers arrived in is not visible",
     "webrtc-requestor":
-        "the server refuses a camera's Offer or Answer that arrives before the SolicitOffer or ProvideOffer " +
-        "response, which a CHIP camera sends; this case runs once the server holds such early signalling",
+        "the server refuses a camera's Offer or Answer that arrives before it has processed the SolicitOffer or " +
+        "ProvideOffer response, and a CHIP camera can send it that early; this case runs once the server accepts " +
+        "that early signaling",
     "noc-update":
         "the WebSocket API has no command that replaces a node's operational certificate, and a device_command " +
         "UpdateNOC cannot stand in: the NOC must be issued by the server's certificate authority, which the API " +

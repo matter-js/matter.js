@@ -14,6 +14,7 @@ import {
     MockFilesystem,
     MockStorageService,
     ServerNode,
+    UnexpectedDataError,
 } from "@matter/main";
 import { CameraControllerDevice } from "@matter/main/devices";
 import { DeviceAttestationCheck, FabricAuthority, FabricGroups } from "@matter/main/protocol";
@@ -1222,6 +1223,7 @@ describe("InProcessControllerAdapter WebRTC requestor", () => {
  */
 describe("InProcessWebRtcRequestorApi operations", () => {
     const PROVIDER = "5";
+    const OTHER_PROVIDER = "6";
     const OFFER = { peer: PROVIDER, endpoint: 1, streamUsage: StreamUsage.Recording, videoStreamId: 42 };
 
     let controller: ServerNode | undefined;
@@ -1240,11 +1242,17 @@ describe("InProcessWebRtcRequestorApi operations", () => {
         readonly minted = new Array<number>();
         onInvoke?: (command: string) => Promise<void>;
 
+        /** Answers an offer request with this instead of a scripted session id. */
+        offerResponse?: object;
+
         readonly node = fakeCertNode({
             invoke: async (_cluster, command, args, endpoint) => {
                 this.invoked.push({ command, args, endpoint });
                 await this.onInvoke?.(command);
                 if (command === "solicitOffer" || command === "provideOffer") {
+                    if (this.offerResponse !== undefined) {
+                        return this.offerResponse;
+                    }
                     const webRtcSessionId = this.minted.shift();
                     if (webRtcSessionId === undefined) {
                         throw new InternalError(`No session id scripted for ${command}`);
@@ -1272,15 +1280,26 @@ describe("InProcessWebRtcRequestorApi operations", () => {
         controller = node;
         const fabric = await (await node.env.load(FabricAuthority)).defaultFabric({ adminFabricLabel: id });
         await node.start();
-        await node.peers.forAddress(fabric.addressOf(NodeId(BigInt(PROVIDER))));
+        const providers = new Map<string, ScriptedProvider>();
+        for (const peer of [PROVIDER, OTHER_PROVIDER]) {
+            await node.peers.forAddress(fabric.addressOf(NodeId(BigInt(peer))));
+            providers.set(peer, new ScriptedProvider());
+        }
 
         const endpoint = await node.add(CameraControllerDevice, { id: "webrtc-requestor", number: 1 });
-        const provider = new ScriptedProvider();
         requestor = new InProcessWebRtcRequestorApi(id, endpoint, node, fabric, peer => {
-            expect(peer).equal(PROVIDER);
+            const provider = providers.get(peer);
+            if (provider === undefined) {
+                throw new InternalError(`No scripted provider for ${peer}`);
+            }
             return provider.node;
         });
-        return { provider, requestor };
+        const provider = providers.get(PROVIDER);
+        const other = providers.get(OTHER_PROVIDER);
+        if (provider === undefined || other === undefined) {
+            throw new InternalError("Scripted providers missing");
+        }
+        return { provider, other, requestor };
     }
 
     async function heldIds(requestor: InProcessWebRtcRequestorApi) {
@@ -1299,7 +1318,7 @@ describe("InProcessWebRtcRequestorApi operations", () => {
 
         expect(await requestor.solicitOffer(OFFER)).to.equal(0);
 
-        // The provider sends its Offer from inside its own handling of SolicitOffer
+        // The provider can signal before its response is processed
         expect(heldDuringInvoke).to.deep.equal([0]);
         expect(provider.invoked).to.deep.equal([
             {
@@ -1339,6 +1358,51 @@ describe("InProcessWebRtcRequestorApi operations", () => {
             /minted session 5 where 0 was registered/,
         );
         expect(await requestor.sessions()).to.deep.equal([]);
+    });
+
+    it("predicts one sequence per peer node, across its provider endpoints", async function () {
+        this.timeout(20_000);
+
+        const { provider, other, requestor } = await requestorFor("webrtc-per-node");
+        provider.minted.push(0, 1);
+        other.minted.push(0);
+
+        expect(await requestor.solicitOffer(OFFER)).to.equal(0);
+        expect(await requestor.solicitOffer({ ...OFFER, endpoint: 2 })).to.equal(1);
+        expect(await requestor.solicitOffer({ ...OFFER, peer: OTHER_PROVIDER })).to.equal(0);
+    });
+
+    it("predicts after the id the provider minted where the last prediction missed", async function () {
+        this.timeout(20_000);
+
+        const { provider, requestor } = await requestorFor("webrtc-after-mismatch");
+        provider.minted.push(5, 6);
+
+        await expect(requestor.solicitOffer(OFFER)).rejectedWith(WebRtcSessionPredictionError);
+
+        expect(await requestor.solicitOffer(OFFER)).to.equal(6);
+        expect(await heldIds(requestor)).to.deep.equal([6]);
+    });
+
+    it("holds no predicted session where the response names no session id", async function () {
+        this.timeout(20_000);
+
+        const { provider, requestor } = await requestorFor("webrtc-no-id");
+        provider.offerResponse = {};
+
+        await expect(requestor.solicitOffer(OFFER)).rejectedWith(UnexpectedDataError, /carried no webRtcSessionId/);
+        expect(await requestor.sessions()).to.deep.equal([]);
+    });
+
+    it("establishes concurrent requests to one peer one at a time", async function () {
+        this.timeout(20_000);
+
+        const { provider, requestor } = await requestorFor("webrtc-concurrent");
+        provider.minted.push(0, 1);
+        provider.onInvoke = () => new Promise(resolve => setTimeout(resolve, 20));
+
+        expect(await Promise.all([requestor.solicitOffer(OFFER), requestor.solicitOffer(OFFER)])).to.deep.equal([0, 1]);
+        expect(await heldIds(requestor)).to.have.members([0, 1]);
     });
 
     it("holds no predicted session where the provider refuses the request", async function () {

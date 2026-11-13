@@ -1549,9 +1549,9 @@ export interface WebRtcRequestorApi {
      * Sends `SolicitOffer` and resolves with the session id the provider minted, once the requestor
      * holds that session.
      *
-     * The provider may signal for the new session before its response arrives: chip's camera sends
-     * `Offer` from inside its own handling of `SolicitOffer`. An implementation must accept that
-     * signaling. Where it cannot establish which id the provider minted, it throws a harness error,
+     * The provider's signaling for the new session can arrive before its response is processed: chip's
+     * camera app schedules its `Offer` to run right after it handles `SolicitOffer`. An implementation
+     * must accept that signaling. Where it cannot establish which id the provider minted, it throws a harness error,
      * not a verdict about the controller, and holds no session for that solicitation.
      *
      * @see {@link MatterSpecification.v161.Cluster} § 11.5.6.1
@@ -1586,10 +1586,14 @@ export interface WebRtcRequestorApi {
     ): Promise<void>;
 
     /**
-     * Sends `EndSession` to the provider, and the requestor stops holding the session.
+     * Sends `EndSession` to the provider, and resolves once the requestor no longer holds the session.
      *
-     * Both halves belong to the controller: the requestor cluster drops a session by itself only when
-     * the peer ends it.
+     * The requestor cluster drops a session by itself only when the peer ends it, so the controller
+     * has to remove it: the in-process adapter removes it after the command; matterjs-server removes
+     * it while it handles the command, and its adapter waits for the server's log to show that.
+     *
+     * Throws where the command fails, and on matterjs-server also where the removal does not show
+     * within the log wait. In both cases the requestor may still hold the session.
      *
      * @see {@link MatterSpecification.v161.Cluster} § 11.5.6.7
      */

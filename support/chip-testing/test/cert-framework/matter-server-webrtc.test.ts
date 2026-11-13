@@ -12,6 +12,7 @@ import { LineQueue, LogFollower } from "@matter/testing";
 import { expect } from "chai";
 import {
     cameraControllerEndpointOf,
+    MatterServerWebRtcClosedError,
     MatterServerWebRtcError,
     MatterServerWebRtcRequestor,
 } from "../../src/cert/matter-server-webrtc.js";
@@ -33,11 +34,16 @@ async function rejectionOf(promise: Promise<unknown>) {
     expect.fail("expected a rejection");
 }
 
-/** What the server logs when the requestor refuses a signal for a session it does not track. */
-function refusalLine(kind: "offer" | "answer" | "iceCandidates" | "end", id: number, node: string) {
+/** What the server logs when the requestor refuses a signal for a session it does not hold for the peer. */
+function refusalLine(
+    kind: "offer" | "answer" | "iceCandidates" | "end",
+    id: number,
+    node: string,
+    requestorEndpointId = OWN_ENDPOINT,
+) {
     return (
-        `2026-11-13 10:00:00.100 INFO ProtocolService Invoke error @1:${BigInt(node).toString(16)}•d65e(tcp)⇵1599✉0a1b ` +
-        `${OWN_ENDPOINT}.webRtcTransportRequestor.${kind}: Status=NotFound WebRTC session ${id} not found`
+        `2026-11-13 10:00:00.100 DEBUG WebRtcTransportRequestorServer session refused signal=${kind} ` +
+        `webRtcSessionId=${id} fabricIndex=1 peerNodeId=${node} requestorEndpointId=${requestorEndpointId}`
     );
 }
 
@@ -252,6 +258,17 @@ describe("matterjs-server WebRTC requestor", () => {
         expect(requestor.signals().map(each => each.sessionId)).deep.equals([43]);
     });
 
+    it("ignores a refusal logged for another requestor endpoint", async () => {
+        await requestor.provideAnswer(PEER, PEER_ENDPOINT, 7, "sdp");
+        lines.push(refusalLine("answer", 42, PEER, OWN_ENDPOINT + 1));
+        lines.push(refusalLine("answer", 43, PEER));
+
+        const signal = await requestor.nextSignal(each => each.outcome === "refused", 2000);
+
+        expect(signal?.sessionId).equals(43);
+        expect(requestor.signals().map(each => each.sessionId)).deep.equals([43]);
+    });
+
     it("ignores a refusal logged before the requestor started", async () => {
         lines.push(refusalLine("answer", 41, PEER));
         await log.settled();
@@ -289,6 +306,58 @@ describe("matterjs-server WebRTC requestor", () => {
         requestor.close();
 
         expect(await waiting).equals(undefined);
+    });
+
+    it("solicitOffer after close throws a closed error rather than wait for the log", async () => {
+        requestor.close();
+
+        const error = await rejectionOf(
+            requestor.solicitOffer({ peer: PEER, endpoint: PEER_ENDPOINT, streamUsage: STREAM_USAGE }),
+        );
+
+        expect(error).instanceOf(MatterServerWebRtcClosedError);
+    });
+
+    it("nextSignal passes over a signal that does not match and resolves with the next that does", async () => {
+        const waiting = requestor.nextSignal(each => each.kind === "answer", 2000);
+        await pushCallback("offer", 3, { sdp: "x" });
+        await pushCallback("answer", 3, { sdp: "y" });
+
+        expect(await waiting).deep.include({ kind: "answer", sessionId: 3 });
+    });
+
+    it("nextSignal after close resolves undefined at once", async () => {
+        requestor.close();
+
+        const started = Date.now();
+        expect(await requestor.nextSignal(() => true, 60_000)).equals(undefined);
+        expect(Date.now() - started).lessThan(1000);
+    });
+
+    it("ignores a malformed webrtc_callback without throwing", async () => {
+        for (const data of [
+            "not an object",
+            { event_type: "offer", webrtc_session_id: "3", node_id: 5, data: {} },
+            { event_type: "offer", webrtc_session_id: 3, data: {} },
+            { event_type: "offer", webrtc_session_id: 3, node_id: "5", data: {} },
+            { event_type: "unknown", webrtc_session_id: 3, node_id: 5, data: {} },
+        ]) {
+            server.pushEvent("webrtc_callback", data);
+        }
+        await pushCallback("ice_candidates", 4, { ice_candidates: [{ sdpMid: "0" }, "x", { candidate: "c:1" }] });
+        await pushCallback("answer", 4, "no payload object");
+
+        expect(
+            requestor.signals().map(({ kind, sessionId, candidates, sdp }) => ({ kind, sessionId, candidates, sdp })),
+        ).deep.equals([
+            {
+                kind: "iceCandidates",
+                sessionId: 4,
+                candidates: [{ candidate: "c:1", sdpMid: null, sdpmLineIndex: null }],
+                sdp: undefined,
+            },
+            { kind: "answer", sessionId: 4, candidates: undefined, sdp: undefined },
+        ]);
     });
 
     it("orders callbacks and refusals on one clock", async () => {
@@ -335,6 +404,89 @@ describe("matterjs-server WebRTC requestor", () => {
         await log.settled();
 
         expect(await requestor.sessions()).deep.equals([]);
+    });
+
+    it("holds the same session id of two peers apart", async () => {
+        server.reply = request => {
+            if (request.command === "send_webrtc_provider_command" && isObject(request.args)) {
+                lines.push(registrationLine(7, String(request.args.node_id)));
+                return { result: { webRtcSessionId: 7 } };
+            }
+            return { result: null };
+        };
+
+        expect(await requestor.solicitOffer({ peer: PEER, endpoint: PEER_ENDPOINT, streamUsage: STREAM_USAGE })).equals(
+            7,
+        );
+        expect(
+            await requestor.solicitOffer({ peer: OTHER_PEER, endpoint: PEER_ENDPOINT, streamUsage: STREAM_USAGE }),
+        ).equals(7);
+        expect((await requestor.sessions()).map(session => session.id)).deep.equals([7, 7]);
+
+        lines.push(removalLine(7, OTHER_PEER));
+        await log.settled();
+
+        expect((await requestor.sessions()).map(session => session.id)).deep.equals([7]);
+    });
+
+    it("solicitOffer does not count another peer's registration of the same id", async () => {
+        await requestor.provideAnswer(OTHER_PEER, PEER_ENDPOINT, 1, "sdp");
+        server.reply = request => {
+            if (request.command === "send_webrtc_provider_command") {
+                lines.push(registrationLine(7, OTHER_PEER));
+                return { result: { webRtcSessionId: 7 } };
+            }
+            return { result: null };
+        };
+
+        const error = await rejectionOf(
+            requestor.solicitOffer({ peer: PEER, endpoint: PEER_ENDPOINT, streamUsage: STREAM_USAGE }),
+        );
+
+        expect(error).instanceOf(MatterServerWebRtcError);
+        expect(String(error)).match(/registration of session 7 of node 5/);
+    });
+
+    it("an end callback drops the held session and ends the wait of endSession", async () => {
+        const id = await requestor.solicitOffer({ peer: PEER, endpoint: PEER_ENDPOINT, streamUsage: STREAM_USAGE });
+
+        const ending = requestor.endSession(PEER, PEER_ENDPOINT, id, 0);
+        await new Promise(resolve => setTimeout(resolve, 50));
+        await pushCallback("end", id, { reason: 0 });
+        await ending;
+
+        expect(await requestor.sessions()).deep.equals([]);
+    });
+
+    it("an end callback from another peer keeps the session held", async () => {
+        const id = await requestor.solicitOffer({ peer: PEER, endpoint: PEER_ENDPOINT, streamUsage: STREAM_USAGE });
+
+        await pushCallback("end", id, { reason: 0 }, Number(OTHER_PEER));
+
+        expect((await requestor.sessions()).map(session => session.id)).deep.equals([id]);
+    });
+
+    it("close ends a pending registration wait with a closed error", async () => {
+        server.reply = () => ({ result: { webRtcSessionId: 7 } });
+        const slow = new MatterServerWebRtcRequestor({
+            command: (command, args) => client.command(command, args),
+            events: client.events,
+            log,
+            nodeIdOf: peer => NodeId(BigInt(peer)),
+            endpoint: OWN_ENDPOINT,
+            logTimeout: Millis(60_000),
+        });
+        const soliciting = rejectionOf(
+            slow.solicitOffer({ peer: PEER, endpoint: PEER_ENDPOINT, streamUsage: STREAM_USAGE }),
+        );
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        const started = Date.now();
+        slow.close();
+        const error = await soliciting;
+
+        expect(error).instanceOf(MatterServerWebRtcClosedError);
+        expect(Date.now() - started).lessThan(1000);
     });
 
     it("endSession keeps the session held until the removal line arrives", async () => {
@@ -457,6 +609,13 @@ describe("matterjs-server camera-controller endpoint", () => {
         log.mark();
 
         expect(await cameraControllerEndpointOf(log, Millis(100))).equals(2);
+    });
+
+    it("does not read the number of an endpoint whose id only starts with camera-controller", async () => {
+        lines.push(readyLine("camera-controller-aux", 4));
+
+        const error = await rejectionOf(cameraControllerEndpointOf(log, Millis(100)));
+        expect(error).instanceOf(MatterServerWebRtcError);
     });
 
     it("throws where the server never logs the endpoint", async () => {

@@ -186,6 +186,10 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
             isSameSession(s, { id, fabricIndex: peer.fabricIndex, peerNodeId: peer.nodeId }),
         );
         if (session === undefined) {
+            logger.debug(
+                `session refused signal=${signal} webRtcSessionId=${id} fabricIndex=${peer.fabricIndex} ` +
+                    `peerNodeId=${peer.nodeId} requestorEndpointId=${this.endpoint.number}`,
+            );
             this.events.refused.emit(signal, id, peer);
             throw new StatusResponseError(`WebRTC session ${id} not found`, Status.NotFound);
         }
