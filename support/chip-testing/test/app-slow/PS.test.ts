@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AllDevicesApp, RvcApp } from "../support.js";
+import { AllDevicesApp } from "../support.js";
 
 describe("PS", () => {
     chip("PS/*").args("--endpoint", 1).exclude("PS/2.3");
     // Selects the runs of multi-run tests, which "PS/*" does not
-    chip("PS/*/run*").args("--endpoint", 1).exclude("PS/2.3/*").exclude("PS/3.1/run1", "PS/3.1/run12").exclude(
+    chip("PS/*/run*").args("--endpoint", 1).exclude("PS/2.3/*").exclude("PS/3.1/run1").exclude(
         // Runs for CHIP apps matter.js has no test subject for: electrical-protection, evse, lighting-app-no-unique-id, microwave-oven, network-management
         "PS/3.1/run10",
         "PS/3.1/run12",
@@ -23,7 +23,4 @@ describe("PS", () => {
 
     // AllClusters coverage in DeviceBasicComposition
     chip("PS/3.1/run1");
-
-    // RVC coverage in DeviceBasicComposition
-    chip("PS/3.1/run12").subject(RvcApp);
 });

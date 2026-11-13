@@ -124,9 +124,10 @@ export class FakeElectricalReadingsHandler extends TestEventTriggerHandler {
         internal.cumulativeImportedMwh += periodicImportedMwh;
         internal.cumulativeExportedMwh += periodicExportedMwh;
 
-        this.agent.get(ElectricalPowerMeasurementServer).state.activePower = powerMw;
-        this.agent.get(ElectricalPowerMeasurementServer).state.voltage = voltageMv;
-        this.agent.get(ElectricalPowerMeasurementServer).state.activeCurrent = currentMa;
+        const power = this.agent.get(ElectricalPowerMeasurementServer).state;
+        power.activePower = powerMw;
+        power.voltage = voltageMv;
+        power.activeCurrent = currentMa;
 
         const endTimestamp = Seconds.of(Timestamp.delta(Timestamp.zero));
         const startTimestamp = internal.lastReadingTimestamp;

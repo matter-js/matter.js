@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AllClustersFullMaxIntervalApp } from "../support.js";
+import { AllClustersApp, AllClustersFullMaxIntervalApp } from "../support.js";
 
 describe("IDM", () => {
     chip("IDM/*").exclude(
@@ -51,8 +51,8 @@ describe("IDM", () => {
     // AllClustersApp intentionally adds clusters beyond what OnOffLightDevice requires,
     // so disable strict extra-cluster checking
     chip("IDM/10.5").args("--bool-arg", "fail_on_extra_clusters:False");
-    // No lock subject is registered, so IDM 13.1 runs on AllClustersApp, which serves CHIP's UnitTesting cluster
-    chip("IDM/13.1").args("--bool-arg", "pixit_allow_unit_testing_cluster:True");
+    // CHIP runs IDM 13.1 on its lock app; of the matter.js subjects only AllClustersApp serves the UnitTesting cluster
+    chip("IDM/13.1").subject(AllClustersApp).args("--bool-arg", "pixit_allow_unit_testing_cluster:True");
     // IDM 1.5 exercises DelayReportData, which the forward features enabled in support.ts switch on.  It asserts that the
     // negotiated MaxInterval equals its requested ceiling of 3600 s, which the default subject does not grant
     chip("IDM/1.5").subject(AllClustersFullMaxIntervalApp);

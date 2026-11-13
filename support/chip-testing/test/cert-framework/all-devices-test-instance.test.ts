@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "@matter/general";
+import { Bytes, Duration, Seconds } from "@matter/general";
 import { Endpoint } from "@matter/main";
 import { BridgedDeviceBasicInformationServer } from "@matter/main/behaviors/bridged-device-basic-information";
 import { ElectricalEnergyMeasurementServer } from "@matter/main/behaviors/electrical-energy-measurement";
@@ -155,47 +155,78 @@ describe("AllDevicesTestInstance --device", () => {
 describe("AllDevicesTestInstance electrical-sensor", () => {
     const enableKey = Bytes.fromHex("000102030405060708090a0b0c0d0e0f");
 
-    async function trigger(node: Awaited<ReturnType<typeof setupWith>>, eventTrigger: bigint) {
-        await node.act(agent => agent.get(GeneralDiagnosticsServer).testEventTrigger({ enableKey, eventTrigger }));
-    }
-
-    it("reads a fake 1 kW load on the start trigger", async () => {
+    async function withSensor(fn: (node: Awaited<ReturnType<typeof setupWith>>, sensor: Endpoint) => Promise<void>) {
         const node = await setupWith(
             "--device",
             "electrical-sensor:1",
             "--enable-key",
             "000102030405060708090a0b0c0d0e0f",
         );
+        MockTime.enable();
         try {
-            await trigger(node, 0x0091_0000_0000_0001n);
             const [sensor] = [...node.parts];
+            await fn(node, sensor);
+        } finally {
+            MockTime.disable();
+            await node.close();
+        }
+    }
+
+    /** Advances mock time and waits for the reading that the periodic timer commits in its own transaction. */
+    async function nextReading(sensor: Endpoint, interval: Duration) {
+        const changed = new Promise(resolve =>
+            sensor.eventsOf(ElectricalPowerMeasurementServer).activePower$Changed.once(resolve),
+        );
+        await MockTime.advance(interval.valueOf());
+        await changed;
+    }
+
+    async function trigger(node: Awaited<ReturnType<typeof setupWith>>, eventTrigger: bigint) {
+        await node.act(agent => agent.get(GeneralDiagnosticsServer).testEventTrigger({ enableKey, eventTrigger }));
+    }
+
+    it("reads a fake 1 kW load every 2 s until the stop trigger", async () => {
+        await withSensor(async (node, sensor) => {
+            await trigger(node, 0x0091_0001_0000_0001n);
             expect(sensor.stateOf(ElectricalPowerMeasurementServer).activePower).equals(980_000);
             expect(sensor.stateOf(ElectricalPowerMeasurementServer).voltage).equals(229_000);
             const energy = sensor.stateOf(ElectricalEnergyMeasurementServer);
             expect(energy).nested.property("cumulativeEnergyImported.energy", 544);
             expect(energy).nested.property("periodicEnergyExported.energy", 0);
 
-            await new Promise(resolve => setTimeout(resolve, 2_500));
+            await nextReading(sensor, Seconds(2));
             expect(sensor.stateOf(ElectricalPowerMeasurementServer).activePower).equals(985_000);
 
+            await trigger(node, 0x0091_0001_0000_0000n);
+            await MockTime.advance(Seconds(4).valueOf());
+            await new Promise(resolve => setImmediate(resolve));
+            expect(sensor.stateOf(ElectricalPowerMeasurementServer).activePower).equals(985_000);
+        });
+    });
+
+    it("reads a fake 3 kW generator on a trigger for all endpoints", async () => {
+        await withSensor(async (node, sensor) => {
+            await trigger(node, 0x0091_0000_0000_0002n);
+            expect(sensor.stateOf(ElectricalPowerMeasurementServer).activePower).equals(-3_020_000);
+            const energy = sensor.stateOf(ElectricalEnergyMeasurementServer);
+            expect(energy).nested.property("periodicEnergyExported.energy", 4194);
+            expect(energy).nested.property("periodicEnergyImported.energy", 0);
+
+            await nextReading(sensor, Seconds(5));
+            expect(sensor.stateOf(ElectricalPowerMeasurementServer).activePower).equals(-3_015_000);
+            expect(sensor.stateOf(ElectricalEnergyMeasurementServer)).nested.property(
+                "cumulativeEnergyExported.energy",
+                4194 + 4187,
+            );
+
             await trigger(node, 0x0091_0000_0000_0000n);
-        } finally {
-            await node.close();
-        }
+        });
     });
 
     it("refuses a trigger for another endpoint", async () => {
-        const node = await setupWith(
-            "--device",
-            "electrical-sensor:1",
-            "--enable-key",
-            "000102030405060708090a0b0c0d0e0f",
-        );
-        try {
+        await withSensor(async node => {
             await expect(trigger(node, 0x0091_0002_0000_0001n)).rejectedWith("Wrong test event");
-        } finally {
-            await node.close();
-        }
+        });
     });
 });
 
