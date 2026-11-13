@@ -20,7 +20,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: `Network.interfacesChanged` reports interface and address changes, checked every 60 seconds while observed
     - Feature: The `mdns.statistics` variable (`MATTER_MDNS_STATISTICS`) logs the mDNS traffic counts at info level
     - Feature: `Timestamp.toSeconds()` converts a timestamp to whole seconds
-    - Feature: `Bytes.utf8Length()` returns the UTF-8 byte length of a string without encoding it, and `Bytes.truncateUtf8()` shortens a string to a UTF-8 byte length without splitting a character
+    - Feature: `Bytes.utf8Length()` and `Bytes.truncateUtf8()` count and shorten strings by UTF-8 bytes
     - Enhancement: `MdnsSocket` logs some traffic statistics once per minute - set `mdns.statistics` (`MATTER_MDNS_STATISTICS`) to true for info loglevel, otherwise debug
     - Enhancement: WAL storage logs at notice level when an open restores entries from its log and when it has saved the restored state, with the time each took
     - Adjustment: Falling back to standard crypto, for example on Bun where Node.js crypto has no AES-CCM, logs one line at info level instead of two at notice level
@@ -146,8 +146,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: GeneralDiagnostics test commands compare the EnableKey in constant time and never accept a key that is not 16 bytes, and the node refuses to start with a non-zero `deviceTestEnableKey` of another length
     - Fix: `VendorIdVerification.verifyData` returns false for a VVSC that breaks its certificate profile instead of throwing
     - Fix: A device logs secret fields of received commands and of its command responses, and endpoint diagnostics show secret attribute values, as `(redacted)`
-    - Fix: String length constraints of attribute, field and command values count UTF-8 bytes instead of UTF-16 code units, so a value with multi-byte characters that is over the limit in bytes is refused
+    - Fix: String length constraints count UTF-8 bytes instead of UTF-16 code units
+    - Fix: A stored string over its limit in UTF-8 bytes is shortened on load with a warning
     - Fix: `GroupsServer` checks the AddGroup group name length in UTF-8 bytes
+    - Fix: `ScenesManagementServer` answers AddScene with CONSTRAINT_ERROR for a scene name over 16 UTF-8 bytes
     - Fix: `GeneralDiagnosticsServer` shortens network interface names to 32 UTF-8 bytes instead of 32 characters
 
 - @matter/nodejs
@@ -157,6 +159,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
     - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
     - Fix: `config fabricLabel set` checks the 32-byte limit in UTF-8 bytes instead of characters
+    - Fix: A stored controller fabric label over 32 UTF-8 bytes is shortened on start with a warning
 
 - @matter/protocol
     - Fix: An ICD advertises SAI in its operational DNS-SD record, and SII while it operates as SIT, also when the value equals the MRP default, as the specification requires
@@ -250,14 +253,15 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Invoke, read and write logs show secret values such as Thread datasets and Wi-Fi credentials as `(redacted)`
     - Fix: The commissioning options log no longer contains the network credentials, the passcode or the fabric's identity protection key
     - Fix: `DatatypeError` messages show the first 60 characters of a long value instead of the characters after them
-    - Fix: `Fabric.setLabel()` checks the 32-byte limit in UTF-8 bytes instead of characters
+    - Fix: `Fabric.setLabel()` and `FabricBuilder.setLabel()` check the 32-byte limit in UTF-8 bytes instead of characters
+    - Fix: `FabricManager` shortens a stored fabric label over 32 UTF-8 bytes on load with a warning
 
 - @matter/testing
     - Feature: `ControllerAdapterOptions.sustainedSubscription` keeps the controller's own subscription to each commissioned node, set for a `certTest()` that declares `sustained-subscription`; `step()` refuses that capability
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
-    - Fix: `TlvString` encodes strings with multi-byte characters over 255 bytes with a matching length field, and its `minLength`/`maxLength` and default maximum count UTF-8 bytes
+    - Fix: `TlvString` writes a matching length field for strings with multi-byte characters and counts UTF-8 bytes for its length limits
 
 - @project-chip/matter.js
     - Fix: Migrating a legacy controller's peers no longer fails on a stored discovery TTL that is invalid

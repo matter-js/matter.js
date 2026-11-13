@@ -191,9 +191,9 @@ export class Fabric {
     }
 
     async setLabel(label: string) {
-        if (Bytes.utf8Length(label) > 32) {
+        if (Bytes.utf8Length(label) > Fabric.MAX_LABEL_BYTES) {
             throw new ImplementationError(
-                `Fabric label is ${Bytes.utf8Length(label)} bytes long in UTF-8, the maximum is 32.`,
+                `Fabric label is ${Bytes.utf8Length(label)} bytes long in UTF-8, the maximum is ${Fabric.MAX_LABEL_BYTES}.`,
             );
         }
         if (this.#label === label) {
@@ -661,9 +661,9 @@ export class FabricBuilder {
     }
 
     setLabel(label: string) {
-        if (Bytes.utf8Length(label) > 32) {
+        if (Bytes.utf8Length(label) > Fabric.MAX_LABEL_BYTES) {
             throw new ImplementationError(
-                `Fabric label is ${Bytes.utf8Length(label)} bytes long in UTF-8, the maximum is 32.`,
+                `Fabric label is ${Bytes.utf8Length(label)} bytes long in UTF-8, the maximum is ${Fabric.MAX_LABEL_BYTES}.`,
             );
         }
         this.#label = label;
@@ -719,6 +719,13 @@ export class FabricBuilder {
 }
 
 export namespace Fabric {
+    /**
+     * The longest fabric label in UTF-8 bytes.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.4.5
+     */
+    export const MAX_LABEL_BYTES = 32;
+
     /**
      * Configuration required to initialize a fabric.
      */

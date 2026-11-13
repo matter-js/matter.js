@@ -9,10 +9,66 @@ import { ScenesManagementClient, ScenesManagementServer } from "#behaviors/scene
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
 import { ServerNode } from "#node/index.js";
-import { MockServerNode, MockSite } from "@matter/node/testing";
-import { Read } from "@matter/protocol";
-import { AttributeId, ClusterId, EndpointNumber, FabricIndex, GroupId, Status } from "@matter/types";
+import { interaction, MockServerNode, MockSite } from "@matter/node/testing";
+import { Fabric, Read } from "@matter/protocol";
+import {
+    AttributeId,
+    ClusterId,
+    CommandId,
+    EndpointNumber,
+    FabricIndex,
+    GroupId,
+    Status,
+    TlvArray,
+    TlvEnum,
+    TlvField,
+    TlvInvokeResponseData,
+    TlvObject,
+    TlvString,
+    TlvUInt16,
+    TlvUInt32,
+    TlvUInt8,
+    TypeFromSchema,
+} from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
+import { ScenesManagement } from "@matter/types/clusters/scenes-management";
+
+// The client encodes with the cluster's "max 16" and would refuse an overlong name, so the request is built raw
+const TlvAddSceneRequest = TlvObject({
+    groupId: TlvField(0, TlvUInt16),
+    sceneId: TlvField(1, TlvUInt8),
+    transitionTime: TlvField(2, TlvUInt32),
+    sceneName: TlvField(3, TlvString),
+    extensionFieldSetStructs: TlvField(4, TlvArray(TlvUInt8)),
+});
+
+const TlvAddSceneResponse = TlvObject({ status: TlvField(0, TlvEnum<Status>()) });
+
+async function invokeAddScene(node: MockServerNode, fabric: Fabric, sceneId: number, sceneName: string) {
+    let response: undefined | TypeFromSchema<typeof TlvInvokeResponseData>;
+    await interaction.invoke(
+        node,
+        fabric,
+        {
+            commandPath: {
+                endpointId: EndpointNumber(1),
+                clusterId: ClusterId(ScenesManagement.id),
+                commandId: CommandId(ScenesManagement.schema.commands.require("AddScene").id!),
+            },
+            commandFields: TlvAddSceneRequest.encodeTlv({
+                groupId: 0,
+                sceneId,
+                transitionTime: 0,
+                sceneName,
+                extensionFieldSetStructs: [],
+            }),
+        },
+        r => {
+            response = r;
+        },
+    );
+    return TlvAddSceneResponse.decodeTlv(response!.command!.commandFields!).status;
+}
 
 describe("ScenesManagementServer", () => {
     before(() => {
@@ -140,6 +196,20 @@ describe("ScenesManagementServer", () => {
             expect((await addScene(sceneId)).status).equals(Status.Success);
         }
         expect((await addScene(4)).status).equals(Status.ResourceExhausted);
+    });
+
+    it("refuses a scene name over 16 bytes in UTF-8", async () => {
+        await using node = await MockServerNode.createOnline();
+        const fabric = await node.addFabric();
+
+        // 9 × "é" is 18 bytes in UTF-8 but only 9 UTF-16 code units
+        expect(await invokeAddScene(node, fabric, 1, "é".repeat(9))).equals(Status.ConstraintError);
+        expect(await invokeAddScene(node, fabric, 2, "é".repeat(8))).equals(Status.Success);
+
+        const { sceneTable } = node.endpoints.for(1).stateOf(ScenesManagementServer);
+        expect(sceneTable.map(({ sceneId, sceneName }) => ({ sceneId, sceneName }))).deep.equals([
+            { sceneId: 2, sceneName: "é".repeat(8) },
+        ]);
     });
 
     it("removes the scenes of a removed fabric and returns their entries to the other fabrics", async () => {
