@@ -15,7 +15,26 @@ import { registerDeviceType } from "./DeviceTypeRegistry.js";
 import { thermostatScheduleState } from "./thermostat-schedules.js";
 
 const FullThermostat = ThermostatDevice.with(
-    ThermostatServer.with("Heating", "Cooling", "AutoMode", "Occupancy", "Presets", "MatterScheduleConfiguration"),
+    ThermostatServer.with(
+        "Heating",
+        "Cooling",
+        "AutoMode",
+        "Occupancy",
+        "Presets",
+        "MatterScheduleConfiguration",
+        "Events",
+    ).enable({
+        events: {
+            systemModeChange: true,
+            localTemperatureChange: true,
+            occupancyChange: true,
+            setpointChange: true,
+            runningStateChange: true,
+            runningModeChange: true,
+            activeScheduleChange: true,
+            activePresetChange: true,
+        },
+    }),
     GroupsServer,
     ThermostatUserInterfaceConfigurationServer,
 );

@@ -137,6 +137,7 @@ describe("cluster behavior feature selection", () => {
             expect(enabledFeaturesOf(ThermostatBaseServer)).deep.equals([
                 "autoMode",
                 "cooling",
+                "events",
                 "heating",
                 "matterScheduleConfiguration",
                 "occupancy",

@@ -47,6 +47,7 @@ const INTERNAL_ELEMENTS: Record<string, string[]> = {
         "externallyMeasuredOccupancy",
         "localIndoorTemperatureMeasurementEndpoint",
         "localOccupancyMeasurementEndpoint",
+        "localTemperatureChangeThreshold",
         "useAutomaticModeManagement",
     ],
     UserLabel: ["maxLabels"],

@@ -579,7 +579,19 @@ export class AllClustersTestInstance extends NodeTestInstance {
                     Thermostat.Feature.Occupancy,
                     Thermostat.Feature.Presets,
                     Thermostat.Feature.MatterScheduleConfiguration,
-                ),
+                    Thermostat.Feature.Events,
+                ).enable({
+                    events: {
+                        systemModeChange: true,
+                        localTemperatureChange: true,
+                        occupancyChange: true,
+                        setpointChange: true,
+                        runningStateChange: true,
+                        runningModeChange: true,
+                        activeScheduleChange: true,
+                        activePresetChange: true,
+                    },
+                }),
                 ThermostatUserInterfaceConfigurationServer,
                 TotalVolatileOrganicCompoundsConcentrationMeasurementServer.with(
                     "LevelIndication",
