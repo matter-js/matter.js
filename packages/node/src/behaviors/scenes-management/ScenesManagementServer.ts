@@ -182,12 +182,12 @@ export class ScenesManagementServer extends ScenesManagementBase {
 
         const fabricManager = this.endpoint.env.get(FabricManager);
 
+        this.#removeScenesOfRemovedFabrics(fabricManager);
+
         // Initialize fabric scene info field to match to the current state of the scene table
         this.#initializeFabricSceneInfo(fabricManager);
 
-        // When a fabric got removed, we need to check if the active scene is considered from that fabric
-        // Data cleanup happens automatically
-        this.reactTo(fabricManager.events.deleting, this.#handleDeleteFabric);
+        this.reactTo(fabricManager.events.deleting, this.#handleDeleteFabric, { lock: true });
     }
 
     /**
@@ -1020,13 +1020,14 @@ export class ScenesManagementServer extends ScenesManagementBase {
         }
 
         // Every fabric draws on the same table, so a change by one fabric moves the others' remaining capacity
-        for (const other of this.state.fabricSceneInfo) {
-            if (other.fabricIndex === fabricIndex) {
-                continue;
-            }
-            const remaining = this.#remainingCapacityForFabric(other.fabricIndex);
-            if (other.remainingCapacity !== remaining) {
-                other.remainingCapacity = remaining;
+        this.#updateRemainingCapacities();
+    }
+
+    #updateRemainingCapacities() {
+        for (const info of this.state.fabricSceneInfo) {
+            const remaining = this.#remainingCapacityForFabric(info.fabricIndex);
+            if (info.remainingCapacity !== remaining) {
+                info.remainingCapacity = remaining;
             }
         }
     }
@@ -1063,11 +1064,28 @@ export class ScenesManagementServer extends ScenesManagementBase {
         }
     }
 
-    /** Removes all scenes for a given fabric when the fabric is deleted */
+    /**
+     * Removes the scenes of fabrics that no longer exist, left behind when a removal ended before
+     * {@link #handleDeleteFabric} completed.
+     */
+    #removeScenesOfRemovedFabrics(fabricManager: FabricManager) {
+        const fabricIndices = new Set(fabricManager.fabrics.map(({ fabricIndex }) => fabricIndex));
+        const sceneTable = this.state.sceneTable.filter(scene => fabricIndices.has(scene.fabricIndex));
+        if (sceneTable.length !== this.state.sceneTable.length) {
+            this.state.sceneTable = sceneTable;
+        }
+    }
+
+    /**
+     * Removes the scenes of a deleted fabric and updates the remaining capacity of the other fabrics.  The Scene Table
+     * is a state field, not an attribute, so the fabric-scoped attribute cleanup does not reach it.
+     */
     #handleDeleteFabric({ fabricIndex }: Fabric) {
         if (this.internal.monitorSceneAttributesForFabric === fabricIndex) {
             this.internal.monitorSceneAttributesForFabric = null;
         }
+        this.state.sceneTable = this.state.sceneTable.filter(scene => scene.fabricIndex !== fabricIndex);
+        this.#updateRemainingCapacities();
     }
 }
 
