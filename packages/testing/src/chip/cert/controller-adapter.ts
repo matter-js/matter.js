@@ -1003,8 +1003,14 @@ export interface CertNodeApi {
      *
      * A case whose subject is the subscribe request itself uses {@link subscribeEvents} instead.
      *
-     * Resolves with the events the node already holds, as {@link readEvents} answers them, and reports
-     * later ones to {@link ObserveEventOptions.onUpdate}.
+     * Resolves with the events a {@link readEvents} of `paths` answers with, and reports later ones to
+     * {@link ObserveEventOptions.onUpdate}.
+     *
+     * A controller that keeps such a subscription only when the case declares the `sustained-subscription`
+     * capability refuses this, {@link clientEndpoints} and {@link clientAttribute} with
+     * {@link UnsupportedByControllerError} otherwise.
+     * A node commissioned with {@link CommissioningTarget.withoutSubscription} has no such subscription, and a
+     * controller that cannot answer without one throws `ImplementationError` for it.
      *
      * The two sides do not see quite the same thing: the events this answers with come off the wire,
      * while the later ones reach the controller's own client first, which drops an event it cannot name
@@ -1414,6 +1420,19 @@ export interface ControllerAdapterOptions {
      * from one place.
      */
     groups?: readonly CertControllerGroup[];
+
+    /**
+     * Keeps the controller's own subscription to every node it commissions, active before `commission()` returns, so
+     * what {@link CertNodeApi.clientEndpoints} and {@link CertNodeApi.clientAttribute} answer follows the node and
+     * {@link CertNodeApi.observeEvents} has a subscription to report through. A change the node makes after
+     * commissioning is then evidence the controller noticed on its own. A node commissioned with
+     * {@link CommissioningTarget.withoutSubscription} gets none.
+     *
+     * The in-process controller keeps one whether or not this is set. matterjs-server keeps its own subscription to a
+     * node off unless this is set, except while an OTA update or an ICD registration needs it. With it set, the server
+     * refuses `subscribe` for the nodes the adapter commissioned.
+     */
+    sustainedSubscription?: boolean;
 }
 
 /**
@@ -1602,9 +1621,10 @@ export type ControllerRoleKind = "dut" | "helper";
  *   {@link CertNodeApi.announceOtaProvider} without {@link AnnounceOtaProviderOptions.provider}, which announces it
  *   with nothing staged
  * - `icd-client` — {@link CertNodeApi.icdClient}
- * - `sustained-subscription` — a subscription the controller keeps to a node on its own, which
- *   {@link CertNodeApi.observeEvents} reports through and which keeps what {@link CertNodeApi.clientEndpoints} and
- *   {@link CertNodeApi.clientAttribute} answer following the node
+ * - `sustained-subscription` — {@link ControllerAdapterOptions.sustainedSubscription}: a subscription the controller
+ *   keeps to a node on its own, which {@link CertNodeApi.observeEvents} reports through and which keeps what
+ *   {@link CertNodeApi.clientEndpoints} and {@link CertNodeApi.clientAttribute} answer following the node. Only a test
+ *   case declares it, because the subscription has to exist from commissioning on
  * - `noc-update` — {@link CertNodeApi.updateOperationalCertificate}
  *
  * An implementation states the ones it lacks, and the ones it deliberately does not offer, when it registers (see
@@ -1660,6 +1680,9 @@ export function capabilitiesFor(options?: ControllerAdapterOptions): ControllerC
     }
     if (options?.webRtcRequestor) {
         capabilities.push("webrtc-requestor");
+    }
+    if (options?.sustainedSubscription) {
+        capabilities.push("sustained-subscription");
     }
     return capabilities;
 }

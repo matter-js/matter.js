@@ -22,6 +22,7 @@ import glob
 import inspect
 import importlib
 import re
+import shlex
 import shutil
 import textwrap
 from matter.testing.matter_testing import MatterBaseTest, MatterTestConfig
@@ -162,7 +163,8 @@ def load_yaml():
             if value is None:
                 return []
             if isinstance(value, str):
-                return value.split()
+                # CHIP writes the arguments for a shell, e.g. --device "*"
+                return shlex.split(value)
             return [str(arg) for arg in value]
 
         def run_props(run):
@@ -299,7 +301,14 @@ def load_python():
             # else:
             #     raise
 
+    # A class with several test base classes is a subclass of each of them, so the walk below reaches it once per base
+    loaded_classes = set()
+
     def load_class(test_class):
+        if test_class in loaded_classes:
+            return
+        loaded_classes.add(test_class)
+
         # Read file and extract YAML header
         path = inspect.getfile(test_class)
         sys.stderr.write("Loading " + path + "\n")

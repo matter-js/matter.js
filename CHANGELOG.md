@@ -40,6 +40,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: The `isSecret` element property and the `secret` decorator mark a value as secret, and `SecretRedaction` replaces secret values for logging; standard fields that carry network credentials, keys, passcodes and PINs are marked secret
 
 - @matter/node
+    - Feature: (@lboue) `ThermostatServer` implements the `MatterScheduleConfiguration` (MSCH) feature with the `Schedules` and `ActiveScheduleHandle` attributes, atomic writes and `SetActiveScheduleRequest`; enable the feature with the `thermostat-msch` forward feature for certification purposes only
+    - Feature: `ThermostatServer` generates the Thermostat events when the provisional `Events` feature is selected and the events are switched on with `enable()`; enable the feature with the `thermostat-events` forward feature for certification purposes only
+    - Fix: `ThermostatServer` raises `NumberOfPresets` at startup to cover the stored presets, instead of failing to start after a configuration lowered it
+    - Fix: `ScenesManagementServer` limits each fabric's remaining scene capacity by the Scene Table entries other fabrics use, refuses AddScene, StoreScene and CopyScene with RESOURCE_EXHAUSTED when the table is full, and updates the other fabrics' `FabricSceneInfo` when one fabric changes the table
+    - Fix: `ScenesManagementServer` removes the scenes of a removed fabric, which stayed in the Scene Table and used up Scene Table entries for good; scenes left by earlier removals are removed at startup
     - Feature: `ClientNode.updateOperationalCertificate()` replaces a commissioned node's operational certificate with one for a new key pair (UpdateNOC)
     - Enhancement: Added `SoftwareUpdateManager.dropUndeliverableUpdate()` for `checkUpdateAvailable()` overrides
     - Enhancement: Added `SoftwareUpdateManager.mayDelegateConsentTo()`, the rule for when a node may obtain the user consent itself
@@ -90,6 +95,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A forced OTA update is announced once
     - Fix: `SoftwareUpdateManager` emits its events once its state is final, and an error of a listener no longer fails the OTA command that caused the event
     - Fix: The OTA state of a node is dropped when its peer is deleted, as on decommission
+    - Fix: A Thermostat `Presets` write with an unknown preset handle returns NOT_FOUND instead of RESOURCE_EXHAUSTED when the list also exceeds NumberOfPresets
     - Fix: `TimeFormatLocalizationServer` `detectedHourFormat` and `detectedCalendarType` have their enum types instead of `string`, so an override can return any value of the enum
     - Fix: GeneralDiagnostics `NetworkInterfaces` follows interface address changes while the node is online
     - Fix: (@cmatte) A peer whose stored discovery TTL is invalid loads again
@@ -143,6 +149,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
 
 - @matter/protocol
+    - Fix: An ICD advertises SAI in its operational DNS-SD record, and SII while it operates as SIT, also when the value equals the MRP default, as the specification requires
     - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair
     - Feature: `NocsrValidator` validates a CSRResponse and throws `NocsrError` when a check fails
     - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
@@ -233,6 +240,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Invoke, read and write logs show secret values such as Thread datasets and Wi-Fi credentials as `(redacted)`
     - Fix: The commissioning options log no longer contains the network credentials, the passcode or the fabric's identity protection key
     - Fix: `DatatypeError` messages show the first 60 characters of a long value instead of the characters after them
+
+- @matter/testing
+    - Feature: `ControllerAdapterOptions.sustainedSubscription` keeps the controller's own subscription to each commissioned node, set for a `certTest()` that declares `sustained-subscription`; `step()` refuses that capability
 
 - @matter/types
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once

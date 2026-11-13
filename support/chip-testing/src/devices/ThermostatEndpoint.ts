@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { GroupsServer } from "@matter/main/behaviors/groups";
 import { ThermostatServer } from "@matter/main/behaviors/thermostat";
 import { ThermostatUserInterfaceConfigurationServer } from "@matter/main/behaviors/thermostat-user-interface-configuration";
@@ -12,9 +12,29 @@ import { Thermostat, ThermostatUserInterfaceConfiguration } from "@matter/main/c
 import { ThermostatDevice } from "@matter/main/devices/thermostat";
 import { EndpointNumber } from "@matter/main/types";
 import { registerDeviceType } from "./DeviceTypeRegistry.js";
+import { thermostatScheduleState } from "./thermostat-schedules.js";
 
 const FullThermostat = ThermostatDevice.with(
-    ThermostatServer.with("Heating", "Cooling", "AutoMode", "Presets"),
+    ThermostatServer.with(
+        "Heating",
+        "Cooling",
+        "AutoMode",
+        "Occupancy",
+        "Presets",
+        "MatterScheduleConfiguration",
+        "Events",
+    ).enable({
+        events: {
+            systemModeChange: true,
+            localTemperatureChange: true,
+            occupancyChange: true,
+            setpointChange: true,
+            runningStateChange: true,
+            runningModeChange: true,
+            activeScheduleChange: true,
+            activePresetChange: true,
+        },
+    }),
     GroupsServer,
     ThermostatUserInterfaceConfigurationServer,
 );
@@ -33,7 +53,7 @@ function builtInPreset(presetScenario: Thermostat.PresetScenario) {
 
 registerDeviceType({
     name: "thermostat",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(FullThermostat, {
             number: endpoint,
             // Setpoints in 0.01 °C, deadband in 0.1 °C; limits and setpoints are CHIP's thermostat-server defaults
@@ -51,6 +71,9 @@ registerDeviceType({
                 absMaxCoolSetpointLimit: 3200,
                 occupiedHeatingSetpoint: 2000,
                 occupiedCoolingSetpoint: 2600,
+                occupancy: { occupied: true },
+                unoccupiedHeatingSetpoint: 1800,
+                unoccupiedCoolingSetpoint: 2800,
                 minSetpointDeadBand: 20,
                 localTemperatureCalibration: 0,
                 remoteSensing: {},
@@ -70,13 +93,14 @@ registerDeviceType({
                     builtInPreset(Thermostat.PresetScenario.Unoccupied),
                 ],
                 activePresetHandle: null,
+                ...thermostatScheduleState(),
             },
             thermostatUserInterfaceConfiguration: {
                 scheduleProgrammingVisibility:
                     ThermostatUserInterfaceConfiguration.ScheduleProgrammingVisibility.ScheduleProgrammingPermitted,
             },
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
         return { endpoint: ep };
     },
 });
