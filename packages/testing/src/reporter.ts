@@ -19,6 +19,9 @@ export interface Reporter {
     beginTest(name: string, stats?: Stats): void;
     beginStep(name: string): void;
     passTest(name: string): void;
+
+    /** A test that skipped itself while running, or was declared pending. */
+    skipTest?(name: string): void;
     failTest(name: string, detail: FailureDetail, descriptor?: TestDescriptor): void;
     endRun(stats?: Stats): void;
     failRun(detail: FailureDetail): void;
