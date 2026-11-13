@@ -8,7 +8,7 @@ import type { Subject } from "../../device/subject.js";
 import type { Container } from "../../docker/container.js";
 import { Terminal } from "../../docker/terminal.js";
 import type { TestFileDescriptor } from "../../test-descriptor.js";
-import { parseStep } from "../chip-test-common.js";
+import { parseStep, PythonTestOutcome } from "../chip-test-common.js";
 import { FIFO_PATH } from "../container-command-pipe.js";
 import { createCommand, PythonTest, spiffy } from "../python-test.js";
 import type { CertStepWiring } from "./cert-context.js";
@@ -81,7 +81,7 @@ export class PromptDrivenPythonTest extends PythonTest {
         // The harness caches one test instance per descriptor, so a second run must not inherit the first run's lines
         this.#log = [];
 
-        let passed = false;
+        const outcome = new PythonTestOutcome();
         let handled = 0;
         try {
             for await (let line of terminal) {
@@ -96,13 +96,7 @@ export class PromptDrivenPythonTest extends PythonTest {
                     await terminal.write(answer);
                 }
 
-                if (line.indexOf("Final result: PASS") !== -1) {
-                    // Old format
-                    passed = true;
-                } else if (line.match(/\[Test\]\s+\S+\s+PASS$/)) {
-                    // New format
-                    passed = true;
-                }
+                outcome.observe(line);
 
                 MockLogger.injectExternalMessage("CHIP", spiffy(line));
             }
@@ -111,7 +105,13 @@ export class PromptDrivenPythonTest extends PythonTest {
             // the same whether it passed or failed, so it accompanies both.
             const unprompted = this.#handlers.length && handled === 0 ? this.#unpromptedDiagnosis() : "";
 
-            if (!passed) {
+            if (outcome.skipped) {
+                throw new Error(
+                    `Python test ${this.descriptor.name} skipped itself, so it proves nothing about the DUT${unprompted}`,
+                );
+            }
+
+            if (!outcome.passed) {
                 throw new Error(`Python test exited without error but did not indicate successful test${unprompted}`);
             }
 

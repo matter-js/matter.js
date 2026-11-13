@@ -142,6 +142,7 @@ describe("cluster behavior feature selection", () => {
                 "matterScheduleConfiguration",
                 "occupancy",
                 "presets",
+                "thermostatSuggestions",
             ]);
             expect(enabledFeaturesOf(ThermostatServer)).deep.equals([]);
 

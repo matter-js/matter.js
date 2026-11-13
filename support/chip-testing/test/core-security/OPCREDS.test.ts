@@ -8,8 +8,6 @@ describe("OPCREDS", () => {
     chip("OPCREDS/*").exclude(
         // Asserts the PQCDA feature unconditionally rather than gating on PICS.  matter.js implements Matter 1.6,
         // where OperationalCredentials has no PQC device attestation
-        "OPCREDS/3.9",
+        "OPCREDS/3.9/*",
     );
-    // Selects the runs of multi-run tests, which "OPCREDS/*" does not
-    chip("OPCREDS/*/run*").exclude("OPCREDS/3.9/*");
 });

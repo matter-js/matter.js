@@ -33,21 +33,11 @@ describe("SC", () => {
         );
     }).timeout(10000);
 
-    chip("SC/3.4/run1");
-    chip("SC/3.4/run2");
-    chip("SC/5.1/run1");
-    chip("SC/5.2/run2");
-
     chip("SC/*").exclude(
         // These require additional configuration below
         "SC/4.1/*",
         "SC/7.1",
     );
-
-    // Selects the runs of multi-run tests, which "SC/*" does not
-    chip("SC/*/run*")
-        .exclude("SC/4.1/*", "SC/7.1/*")
-        .exclude("SC/3.4/run1", "SC/3.4/run2", "SC/5.1/run1", "SC/5.2/run2");
 
     // SC/4.1 needs MDNS cleared.  run1 has the wrong manual code; run2 has a pairing code that works.  Not sure what's
     // up with that.  run3 is LIT ICD so not relevant for us

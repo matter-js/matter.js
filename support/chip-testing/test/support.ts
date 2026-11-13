@@ -13,6 +13,7 @@ import {
 } from "../src/AllClustersTestInstance.js";
 import { AllDevicesTestInstance } from "../src/AllDevicesTestInstance.js";
 import { BridgeTestInstance } from "../src/BridgeTestInstance.js";
+import { CameraTestInstance } from "../src/CameraTestInstance.js";
 import { DeviceTestInstanceConstructor } from "../src/GenericTestApp.js";
 import { IcdTestInstance } from "../src/IcdTestInstance.js";
 import { LockTestInstance } from "../src/LockTestInstance.js";
@@ -60,6 +61,7 @@ export const BridgeApp = App(BridgeTestInstance);
 export const TvApp = App(TvTestInstance);
 export const RvcApp = App(RvcTestInstance);
 export const LitIcdApp = App(IcdTestInstance);
+export const CameraApp = App(CameraTestInstance);
 export const LockApp = App(LockTestInstance);
 
 // chip-test-header app names (in the harness form chipAppName() produces: strip ${...},

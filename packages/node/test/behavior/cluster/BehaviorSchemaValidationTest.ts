@@ -41,6 +41,7 @@ const INTERNAL_ELEMENTS: Record<string, string[]> = {
     ScenesManagement: ["sceneTable"],
     Switch: ["debounceDelay", "longPressDelay", "momentaryNeutralPosition", "multiPressDelay", "rawPosition"],
     Thermostat: [
+        "OverriddenSuggestionId",
         "PersistedPresets",
         "PersistedSchedules",
         "externalMeasuredIndoorTemperature",
@@ -52,6 +53,7 @@ const INTERNAL_ELEMENTS: Record<string, string[]> = {
     ],
     UserLabel: ["maxLabels"],
     WindowCovering: ["supportsMaintenanceMode"],
+    ZoneManagement: ["lastZoneId"],
 };
 
 /**

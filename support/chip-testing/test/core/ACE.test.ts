@@ -21,10 +21,7 @@ describe("ACE", () => {
         ),
     );
 
-    chip("ACE/*");
-
-    // Selects the runs of multi-run tests, which "ACE/*" does not
-    chip("ACE/*/run*").exclude(
+    chip("ACE/*").exclude(
         // Runs for the CHIP camera app, which matter.js has no test subject for
         "ACE/1.2/run2",
         "ACE/1.3/run2",

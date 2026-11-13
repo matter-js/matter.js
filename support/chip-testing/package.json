@@ -24,6 +24,7 @@
         "test": "matter-test",
         "test-app-fast": "matter-test --spec=test/app-fast/**/*.test.ts --report",
         "test-core": "matter-test --spec=test/core/**/*.test.ts --report",
+        "test-core-security": "matter-test --spec=test/core-security/**/*.test.ts --report",
         "test-app-slow": "matter-test --spec=test/app-slow/**/*.test.ts --report",
         "test-app-cc-1": "matter-test --spec=test/app-cc/CC.1.test.ts --report",
         "test-app-cc-2": "matter-test --spec=test/app-cc/CC.2.test.ts --report",

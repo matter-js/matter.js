@@ -19,6 +19,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: `Logger.redactSecrets`, also set by the `log.redactSecrets` variable, turns off the replacement of secret values in log output when set to false
     - Feature: `Network.interfacesChanged` reports interface and address changes, checked every 60 seconds while observed
     - Feature: The `mdns.statistics` variable (`MATTER_MDNS_STATISTICS`) logs the mDNS traffic counts at info level
+    - Feature: `Timestamp.toSeconds()` converts a timestamp to whole seconds
     - Enhancement: `MdnsSocket` logs some traffic statistics once per minute - set `mdns.statistics` (`MATTER_MDNS_STATISTICS`) to true for info loglevel, otherwise debug
     - Enhancement: WAL storage logs at notice level when an open restores entries from its log and when it has saved the restored state, with the time each took
     - Adjustment: Falling back to standard crypto, for example on Bun where Node.js crypto has no AES-CCM, logs one line at info level instead of two at notice level
@@ -40,8 +41,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: The `isSecret` element property and the `secret` decorator mark a value as secret, and `SecretRedaction` replaces secret values for logging; standard fields that carry network credentials, keys, passcodes and PINs are marked secret
 
 - @matter/node
+    - Feature: (@RaHehl) `ZoneManagementServer` implements the zone and trigger commands and refuses requests the specification does not allow
     - Feature: (@lboue) `ThermostatServer` implements the `MatterScheduleConfiguration` (MSCH) feature with the `Schedules` and `ActiveScheduleHandle` attributes, atomic writes and `SetActiveScheduleRequest`; enable the feature with the `thermostat-msch` forward feature for certification purposes only
     - Feature: `ThermostatServer` generates the Thermostat events when the provisional `Events` feature is selected and the events are switched on with `enable()`; enable the feature with the `thermostat-events` forward feature for certification purposes only
+    - Feature: `ThermostatServer` implements the `ThermostatSuggestions` (TSUGGEST) feature
+    - Fix: `ThermostatServer` keeps the preset that the application activates with `setActivePresetRequest`
     - Fix: `ThermostatServer` raises `NumberOfPresets` at startup to cover the stored presets, instead of failing to start after a configuration lowered it
     - Fix: `ScenesManagementServer` limits each fabric's remaining scene capacity by the Scene Table entries other fabrics use, refuses AddScene, StoreScene and CopyScene with RESOURCE_EXHAUSTED when the table is full, and updates the other fabrics' `FabricSceneInfo` when one fabric changes the table
     - Fix: `ScenesManagementServer` removes the scenes of a removed fabric, which stayed in the Scene Table and used up Scene Table entries for good; scenes left by earlier removals are removed at startup
@@ -52,6 +56,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
     - Enhancement: `ClientNode.fabricIndexOnPeer` returns our fabric index on the peer
     - Enhancement: `RemoteDescriptor.legacyRecordToLongForm()` converts a peer record of the legacy controller storage
+    - Adjustment: `ThermostatServer.with(...)` types expose `handleSetActivePresetRequest`, `handleSetActiveScheduleRequest` and the thermostat suggestion hooks through `ExtensionInterface`; an override of them with `protected` no longer compiles
     - Adjustment: `SoftwareUpdateManager.Internal.consents` holds one consent per peer in a `PeerAddressMap` and is written only through the manager API, and the `Internal.updateQueue` entries have a new shape
     - Adjustment: `SoftwareUpdateManager.queuedUpdates` omits a failed update
     - Adjustment: `SoftwareUpdateManager.Internal.versionUpdateObservers` holds one observer group per peer

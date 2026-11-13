@@ -18,9 +18,7 @@ describe("IDM", () => {
         "IDM/1.5",
         // Registered below with its own arguments
         "IDM/13.1",
-    );
-    // Selects the runs of multi-run tests, which "IDM/*" does not
-    chip("IDM/*/run*").exclude("IDM/10.4/*", "IDM/10.5/*", "IDM/1.5/*").exclude("IDM/*/run1").exclude(
+
         // The lock runs 3 to 8 differ from run2 only in how the TH commissions, and the harness commissions every run
         // the same way
         "IDM/10.1/run3",
@@ -60,13 +58,12 @@ describe("IDM", () => {
         "IDM/12.1/run14",
         "IDM/12.1/run15",
         "IDM/12.1/run20",
-    );
-    chip("IDM/*/run1").exclude(
+
         // Spec issues for DoorLock, see https://github.com/CHIP-Specifications/connectedhomeip-spec/issues/11712
         //  Summary: the command responses from command 0xa and 0x15 have "wider" conformance than the requests which
         //           leads to the effect that the responses are expected to be present but are not because we do not
         //           have the requests. After Spec fix of conformance, the chip model used in test will match again
-        "IDM/10.2/*",
+        "IDM/10.2/run1",
     );
     // AllClustersApp intentionally adds clusters beyond what OnOffLightDevice requires,
     // so disable strict extra-cluster checking
