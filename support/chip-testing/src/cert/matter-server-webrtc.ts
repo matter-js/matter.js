@@ -40,32 +40,25 @@ export const WEBRTC_REFUSAL_LINE =
     /Invoke error @[0-9a-f]+:(?<peer>[0-9a-f]+)•\S+ \S*webRtcTransportRequestor\.(?<kind>offer|answer|iceCandidates|end): Status=NotFound\b.*WebRTC session (?<id>\d+) not found/;
 
 /**
- * Matches the server's info line for a session it registered with its own requestor, which is when the requestor starts
- * to accept the peer's signaling for it.
+ * Matches the requestor's debug line for a session registered with it (`WebRtcTransportRequestorServer.upsertSession`),
+ * which is when the requestor starts to accept the peer's signaling for it. The server runs matter.js at debug level;
+ * the line reaches a server build only with a matter.js version that logs it.
  *
  * Provisional until verified against a live server log.
  */
 export const WEBRTC_SESSION_REGISTERED_LINE =
-    /webRtcSessionStreams upserting WebRTC session id=(?<id>\d+) peerNodeId=(?<peer>\d+) .*originatingEndpointId=(?<endpoint>\d+)/;
+    /WebRtcTransportRequestorServer session upserted webRtcSessionId=(?<id>\d+) fabricIndex=\d+ peerNodeId=(?<peer>\d+) peerEndpointId=\d+ requestorEndpointId=(?<endpoint>\d+)/;
 
 /**
- * Matches the requestor's debug line for an incoming `End`, after which the session is no longer held. The line names
- * no peer, so a session id that two peers use at once ends for both.
+ * Matches the requestor's debug line for a session dropped from it (`WebRtcTransportRequestorServer.removeSession`),
+ * logged only where an entry was removed, whether the case, the server or the peer's `End` ended the session. The
+ * requestor refuses the peer's signaling for it from then on. The server runs matter.js at debug level; the line
+ * reaches a server build only with a matter.js version that logs it.
  *
  * Provisional until verified against a live server log.
  */
-export const WEBRTC_SESSION_ENDED_LINE = /WebRtcTransportRequestorServer incoming End webRtcSessionId=(?<id>\d+)/;
-
-/**
- * Matches the server's debug line for a session it dropped from its requestor after the session ended or was never
- * tracked, which is when the requestor refuses the peer's signaling for it again.
- *
- * Provisional until verified against a live server log. The server logs only the "is not tracked" form today
- * (`WebRtcProviderSessions.removeTracked`); the "removed from the requestor" form is the line a successful removal
- * would need.
- */
 export const WEBRTC_SESSION_REMOVED_LINE =
-    /WebRtcProviderSessions WebRTC session (?<id>\d+) (?:removed from the requestor|is not tracked for node)/;
+    /WebRtcTransportRequestorServer session removed webRtcSessionId=(?<id>\d+) fabricIndex=\d+ peerNodeId=(?<peer>\d+) peerEndpointId=\d+ requestorEndpointId=(?<endpoint>\d+)/;
 
 /** How long the server may take to log what it already did, once its response or command result arrived. */
 const LOG_LAG = Seconds(10);
@@ -113,8 +106,7 @@ export interface MatterServerWebRtcHost {
  *
  * Commands go through the WebSocket API. What the server's requestor accepted arrives as `webrtc_callback` events.
  * What it refused, and which sessions it holds, the API does not report, so both are read from the server's log:
- * see {@link WEBRTC_REFUSAL_LINE}, {@link WEBRTC_SESSION_REGISTERED_LINE}, {@link WEBRTC_SESSION_ENDED_LINE} and
- * {@link WEBRTC_SESSION_REMOVED_LINE}. {@link solicitOffer}, {@link provideOffer} and {@link endSession} resolve only
+ * see {@link WEBRTC_REFUSAL_LINE}, {@link WEBRTC_SESSION_REGISTERED_LINE} and {@link WEBRTC_SESSION_REMOVED_LINE}. {@link solicitOffer}, {@link provideOffer} and {@link endSession} resolve only
  * once the log shows the registration or removal, and throw {@link MatterServerWebRtcError} where it does not.
  *
  * The log is shared by every peer of the server, so refusals and registrations count only for peers this instance has
@@ -365,16 +357,21 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
 
         const registered = WEBRTC_SESSION_REGISTERED_LINE.exec(text)?.groups;
         if (registered !== undefined) {
-            if (this.#peers.has(BigInt(registered.peer)) && Number(registered.endpoint) === this.#host.endpoint) {
+            if (this.#isOwn(registered)) {
                 this.#held.add(Number(registered.id));
             }
             return;
         }
 
-        const ended = (WEBRTC_SESSION_ENDED_LINE.exec(text) ?? WEBRTC_SESSION_REMOVED_LINE.exec(text))?.groups;
-        if (ended !== undefined) {
-            this.#held.delete(Number(ended.id));
+        const removed = WEBRTC_SESSION_REMOVED_LINE.exec(text)?.groups;
+        if (removed !== undefined && this.#isOwn(removed)) {
+            this.#held.delete(Number(removed.id));
         }
+    }
+
+    /** A session of a peer this instance addressed, held by the requestor on the host's endpoint. */
+    #isOwn({ peer, endpoint }: Record<string, string>) {
+        return this.#peers.has(BigInt(peer)) && Number(endpoint) === this.#host.endpoint;
     }
 
     #record(

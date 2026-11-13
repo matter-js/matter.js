@@ -111,13 +111,24 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
         } else {
             this.state.currentSessions = sessions.map((s, i) => (i === idx ? enriched : s));
         }
+        logger.debug(
+            `session upserted webRtcSessionId=${session.id} fabricIndex=${session.fabricIndex} ` +
+                `peerNodeId=${session.peerNodeId} peerEndpointId=${session.peerEndpointId} ` +
+                `requestorEndpointId=${this.endpoint.number}`,
+        );
     }
 
     /** Stop tracking a session, e.g. after you tear down the stream locally. No-op if no session matches the key. */
     removeSession(key: WebRtcTransportRequestorServer.SessionKey): void {
         const sessions = this.state.currentSessions;
-        if (sessions.some(s => isSameSession(s, key))) {
+        const removed = sessions.find(s => isSameSession(s, key));
+        if (removed !== undefined) {
             this.state.currentSessions = sessions.filter(s => !isSameSession(s, key));
+            logger.debug(
+                `session removed webRtcSessionId=${removed.id} fabricIndex=${removed.fabricIndex} ` +
+                    `peerNodeId=${removed.peerNodeId} peerEndpointId=${removed.peerEndpointId} ` +
+                    `requestorEndpointId=${this.endpoint.number}`,
+            );
         }
     }
 

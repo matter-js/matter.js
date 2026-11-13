@@ -11,8 +11,12 @@ import { CameraControllerDevice } from "#devices/camera-controller";
 import { ServerNode } from "#node/ServerNode.js";
 import {
     Crypto,
+    Diagnostic,
     Entropy,
     Environment,
+    LogDestination,
+    Logger,
+    LogLevel,
     MockCrypto,
     MockStorageService,
     Network,
@@ -112,6 +116,33 @@ describe("WebRtcTransportRequestorServer", () => {
             const sessions = cameraEndpoint!.stateOf(WebRtcTransportRequestorServer).currentSessions;
             expect(sessions).to.have.lengthOf(1);
             expect(sessions[0].streamUsage).to.equal(StreamUsage.Recording);
+        });
+
+        it("logs the session it registered and the one it removed", async () => {
+            const messages = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    if (message.facility === "WebRtcTransportRequestorServer" && message.level === LogLevel.DEBUG) {
+                        messages.push(String(message.values[0]));
+                    }
+                },
+            });
+            try {
+                await cameraEndpoint!.act(agent => {
+                    const server = agent.get(WebRtcTransportRequestorServer);
+                    server.upsertSession(makeSession({ id: 3 }));
+                    server.removeSession({ id: 3, fabricIndex: FabricIndex(1), peerNodeId: NodeId(42n) });
+                    server.removeSession({ id: 3, fabricIndex: FabricIndex(1), peerNodeId: NodeId(42n) });
+                });
+            } finally {
+                delete Logger.destinations.capture;
+            }
+
+            const endpoint = cameraEndpoint!.number;
+            expect(messages).deep.equals([
+                `session upserted webRtcSessionId=3 fabricIndex=1 peerNodeId=42 peerEndpointId=1 requestorEndpointId=${endpoint}`,
+                `session removed webRtcSessionId=3 fabricIndex=1 peerNodeId=42 peerEndpointId=1 requestorEndpointId=${endpoint}`,
+            ]);
         });
 
         it("keeps sessions with the same id from different peer nodes", async () => {

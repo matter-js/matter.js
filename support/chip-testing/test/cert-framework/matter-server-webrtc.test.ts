@@ -37,20 +37,18 @@ function refusalLine(kind: "offer" | "answer" | "iceCandidates" | "end", id: num
     );
 }
 
-function registrationLine(id: number, node: string, originatingEndpointId = OWN_ENDPOINT) {
+function registrationLine(id: number, node: string, requestorEndpointId = OWN_ENDPOINT) {
     return (
-        `2026-11-13 10:00:00.050 INFO webRtcSessionStreams upserting WebRTC session id=${id} peerNodeId=${node} ` +
-        `peerEndpointId=${PEER_ENDPOINT} fabricIndex=1 streamUsage=${STREAM_USAGE} ` +
-        `originatingEndpointId=${originatingEndpointId}`
+        `2026-11-13 10:00:00.050 DEBUG WebRtcTransportRequestorServer session upserted webRtcSessionId=${id} ` +
+        `fabricIndex=1 peerNodeId=${node} peerEndpointId=${PEER_ENDPOINT} requestorEndpointId=${requestorEndpointId}`
     );
 }
 
-function removalLine(id: number) {
-    return `2026-11-13 10:00:00.300 DEBUG WebRtcProviderSessions WebRTC session ${id} removed from the requestor`;
-}
-
-function incomingEndLine(id: number) {
-    return `2026-11-13 10:00:00.200 DEBUG WebRtcTransportRequestorServer incoming End webRtcSessionId=${id} reason=0`;
+function removalLine(id: number, node = PEER, requestorEndpointId = OWN_ENDPOINT) {
+    return (
+        `2026-11-13 10:00:00.300 DEBUG WebRtcTransportRequestorServer session removed webRtcSessionId=${id} ` +
+        `fabricIndex=1 peerNodeId=${node} peerEndpointId=${PEER_ENDPOINT} requestorEndpointId=${requestorEndpointId}`
+    );
 }
 
 describe("matterjs-server WebRTC requestor", () => {
@@ -318,13 +316,18 @@ describe("matterjs-server WebRTC requestor", () => {
         expect(await requestor.sessions()).deep.equals([{ id: 7, videoStreamId: 4, audioStreamId: null }]);
     });
 
-    it("sessions drops a session after its end is logged", async () => {
+    it("sessions drops a session after its removal is logged", async () => {
         const id = await requestor.solicitOffer({ peer: PEER, endpoint: PEER_ENDPOINT, streamUsage: STREAM_USAGE });
         lines.push(registrationLine(id, PEER));
         await log.settled();
         expect((await requestor.sessions()).map(session => session.id)).deep.equals([7]);
 
-        lines.push(incomingEndLine(id));
+        lines.push(removalLine(id, OTHER_PEER));
+        lines.push(removalLine(id, PEER, OWN_ENDPOINT + 1));
+        await log.settled();
+        expect((await requestor.sessions()).map(session => session.id)).deep.equals([7]);
+
+        lines.push(removalLine(id));
         await log.settled();
 
         expect(await requestor.sessions()).deep.equals([]);
