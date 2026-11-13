@@ -5,6 +5,7 @@
  */
 
 import { OtaUpdateAvailableDetails, SoftwareUpdateManager } from "#behavior/system/software-update/index.js";
+import { BasicInformationServer } from "#behaviors/basic-information";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestorServer } from "#behaviors/ota-software-update-requestor";
 import type { Agent } from "#endpoint/Agent.js";
@@ -16,6 +17,7 @@ import { MockSite } from "@matter/node/testing";
 import {
     DclOtaUpdateService,
     OtaImageWriter,
+    OtaStorageMode,
     OtaUpdateSource,
     PeerAddress,
     PersistedFileDesignator,
@@ -163,15 +165,15 @@ export function streamFromBytes(bytes: Uint8Array): ReadableStream<Uint8Array> {
  *
  * @param node - The ServerNode containing the DclOtaUpdateService
  * @param otaImage - The OTA image result from createTestOtaImage
- * @param isProduction - Whether this is a production image (defaults to false for test)
+ * @param mode - Storage mode (defaults to "test")
  * @returns The file designator for the stored image
  */
-export async function storeOtaImage(node: ServerNode, otaImage: TestOtaImageResult, isProduction = false) {
+export async function storeOtaImage(node: ServerNode, otaImage: TestOtaImageResult, mode: OtaStorageMode = "test") {
     const otaService = node.env.get(DclOtaUpdateService);
     await otaService.construction;
 
     const stream = streamFromBytes(Bytes.of(otaImage.image));
-    return await otaService.store(stream, otaImage.updateInfo, isProduction);
+    return await otaService.store(stream, otaImage.updateInfo, mode);
 }
 
 export async function addTestOtaImage(device: ServerNode, controller: ServerNode) {
@@ -194,7 +196,7 @@ export async function addTestOtaImage(device: ServerNode, controller: ServerNode
     });
 
     // Store OTA image to the controller's OTA service (test mode)
-    await storeOtaImage(controller, otaImage, false /* isProduction = false for test */);
+    await storeOtaImage(controller, otaImage, "test");
 
     return { otaImage, vendorId, productId, softwareVersion, targetSoftwareVersion };
 }
@@ -202,6 +204,7 @@ export async function addTestOtaImage(device: ServerNode, controller: ServerNode
 export async function initOtaSite(
     TestOtaProviderServer: typeof OtaSoftwareUpdateProviderServer,
     TestOtaRequestorServer: typeof OtaSoftwareUpdateRequestorServer,
+    { localConfigDisabled }: { localConfigDisabled?: boolean } = {},
 ) {
     const site = new MockSite();
 
@@ -211,7 +214,13 @@ export async function initOtaSite(
     // Device is automatically configured with vendorId 0xfff1 and productId 0x8000
     const { controller, device } = await site.addCommissionedPair({
         device: {
-            type: ServerNode.RootEndpoint,
+            type:
+                localConfigDisabled === undefined
+                    ? ServerNode.RootEndpoint
+                    : ServerNode.RootEndpoint.with(
+                          BasicInformationServer.enable({ attributes: { localConfigDisabled: true } }),
+                      ),
+            basicInformation: localConfigDisabled === undefined ? undefined : { localConfigDisabled },
             environment: deviceEnvironment,
             parts: [{ id: "ota-requestor", type: OtaRequestorEndpoint.with(TestOtaRequestorServer) }],
         },
@@ -270,13 +279,21 @@ export async function restartDeviceFromStorage(
 
 export function InstrumentedOtaRequestorServer(
     expectedCalls: { applyUpdate?: boolean; announceOtaProvider?: boolean; requestUserConsent?: boolean },
-    data?: { expectedOtaImage: Bytes; duringApply?: () => void },
+    data?: {
+        expectedOtaImage: Bytes;
+        expectedSoftwareVersion?: number;
+        duringApply?: () => void;
+        /** Answers the requestor's own user consent request, for a requestor with `canConsent`. */
+        grantUserConsent?: boolean;
+    },
 ): {
     applyUpdatePromise: Promise<void>;
     announceOtaProviderPromise: Promise<void>;
+    announceOtaProviderRequests: OtaSoftwareUpdateRequestor.AnnounceOtaProviderRequest[];
     requestUserConsentPromise: Promise<void>;
     TestOtaRequestorServer: typeof OtaSoftwareUpdateRequestorServer;
 } {
+    const announceOtaProviderRequests = new Array<OtaSoftwareUpdateRequestor.AnnounceOtaProviderRequest>();
     const {
         resolver: applyUpdateResolver,
         rejecter: applyUpdateRejecter,
@@ -298,6 +315,7 @@ export function InstrumentedOtaRequestorServer(
                 if (expectedCalls.announceOtaProvider === false) {
                     announceOtaProviderRejecter(new Error("Unexpected call to announceOtaProvider"));
                 }
+                announceOtaProviderRequests.push(request);
                 announceOtaProviderResolver();
                 return super.announceOtaProvider(request);
             } catch (error) {
@@ -312,6 +330,9 @@ export function InstrumentedOtaRequestorServer(
                     requestUserConsentRejecter(new Error("Unexpected call to requestUserConsent"));
                 }
                 requestUserConsentResolver();
+                if (data?.grantUserConsent !== undefined) {
+                    return data.grantUserConsent;
+                }
                 return super.requestUserConsent(newSoftwareVersion, newSoftwareVersionString);
             } catch (error) {
                 requestUserConsentRejecter(error);
@@ -325,7 +346,7 @@ export function InstrumentedOtaRequestorServer(
                     applyUpdateRejecter(new Error("Unexpected call to applyUpdate"));
                 }
 
-                expect(newSoftwareVersion).equals(1);
+                expect(newSoftwareVersion).equals(data?.expectedSoftwareVersion ?? 1);
                 // Read the received OTA image from the file designator
                 const blob = await fileDesignator.openBlob();
                 const receivedData = Bytes.of(await blob.arrayBuffer());
@@ -342,7 +363,13 @@ export function InstrumentedOtaRequestorServer(
         }
     }
 
-    return { applyUpdatePromise, announceOtaProviderPromise, requestUserConsentPromise, TestOtaRequestorServer };
+    return {
+        applyUpdatePromise,
+        announceOtaProviderPromise,
+        announceOtaProviderRequests,
+        requestUserConsentPromise,
+        TestOtaRequestorServer,
+    };
 }
 
 /**
@@ -368,6 +395,10 @@ export function InstrumentedOtaProviderServer(
          * answer the provider gives only in a state the flow does not otherwise pass through.
          */
         beforeApplyUpdateRequest?: (agent: Agent) => MaybePromise<void>;
+        /** Replaces the QueryImage the requestor sent, standing in for a requestor that sends other fields. */
+        rewriteQueryImageRequest?: (
+            request: OtaSoftwareUpdateProvider.QueryImageRequest,
+        ) => OtaSoftwareUpdateProvider.QueryImageRequest;
         /** Replaces the request the requestor sent, standing in for a requestor that sends other fields. */
         rewriteApplyUpdateRequest?: (
             request: OtaSoftwareUpdateProvider.ApplyUpdateRequest,
@@ -375,6 +406,8 @@ export function InstrumentedOtaProviderServer(
     } = {},
 ): {
     queryImagePromise: Promise<void>;
+    /** Resolves once the first QueryImage response is recorded in `queryImageResponses`, rejects if it throws first. */
+    queryImageAnsweredPromise: Promise<void>;
     applyUpdateRequestPromise: Promise<void>;
     notifyUpdateAppliedPromise: Promise<void>;
     requestUserConsentForUpdatePromise: Promise<void>;
@@ -391,6 +424,11 @@ export function InstrumentedOtaProviderServer(
         resolver: queryImageResolver,
         rejecter: queryImageRejecter,
         promise: queryImagePromise,
+    } = createPromise<void>();
+    const {
+        resolver: queryImageAnsweredResolver,
+        rejecter: queryImageAnsweredRejecter,
+        promise: queryImageAnsweredPromise,
     } = createPromise<void>();
     const {
         resolver: applyUpdateRequestResolver,
@@ -422,11 +460,13 @@ export function InstrumentedOtaProviderServer(
                     queryImageRejecter(new Error("Unexpected call to queryImage"));
                 }
                 queryImageResolver();
-                const response = await super.queryImage(request);
+                const response = await super.queryImage(hooks.rewriteQueryImageRequest?.(request) ?? request);
                 queryImageResponses.push(response);
+                queryImageAnsweredResolver();
                 return response;
             } catch (error) {
                 queryImageRejecter(error);
+                queryImageAnsweredRejecter(error);
                 throw error;
             }
         }
@@ -499,6 +539,7 @@ export function InstrumentedOtaProviderServer(
 
     return {
         queryImagePromise,
+        queryImageAnsweredPromise,
         applyUpdateRequestPromise,
         notifyUpdateAppliedPromise,
         requestUserConsentForUpdatePromise,
