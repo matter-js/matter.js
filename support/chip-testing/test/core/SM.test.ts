@@ -21,6 +21,9 @@ describe("SM", () => {
         "SM/1.2/run6",
         "SM/1.2/run7",
         "SM/1.2/run8",
+        // TC_SM_1_2 checks every endpoint but an Aggregator as tree composition, but a Bridged Node lists its full family
+        // (Device Library § 2.5), so the endpoints below a bridged cooktop have two paths to the root
+        "SM/1.2/run19",
         // Runs for CHIP apps matter.js has no test subject for: evse, microwave-oven, network-management,
         // lighting-app-no-unique-id, electrical-protection
         "SM/1.1/run10",

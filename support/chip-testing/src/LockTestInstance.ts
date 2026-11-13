@@ -96,6 +96,18 @@ export class LockTestInstance extends NodeTestInstance {
                     wrongCodeEntryLimit: 3,
                     userCodeTemporaryDisableTime: 10,
                     requirePinForRemoteOperation: false,
+                    ledSettings: DoorLock.LedSetting.NoLedSignal,
+                    defaultConfigurationRegister: {},
+                    enableLocalProgramming: true,
+                    localProgrammingFeatures: {
+                        addUsersCredentialsSchedules: true,
+                        modifyUsersCredentialsSchedules: true,
+                        clearUsersCredentialsSchedules: true,
+                        adjustSettings: true,
+                    },
+                    enableOneTouchLocking: false,
+                    enableInsideStatusLed: false,
+                    enablePrivacyModeButton: false,
                 },
             },
         );
