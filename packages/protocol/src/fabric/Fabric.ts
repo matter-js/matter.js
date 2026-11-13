@@ -72,6 +72,7 @@ export class Fabric {
     readonly intermediateCACert: Bytes | undefined;
     readonly operationalCert: Bytes;
     readonly #keyPair: Key;
+    #caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
     #sessions = new Set<SecureSession>();
     #groups: FabricGroups;
     #icd?: FabricIcd;
@@ -153,6 +154,14 @@ export class Fabric {
 
     get crypto() {
         return this.#crypto;
+    }
+
+    /**
+     * The CASE Authenticated Tags of our NOC on this fabric.
+     */
+    get caseAuthenticatedTags(): readonly CaseAuthenticatedTag[] {
+        return (this.#caseAuthenticatedTags ??=
+            Noc.fromTlv(this.operationalCert).cert.subject.caseAuthenticatedTags ?? []);
     }
 
     /**

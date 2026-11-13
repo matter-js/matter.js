@@ -58,7 +58,7 @@ export class FabricAuthority {
     #fabrics: FabricManager;
     #fabricAdded = new AsyncObservable<[Fabric]>();
     #nocRenewals = new Map<FabricIndex, Promise<void>>();
-    #checkedFabricIndices = new Set<FabricIndex>();
+    #warnedMismatches = new Set<string>();
 
     constructor({ ca, fabrics }: FabricAuthorityContext) {
         this.#ca = ca;
@@ -93,13 +93,17 @@ export class FabricAuthority {
      * NOC, this is logged and the fabric keeps its NOC; the CA is not asked again in this run.  A call that arrives
      * while the renewal runs waits for it and returns the renewed fabric.  When installing the renewed NOC fails, the
      * error reaches every waiting call and the next call renews again.
+     *
+     * The node ID, fabric ID and CASE Authenticated Tags of `config` apply only when the fabric is created; the label
+     * is updated on every call.  For an existing fabric, a configured node ID, fabric ID or list of CASE Authenticated
+     * Tags that differs from the stored fabric logs a warning, once per compared value per run.
      */
     async defaultFabric(config: FabricAuthorityConfiguration, rotateNoc = true) {
         // First search for a fabric associated with the CA's root certificate
         const caRootCert = this.#ca.rootCert;
         let fabric = this.fabrics.find(fabric => Bytes.areEqual(fabric.rootCert, caRootCert));
         if (fabric !== undefined) {
-            this.#warnOnIssuerMismatch(fabric);
+            this.#warnOnFabricMismatch(fabric, config);
             if (rotateNoc && this.#ca.renewsNocAtStart) {
                 fabric = await this.#renewNoc(fabric);
             }
@@ -255,25 +259,60 @@ export class FabricAuthority {
     }
 
     /**
-     * A stored fabric whose fabric ID or IPK differs from the external issuer's fabric cannot open CASE sessions to
-     * devices that other controllers of that fabric commissioned.  Warns once per fabric and run; the stored values
-     * stay in use.
+     * Warn when a stored fabric differs from what the external issuer serves or from the configuration.  Each field
+     * and compared value is logged once per run; the stored values stay in use.
+     *
+     * A fabric ID or IPK other than the issuer's means no CASE sessions to devices that other controllers of that
+     * fabric commissioned.  The configured identity only applies when the fabric is created; afterwards our NOC defines
+     * our node ID and CATs, and a NOC renewal keeps them.  Only configured values are compared.
      */
-    #warnOnIssuerMismatch(fabric: Fabric) {
+    #warnOnFabricMismatch(fabric: Fabric, config: FabricAuthorityConfiguration) {
         const issuerFabric = this.#ca.fabric;
-        if (issuerFabric === undefined || this.#checkedFabricIndices.has(fabric.fabricIndex)) {
-            return;
+        if (issuerFabric !== undefined) {
+            if (issuerFabric.fabricId !== fabric.fabricId) {
+                this.#warnOnce(
+                    `issuer fabric ID ${issuerFabric.fabricId}`,
+                    `Fabric ${fabric.fabricIndex} has fabric ID ${fabric.fabricId}, but the external issuer serves fabric ID ${issuerFabric.fabricId}`,
+                );
+            }
+            if (!Bytes.areEqual(issuerFabric.identityProtectionKey, fabric.identityProtectionKey)) {
+                this.#warnOnce(
+                    "issuer IPK",
+                    `Fabric ${fabric.fabricIndex} has another IPK than the external issuer provides`,
+                );
+            }
         }
-        this.#checkedFabricIndices.add(fabric.fabricIndex);
-
-        if (issuerFabric.fabricId !== fabric.fabricId) {
-            logger.warn(
-                `Fabric ${fabric.fabricIndex} has fabric ID ${fabric.fabricId}, but the external issuer serves fabric ID ${issuerFabric.fabricId}`,
+        if (config.adminFabricId !== undefined && config.adminFabricId !== fabric.fabricId) {
+            this.#warnOnce(
+                `configured fabric ID ${config.adminFabricId}`,
+                `Fabric ${fabric.fabricIndex} has fabric ID ${fabric.fabricId}, not the configured ${config.adminFabricId}; the stored fabric stays in use`,
             );
         }
-        if (!Bytes.areEqual(issuerFabric.identityProtectionKey, fabric.identityProtectionKey)) {
-            logger.warn(`Fabric ${fabric.fabricIndex} has another IPK than the external issuer provides`);
+
+        if (config.adminNodeId !== undefined && config.adminNodeId !== fabric.nodeId) {
+            this.#warnOnce(
+                `configured node ID ${config.adminNodeId}`,
+                `Our NOC on fabric ${fabric.fabricIndex} has node ID ${NodeId.strOf(fabric.nodeId)}, not the configured ${NodeId.strOf(config.adminNodeId)}; the NOC stays in use`,
+            );
         }
+        const { caseAuthenticatedTags } = config;
+        if (
+            caseAuthenticatedTags !== undefined &&
+            !CaseAuthenticatedTag.areEqual(caseAuthenticatedTags, fabric.caseAuthenticatedTags)
+        ) {
+            this.#warnOnce(
+                `configured CATs ${CaseAuthenticatedTag.strOfList(caseAuthenticatedTags)}`,
+                `Our NOC on fabric ${fabric.fabricIndex} has CASE Authenticated Tags ${CaseAuthenticatedTag.strOfList(fabric.caseAuthenticatedTags)}, not the configured ${CaseAuthenticatedTag.strOfList(caseAuthenticatedTags)}; the NOC stays in use`,
+            );
+        }
+    }
+
+    #warnOnce(mismatch: string, message: string) {
+        if (this.#warnedMismatches.has(mismatch)) {
+            return;
+        }
+        this.#warnedMismatches.add(mismatch);
+        logger.warn(message);
     }
 
     static [Environmental.create](env: Environment) {

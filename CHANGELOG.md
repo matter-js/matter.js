@@ -39,6 +39,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: The `isSecret` element property and the `secret` decorator mark a value as secret, and `SecretRedaction` replaces secret values for logging; standard fields that carry network credentials, keys, passcodes and PINs are marked secret
 
 - @matter/node
+    - Feature: (@henrikdimander) `peers.commission()` accepts `caseAdminSubject`, the subject of the Administer ACL entry the device creates, for example a CASE Authenticated Tag; `ControllerBehavior.caseAdminSubject` sets the default. An unusable subject fails with `CaseAdminSubjectError` at the first device found, before PASE
     - Feature: `ClientNode.updateOperationalCertificate()` replaces a commissioned node's operational certificate with one for a new key pair (UpdateNOC)
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
     - Enhancement: `ClientNode.fabricIndexOnPeer` returns our fabric index on the peer
@@ -114,9 +115,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: (@henrikdimander) During commissioning, the NOC request to an external issuer carries the device's attestation and CSR responses, so a remote CA can verify them itself
     - Feature: A `CertificateAuthority.Issuer` can provide the fabric ID and IPK that new controller fabrics use, so several controllers share one fabric
     - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair
+    - Feature: (@henrikdimander) `CommissioningOptions.caseAdminSubject` sets the CASE admin subject sent in AddNOC; `ControllerCommissioner.commission()` refuses an unusable subject before PASE with `CaseAdminSubjectError`
+    - Enhancement: `Fabric.caseAuthenticatedTags` returns the CATs of our NOC
     - Feature: `NocsrValidator` validates a CSRResponse and throws `NocsrError` when a check fails
     - Enhancement: `CertificateAuthority.issueNoc()` returns each NOC with the ICAC that signed it, and the controller installs that ICAC for its own fabric and in AddNOC and UpdateNOC
     - Enhancement: `DistinguishedName.areEqual()` compares two DNs RDN by RDN, in order
+    - Enhancement: `FabricAuthority.defaultFabric()` warns when the configured node ID, fabric ID or CASE Authenticated Tags differ from the stored fabric; the stored NOC stays in use
     - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Enhancement: The commissioning attestation policy also receives the findings collected before a hard failure, and a policy rejection names the error findings
@@ -210,9 +214,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `DatatypeError` messages show the first 60 characters of a long value instead of the characters after them
 
 - @matter/types
+    - Enhancement: `CaseAuthenticatedTag.areEqual()` compares two CAT lists in any order, and `CaseAuthenticatedTag.strOfList()` formats a list as hex
+    - Enhancement: `NodeId.isValidCaseAdminSubject()` tells whether a subject is valid as the CaseAdminSubject of AddNOC
     - Adjustment: `TlvTaggedListPreservingOrder` throws `UnexpectedDataError` when a field that is not a repeated field occurs more than once
 
 - @project-chip/matter.js
+    - Enhancement: `CommissioningController.commissionNode()` passes `commissioning.caseAdminSubject` also for a known address or a discovered `commissionableDevice`
     - Fix: Migrating a legacy controller's peers no longer fails on a stored discovery TTL that is invalid
     - Fix: (@cwedgwood) `PairedNode` waits for concurrent network state updates when it enables the subscription, so a lock conflict no longer leaves the node unsubscribed
     - Fix: Attribute write, attribute update and endpoint structure logs of the legacy controller show secret values as `(redacted)`

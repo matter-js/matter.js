@@ -110,6 +110,15 @@ export namespace NodeId {
         isCaseAuthenticatedTag(nodeId) && CaseAuthenticatedTag.isValid(caseAuthenticatedTagValueOf(nodeId));
 
     /**
+     * Whether a subject is valid as the CaseAdminSubject of AddNOC: an operational node ID or a valid CASE
+     * Authenticated Tag.  A device answers any other value with InvalidAdminSubject.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.6.8.4
+     */
+    export const isValidCaseAdminSubject = (subject: SubjectId) =>
+        isOperationalNodeId(subject) || isValidCaseAuthenticatedTag(subject);
+
+    /**
      * This subrange of Node ID is used to assign an access control subject to a particular PAKE key as specified in
      * Section 6.6.2.1.1, “PASE and Group Subjects”. An example usage would be to create an ACL entry to provide
      * administrative access to any commissioner communicating via a PASE session established with a particular pincode.

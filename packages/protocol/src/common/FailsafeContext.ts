@@ -233,7 +233,7 @@ export abstract class FailsafeContext {
 
         const { nocValue, icacValue, adminVendorId, ipkValue, caseAdminSubject } = nocData;
 
-        if (!NodeId.isOperationalNodeId(caseAdminSubject) && !NodeId.isValidCaseAuthenticatedTag(caseAdminSubject)) {
+        if (!NodeId.isValidCaseAdminSubject(caseAdminSubject)) {
             throw new MatterFabricInvalidAdminSubjectError(
                 `CaseAdminSubject ${SubjectId.strOf(caseAdminSubject)} is neither an operational node ID nor a valid CAT`,
             );

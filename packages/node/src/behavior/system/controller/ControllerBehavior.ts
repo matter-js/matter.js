@@ -205,10 +205,13 @@ export class ControllerBehavior extends Behavior {
     }
 
     get fabricAuthorityConfig(): FabricAuthorityConfiguration {
-        const biState = this.endpoint.stateOf(BasicInformationBehavior);
+        const { adminFabricLabel, adminFabricId, adminNodeId, caseAuthenticatedTags } = this.state;
         return {
-            adminVendorId: biState.vendorId,
-            ...this.state,
+            adminVendorId: this.endpoint.stateOf(BasicInformationBehavior).vendorId,
+            adminFabricLabel,
+            adminFabricId,
+            adminNodeId,
+            caseAuthenticatedTags,
         };
     }
 
@@ -302,22 +305,39 @@ export namespace ControllerBehavior {
         /**
          * Contains the FabricId of the admin fabric when a defined number needs to be used because special Certificates
          * are used.
-         * If not provided, a random FabricId will be generated.
+         * If not provided, the fabric ID comes from the external issuer or the root certificate, else it is random.
+         * Only used when this controller creates the fabric; a different value later logs a warning the next time the
+         * controller looks up its fabric, for example at the next commissioning.
          */
         adminFabricId?: FabricId = undefined;
 
         /**
          * Contains the NodeId of the admin node when a defined number needs to be used because special Certificates
          * are used.
-         * If not provided, a random NodeId will be generated.
+         * If not provided, a random NodeId will be generated.  Only used when this controller creates the fabric; a
+         * different value later logs a warning the next time the controller looks up its fabric, for example at the
+         * next commissioning.
          */
         adminNodeId?: NodeId = undefined;
 
         /**
-         * Only used when this controller creates the fabric; sessions on that fabric present them in the controller's
-         * NOC.
+         * The CASE Authenticated Tags of the controller's NOC.  Only used when this controller creates the fabric; a
+         * different value later logs a warning the next time the controller looks up its fabric, for example at the
+         * next commissioning.
          */
         caseAuthenticatedTags?: CaseAuthenticatedTag[] = undefined;
+
+        /**
+         * Default subject of the Administer ACL entry a commissioned device creates for us.  Undefined means the root
+         * node ID of the fabric, which is our node ID when this controller created the fabric.  Set a CASE
+         * Authenticated Tag subject ({@link NodeId.fromCaseAuthenticatedTag}) so that every controller holding that tag
+         * administers the device.  The default applies to every fabric this controller commissions into, and our NOC on
+         * that fabric must satisfy it unless another node finishes the commissioning.  A commissioning option overrides
+         * it.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 11.18.6.8
+         */
+        caseAdminSubject?: NodeId = undefined;
 
         /**
          * Model of Matter semantics used for peers commissioned or discovered by this controller.

@@ -558,6 +558,7 @@ export class MatterController {
                 threadNetwork: options.commissioning.threadNetwork,
                 regulatoryLocation: options.commissioning.regulatoryLocation,
                 regulatoryCountryCode: options.commissioning.regulatoryCountryCode,
+                caseAdminSubject: options.commissioning.caseAdminSubject,
                 nodeId: options.commissioning.nodeId,
                 finalizeCommissioning,
             });

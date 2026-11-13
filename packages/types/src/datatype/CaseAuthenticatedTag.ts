@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Branded, Logger } from "@matter/general";
+import { Branded, hex, Logger } from "@matter/general";
 import { ValidationOutOfBoundsError } from "../common/ValidationError.js";
 import { TlvUInt32 } from "../tlv/TlvNumber.js";
 import { TlvWrapper } from "../tlv/TlvWrapper.js";
@@ -90,6 +90,19 @@ export namespace CaseAuthenticatedTag {
             throw new ValidationOutOfBoundsError("CaseAuthenticatedTag version number must not exceed 0xffff.");
         }
         return CaseAuthenticatedTag(tag + 1);
+    };
+
+    /** A CAT list for messages, each tag as 8-digit hex: `[0x00010002]`. */
+    export const strOfList = (tags: readonly CaseAuthenticatedTag[] = []) =>
+        `[${tags.map(tag => `0x${hex.fixed(tag, 8)}`).join(", ")}]`;
+
+    /** Whether two CAT lists hold the same tags, in any order.  An absent list equals an empty one. */
+    export const areEqual = (a: readonly CaseAuthenticatedTag[] = [], b: readonly CaseAuthenticatedTag[] = []) => {
+        if (a.length !== b.length) {
+            return false;
+        }
+        const sortedB = [...b].sort((x, y) => x - y);
+        return [...a].sort((x, y) => x - y).every((tag, index) => tag === sortedB[index]);
     };
 
     /** Validates a list of CaseAuthenticatedTags according to Matter specification rules. */
