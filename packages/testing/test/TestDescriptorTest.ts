@@ -64,6 +64,11 @@ describe("TestDescriptor.filter", () => {
         expect(selected("/IDM/1.2/run1", "/IDM/1.2")).deep.equals(["/IDM/1.2/run1", "/IDM/1.2/run2"]);
     });
 
+    it("reads a path with a trailing slash as the path without it", () => {
+        expect(selected("/IDM/")).deep.equals(["/IDM/1.1", "/IDM/1.2/run1", "/IDM/1.2/run2"]);
+        expect(selected("/")).deep.equals(["/IDM/1.1", "/IDM/1.2/run1", "/IDM/1.2/run2", "/DESC/2.1"]);
+    });
+
     it("selects nothing outside the paths", () => {
         expect(selected("/IDM/1.1", "/DESC/2.1")).deep.equals(["/IDM/1.1", "/DESC/2.1"]);
         expect(selected("/IDM/9.9")).deep.equals([]);

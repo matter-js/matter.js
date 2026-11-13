@@ -107,10 +107,8 @@ export namespace TestDescriptor {
             memberNames = {};
             for (const path of includePaths) {
                 let incl = memberNames;
-                const segments = path.split("/");
-                if (segments[0] === "") {
-                    segments[0] = descriptor.name;
-                }
+                const [first, ...rest] = path.split("/");
+                const segments = [first === "" ? descriptor.name : first, ...rest.filter(segment => segment !== "")];
                 for (const segment of segments) {
                     incl = (incl[segment] as NameNode) ??= {};
                 }
