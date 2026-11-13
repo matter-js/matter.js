@@ -53,6 +53,7 @@ const INTERNAL_ELEMENTS: Record<string, string[]> = {
     ],
     UserLabel: ["maxLabels"],
     WindowCovering: ["supportsMaintenanceMode"],
+    ZoneManagement: ["lastZoneId"],
 };
 
 /**
