@@ -584,31 +584,134 @@ describe("Thermostat suggestions", () => {
             }
         });
 
-        it("retries every 10 seconds while following keeps throwing on the timer", async () => {
+        describe("while following keeps throwing on the timer", () => {
+            const FAILURE = "Re-evaluating the thermostat suggestions";
+
             let attempts = 0;
+            let refuse = true;
+
             class RefusingServer extends SuggestionsServer {
-                override handleSetActivePresetRequest(_request: Thermostat.SetActivePresetRequest): undefined {
+                override handleSetActivePresetRequest(request: Thermostat.SetActivePresetRequest) {
                     attempts++;
-                    throw new ImplementationError("refuse to follow");
+                    if (refuse) {
+                        throw new ImplementationError("refuse to follow");
+                    }
+                    return super.handleSetActivePresetRequest(request);
                 }
             }
-            await using ctx = await online({}, RefusingServer);
-            await ctx.add({ presetHandle: PRESET_B, effectiveTime: nowS() + 600 });
 
-            await MockTime.advance(Seconds(600));
-            await settle();
-            expect(attempts).equals(1);
+            beforeEach(() => {
+                attempts = 0;
+                refuse = true;
+            });
 
-            await MockTime.advance(Seconds(60));
+            async function expectAttemptAfter(delayS: number) {
+                const before = attempts;
+                await MockTime.advance(Seconds(delayS - 1));
+                await settle();
+                expect(attempts).equals(before);
+                await MockTime.advance(Seconds(1));
+                await settle();
+                expect(attempts).equals(before + 1);
+            }
+
+            function failureLevels(log: { messages: string[] }) {
+                return log.messages
+                    .filter(message => message.includes(FAILURE))
+                    .map(message =>
+                        message.includes(" WARN ") ? "warn" : message.includes(" DEBUG ") ? "debug" : message,
+                    );
+            }
+
+            it("retries with a delay that doubles up to 15 minutes and logs one warning", async () => {
+                await using ctx = await online({}, RefusingServer);
+                await ctx.add({ presetHandle: PRESET_B, effectiveTime: nowS() + 600, expirationInMinutes: 120 });
+                using log = captureLog(LogLevel.DEBUG);
+
+                await expectAttemptAfter(600);
+                for (const delayS of [10, 20, 40, 80, 160, 320, 640, 900, 900]) {
+                    await expectAttemptAfter(delayS);
+                }
+
+                expect(ctx.state().currentThermostatSuggestion).equals(null);
+                expect(MockTime.timerCountFor(TIMER)).equals(1);
+                expect(failureLevels(log)).deep.equals(["warn", ...new Array(9).fill("debug")]);
+                expect(log.messages.filter(message => message.includes(" ERROR "))).deep.equals([]);
+            });
+
+            it("starts again at 10 seconds with a warning after a re-evaluation that takes effect", async () => {
+                await using ctx = await online({}, RefusingServer);
+                await ctx.add({ presetHandle: PRESET_B, effectiveTime: nowS() + 600 });
+                await ctx.add({ presetHandle: PRESET_A, effectiveTime: nowS() + 2500 });
+                using log = captureLog(LogLevel.DEBUG);
+
+                await expectAttemptAfter(600);
+                await expectAttemptAfter(10);
+                refuse = false;
+                await expectAttemptAfter(20);
+                expect(ctx.state().activePresetHandle).deep.equals(PRESET_B);
+
+                refuse = true;
+                await expectAttemptAfter(2500 - 630);
+                await expectAttemptAfter(10);
+                expect(ctx.state().activePresetHandle).deep.equals(PRESET_B);
+                expect(failureLevels(log)).deep.equals(["warn", "debug", "warn", "debug"]);
+            });
+        });
+
+        it("retries a due entry after a rolled-back re-evaluation that only changed the reason not to follow", async () => {
+            let demandResponse = true;
+            class DemandResponseServer extends SuggestionsServer {
+                override suggestionNotFollowingReason() {
+                    return demandResponse ? { demandResponseEvent: true } : null;
+                }
+            }
+            await using ctx = await online({}, DemandResponseServer);
+            await ctx.add({ presetHandle: PRESET_B });
+            expect(ctx.state().activePresetHandle).equals(null);
+
+            demandResponse = false;
+            await expect(
+                MockTime.resolve(
+                    ctx.node.online({ command: true }, async agent => {
+                        ctx.device.agentFor(agent.context).get(SuggestionsServer).reevaluateThermostatSuggestions();
+                        throw new ImplementationError("roll back the re-evaluation");
+                    }),
+                    { macrotasks: true },
+                ),
+            ).rejectedWith(ImplementationError);
             await settle();
-            expect(attempts).equals(7);
-            expect(ctx.state().currentThermostatSuggestion).equals(null);
-            expect(MockTime.timerCountFor(TIMER)).equals(1);
+            expect(reasonsIn(ctx.state().thermostatSuggestionNotFollowingReason)).deep.equals(["demandResponseEvent"]);
+
+            await MockTime.advance(Seconds(9));
+            await settle();
+            expect(ctx.state().activePresetHandle).equals(null);
+
+            await MockTime.advance(Seconds(1));
+            await settle();
+            expect(ctx.state().thermostatSuggestionNotFollowingReason).equals(null);
+            expect(ctx.state().activePresetHandle).deep.equals(PRESET_B);
         });
 
         it("does not retry a current entry after a re-evaluation that commits", async () => {
             await using ctx = await online({}, CountingServer);
             await ctx.add({ presetHandle: PRESET_B, expirationInMinutes: 30 });
+            evaluations = 0;
+
+            await MockTime.advance(Seconds(60));
+            await settle();
+            expect(evaluations).equals(0);
+        });
+
+        it("does not retry a current entry it does not follow after a re-evaluation that commits", async () => {
+            class DemandResponseServer extends CountingServer {
+                override suggestionNotFollowingReason() {
+                    return { demandResponseEvent: true };
+                }
+            }
+            await using ctx = await online({}, DemandResponseServer);
+            await ctx.add({ presetHandle: PRESET_B, expirationInMinutes: 30 });
+            expect(reasonsIn(ctx.state().thermostatSuggestionNotFollowingReason)).deep.equals(["demandResponseEvent"]);
             evaluations = 0;
 
             await MockTime.advance(Seconds(60));

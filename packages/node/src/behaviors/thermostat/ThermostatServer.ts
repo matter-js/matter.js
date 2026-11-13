@@ -24,6 +24,7 @@ import {
     Logger,
     isDeepEqual,
     Millis,
+    Minutes,
     Observable,
     Seconds,
     Time,
@@ -67,13 +68,28 @@ const EARLIEST_SYNCHRONIZED_TIME_MS = Date.UTC(2025, 0, 1);
 
 /**
  * How long after a re-evaluation that did not take effect the timer re-evaluates again, while a stored entry is due.
+ * Each further re-evaluation that does not take effect while an entry is due doubles the delay, up to
+ * {@link MAX_SUGGESTION_RETRY_DELAY}.
  */
 const SUGGESTION_RETRY_DELAY = Seconds(10);
+
+/** Limits the retries of an entry the application keeps refusing to about 100 per day, the longest an entry lasts. */
+const MAX_SUGGESTION_RETRY_DELAY = Minutes(15);
 
 /** The state a re-evaluation of the thermostat suggestions wrote. */
 interface SuggestionEvaluation {
     thermostatSuggestions: Thermostat.ThermostatSuggestion[];
     currentThermostatSuggestion: Thermostat.ThermostatSuggestion | null;
+    thermostatSuggestionNotFollowingReason: Thermostat.ThermostatSuggestionNotFollowingReason | null;
+}
+
+/** The re-evaluations of the thermostat suggestions in one transaction. */
+interface SuggestionReevaluation {
+    /** The UTC time in seconds of the first re-evaluation in the transaction. */
+    evaluatedAt: number;
+
+    /** The state the last re-evaluation in the transaction wrote; undefined while none completed. */
+    evaluation?: SuggestionEvaluation;
 }
 
 /**
@@ -2319,7 +2335,8 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         _old: unknown,
         context: ActionContext,
     ) {
-        const evaluated = this.internal.suggestionEvaluations.get(context.transaction)?.thermostatSuggestions;
+        const evaluated = this.internal.suggestionReevaluations.get(context.transaction)?.evaluation
+            ?.thermostatSuggestions;
         if (evaluated !== undefined && isDeepEqual(evaluated, suggestions)) {
             return;
         }
@@ -2388,23 +2405,47 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     #reevaluateSuggestions() {
         const { internal } = this;
         const { transaction } = this.context;
-        if (!internal.timerRestarts.has(transaction)) {
-            internal.timerRestarts.add(transaction);
-            const evaluatedAt = Timestamp.toSeconds(Time.nowMs);
+        let reevaluation = internal.suggestionReevaluations.get(transaction);
+        if (reevaluation === undefined) {
+            const started: SuggestionReevaluation = { evaluatedAt: Timestamp.toSeconds(Time.nowMs) };
+            internal.suggestionReevaluations.set(transaction, started);
             transaction.onFinalize(() => {
-                internal.timerRestarts.delete(transaction);
-                const evaluation = internal.suggestionEvaluations.get(transaction);
-                internal.suggestionEvaluations.delete(transaction);
-                internal.restartSuggestionTimer?.(evaluatedAt, evaluation);
+                internal.suggestionReevaluations.delete(transaction);
+                internal.restartSuggestionTimer?.(started);
             });
+            reevaluation = started;
         }
 
         this.agent.asLocalActor(() => this.#determineCurrentSuggestion());
-        const { thermostatSuggestions, currentThermostatSuggestion } = this.state;
-        internal.suggestionEvaluations.set(
-            transaction,
-            deepCopy({ thermostatSuggestions, currentThermostatSuggestion }),
-        );
+        reevaluation.evaluation = deepCopy(this.#suggestionEvaluation());
+    }
+
+    /**
+     * Re-evaluates when {@link ThermostatBaseServer.Internal.suggestionTimer} expires.  No caller receives a
+     * re-evaluation that throws, so it is logged here and rolls back the transaction, which retries it.  The first
+     * such failure after a re-evaluation that took effect logs at warn, repeats at debug.  A failure when the
+     * transaction commits is not caught here and logs as an unhandled reactor error.
+     */
+    #reevaluateSuggestionsOnTimer() {
+        try {
+            this.#reevaluateSuggestions();
+        } catch (error) {
+            const { internal } = this;
+            const message = `Re-evaluating the thermostat suggestions of ${this.endpoint} failed, retrying:`;
+            if (internal.suggestionTimerFailureLogged) {
+                logger.debug(message, error);
+            } else {
+                internal.suggestionTimerFailureLogged = true;
+                logger.warn(message, error);
+            }
+            return this.context.transaction.rollback();
+        }
+    }
+
+    #suggestionEvaluation(): SuggestionEvaluation {
+        const { thermostatSuggestions, currentThermostatSuggestion, thermostatSuggestionNotFollowingReason } =
+            this.state;
+        return { thermostatSuggestions, currentThermostatSuggestion, thermostatSuggestionNotFollowingReason };
     }
 
     /**
@@ -2473,18 +2514,24 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     /**
-     * Starts the timer for the earliest EffectiveTime or ExpirationTime of the stored entries after `evaluatedAt`, the
-     * UTC time in seconds of the first re-evaluation in the transaction, and stops it without synchronized time.  A
-     * time that passed while the transaction ran, also one that rolled back, re-evaluates at once.
+     * Starts the timer for the earliest EffectiveTime or ExpirationTime of the stored entries after `evaluatedAt` of
+     * `reevaluation`, and stops it without synchronized time.  A time that passed while the transaction ran, also one
+     * that rolled back, re-evaluates at once.
      *
-     * A time up to `evaluatedAt` is retried after {@link SUGGESTION_RETRY_DELAY} only when the committed state differs
-     * from `evaluation`, the state the last re-evaluation in the transaction wrote.  This is the case when the
-     * transaction rolled back or the re-evaluation threw.  A re-evaluation that keeps failing therefore repeats at that
-     * delay, not at once.
+     * A time up to `evaluatedAt` is retried only when the committed state differs from the state the last re-evaluation
+     * in the transaction wrote.  This is the case when the transaction rolled back or the re-evaluation threw.  The
+     * first retry waits {@link SUGGESTION_RETRY_DELAY}.  Each further restart that plans a retry, whatever transaction
+     * ran the re-evaluation, doubles the delay up to {@link MAX_SUGGESTION_RETRY_DELAY}.  A re-evaluation that takes
+     * effect resets the delay.
+     *
+     * Another transaction may commit between the end of this transaction and this restart.  The committed state then
+     * differs from this transaction's evaluation, so this restart plans one extra retry and doubles the delay.  The
+     * restart of the other transaction follows, replaces that retry and resets the delay when its re-evaluation took
+     * effect.
      *
      * The timer runs on the monotonic clock, so call {@link reevaluateThermostatSuggestions} when the wall clock steps.
      */
-    #restartSuggestionTimer(evaluatedAt: number, evaluation: SuggestionEvaluation | undefined) {
+    #restartSuggestionTimer({ evaluatedAt, evaluation }: SuggestionReevaluation) {
         const { internal } = this;
         internal.suggestionTimer?.stop();
         internal.suggestionTimer = undefined;
@@ -2492,17 +2539,21 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             return;
         }
 
-        const { thermostatSuggestions, currentThermostatSuggestion } = this.state;
+        const { thermostatSuggestions } = this.state;
         const times = thermostatSuggestions.flatMap(({ effectiveTime, expirationTime }) => [
             effectiveTime,
             expirationTime,
         ]);
         const upcoming = times.filter(time => time > evaluatedAt);
         const delays = upcoming.length === 0 ? [] : [Math.max(0, Seconds(Math.min(...upcoming)) - Time.nowMs)];
-        const tookEffect =
-            evaluation !== undefined && isDeepEqual(evaluation, { thermostatSuggestions, currentThermostatSuggestion });
-        if (!tookEffect && upcoming.length < times.length) {
-            delays.push(SUGGESTION_RETRY_DELAY);
+        if (evaluation !== undefined && isDeepEqual(evaluation, this.#suggestionEvaluation())) {
+            internal.suggestionRetryDelay = SUGGESTION_RETRY_DELAY;
+            internal.suggestionTimerFailureLogged = false;
+        } else if (upcoming.length < times.length) {
+            delays.push(internal.suggestionRetryDelay);
+            internal.suggestionRetryDelay = Millis(
+                Math.min(internal.suggestionRetryDelay * 2, MAX_SUGGESTION_RETRY_DELAY),
+            );
         }
         if (delays.length === 0) {
             return;
@@ -2510,7 +2561,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         internal.suggestionTimer = this.reactorTimer(
             "Thermostat suggestion",
             Millis(Math.min(...delays)),
-            this.#reevaluateSuggestions,
+            this.#reevaluateSuggestionsOnTimer,
         ).start();
     }
 
@@ -3380,13 +3431,19 @@ export namespace ThermostatBaseServer {
         suggestionTimer?: Timer;
 
         /** Restarts {@link suggestionTimer} in a reactor, after the transaction of a re-evaluation ends. */
-        restartSuggestionTimer?: (evaluatedAt: number, evaluation: SuggestionEvaluation | undefined) => void;
+        restartSuggestionTimer?: (reevaluation: SuggestionReevaluation) => void;
 
-        /** Transactions that restart {@link suggestionTimer} once they commit or roll back. */
-        timerRestarts = new WeakSet<Transaction>();
+        /**
+         * The re-evaluations in each transaction, until the transaction commits or rolls back and restarts
+         * {@link suggestionTimer}.
+         */
+        suggestionReevaluations = new WeakMap<Transaction, SuggestionReevaluation>();
 
-        /** The state the last re-evaluation in each transaction wrote, until the transaction commits or rolls back. */
-        suggestionEvaluations = new WeakMap<Transaction, SuggestionEvaluation>();
+        /** The delay of the next retry of a due thermostat suggestion. */
+        suggestionRetryDelay = SUGGESTION_RETRY_DELAY;
+
+        /** Whether the timer logged a failed re-evaluation since the last re-evaluation that took effect. */
+        suggestionTimerFailureLogged = false;
 
         /** The UniqueID of the last thermostat suggestion added; the next one takes the next free value after it. */
         lastSuggestionUniqueId = 0;
