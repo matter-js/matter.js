@@ -146,6 +146,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: GeneralDiagnostics test commands compare the EnableKey in constant time and never accept a key that is not 16 bytes, and the node refuses to start with a non-zero `deviceTestEnableKey` of another length
     - Fix: `VendorIdVerification.verifyData` returns false for a VVSC that breaks its certificate profile instead of throwing
     - Fix: A device logs secret fields of received commands and of its command responses, and endpoint diagnostics show secret attribute values, as `(redacted)`
+    - Adjustment: String limits count UTF-8 bytes, so ensure that configured values and values you set with `setStateOf` fit in bytes; use `Bytes.truncateUtf8()` instead of `String.slice()` to shorten them
     - Fix: String length constraints count UTF-8 bytes instead of UTF-16 code units
     - Fix: A stored string over its limit in UTF-8 bytes is shortened on load with a warning
     - Fix: `GroupsServer` checks the AddGroup group name length in UTF-8 bytes
