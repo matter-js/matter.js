@@ -677,7 +677,7 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         const scripted = this.#scriptFor(peer).queryImage.shift();
 
         // A scripted status is answered without asking `super` at all. Its answer is a side effect as
-        // much as a value — it stages an in-progress entry and registers the peer for BDX — and a
+        // much as a value — it records an offer for the peer and registers the peer for BDX — and a
         // status written over the top afterwards would leave the provider expecting a transfer the
         // requestor was just told not to start.
         const response: OtaSoftwareUpdateProvider.QueryImageResponse =
@@ -751,10 +751,10 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         // this states directly — and the only one whose side effects must not happen, because the
         // requestor's next attempt needs the BDX registration and the image it already downloaded.
         //
-        // A refusal it does have a path to: it answers Discontinue for an update it holds no consent
-        // for. Withdrawing the consent and letting it answer is what keeps the state it is left in
-        // agreeing with the answer the requestor received; overlaying Discontinue on a successful
-        // apply would record the update as applying and report it to this controller as allowed.
+        // A refusal it does have a path to: it answers Discontinue under a known update token once
+        // removeConsent() removed the version. Letting it answer keeps the state agreeing with the answer the
+        // requestor received; overlaying Discontinue on a successful apply would record the update as applying.
+        // Under an unknown token (a scripted offer it did not make) the apply of a version above 0 proceeds.
         const scriptedAction = scripted?.action;
         let response: OtaSoftwareUpdateProvider.ApplyUpdateResponse;
         if (scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.AwaitNextAction) {
@@ -762,7 +762,11 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         } else {
             if (scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Discontinue) {
                 const peerAddress = this.#commandPeerAddress;
-                await this.agent.get(SoftwareUpdateManager).removeConsent(peerAddress, request.newVersion);
+                const manager = this.agent.get(SoftwareUpdateManager);
+                const version = manager.appliedVersionOf(peerAddress, request.updateToken, request.newVersion);
+                if (version !== undefined) {
+                    await manager.removeConsent(peerAddress, version);
+                }
             }
             // Only for the answer the script named: the base provider sends its delay only where it allows the apply,
             // so a Discontinue never names a time for something that is not going to happen
@@ -2205,8 +2209,21 @@ class InProcessCertNodeApi implements CertNodeApi {
         // after that would then reject it with nobody listening
         promise.catch(() => {});
 
+        const bdx = this.#controller.env.get(BdxProtocol);
         let transfer: BdxSession | undefined;
-        observers.on(this.#controller.env.get(BdxProtocol).sessionStarted, (session, sessionScope) => {
+        const follow = (session: BdxSession) => {
+            transfer = session;
+            observers.on(session.progressFinished, () => resolver(session));
+            observers.on(session.closed, () =>
+                rejecter(
+                    new OtaTransferError(
+                        `BDX transfer to node id ${this.#nodeId} ended after ${session.transferredBytes} of ` +
+                            `${session.dataLength ?? "an indefinite number of"} bytes without completing`,
+                    ),
+                ),
+            );
+        };
+        observers.on(bdx.sessionStarted, (session, sessionScope) => {
             const { fabricIndex, nodeId } = session.peerAddress;
 
             // Scope as well as peer: this controller may hold another BDX transfer with the same node —
@@ -2220,29 +2237,34 @@ class InProcessCertNodeApi implements CertNodeApi {
             ) {
                 return;
             }
-            transfer = session;
-            observers.on(session.progressFinished, () => resolver(session));
-            observers.on(session.closed, () =>
-                rejecter(
-                    new OtaTransferError(
-                        `BDX transfer to node id ${this.#nodeId} ended after ${session.transferredBytes} of ` +
-                            `${session.dataLength ?? "an indefinite number of"} bytes without completing`,
-                    ),
-                ),
-            );
+            follow(session);
         });
+
+        // A forceUpdate() trigger succeeds while a transfer of its version already runs, and that transfer
+        // started before the listener above
+        const followRunning = () => {
+            const running = bdx.sessionFor(peerAddress, scope);
+            if (transfer === undefined && running !== undefined) {
+                follow(running);
+            }
+        };
 
         const expiry = Time.sleep("cert OTA transfer", timeout);
 
-        // Anything but a completed transfer leaves the update queued, and a later forceUpdate() for this
-        // node then finds an active session and declines to start a replacement. Tracked here rather than
-        // per failure branch: a throw from the announce, a session that closed, and the budget expiring all
-        // have to undo it, and attaching that to one branch is what let two of them escape before.
+        // Anything but a completed transfer leaves the update queued, and a later forceUpdate() for another
+        // version of this node then finds an active session and refuses to start a replacement. Tracked
+        // here rather than per failure branch: a throw from the trigger, a session that closed, and the
+        // budget expiring all have to undo it.
         let served = false;
         try {
-            // The announce is inside the race, not before it: it waits on the peer, so a provider the node
-            // never answers would otherwise hold this call open past the budget it documents.
-            const completed = await Promise.race([trigger().then(() => promise), expiry.then(() => undefined)]);
+            // The budget this call documents covers the trigger as well as the transfer
+            const completed = await Promise.race([
+                trigger().then(() => {
+                    followRunning();
+                    return promise;
+                }),
+                expiry.then(() => undefined),
+            ]);
             if (completed === undefined) {
                 throw new OtaTransferError(
                     `Node id ${this.#nodeId} did not take the offered OTA image within ${Duration.format(timeout)}` +

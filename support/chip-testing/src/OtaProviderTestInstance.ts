@@ -34,7 +34,7 @@ const ENDPOINT = {
 
 /**
  * `SoftwareUpdateManager.updateExistsFor()`'s default candidate lookup only answers a caller it already
- * tracks as a `ClientNode` peer with matching `BasicInformation` (`#validatePeerDetails`) — sound for a
+ * tracks as a `ClientNode` peer with matching `BasicInformation` (`#matchingBasicInformation`) — sound for a
  * controller, which populates that tracking by commissioning every device it might update, but this
  * subject is commissioned as a device and never independently discovers whoever calls it, so that
  * check always fails and every `QueryImage` reads `NotAvailable` regardless of staging. This overrides
@@ -56,20 +56,12 @@ class CertOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         const { otaUpdateService } = rootNode.agentFor(this.context).get(DclBehavior);
         const allowTestOtaImages = this.agent.get(SoftwareUpdateManager).state.allowTestOtaImages;
 
-        const candidate = (await otaUpdateService.find({ vendorId, productId }))
-            .filter(
-                ({
-                    softwareVersion: candidateVersion,
-                    minApplicableSoftwareVersion = 0,
-                    maxApplicableSoftwareVersion = softwareVersion,
-                    mode,
-                }) =>
-                    softwareVersion < candidateVersion &&
-                    softwareVersion >= minApplicableSoftwareVersion &&
-                    softwareVersion <= maxApplicableSoftwareVersion &&
-                    (mode === "prod" || allowTestOtaImages),
-            )
-            .sort((a, b) => b.softwareVersion - a.softwareVersion)[0];
+        const [candidate] = await otaUpdateService.findApplicable({
+            vendorId,
+            productId,
+            currentSoftwareVersion: softwareVersion,
+            includeNonProductionImages: allowTestOtaImages,
+        });
         if (candidate === undefined) {
             return undefined;
         }

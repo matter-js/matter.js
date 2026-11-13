@@ -5,8 +5,8 @@
  */
 
 describe("PWRTL", () => {
-    chip("PWRTL/*");
-
-    // run1 targets the CHIP energy-management (EVSE) app, which matter.js has no test subject for
-    chip("PWRTL/2.1/run2");
+    chip("PWRTL/*").exclude(
+        // run1 targets the CHIP energy-management (EVSE) app, which matter.js has no test subject for
+        "PWRTL/2.1/run1",
+    );
 });

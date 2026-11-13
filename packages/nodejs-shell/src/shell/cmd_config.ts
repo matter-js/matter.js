@@ -577,7 +577,7 @@ async function doOtaTestImages(
     switch (action) {
         case "get":
             console.log(
-                `OTA test images: ${theNode.allowTestOtaImages ? "enabled (production + test DCL)" : "disabled (production DCL only)"}`,
+                `OTA test images: ${theNode.allowTestOtaImages ? "enabled (production + test DCL, local images)" : "disabled (production DCL only)"}`,
             );
             break;
         case "set":
@@ -588,7 +588,7 @@ async function doOtaTestImages(
             const newValue = value === "true";
             await theNode.setAllowTestOtaImages(newValue);
             console.log(
-                `OTA test images: ${newValue ? "enabled (production + test DCL)" : "disabled (production DCL only)"}`,
+                `OTA test images: ${newValue ? "enabled (production + test DCL, local images)" : "disabled (production DCL only)"}`,
             );
             break;
         case "delete":

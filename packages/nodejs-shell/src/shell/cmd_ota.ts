@@ -12,7 +12,7 @@ import { basename, dirname, extname, join } from "node:path";
 import { Readable } from "node:stream";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
-import { resolveDclMode, withDclModeOption } from "./ota-dcl-mode.js";
+import { noteSkippedStoredImages, resolveDclMode, withDclModeOption } from "./ota-dcl-mode.js";
 
 /**
  * Parse a hex string to a number, handling optional 0x prefix.
@@ -596,6 +596,7 @@ export default function commands(theNode: MatterNode) {
                         console.log(`  Product ID: ${Diagnostic.hex(productId, 4).toUpperCase()}`);
                         console.log(`  Current Software Version: ${softwareVersion}`);
                         console.log(`  DCL Mode: ${dclMode}\n`);
+                        noteSkippedStoredImages(local, mode, isProduction);
 
                         const updateInfo = await (
                             await theNode.otaService()

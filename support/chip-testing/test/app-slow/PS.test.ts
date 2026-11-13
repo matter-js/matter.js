@@ -7,9 +7,12 @@
 import { AllDevicesApp } from "../support.js";
 
 describe("PS", () => {
-    chip("PS/*").args("--endpoint", 1).exclude("PS/2.3");
-    // Selects the runs of multi-run tests, which "PS/*" does not
-    chip("PS/*/run*").args("--endpoint", 1).exclude("PS/2.3/*").exclude("PS/3.1/run1").exclude(
+    chip("PS/*").args("--endpoint", 1).exclude(
+        "PS/2.3",
+
+        // Registered below without the endpoint argument
+        "PS/3.1/run1",
+
         // The lock runs 3 to 8 differ from run2 only in how the TH commissions, and the harness commissions every run
         // the same way
         "PS/3.1/run3",

@@ -468,7 +468,7 @@ describe("DclOtaUpdateService", () => {
             expect(testUpdate?.source).to.equal("dcl-test");
         });
 
-        it("surfaces local-mode stored files regardless of isProduction", async () => {
+        it("skips stored local-mode files when isProduction is true", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
             // Prod DCL returns no applicable updates
             fetchMock.addResponse("/dcl/model/versions/65521/32768", {
@@ -509,7 +509,16 @@ describe("DclOtaUpdateService", () => {
                 isProduction: true,
                 includeStoredUpdates: true,
             });
-            expect(update?.source).to.equal("local");
+            expect(update).to.be.undefined;
+
+            const testUpdate = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: false,
+                includeStoredUpdates: true,
+            });
+            expect(testUpdate?.source).to.equal("local");
         });
 
         it("surfaces stored prod-mode files when isProduction is false", async () => {

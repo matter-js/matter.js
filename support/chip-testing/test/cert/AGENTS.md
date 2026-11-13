@@ -3456,7 +3456,7 @@ Three things in it are load-bearing:
 
 - **The identity comes from held client state, not from a read.** `SoftwareUpdateManager` validates a
   `QueryImage`'s claimed vendor/product/version against what the controller holds
-  (`#validatePeerDetails`), so an image staged from a fresh read could be applicable to what the node
+  (`#matchingBasicInformation`), so an image staged from a fresh read could be applicable to what the node
   says and inapplicable to what the controller believes. The answer to that is `NotAvailable`, with
   nothing in any log to point at.
 - **It rejects rather than reporting a partial result.** A node that never queried, one answered

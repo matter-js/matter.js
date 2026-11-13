@@ -90,9 +90,11 @@ export namespace TestDescriptor {
     };
 
     /**
-     * Create a filter function for specified criteria.
+     * Filter a descriptor tree by the specified criteria.
      *
-     * The filter treats tests as atomic and ignores empty suites.
+     * An include path selects the descriptor it names and the members below it, which `kinds`, `pics` and `predicate`
+     * still filter.  So the path of a test with several runs selects its runs.  The filter treats tests as atomic and
+     * ignores empty suites.
      */
     export function filter(descriptor: TestDescriptor, criteria: Criteria): TestDescriptor | undefined {
         const { includePaths, kinds, pics, predicate } = criteria;
@@ -100,17 +102,17 @@ export namespace TestDescriptor {
         // Index the inclusion paths so we can efficiently short-circuit search
         interface NameNode extends Record<string, NameNode | undefined> {}
         let memberNames: undefined | NameNode;
+        const pathEnds = new WeakSet<NameNode>();
         if (includePaths) {
             memberNames = {};
             for (const path of includePaths) {
                 let incl = memberNames;
-                const segments = path.split("/");
-                if (segments[0] === "") {
-                    segments[0] = descriptor.name;
-                }
+                const [first, ...rest] = path.split("/");
+                const segments = [first === "" ? descriptor.name : first, ...rest.filter(segment => segment !== "")];
                 for (const segment of segments) {
                     incl = (incl[segment] as NameNode) ??= {};
                 }
+                pathEnds.add(incl);
             }
         }
 
@@ -141,7 +143,10 @@ export namespace TestDescriptor {
 
                 let filteredMembers: undefined | TestDescriptor[];
                 for (const member of members) {
-                    const filteredMember = filter(member, memberNames);
+                    const filteredMember = filter(
+                        member,
+                        memberNames && pathEnds.has(memberNames) ? undefined : memberNames,
+                    );
                     if (!filteredMember) {
                         continue;
                     }
