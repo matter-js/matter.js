@@ -132,24 +132,34 @@ function reconcileStoredValues(
  * Returns the stored values, with each changed top-level value copied, and the keys of the changed values.
  */
 function shortenStoredStrings(supervisor: RootSupervisor, path: DataModelPath, stored: Val.Struct) {
+    /**
+     * @param listMax the entry limit a containing list states, such as the 32 of "max 10[max 32]"
+     * @param secretContainer a containing value the model marks as secret
+     */
     const shorten = (
         schema: ValueModel,
         value: unknown,
         location: DataModelPath,
-        max = schema.effectiveConstraint.max,
+        listMax?: unknown,
+        secretContainer?: ValueModel,
     ): unknown => {
+        secretContainer ??= schema.effectiveIsSecret ? schema : undefined;
+
         switch (schema.effectiveMetatype) {
             case Metatype.string: {
-                if (typeof value !== "string" || typeof max !== "number") {
+                const limits = [schema.effectiveConstraint.max, listMax].filter(max => typeof max === "number");
+                if (typeof value !== "string" || !limits.length) {
                     return value;
                 }
+                const max = Math.min(...limits);
                 const shortened = Bytes.truncateUtf8(value, max);
                 if (shortened !== value) {
+                    const redactWith = secretContainer ?? schema;
                     logger.warn(
                         `Shortened the stored value of ${location} to ${max} bytes in UTF-8:`,
-                        SecretRedaction.redact(schema, value),
+                        SecretRedaction.redact(redactWith, value),
                         "is now",
-                        SecretRedaction.redact(schema, shortened),
+                        SecretRedaction.redact(redactWith, shortened),
                     );
                 }
                 return shortened;
@@ -160,9 +170,10 @@ function shortenStoredStrings(supervisor: RootSupervisor, path: DataModelPath, s
                 if (!Array.isArray(value) || entry === undefined) {
                     return value;
                 }
-                // A list constraint such as "max 10[max 32]" states the entry limit on the list
-                const entryMax = schema.effectiveConstraint.entry?.max ?? entry.effectiveConstraint.max;
-                const entries = value.map((item, index) => shorten(entry, item, location.at(index), entryMax));
+                const listMax = schema.effectiveConstraint.entry?.max;
+                const entries = value.map((item, index) =>
+                    shorten(entry, item, location.at(index), listMax, secretContainer),
+                );
                 return entries.some((item, index) => item !== value[index]) ? entries : value;
             }
 
@@ -176,7 +187,7 @@ function shortenStoredStrings(supervisor: RootSupervisor, path: DataModelPath, s
                     if (!(key in value)) {
                         continue;
                     }
-                    const shortened = shorten(member, value[key], location.at(key));
+                    const shortened = shorten(member, value[key], location.at(key), undefined, secretContainer);
                     if (shortened !== value[key]) {
                         (result ??= { ...value })[key] = shortened;
                     }

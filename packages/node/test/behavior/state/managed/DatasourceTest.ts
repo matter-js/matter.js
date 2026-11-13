@@ -1389,6 +1389,9 @@ describe("Datasource", () => {
             label: string | null = "";
             free = "";
             tags = new Array<string>();
+            codes = new Array<string>();
+            pins = new Array<string>();
+            secrets = new Array<string>();
             entries: Array<{ name?: string; value: number } | null> | null = [];
             other = 0;
         }
@@ -1410,6 +1413,27 @@ describe("Datasource", () => {
                         constraint: "max 2[max 4]",
                         quality: "N",
                         children: [FieldElement({ name: "entry", type: "string" })],
+                    }),
+                    FieldElement({
+                        name: "codes",
+                        type: "list",
+                        constraint: "max 2[max 4]",
+                        quality: "N",
+                        children: [FieldElement({ name: "entry", type: "string", constraint: "max 2" })],
+                    }),
+                    FieldElement({
+                        name: "pins",
+                        type: "list",
+                        constraint: "max 2[max 2]",
+                        quality: "N",
+                        children: [FieldElement({ name: "entry", type: "string", constraint: "max 8" })],
+                    }),
+                    FieldElement({
+                        name: "secrets",
+                        type: "list",
+                        quality: "N",
+                        isSecret: true,
+                        children: [FieldElement({ name: "entry", type: "string", constraint: "max 4" })],
                     }),
                     FieldElement({
                         name: "entries",
@@ -1476,6 +1500,24 @@ describe("Datasource", () => {
             const ds = createLabeled(store);
 
             expect([...ds.view.tags]).deep.equals(["ab", "éé"]);
+        });
+
+        it("shortens a stored list entry to the smaller of the list's and the entry type's limits", async () => {
+            const store = createStore({ codes: ["éé"], pins: ["éé"] });
+            const ds = createLabeled(store);
+
+            expect([...ds.view.codes]).deep.equals(["é"]);
+            expect([...ds.view.pins]).deep.equals(["é"]);
+        });
+
+        it("redacts a shortened string inside a secret list in the warning", async () => {
+            using log = captureLog(LogLevel.WARN);
+            const store = createStore({ secrets: ["ééé"] });
+            const ds = createLabeled(store);
+
+            expect([...ds.view.secrets]).deep.equals(["éé"]);
+            expect(log.messages.some(message => message.includes("(redacted) is now (redacted)"))).true;
+            expect(log.messages.some(message => message.includes("é"))).false;
         });
 
         it("keeps stored null values and list entries without the string", async () => {
