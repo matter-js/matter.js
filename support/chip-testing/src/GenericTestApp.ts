@@ -138,7 +138,9 @@ export abstract class DeviceTestInstance extends TestInstance {
     }
 
     async stop(): Promise<void> {
-        await this.#commandPipe?.close();
+        const pipe = this.#commandPipe;
+        this.#commandPipe = undefined;
+        await pipe?.close();
     }
 
     async backchannel(command: BackchannelCommand) {
