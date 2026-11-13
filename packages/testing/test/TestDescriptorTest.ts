@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { globSync } from "@nacho-iot/js-tools";
 import { TestDescriptor } from "../src/test-descriptor.js";
 
 const tests: TestDescriptor = {
@@ -14,28 +15,28 @@ const tests: TestDescriptor = {
             name: "IDM",
             kind: "suite",
             members: [
-                { name: "1.1", kind: "py" },
+                { name: "1.1", kind: "py", path: "TC_IDM_1_1.py" },
                 {
                     name: "1.2",
                     kind: "suite",
                     members: [
-                        { name: "run1", kind: "py" },
-                        { name: "run2", kind: "py" },
+                        { name: "run1", kind: "py", path: "TC_IDM_1_2.py" },
+                        { name: "run2", kind: "py", path: "TC_IDM_1_2.py" },
                     ],
                 },
             ],
         },
-        { name: "DESC", kind: "suite", members: [{ name: "2.1", kind: "py" }] },
+        { name: "DESC", kind: "suite", members: [{ name: "2.1", kind: "py", path: "TC_DESC_2_1.py" }] },
     ],
 };
 
-function selected(...includePaths: string[]) {
-    const names = new Array<string>();
-    const filtered = TestDescriptor.filter(tests, { includePaths });
+/** The selected tests by path, keyed by descriptor, which `chip(...).exclude()` uses to find a registered test. */
+function leavesOf(filtered: TestDescriptor | undefined) {
+    const leaves = new Map<TestDescriptor, string>();
     if (filtered) {
         (function collect(descriptor: TestDescriptor, path: string) {
             if (descriptor.members === undefined) {
-                names.push(path);
+                leaves.set(descriptor, path);
                 return;
             }
             for (const member of descriptor.members) {
@@ -43,7 +44,26 @@ function selected(...includePaths: string[]) {
             }
         })(filtered, "");
     }
-    return names;
+    return leaves;
+}
+
+function selected(...includePaths: string[]) {
+    return [...leavesOf(TestDescriptor.filter(tests, { includePaths })).values()];
+}
+
+/**
+ * The glob and filter calls of `chip(include).exclude(...exclude)` in chip.ts, which the builder makes against the
+ * global `chip.tests`; keep the two in step.
+ */
+function registered(include: string, ...exclude: string[]) {
+    const fs = TestDescriptor.Filesystem(tests);
+    const included = leavesOf(
+        TestDescriptor.filter(tests, { includePaths: globSync(include, fs), kinds: ["py", "yaml", "cert"] }),
+    );
+    for (const descriptor of leavesOf(TestDescriptor.filter(tests, { includePaths: globSync(exclude, fs) })).keys()) {
+        included.delete(descriptor);
+    }
+    return [...included.values()];
 }
 
 describe("TestDescriptor.filter", () => {
@@ -72,5 +92,19 @@ describe("TestDescriptor.filter", () => {
     it("selects nothing outside the paths", () => {
         expect(selected("/IDM/1.1", "/DESC/2.1")).deep.equals(["/IDM/1.1", "/DESC/2.1"]);
         expect(selected("/IDM/9.9")).deep.equals([]);
+    });
+});
+
+describe("glob and filter selection", () => {
+    it("registers every run of a multi-run test through a suite glob", () => {
+        expect(registered("IDM/*")).deep.equals(["/IDM/1.1", "/IDM/1.2/run1", "/IDM/1.2/run2"]);
+    });
+
+    it("excludes every run of a multi-run test and keeps the other tests", () => {
+        expect(registered("IDM/*", "IDM/1.2/*")).deep.equals(["/IDM/1.1"]);
+    });
+
+    it("excludes only the run an exclude names", () => {
+        expect(registered("IDM/*", "IDM/1.2/run2")).deep.equals(["/IDM/1.1", "/IDM/1.2/run1"]);
     });
 });
