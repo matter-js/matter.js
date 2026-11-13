@@ -11,6 +11,7 @@ import type { Container } from "../docker/container.js";
 import { afterOne, beforeOne } from "../mocha.js";
 import { getCurrentNodejsMocha } from "../nodejs.js";
 import { TestDescriptor } from "../test-descriptor.js";
+import { ChipTestSkippedError } from "./chip-test-common.js";
 import { PicsFile } from "./pics/file.js";
 import { splitShellArgs } from "./shell-args.js";
 import { State } from "./state.js";
@@ -304,11 +305,18 @@ function createBuilder(initial: {
         // append after the test is defined
         let runArgs = new Array<string>();
 
-        const mochaTest = myIt(descriptor.name, function () {
+        const mochaTest = myIt(descriptor.name, async function () {
             this.timeout(descriptor.timeoutMs ?? chip.defaultTimeoutMs);
-            return State.run(test, [...runArgs, ...args], (subject, test) =>
-                runBeforeHooks(beforeTestHooks, subject, test),
-            );
+            try {
+                await State.run(test, [...runArgs, ...args], (subject, test) =>
+                    runBeforeHooks(beforeTestHooks, subject, test),
+                );
+            } catch (e) {
+                if (e instanceof ChipTestSkippedError) {
+                    this.skip();
+                }
+                throw e;
+            }
         });
 
         // We do this separately from the test itself because we don't want activation to appear as part of the test if

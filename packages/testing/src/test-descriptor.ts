@@ -240,7 +240,12 @@ export namespace TestDescriptor {
             ...updates,
         };
 
+        // A test that ran in this run and states no verdict was skipped; a verdict from an earlier run would hide that
+        const ran = updates.runAt !== undefined;
         for (const name of ["durationMs", "passed", "runAt", "skippedSteps"] as const) {
+            if (ran && (name === "passed" || name === "durationMs")) {
+                continue;
+            }
             if (previous[name] !== undefined && descriptor[name] === undefined) {
                 (descriptor as Record<string, unknown>)[name] = previous[name];
             }
