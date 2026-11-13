@@ -517,7 +517,7 @@ export class GeneralDiagnosticsServer extends Base {
             })
             .slice(0, 8)
             .map(({ name, mac, ipV4, ipV6, type }) => ({
-                name: name.substring(0, 32),
+                name: Bytes.truncateUtf8(name, 32),
                 isOperational: isOperationalReachable(name),
                 offPremiseServicesReachableIPv4: null, // null means unknown or not supported
                 offPremiseServicesReachableIPv6: null, // null means unknown or not supported

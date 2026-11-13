@@ -87,6 +87,13 @@ describe("GroupsServer schema relaxation", () => {
         expect(groupId).equals(1);
     });
 
+    it("refuses a GroupName of 9 two-byte characters, which is 18 bytes", async () => {
+        const response = await invokeAddGroup({ groupId: 1, groupName: "é".repeat(9) });
+
+        const { status } = TlvAddGroupResponse.decodeTlv(response!.command!.commandFields!);
+        expect(status).equals(Status.ConstraintError);
+    });
+
     it("accepts an out-of-range GroupId and returns a command response from the handler", async () => {
         const response = await invokeAddGroup({ groupId: 0, groupName: "grp" });
 
