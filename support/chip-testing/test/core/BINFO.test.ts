@@ -9,8 +9,6 @@ import { NodeTestInstance } from "../../src/NodeTestInstance.js";
 
 describe("BINFO", () => {
     chip("BINFO/*").exclude("BINFO/2.2");
-    // Selects the runs of multi-run tests, which "BINFO/*" does not
-    chip("BINFO/*/run*").exclude("BINFO/2.2/*");
 
     // For BINFO 2.2 we need to clear events because otherwise test will fail due to duplicate startup events
     chip("BINFO/2.2").beforeStart(subject =>

@@ -83,9 +83,11 @@ describe("CADMIN", () => {
         // These are joint fabric
         "CADMIN/1.27",
         "CADMIN/1.28",
+
+        // Selected below with their own arguments
+        "CADMIN/*/run*",
     );
 
-    // Selects the runs of multi-run tests, which "CADMIN/*" does not
     chip("CADMIN/*/run*")
         .exclude("CADMIN/1.19/*", "CADMIN/1.27/*", "CADMIN/1.28/*")
         // The basic commissioning method tests open their window with the setup code the descriptor drops from

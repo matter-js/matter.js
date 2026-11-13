@@ -5,6 +5,5 @@
  */
 
 describe("G", () => {
-    chip("G/*", "G/2.1/*");
-    chip("G/2.2/run1");
+    chip("G/*");
 });
