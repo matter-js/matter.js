@@ -288,6 +288,15 @@ export function adaptReporter(
                 reporter.passTest(test.title);
             });
 
+            runner.on(RUNNER.EVENT_TEST_PENDING, test => {
+                if (updateStats && test.descriptor) {
+                    // A descriptor reused by --repeat or merged from a stored report may still carry an earlier verdict
+                    test.descriptor.passed = undefined;
+                    test.descriptor.durationMs = undefined;
+                }
+                reporter.skipTest?.(test.title);
+            });
+
             runner.on(RUNNER.EVENT_TEST_FAIL, (test, error) => {
                 let diagnostics: undefined | string;
                 if (error instanceof TestTimeoutError) {
