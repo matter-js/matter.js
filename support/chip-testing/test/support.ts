@@ -13,6 +13,7 @@ import {
 } from "../src/AllClustersTestInstance.js";
 import { AllDevicesTestInstance } from "../src/AllDevicesTestInstance.js";
 import { BridgeTestInstance } from "../src/BridgeTestInstance.js";
+import { CameraTestInstance } from "../src/CameraTestInstance.js";
 import { DeviceTestInstanceConstructor } from "../src/GenericTestApp.js";
 import { IcdTestInstance } from "../src/IcdTestInstance.js";
 import { NodeTestInstance } from "../src/NodeTestInstance.js";
@@ -59,6 +60,7 @@ export const BridgeApp = App(BridgeTestInstance);
 export const TvApp = App(TvTestInstance);
 export const RvcApp = App(RvcTestInstance);
 export const LitIcdApp = App(IcdTestInstance);
+export const CameraApp = App(CameraTestInstance);
 
 // chip-test-header app names (after generate-test-descriptor normalization: strip ${...},
 // CHIP_/_APP affixes, lower-kebab-case) → factory. When a python test descriptor names an

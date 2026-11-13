@@ -21,6 +21,7 @@ export type BackchannelCommand =
     | BackchannelCommand.RvcRemoveArea
     | BackchannelCommand.RvcAddArea
     | BackchannelCommand.SetBooleanState
+    | BackchannelCommand.ZoneTriggered
     | BackchannelCommand.BridgeSimulation
     | BackchannelCommand.SendOnOffToBindings
     | BackchannelCommand.UserIntentCommissioningStart
@@ -130,6 +131,14 @@ export namespace BackchannelCommand {
         name: "setBooleanState";
         endpointId: number;
         newState: boolean;
+    };
+
+    /**
+     * Activity a camera detects in a zone.
+     */
+    export type ZoneTriggered = {
+        name: "zoneTriggered";
+        zoneId: number;
     };
 
     /**

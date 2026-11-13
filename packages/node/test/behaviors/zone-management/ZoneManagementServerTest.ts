@@ -6,7 +6,14 @@
 
 import { ZoneManagementServer } from "#behaviors/zone-management";
 import type { Endpoint } from "#endpoint/Endpoint.js";
-import { Environment, MaybePromise, MockStorageService, StorageService } from "@matter/general";
+import {
+    Environment,
+    ImplementationError,
+    MatterAggregateError,
+    MaybePromise,
+    MockStorageService,
+    StorageService,
+} from "@matter/general";
 import { interaction, MockServerNode } from "@matter/node/testing";
 import {
     ClusterId,
@@ -19,6 +26,7 @@ import {
     TlvObject,
     TlvOfModel,
     TlvUInt16,
+    ValidationError,
 } from "@matter/types";
 import { ZoneManagement } from "@matter/types/clusters/zone-management";
 import { MockEndpointType } from "../../behavior/mock-behavior.js";
@@ -196,7 +204,26 @@ function createThroughInteraction(zone: ZoneManagement.TwoDCartesianZone) {
 
 describe("ZoneManagementServer", () => {
     it("does not start with repeated zone IDs", async () => {
-        await expect(createEndpoint({ zones: [MFG_ZONE, userZone(1)] })).rejectedWith("Behaviors have errors");
+        const error = await createEndpoint({ zones: [MFG_ZONE, userZone(1)] }).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(error).instanceof(MatterAggregateError);
+        const cause = error instanceof MatterAggregateError ? error.errors[0]?.cause : undefined;
+        expect(cause).instanceof(ValidationError);
+        expect(cause instanceof Error ? cause.message : undefined).contains("ZoneID 1 is not unique");
+    });
+
+    it("does not start with MaxZones less than MaxUserDefinedZones", async () => {
+        const error = await createEndpoint({ maxZones: 4 }).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(error).instanceof(MatterAggregateError);
+        const cause = error instanceof MatterAggregateError ? error.errors[0]?.cause : undefined;
+        expect(cause).instanceof(ImplementationError);
     });
 
     it("refuses a write that repeats a zone ID", async () => {
@@ -314,7 +341,7 @@ describe("ZoneManagementServer", () => {
             await expectStatus(() => create(endpoint, PRIVACY_ZONE), Status.ResourceExhausted);
         });
 
-        it("checks the zone limit before the vertices", async () => {
+        it("checks the zone limit before the polygon check", async () => {
             await using endpoint = await createEndpoint({
                 maxZones: 5,
                 zones: [0, 1, 2, 3, 4].map(zoneId => userZone(zoneId, shiftedZone(zoneId))),
@@ -333,6 +360,16 @@ describe("ZoneManagementServer", () => {
                 () => create(endpoint, { ...PRIVACY_ZONE, vertices: [...SQUARE.slice(0, 3), { x: 10, y: 1080 }] }),
                 Status.DynamicConstraintError,
             );
+        });
+
+        it("accepts a vertex at TwoDCartesianMax", async () => {
+            await using endpoint = await createEndpoint();
+
+            const { zoneId } = await create(endpoint, {
+                ...PRIVACY_ZONE,
+                vertices: [...SQUARE.slice(0, 3), { x: 10, y: 1079 }],
+            });
+            expect(zoneId).equals(0);
         });
 
         it("refuses a zone with the same use and vertices as another zone", async () => {
@@ -426,6 +463,13 @@ describe("ZoneManagementServer", () => {
                     { x: 7, y: 2 },
                     { x: 10, y: 1 },
                     { x: 1, y: 1 },
+                ],
+                "vertex on a non-adjacent edge": [
+                    { x: 0, y: 0 },
+                    { x: 10, y: 0 },
+                    { x: 10, y: 10 },
+                    { x: 5, y: 0 },
+                    { x: 0, y: 10 },
                 ],
                 "touching vertex": [
                     { x: 0, y: 0 },
