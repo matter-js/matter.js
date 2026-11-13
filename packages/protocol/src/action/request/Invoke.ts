@@ -109,7 +109,9 @@ export function Invoke(
     } = options;
 
     if (delayReportData !== undefined && !Specification.isForwardFeatureEnabled("delay-report-data")) {
-        throw new MalformedRequestError("DelayReportData requires the delay-report-data forward feature");
+        throw new MalformedRequestError(
+            `DelayReportData is not supported yet. Enable it with the "delay-report-data" forward feature for certification purposes only`,
+        );
     }
     let timedRequest = !!options.timed || !!timeout;
 

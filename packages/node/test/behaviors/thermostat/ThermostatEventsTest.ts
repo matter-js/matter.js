@@ -7,7 +7,7 @@
 import { ThermostatServer } from "#behaviors/thermostat";
 import { ThermostatDevice } from "#devices/thermostat";
 import { Endpoint } from "#endpoint/index.js";
-import { Bytes, ImplementationError, Logger, LogLevel, Seconds, Time } from "@matter/general";
+import { Bytes, ImplementationError, Logger, LogLevel, Millis, Seconds, Time } from "@matter/general";
 import { Specification } from "@matter/model";
 import { captureLog, MockServerNode } from "@matter/node/testing";
 import { OccurrenceManager } from "@matter/protocol";
@@ -702,6 +702,37 @@ describe("Thermostat events", () => {
             await MockTime.advance(Seconds(1));
             await settle();
             expect(events).deep.equals([{ currentLocalTemperature: 2000 }, { currentLocalTemperature: 2200 }]);
+        });
+
+        it("waits for the end of the window when the timer expires early", async () => {
+            await using ctx = await online(basicThermostat());
+            const { device } = ctx;
+            const events = record(device.eventsOf(BasicServer).localTemperatureChange);
+            await setTemperature(device, 2000);
+            await MockTime.advance(Seconds(10));
+
+            const getTimer = Time.default.getTimer.bind(Time.default);
+            Time.default.getTimer = (name, duration, callback) => {
+                if (name !== REPORT_TIMER) {
+                    return getTimer(name, duration, callback);
+                }
+                Time.default.getTimer = getTimer;
+                return getTimer(name, Millis(duration - 1), callback);
+            };
+            try {
+                await setTemperature(device, 2100);
+            } finally {
+                Time.default.getTimer = getTimer;
+            }
+
+            await MockTime.advance(Seconds(50) - 1);
+            await settle();
+            expect(events.length).equals(1);
+            expect(MockTime.timerCountFor(REPORT_TIMER)).equals(1);
+
+            await MockTime.advance(1);
+            await settle();
+            expect(events).deep.equals([{ currentLocalTemperature: 2000 }, { currentLocalTemperature: 2100 }]);
         });
 
         it("reports at once when exactly 60 seconds passed since the last report", async () => {

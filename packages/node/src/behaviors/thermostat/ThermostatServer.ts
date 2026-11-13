@@ -6,7 +6,6 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
-import type { OnlineEvent } from "#behavior/Events.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { OccupancySensingServer } from "#behaviors/occupancy-sensing";
 import { TemperatureMeasurementServer } from "#behaviors/temperature-measurement";
@@ -92,6 +91,7 @@ const ThermostatBehaviorLogicBase = ThermostatBehavior.with(
     Thermostat.Feature.AutoMode,
     Thermostat.Feature.Presets,
     Thermostat.Feature.MatterScheduleConfiguration,
+    Thermostat.Feature.Events,
 );
 
 // Enhance Schema to define conformance for some of the additional state attributes
@@ -125,11 +125,11 @@ const schema = ThermostatBehaviorLogicBase.schema.extend({
  * * ThermostatSuggestions is not implemented.
  * * The use of the "setpointHoldExpiryTimestamp" attribute is currently not supported.
  *
- * MatterScheduleConfiguration is implemented, but may only be enabled while the "thermostat-msch" forward feature is
- * active (see {@link Specification.isForwardFeatureEnabled}), until certification tests have validated it.
+ * MatterScheduleConfiguration is implemented but not released yet. Enable it with the "thermostat-msch" forward feature
+ * (see {@link Specification.isForwardFeatureEnabled}) for certification purposes only.
  *
- * Events is implemented, but is provisional in the Matter specification and may only be enabled while the
- * "thermostat-events" forward feature is active. The server generates an event only when the Events feature is
+ * Events is implemented but provisional in the Matter specification. Enable it with the "thermostat-events" forward
+ * feature for certification purposes only. The server generates an event only when the Events feature is
  * selected and the event exists on {@link ThermostatBaseServer.Events}. The event exists when its feature conformance
  * holds (for example Occupancy for OccupancyChange) and the application enabled it with {@link ThermostatServer.enable},
  * because provisional events are optional. With the AutoMode feature the Events feature makes the
@@ -196,12 +196,12 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
         if (this.features.matterScheduleConfiguration && !Specification.isForwardFeatureEnabled("thermostat-msch")) {
             throw new ImplementationError(
-                `MatterScheduleConfiguration feature is not released yet; it requires the "thermostat-msch" forward feature until certification tests have validated it`,
+                `MatterScheduleConfiguration feature is not released yet. Enable it with the "thermostat-msch" forward feature for certification purposes only`,
             );
         }
         if (this.features.events && !Specification.isForwardFeatureEnabled("thermostat-events")) {
             throw new ImplementationError(
-                `Events feature is provisional in the Matter specification; it requires the "thermostat-events" forward feature until it is no longer provisional`,
+                `Events feature is provisional in the Matter specification. Enable it with the "thermostat-events" forward feature for certification purposes only`,
             );
         }
         if (!this.features.presets && !this.features.matterScheduleConfiguration) {
@@ -1914,7 +1914,8 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
     /**
      * Reports a significant change at once, or at the end of the {@link LOCAL_TEMPERATURE_CHANGE_INTERVAL} after the
-     * last report.  A pending report stops when the value moves back to one that is not significant.
+     * last report.  A pending report stops when the value moves back to one that is not significant.  The timer runs
+     * this decision again when it expires because it may expire up to one millisecond early.
      */
     #handleLocalTemperatureChange(localTemperature: number | null) {
         const { internal } = this;
@@ -1936,15 +1937,12 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         internal.localTemperatureChangeTimer = this.reactorTimer(
             "Thermostat LocalTemperatureChange",
             Millis(LOCAL_TEMPERATURE_CHANGE_INTERVAL - elapsed),
-            this.#reportPendingLocalTemperatureChange,
+            this.#handlePendingLocalTemperatureChange,
         ).start();
     }
 
-    #reportPendingLocalTemperatureChange() {
-        const { localTemperature } = this.state;
-        if (this.#isSignificantLocalTemperatureChange(localTemperature)) {
-            this.#reportLocalTemperatureChange(localTemperature);
-        }
+    #handlePendingLocalTemperatureChange() {
+        this.#handleLocalTemperatureChange(this.state.localTemperature);
     }
 
     #reportLocalTemperatureChange(currentLocalTemperature: number | null) {
@@ -2680,19 +2678,6 @@ export namespace ThermostatBaseServer {
     }
 
     export class Events extends ThermostatBehaviorLogicBase.Events {
-        declare systemModeChange?: OnlineEvent<[payload: Thermostat.SystemModeChangeEvent, context: ActionContext]>;
-        declare localTemperatureChange?: OnlineEvent<
-            [payload: Thermostat.LocalTemperatureChangeEvent, context: ActionContext]
-        >;
-        declare occupancyChange?: OnlineEvent<[payload: Thermostat.OccupancyChangeEvent, context: ActionContext]>;
-        declare setpointChange?: OnlineEvent<[payload: Thermostat.SetpointChangeEvent, context: ActionContext]>;
-        declare runningStateChange?: OnlineEvent<[payload: Thermostat.RunningStateChangeEvent, context: ActionContext]>;
-        declare runningModeChange?: OnlineEvent<[payload: Thermostat.RunningModeChangeEvent, context: ActionContext]>;
-        declare activeScheduleChange?: OnlineEvent<
-            [payload: Thermostat.ActiveScheduleChangeEvent, context: ActionContext]
-        >;
-        declare activePresetChange?: OnlineEvent<[payload: Thermostat.ActivePresetChangeEvent, context: ActionContext]>;
-
         localTemperatureChangeThreshold$Changing =
             Observable<[value: number, oldValue: number, context: ActionContext]>();
         externalMeasuredIndoorTemperature$Changed =

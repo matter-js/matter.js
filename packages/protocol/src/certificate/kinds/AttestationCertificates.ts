@@ -56,7 +56,7 @@ function parseAttestationCertificate(asn1: Bytes, requiredExtensions: string[], 
     const mlDsa = cert.mlDsaSignature ?? cert.mlDsaPublicKey?.parameterSet;
     if (mlDsa !== undefined && !Specification.isForwardFeatureEnabled("pqc-phase-1")) {
         throw new MlDsaAttestationDisabledError(
-            `ML-DSA attestation certificates are not supported: this certificate uses ${mlDsa} and PQC Phase 1 is not enabled`,
+            `ML-DSA attestation certificates are not supported: this certificate uses ${mlDsa}. Accept them with the "pqc-phase-1" forward feature for certification purposes only`,
         );
     }
     return cert;
