@@ -580,6 +580,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                     Thermostat.Feature.Presets,
                     Thermostat.Feature.MatterScheduleConfiguration,
                     Thermostat.Feature.Events,
+                    Thermostat.Feature.ThermostatSuggestions,
                 ).enable({
                     events: {
                         systemModeChange: true,

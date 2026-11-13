@@ -73,6 +73,13 @@ export namespace Timestamp {
     }
 
     /**
+     * Convert a timestamp to whole Unix-epoch seconds, rounding down, e.g. for a `TlvEpochS` field.
+     */
+    export function toSeconds(timestamp: Timestamp) {
+        return Math.floor(timestamp / 1000);
+    }
+
+    /**
      * Create a high-resolution timestamp from a microsecond value.
      */
     export function fromMicroseconds(source: number | bigint) {

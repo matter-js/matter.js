@@ -42,6 +42,12 @@ describe("Timestamp", () => {
             expect(Timestamp.fromSeconds(1.5)).equal(1_500);
         });
 
+        it("toSeconds scales to whole seconds, rounding down", () => {
+            expect(Timestamp.toSeconds(Timestamp(1_999))).equal(1);
+            expect(Timestamp.toSeconds(Timestamp(2_000))).equal(2);
+            expect(Timestamp.toSeconds(Timestamp(-1))).equal(-1);
+        });
+
         it("fromMicroseconds scales down to milliseconds", () => {
             expect(Timestamp.fromMicroseconds(2_500)).equal(2.5);
             expect(Timestamp.fromMicroseconds(2_500n)).equal(2.5);
