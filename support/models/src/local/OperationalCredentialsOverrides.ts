@@ -35,6 +35,13 @@ LocalMatter.children.push({
             children: [{ tag: "field", id: 0x0, name: "NocsrElements", constraint: { max: 900 } }],
         },
 
+        {
+            tag: "command",
+            name: "AddNoc",
+            id: 0x6,
+            children: [{ tag: "field", id: 0x2, name: "IpkValue", isSecret: true }],
+        },
+
         // Specs seems to have a weird name, we use a better one
         {
             tag: "attribute",

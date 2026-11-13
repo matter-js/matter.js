@@ -7,6 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { Internal } from "#behavior/state/managed/Internal.js";
 import { StateType } from "#behavior/state/StateType.js";
 import { BehaviorSupervisor } from "#behavior/supervision/BehaviorSupervisor.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
@@ -15,6 +16,7 @@ import { AccessControlServer } from "#behaviors/access-control";
 import {
     AsyncObservable,
     ImplementationError,
+    InternalError,
     isObject,
     LogLevel,
     MaybePromise,
@@ -33,7 +35,7 @@ import {
     FieldModel,
 } from "@matter/model";
 import { captureLog } from "@matter/node/testing";
-import { AccessControl, Val } from "@matter/protocol";
+import { AccessControl, DatatypeError, Val } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
 import { AccessControl as AccessControlCluster } from "@matter/types/clusters/access-control";
 import { captureWarningsOf } from "../../../endpoint/validation/validation-helpers.js";
@@ -83,7 +85,7 @@ const featuredSupervisor = BehaviorSupervisor({
     }),
 });
 
-function createStore(initialValues: Val.Struct = {}): Datasource.Store & { sets: Val.Struct[] } {
+function createStore(initialValues: Val.Struct = {}): Datasource.PersistentStore & { sets: Val.Struct[] } {
     return {
         initialValues: {
             ...initialValues,
@@ -103,7 +105,7 @@ function createStore(initialValues: Val.Struct = {}): Datasource.Store & { sets:
 function phaseTwoStore(initialValues: Val.Struct = {}) {
     const sets = new Array<Val.Struct>();
     let failNext = true;
-    const store: Datasource.Store = {
+    const store: Datasource.PersistentStore = {
         initialValues: { ...initialValues },
 
         async set(transaction, values) {
@@ -686,6 +688,172 @@ describe("Datasource", () => {
         });
     });
 
+    it("passes a dynamic list to its setter after each nested change", async () => {
+        const committed = [1];
+        let stored = committed;
+        const written = new Array<number[]>();
+        const received = new Array<number[]>();
+        const dynamic = {
+            get list() {
+                return stored;
+            },
+            set list(value: number[]) {
+                written.push([...value]);
+                received.push(value);
+                stored = value;
+            },
+        };
+        class State {
+            list = new Array<number>();
+
+            [Val.properties](_endpoint: any, _session: ValueSupervisor.Session) {
+                return dynamic;
+            }
+        }
+
+        const supervisor = BehaviorSupervisor({
+            id: "test",
+            State,
+            schema: new DatatypeModel({
+                name: "MyState",
+                type: "struct",
+                children: [
+                    FieldElement({
+                        name: "list",
+                        type: "list",
+                        children: [FieldElement({ name: "entry", type: "uint8" })],
+                    }),
+                ],
+            }),
+        });
+
+        await withDatasourceAndReference({ type: State, supervisor }, ({ state }) => {
+            state.list.push(2);
+            state.list[0] = 3;
+        });
+
+        expect(written).deep.equals([
+            [1, 2],
+            [3, 2],
+        ]);
+
+        expect(received[0]).not.equals(committed);
+        expect(received[1]).not.equals(received[0]);
+        expect(received[0]).deep.equals([1, 2]);
+        expect(committed).deep.equals([1]);
+    });
+
+    describe("dynamic setter that rejects a change", () => {
+        function rejectingProvider<T>(
+            initial: T[],
+            reject: (value: T[]) => boolean,
+            entry: ReturnType<typeof FieldElement>,
+        ) {
+            const provider = {
+                stored: initial,
+                get list() {
+                    return provider.stored;
+                },
+                set list(value: T[]) {
+                    if (reject(value)) {
+                        throw new ImplementationError("Rejected by provider");
+                    }
+                    provider.stored = value;
+                },
+            };
+            class State {
+                list = new Array<T>();
+
+                [Val.properties](_endpoint: any, _session: ValueSupervisor.Session) {
+                    return provider;
+                }
+            }
+            const supervisor = BehaviorSupervisor({
+                id: "test",
+                State,
+                schema: new DatatypeModel({
+                    name: "MyState",
+                    type: "struct",
+                    children: [FieldElement({ name: "list", type: "list", children: [entry] })],
+                }),
+            });
+            return { provider, State, supervisor };
+        }
+
+        it("keeps the accepted list when a later push is rejected", async () => {
+            const { provider, State, supervisor } = rejectingProvider<number>(
+                [1],
+                value => value.length > 2,
+                FieldElement({ name: "entry", type: "uint8" }),
+            );
+
+            await withDatasourceAndReference({ type: State, supervisor }, ({ state }) => {
+                state.list.push(2);
+                expect(() => state.list.push(3)).throws("Rejected by provider");
+            });
+
+            expect(provider.stored).deep.equals([1, 2]);
+        });
+
+        it("keeps a list the provider serves from another member when its setter rejects a change", async () => {
+            class State {
+                backing = [1];
+                list = new Array<number>();
+
+                [Val.properties](_endpoint: any, _session: ValueSupervisor.Session) {
+                    const state = this;
+                    return {
+                        get list() {
+                            return state.backing;
+                        },
+                        set list(value: number[]) {
+                            if (value.length > 2) {
+                                throw new ImplementationError("Rejected by provider");
+                            }
+                            state.backing = value;
+                        },
+                    };
+                }
+            }
+            const listOfNumbers = (name: string) =>
+                FieldElement({ name, type: "list", children: [FieldElement({ name: "entry", type: "uint8" })] });
+            const supervisor = BehaviorSupervisor({
+                id: "test",
+                State,
+                schema: new DatatypeModel({
+                    name: "MyState",
+                    type: "struct",
+                    children: [listOfNumbers("backing"), listOfNumbers("list")],
+                }),
+            });
+
+            await withDatasourceAndReference({ type: State, supervisor }, ({ state }) => {
+                state.backing[0] = 5;
+                expect(() => state.list.push(6, 7)).throws("Rejected by provider");
+                expect(state.backing).deep.equals([5]);
+            });
+        });
+
+        it("keeps the accepted entry when a later entry write is rejected", async () => {
+            const { provider, State, supervisor } = rejectingProvider<{ value: number }>(
+                [{ value: 1 }],
+                value => value[0].value > 50,
+                FieldElement({
+                    name: "entry",
+                    type: "struct",
+                    children: [FieldElement({ name: "value", type: "uint8" })],
+                }),
+            );
+
+            await withDatasourceAndReference({ type: State, supervisor }, ({ state }) => {
+                state.list[0].value = 2;
+                expect(() => (state.list[0].value = 99)).throws("Rejected by provider");
+            });
+
+            expect(provider.stored).deep.equals([{ value: 2 }]);
+        });
+    });
+
     it("persists the features key with the values it belongs to", async () => {
         const store = createStore();
         await withDatasourceAndReference({ store, supervisor: featuredSupervisor }, ({ state }) => (state.foo = "rab"));
@@ -697,7 +865,7 @@ describe("Datasource", () => {
     it("stages the features key again after a write the store refused", async () => {
         const sets = new Array<Val.Struct>();
         let refuse = true;
-        const store: Datasource.Store = {
+        const store: Datasource.PersistentStore = {
             initialValues: {},
 
             async set(_transaction, values) {
@@ -743,7 +911,7 @@ describe("Datasource", () => {
     it("does not claim the features key for a cycle that stored nothing", async () => {
         const sets = new Array<Val.Struct>();
         let refuse = true;
-        const store: Datasource.Store = {
+        const store: Datasource.PersistentStore = {
             initialValues: {},
 
             async set(_transaction, values) {
@@ -931,7 +1099,8 @@ describe("Datasource", () => {
                 // Legacy name-keyed slot: still a valid persisted value, so only the mirror rule removes it
                 initialValues: { plain: 1, __features__: featuresKeyOf(gatedSupervisor()) },
                 version: 1,
-                async set() {},
+                prepare: () => async () => {},
+                assertWritable: () => {},
                 async externalSet() {
                     return {};
                 },
@@ -1045,7 +1214,7 @@ describe("Datasource", () => {
             }
         }
 
-        function createMigrated(store: Datasource.Store, migrate: (values: Val.Struct) => void = moveLegacy) {
+        function createMigrated(store: Datasource.PersistentStore, migrate: (values: Val.Struct) => void = moveLegacy) {
             return createDatasource({ type: MigratedState, supervisor: migratedSupervisor, store, migrate });
         }
 
@@ -1196,7 +1365,8 @@ describe("Datasource", () => {
             const store: Datasource.ExternallyMutableStore = {
                 initialValues: { legacy: "old" },
                 version: 1,
-                async set() {},
+                prepare: () => async () => {},
+                assertWritable: () => {},
                 async externalSet() {
                     return {};
                 },
@@ -1241,7 +1411,11 @@ describe("Datasource", () => {
                 this.version = version;
             }
 
-            async set() {}
+            assertWritable() {}
+
+            prepare() {
+                return async () => {};
+            }
 
             async forgetVersion() {}
 
@@ -1357,7 +1531,13 @@ describe("Datasource", () => {
                 this.initialValues = initialValues;
             }
 
-            async set(_transaction: unknown, values: Val.Struct) {
+            assertWritable() {}
+
+            prepare(values: Val.Struct, _path?: DataModelPath) {
+                return () => this.send(values);
+            }
+
+            send(values: Val.Struct) {
                 this.sets.push({ ...values });
             }
 
@@ -1396,6 +1576,34 @@ describe("Datasource", () => {
             expect(stateChanges).equals(0);
             expect(changes).deep.equals([]);
             expect(ds.version).equals(version);
+        });
+
+        it("refuses a change through the root reference while the store refuses every change", async () => {
+            const refusal = new ImplementationError("the remote node takes no writes");
+            class RefusingStore extends RecordingMirrorStore {
+                override assertWritable() {
+                    throw refusal;
+                }
+            }
+            const store = new RefusingStore({ 1: "bar" });
+            const ds = createDatasource({ type: WriteState, supervisor: writeSupervisor, primaryKey: "id", store });
+
+            await withReference(ds, ({ state }) => {
+                const root = Internal.referenceOf(state);
+                if (root === undefined) {
+                    expect.fail("the state has no reference");
+                }
+
+                let changed = false;
+                expect(() =>
+                    root.change(() => {
+                        changed = true;
+                    }, "foo"),
+                ).throws(refusal);
+                expect(changed).false;
+            });
+
+            expect(store.sets).deep.equals([]);
         });
 
         it("sends every assigned member and changes nothing locally", async () => {
@@ -1564,6 +1772,126 @@ describe("Datasource", () => {
             expect(store.sets).deep.equals([{ 1: "bar" }, { 2: "qux" }]);
         });
 
+        describe("preparation before commit", () => {
+            class PreparingMirrorStore extends RecordingMirrorStore {
+                events = new Array<string>();
+                refusal?: Error;
+
+                override prepare(values: Val.Struct, path: DataModelPath) {
+                    this.events.push(`prepare ${Object.keys(values).join(",")} at ${path}`);
+                    if (this.refusal !== undefined) {
+                        throw this.refusal;
+                    }
+                    return super.prepare({ ...values, prepared: true });
+                }
+
+                override send(values: Val.Struct) {
+                    this.events.push("send");
+                    super.send(values);
+                }
+            }
+
+            function mirrorOf(store: RecordingMirrorStore, name = "Mirror") {
+                return createDatasource({
+                    type: WriteState,
+                    supervisor: writeSupervisor,
+                    primaryKey: "id",
+                    store,
+                    location: { endpoint: EndpointNumber(1), path: new DataModelPath(name) },
+                });
+            }
+
+            it("sends what the store prepared, after preparing", async () => {
+                const store = new PreparingMirrorStore({ 1: "bar" });
+                const ds = mirrorOf(store);
+
+                await withReference(ds, ({ state }) => {
+                    state.foo = "new";
+                });
+
+                expect(store.events).deep.equals(["prepare 1 at Mirror", "send"]);
+                expect(store.sets).deep.equals([{ 1: "new", prepared: true }]);
+            });
+
+            it("prepares nothing when the only assignment failed", async () => {
+                const store = new PreparingMirrorStore({ 1: "bar" });
+                const ds = mirrorOf(store);
+                // A number for a string attribute fails locally, as the TLV encoder cannot write it
+                const notAString = JSON.parse("5");
+
+                await withReference(ds, ({ state }) => {
+                    expect(() => (state.foo = notAString)).throws(DatatypeError);
+                });
+
+                expect(store.events).deep.equals([]);
+            });
+
+            it("rolls back without sending when the store refuses", async () => {
+                const store = new PreparingMirrorStore({ 1: "bar" });
+                store.refusal = new ImplementationError("refused by the store");
+                const ds = mirrorOf(store);
+
+                let caught: unknown;
+                await withReference(ds, ({ state }) => {
+                    state.foo = "new";
+                }).catch(e => {
+                    caught = e;
+                });
+
+                expect(caught).equals(store.refusal);
+                expect(store.events).deep.equals(["prepare 1 at Mirror"]);
+                expect(store.sets).deep.equals([]);
+                expect(ds.view.foo).equals("bar");
+            });
+
+            it("refuses before any participant of the transaction commits", async () => {
+                const first = new PreparingMirrorStore({ 1: "bar" });
+                const second = new PreparingMirrorStore({ 1: "bar" });
+                second.refusal = new ImplementationError("refused by the second store");
+                const firstDs = mirrorOf(first, "First");
+                const secondDs = mirrorOf(second, "Second");
+
+                let caught: unknown;
+                try {
+                    await LocalActorContext.act("two mirrors", context => {
+                        firstDs.reference(context).foo = "first";
+                        secondDs.reference(context).foo = "second";
+                    });
+                } catch (e) {
+                    caught = e;
+                }
+
+                expect(caught).equals(second.refusal);
+                expect(first.events).deep.equals(["prepare 1 at First"]);
+                expect(first.sets).deep.equals([]);
+            });
+
+            it("refuses to drop assigned values that the remote store did not prepare", async () => {
+                const store = new PreparingMirrorStore({ 1: "bar" });
+                const ds = mirrorOf(store);
+
+                await LocalActorContext.act("commit without settling", context => {
+                    ds.reference(context).foo = "new";
+                    const reference = [...context.transaction.participants].find(
+                        ({ settled }) => settled !== undefined,
+                    );
+                    expect(() => reference?.commit1?.()).throws(InternalError, "did not prepare");
+                });
+            });
+
+            it("adds no settled hook to a reference that does not mirror a remote node", async () => {
+                const ds = createDatasource();
+
+                await LocalActorContext.act("local write", context => {
+                    ds.reference(context).foo = "new";
+                    expect(context.transaction.participants.size).greaterThan(0);
+                    for (const participant of context.transaction.participants) {
+                        expect(participant.settled, participant.toString()).undefined;
+                    }
+                });
+            });
+        });
+
         it("does not send a fabric-scoped list whose assignment failed and was caught, also with a later assignment", async () => {
             const entry = {
                 privilege: AccessControlCluster.AccessControlEntryPrivilege.Administer,
@@ -1580,7 +1908,8 @@ describe("Datasource", () => {
                 store,
             });
 
-            const invalidPrivilege: number = 0xff;
+            // Not a number, so the mirror refuses it locally rather than forwarding it to the device
+            const invalidPrivilege: number = Number.NaN;
             let refusal: unknown;
             await withReference(ds, ({ state }) => {
                 try {
@@ -1651,6 +1980,29 @@ describe("Datasource", () => {
 
             expect(announced).deep.equals(["!bar", "!bar"]);
             expect(ds.view.foo).equals("bar");
+        });
+
+        it("announce the stored value as old after another transaction committed in between", async () => {
+            const events = { foo$Changing: Observable<any>() };
+            const ds = createDatasource({ events });
+
+            const oldValues = new Array<unknown>();
+            events.foo$Changing.on((_newValue, oldValue) => void oldValues.push(oldValue));
+
+            await LocalActorContext.act("test-datasource", async context => {
+                const state = ds.reference(context);
+
+                state.foo = "a";
+                await context.transaction.commit();
+
+                await withReference(ds, ({ state }) => (state.foo = "b"));
+
+                state.foo = "c";
+                await context.transaction.commit();
+            });
+
+            expect(oldValues).deep.equals(["bar", "a", "b"]);
+            expect(ds.view.foo).equals("c");
         });
 
         it("handles mixed sync/async observers sequentially", async () => {

@@ -5,7 +5,7 @@
  */
 
 import { NodeJsNetwork } from "#net/NodeJsNetwork.js";
-import { InterfaceType } from "@matter/general";
+import { INTERFACE_CHECK_INTERVAL, InterfaceType } from "@matter/general";
 import os, { NetworkInterfaceInfo, networkInterfaces } from "node:os";
 
 describe("NodeJsNetwork", () => {
@@ -153,6 +153,68 @@ describe("NodeJsNetwork", () => {
             expect(() => {
                 NodeJsNetwork.getMulticastInterfaceIpv4("nonexistent-interface-12345");
             }).throws();
+        });
+    });
+
+    describe("interface changes", () => {
+        it("does not poll for its own cache alone", async () => {
+            MockTime.enable();
+            const original = os.networkInterfaces;
+            let listings = 0;
+            os.networkInterfaces = () => {
+                listings++;
+                return {};
+            };
+            const idle = new NodeJsNetwork();
+            try {
+                await MockTime.advance(INTERFACE_CHECK_INTERVAL * 2);
+                expect(listings).equals(0);
+            } finally {
+                await idle.close();
+                os.networkInterfaces = original;
+                MockTime.disable();
+            }
+        });
+
+        it("stops polling when closed", async () => {
+            MockTime.enable();
+            const original = os.networkInterfaces;
+            let listings = 0;
+            os.networkInterfaces = () => {
+                listings++;
+                return {};
+            };
+            const polled = new NodeJsNetwork();
+            try {
+                polled.interfacesChanged.on(() => {});
+                await polled.checkInterfaces();
+                await polled.close();
+                const listingsAtClose = listings;
+
+                await MockTime.advance(INTERFACE_CHECK_INTERVAL * 2);
+                expect(listings).equals(listingsAtClose);
+            } finally {
+                os.networkInterfaces = original;
+                MockTime.disable();
+            }
+        });
+
+        it("resolves an address again after an interface change", async () => {
+            let interfaces: NodeJS.Dict<NetworkInterfaceInfo[]> = { wan0: [ipv4("192.168.77.10")] };
+            const original = os.networkInterfaces;
+            os.networkInterfaces = () => interfaces;
+            try {
+                network.interfacesChanged.on(() => {});
+                await network.checkInterfaces();
+                expect(NodeJsNetwork.getNetInterfaceForIp("10.77.0.7")).equals(undefined);
+
+                interfaces = { ...interfaces, lan0: [ipv4("10.77.0.5")] };
+                await network.checkInterfaces();
+
+                expect(NodeJsNetwork.getNetInterfaceForIp("10.77.0.7")).equals("lan0");
+            } finally {
+                os.networkInterfaces = original;
+            }
         });
     });
 

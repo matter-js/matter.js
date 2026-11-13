@@ -15,7 +15,7 @@ import {
     NotImplementedError,
     Observable,
 } from "@matter/general";
-import { ClusterModel, Matter } from "@matter/model";
+import { ClusterModel, Matter, SecretRedaction } from "@matter/model";
 import {
     Behavior,
     Endpoint as ClientEndpoint,
@@ -480,7 +480,7 @@ export class Endpoint {
                     attribute.name,
                     Diagnostic.dict({
                         id: Diagnostic.hex(attribute.id),
-                        val: attribute.getLocal(),
+                        val: SecretRedaction.redact(attribute.attribute.schema, attribute.getLocal()),
                         flags: Diagnostic.asFlags({
                             unknown: attribute instanceof UnknownSupportedAttributeClient,
                             fabricScoped: attribute.fabricScoped,

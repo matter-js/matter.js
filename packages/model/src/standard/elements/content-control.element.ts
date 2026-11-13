@@ -76,19 +76,19 @@ export const ContentControl = Cluster(
     Event({ name: "EnteringBlockContentTimeWindow", id: 0x1, access: "V", conformance: "BTW", priority: "info" }),
     Command(
         { name: "UpdatePin", id: 0x0, access: "M T", conformance: "PM", direction: "request", response: "status" },
-        Field({ name: "OldPin", id: 0x0, type: "string", conformance: "M", constraint: "max 6" }),
-        Field({ name: "NewPin", id: 0x1, type: "string", conformance: "M", constraint: "max 6" })
+        Field({ name: "OldPin", id: 0x0, type: "string", conformance: "M", constraint: "max 6", isSecret: true }),
+        Field({ name: "NewPin", id: 0x1, type: "string", conformance: "M", constraint: "max 6", isSecret: true })
     ),
     Command({ name: "ResetPin", id: 0x1, access: "A T", conformance: "PM", direction: "request", response: "ResetPinResponse" }),
     Command(
         { name: "ResetPinResponse", id: 0x2, conformance: "PM", direction: "response" },
-        Field({ name: "PinCode", id: 0x0, type: "string", conformance: "M", constraint: "max 6" })
+        Field({ name: "PinCode", id: 0x0, type: "string", conformance: "M", constraint: "max 6", isSecret: true })
     ),
     Command({ name: "Enable", id: 0x3, access: "M T", conformance: "M", direction: "request", response: "status" }),
     Command({ name: "Disable", id: 0x4, access: "M T", conformance: "M", direction: "request", response: "status" }),
     Command(
         { name: "AddBonusTime", id: 0x5, access: "O", conformance: "ST", direction: "request", response: "status" },
-        Field({ name: "PinCode", id: 0x0, type: "string", conformance: "O", constraint: "max 6" }),
+        Field({ name: "PinCode", id: 0x0, type: "string", conformance: "O", constraint: "max 6", isSecret: true }),
         Field({ name: "BonusTime", id: 0x1, type: "elapsed-s", conformance: "M", constraint: "desc", default: 300 })
     ),
 

@@ -16,17 +16,60 @@ describe("IDM", () => {
         "IDM/10.5",
         // Registered below on its own subject
         "IDM/1.5",
-    );
-    chip("IDM/*/run1").exclude(
+        // Registered below with its own arguments
+        "IDM/13.1",
+
+        // The lock runs 3 to 8 differ from run2 only in how the TH commissions, and the harness commissions every run
+        // the same way
+        "IDM/10.1/run3",
+        "IDM/10.1/run4",
+        "IDM/10.1/run5",
+        "IDM/10.1/run6",
+        "IDM/10.1/run7",
+        "IDM/10.1/run8",
+        "IDM/11.1/run3",
+        "IDM/11.1/run4",
+        "IDM/11.1/run5",
+        "IDM/11.1/run6",
+        "IDM/11.1/run7",
+        "IDM/11.1/run8",
+        "IDM/12.1/run3",
+        "IDM/12.1/run4",
+        "IDM/12.1/run5",
+        "IDM/12.1/run6",
+        "IDM/12.1/run7",
+        "IDM/12.1/run8",
+        // Runs for CHIP apps matter.js has no test subject for: camera, electrical-protection, evse, lighting-app-no-unique-id, microwave-oven, network-management
+        "IDM/2.2/run3",
+        "IDM/4.3/run3",
+        "IDM/9.1/run3",
+        "IDM/10.1/run10",
+        "IDM/10.1/run12",
+        "IDM/10.1/run14",
+        "IDM/10.1/run15",
+        "IDM/10.1/run20",
+        "IDM/11.1/run10",
+        "IDM/11.1/run12",
+        "IDM/11.1/run14",
+        "IDM/11.1/run15",
+        "IDM/11.1/run20",
+        "IDM/12.1/run10",
+        "IDM/12.1/run12",
+        "IDM/12.1/run14",
+        "IDM/12.1/run15",
+        "IDM/12.1/run20",
+
         // Spec issues for DoorLock, see https://github.com/CHIP-Specifications/connectedhomeip-spec/issues/11712
         //  Summary: the command responses from command 0xa and 0x15 have "wider" conformance than the requests which
         //           leads to the effect that the responses are expected to be present but are not because we do not
         //           have the requests. After Spec fix of conformance, the chip model used in test will match again
-        "IDM/10.2/*",
+        "IDM/10.2/run1",
     );
     // AllClustersApp intentionally adds clusters beyond what OnOffLightDevice requires,
     // so disable strict extra-cluster checking
     chip("IDM/10.5").args("--bool-arg", "fail_on_extra_clusters:False");
+    // A single-run python test runs on the default subject, AllClustersApp, which serves CHIP's UnitTesting cluster
+    chip("IDM/13.1").args("--bool-arg", "pixit_allow_unit_testing_cluster:True");
     // IDM 1.5 exercises DelayReportData, which the forward features enabled in support.ts switch on.  It asserts that the
     // negotiated MaxInterval equals its requested ceiling of 3600 s, which the default subject does not grant
     chip("IDM/1.5").subject(AllClustersFullMaxIntervalApp);

@@ -52,6 +52,12 @@ export type OtaUpdateInfo = DeviceSoftwareVersionModelDclSchemaWithSource;
 
 const OTA_DOWNLOAD_TIMEOUT = Minutes(5);
 
+/**
+ * Preference among stored images with the same version, used to select an update; a local image is one the user added
+ * on purpose.
+ */
+const STORED_MODE_PRECEDENCE: Record<OtaStorageMode, number> = { local: 0, test: 1, prod: 2 };
+
 const OTA_FILENAME_REGEX = /^[0-9a-f]+[./][0-9a-f]+[./](?:prod|test|local)[./]\d+$/i;
 
 /**
@@ -284,8 +290,9 @@ export class DclOtaUpdateService {
      * Check DCL for available software updates for a device, defined by its vendor ID, product ID, and current
      * software version. If a target software version is provided, only that version is checked for applicability and
      * ignoring other newer versions.
-     * If isProduction flag is specified, it is exactly used to find updates. Leave that flag undefined to find both
-     * test and production updates.
+     * If isProduction flag is specified, it is exactly used to query the DCL. Leave that flag undefined to find both
+     * test and production updates.  Stored images (`includeStoredUpdates`) are selected by {@link findApplicable}:
+     * production images always, test-net and local images unless `isProduction` is `true`.
      * When the service is {@link DclOtaUpdateService.Options.offline} the DCL is not asked, so only stored updates
      * (`includeStoredUpdates`) can be found.
      */
@@ -308,18 +315,14 @@ export class DclOtaUpdateService {
 
         const foundUpdates = new Array<DeviceSoftwareVersionModelDclSchemaWithSource>();
 
-        // Only stored test-mode files are gated on the test DCL being enabled; prod and local entries always
-        // pass through, so a test-only caller still sees them as valid upgrade targets.
         if (includeStoredUpdates) {
-            const localUpdates = await this.find({
+            const storedUpdates = await this.findApplicable({
                 vendorId,
                 productId,
-                currentVersion: currentSoftwareVersion,
+                currentSoftwareVersion,
+                includeNonProductionImages: isProduction !== true,
             });
-            // Check each stored entry for applicability (highest version first via reverse iteration)
-            for (let i = localUpdates.length - 1; i >= 0; i--) {
-                const entry = localUpdates[i];
-                if (isProduction === true && entry.mode === "test") continue;
+            for (const entry of storedUpdates) {
                 const localUpdate: DeviceSoftwareVersionModelDclSchemaWithSource = {
                     ...entry,
                     vid: VendorId(vendorId),
@@ -331,17 +334,11 @@ export class DclOtaUpdateService {
                     maxApplicableSoftwareVersion: entry.maxApplicableSoftwareVersion ?? entry.softwareVersion - 1,
                     source: entry.mode === "prod" ? "dcl-prod" : entry.mode === "test" ? "dcl-test" : "local",
                 };
-                if (
-                    localUpdate.softwareVersion > currentSoftwareVersion &&
-                    currentSoftwareVersion >= localUpdate.minApplicableSoftwareVersion &&
-                    currentSoftwareVersion <= localUpdate.maxApplicableSoftwareVersion
-                ) {
-                    logger.debug(`Found applicable local update`, Diagnostic.dict(localUpdate));
-                    if (targetSoftwareVersion !== undefined && localUpdate.softwareVersion === targetSoftwareVersion) {
-                        return localUpdate;
-                    }
-                    foundUpdates.push(localUpdate);
+                logger.debug(`Found applicable local update`, Diagnostic.dict(localUpdate));
+                if (targetSoftwareVersion !== undefined && localUpdate.softwareVersion === targetSoftwareVersion) {
+                    return localUpdate;
                 }
+                foundUpdates.push(localUpdate);
             }
         }
 
@@ -383,6 +380,30 @@ export class DclOtaUpdateService {
         // Sort for versions, highest version number first
         foundUpdates.sort((a, b) => b.softwareVersion - a.softwareVersion);
         return foundUpdates[0];
+    }
+
+    /**
+     * Stored images a device of the product can update to from `currentSoftwareVersion`: newer than that version, with
+     * the version inside the image's applicable range.  Highest version first; on equal versions a local image comes
+     * first, then a test-net image, then a production image.  Test-net and local images are only included with
+     * `includeNonProductionImages`.
+     *
+     * The update check with stored images and the answer to a device's QueryImage both select through this, so a
+     * consent given for the version the update check found names an image that QueryImage offers.
+     */
+    async findApplicable(options: DclOtaUpdateService.FindApplicableOptions) {
+        const { vendorId, productId, currentSoftwareVersion, includeNonProductionImages } = options;
+        const entries = await this.find({ vendorId, productId, currentVersion: currentSoftwareVersion });
+        return entries
+            .filter(
+                ({ softwareVersion, mode }) =>
+                    softwareVersion > currentSoftwareVersion && (includeNonProductionImages || mode === "prod"),
+            )
+            .sort(
+                (a, b) =>
+                    b.softwareVersion - a.softwareVersion ||
+                    STORED_MODE_PRECEDENCE[a.mode] - STORED_MODE_PRECEDENCE[b.mode],
+            );
     }
 
     async #verifyUpdate(updateInfo: OtaUpdateInfo, fileDesignator: PersistedFileDesignator) {
@@ -1315,5 +1336,14 @@ export namespace DclOtaUpdateService {
         isProduction?: boolean;
         mode?: OtaStorageMode;
         currentVersion?: number;
+    }
+
+    export interface FindApplicableOptions {
+        vendorId: number;
+        productId: number;
+        currentSoftwareVersion: number;
+
+        /** Include stored test-net and local images; production images are always included. */
+        includeNonProductionImages: boolean;
     }
 }

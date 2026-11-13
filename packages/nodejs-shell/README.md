@@ -127,11 +127,13 @@ When enabled, the certificate service will fetch:
 - Test certificates from DCL
 - Development certificates from the Matter GitHub repository
 
+When enabled, the shell also trusts test certificates during device attestation: test PAAs and the Matter test CD signer. When disabled, a device that presents either is reported with a `TrustedAsTestCertificate` finding.
+
 When disabled (default), only production certificates from DCL are fetched. Changes require restarting the shell to take effect.
 
 ### OTA Test Images
 
-By default, the shell only offers OTA updates from the production DCL. To also consider the test DCL, use the `config ota-test-images` command:
+By default, the shell only offers OTA updates from the production DCL. To also consider the test DCL and to offer stored local images (added with `ota add`), use the `config ota-test-images` command:
 
 ```
 config ota-test-images set true
@@ -191,7 +193,7 @@ nodes ota known --local
 
 Options:
 - `[node-id]`: Optional node ID to check for updates for a specific node
-- `--local`: Include locally stored update files in the results
+- `--local`: Include locally stored update files in the results; local images only with `config ota-test-images`
 
 #### Check for OTA updates for a commissioned node
 
@@ -205,7 +207,7 @@ nodes ota check 5000 --local
 
 Options:
 - `--mode <auto|prod|test|both>`: DCL instances to query. `auto` (default) follows the `config ota-test-images` setting: production only, or production plus test when test images are enabled
-- `--local`: Include locally stored update files when checking for updates
+- `--local`: Include locally stored update files when checking for updates; local images not with `--mode prod`, and with `--mode auto` only with `config ota-test-images`
 
 The command will display information about available updates including version, file size, and download URL.
 
@@ -222,7 +224,7 @@ nodes ota download 5000 --local
 Options:
 - `--mode <auto|prod|test|both>`: DCL instances to query. `auto` (default) follows the `config ota-test-images` setting: production only, or production plus test when test images are enabled
 - `--force`: Force re-download even if the update is already cached locally
-- `--local`: Consider locally cached updates when checking for available updates (before downloading)
+- `--local`: Consider locally cached updates when checking for available updates (before downloading); local images not with `--mode prod`, and with `--mode auto` only with `config ota-test-images`
 
 #### Apply OTA update to a commissioned node
 
@@ -238,7 +240,7 @@ nodes ota apply 5000 --force
 Options:
 - `--mode <auto|prod|test|both>`: DCL instances to query. `auto` (default) follows the `config ota-test-images` setting: production only, or production plus test when test images are enabled
 - `--force`: Force download even if update is already stored locally
-- `--local`: Apply update from locally stored files instead of downloading from DCL
+- `--local`: Apply update from locally stored files instead of downloading from DCL; local images only with `config ota-test-images` and not with `--mode prod`
 
 The command will check for available updates, download if necessary, and trigger the OTA update process on the connected node. The node must be connected for this command to work.
 
@@ -281,7 +283,7 @@ ota add file:///path/to/firmware.bin
 ota add https://example.org/firmware.bin
 ```
 
-The command takes no options and accepts an absolute path, a `file://` URL or an `http(s)` URL. It validates the OTA file format, extracts the metadata and stores the image in `local` mode.
+The command takes no options and accepts an absolute path, a `file://` URL or an `http(s)` URL. It validates the OTA file format, extracts the metadata and stores the image in `local` mode. A local image is only offered to nodes while `config ota-test-images` is set.
 
 #### Delete OTA images from storage
 
@@ -313,7 +315,7 @@ ota download 0xfff1 0x8000 1 --mode test
 
 Options:
 - `--mode <auto|prod|test|both>`: DCL instances to query. `auto` (default) follows the `config ota-test-images` setting: production only, or production plus test when test images are enabled
-- `--local`: Include locally stored update files in the search
+- `--local`: Include locally stored update files in the search; local images not with `--mode prod`, and with `--mode auto` only with `config ota-test-images`
 
 #### Copy OTA image to filesystem
 
@@ -451,7 +453,7 @@ Goodbye
 
 # Running multiple instances
 
-The matter shell app uses the `node-localstorage` package to persistently store configuration data of each node on disk. In order to run multiple nodes on one machine, start each node with their own `nodenum` so each will create and use their own `.matter-shell-#` directory and use different ports for communication where `#` is the `nodenum` passed from the commandline.
+The matter shell stores the data of each node in `~/.matter/shell-#`, where `#` is the `nodenum` passed on the command line. To run multiple nodes on one machine, start each node with its own `nodenum`, so each node uses its own storage directory and different ports.
 
 ```
 # From matter-node-shell top-level
@@ -461,28 +463,26 @@ npm run shell 1
 npm run shell 2
 ```
 
-To delete node state, i.e. factory reset, just delete the `.matter-shell-#` directory of the node:
+To delete the node state, i.e. factory reset, start the shell with `--factoryReset` or delete the storage directory of the node:
 
 ```
-rm -fr .matter-shell-2
+rm -fr ~/.matter/shell-2
 ```
 
-The contents of the `.matter-shell-#` directory are human-readable, where each field in the key/value store is a separate file in ascii format:
+With the default file storage driver, each stored value is a separate human-readable JSON file. The file name is the storage context path and the key, joined by dots:
 
 ```
-$ ls .matter-shell-1
-0.MatterController.fabric			0.SessionManager.resumptionRecords
-0.MatterController.fabricCommissioned		Node.discriminator
-0.MatterController.operationalIpServerAddress	Node.ip
-0.RootCertificateManager.nextCertificateId	Node.longDiscriminator
-0.RootCertificateManager.rootCertBytes		Node.pin
-0.RootCertificateManager.rootCertId		Node.port
-0.RootCertificateManager.rootKeyIdentifier	Node.shortDiscriminator
-0.RootCertificateManager.rootKeyPair
-
-$ more .matter-shell-1/Node.ip
-"fe80::148d:9bd8:5006:243%en0"
+$ ls ~/.matter/shell-1
+credentials.fabric                      root.commissioning.discriminator
+credentials.rootCertBytes               root.commissioning.passcode
+fabrics.fabrics                         root.operationalCredentials.fabrics
+fabrics.nextFabricIndex                 sessions.resumption.1.1a2b3c4d
+nodes.commissionedNodes                 sessions.resumption.1.5e6f7a8b
+nodes.peer1.endpoints.0.29.0            ...
 ```
+
+CASE session resumption records are stored per peer as `sessions.resumption.<fabric index>.<node ID in hex>`.
+
 # Running over websockets
 
 If the matter shell is started with the parameter --webSocketInterface all interaction with the shell will be done over a websocket instead of the local terminal. The parameter --webSocketPort NNNN can be used to change from the default port of 3000 to a user-specified port. If the parameter --webServer is added, the matter shell will also start an http server that will serve files from the same directory as the application itself utilizying the same port as the websocket. The functionality of the shell will be identical to the above description with the exception that the "exit" command will only close the websocket and not exit the matter shell application.

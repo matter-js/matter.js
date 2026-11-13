@@ -63,7 +63,7 @@ describe("Client startUp event handling", () => {
 
         // Emit startUp on the device side — it arrives at the controller via the active
         // subscription and triggers #onStartUp, which calls handlePeerShutdown with
-        // asOf = liveSession.createdAt, preserving the live session.
+        // the live session, preserving it.
         const startUpReceived = new Promise<void>(resolve => {
             peer1.eventsOf(BasicInformationClient).startUp?.once(() => resolve());
         });
@@ -84,7 +84,7 @@ describe("Client startUp event handling", () => {
         expect(survivingSessions.some(s => s.id === liveSessionId)).true;
     });
 
-    it("closes sessions older than current session when startUp fires", async () => {
+    it("closes the sessions registered before the current session when startUp fires", async () => {
         // Set up commissioned pair with active subscription
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
@@ -93,37 +93,38 @@ describe("Client startUp event handling", () => {
         const peerAddress = peer1.stateOf(CommissioningClient).peerAddress!;
         const sessionManager = controller.env.get(SessionManager);
 
-        // Capture the live session and its creation timestamp
         const liveSession = sessionManager.maybeSessionFor(peerAddress);
         expect(liveSession).not.undefined;
 
-        // The live session was created at T0.  Advance MockTime by 1s so that a new session
-        // created now has createdAt = T0+1s, simulating the post-reboot session on the device.
-        const liveCreatedAt = liveSession!.createdAt;
-        await MockTime.advance(Seconds(1));
-        expect(liveCreatedAt).lessThan(MockTime.nowUs);
-
-        // Create the "new post-reboot" session (createdAt = T0+1s).
+        // A session created after the new session but registered before it is from before the restart; its
+        // creation time must not keep it
         const peerNodeId = peerAddress.nodeId;
         const newSession = new ProtocolMocks.NodeSession({
             index: 9991,
             peerNodeId,
             fabric: liveSession!.fabric!,
         });
-        expect(newSession.createdAt).greaterThan(liveCreatedAt);
+        await MockTime.advance(Seconds(1));
+        const staleSession = new ProtocolMocks.NodeSession({
+            index: 9992,
+            peerNodeId,
+            fabric: liveSession!.fabric!,
+        });
+        expect(staleSession.createdAt).greaterThan(newSession.createdAt);
+        sessionManager.registeredSessions.add(staleSession);
 
         // Give newSession the highest activeTimestamp so maybeSessionFor picks it over liveSession.
         // Use MAX_SAFE_INTEGER to beat any subscription-driven updates that arrive when startUp
         // is delivered through the live session.
         newSession.activeTimestamp = Timestamp(Number.MAX_SAFE_INTEGER);
 
-        sessionManager.sessions.add(newSession);
+        sessionManager.registeredSessions.add(newSession);
 
         // Emit startUp — #onStartUp will:
         //   1. maybeSessionFor → newSession (highest activeTimestamp)
-        //   2. handlePeerShutdown(peerAddress, newSession.createdAt = T0+1s)
-        //   3. Close sessions with createdAt < T0+1s → liveSession (at T0) gets closed
-        //   4. Preserve sessions with createdAt >= T0+1s → newSession survives
+        //   2. handlePeerShutdown(peerAddress, newSession)
+        //   3. Close sessions registered before newSession → liveSession and staleSession get closed
+        //   4. Preserve newSession and sessions registered after it
         const startUpReceived = new Promise<void>(resolve => {
             peer1.eventsOf(BasicInformationClient).startUp?.once(() => resolve());
         });
@@ -139,12 +140,12 @@ describe("Client startUp event handling", () => {
         await MockTime.yield();
         await MockTime.yield();
 
-        // newSession must survive (createdAt = T0+1s >= asOf = T0+1s)
+        // newSession must survive
         const survivingSessions = sessionManager.sessionsFor(peerAddress);
         expect(survivingSessions.some(s => s.id === newSession.id)).true;
 
-        // liveSession must be closed (createdAt = T0 < asOf = T0+1s)
         expect(survivingSessions.some(s => s.id === liveSession!.id)).false;
+        expect(survivingSessions.some(s => s.id === staleSession.id)).false;
 
         // Clean up the injected session if not already closed by the handler
         if (!newSession.isClosing) {

@@ -526,7 +526,9 @@ export function Key(properties: Partial<Key>) {
     Object.entries(Aliases).forEach(([alias, target]) => {
         Object.defineProperty(that, alias, {
             get: () => that[target],
-            set: value => (that[target] = value),
+            set: value => {
+                that[target] = value;
+            },
         });
         assign(alias);
     });
@@ -535,7 +537,9 @@ export function Key(properties: Partial<Key>) {
     Object.entries(Base64Codecs).forEach(([alias, target]) => {
         Object.defineProperty(that, alias, {
             get: () => that[target] !== undefined && Base64.decode(that[target]),
-            set: value => (that[target] = value === undefined ? undefined : Base64.encode(value, true)),
+            set: value => {
+                that[target] = value === undefined ? undefined : Base64.encode(value, true);
+            },
         });
         assign(alias);
     });

@@ -12,10 +12,15 @@ import {
     DnsMessageTypeFlag,
     MAX_MDNS_MESSAGE_SIZE,
 } from "#codec/DnsCodec.js";
+import { Diagnostic } from "#log/Diagnostic.js";
 import { Logger } from "#log/Logger.js";
+import { LogLevel } from "#log/LogLevel.js";
 import { MatterAggregateError } from "#MatterError.js";
-import { Network } from "#net/Network.js";
+import { Network, NetworkError } from "#net/Network.js";
 import { UdpMulticastServer } from "#net/udp/UdpMulticastServer.js";
+import { Duration } from "#time/Duration.js";
+import { Time } from "#time/Time.js";
+import { Millis, Minutes } from "#time/TimeUnit.js";
 import { Bytes } from "#util/Bytes.js";
 import { Lifetime } from "#util/Lifetime.js";
 import { AsyncObservable, BasicObservable } from "#util/Observable.js";
@@ -26,8 +31,13 @@ const logger = Logger.get("MdnsListener");
 
 const DNS_HEADER_SIZE = 12;
 
+const STATISTICS_INTERVAL = Minutes(1);
+
 /**
  * Manages the UDP socket for other components that implement MDNS logic.
+ *
+ * Counts the traffic in both directions and logs the counts once per minute and on close, at debug level or, with
+ * {@link MdnsSocket.Options.logStatistics}, at info level.  Nothing is logged for an interval without traffic.
  */
 export class MdnsSocket {
     #socket: UdpMulticastServer;
@@ -38,12 +48,17 @@ export class MdnsSocket {
         true,
     );
     readonly #relevance = new MdnsRelevanceFilter();
+    readonly #statisticsLevel: LogLevel;
+    #statistics = new TrafficStatistics();
+    readonly #statisticsTimer = Time.getPeriodicTimer("mDNS statistics", STATISTICS_INTERVAL, () =>
+        this.#logStatistics(),
+    );
 
     static async create(
         network: Network,
-        options?: { enableIpv4?: boolean; netInterface?: string; lifetime?: Lifetime.Owner },
+        options?: MdnsSocket.Options & { enableIpv4?: boolean; netInterface?: string; lifetime?: Lifetime.Owner },
     ) {
-        const { enableIpv4 = true, netInterface, lifetime } = options ?? {};
+        const { enableIpv4 = true, netInterface, lifetime, logStatistics } = options ?? {};
         const socket = new MdnsSocket(
             await UdpMulticastServer.create({
                 lifetime,
@@ -53,12 +68,16 @@ export class MdnsSocket {
                 broadcastAddressIpv6: MdnsSocket.BROADCAST_IPV6,
                 listeningPort: MdnsSocket.BROADCAST_PORT,
             }),
+            { logStatistics },
         );
         return socket;
     }
 
-    constructor(socket: UdpMulticastServer) {
+    constructor(socket: UdpMulticastServer, options?: MdnsSocket.Options) {
         this.#socket = socket;
+        this.#statisticsLevel = options?.logStatistics ? LogLevel.INFO : LogLevel.DEBUG;
+        this.#statisticsTimer.utility = true;
+        this.#statisticsTimer.start();
         socket.onMessage(this.#handleMessage.bind(this));
     }
 
@@ -99,7 +118,32 @@ export class MdnsSocket {
         this.#relevance.unregisterRelevantNames(owner);
     }
 
-    async send(message: Partial<DnsMessage> & { messageType: DnsMessageType }, intf?: string, unicastDest?: string) {
+    /**
+     * Send {@link message}, split into datagrams that fit {@link MAX_MDNS_MESSAGE_SIZE}, to the multicast group or to
+     * {@link unicastDest}.
+     *
+     * Every datagram is sent, also after one failed.  Without {@link intf} the transport logs a failed send, and the
+     * promise resolves to undefined; it rejects with the first error when listing the interfaces or an address lookup
+     * failed for a datagram.  With {@link intf} the promise reports the result for that interface, combined from the
+     * result of each datagram as {@link UdpMulticastServer.send} reports it:
+     *
+     * | Datagrams                                                     | Result                                      |
+     * |---------------------------------------------------------------|---------------------------------------------|
+     * | every one left on every address family                        | resolves to `"all"`                         |
+     * | none was sent, as the interface has no family the server uses | resolves to `"none"`                        |
+     * | one left on no family, and none left anywhere                 | rejects with the first one's error          |
+     * | any other mix                                                 | resolves to `"some"` with the first failure |
+     *
+     * The first failure is that of the first datagram that failed; inside a datagram it is the one that happened
+     * first, see {@link UdpMulticastServer.send}.  Failures the result does not carry log at debug level.
+     */
+    async send(
+        message: Partial<DnsMessage> & { messageType: DnsMessageType },
+        intf?: string,
+        unicastDest?: string,
+    ): Promise<UdpMulticastServer.Reach | undefined> {
+        this.#statistics.sentMessages++;
+        const reach = new MessageReach(intf);
         const { messageType, queries = [] } = message;
 
         // Check if queries need to be split across multiple messages
@@ -123,9 +167,9 @@ export class MdnsSocket {
                     authorities: message.authorities ?? [],
                     additionalRecords: [],
                 };
-                await this.#send(chunkMessage, intf, unicastDest);
+                await reach.add(this.#send(chunkMessage, intf, unicastDest));
             }
-            return;
+            return reach.result();
         }
 
         // Normal case: all queries fit in one message - proceed with answer splitting if needed
@@ -155,13 +199,15 @@ export class MdnsSocket {
             if (chunkSize + answerEncoded.byteLength > MAX_MDNS_MESSAGE_SIZE) {
                 // New answer does not fit anymore, send out the message
                 // When sending a query, we set the Truncated flag to indicate more answers are available
-                await this.#send(
-                    {
-                        ...chunk,
-                        messageType: truncatedMessageType,
-                    },
-                    intf,
-                    unicastDest,
+                await reach.add(
+                    this.#send(
+                        {
+                            ...chunk,
+                            messageType: truncatedMessageType,
+                        },
+                        intf,
+                        unicastDest,
+                    ),
                 );
 
                 // Reset the message, length counter and included answers to count for next message
@@ -185,7 +231,7 @@ export class MdnsSocket {
             const additionalRecordEncoded = DnsCodec.encodeRecord(additionalRecord);
 
             if (chunkSize + additionalRecordEncoded.byteLength > MAX_MDNS_MESSAGE_SIZE) {
-                await this.#send(chunk, intf, unicastDest);
+                await reach.add(this.#send(chunk, intf, unicastDest));
 
                 chunk.queries.length = 0;
                 chunk.answers.length = 0;
@@ -198,7 +244,8 @@ export class MdnsSocket {
             chunk.additionalRecords.push(additionalRecordEncoded);
         }
 
-        await this.#send(chunk, intf, unicastDest);
+        await reach.add(this.#send(chunk, intf, unicastDest));
+        return reach.result();
     }
 
     /**
@@ -237,12 +284,23 @@ export class MdnsSocket {
         return chunks;
     }
 
-    async #send(message: DnsMessagePartiallyPreEncoded, intf?: string, unicastDest?: string) {
-        await this.#socket.send(DnsCodec.encode(message), intf, unicastDest);
+    #send(message: DnsMessagePartiallyPreEncoded, intf?: string, unicastDest?: string) {
+        const encoded = DnsCodec.encode(message);
+        this.#statistics.sentPackets++;
+        this.#statistics.sentBytes += encoded.byteLength;
+        return this.#socket.send(encoded, intf, unicastDest);
+    }
+
+    #logStatistics() {
+        const statistics = this.#statistics;
+        this.#statistics = new TrafficStatistics();
+        statistics.log(this.#statisticsLevel, this.#relevance.isActive);
     }
 
     async close() {
         this.#isClosed = true;
+        this.#statisticsTimer.stop();
+        this.#logStatistics();
         await this.#socket.close();
         if (this.#handlers) {
             await MatterAggregateError.allSettled(this.#handlers);
@@ -250,22 +308,35 @@ export class MdnsSocket {
     }
 
     #handleMessage(bytes: Bytes, sourceIp: string, sourceIntf: string) {
-        // Ignore if closed
         if (this.#isClosed) {
             return;
         }
 
+        const statistics = this.#statistics;
+        statistics.received++;
+        statistics.receivedBytes += bytes.byteLength;
+
         // Drop traffic no subscriber cares about before paying for a full decode
         if (!this.#relevance.isRelevant(bytes)) {
+            statistics.skipped++;
             return;
         }
 
-        // Parse
+        const startedAt = Time.nowUs;
+
         const parsed = DnsCodec.decode(bytes);
 
-        // Skip unparseable
+        statistics.decodeMs += Time.nowUs - startedAt;
+
         if (parsed === undefined) {
+            statistics.undecodable++;
             return;
+        }
+
+        if (DnsMessageType.isQuery(parsed.messageType)) {
+            statistics.queries++;
+        } else {
+            statistics.responses++;
         }
 
         const result = this.#receipt.emit({
@@ -282,6 +353,11 @@ export class MdnsSocket {
 }
 
 export namespace MdnsSocket {
+    export interface Options {
+        /** Log the traffic counts at info level instead of debug level. */
+        logStatistics?: boolean;
+    }
+
     export interface Message extends DnsMessage {
         sourceIp: string;
         sourceIntf: string;
@@ -290,4 +366,123 @@ export namespace MdnsSocket {
     export const BROADCAST_IPV4 = "224.0.0.251";
     export const BROADCAST_IPV6 = "ff02::fb";
     export const BROADCAST_PORT = 5353;
+}
+
+/** The reach of a message, collected from the reach or the failure of each of its datagrams. */
+class MessageReach {
+    readonly #netInterface?: string;
+    readonly #reaches = new Array<UdpMulticastServer.Reach>();
+    readonly #failures = new Array<{ error: unknown; isOnEveryFamily: boolean }>();
+
+    constructor(netInterface?: string) {
+        this.#netInterface = netInterface;
+    }
+
+    async add(sending: Promise<UdpMulticastServer.Reach | undefined>) {
+        try {
+            const reach = await sending;
+            if (reach === undefined) {
+                return;
+            }
+            this.#reaches.push(reach);
+            if (reach.kind === "some") {
+                this.#failures.push({ error: reach.failure, isOnEveryFamily: false });
+            }
+        } catch (error) {
+            this.#failures.push({ error, isOnEveryFamily: true });
+        }
+    }
+
+    /** See {@link MdnsSocket.send}. */
+    result(): UdpMulticastServer.Reach | undefined {
+        const datagram =
+            this.#netInterface === undefined ? "mDNS datagram" : `mDNS datagram on interface ${this.#netInterface}`;
+        const [firstFailure, ...others] = this.#failures;
+        for (const { error, isOnEveryFamily } of others) {
+            const where =
+                this.#netInterface === undefined
+                    ? "failed"
+                    : isOnEveryFamily
+                      ? "failed on every address family"
+                      : "not sent on every address family";
+            logger.debug(`${datagram} ${where}`, error);
+        }
+        const first = firstFailure?.error;
+        if (this.#netInterface === undefined) {
+            if (first !== undefined) {
+                throw first;
+            }
+            return undefined;
+        }
+        const reachedAny = this.#reaches.some(({ kind }) => kind !== "none");
+        if (!reachedAny && first !== undefined) {
+            throw first;
+        }
+        if (this.#reaches.every(({ kind }) => kind === "none")) {
+            return { kind: "none" };
+        }
+        if (first !== undefined) {
+            return {
+                kind: "some",
+                failure:
+                    first instanceof NetworkError ? first : new NetworkError(`${datagram} not sent`, { cause: first }),
+            };
+        }
+        if (this.#reaches.every(({ kind }) => kind === "all")) {
+            return { kind: "all" };
+        }
+        return {
+            kind: "some",
+            failure: new NetworkError(
+                `mDNS datagram not sent: interface ${this.#netInterface} has no address family the server uses`,
+            ),
+        };
+    }
+}
+
+/**
+ * Traffic counters of an {@link MdnsSocket} for one statistics interval.
+ */
+class TrafficStatistics {
+    received = 0;
+    receivedBytes = 0;
+    /** Packets the relevance filter dropped before decoding. */
+    skipped = 0;
+    undecodable = 0;
+    queries = 0;
+    responses = 0;
+    /** Time spent decoding the packets the relevance filter kept. */
+    decodeMs = 0;
+    /** Calls of {@link MdnsSocket.send}, counted when the call starts. */
+    sentMessages = 0;
+    /**
+     * Encoded packets a message was split into.  {@link UdpMulticastServer} sends each one on every interface and
+     * address family, so more datagrams leave the host.
+     */
+    sentPackets = 0;
+    sentBytes = 0;
+
+    /** Log the counters, unless nothing was received or sent. */
+    log(level: LogLevel, isFilterActive: boolean) {
+        if (this.received === 0 && this.sentMessages === 0 && this.sentPackets === 0) {
+            return;
+        }
+        logger.log(
+            level,
+            "mDNS stats:",
+            Diagnostic.dict({
+                rx: this.received,
+                rxBytes: this.receivedBytes,
+                skipped: this.skipped,
+                undecodable: this.undecodable,
+                queries: this.queries,
+                responses: this.responses,
+                decode: Duration.format(Millis(this.decodeMs)),
+                tx: this.sentMessages,
+                txPackets: this.sentPackets,
+                txBytes: this.sentBytes,
+                filter: isFilterActive ? "on" : "off",
+            }),
+        );
+    }
 }

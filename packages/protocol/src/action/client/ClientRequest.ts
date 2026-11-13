@@ -40,6 +40,21 @@ export interface ClientRequest {
     addressOverride?: ServerAddressUdp;
 
     /**
+     * Use only a session that exists when the interaction starts.
+     *
+     * By default an interaction with a peer without an active session establishes one first, which may take up to the
+     * peer's connection timeout.  With this flag set the interaction fails with `SessionClosedError` instead.  Use it
+     * for a best-effort message that is worthless when the peer must first be reconnected.
+     *
+     * The flag does not apply to group addresses, which have no session to establish.  It does not shorten other
+     * waits: an interaction bound to a fixed session sends on that session, a
+     * `ClientNode` first waits for a sleeping LIT ICD peer to wake (see {@link icdAwaitTimeout}), and a send on a session
+     * whose peer stopped answering ends only when the peer is considered unresponsive.  A sustained subscription
+     * re-establishes its session by design and rejects the flag with `ImplementationError`.
+     */
+    requireExistingSession?: boolean;
+
+    /**
      * Override the wait applied to a one-shot interaction with an idle LIT (Long Idle Time) ICD peer.
      *
      * A LIT peer is asleep most of the time, so matter.js holds the operation until the peer wakes (a Check-In or any

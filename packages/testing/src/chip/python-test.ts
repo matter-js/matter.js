@@ -11,7 +11,8 @@ import { BaseTest } from "../device/test.js";
 import type { Container } from "../docker/container.js";
 import { Terminal } from "../docker/terminal.js";
 import { TestFileDescriptor } from "../test-descriptor.js";
-import { parseStep } from "./chip-test-common.js";
+import { expandAppPlaceholders } from "./app-reference.js";
+import { parseStep, skippedStepOf } from "./chip-test-common.js";
 import { Constants, ContainerPaths } from "./config.js";
 import { PicsSource } from "./pics/source.js";
 import { RestartFlagMonitor } from "./restart-flag-monitor.js";
@@ -174,18 +175,28 @@ export class PythonTest extends BaseTest {
         );
 
         let passed = false;
-        for await (let line of terminal) {
-            line = parseStep(line, step);
+        const skippedSteps = new Set<string>();
+        try {
+            for await (let line of terminal) {
+                line = parseStep(line, step);
+                const skipped = skippedStepOf(line);
+                if (skipped !== undefined) {
+                    skippedSteps.add(skipped);
+                }
 
-            if (line.indexOf("Final result: PASS") !== -1) {
-                // Old format
-                passed = true;
-            } else if (line.match(/\[Test\]\s+\S+\s+PASS$/)) {
-                // New format
-                passed = true;
+                if (line.indexOf("Final result: PASS") !== -1) {
+                    // Old format
+                    passed = true;
+                } else if (line.match(/\[Test\]\s+\S+\s+PASS$/)) {
+                    // New format
+                    passed = true;
+                }
+
+                MockLogger.injectExternalMessage("CHIP", spiffy(line));
             }
-
-            MockLogger.injectExternalMessage("CHIP", spiffy(line));
+        } finally {
+            // A failing run reports its own count, not the one an earlier run left on the descriptor
+            this.descriptor.skippedSteps = skippedSteps.size;
         }
 
         if (!passed) {
@@ -253,6 +264,11 @@ export function spiffy(line: string) {
  * or the test will not run.  So we must extract these arguments to pass into the script.
  *
  * A program defining mandatory arguments to itself seems silly but we work with what we've got amiright?
+ *
+ * App placeholders in those arguments, such as `${TV_APP}`, are expanded to container paths; `extraArgs` are passed
+ * as given.
+ *
+ * @throws UnresolvedAppPlaceholderError if a placeholder names no executable app in the container
  */
 export async function createCommand(
     descriptor: TestFileDescriptor,
@@ -263,14 +279,14 @@ export async function createCommand(
 ) {
     const command = ["python3", descriptor.path, ...Constants.PythonRunnerArgs];
 
-    const args = scriptArgsOf(descriptor);
+    const args = await expandAppPlaceholders(scriptArgsOf(descriptor), path => isExecutable(container, path));
 
     command.push(...args, ...extraArgs);
 
     // Uncommissioned subjects read the setup code in setup_class (self-commission, or assert it like TC_SC_7_1).
     // The QR pairing code encodes discriminator + passcode, so it satisfies both get_setup_payload_info_config and
     // setup-code tests that reject bare discriminator/passcode.
-    if (uncommissioned && !command.includes("--qr-code")) {
+    if (uncommissioned && !SETUP_CODE_ARGS.some(arg => command.includes(arg))) {
         command.push("--qr-code", subject.commissioning.qrPairingCode);
     }
 
@@ -278,12 +294,35 @@ export async function createCommand(
         command.push("--PICS", await PicsSource.install(container, subject.pics));
     }
 
-    const qrCodePos = command.indexOf("--qr-code");
-    if (qrCodePos !== -1) {
-        command[qrCodePos + 1] = subject.commissioning.qrPairingCode;
-    }
+    // CHIP's arguments carry the setup codes of CHIP's apps; the subject commissions with its own
+    replaceArgValue(command, ["--qr-code", "-q"], subject.commissioning.qrPairingCode);
+    replaceArgValue(command, ["--manual-code"], subject.commissioning.manualPairingCode);
 
     return command;
+}
+
+const SETUP_CODE_ARGS = ["--qr-code", "-q", "--manual-code"];
+
+function replaceArgValue(command: string[], names: string[], value: string | undefined) {
+    if (value === undefined) {
+        return;
+    }
+    for (let i = 0; i < command.length - 1; i++) {
+        if (names.includes(command[i])) {
+            command[i + 1] = value;
+        }
+    }
+}
+
+async function isExecutable(container: Container, path: string) {
+    const answer = await container.execAndRead([
+        "sh",
+        "-c",
+        'test -f "$1" && test -x "$1" && echo yes || echo no',
+        "sh",
+        path,
+    ]);
+    return answer.trim() === "yes";
 }
 
 function scriptArgsOf(descriptor: TestFileDescriptor) {

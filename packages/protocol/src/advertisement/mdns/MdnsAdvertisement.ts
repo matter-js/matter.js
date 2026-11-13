@@ -24,6 +24,7 @@ import {
     Timestamp,
     TxtRecord,
 } from "@matter/general";
+import { IcdManagement } from "@matter/types/clusters/icd-management";
 import type { MdnsAdvertiser } from "./MdnsAdvertiser.js";
 
 const logger = Logger.get("MdnsAdvertisement");
@@ -44,6 +45,7 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
     #isPrivacyMasked: boolean;
     #stopAt?: Timestamp;
     #broadcastPromise?: Promise<void>;
+    #registration?: MdnsServer.Registration;
 
     constructor(advertiser: MdnsAdvertiser, qname: string, description: T) {
         description = {
@@ -97,21 +99,21 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
     async #broadcast() {
         if (!this.#isPrivacyMasked && this.isPrivacyMasked) {
             this.#isPrivacyMasked = true;
-            await this.advertiser.server.setRecordsGenerator(this.service, this.#recordsGenerator);
+            await this.#registration?.refresh();
         }
 
         await this.advertiser.server.broadcast(this.service);
     }
 
     /**
-     * Broadcast expiration announcement immediately.
+     * Withdraw the service and send its goodbye.
      */
     async expire() {
         if (this.#broadcastPromise !== undefined) {
             await this.#broadcastPromise;
         }
         logger.info("Unpublishing", this.dict({ time: Duration.format(this.duration) }));
-        await this.advertiser.server.expireAnnouncements(this.service);
+        await this.#registration?.withdraw();
     }
 
     override serviceConnected() {
@@ -135,15 +137,14 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
 
     protected override async onCreate() {
         // Use Promise.resolve() to initialize on next microtick so the constructor completes before invocation
-        await Promise.resolve().then(() => {
-            // Install the records generator.  This will be used for broadcast and to respond to queries
-            logger.info("Publishing", this.dict());
-            return this.advertiser.server.setRecordsGenerator(this.service, this.#recordsGenerator);
-        });
+        await Promise.resolve();
+
+        // Install the records generator.  This will be used for broadcast and to respond to queries
+        logger.info("Publishing", this.dict());
+        this.#registration = await this.advertiser.server.register(this.service, this.#recordsGenerator);
     }
 
     protected override async onClose() {
-        // The MDNS server doesn't currently track which answers have been sent so just expire unconditionally
         await this.expire();
     }
 
@@ -184,15 +185,22 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
     }
 
     get #txtValues() {
-        const { idleInterval, activeInterval, activeThreshold } = this.description;
+        const { idleInterval, activeInterval, activeThreshold, icd } = this.description;
 
         const values: Record<string, unknown> = {};
 
-        // Spec §4.3.4: SII/SAI/SAT are optional overrides of the MRP defaults, so omit them when at default
-        if (idleInterval !== SessionIntervals.defaults.idleInterval) {
+        // Spec §4.3.4: SII/SAI/SAT are optional overrides of the MRP defaults, so omit them when at default.  An ICD
+        // advertises SAI, and SII while it operates as SIT, whatever their value (§9.15)
+        if (
+            idleInterval !== undefined &&
+            (idleInterval !== SessionIntervals.defaults.idleInterval || icd === IcdManagement.OperatingMode.Sit)
+        ) {
             values.SII = idleInterval; /* Session Idle Interval */
         }
-        if (activeInterval !== SessionIntervals.defaults.activeInterval) {
+        if (
+            activeInterval !== undefined &&
+            (activeInterval !== SessionIntervals.defaults.activeInterval || icd !== undefined)
+        ) {
             values.SAI = activeInterval; /* Session Active Interval */
         }
         if (activeThreshold !== SessionIntervals.defaults.activeThreshold) {

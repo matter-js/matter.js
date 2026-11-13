@@ -5,7 +5,12 @@
  */
 
 import { Bytes, Crypto, Environment, ImplementationError, InternalError, UnexpectedDataError } from "@matter/main";
-import { CertificateAuthority, getOperationalDeviceQname, Rcac } from "@matter/main/protocol";
+import {
+    CertificateAuthority,
+    getOperationalDeviceQname,
+    OperationalCertificateUpdateError,
+    Rcac,
+} from "@matter/main/protocol";
 import {
     FabricId,
     GlobalFabricId,
@@ -436,6 +441,118 @@ describe("ChipToolControllerAdapter", function () {
             passcode: 20202021,
             vendorId: undefined,
             productId: undefined,
+        });
+    });
+
+    describe("commissionable discovery", () => {
+        /**
+         * One entry as `RemoteDataModelLogger::LogDiscoveredNodeData` builds it, with every key that function writes
+         * for a node advertising no MRP intervals or ICD mode.
+         */
+        function discoveredEntry(overrides: Record<string, unknown> = {}) {
+            return {
+                value: {
+                    hostName: "E2A2B2C3D4E5F6A7",
+                    instanceName: "5E6B9D0C1A2F3B4C",
+                    longDiscriminator: 3840,
+                    shortDiscriminator: 15,
+                    vendorId: 65521,
+                    productId: 32769,
+                    commissioningMode: 1,
+                    deviceType: 0,
+                    deviceName: "",
+                    rotatingId: "",
+                    rotatingIdLen: 0,
+                    pairingHint: 33,
+                    pairingInstruction: "",
+                    supportsTcpClient: true,
+                    supportsTcpServer: false,
+                    port: 5540,
+                    numIPs: 2,
+                    ...overrides,
+                },
+            };
+        }
+
+        it("asks chip-tool for the long discriminator and reports the node it recorded", async () => {
+            const started = await start();
+            fake.reply = () => ({ results: [discoveredEntry()] });
+
+            expect(await started.discoverCommissionableNodes({ longDiscriminator: 3840 })).deep.equal([
+                {
+                    instanceName: "5E6B9D0C1A2F3B4C",
+                    longDiscriminator: 3840,
+                    vendorId: 65521,
+                    productId: 32769,
+                    commissioningMode: 1,
+                },
+            ]);
+            expect(fake.commands).deep.equal(["discover find-commissionable-by-long-discriminator 3840"]);
+        });
+
+        it("searches for every commissionable node without a filter", async () => {
+            const started = await start();
+            fake.reply = () => ({ results: [discoveredEntry()] });
+
+            await started.discoverCommissionableNodes();
+            expect(fake.commands).deep.equal(["discover commissionables"]);
+        });
+
+        it("reports a vendor and product chip-tool wrote as 0 as absent", async () => {
+            const started = await start();
+            fake.reply = () => ({ results: [discoveredEntry({ vendorId: 0, productId: 0 })] });
+
+            const [node] = await started.discoverCommissionableNodes({ longDiscriminator: 3840 });
+            expect(node.vendorId).undefined;
+            expect(node.productId).undefined;
+        });
+
+        it("leaves a subscription report that arrived meanwhile out of the nodes", async () => {
+            const started = await start();
+            fake.reply = () => ({
+                results: [
+                    { endpointId: 1, clusterId: 6, attributeId: 0, value: { longDiscriminator: 1 } },
+                    discoveredEntry(),
+                ],
+            });
+
+            const nodes = await started.discoverCommissionableNodes({ longDiscriminator: 3840 });
+            expect(nodes.map(node => node.longDiscriminator)).deep.equal([3840]);
+        });
+
+        it("leaves a pathless entry that is no discovered node out of the nodes", async () => {
+            const started = await start();
+            fake.reply = () => ({ results: [{ value: { nodeId: 1 } }, discoveredEntry()] });
+
+            const nodes = await started.discoverCommissionableNodes({ longDiscriminator: 3840 });
+            expect(nodes.map(node => node.instanceName)).deep.equal(["5E6B9D0C1A2F3B4C"]);
+        });
+
+        it("reports the node it found even where chip-tool ends the command with a failure", async () => {
+            const started = await start();
+            fake.reply = () => ({ results: [discoveredEntry()], status: 1 });
+
+            const nodes = await started.discoverCommissionableNodes({ longDiscriminator: 3840 });
+            expect(nodes.map(node => node.instanceName)).deep.equal(["5E6B9D0C1A2F3B4C"]);
+        });
+
+        it("rejects a search that ended without a node", async () => {
+            const started = await start();
+            // chip-tool's 30-second command timeout, which adds nothing but the exit-status marker
+            fake.reply = () => ({ status: 1 });
+
+            expect(await rejectionOf(started.discoverCommissionableNodes({ longDiscriminator: 3840 }))).instanceOf(
+                ChipToolCommandError,
+            );
+        });
+
+        it("rejects a node entry missing a field it relies on", async () => {
+            const started = await start();
+            fake.reply = () => ({ results: [discoveredEntry({ vendorId: undefined })] });
+
+            expect(await rejectionOf(started.discoverCommissionableNodes({ longDiscriminator: 3840 }))).instanceOf(
+                UnexpectedDataError,
+            );
         });
     });
 
@@ -895,6 +1012,137 @@ describe("ChipToolControllerAdapter", function () {
             expect(CHIP_TOOL_CAPABILITY_GAPS).have.property(capability ?? "");
         }
         expect(fake.commands).deep.equal([]);
+    });
+
+    describe("operational certificate update", () => {
+        const NOCSR_ELEMENTS = Bytes.fromHex("15300101");
+        const ATTESTATION_SIGNATURE = Bytes.fromHex("aabb");
+        const NOC = Bytes.fromHex("1530010203");
+        const ICAC = Bytes.fromHex("1530040506");
+
+        const GENERAL_COMMISSIONING_ID = requireId(GENERAL_COMMISSIONING.id, "GeneralCommissioning");
+        const OPERATIONAL_CREDENTIALS_ID = requireId(OPERATIONAL_CREDENTIALS.id, "OperationalCredentials");
+
+        const ARM = `any command-by-id 0x30 0x0 {"0":60,"1":0} ${FIRST_NODE} 0`;
+        const DISARM = `any command-by-id 0x30 0x0 {"0":0,"1":0} ${FIRST_NODE} 0`;
+        const CSR_REQUEST = new RegExp(
+            `^any command-by-id 0x3e 0x4 \\{"0":"hex:[0-9a-f]{64}","1":true\\} ${FIRST_NODE} 0$`,
+        );
+        const ISSUE = `pairing issue-noc-chain hex:${Bytes.toHex(NOCSR_ELEMENTS)} ${FIRST_NODE}`;
+        const EXPIRE = `sessionmanagement expire-case-sessions ${FIRST_NODE}`;
+        const COMPLETE = `any command-by-id 0x30 0x4 {} ${FIRST_NODE} 0`;
+
+        function updateNocCommand(icac?: Bytes) {
+            const fields =
+                icac === undefined
+                    ? `{"0":"hex:${Bytes.toHex(NOC)}"}`
+                    : `{"0":"hex:${Bytes.toHex(NOC)}","1":"hex:${Bytes.toHex(icac)}"}`;
+            return `any command-by-id 0x3e 0x7 ${fields} ${FIRST_NODE} 0`;
+        }
+
+        function update(node: CertNodeApi) {
+            if (node.updateOperationalCertificate === undefined) {
+                throw new InternalError("chip-tool's node API offers no operational certificate update");
+            }
+            return node.updateOperationalCertificate();
+        }
+
+        function commandResponse(cluster: number, command: number, value: Record<string, unknown>): FakeReply {
+            return { results: [{ clusterId: cluster, endpointId: 0, commandId: command, value }] };
+        }
+
+        /** What the node and chip-tool answer each command of an update; by default every command succeeds. */
+        function answer(options: { icac?: string; nocStatus?: number; armError?: number } = {}) {
+            return (command: string): FakeReply => {
+                if (command.startsWith("any command-by-id 0x30 0x0 ")) {
+                    return commandResponse(GENERAL_COMMISSIONING_ID, 0x1, { "0": options.armError ?? 0, "1": "" });
+                }
+                if (command.startsWith("any command-by-id 0x3e 0x4 ")) {
+                    return commandResponse(OPERATIONAL_CREDENTIALS_ID, 0x5, {
+                        "0": `base64:${Bytes.toBase64(NOCSR_ELEMENTS)}`,
+                        "1": `base64:${Bytes.toBase64(ATTESTATION_SIGNATURE)}`,
+                    });
+                }
+                if (command.startsWith("pairing issue-noc-chain ")) {
+                    return {
+                        results: [
+                            {
+                                value: {
+                                    NOC: `base64:${Bytes.toBase64(NOC)}`,
+                                    ICAC: options.icac ?? `base64:${Bytes.toBase64(ICAC)}`,
+                                    RCAC: "base64:FTA=",
+                                    IPK: "base64:AAAAAAAAAAAAAAAAAAAAAA==",
+                                },
+                            },
+                        ],
+                    };
+                }
+                if (command.startsWith("any command-by-id 0x3e 0x7 ")) {
+                    return commandResponse(OPERATIONAL_CREDENTIALS_ID, 0x8, { "0": options.nocStatus ?? 0, "1": 1 });
+                }
+                if (command.startsWith("any command-by-id 0x30 0x4 ")) {
+                    return commandResponse(GENERAL_COMMISSIONING_ID, 0x5, { "0": 0, "1": "" });
+                }
+                return { results: [] };
+            };
+        }
+
+        it("arms the fail-safe, has chip-tool issue a NOC for the CSR, and completes on a new session", async () => {
+            const { node } = await commissioned();
+            fake.reply = answer();
+
+            await update(node);
+
+            const [arm, csr, ...rest] = fake.commands;
+            expect(arm).equal(ARM);
+            expect(csr).match(CSR_REQUEST);
+            expect(rest).deep.equal([ISSUE, updateNocCommand(ICAC), EXPIRE, COMPLETE]);
+        });
+
+        it("leaves ICACValue out where chip-tool issued no ICAC", async () => {
+            const { node } = await commissioned();
+            fake.reply = answer({ icac: "" });
+
+            await update(node);
+
+            expect(fake.commands[3]).equal(updateNocCommand());
+        });
+
+        it("disarms the fail-safe and stops where UpdateNOC answers with a failure status", async () => {
+            const { node } = await commissioned();
+            // InvalidNOC
+            fake.reply = answer({ nocStatus: 3 });
+
+            const failure = await rejectionOf(update(node));
+
+            expect(failure).instanceOf(OperationalCertificateUpdateError);
+            expect(fake.commands.slice(2)).deep.equal([ISSUE, updateNocCommand(ICAC), EXPIRE, DISARM, EXPIRE]);
+        });
+
+        it("disarms on a new session and expires that one too where CommissioningComplete fails", async () => {
+            const { node } = await commissioned();
+            const succeed = answer();
+            fake.reply = command =>
+                command === COMPLETE
+                    ? commandResponse(GENERAL_COMMISSIONING_ID, 0x5, { "0": 2, "1": "" })
+                    : succeed(command);
+
+            const failure = await rejectionOf(update(node));
+
+            expect(failure).instanceOf(OperationalCertificateUpdateError);
+            expect(fake.commands.slice(4)).deep.equal([EXPIRE, COMPLETE, EXPIRE, DISARM, EXPIRE]);
+        });
+
+        it("sends nothing after an ArmFailSafe the node refused", async () => {
+            const { node } = await commissioned();
+            // BusyWithOtherAdmin
+            fake.reply = answer({ armError: 4 });
+
+            const failure = await rejectionOf(update(node));
+
+            expect(failure).instanceOf(OperationalCertificateUpdateError);
+            expect(fake.commands).deep.equal([ARM]);
+        });
     });
 
     describe("announcing another node as the OTA provider", () => {

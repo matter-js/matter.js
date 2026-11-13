@@ -10,10 +10,23 @@ import {
     DnsCodec,
     DnsMessage,
     DnsMessageType,
+    DnsRecordClass,
+    DnsRecordType,
+    Diagnostic,
+    LogDestination,
+    Logger,
+    LogLevel,
     MAX_MDNS_MESSAGE_SIZE,
+    MatterAggregateError,
     MdnsSocket,
+    Minutes,
+    MockNetwork,
+    NetworkError,
+    NetworkSimulator,
+    NetworkUnreachableError,
     PtrRecord,
     Seconds,
+    UdpSocketOptions,
 } from "#index.js";
 import {
     closeTestEnv,
@@ -32,6 +45,11 @@ import {
     waitForReceipt,
 } from "./mdns-socket-utils.js";
 
+/** {@link message} with its list of failed sends sorted, because the address families are sent in parallel */
+function failuresInAnyOrder(message: string) {
+    const [head, list] = message.split("Send failed on ");
+    return list === undefined ? message : `${head}Send failed on ${list.split(", ").sort().join(", ")}`;
+}
 describe("MdnsSocket", () => {
     describe("receiving messages", () => {
         let env: TestEnv;
@@ -742,6 +760,348 @@ describe("MdnsSocket", () => {
             expect(MdnsSocket.BROADCAST_IPV4).to.equal("224.0.0.251");
             expect(MdnsSocket.BROADCAST_IPV6).to.equal("ff02::fb");
             expect(MdnsSocket.BROADCAST_PORT).to.equal(5353);
+        });
+    });
+
+    describe("reach of a send on a named interface", () => {
+        /** A network whose IPv4 sends with the numbers in {@link failingIpv4Sends} fail, counting from 0. */
+        class Ipv4FailingNetwork extends MockNetwork {
+            readonly failingIpv4Sends = new Set<number>();
+            readonly failingIpv6Sends = new Set<number>();
+            afterSend?: () => void;
+            lookupFails = false;
+            #ipv4Sends = 0;
+            #ipv6Sends = 0;
+
+            get ipv4Sends() {
+                return this.#ipv4Sends;
+            }
+
+            override getIpMac(name: string) {
+                if (this.lookupFails) {
+                    throw new NetworkError(`Details of ${name} unavailable`);
+                }
+                return super.getIpMac(name);
+            }
+
+            override async createUdpSocket(options: UdpSocketOptions) {
+                const socket = await super.createUdpSocket(options);
+                const send = socket.send.bind(socket);
+                socket.send = async (host, port, payload) => {
+                    const fails =
+                        options.type === "udp4"
+                            ? this.failingIpv4Sends.has(this.#ipv4Sends++)
+                            : this.failingIpv6Sends.has(this.#ipv6Sends++);
+                    if (fails) {
+                        throw new NetworkUnreachableError("send ENETUNREACH");
+                    }
+                    await send(host, port, payload);
+                    this.afterSend?.();
+                };
+                return socket;
+            }
+        }
+
+        async function socketOn(ips: string[], enableIpv4 = true) {
+            const network = new Ipv4FailingNetwork(new NetworkSimulator(), "00:11:22:33:44:01", ips);
+            const socket = await MdnsSocket.create(network, { enableIpv4, netInterface: "fake0" });
+            return { network, socket };
+        }
+
+        const IPV4_FAILURE = "Send failed on fake0 (IPv4): send ENETUNREACH";
+        const BOTH_FAILURE = "Send failed on fake0 (IPv4): send ENETUNREACH, fake0 (IPv6): send ENETUNREACH";
+
+        function failureOf(reach: Awaited<ReturnType<MdnsSocket["send"]>>) {
+            expect(reach?.kind).equals("some");
+            return reach?.kind === "some" ? failuresInAnyOrder(reach.failure.message) : undefined;
+        }
+
+        it("is all when every datagram left on every address family", async () => {
+            const { socket } = await socketOn(["10.10.10.1", "abcd::1"]);
+            try {
+                expect(await socket.send(createOversizedResponse(20), "fake0")).deep.equals({ kind: "all" });
+            } finally {
+                await socket.close();
+            }
+        });
+
+        for (const datagram of ["a later", "the first"]) {
+            it(`is some when ${datagram} datagram left on IPv6 only`, async () => {
+                const { network, socket } = await socketOn(["10.10.10.1", "abcd::1"]);
+                network.failingIpv4Sends.add(datagram === "the first" ? 0 : 1);
+                try {
+                    expect(failureOf(await socket.send(createOversizedResponse(20), "fake0"))).equals(IPV4_FAILURE);
+                } finally {
+                    await socket.close();
+                }
+            });
+        }
+
+        it("is some and sends the rest when one datagram left on no address family", async () => {
+            const { network, socket } = await socketOn(["10.10.10.1", "abcd::1"]);
+            network.failingIpv4Sends.add(0);
+            network.failingIpv6Sends.add(0);
+            const response = createOversizedResponse(20);
+            try {
+                expect(failureOf(await socket.send(response, "fake0"))).equals(BOTH_FAILURE);
+            } finally {
+                await socket.close();
+            }
+        });
+
+        it("is some when the last datagram of an answer with spilled additional records left nowhere", async () => {
+            const { network, socket } = await socketOn(["10.10.10.1", "abcd::1"]);
+            const records = createOversizedResponse(20).answers ?? [];
+            const message = {
+                messageType: DnsMessageType.Response,
+                answers: records.slice(0, 1),
+                additionalRecords: records.slice(1),
+            };
+            await socket.send(message, "fake0");
+            const datagrams = network.ipv4Sends;
+            expect(datagrams).greaterThan(1);
+            network.failingIpv4Sends.add(2 * datagrams - 1);
+            network.failingIpv6Sends.add(2 * datagrams - 1);
+            try {
+                expect(failureOf(await socket.send(message, "fake0"))).equals(BOTH_FAILURE);
+            } finally {
+                await socket.close();
+            }
+        });
+
+        it("is some when the first datagram of a split query left nowhere", async () => {
+            const { network, socket } = await socketOn(["10.10.10.1", "abcd::1"]);
+            const queries = Array.from({ length: 60 }, (_, index) => ({
+                name: `${"q".repeat(40)}${index}._matter._tcp.local`,
+                recordType: DnsRecordType.PTR,
+                recordClass: DnsRecordClass.IN,
+                uniCastResponse: false,
+            }));
+            network.failingIpv4Sends.add(0);
+            network.failingIpv6Sends.add(0);
+            try {
+                expect(failureOf(await socket.send({ messageType: DnsMessageType.Query, queries }, "fake0"))).equals(
+                    BOTH_FAILURE,
+                );
+            } finally {
+                await socket.close();
+            }
+        });
+
+        it("carries the first failure and logs the later ones at debug level", async () => {
+            const { network, socket } = await socketOn(["10.10.10.1", "abcd::1"]);
+            network.failingIpv4Sends.add(0);
+            network.failingIpv4Sends.add(1);
+            network.failingIpv6Sends.add(1);
+            const logged = new Array<{ level: LogLevel; text: string }>();
+            Logger.destinations.capture = LogDestination({
+                add({ level, values }) {
+                    logged.push({ level, text: values.map(value => `${value}`).join(" ") });
+                },
+            });
+            try {
+                expect(failureOf(await socket.send(createOversizedResponse(20), "fake0"))).equals(IPV4_FAILURE);
+                expect(logged.map(({ level }) => level)).deep.equals([LogLevel.DEBUG]);
+                expect(logged[0].text).contains("mDNS datagram on interface fake0 failed on every address family");
+                expect(logged[0].text).contains("ENETUNREACH");
+            } finally {
+                delete Logger.destinations.capture;
+                await socket.close();
+            }
+        });
+
+        it("is some when a later datagram found no address family the socket uses", async () => {
+            const { network, socket } = await socketOn(["10.10.10.1", "abcd::1"], false);
+            network.afterSend = () => network.deleteAddr("abcd::1");
+            try {
+                expect(failureOf(await socket.send(createOversizedResponse(20), "fake0"))).equals(
+                    "mDNS datagram not sent: interface fake0 has no address family the server uses",
+                );
+            } finally {
+                await socket.close();
+            }
+        });
+
+        it("is some with a network error when the address lookup for a later datagram fails", async () => {
+            const { network, socket } = await socketOn(["10.10.10.1", "abcd::1"]);
+            network.afterSend = () => (network.lookupFails = true);
+            try {
+                const reach = await socket.send(createOversizedResponse(20), "fake0");
+                expect(failureOf(reach)).equals("mDNS datagram on interface fake0 not sent");
+                expect(reach?.kind === "some" ? reach.failure.cause : undefined).instanceOf(MatterAggregateError);
+            } finally {
+                network.lookupFails = false;
+                await socket.close();
+            }
+        });
+
+        it("rejects with the first error when no datagram left on any address family", async () => {
+            const { network, socket } = await socketOn(["10.10.10.1", "abcd::1"]);
+            for (let i = 0; i < 10; i++) {
+                network.failingIpv4Sends.add(i);
+                network.failingIpv6Sends.add(i);
+            }
+            try {
+                const error = await socket.send(createOversizedResponse(20), "fake0").then(
+                    () => undefined,
+                    (error: unknown) => error,
+                );
+                expect(error).instanceOf(NetworkError);
+                expect(error instanceof Error ? error.cause : undefined).instanceOf(NetworkUnreachableError);
+            } finally {
+                await socket.close();
+            }
+        });
+
+        it("is none on an interface without an address family the socket uses", async () => {
+            const { socket } = await socketOn(["10.10.10.1"], false);
+            try {
+                expect(await socket.send(createOversizedResponse(20), "fake0")).deep.equals({ kind: "none" });
+            } finally {
+                await socket.close();
+            }
+        });
+
+        it("is undefined without a named interface", async () => {
+            const { socket } = await socketOn(["10.10.10.1", "abcd::1"]);
+            try {
+                expect(await socket.send(createOversizedResponse(1))).equals(undefined);
+            } finally {
+                await socket.close();
+            }
+        });
+
+        it("rejects without a named interface when the address lookup for a later datagram fails", async () => {
+            const { network, socket } = await socketOn(["10.10.10.1", "abcd::1"]);
+            network.afterSend = () => (network.lookupFails = true);
+            try {
+                const error = await socket.send(createOversizedResponse(20)).then(
+                    () => undefined,
+                    (error: unknown) => error,
+                );
+                expect(error).instanceOf(MatterAggregateError);
+            } finally {
+                network.lookupFails = false;
+                await socket.close();
+            }
+        });
+    });
+    describe("traffic statistics", () => {
+        let env: TestEnv;
+        let counts: unknown[];
+        let levels: LogLevel[];
+
+        before(() => MockTime.enable());
+
+        beforeEach(async () => {
+            env = await createTestEnv({ enableIpv4: true });
+            counts = new Array<unknown>();
+            levels = new Array<LogLevel>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    if (message.facility === "MdnsListener" && String(message.values[0]).startsWith("mDNS stats")) {
+                        counts.push(message.values[1]);
+                        levels.push(message.level);
+                    }
+                },
+            });
+        });
+
+        afterEach(async () => {
+            delete Logger.destinations.capture;
+            await closeTestEnv(env);
+        });
+
+        it("logs the counts of one minute and nothing for a minute without traffic", async () => {
+            env.socket.registerRelevantNames("test", ["_matter._tcp.local"]);
+
+            await sendFromPeer(env, completeDnsMessage(createQuery("_googlecast._tcp.local")));
+            let receipt = waitForReceipt(env.socket);
+            await sendFromPeer(env, completeDnsMessage(createQuery("_matter._tcp.local")));
+            await receipt;
+            receipt = waitForReceipt(env.socket);
+            await sendFromPeer(
+                env,
+                completeDnsMessage(createMatterServiceResponse("TestDevice", 5540, "device.local", "192.168.1.100")),
+            );
+            await receipt;
+
+            await MockTime.advance(Minutes(1));
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({
+                rx: 3,
+                skipped: 1,
+                undecodable: 0,
+                queries: 1,
+                responses: 1,
+                tx: 0,
+                txPackets: 0,
+                filter: "on",
+            });
+
+            await MockTime.advance(Minutes(1));
+            expect(counts).to.have.length(1);
+        });
+
+        it("logs at debug level by default and at info level with logStatistics", async () => {
+            await env.socket.send(createQuery("_matter._tcp.local"));
+            await MockTime.advance(Minutes(1));
+
+            await closeTestEnv(env);
+            env = await createTestEnv({ enableIpv4: true, logStatistics: true });
+            await env.socket.send(createQuery("_matter._tcp.local"));
+            await MockTime.advance(Minutes(1));
+
+            expect(levels).deep.equal([LogLevel.DEBUG, LogLevel.INFO]);
+        });
+
+        it("counts received bytes and undecodable packets", async () => {
+            const query = completeDnsMessage(createQuery("_matter._tcp.local"));
+            const garbage = Bytes.fromHex("000000000001000000000000");
+            await env.peerChannel.send(MdnsSocket.BROADCAST_IPV4, MdnsSocket.BROADCAST_PORT, garbage);
+            const receipt = waitForReceipt(env.socket);
+            await sendFromPeer(env, query);
+            await receipt;
+
+            await MockTime.advance(Minutes(1));
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({
+                rx: 2,
+                rxBytes: garbage.byteLength + DnsCodec.encode(query).byteLength,
+                undecodable: 1,
+                queries: 1,
+            });
+        });
+
+        it("counts a message split into several packets once", async () => {
+            await env.socket.send(createOversizedResponse(100));
+
+            await MockTime.advance(Minutes(1));
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({ tx: 1 });
+            expect(counts[0]).to.have.property("txPackets").greaterThan(1);
+        });
+
+        it("logs the remaining counts on close and stops logging", async () => {
+            await env.socket.send(createQuery("_matter._tcp.local"));
+
+            await env.socket.close();
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({ tx: 1, txPackets: 1 });
+
+            await MockTime.advance(Minutes(1));
+            expect(counts).to.have.length(1);
+        });
+
+        it("reports the relevance filter as off while an owner registered all names", async () => {
+            env.socket.registerRelevantNames("test", "all");
+            const receipt = waitForReceipt(env.socket);
+            await sendFromPeer(env, completeDnsMessage(createQuery("_googlecast._tcp.local")));
+            await receipt;
+
+            await MockTime.advance(Minutes(1));
+            expect(counts).to.have.length(1);
+            expect(counts[0]).to.include({ skipped: 0, filter: "off" });
         });
     });
 });

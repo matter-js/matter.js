@@ -65,6 +65,7 @@ export interface CommissioningTarget {
      * `writeAttribute`, `subscribe` and `decommission`. The controller's copy of the peer starts empty and holds
      * only what direct calls read, so the calls that answer from it — `clientEndpoints`, `clientAttribute`, event
      * observation, `openCommissioningWindow`, the ICD and OTA helpers — answer wrongly or fail.
+     * `openCommissioningWindow` works once the caller has read the node's root endpoint (endpoint 0, every cluster).
      *
      * Advisory. An adapter whose controller holds no such subscription has nothing to do.
      */
@@ -1002,8 +1003,14 @@ export interface CertNodeApi {
      *
      * A case whose subject is the subscribe request itself uses {@link subscribeEvents} instead.
      *
-     * Resolves with the events the node already holds, as {@link readEvents} answers them, and reports
-     * later ones to {@link ObserveEventOptions.onUpdate}.
+     * Resolves with the events a {@link readEvents} of `paths` answers with, and reports later ones to
+     * {@link ObserveEventOptions.onUpdate}.
+     *
+     * A controller that keeps such a subscription only when the case declares the `sustained-subscription`
+     * capability refuses this, {@link clientEndpoints} and {@link clientAttribute} with
+     * {@link UnsupportedByControllerError} otherwise.
+     * A node commissioned with {@link CommissioningTarget.withoutSubscription} has no such subscription, and a
+     * controller that cannot answer without one throws `ImplementationError` for it.
      *
      * The two sides do not see quite the same thing: the events this answers with come off the wire,
      * while the later ones reach the controller's own client first, which drops an event it cannot name
@@ -1110,6 +1117,25 @@ export interface CertNodeApi {
         enhanced: boolean;
     }): Promise<{ manualPairingCode?: string; qrPairingCode?: string }>;
     decommission(): Promise<void>;
+
+    /**
+     * Replaces this node's operational certificate (NOC) with one the controller issues for a new operational key pair,
+     * keeping the node ID and fabric.
+     *
+     * Over CASE, the controller arms the fail-safe, sends CSRRequest with IsForUpdateNOC set, issues a NOC for the
+     * returned CSR, sends UpdateNOC, opens a new CASE session and sends CommissioningComplete. Resolves once
+     * CommissioningComplete answered with success, or once a later read shows that a CommissioningComplete whose answer
+     * was lost took effect. Rejects where any of these steps fails. A rejection does not prove that the node holds its
+     * previous certificate: another operation of the same fabric may have committed the new one, or the outcome may be
+     * unknown.
+     *
+     * Present where the controller can issue a certificate for a node it commissioned; a step that needs it declares
+     * `noc-update` (see {@link ControllerCapability}).
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.6.9
+     */
+    updateOperationalCertificate?(): Promise<void>;
+
     /**
      * The operational mDNS instance name (`<compressed-fabric-id>-<node-id>._matter._tcp.local`) this node
      * advertises on the fabric it was commissioned onto — the same value matter.js's own advertiser computes
@@ -1186,6 +1212,23 @@ export interface ControllerAdapter {
      * {@link commission}, which every controller judges, rather than through this.
      */
     parseManualPairingCode(code: string): Promise<ManualPairingCodeFields>;
+
+    /**
+     * The commissionable nodes the controller finds through DNS-SD, without commissioning any of them.
+     *
+     * Each controller looks for as long as its own discovery does, and reports what it found then: matter.js for a
+     * fixed window, matterjs-server for the window its `discover_commissionable_nodes` command uses, chip-tool until
+     * the first node that matches. A filter narrows the search where the controller can apply one; a controller that
+     * cannot reports every node it found, so a caller still selects the node it is looking for. Where the controller
+     * found nothing, resolves with an empty list, or rejects where the controller reports such a search as a failure
+     * (chip-tool).
+     *
+     * Present where the controller can discover without commissioning; a step that needs it declares
+     * `commissionable-discovery` (see {@link ControllerCapability}).
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.3.1
+     */
+    discoverCommissionableNodes?(filter?: CommissionableNodeFilter): Promise<DiscoveredCommissionableNode[]>;
 
     node(ref: CertNodeRef): CertNodeApi;
 
@@ -1291,6 +1334,33 @@ export interface ManualPairingCodeFields {
     productId?: number;
 }
 
+/** What {@link ControllerAdapter.discoverCommissionableNodes} asks the controller to look for. */
+export interface CommissionableNodeFilter {
+    /** The 12-bit discriminator of the `_L` commissioning subtype (§ 4.3.1.3). */
+    longDiscriminator?: number;
+}
+
+/**
+ * A commissionable node as {@link ControllerAdapter.discoverCommissionableNodes} reports it: the values of its DNS-SD
+ * advertisement, as the controller read them.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 4.3.1
+ */
+export interface DiscoveredCommissionableNode {
+    /** The DNS-SD service instance name. */
+    instanceName: string;
+
+    /** The `D` TXT key (§ 4.3.1.5). */
+    longDiscriminator: number;
+
+    /** From the `VP` TXT key (§ 4.3.1.6); absent where the node states none. */
+    vendorId?: number;
+    productId?: number;
+
+    /** The `CM` TXT key (§ 4.3.1.7). */
+    commissioningMode: number;
+}
+
 /**
  * How a controller reaches its peers. `"tcp"` asks for a TCP-backed session, which a large-payload
  * interaction requires; omitted, a controller keeps the transport every other TC's evidence and
@@ -1350,6 +1420,19 @@ export interface ControllerAdapterOptions {
      * from one place.
      */
     groups?: readonly CertControllerGroup[];
+
+    /**
+     * Keeps the controller's own subscription to every node it commissions, active before `commission()` returns, so
+     * what {@link CertNodeApi.clientEndpoints} and {@link CertNodeApi.clientAttribute} answer follows the node and
+     * {@link CertNodeApi.observeEvents} has a subscription to report through. A change the node makes after
+     * commissioning is then evidence the controller noticed on its own. A node commissioned with
+     * {@link CommissioningTarget.withoutSubscription} gets none.
+     *
+     * The in-process controller keeps one whether or not this is set. matterjs-server keeps its own subscription to a
+     * node off unless this is set, except while an OTA update or an ICD registration needs it. With it set, the server
+     * refuses `subscribe` for the nodes the adapter commissioned.
+     */
+    sustainedSubscription?: boolean;
 }
 
 /**
@@ -1507,6 +1590,7 @@ export type ControllerRoleKind = "dut" | "helper";
  *
  * - `onboarding-payload-parse` — {@link ControllerAdapter.parseQrPayload} and
  *   {@link ControllerAdapter.parseManualPairingCode}
+ * - `commissionable-discovery` — {@link ControllerAdapter.discoverCommissionableNodes}
  * - `multi-path-write` — {@link CertNodeApi.writeAttributes} with several entries or a data version
  * - `mixed-version-write` — {@link CertNodeApi.writeAttributes} in which some entries carry a data version and others
  *   do not
@@ -1537,9 +1621,11 @@ export type ControllerRoleKind = "dut" | "helper";
  *   {@link CertNodeApi.announceOtaProvider} without {@link AnnounceOtaProviderOptions.provider}, which announces it
  *   with nothing staged
  * - `icd-client` — {@link CertNodeApi.icdClient}
- * - `sustained-subscription` — a subscription the controller keeps to a node on its own, which
- *   {@link CertNodeApi.observeEvents} reports through and which keeps what {@link CertNodeApi.clientEndpoints} and
- *   {@link CertNodeApi.clientAttribute} answer following the node
+ * - `sustained-subscription` — {@link ControllerAdapterOptions.sustainedSubscription}: a subscription the controller
+ *   keeps to a node on its own, which {@link CertNodeApi.observeEvents} reports through and which keeps what
+ *   {@link CertNodeApi.clientEndpoints} and {@link CertNodeApi.clientAttribute} answer following the node. Only a test
+ *   case declares it, because the subscription has to exist from commissioning on
+ * - `noc-update` — {@link CertNodeApi.updateOperationalCertificate}
  *
  * An implementation states the ones it lacks, and the ones it deliberately does not offer, when it registers (see
  * {@link registerControllerAdapterFactory}), and a step or test case states the ones it needs, so the engine skips it
@@ -1549,6 +1635,7 @@ export type ControllerRoleKind = "dut" | "helper";
  */
 export type ControllerCapability =
     | "onboarding-payload-parse"
+    | "commissionable-discovery"
     | "multi-path-write"
     | "mixed-version-write"
     | "typed-list-write-with-others"
@@ -1569,7 +1656,8 @@ export type ControllerCapability =
     | "ota-provider"
     | "ota-provider-script"
     | "icd-client"
-    | "sustained-subscription";
+    | "sustained-subscription"
+    | "noc-update";
 
 /** The {@link ControllerCapability | capabilities} an implementation lacks, each with the reason it lacks it. */
 export type ControllerCapabilityGaps = Readonly<Partial<Record<ControllerCapability, string>>>;
@@ -1592,6 +1680,9 @@ export function capabilitiesFor(options?: ControllerAdapterOptions): ControllerC
     }
     if (options?.webRtcRequestor) {
         capabilities.push("webrtc-requestor");
+    }
+    if (options?.sustainedSubscription) {
+        capabilities.push("sustained-subscription");
     }
     return capabilities;
 }
@@ -1755,8 +1846,9 @@ export function resolveControllerSelection(): ControllerSelection {
  * run (see `cert-dsl.ts`'s test-level gate).
  *
  * A cert test's DUT is the controller, so a capability like batched invoke is the controller's to
- * declare — but the PICS file a run loads describes the device. Rather than maintain a whole PICS file
- * per controller, an adapter states only what differs, beside the code that implements or refuses it.
+ * declare — but the PICS file a run loads describes the device. An adapter declares its controller-side entries,
+ * either written by hand as its client surface or taken from the controller side of its own certification
+ * declaration.
  */
 export function controllerPicsOverridesFor(implementation: ControllerImplementation): PicsValues {
     return registrations.get(implementation)?.pics ?? {};

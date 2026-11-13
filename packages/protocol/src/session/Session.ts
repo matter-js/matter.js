@@ -56,7 +56,7 @@ export abstract class Session {
     /** Last message sent or received, on the clock of {@link Time.nowUs}. */
     timestamp = Time.nowUs;
 
-    /** Creation time on the clock of {@link Time.nowUs}, like {@link PeerLossContext.asOf}. */
+    /** Creation time on the clock of {@link Time.nowUs}. */
     readonly createdAt = Time.nowUs;
 
     /**
@@ -461,7 +461,7 @@ export namespace Session {
 
         /**
          * When setting this to true the session is not automatically registered to a provided session manager.
-         * You need to do this yourself.
+         * You need to add it to {@link SessionManager.registeredSessions} yourself.
          */
         delayManagerRegistration?: true;
         channel?: Channel<Bytes>;

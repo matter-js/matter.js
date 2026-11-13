@@ -13,7 +13,7 @@ import type {
     Terminal,
     TestFileDescriptor,
 } from "@matter/testing";
-import { PicsFile, PromptDrivenPythonTest } from "@matter/testing";
+import { PicsFile, PromptDrivenPythonTest, UnresolvedAppPlaceholderError } from "@matter/testing";
 
 // `docker.ts` pulls in dockerode, which isn't browser-bundleable; importing it only as a type keeps
 // this suite's web run out of that dependency graph (mirrors cert-test.test.ts's stubDocker).
@@ -84,7 +84,25 @@ async function execOverload(
     return undefined;
 }
 
-function fakeContainer(terminal: FakeTerminal): { container: Container; commands: string[][] } {
+// Overloaded like Container["execAndRead"]. Answers the executable-file probe for the path the probe names last.
+function execAndReadOverload(command: string | string[]): Promise<string>;
+function execAndReadOverload<T extends Terminal.Factory>(
+    command: string | string[],
+    terminal: T,
+): Promise<ReturnType<T>>;
+async function execAndReadOverload(
+    this: { executables: Set<string> },
+    command: string | string[],
+    _terminal?: unknown,
+): Promise<unknown> {
+    const path = Array.isArray(command) ? command[command.length - 1] : command;
+    return this.executables.has(path) ? "yes\n" : "no\n";
+}
+
+function fakeContainer(
+    terminal: FakeTerminal,
+    executables = new Array<string>(),
+): { container: Container; commands: string[][] } {
     const commands = new Array<string[]>();
 
     const container: Container = {
@@ -98,7 +116,7 @@ function fakeContainer(terminal: FakeTerminal): { container: Container; commands
         exec: execOverload.bind({ terminal, commands }),
         read: notImplemented,
         follow: notImplemented,
-        execAndRead: notImplemented,
+        execAndRead: execAndReadOverload.bind({ executables: new Set(executables) }),
         write: notImplemented,
         delete: notImplemented,
         edit: notImplemented,
@@ -482,5 +500,35 @@ describe("PromptDrivenPythonTest", () => {
         expect(command).to.include("--test-case");
         expect(command).to.include("test_TC_SC_3_5");
         expect(command).to.include("--PICS");
+    });
+    it("expands app placeholders in the descriptor's script arguments", async () => {
+        const terminal = new FakeTerminal([PASS_LINE]);
+        const { container, commands } = fakeContainer(terminal, ["/bin/chip-tv-app"]);
+        const descriptor = {
+            ...stubDescriptor(),
+            config: { "script-args": ["--string-arg", "th_server_app_path:${TV_APP}"] },
+        };
+
+        const test = new PromptDrivenPythonTest(descriptor, container, [], stubCx());
+        await test.invoke(stubSubject(), () => {}, NO_PICS_LOOKUP_ARGS, false);
+
+        const script = commands.find(command => command[0] === "python3");
+        expect(script).to.include("th_server_app_path:/bin/chip-tv-app");
+        expect(script?.join(" ")).not.to.include("${");
+    });
+
+    it("fails before running the script when an app placeholder names no binary", async () => {
+        const terminal = new FakeTerminal([PASS_LINE]);
+        const { container, commands } = fakeContainer(terminal);
+        const descriptor = {
+            ...stubDescriptor(),
+            config: { "script-args": ["--string-arg", "th_server_app_path:${TV_APP}"] },
+        };
+
+        const test = new PromptDrivenPythonTest(descriptor, container, [], stubCx());
+        await expect(test.invoke(stubSubject(), () => {}, NO_PICS_LOOKUP_ARGS, false)).rejectedWith(
+            UnresolvedAppPlaceholderError,
+        );
+        expect(commands.find(command => command[0] === "python3")).to.equal(undefined);
     });
 });

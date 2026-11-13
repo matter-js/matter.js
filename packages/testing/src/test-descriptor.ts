@@ -20,12 +20,15 @@ export interface TestDescriptor {
 
     /**
      * The app the test requires. A test naming an app the harness does not implement is skipped.
+     *
+     * The container's descriptor file may carry CHIP's own reference (`${ALL_CLUSTERS_APP}`); the harness brings it
+     * into harness form (`all-clusters`) when it loads the file.
      */
     app?: string;
 
     /**
      * The app chip uses for the test. The harness dispatches to it when it implements the app and falls back to the
-     * default subject otherwise.
+     * default subject otherwise. Same naming as {@link app}.
      */
     preferredApp?: string;
 
@@ -39,6 +42,13 @@ export interface TestDescriptor {
     runAt?: Date;
     passed?: boolean;
     durationMs?: number;
+
+    /**
+     * The number of steps the test reported as skipped in its last run.  A test that skips most of its steps still
+     * passes, so the report shows this next to the step count.
+     */
+    skippedSteps?: number;
+
     picsValues?: PicsFile;
 }
 
@@ -80,9 +90,11 @@ export namespace TestDescriptor {
     };
 
     /**
-     * Create a filter function for specified criteria.
+     * Filter a descriptor tree by the specified criteria.
      *
-     * The filter treats tests as atomic and ignores empty suites.
+     * An include path selects the descriptor it names and the members below it, which `kinds`, `pics` and `predicate`
+     * still filter.  So the path of a test with several runs selects its runs.  The filter treats tests as atomic and
+     * ignores empty suites.
      */
     export function filter(descriptor: TestDescriptor, criteria: Criteria): TestDescriptor | undefined {
         const { includePaths, kinds, pics, predicate } = criteria;
@@ -90,17 +102,17 @@ export namespace TestDescriptor {
         // Index the inclusion paths so we can efficiently short-circuit search
         interface NameNode extends Record<string, NameNode | undefined> {}
         let memberNames: undefined | NameNode;
+        const pathEnds = new WeakSet<NameNode>();
         if (includePaths) {
             memberNames = {};
             for (const path of includePaths) {
                 let incl = memberNames;
-                const segments = path.split("/");
-                if (segments[0] === "") {
-                    segments[0] = descriptor.name;
-                }
+                const [first, ...rest] = path.split("/");
+                const segments = [first === "" ? descriptor.name : first, ...rest.filter(segment => segment !== "")];
                 for (const segment of segments) {
                     incl = (incl[segment] as NameNode) ??= {};
                 }
+                pathEnds.add(incl);
             }
         }
 
@@ -131,7 +143,10 @@ export namespace TestDescriptor {
 
                 let filteredMembers: undefined | TestDescriptor[];
                 for (const member of members) {
-                    const filteredMember = filter(member, memberNames);
+                    const filteredMember = filter(
+                        member,
+                        memberNames && pathEnds.has(memberNames) ? undefined : memberNames,
+                    );
                     if (!filteredMember) {
                         continue;
                     }
@@ -230,7 +245,7 @@ export namespace TestDescriptor {
             ...updates,
         };
 
-        for (const name of ["durationMs", "passed", "runAt"] as const) {
+        for (const name of ["durationMs", "passed", "runAt", "skippedSteps"] as const) {
             if (previous[name] !== undefined && descriptor[name] === undefined) {
                 (descriptor as Record<string, unknown>)[name] = previous[name];
             }

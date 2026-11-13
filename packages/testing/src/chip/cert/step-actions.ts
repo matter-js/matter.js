@@ -61,6 +61,7 @@ const NODE: Classified<CertNodeApi> = {
     scriptOtaProvider: "none",
     openCommissioningWindow: "action",
     decommission: "action",
+    updateOperationalCertificate: "action",
     operationalMdnsInstanceName: "none",
 };
 
@@ -91,6 +92,7 @@ const CONTROLLER: Classified<ControllerAdapter> = {
     commission: "action",
     parseQrPayload: "none",
     parseManualPairingCode: "none",
+    discoverCommissionableNodes: "none",
     node: { handle: NODE },
     group: { handle: GROUP },
     webRtcRequestor: { handle: WEB_RTC_REQUESTOR },

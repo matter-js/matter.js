@@ -32,9 +32,18 @@ export interface PeerLossContext {
     keepSubscriptions?: boolean;
 
     /**
-     * The time at which we considered the peer lost, on the clock of `Time.nowUs` like `Session.createdAt`.
+     * A value of `SessionManager.registrationCount`.  Only sessions registered before that value was read are
+     * affected; sessions registered later carry the peer's data after the loss.
      *
-     * If absent, considers peer loss as of current time.
+     * If absent, affects every session registered when the peer loss is reported.
+     */
+    registeredBefore?: number;
+
+    /**
+     * Only sessions created before this instant are affected; on the clock of `Time.nowUs` like `Session.createdAt`.
+     *
+     * @deprecated Use {@link registeredBefore}.  Two sessions may have the same creation time, so the time does not say
+     * which session is newer.
      */
     asOf?: Timestamp;
 }

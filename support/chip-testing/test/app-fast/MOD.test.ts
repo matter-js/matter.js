@@ -6,6 +6,6 @@
 
 describe("MOD", () => {
     chip("MOD/*")
-        // MOD 2.3 tests add scenes management for future Matter versions (>1.4.2)
+        // TC-MOD-2.3 is provisional in the test plan, and the specification gives CurrentMode no scene (S) quality
         .exclude("MOD/2.3");
 });

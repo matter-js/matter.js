@@ -9,8 +9,11 @@ import { Certificate } from "./Certificate.js";
 import { MlDsaSignature } from "./CertificateSignature.js";
 import { Unsigned } from "./common.js";
 import { MatterCertificate } from "./definitions/base.js";
+import { DistinguishedName } from "./DistinguishedName.js";
 
 const logger = Logger.get("OperationalBaseCertificate");
+
+const MAX_RDNS = 5;
 
 /**
  * Base class for all operational certificates (RCAC, ICAC, NOC)
@@ -86,10 +89,10 @@ export abstract class OperationalBase<CT extends MatterCertificate> extends Cert
         }
 
         // All implementations SHALL reject Matter certificates with more than 5 RDNs in a single DN.
-        if (Object.keys(cert.subject).length > 5) {
+        if (DistinguishedName.rdnCount(cert.subject) > MAX_RDNS) {
             throw new CertificateError(`Certificate subject must not contain more than 5 RDNs.`);
         }
-        if (Object.keys(cert.issuer).length > 5) {
+        if (DistinguishedName.rdnCount(cert.issuer) > MAX_RDNS) {
             throw new CertificateError(`Certificate issuer must not contain more than 5 RDNs.`);
         }
 
