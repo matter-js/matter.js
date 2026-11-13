@@ -19,6 +19,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: `Logger.redactSecrets`, also set by the `log.redactSecrets` variable, turns off the replacement of secret values in log output when set to false
     - Feature: `Network.interfacesChanged` reports interface and address changes, checked every 60 seconds while observed
     - Feature: The `mdns.statistics` variable (`MATTER_MDNS_STATISTICS`) logs the mDNS traffic counts at info level
+    - Feature: `Timestamp.toSeconds()` converts a timestamp to whole seconds
     - Enhancement: `MdnsSocket` logs some traffic statistics once per minute - set `mdns.statistics` (`MATTER_MDNS_STATISTICS`) to true for info loglevel, otherwise debug
     - Enhancement: WAL storage logs at notice level when an open restores entries from its log and when it has saved the restored state, with the time each took
     - Adjustment: Falling back to standard crypto, for example on Bun where Node.js crypto has no AES-CCM, logs one line at info level instead of two at notice level

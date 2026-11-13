@@ -65,9 +65,15 @@ const MAX_SUGGESTION_LEAD_TIME_S = Seconds.of(Hours(24));
 /** A wall clock before this time is assumed to be unset. */
 const EARLIEST_SYNCHRONIZED_TIME_MS = Date.UTC(2025, 0, 1);
 
-/** The current UTC time in seconds since the Unix epoch, the unit of epoch-s values in state. */
-function utcNowS() {
-    return Math.floor(Time.nowMs / 1000);
+/**
+ * How long after a re-evaluation that did not take effect the timer re-evaluates again, while a stored entry is due.
+ */
+const SUGGESTION_RETRY_DELAY = Seconds(10);
+
+/** The state a re-evaluation of the thermostat suggestions wrote. */
+interface SuggestionEvaluation {
+    thermostatSuggestions: Thermostat.ThermostatSuggestion[];
+    currentThermostatSuggestion: Thermostat.ThermostatSuggestion | null;
 }
 
 /**
@@ -604,7 +610,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 `ThermostatSuggestions holds the maximum of ${this.state.maxThermostatSuggestions} entries`,
             );
         }
-        const now = utcNowS();
+        const now = Timestamp.toSeconds(Time.nowMs);
         if (effectiveTime !== null && effectiveTime > now + MAX_SUGGESTION_LEAD_TIME_S) {
             throw new StatusResponse.InvalidCommandError(
                 `EffectiveTime ${effectiveTime} is more than 24 hours after the current time ${now}`,
@@ -2313,7 +2319,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         _old: unknown,
         context: ActionContext,
     ) {
-        const evaluated = this.internal.evaluatedSuggestions.get(context.transaction);
+        const evaluated = this.internal.suggestionEvaluations.get(context.transaction)?.thermostatSuggestions;
         if (evaluated !== undefined && isDeepEqual(evaluated, suggestions)) {
             return;
         }
@@ -2384,16 +2390,21 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         const { transaction } = this.context;
         if (!internal.timerRestarts.has(transaction)) {
             internal.timerRestarts.add(transaction);
-            const evaluatedAt = utcNowS();
+            const evaluatedAt = Timestamp.toSeconds(Time.nowMs);
             transaction.onFinalize(() => {
                 internal.timerRestarts.delete(transaction);
-                internal.evaluatedSuggestions.delete(transaction);
-                internal.restartSuggestionTimer?.(evaluatedAt);
+                const evaluation = internal.suggestionEvaluations.get(transaction);
+                internal.suggestionEvaluations.delete(transaction);
+                internal.restartSuggestionTimer?.(evaluatedAt, evaluation);
             });
         }
 
         this.agent.asLocalActor(() => this.#determineCurrentSuggestion());
-        internal.evaluatedSuggestions.set(transaction, deepCopy(this.state.thermostatSuggestions));
+        const { thermostatSuggestions, currentThermostatSuggestion } = this.state;
+        internal.suggestionEvaluations.set(
+            transaction,
+            deepCopy({ thermostatSuggestions, currentThermostatSuggestion }),
+        );
     }
 
     /**
@@ -2410,7 +2421,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             return;
         }
 
-        const now = utcNowS();
+        const now = Timestamp.toSeconds(Time.nowMs);
         const suggestions = state.thermostatSuggestions.filter(({ expirationTime }) => expirationTime > now);
         if (suggestions.length !== state.thermostatSuggestions.length) {
             state.thermostatSuggestions = suggestions;
@@ -2464,11 +2475,16 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     /**
      * Starts the timer for the earliest EffectiveTime or ExpirationTime of the stored entries after `evaluatedAt`, the
      * UTC time in seconds of the first re-evaluation in the transaction, and stops it without synchronized time.  A
-     * time that passed while the transaction ran, also one that rolled back, re-evaluates at once.  A time up to
-     * `evaluatedAt` is not retried, so a re-evaluation that keeps failing does not repeat.  The timer runs on the
-     * monotonic clock, so call {@link reevaluateThermostatSuggestions} when the wall clock steps.
+     * time that passed while the transaction ran, also one that rolled back, re-evaluates at once.
+     *
+     * A time up to `evaluatedAt` is retried after {@link SUGGESTION_RETRY_DELAY} only when the committed state differs
+     * from `evaluation`, the state the last re-evaluation in the transaction wrote.  This is the case when the
+     * transaction rolled back or the re-evaluation threw.  A re-evaluation that keeps failing therefore repeats at that
+     * delay, not at once.
+     *
+     * The timer runs on the monotonic clock, so call {@link reevaluateThermostatSuggestions} when the wall clock steps.
      */
-    #restartSuggestionTimer(evaluatedAt: number) {
+    #restartSuggestionTimer(evaluatedAt: number, evaluation: SuggestionEvaluation | undefined) {
         const { internal } = this;
         internal.suggestionTimer?.stop();
         internal.suggestionTimer = undefined;
@@ -2476,15 +2492,24 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             return;
         }
 
-        const times = this.state.thermostatSuggestions
-            .flatMap(({ effectiveTime, expirationTime }) => [effectiveTime, expirationTime])
-            .filter(time => time > evaluatedAt);
-        if (times.length === 0) {
+        const { thermostatSuggestions, currentThermostatSuggestion } = this.state;
+        const times = thermostatSuggestions.flatMap(({ effectiveTime, expirationTime }) => [
+            effectiveTime,
+            expirationTime,
+        ]);
+        const upcoming = times.filter(time => time > evaluatedAt);
+        const delays = upcoming.length === 0 ? [] : [Math.max(0, Seconds(Math.min(...upcoming)) - Time.nowMs)];
+        const tookEffect =
+            evaluation !== undefined && isDeepEqual(evaluation, { thermostatSuggestions, currentThermostatSuggestion });
+        if (!tookEffect && upcoming.length < times.length) {
+            delays.push(SUGGESTION_RETRY_DELAY);
+        }
+        if (delays.length === 0) {
             return;
         }
         internal.suggestionTimer = this.reactorTimer(
             "Thermostat suggestion",
-            Millis(Math.max(0, Seconds(Math.min(...times)) - Time.nowMs)),
+            Millis(Math.min(...delays)),
             this.#reevaluateSuggestions,
         ).start();
     }
@@ -3355,13 +3380,13 @@ export namespace ThermostatBaseServer {
         suggestionTimer?: Timer;
 
         /** Restarts {@link suggestionTimer} in a reactor, after the transaction of a re-evaluation ends. */
-        restartSuggestionTimer?: (evaluatedAt: number) => void;
+        restartSuggestionTimer?: (evaluatedAt: number, evaluation: SuggestionEvaluation | undefined) => void;
 
         /** Transactions that restart {@link suggestionTimer} once they commit or roll back. */
         timerRestarts = new WeakSet<Transaction>();
 
-        /** The ThermostatSuggestions each transaction last re-evaluated, until it commits or rolls back. */
-        evaluatedSuggestions = new WeakMap<Transaction, Thermostat.ThermostatSuggestion[]>();
+        /** The state the last re-evaluation in each transaction wrote, until the transaction commits or rolls back. */
+        suggestionEvaluations = new WeakMap<Transaction, SuggestionEvaluation>();
 
         /** The UniqueID of the last thermostat suggestion added; the next one takes the next free value after it. */
         lastSuggestionUniqueId = 0;

@@ -21,6 +21,7 @@ import {
     Seconds,
     StorageService,
     Time,
+    Timestamp,
 } from "@matter/general";
 import { captureLog, interaction, MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import {
@@ -132,7 +133,7 @@ function storedSuggestion(uniqueId: number, presetHandle = PRESET_A) {
 }
 
 function nowS() {
-    return Math.floor(Time.nowMs / 1000);
+    return Timestamp.toSeconds(Time.nowMs);
 }
 
 /** Whether the time is synchronized, for servers that replace the default */
@@ -141,6 +142,16 @@ let synchronized = true;
 class ClockServer extends SuggestionsServer {
     override hasSynchronizedTime() {
         return synchronized;
+    }
+}
+
+/** How often the server checked for synchronized time, which every re-evaluation does */
+let evaluations = 0;
+
+class CountingServer extends SuggestionsServer {
+    override hasSynchronizedTime() {
+        evaluations++;
+        return super.hasSynchronizedTime();
     }
 }
 
@@ -531,6 +542,101 @@ describe("Thermostat suggestions", () => {
             } finally {
                 MockTime.stepWallClock(0 - step);
             }
+        });
+
+        it("retries an entry that became due before another entry's addition re-evaluates and rolls back", async () => {
+            await using ctx = await online();
+            const { uniqueId } = await ctx.add({ presetHandle: PRESET_B, effectiveTime: nowS() + 600 });
+
+            // The wall clock passes the EffectiveTime while the monotonic timer of that entry is still ahead
+            const step = Seconds(600);
+            MockTime.stepWallClock(step);
+            try {
+                await expect(
+                    MockTime.resolve(
+                        ctx.node.online({ command: true }, async agent => {
+                            ctx.device
+                                .agentFor(agent.context)
+                                .get(SuggestionsServer)
+                                .addThermostatSuggestion({
+                                    presetHandle: PRESET_A,
+                                    effectiveTime: nowS() + 600,
+                                    expirationInMinutes: 30,
+                                });
+                            throw new ImplementationError("roll back the addition");
+                        }),
+                        { macrotasks: true },
+                    ),
+                ).rejectedWith(ImplementationError);
+                await settle();
+                expect(ctx.state().currentThermostatSuggestion).equals(null);
+
+                await MockTime.advance(Seconds(9));
+                await settle();
+                expect(ctx.state().currentThermostatSuggestion).equals(null);
+
+                await MockTime.advance(Seconds(1));
+                await settle();
+                expect(ctx.state().currentThermostatSuggestion?.uniqueId).equals(uniqueId);
+                expect(ctx.state().activePresetHandle).deep.equals(PRESET_B);
+            } finally {
+                MockTime.stepWallClock(0 - step);
+            }
+        });
+
+        it("retries every 10 seconds while following keeps throwing on the timer", async () => {
+            let attempts = 0;
+            class RefusingServer extends SuggestionsServer {
+                override handleSetActivePresetRequest(_request: Thermostat.SetActivePresetRequest): undefined {
+                    attempts++;
+                    throw new ImplementationError("refuse to follow");
+                }
+            }
+            await using ctx = await online({}, RefusingServer);
+            await ctx.add({ presetHandle: PRESET_B, effectiveTime: nowS() + 600 });
+
+            await MockTime.advance(Seconds(600));
+            await settle();
+            expect(attempts).equals(1);
+
+            await MockTime.advance(Seconds(60));
+            await settle();
+            expect(attempts).equals(7);
+            expect(ctx.state().currentThermostatSuggestion).equals(null);
+            expect(MockTime.timerCountFor(TIMER)).equals(1);
+        });
+
+        it("does not retry a current entry after a re-evaluation that commits", async () => {
+            await using ctx = await online({}, CountingServer);
+            await ctx.add({ presetHandle: PRESET_B, expirationInMinutes: 30 });
+            evaluations = 0;
+
+            await MockTime.advance(Seconds(60));
+            await settle();
+            expect(evaluations).equals(0);
+        });
+
+        it("does not retry after a rollback while no entry is due", async () => {
+            await using ctx = await online({}, CountingServer);
+            const { uniqueId } = await ctx.add({ presetHandle: PRESET_B, effectiveTime: nowS() + 600 });
+            await expect(
+                MockTime.resolve(
+                    ctx.node.online({ command: true }, async agent => {
+                        ctx.device
+                            .agentFor(agent.context)
+                            .get(SuggestionsServer)
+                            .removeThermostatSuggestion({ uniqueId });
+                        throw new ImplementationError("roll back the removal");
+                    }),
+                    { macrotasks: true },
+                ),
+            ).rejectedWith(ImplementationError);
+            await settle();
+            evaluations = 0;
+
+            await MockTime.advance(Seconds(60));
+            await settle();
+            expect(evaluations).equals(0);
         });
 
         it("uses whole seconds when the wall clock is between two seconds", async () => {
