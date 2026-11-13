@@ -9,7 +9,7 @@ import { Behavior } from "@matter/main";
 /**
  * Handles the test event triggers for the device on its endpoint, as a handler that a CHIP device registers with the
  * TestEventTriggerDelegate does.  {@link TestGeneralDiagnosticsServer} offers each trigger it does not handle itself
- * to the handler of every endpoint.  An endpoint has at most one handler, a subclass of this behavior.
+ * to the endpoint handlers in turn and stops at the first one that accepts it, as CHIP's delegate does.  An endpoint has at most one handler, a subclass of this behavior.
  */
 export class TestEventTriggerHandler extends Behavior {
     static override readonly id = "testEventTriggerHandler";

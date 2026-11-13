@@ -10,6 +10,14 @@ describe("PS", () => {
     chip("PS/*").args("--endpoint", 1).exclude("PS/2.3");
     // Selects the runs of multi-run tests, which "PS/*" does not
     chip("PS/*/run*").args("--endpoint", 1).exclude("PS/2.3/*").exclude("PS/3.1/run1").exclude(
+        // The lock runs 3 to 8 differ from run2 only in how the TH commissions, and the harness commissions every run
+        // the same way
+        "PS/3.1/run3",
+        "PS/3.1/run4",
+        "PS/3.1/run5",
+        "PS/3.1/run6",
+        "PS/3.1/run7",
+        "PS/3.1/run8",
         // Runs for CHIP apps matter.js has no test subject for: electrical-protection, evse, lighting-app-no-unique-id, microwave-oven, network-management
         "PS/3.1/run10",
         "PS/3.1/run12",

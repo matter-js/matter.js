@@ -12,7 +12,7 @@ import { ElectricalPowerMeasurementServer } from "@matter/main/behaviors/electri
 import { GeneralDiagnosticsServer } from "@matter/main/behaviors/general-diagnostics";
 import { ValidationError } from "@matter/main/types";
 import { AllDevicesTestInstance } from "../../src/AllDevicesTestInstance.js";
-import { listLeafDeviceTypes } from "../../src/devices/DeviceTypeRegistry.js";
+import { listDeviceTypes, listLeafDeviceTypes } from "../../src/devices/DeviceTypeRegistry.js";
 
 function setupWith(...appArgs: string[]) {
     return new AllDevicesTestInstance({ commandPipeFactory: async () => {}, appArgs }).setupServer();
@@ -137,6 +137,77 @@ describe("AllDevicesTestInstance --device", () => {
         );
     });
 
+    it("leaves only the aggregator and the bridged node out of *", () => {
+        const leaves = listLeafDeviceTypes();
+        expect(leaves).include.members(["on-off-light", "electrical-sensor"]);
+        expect(leaves).not.include.members(["aggregator"]);
+        expect(leaves).not.include.members(["bridged-node"]);
+        expect(leaves.length).equals(listDeviceTypes().length - 2);
+    });
+
+    it("refuses an endpoint number that is not a plain decimal up to 0xfffe", async () => {
+        for (const value of ["on-off-light:65535", "on-off-light:03", "on-off-light:3x"]) {
+            await expect(setupWith("--device", value)).rejectedWith(ValidationError, "Invalid endpoint");
+        }
+    });
+
+    it("skips an empty option", async () => {
+        const node = await setupWith("--device", "on-off-light:3,");
+        try {
+            expect(structureOf(node)).deep.equals([[3, "OnOffLight", []]]);
+        } finally {
+            await node.close();
+        }
+    });
+
+    it("numbers bridged wildcard devices after a numbered bridged device", async () => {
+        const node = await setupWith(
+            "--device",
+            "aggregator:1",
+            "--device",
+            "on-off-light:2,parent=1,bridged",
+            "--device",
+            "*,parent=1,bridged",
+        );
+        try {
+            const bridgedNodes = [...[...node.parts][0].parts].map(({ number }) => number);
+            expect(bridgedNodes).deep.equals([2, ...listLeafDeviceTypes().map((_type, index) => 4 + 2 * index)]);
+        } finally {
+            await node.close();
+        }
+    });
+
+    it("continues numbering after each numbered or bridged *", async () => {
+        const node = await setupWith(
+            "--device",
+            "aggregator:1",
+            "--device",
+            "*:2",
+            "--device",
+            "*,parent=1,bridged",
+            "--device",
+            "*,parent=1,bridged",
+        );
+        try {
+            const count = listLeafDeviceTypes().length;
+            const bridgedNodes = [...[...node.parts][0].parts].map(({ number }) => number);
+            expect(bridgedNodes).deep.equals(
+                Array.from({ length: 2 * count }, (_entry, index) => 2 + count + 2 * index),
+            );
+        } finally {
+            await node.close();
+        }
+    });
+
+    it("does not wrap a bridged node in another bridged node", async () => {
+        const node = await setupWith("--device", "aggregator:1", "--device", "bridged-node:2,parent=1,bridged");
+        try {
+            expect(structureOf(node)).deep.equals([[1, "Aggregator", [[2, "BridgedNode", []]]]]);
+        } finally {
+            await node.close();
+        }
+    });
+
     it("refuses a parent declared after its child", async () => {
         await expect(setupWith("--device", "on-off-light:2,parent=1", "--device", "aggregator:1")).rejectedWith(
             ValidationError,
@@ -190,12 +261,17 @@ describe("AllDevicesTestInstance electrical-sensor", () => {
             await trigger(node, 0x0091_0001_0000_0001n);
             expect(sensor.stateOf(ElectricalPowerMeasurementServer).activePower).equals(980_000);
             expect(sensor.stateOf(ElectricalPowerMeasurementServer).voltage).equals(229_000);
+            expect(sensor.stateOf(ElectricalPowerMeasurementServer).activeCurrent).equals(3_848);
             const energy = sensor.stateOf(ElectricalEnergyMeasurementServer);
             expect(energy).nested.property("cumulativeEnergyImported.energy", 544);
             expect(energy).nested.property("periodicEnergyExported.energy", 0);
 
             await nextReading(sensor, Seconds(2));
             expect(sensor.stateOf(ElectricalPowerMeasurementServer).activePower).equals(985_000);
+            expect(sensor.stateOf(ElectricalEnergyMeasurementServer)).nested.property(
+                "cumulativeEnergyImported.energy",
+                544 + 547,
+            );
 
             await trigger(node, 0x0091_0001_0000_0000n);
             await MockTime.advance(Seconds(4).valueOf());
@@ -220,6 +296,30 @@ describe("AllDevicesTestInstance electrical-sensor", () => {
             );
 
             await trigger(node, 0x0091_0000_0000_0000n);
+        });
+    });
+
+    it("restarts the readings with the new load", async () => {
+        await withSensor(async (node, sensor) => {
+            await trigger(node, 0x0091_0000_0000_0001n);
+            await trigger(node, 0x0091_0000_0000_0002n);
+            expect(sensor.stateOf(ElectricalPowerMeasurementServer).activePower).equals(-3_015_000);
+            const energy = sensor.stateOf(ElectricalEnergyMeasurementServer);
+            expect(energy).nested.property("cumulativeEnergyImported.energy", 0);
+            expect(energy).nested.property("cumulativeEnergyExported.energy", 4187);
+
+            await MockTime.advance(Seconds(2).valueOf());
+            await new Promise(resolve => setImmediate(resolve));
+            expect(sensor.stateOf(ElectricalPowerMeasurementServer).activePower).equals(-3_015_000);
+
+            await nextReading(sensor, Seconds(3));
+            expect(sensor.stateOf(ElectricalPowerMeasurementServer).activePower).equals(-3_010_000);
+        });
+    });
+
+    it("refuses an unknown energy reporting trigger", async () => {
+        await withSensor(async node => {
+            await expect(trigger(node, 0x0091_0000_0000_0003n)).rejectedWith("Wrong test event");
         });
     });
 

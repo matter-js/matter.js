@@ -10,7 +10,7 @@ import { ElectricalPowerMeasurementServer } from "@matter/main/behaviors/electri
 import { ElectricalEnergyMeasurement } from "@matter/main/clusters/electrical-energy-measurement";
 import { TestEventTriggerHandler } from "./TestEventTriggerHandler.js";
 
-/** The bits of a test event trigger that carry the endpoint, all zero for every endpoint. */
+/** The bits of a test event trigger that carry the endpoint.  Endpoint bits of 0 address every endpoint. */
 const TRIGGER_ENDPOINT_MASK = 0x0000_ffff_0000_0000n;
 
 // The energy reporting triggers of CHIP's TC_EnergyReporting_Utils.py

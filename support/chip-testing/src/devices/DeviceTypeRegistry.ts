@@ -24,8 +24,8 @@ export interface DeviceTypeEntry {
     name: string;
 
     /**
-     * False for a device that only structures others, such as an aggregator.  As in CHIP's all-devices app, "*"
-     * selects only leaf devices.
+     * False for a device that only structures others.  CHIP's all-devices app leaves the aggregator and the bridged node
+     * out of "*", so these two set it.
      */
     leaf?: boolean;
 

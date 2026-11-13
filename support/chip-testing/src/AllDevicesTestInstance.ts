@@ -19,7 +19,8 @@ const logger = Logger.get("AllDevicesTestInstance");
 
 /**
  * One `--device` value, `type[:endpoint][,parent=P][,bridged]`, as CHIP's `DeviceTypeParser::ParseDeviceTypeEntry`
- * reads it.  The type `*` stands for every leaf device type.
+ * reads it, except that an endpoint number must be a plain decimal from 1 to 0xfffe.  The type `*` stands for every
+ * leaf device type.
  */
 interface DeviceToken {
     text: string;

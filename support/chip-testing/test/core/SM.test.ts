@@ -7,6 +7,20 @@
 describe("SM", () => {
     // From DeviceBasicComposition
     chip("SM/*/run*").exclude(
+        // The lock runs 3 to 8 differ from run2 only in how the TH commissions, and the harness commissions every run
+        // the same way
+        "SM/1.1/run3",
+        "SM/1.1/run4",
+        "SM/1.1/run5",
+        "SM/1.1/run6",
+        "SM/1.1/run7",
+        "SM/1.1/run8",
+        "SM/1.2/run3",
+        "SM/1.2/run4",
+        "SM/1.2/run5",
+        "SM/1.2/run6",
+        "SM/1.2/run7",
+        "SM/1.2/run8",
         // Runs for CHIP apps matter.js has no test subject for: evse, microwave-oven, network-management,
         // lighting-app-no-unique-id, electrical-protection
         "SM/1.1/run10",
