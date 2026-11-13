@@ -48,6 +48,7 @@ import {
     MATTERJS_CONTROLLER_PICS,
     NoCommissionedPeerError,
     SessionStateError,
+    WebRtcSessionPredictionError,
 } from "../../src/cert/InProcessControllerAdapter.js";
 import { MATTERJS_SERVER_CONTROLLER_PICS } from "../../src/cert/matter-server-controller-pics.js";
 import {
@@ -57,6 +58,7 @@ import {
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import { IcdTestInstance } from "../../src/IcdTestInstance.js";
 import { manualPairingCode } from "../cert/tc-dd-support.js";
+import { fakeCertNode } from "./fake-cert-node.js";
 
 function fakeControllerAdapter(id: string): ControllerAdapter {
     return {
@@ -1172,6 +1174,158 @@ describe("InProcessControllerAdapter WebRTC requestor", () => {
             UnsupportedByControllerError,
             /WebRTC transport requestor/,
         );
+    });
+
+    /**
+     * An adapter whose provider answers as each test scripts it: the node it hands out for the
+     * commissioned peer records every invoke and answers with the next scripted session id.
+     */
+    class ScriptedProviderAdapter extends InProcessControllerAdapter {
+        readonly invoked = new Array<{ command: string; args?: object; endpoint?: number }>();
+        readonly minted = new Array<number>();
+        onInvoke?: (command: string) => Promise<void>;
+
+        override node(_ref: CertNodeRef): CertNodeApi {
+            return fakeCertNode({
+                invoke: async (_cluster, command, args, endpoint) => {
+                    this.invoked.push({ command, args, endpoint });
+                    await this.onInvoke?.(command);
+                    if (command === "solicitOffer" || command === "provideOffer") {
+                        const webRtcSessionId = this.minted.shift();
+                        if (webRtcSessionId === undefined) {
+                            throw new InternalError(`No session id scripted for ${command}`);
+                        }
+                        return { webRtcSessionId };
+                    }
+                    return undefined;
+                },
+            });
+        }
+    }
+
+    async function scriptedRequestor(id: string) {
+        const scripted = new ScriptedProviderAdapter(id, { webRtcRequestor: true });
+        adapter = scripted;
+        await scripted.start();
+        const peer = await commissionPeer();
+        return { scripted, peer, requestor: scripted.webRtcRequestor! };
+    }
+
+    const OFFER = { endpoint: 1, streamUsage: StreamUsage.Recording, videoStreamId: 42 };
+
+    it("solicitOffer registers the predicted id before invoking", async function () {
+        this.timeout(60_000);
+
+        const { scripted, peer, requestor } = await scriptedRequestor("webrtc-solicit");
+        scripted.minted.push(0);
+        let heldDuringInvoke: readonly number[] | undefined;
+        scripted.onInvoke = async () => {
+            heldDuringInvoke = (await requestor.sessions()).map(session => session.id);
+        };
+
+        expect(await requestor.solicitOffer({ peer, ...OFFER })).to.equal(0);
+
+        // The provider sends its Offer from inside its own handling of SolicitOffer
+        expect(heldDuringInvoke).to.deep.equal([0]);
+        expect(scripted.invoked).to.deep.equal([
+            {
+                command: "solicitOffer",
+                args: { streamUsage: StreamUsage.Recording, originatingEndpointId: 1, videoStreamId: 42 },
+                endpoint: 1,
+            },
+        ]);
+        expect(await requestor.sessions()).to.deep.equal([{ id: 0, videoStreamId: 42, audioStreamId: null }]);
+    });
+
+    it("predicts the id after the last one the provider minted", async function () {
+        this.timeout(60_000);
+
+        const { scripted, peer, requestor } = await scriptedRequestor("webrtc-predict");
+        scripted.minted.push(0, 1);
+        await requestor.solicitOffer({ peer, ...OFFER });
+
+        let heldDuringInvoke: readonly number[] | undefined;
+        scripted.onInvoke = async () => {
+            heldDuringInvoke = (await requestor.sessions()).map(session => session.id);
+        };
+        expect(await requestor.provideOffer({ peer, ...OFFER, sdp: "v=0 offer" })).to.equal(1);
+
+        expect(heldDuringInvoke).to.have.members([0, 1]);
+        expect(scripted.invoked[1].args).to.deep.include({ webRtcSessionId: null, sdp: "v=0 offer" });
+    });
+
+    it("throws naming both ids where the provider minted another", async function () {
+        this.timeout(60_000);
+
+        const { scripted, peer, requestor } = await scriptedRequestor("webrtc-mismatch");
+        scripted.minted.push(5);
+
+        await expect(requestor.solicitOffer({ peer, ...OFFER })).rejectedWith(
+            WebRtcSessionPredictionError,
+            /minted session 5 where 0 was registered/,
+        );
+        expect(await requestor.sessions()).to.deep.equal([]);
+    });
+
+    it("holds no predicted session where the provider refuses the request", async function () {
+        this.timeout(60_000);
+
+        const { scripted, peer, requestor } = await scriptedRequestor("webrtc-refused");
+        scripted.onInvoke = async () => {
+            throw new StatusResponseError("refused by the scripted provider", Status.ResourceExhausted);
+        };
+
+        await expect(requestor.solicitOffer({ peer, ...OFFER })).rejectedWith(StatusResponseError);
+        expect(await requestor.sessions()).to.deep.equal([]);
+    });
+
+    it("endSession invokes EndSession and stops holding the session", async function () {
+        this.timeout(60_000);
+
+        const { scripted, peer, requestor } = await scriptedRequestor("webrtc-end");
+        scripted.minted.push(0);
+        const id = await requestor.solicitOffer({ peer, ...OFFER });
+
+        await requestor.endSession(peer, 1, id, 2);
+
+        expect(scripted.invoked[1]).to.deep.equal({
+            command: "endSession",
+            args: { webRtcSessionId: 0, reason: 2 },
+            endpoint: 1,
+        });
+        expect(await requestor.sessions()).to.deep.equal([]);
+    });
+
+    it("sends the answer and candidates to the provider endpoint it names", async function () {
+        this.timeout(60_000);
+
+        const { scripted, peer, requestor } = await scriptedRequestor("webrtc-signal");
+        const candidate = { candidate: "candidate:1 1 UDP 1 192.0.2.1 50000 typ host", sdpMid: "0", sdpmLineIndex: 0 };
+
+        await requestor.provideAnswer(peer, 2, 4, "v=0 answer");
+        await requestor.provideIceCandidates(peer, 2, 4, [candidate]);
+
+        expect(scripted.invoked).to.deep.equal([
+            { command: "provideAnswer", args: { webRtcSessionId: 4, sdp: "v=0 answer" }, endpoint: 2 },
+            {
+                command: "provideIceCandidates",
+                args: { webRtcSessionId: 4, iceCandidates: [candidate] },
+                endpoint: 2,
+            },
+        ]);
+    });
+
+    it("turns on TCP with the requestor", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("webrtc-tcp", { webRtcRequestor: true });
+        await adapter.start();
+
+        // Every WebRTC signaling command has the Large Message quality, which needs a TCP session
+        await adapter.log.expectPattern(/TCP transport enabled \(incoming=false, outgoing=true\)/, {
+            from: 0,
+            timeoutMs: 5_000,
+        });
     });
 
     it("settles a pending signal wait when the adapter closes", async function () {

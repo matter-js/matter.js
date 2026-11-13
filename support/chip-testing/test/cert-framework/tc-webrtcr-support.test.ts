@@ -21,7 +21,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { env } from "node:process";
 import "../../src/cert/index.js";
-import { CertCheckFailedError } from "../cert/tc-support.js";
 import {
     CameraSession,
     certCameraCase,
@@ -56,8 +55,11 @@ function fakeRequestor(overrides: Partial<WebRtcRequestorApi> = {}): WebRtcReque
     const unused = () => Promise.reject(new InternalError("not used by these tests"));
     return {
         endpoint: 1,
-        upsertSession: unused,
-        removeSession: unused,
+        solicitOffer: unused,
+        provideOffer: unused,
+        provideAnswer: unused,
+        provideIceCandidates: unused,
+        endSession: unused,
         sessions: unused,
         signals: () => [],
         nextSignal: unused,
@@ -211,126 +213,46 @@ describe("expectNoneAccepted", () => {
 });
 
 describe("expectControlAccepted", () => {
-    it("passes where the provider's signaling for the registered session is accepted", async () => {
+    it("passes where the provider's signaling for the control session is accepted", async () => {
         const { cx, checks } = fakeContext();
-        const registered = new Array<number>();
-        const session = fakeSession(
-            fakeRequestor({
-                upsertSession: async ({ id }) => {
-                    registered.push(id);
-                },
-                nextSignal: async () => signal("offer", 8, "accepted"),
-            }),
-        );
+        const session = fakeSession(fakeRequestor({ nextSignal: async () => signal("offer", 8, "accepted") }));
 
-        expect(await expectControlAccepted(cx, session, "offer", 7, async () => 8)).equal(true);
-        expect(registered).deep.equal([8]);
+        expect(await expectControlAccepted(cx, session, "offer", async () => 8)).equal(true);
         expect(checks[0].verdict).equal("pass");
     });
 
     it("fails where nothing is accepted for it", async () => {
         const { cx, checks } = fakeContext();
-        const session = fakeSession(
-            fakeRequestor({ upsertSession: async () => {}, nextSignal: async () => undefined }),
-        );
+        const session = fakeSession(fakeRequestor({ nextSignal: async () => undefined }));
 
-        expect(await expectControlAccepted(cx, session, "offer", 7, async () => 8)).equal(false);
+        expect(await expectControlAccepted(cx, session, "offer", async () => 8)).equal(false);
         expect(checks[0].verdict).equal("fail");
-    });
-
-    it("throws rather than blaming the DUT where the provider minted another id", async () => {
-        const { cx, checks } = fakeContext();
-        const removed = new Array<string>();
-        const session = fakeSession(
-            fakeRequestor({
-                upsertSession: async () => {},
-                removeSession: async (peer, id) => {
-                    removed.push(`${peer}/${id}`);
-                },
-            }),
-        );
-
-        await expect(expectControlAccepted(cx, session, "offer", 7, async () => 11)).rejectedWith(
-            CertCheckFailedError,
-            /minted session 11 where 8 was registered/,
-        );
-        expect(removed).deep.equal([`${REF}/8`]);
-        expect(checks).deep.equal([]);
     });
 });
 
 describe("establishSession", () => {
-    it("registers the id the provider is about to mint before asking for it", async () => {
-        const order = new Array<string>();
-        const session = fakeSession(
-            fakeRequestor({
-                upsertSession: async ({ id }) => {
-                    order.push(`register ${id}`);
-                },
-                nextSignal: async () => signal("answer", 0, "accepted", { sdp: "v=0 remote" }),
-            }),
-            fakeCertNode({
-                invoke: async (_cluster, command) => {
-                    order.push(command);
-                    return { webRtcSessionId: 0 };
-                },
-            }),
-            Seconds(30),
-            fakePeer({ connected: async () => true }),
-        );
-
-        const outcome = await establishSession(session, "provide");
-
-        // The provider answers from inside its own handling of ProvideOffer, so the registration has
-        // to be in place before that invoke rather than after its response
-        expect(order[0]).equal("register 0");
-        expect(order[1]).equal("provideOffer");
-        expect(outcome).deep.contain({ id: 0, connected: true, reached: "signaled" });
-    });
-
-    it("raises rather than blaming the DUT where the provider minted another id", async () => {
-        const { cx, checks } = fakeContext();
-        const removed = new Array<string>();
-        const session = fakeSession(
-            fakeRequestor({
-                upsertSession: async () => {},
-                removeSession: async (peer, id) => {
-                    removed.push(`${peer}/${id}`);
-                },
-            }),
-            fakeCertNode({ invoke: async () => ({ webRtcSessionId: 4 }) }),
-        );
-
-        await expect(establishSession(session, "solicit")).rejectedWith(CertCheckFailedError, /minted session 4/);
-        expect(removed).deep.equal([`${REF}/0`]);
-        expect(checks).deep.equal([]);
-        void cx;
-    });
-
     it("passes over a refused signal to the description the DUT accepted", async () => {
         // A refusal carries the same kind and session id as the acceptance that follows it, and comes
         // first: a wait that does not filter the outcome takes the refusal, which carries no
         // description, and the case then reports a connection failure the DUT is not responsible for
         const recorded = [signal("offer", 0, "refused"), signal("offer", 0, "accepted", { sdp: "v=0 remote" })];
 
-        const answered = new Array<string>();
+        const answered = new Array<number>();
         const session = fakeSession(
             fakeRequestor({
-                upsertSession: async () => {},
+                solicitOffer: async () => 0,
+                provideAnswer: async (_peer, _endpoint, id) => {
+                    answered.push(id);
+                },
                 nextSignal: async predicate => recorded.find(predicate),
             }),
-            fakeCertNode({
-                invoke: async (_cluster, command) => {
-                    answered.push(command);
-                    return { webRtcSessionId: 0 };
-                },
-            }),
+            fakeCertNode(),
             Seconds(30),
             fakePeer({ connected: async () => true }),
         );
 
         expect(await establishSession(session, "solicit")).deep.contain({ connected: true, reached: "signaled" });
-        expect(answered).contain("provideAnswer");
+        expect(answered).deep.equal([0]);
     });
 });
 
@@ -385,27 +307,19 @@ describe("expectSessions", () => {
 });
 
 describe("endSession", () => {
-    it("tells the provider and stops the requestor reporting it", async () => {
-        const invoked = new Array<string>();
-        const removed = new Array<string>();
+    it("asks the requestor to end the session at the provider's endpoint", async () => {
+        const ended = new Array<string>();
         const session = fakeSession(
             fakeRequestor({
-                removeSession: async (peer, id) => {
-                    removed.push(`${peer}/${id}`);
-                },
-            }),
-            fakeCertNode({
-                invoke: async (_cluster, command) => {
-                    invoked.push(command);
-                    return {};
+                endSession: async (peer, endpoint, id, reason) => {
+                    ended.push(`${peer}/${endpoint}/${id}/${reason}`);
                 },
             }),
         );
 
         await endSession(session, 5, 2);
 
-        expect(invoked).deep.equal(["endSession"]);
-        expect(removed).deep.equal([`${REF}/5`]);
+        expect(ended).deep.equal([`${REF}/1/5/2`]);
     });
 });
 

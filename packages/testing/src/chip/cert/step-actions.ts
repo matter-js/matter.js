@@ -77,8 +77,11 @@ const ATTESTATION: Classified<AttestationApi> = {
 
 const WEB_RTC_REQUESTOR: Classified<WebRtcRequestorApi> = {
     endpoint: "none",
-    upsertSession: "none",
-    removeSession: "none",
+    solicitOffer: "action",
+    provideOffer: "action",
+    provideAnswer: "action",
+    provideIceCandidates: "action",
+    endSession: "action",
     sessions: "none",
     signals: "none",
     nextSignal: "none",

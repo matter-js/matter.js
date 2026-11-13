@@ -33,11 +33,8 @@ import { env } from "node:process";
 import { CertCheckFailedError, CertCleanupError, settleWithin } from "./tc-support.js";
 import { WebRtcPeer } from "./webrtc-peer.js";
 
-/**
- * The provider signals by invoking the requestor cluster on the controller, and every signaling command carries the
- * specification's Large Message quality, which requires a TCP session.
- */
-const DUT_OPTIONS: ControllerAdapterOptions = { webRtcRequestor: true, transport: "tcp" };
+/** The provider signals by invoking the requestor cluster on the controller. */
+const DUT_OPTIONS: ControllerAdapterOptions = { webRtcRequestor: true };
 
 /** Endpoint of TH_SERVER's camera clusters, which `chip-camera-app` fixes at 1. */
 const PROVIDER_ENDPOINT = 1;
@@ -510,39 +507,25 @@ function stepHandler<S>(
     };
 }
 
-/**
- * Asks the provider for an offer, and registers the session it minted.
- *
- * Registration happens once the solicitation is answered, which is too late to decide whether the
- * provider's `Offer` is accepted: the provider sends it from inside its own handling of the
- * solicitation. {@link expectControlAccepted} is what registers an id ahead of establishing a session.
- */
-export async function solicitOffer(session: CameraSession): Promise<number> {
-    const solicitation = await settled(
-        session,
-        "SolicitOffer",
-        session.node.invoke(
-            "WebRtcTransportProvider",
-            "solicitOffer",
-            {
-                streamUsage: StreamUsage.Recording,
-                originatingEndpointId: session.requestor.endpoint,
-                videoStreamId: session.videoStreamId,
-            },
-            PROVIDER_ENDPOINT,
-        ),
-    );
+/** The session a case asks the provider for, on the video stream the DUT allocated. */
+function offerRequest(session: CameraSession) {
+    return {
+        peer: session.ref,
+        endpoint: PROVIDER_ENDPOINT,
+        streamUsage: StreamUsage.Recording,
+        videoStreamId: session.videoStreamId,
+    };
+}
 
-    const webRtcSessionId = numberField(solicitation, "webRtcSessionId", "SolicitOfferResponse");
-    await registerSession(session, webRtcSessionId);
-    return webRtcSessionId;
+/** Asks the provider for an offer, and resolves with the session it minted once the DUT holds it. */
+export async function solicitOffer(session: CameraSession): Promise<number> {
+    return settled(session, "SolicitOffer", session.requestor.solicitOffer(offerRequest(session)));
 }
 
 /**
- * Offers the provider a session, and registers the session it minted. The provider answers an offer it
- * accepts, which is what the plan's `webrtc establish-session` does without `--offer-type`.
- *
- * Carries the same registration timing as {@link solicitOffer}.
+ * Offers the provider a session, and resolves with the session it minted once the DUT holds it. The
+ * provider answers an offer it accepts, which is what the plan's `webrtc establish-session` does
+ * without `--offer-type`.
  */
 export async function provideOffer(session: CameraSession): Promise<number> {
     return provideOfferWith(session, OFFER_SDP);
@@ -554,26 +537,7 @@ async function provideOfferFor(session: CameraSession): Promise<number> {
 }
 
 async function provideOfferWith(session: CameraSession, sdp: string): Promise<number> {
-    const provided = await settled(
-        session,
-        "ProvideOffer",
-        session.node.invoke(
-            "WebRtcTransportProvider",
-            "provideOffer",
-            {
-                webRtcSessionId: null,
-                sdp,
-                streamUsage: StreamUsage.Recording,
-                originatingEndpointId: session.requestor.endpoint,
-                videoStreamId: session.videoStreamId,
-            },
-            PROVIDER_ENDPOINT,
-        ),
-    );
-
-    const webRtcSessionId = numberField(provided, "webRtcSessionId", "ProvideOfferResponse");
-    await registerSession(session, webRtcSessionId);
-    return webRtcSessionId;
+    return settled(session, "ProvideOffer", session.requestor.provideOffer({ ...offerRequest(session), sdp }));
 }
 
 /**
@@ -588,12 +552,7 @@ export async function provideIceCandidates(
     await settled(
         session,
         "ProvideICECandidates",
-        session.node.invoke(
-            "WebRtcTransportProvider",
-            "provideIceCandidates",
-            { webRtcSessionId, iceCandidates },
-            PROVIDER_ENDPOINT,
-        ),
+        session.requestor.provideIceCandidates(session.ref, PROVIDER_ENDPOINT, webRtcSessionId, iceCandidates),
     );
 }
 
@@ -603,28 +562,9 @@ export async function provideIceCandidates(
  *
  * `"solicit"` has the provider offer and the controller answer; `"provide"` has the controller offer
  * and the provider answer. Both then trade ICE candidates.
- *
- * Registers the id the provider is about to mint *before* asking for it: the provider signals from
- * inside its own handling of that command, so a registration made after the response is too late and
- * the DUT would refuse signaling for a session it is about to hold. Ids are minted in sequence, so the
- * next one follows the session the case already holds, and the first is 0.
  */
-export async function establishSession(
-    session: CameraSession,
-    mode: "solicit" | "provide",
-    held?: number,
-): Promise<Established> {
-    const expected = held === undefined ? 0 : held + 1;
-    await registerSession(session, expected);
-
+export async function establishSession(session: CameraSession, mode: "solicit" | "provide"): Promise<Established> {
     const id = mode === "solicit" ? await solicitOffer(session) : await provideOfferFor(session);
-    if (id !== expected) {
-        await session.requestor.removeSession(session.ref, expected);
-        throw new CertCheckFailedError(
-            `The provider minted session ${id} where ${expected} was registered ahead of it, so its signaling for ` +
-                "that session could not be accepted and this run cannot establish one",
-        );
-    }
 
     const description = await session.requestor.nextSignal(
         signal =>
@@ -738,26 +678,10 @@ export function expectEstablished(cx: CertStepWiring, session: CameraSession, es
  * Ends a session from the controller's side, as the plan's own `end-session` step does, and stops
  * tracking it.
  *
- * Both halves are the controller's job. `EndSession` tells the provider; the requestor cluster drops a
- * session by itself only when the *peer* ends it, and its own documentation has the application call
- * `removeSession` when it tears a stream down locally. A controller that skipped this would keep
- * reporting a session it has ended in `CurrentSessions`.
- *
  * @see {@link MatterSpecification.v161.Cluster} § 11.5.6.7
  */
 export async function endSession(session: CameraSession, id: number, reason: number): Promise<void> {
-    await settled(
-        session,
-        "EndSession",
-        session.node.invoke(
-            "WebRtcTransportProvider",
-            "endSession",
-            { webRtcSessionId: id, reason },
-            PROVIDER_ENDPOINT,
-        ),
-    );
-
-    await session.requestor.removeSession(session.ref, id);
+    await settled(session, "EndSession", session.requestor.endSession(session.ref, PROVIDER_ENDPOINT, id, reason));
 }
 
 /** Records the sessions the DUT's requestor cluster holds, which `CurrentSessions` reports. */
@@ -784,27 +708,7 @@ function describeSessions(ids: readonly number[]): string {
 
 /** Answers the provider's offer, for a session the controller solicited. */
 async function provideAnswer(session: CameraSession, id: number, sdp: string): Promise<void> {
-    await settled(
-        session,
-        "ProvideAnswer",
-        session.node.invoke(
-            "WebRtcTransportProvider",
-            "provideAnswer",
-            { webRtcSessionId: id, sdp },
-            PROVIDER_ENDPOINT,
-        ),
-    );
-}
-
-/** Registers a session with the DUT's requestor cluster, so the provider's signaling for it is accepted. */
-async function registerSession(session: CameraSession, id: number): Promise<void> {
-    await session.requestor.upsertSession({
-        id,
-        peer: session.ref,
-        peerEndpointId: PROVIDER_ENDPOINT,
-        streamUsage: StreamUsage.Recording,
-        videoStreamId: session.videoStreamId,
-    });
+    await settled(session, "ProvideAnswer", session.requestor.provideAnswer(session.ref, PROVIDER_ENDPOINT, id, sdp));
 }
 
 /**
@@ -897,10 +801,8 @@ export async function expectConstraintRefusal(
 /**
  * Records that the DUT still holds the session the case established with it.
  *
- * States no more than that. Whether the refusal above was judged against a *tracked* session is not
- * something this can witness: the provider signals from inside its own handling of the command that
- * establishes the session, so the registration may land after the refusal. What separates "refuses by
- * session id" from "refuses everything" is {@link expectControlAccepted}.
+ * States no more than that. What separates "refuses by session id" from "refuses everything" is
+ * {@link expectControlAccepted}.
  */
 export async function expectSessionHeld(cx: CertStepWiring, session: CameraSession, held: number): Promise<boolean> {
     const tracked = await session.requestor.sessions();
@@ -925,34 +827,14 @@ export async function expectSessionHeld(cx: CertStepWiring, session: CameraSessi
  * Beyond the plan's own steps, and the only thing that makes a refusal evidence: a requestor that
  * answers every command with a refusal, having looked at nothing, satisfies every check the plan asks
  * for.
- *
- * Registers the id the provider is about to mint *before* establishing, because the provider signals
- * from within its own handling of that command: where controller and provider share a host, that
- * signaling arrives before the response has been read, and a registration made after the response is
- * always too late. Session ids are minted in sequence
- * (`WebRTCTransportProviderCluster::GenerateSessionId`), so the next one follows the session already
- * held; the response then confirms which id the provider actually chose.
  */
 export async function expectControlAccepted(
     cx: CertStepWiring,
     session: CameraSession,
     kind: WebRtcSignalRecord["kind"],
-    held: number,
     establish: (session: CameraSession) => Promise<number>,
 ): Promise<boolean> {
-    const expected = held + 1;
-    await registerSession(session, expected);
-
     const control = await establish(session);
-    if (control !== expected) {
-        // Registering after the response cannot win the race this pre-registration exists for, so the
-        // control can no longer witness anything about the DUT
-        await session.requestor.removeSession(session.ref, expected);
-        throw new CertCheckFailedError(
-            `The provider minted session ${control} where ${expected} was registered ahead of it, so this run ` +
-                "cannot establish whether the DUT accepts a session it holds",
-        );
-    }
 
     if (kind === "iceCandidates") {
         await provideIceCandidates(session, control);
