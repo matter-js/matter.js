@@ -15,6 +15,10 @@ import { StorageBackendAsyncJsonFile } from "./storage/StorageBackendAsyncJsonFi
 
 const logger = Logger.get("GenericTestApp");
 
+// Certification checks read message payloads and secret field values from the log of this process
+Logger.logPayloads = true;
+Logger.redactSecrets = false;
+
 // TODO - the get*Parameter calls are deprecated along with matter-node.js so copied here temporarily.  Replace with
 // yargs ?
 const commandArguments = process.argv.slice(2);
@@ -187,6 +191,15 @@ export interface DeviceTestInstanceConstructor<T extends DeviceTestInstance = De
     pics?: PicsFile;
 }
 
+/**
+ * Enables every forward Matter feature for the whole test app process, because the test apps run against CHIP master,
+ * which is on the next Matter line.  Must run before the test instance initializes its nodes.
+ */
+function enableForwardMatterFeatures() {
+    // Importing @matter/testing installs the MockForwardFeatures global; the handle stays open for the process lifetime
+    MockForwardFeatures.enableAll();
+}
+
 export async function startDeviceTestApp(
     testInstanceClass: DeviceTestInstanceConstructor,
     storageType: typeof StorageBackendAsyncJsonFile = StorageBackendAsyncJsonFile,
@@ -223,6 +236,7 @@ export async function startDeviceTestApp(
 }
 
 export async function startTestApp(testInstance: TestInstance) {
+    enableForwardMatterFeatures();
     await testInstance.initialize();
     await testInstance.start();
 
@@ -233,7 +247,7 @@ export async function startTestApp(testInstance: TestInstance) {
 
         // Trigger storing current data because later it could be too late and testrunner already did things
         if (testInstance.storage instanceof StorageBackendAsyncJsonFile && testInstance.storage.initialized) {
-            testInstance.storage.storeIt(true).catch(error => logger.info(error.stack));
+            testInstance.storage.flush().catch(error => logger.info(error.stack));
         }
 
         testInstance

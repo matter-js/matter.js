@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { BooleanStateServer } from "@matter/main/behaviors";
 import { ContactSensorDevice } from "@matter/main/devices/contact-sensor";
 import { EndpointNumber } from "@matter/main/types";
@@ -13,12 +13,12 @@ import { registerDeviceType } from "./DeviceTypeRegistry.js";
 
 registerDeviceType({
     name: "contact-sensor",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(ContactSensorDevice, {
             number: endpoint,
             booleanState: { stateValue: false },
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
         return {
             endpoint: ep,
             async handleBackchannel(command: BackchannelCommand) {

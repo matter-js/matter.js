@@ -5,7 +5,7 @@
  */
 
 import { ImplementationError } from "@matter/general";
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { EndpointNumber } from "@matter/main/types";
 import { BackchannelCommand } from "@matter/testing";
 import type { EndpointNumberAllocator } from "./EndpointNumberAllocator.js";
@@ -24,9 +24,22 @@ export interface DeviceTypeEntry {
     name: string;
 
     /**
-     * Adds the device on {@link endpoint}. A device with child endpoints numbers them from {@link numbers}.
+     * False for a device that only structures others.  CHIP's all-devices app leaves the aggregator and the bridged node
+     * out of "*", so these two set it.
      */
-    create(serverNode: ServerNode, endpoint: EndpointNumber, numbers: EndpointNumberAllocator): Promise<EndpointHandle>;
+    leaf?: boolean;
+
+    /**
+     * Adds the device on {@link endpoint} as a part of {@link parent}, which is the server node for a device without
+     * `parent=`. A device with child endpoints numbers them from {@link numbers}. {@link label} is the NodeLabel of a
+     * bridged node, undefined for every other device.
+     */
+    create(
+        parent: Endpoint,
+        endpoint: EndpointNumber,
+        numbers: EndpointNumberAllocator,
+        label?: string,
+    ): Promise<EndpointHandle>;
 }
 
 const registry = new Map<string, DeviceTypeEntry>();
@@ -44,4 +57,9 @@ export function getDeviceType(name: string): DeviceTypeEntry | undefined {
 
 export function listDeviceTypes(): string[] {
     return [...registry.keys()].sort();
+}
+
+/** The device types "*" selects. */
+export function listLeafDeviceTypes(): string[] {
+    return listDeviceTypes().filter(name => registry.get(name)?.leaf !== false);
 }

@@ -6,13 +6,13 @@
 
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { ClientRead } from "#action/client/ClientRead.js";
+import { ClientRequest } from "#action/client/ClientRequest.js";
 import { WriteResult } from "#action/index.js";
 import { Invoke } from "#action/request/Invoke.js";
 import { Read } from "#action/request/Read.js";
 import { Write } from "#action/request/Write.js";
-import { ResultStatus } from "#action/response/ResultStatus.js";
 import { BleDisconnectedError } from "#ble/Ble.js";
-import { Certificate } from "#certificate/kinds/Certificate.js";
+import { NocsrValidator } from "#certificate/NocsrValidator.js";
 import { PeerMessageMissingError, PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import { OperationalDataset } from "#thread/OperationalDataset.js";
 import {
@@ -23,7 +23,6 @@ import {
     ChannelType,
     Diagnostic,
     Duration,
-    EcdsaSignature,
     ImplementationError,
     Instant,
     Logger,
@@ -37,7 +36,7 @@ import {
     Timer,
     Timespan,
     Timestamp,
-    UnexpectedDataError,
+    InternalError,
 } from "@matter/general";
 import {
     ClusterId,
@@ -46,7 +45,6 @@ import {
     FabricIndex,
     Global,
     NodeId,
-    Status,
     StatusResponseError,
     VendorId,
 } from "@matter/types";
@@ -65,9 +63,9 @@ import {
     DeviceAttestationValidator,
 } from "../certificate/DeviceAttestationValidator.js";
 import { Dac } from "../certificate/kinds/AttestationCertificates.js";
-import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { Fabric } from "../fabric/Fabric.js";
+import { AdministratorCommands } from "./AdministratorCommands.js";
 import { CommissioningError } from "./CommissioningError.js";
 import { PeerAddress } from "./PeerAddress.js";
 
@@ -139,13 +137,13 @@ export type ControllerCommissioningFlowOptions = {
          *   - throw any error to reject by rethrowing that error verbatim (no wrapping)
          * - `undefined`: accept with warning logging (backward compatibility)
          *
-         * The callback receives either:
-         * - A single error-level finding for hard failures (invalid chain, bad signature, revoked
-         *   certificate, untrusted PAA, DCL service unavailable). The commissioner must decide
-         *   whether to proceed despite the failure.
-         * - One or more warning/info-level findings after successful validation (e.g. provisional
-         *   CD, test CD, skipped CD signer verification, no revocation data, test-cert-only PAA).
-         *   These are informational and the commissioner can inspect them for detailed decisions.
+         * The callback receives the findings collected during validation: warning/info-level findings
+         * (e.g. provisional CD, test CD, no revocation data) and the recoverable error-level findings
+         * `TrustedAsTestCertificate` and `CertificationDeclarationFieldMismatch` for the BasicInformation
+         * VendorID and ProductID, which the commissioner must decide on like a hard failure. When a hard
+         * failure (invalid chain, bad signature, revoked certificate, untrusted PAA, DCL service
+         * unavailable) stops validation, its error-level finding comes last, after the findings collected
+         * until then.
          *
          * TODO: Make required in next breaking version and remove undefined backward-compatible accept
          */
@@ -329,6 +327,7 @@ export class ControllerCommissioningFlow {
     protected collectedCommissioningData: CollectedCommissioningData = {};
     #defaultFailSafeTime = DEFAULT_FAILSAFE_TIME;
     #armFailsafeInterval?: Timer;
+    #periodicArm?: Promise<unknown>;
 
     constructor(
         /** ClientInteraction for the initiated PASE session */
@@ -354,7 +353,7 @@ export class ControllerCommissioningFlow {
         this.fabric = fabric;
         this.transitionToCase = transitionToCase;
         this.commissioningOptions = commissioningOptions;
-        logger.debug(`Commissioning options: ${Diagnostic.json(commissioningOptions)}`);
+        logger.debug("Commissioning options", Diagnostic.dict(loggedOptionsOf(commissioningOptions)));
         this.#initializeCommissioningSteps();
     }
 
@@ -389,7 +388,7 @@ export class ControllerCommissioningFlow {
                     !this.#armFailsafeInterval?.isRunning
                 ) {
                     logger.debug(`Re-Arming failsafe timer before executing step`);
-                    await this.#armFailsafe();
+                    await this.#reArmFailsafeBetweenSteps();
                 }
                 failSafeTimerReArmedAfterPreviousStep = false;
                 const result = await step.stepLogic();
@@ -419,8 +418,7 @@ export class ControllerCommissioningFlow {
                                 step.name
                             } succeeded, ${Duration.format(timeLeft)} left for failsafe timer, re-arming failsafe`,
                         );
-                        await this.#armFailsafe();
-                        failSafeTimerReArmedAfterPreviousStep = true;
+                        failSafeTimerReArmedAfterPreviousStep = await this.#reArmFailsafeBetweenSteps();
                     }
                 }
 
@@ -435,35 +433,25 @@ export class ControllerCommissioningFlow {
                         Diagnostic.errorMessage(error),
                         Diagnostic.weak("(continuing commissioning)"),
                     );
-                } else if (causedBy(error, CommissioningError, StatusResponseError)) {
-                    logger.error(
+                    continue;
+                }
+
+                const isCommissioningFailure = causedBy(error, CommissioningError, StatusResponseError);
+                if (isCommissioningFailure) {
+                    logger.warn(
                         `Commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name} failed with error:`,
                         Diagnostic.errorMessage(error),
                         Diagnostic.weak("(terminating commissioning)"),
                     );
-                    // TODO In concurrent connection commissioning flow, the failure of any of the steps 2 through 10
-                    //  SHALL result in the Commissioner and Commissionee returning to step 2 (device discovery and
-                    //  commissioning channel establishment) and repeating each step. The failure of any of the steps
-                    //  11 through 15 in concurrent connection commissioning flow SHALL result in the Commissioner and
-                    //  Commissionee returning to step 11 (configuration of operational network information). In the
-                    //  case of failure of any of the steps 11 through 15 in concurrent connection commissioning flow,
-                    //  the Commissioner and Commissionee SHALL reuse the existing PASE-derived encryption keys over
-                    //  the commissioning channel and all steps up to and including step 10 are considered to have
-                    //  been successfully completed.
-
-                    // Commissioners that need to restart from step 2 MAY immediately expire the fail-safe by invoking
-                    // the ArmFailSafe command with an ExpiryLengthSeconds field set to 0. Otherwise, Commissioners
-                    // will need to wait until the current fail-safe timer has expired for the Commissionee to begin
-                    // accepting PASE again.
-                    await this.#resetFailsafeTimer();
-
-                    StatusResponseError.accept(error);
-
-                    // Convert error
-                    throw repackErrorAs(error, CommissioningError);
-                } else {
-                    throw error;
                 }
+
+                await this.#expireFailsafe(error);
+
+                if (isCommissioningFailure) {
+                    StatusResponseError.accept(error);
+                    throw repackErrorAs(error, CommissioningError);
+                }
+                throw error;
             }
         }
     }
@@ -486,6 +474,10 @@ export class ControllerCommissioningFlow {
         }
         for await (const data of this.interaction.read(request)) {
             for await (const entry of data) {
+                if (entry.kind === "attr-status") {
+                    logger.debug("Commissioning read returned status", entry.status, "for", entry.path);
+                    continue;
+                }
                 if (entry.kind !== "attr-value") {
                     continue;
                 }
@@ -503,31 +495,16 @@ export class ControllerCommissioningFlow {
         return [...attributeMap.values()];
     }
 
-    // TODO improve response typing
+    /**
+     * Invoke one command and return the fields of its response, or nothing for a status response.  The fields are
+     * decoded but not checked against the response schema, so a mandatory field the device left out is `undefined`.
+     */
     async #invokeCommand<const C extends ClusterType.Concrete>(
         request: Invoke.ConcreteCommandRequest<C>,
         options: Omit<Invoke.Definition, "commands"> = {},
+        transmission?: ClientRequest,
     ) {
-        for await (const data of this.interaction.invoke(
-            Invoke({
-                commands: [request],
-                ...options,
-            }),
-        )) {
-            for (const entry of data) {
-                // We send only one command, so we only get one response back
-                switch (entry.kind) {
-                    case "cmd-status":
-                        if (entry.status !== Status.Success) {
-                            throw ResultStatus.errorOf(entry);
-                        }
-                        return;
-
-                    case "cmd-response":
-                        return entry.data;
-                }
-            }
-        }
+        return AdministratorCommands.invoke(this.interaction, request, options, transmission);
     }
 
     /**
@@ -796,6 +773,10 @@ export class ControllerCommissioningFlow {
 
         for await (const data of networkData) {
             for await (const entry of data) {
+                if (entry.kind === "attr-status") {
+                    logger.debug("Commissioning read returned status", entry.status, "for", entry.path);
+                    continue;
+                }
                 if (entry.kind !== "attr-value") {
                     continue;
                 }
@@ -831,6 +812,21 @@ export class ControllerCommissioningFlow {
             code: CommissioningStepResultCode.Success,
             breadcrumb: this.lastBreadcrumb,
         };
+    }
+
+    /**
+     * Re-arm the failsafe between commissioning steps.  Skipped once the commissioning session is closed, for example
+     * after the device left BLE for its operational network; the Reconnect step then continues over CASE.
+     *
+     * @returns true when the failsafe was re-armed
+     */
+    async #reArmFailsafeBetweenSteps() {
+        if (this.interaction.session?.isClosed) {
+            logger.debug("Skipping armFailSafe between steps: session is closed");
+            return false;
+        }
+        await this.#armFailsafe();
+        return true;
     }
 
     /**
@@ -923,13 +919,13 @@ export class ControllerCommissioningFlow {
                         logger.debug(
                             `Re-Arm Failsafe Timer during longer actions with device. Time left: ${Duration.format(Timespan(now, this.#commissioningExpiryTime).duration)}`,
                         );
-                        this.#armFailsafe(Duration.max(this.#defaultFailSafeTime, this.#failSafeTimeLeft)).catch(
-                            error => {
-                                logger.warn("Error while re-arming failsafe during reconnect", error);
-                                this.#armFailsafeInterval?.stop();
-                                this.#armFailsafeInterval = undefined;
-                            },
-                        );
+                        this.#periodicArm = this.#armFailsafe(
+                            Duration.max(this.#defaultFailSafeTime, this.#failSafeTimeLeft),
+                        ).catch(error => {
+                            logger.warn("Error while re-arming failsafe during reconnect", error);
+                            this.#armFailsafeInterval?.stop();
+                            this.#armFailsafeInterval = undefined;
+                        });
                     } else {
                         // Stop as soon as we are over the maximum commissioning time
                         this.#armFailsafeInterval?.stop();
@@ -995,6 +991,15 @@ export class ControllerCommissioningFlow {
             PeerUnresponsiveError,
             NoResponseTimeoutError,
         );
+    }
+
+    /**
+     * Whether {@link failure} reports that the device stopped answering on the channel commissioning runs on, so a
+     * further command would only wait for its own timeout.  A failed operational reconnect does not count: it reports
+     * that CASE could not be established, while the commissioning channel may still work.
+     */
+    #deviceStoppedResponding(failure: Error) {
+        return !(failure instanceof OperativeConnectionFailedError) && this.#isCommissioningChannelDrop(failure);
     }
 
     /**
@@ -1075,21 +1080,54 @@ export class ControllerCommissioningFlow {
         return { transportFailure: false, networkingStatus, debugText };
     }
 
-    async #resetFailsafeTimer() {
+    /**
+     * End the device's fail-safe after commissioning failed, so the device accepts a new PASE session right away.
+     * Commissioning does not resume after a failure, so it always restarts from initial phase step 2, and the spec
+     * allows this: "Commissioners that need to restart from initial phase step 2 MAY immediately expire the fail-safe
+     * by invoking the ArmFailSafe command with an ExpiryLengthSeconds field set to 0."
+     *
+     * Stops the periodic re-arm, so it cannot arm the fail-safe again.  Sends nothing when the device stopped
+     * responding (see {@link #deviceStoppedResponding}).  Otherwise it waits for a re-arm already sent, then sends over
+     * the PASE session, or after the operational reconnect only over a session that exists now, so a device that
+     * dropped the session is not reconnected only to end its fail-safe.  A failure only logs: the device ends the
+     * fail-safe itself when it expires.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 5.5.1
+     */
+    async #expireFailsafe(failure: Error) {
+        this.#armFailsafeInterval?.stop();
+        this.#armFailsafeInterval = undefined;
+
         if (this.#currentFailSafeEndTime === undefined) return;
+        if (this.#deviceStoppedResponding(failure)) {
+            logger.debug("Device stopped responding, leaving the failsafe to expire");
+            return;
+        }
+
+        await this.#periodicArm;
         try {
-            await this.#invokeCommand({
-                endpoint: RootEndpointNumber,
-                cluster: GeneralCommissioning,
-                command: "armFailSafe",
-                fields: {
-                    breadcrumb: this.lastBreadcrumb,
-                    expiryLengthSeconds: 0,
-                },
-            });
-            this.#currentFailSafeEndTime = undefined; // No failsafe active anymore
+            this.#ensureGeneralCommissioningSuccess(
+                "armFailSafe",
+                await this.#invokeCommand(
+                    {
+                        endpoint: RootEndpointNumber,
+                        cluster: GeneralCommissioning,
+                        command: "armFailSafe",
+                        fields: {
+                            breadcrumb: this.lastBreadcrumb,
+                            expiryLengthSeconds: 0,
+                        },
+                    },
+                    {},
+                    { requireExistingSession: true },
+                ),
+            );
+            this.#currentFailSafeEndTime = undefined;
         } catch (error) {
-            logger.error(`Error while resetting failsafe timer`, error);
+            logger.info(
+                "Could not end the failsafe, the device stays in commissioning until its failsafe expires:",
+                Diagnostic.errorMessage(asError(error)),
+            );
         }
     }
 
@@ -1278,8 +1316,8 @@ export class ControllerCommissioningFlow {
                     attestationElements,
                     attestationSignature,
                     attestationNonce,
-                    vendorId: this.collectedCommissioningData.vendorId!,
-                    productId: this.collectedCommissioningData.productId!,
+                    vendorId: this.collectedCommissioningData.vendorId,
+                    productId: this.collectedCommissioningData.productId,
                 },
             );
             findings = result.findings;
@@ -1292,7 +1330,10 @@ export class ControllerCommissioningFlow {
             }
             baseError = asError(error);
             if (error instanceof DeviceAttestationError) {
-                findings = [{ level: "error", type: error.failure, message: error.message }];
+                findings = [
+                    ...error.precedingFindings,
+                    { level: "error", type: error.failure, message: error.message },
+                ];
             } else {
                 // Unexpected validation error (e.g. an unrecoverably corrupt trust-store certificate).
                 // Surface it as an error finding so the onFailure policy can still judge it, instead of
@@ -1306,8 +1347,11 @@ export class ControllerCommissioningFlow {
         if (findings.length > 0) {
             const decision = await this.#resolveAttestationFindings(findings);
             if (!decision.proceed) {
+                const errorMessages = findings.filter(({ level }) => level === "error").map(({ message }) => message);
                 baseError ??= new CommissioningError(
-                    `Device attestation produced ${findings.length} finding(s) and was rejected by policy`,
+                    errorMessages.length
+                        ? `Device attestation rejected by policy: ${errorMessages.join("; ")}`
+                        : `Device attestation produced ${findings.length} finding(s) and was rejected by policy`,
                 );
                 if (decision.reason !== undefined) {
                     throw new CommissioningError(decision.reason, { cause: baseError });
@@ -1322,7 +1366,10 @@ export class ControllerCommissioningFlow {
         if (dacPublicKey === undefined) {
             // Attestation failed but policy accepted it, so the key the validator would have returned is missing
             try {
-                dacPublicKey = PublicKey(Dac.fromAsn1(deviceAttestation).cert.ellipticCurvePublicKey);
+                dacPublicKey = PublicKey(
+                    Dac.fromAsn1(deviceAttestation, { acceptProfileViolation: true, acceptMalformedVidPid: true }).cert
+                        .ellipticCurvePublicKey,
+                );
             } catch (cause) {
                 throw new CommissioningError(
                     "Device attestation was accepted but the DAC cannot be parsed, so the CSR signature cannot be verified",
@@ -1387,37 +1434,31 @@ export class ControllerCommissioningFlow {
      *     DCL contains the name and other information of the Commissioner’s manufacturer.
      */
     async #certificates() {
+        const csrNonce = this.fabric.crypto.randomBytes(32);
         const { nocsrElements, attestationSignature: csrSignature } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
                 cluster: OperationalCredentials,
                 command: "csrRequest",
-                fields: { csrNonce: this.fabric.crypto.randomBytes(32) },
+                fields: { csrNonce },
             },
             {
                 useExtendedFailSafeMessageResponseTimeout: true,
             },
         );
 
-        if (nocsrElements.byteLength === 0 || csrSignature.byteLength === 0) {
-            throw new UnexpectedDataError("Invalid response from device");
+        if (this.#dacPublicKey === undefined) {
+            throw new InternalError("CSRResponse received before the device attestation step set the DAC public key");
         }
-
-        // Verify CSR attestation signature using DAC public key (extracted in step 10)
-        if (this.#dacPublicKey !== undefined) {
-            try {
-                await this.fabric.crypto.verifyEcdsa(
-                    this.#dacPublicKey,
-                    Bytes.concat(nocsrElements, this.commissioningOptions.attestation!.challengeKey),
-                    new EcdsaSignature(csrSignature),
-                );
-            } catch {
-                throw new CommissioningError("CSR signature verification failed against DAC public key");
-            }
-        }
-
-        const { certSigningRequest } = TlvCertSigningRequest.decode(nocsrElements);
-        const operationalPublicKey = await Certificate.getPublicKeyFromCsr(this.ca.crypto, certSigningRequest);
+        const operationalPublicKey = await NocsrValidator.validate(
+            {
+                crypto: this.fabric.crypto,
+                attestationChallenge: this.commissioningOptions.attestation.challengeKey,
+                csrNonce,
+                dacPublicKey: this.#dacPublicKey,
+            },
+            { nocsrElements, attestationSignature: csrSignature },
+        );
 
         await this.#invokeCommand(
             {
@@ -2139,4 +2180,27 @@ export class ControllerCommissioningFlow {
     close() {
         this.#armFailsafeInterval?.stop();
     }
+}
+
+/**
+ * The fields of {@link options} that hold no secret, for logging.  The options the caller passes may carry more, such as
+ * the fabric with its identity protection key or the passcode.
+ */
+function loggedOptionsOf(options: ControllerCommissioningFlowOptions) {
+    const {
+        regulatoryLocation,
+        regulatoryCountryCode,
+        adminVendorId,
+        wifiNetwork,
+        threadNetwork,
+        otaUpdateProviderLocation,
+    } = options;
+    return {
+        regulatoryLocation,
+        regulatoryCountryCode,
+        adminVendorId,
+        wifiSsid: wifiNetwork?.wifiSsid,
+        threadNetwork: threadNetwork && (threadNetwork.networkName ?? "(dataset only)"),
+        otaUpdateProviderLocation,
+    };
 }

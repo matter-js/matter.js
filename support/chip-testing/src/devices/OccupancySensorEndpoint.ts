@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { OccupancySensingServer } from "@matter/main/behaviors";
 import { OccupancySensing } from "@matter/main/clusters";
 import { OccupancySensorDevice } from "@matter/main/devices/occupancy-sensor";
@@ -13,7 +13,7 @@ import { registerDeviceType } from "./DeviceTypeRegistry.js";
 
 registerDeviceType({
     name: "occupancy-sensor",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(
             OccupancySensorDevice.with(OccupancySensingServer.with(OccupancySensing.Feature.PassiveInfrared)),
             {
@@ -21,7 +21,7 @@ registerDeviceType({
                 occupancySensing: { occupancy: { occupied: false } },
             },
         );
-        await serverNode.add(ep);
+        await parent.add(ep);
         return { endpoint: ep };
     },
 });

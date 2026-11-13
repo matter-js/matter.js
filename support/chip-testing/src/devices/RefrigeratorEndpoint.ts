@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { IdentifyServer } from "@matter/main/behaviors/identify";
 import { TemperatureControlServer } from "@matter/main/behaviors/temperature-control";
 import { RefrigeratorDevice } from "@matter/main/devices/refrigerator";
@@ -21,7 +21,7 @@ const Cabinet = TemperatureControlledCabinetDevice.with(
 
 registerDeviceType({
     name: "refrigerator",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber, numbers: EndpointNumberAllocator) {
+    async create(parent: Endpoint, endpoint: EndpointNumber, numbers: EndpointNumberAllocator) {
         // Children come with their parent, so the parent's composition is judged complete at construction
         const ep = new Endpoint(RefrigeratorDevice, {
             number: endpoint,
@@ -33,7 +33,7 @@ registerDeviceType({
                 }),
             ],
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
 
         return { endpoint: ep };
     },

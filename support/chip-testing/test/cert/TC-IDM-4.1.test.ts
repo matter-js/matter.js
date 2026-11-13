@@ -8,7 +8,7 @@ import { Matter } from "@matter/model";
 import type { AttributePathSpec, ControllerCapability } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
-import { UnitTestingCluster } from "../../src/cert/unit-testing-cluster.js";
+import { UNIT_TESTING_ENDPOINT, UnitTestingServer } from "../../src/cert/unit-testing-cluster.js";
 import { MAX_INTERVAL_CEILING_SECONDS, MIN_INTERVAL_FLOOR_SECONDS, subscribeAndModify } from "./tc-idm-4.1-support.js";
 import {
     attributePathIBsSequence,
@@ -26,7 +26,6 @@ import {
     recordAll,
     requireId,
 } from "./tc-support.js";
-import { UNIT_TESTING_ENDPOINT, unitTestingNotApplicable } from "./unit-testing-cluster.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
@@ -60,7 +59,7 @@ const LOCAL_TEMPERATURE_CALIBRATION = requireId(
 );
 const LABEL_LIST = requireId(USER_LABEL.attributes.require("labelList").id, "UserLabel.labelList");
 
-const UNIT_TESTING = registerCertCustomCluster(UnitTestingCluster);
+const UNIT_TESTING = registerCertCustomCluster(UnitTestingServer);
 const UNIT_TESTING_ID = requireId(UNIT_TESTING.id, "UnitTesting cluster");
 const FLOAT_SINGLE = requireId(UNIT_TESTING.attributes.require("floatSingle").id, "UnitTesting.floatSingle");
 
@@ -289,7 +288,6 @@ certTest("TC-IDM-4.1", {
         {
             controllerCapabilities: COMPLETE_PRIMING,
             pics: "MCORE.IDM.C.SubscribeRequest.Attribute.DataType_FloatingPoint",
-            notApplicable: unitTestingNotApplicable,
             expected:
                 'Verify on the TH that the status response received from the DUT for every report data sent is a "Success".',
         },

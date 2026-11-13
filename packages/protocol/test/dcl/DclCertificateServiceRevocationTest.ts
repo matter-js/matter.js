@@ -280,7 +280,7 @@ describe("DclCertificateService revocation outside the DCL", () => {
 
             // Attestation asks about the signer of every Certification Declaration it reads, so an
             // unguarded lookup here is one DCL request per commissioning attempt
-            expect(await dcl.getOrFetchCdSigner("62FA823359ACFAA9963E1CFA140ADDF504F37160")).equal(undefined);
+            expect(await dcl.lookupCdSigner("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF")).equal(undefined);
             expect(fetchMock.getCallLog()).deep.equal([]);
 
             await dcl.close();

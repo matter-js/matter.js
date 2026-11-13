@@ -7,7 +7,7 @@
 import { ClientRequest } from "#action/client/ClientRequest.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import { Diagnostic, Duration, isObject } from "@matter/general";
-import { Specification } from "@matter/model";
+import { CommandModel, Matter, SecretRedaction, Specification } from "@matter/model";
 import {
     ClusterType,
     CommandData,
@@ -109,7 +109,9 @@ export function Invoke(
     } = options;
 
     if (delayReportData !== undefined && !Specification.isForwardFeatureEnabled("delay-report-data")) {
-        throw new MalformedRequestError("DelayReportData requires the delay-report-data forward feature");
+        throw new MalformedRequestError(
+            `DelayReportData is not supported yet. Enable it with the "delay-report-data" forward feature for certification purposes only`,
+        );
     }
     let timedRequest = !!options.timed || !!timeout;
 
@@ -154,20 +156,7 @@ export function Invoke(
         // Additional meta-data for client side processing
         skipValidation,
         commands: commandMap,
-        [Diagnostic.value]: () =>
-            Diagnostic.list(
-                commands.map(cmd => {
-                    const { commandRef } = cmd;
-                    const fields = "fields" in cmd ? cmd.fields : undefined;
-
-                    return [
-                        Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
-                        "with",
-                        isObject(fields) ? Diagnostic.dict(fields) : "(no payload)",
-                        commandRef !== undefined && commands.length > 1 ? `(ref ${commandRef})` : "",
-                    ];
-                }),
-            ),
+        [Diagnostic.value]: () => Invoke.diagnosticOf(commands),
     } as ClientInvoke;
 }
 
@@ -296,6 +285,64 @@ export namespace Invoke {
      */
     export function isLegacy(request: AnyCommandRequest): request is LegacyCommandRequest {
         return typeof request.command !== "string" && "requestId" in request.command;
+    }
+
+    /**
+     * The model of the request of {@link request}.  A legacy request resolves through the standard model; the result
+     * is `undefined` if the standard model does not define its cluster or command.
+     */
+    export function requestModelOf(request: AnyCommandRequest): CommandModel | undefined {
+        if (!isLegacy(request)) {
+            return commandOf(request).schema;
+        }
+        const clusterModel = Matter.clusters(Specifier.clusterFor(request.cluster).id);
+        if (clusterModel === undefined) {
+            return undefined;
+        }
+        for (const command of clusterModel.commands) {
+            if (command.id === request.command.requestId && command.isRequest) {
+                return command;
+            }
+        }
+    }
+
+    /**
+     * Log presentation of {@link commands}: the path and the request fields of each command, with the values the model
+     * marks secret replaced.
+     */
+    export function diagnosticOf(commands: Iterable<AnyCommandRequest>) {
+        const list = [...commands];
+        return Diagnostic.list(
+            list.map(cmd => {
+                const { commandRef } = cmd;
+                const fields = "fields" in cmd ? redactRequestFields(cmd, cmd.fields) : undefined;
+
+                return [
+                    Diagnostic.strong(isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
+                    "with",
+                    isObject(fields) ? Diagnostic.dict(fields) : "(no payload)",
+                    commandRef !== undefined && list.length > 1 ? `(ref ${commandRef})` : "",
+                ];
+            }),
+        );
+    }
+
+    /**
+     * Request fields of {@link request} for logging, with the values the model marks secret replaced.
+     *
+     * @see {@link SecretRedaction.redact}
+     */
+    export function redactRequestFields(request: AnyCommandRequest, fields: unknown) {
+        return SecretRedaction.redact(requestModelOf(request), fields);
+    }
+
+    /**
+     * Response fields of {@link request} for logging, with the values the model marks secret replaced.
+     *
+     * @see {@link SecretRedaction.redact}
+     */
+    export function redactResponseFields(request: AnyCommandRequest, fields: unknown) {
+        return SecretRedaction.redact(requestModelOf(request)?.responseModel, fields);
     }
 
     export type CommandRequest<

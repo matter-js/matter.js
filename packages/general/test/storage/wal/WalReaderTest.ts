@@ -5,8 +5,10 @@
  */
 
 import { MockFilesystem } from "#fs/MockFilesystem.js";
-import { type WalCommit, type WalCommitId, segmentFilename, serializeCommit } from "#storage/wal/WalCommit.js";
+import { type WalCommit, type WalCommitId, serializeCommit } from "#storage/wal/WalCommit.js";
 import { WalReader } from "#storage/wal/WalReader.js";
+import { compressedSegmentFilename, segmentFilename } from "#storage/wal/WalSegments.js";
+import { Gzip } from "#util/Gzip.js";
 
 async function collectAll(iter: AsyncIterable<{ id: WalCommitId; commit: WalCommit }>) {
     const results: { id: WalCommitId; commit: WalCommit }[] = [];
@@ -163,5 +165,24 @@ describe("WalReader", () => {
         const reader = new WalReader(walDir);
         const segments = await reader.segments();
         expect(segments).deep.equal([1, 2, 3]);
+    });
+
+    it("reads a segment that exists in both formats once, from the compressed file", async () => {
+        const walDir = fs.directory("wal");
+        await walDir.mkdir();
+        const commit: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key: "value" } }] };
+        await walDir.file(segmentFilename(1)).write(serializeCommit(commit) + "\n" + serializeCommit(commit) + "\n");
+        await walDir
+            .file(compressedSegmentFilename(1))
+            .write(Gzip.compress([new TextEncoder().encode(serializeCommit(commit) + "\n")]));
+
+        const reader = new WalReader(walDir);
+        const commits = new Array<WalCommitId>();
+        for await (const { id } of reader.read()) {
+            commits.push(id);
+        }
+
+        expect(await reader.segments()).deep.equal([1]);
+        expect(commits).deep.equal([{ segment: 1, offset: 0 }]);
     });
 });

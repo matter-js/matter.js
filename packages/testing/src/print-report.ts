@@ -77,7 +77,8 @@ function printDescriptor(descriptor: TestDescriptor, includeDisabled?: boolean, 
         }
 
         if (steps) {
-            title = `${title} ${colors.cyan(`(${steps} steps)`)}`;
+            const skipped = member.skippedSteps ? `, ${colors.yellow(`${member.skippedSteps} skipped`)}` : "";
+            title = `${title} ${colors.cyan(`(${steps} steps`)}${skipped}${colors.cyan(")")}`;
         }
 
         const app = member.app ?? member.preferredApp ?? (member.config?.["app"] as string | undefined);

@@ -4,12 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Directory } from "#fs/Directory.js";
 import { MockFilesystem } from "#fs/MockFilesystem.js";
-import { toJson } from "#storage/StringifyTools.js";
-import { segmentFilename, serializeCommit, type WalCommit } from "#storage/wal/WalCommit.js";
-import { WalSnapshot } from "#storage/wal/WalSnapshot.js";
+import { Diagnostic } from "#log/Diagnostic.js";
+import { LogDestination } from "#log/LogDestination.js";
+import { Logger } from "#log/Logger.js";
+import { LogLevel } from "#log/LogLevel.js";
+import { StorageError } from "#storage/StorageDriver.js";
+import { serializeCommit, type WalCommit } from "#storage/wal/WalCommit.js";
+import { compressedSegmentFilename, listSegments, segmentFilename } from "#storage/wal/WalSegments.js";
 import { WalStorageDriver } from "#storage/wal/WalStorageDriver.js";
+import { Time } from "#time/Time.js";
 import { Seconds } from "#time/TimeUnit.js";
+import { Gzip } from "#util/Gzip.js";
+import { readSnapshot } from "./snapshot-files.js";
 
 describe("WalStorageDriver", () => {
     before(() => MockTime.enable());
@@ -20,13 +28,72 @@ describe("WalStorageDriver", () => {
         fs = new MockFilesystem();
     });
 
+    const snapshotInterval = Seconds(600);
+
+    /**
+     * For tests with a bounded wait for background work.  The native gzip stream likely completes in host time, so on
+     * a busy host it could exceed the wait limit.
+     */
+    const withoutGzip = { compressSnapshot: false, compressLog: false };
+
+    /**
+     * Let queued maintenance work run, well before the periodic snapshot is due.  For checks that nothing happens.
+     */
+    async function settle() {
+        await MockTime.resolve(Time.sleep("maintenance", Seconds(5)), { macrotasks: true, stepMs: 1000 });
+    }
+
+    /**
+     * Wait for {@link condition}, failing well before the periodic snapshot could satisfy it.
+     */
+    async function waitFor(condition: () => Promise<boolean>) {
+        const attempts = snapshotInterval / Seconds(10);
+        await MockTime.resolve(
+            (async () => {
+                for (let attempt = 0; !(await condition()); attempt++) {
+                    if (attempt === attempts) {
+                        expect.fail(`Condition not reached within ${attempts} seconds of mock time`);
+                    }
+                    await Time.sleep("wait for condition", Seconds(1));
+                }
+            })(),
+            { macrotasks: true, stepMs: 1000 },
+        );
+    }
+
+    /**
+     * Collect the text of every notice-level log message until disposed.
+     */
+    function captureNotices() {
+        const notices = new Array<string>();
+        Logger.destinations.capture = LogDestination({
+            add(message: Diagnostic.Message) {
+                if (message.level === LogLevel.NOTICE) {
+                    notices.push(String(message.values[0]));
+                }
+            },
+        });
+        return Object.assign(notices, { [Symbol.dispose]: () => delete Logger.destinations.capture });
+    }
+
+    async function deleteSnapshots(storageDir: Directory) {
+        for (const name of ["snapshot.json", "snapshot.json.gz", "snapshot.prev.json", "snapshot.prev.json.gz"]) {
+            await storageDir.file(name).delete();
+        }
+    }
+
+    async function deleteWal(storageDir: Directory) {
+        for await (const entry of storageDir.directory("wal").entries()) {
+            await entry.delete();
+        }
+    }
+
     async function createStorage(options?: WalStorageDriver.Options) {
         const storageDir = fs.directory("storage");
         const storage = new WalStorageDriver(undefined, {
             storageDir,
             fsync: false,
-            snapshotInterval: Seconds(600),
-            cleanInterval: Seconds(1200),
+            snapshotInterval,
             ...options,
         });
         await storage.initialize();
@@ -96,13 +163,33 @@ describe("WalStorageDriver", () => {
         await storage.close();
     });
 
+    it("can be closed twice", async () => {
+        const storage = await createStorage();
+        await storage.set(["ctx"], "key", "value");
+        await storage.close();
+        await storage.close();
+
+        await expect(storage.get(["ctx"], "key")).rejectedWith(StorageError, "not initialized");
+    });
+
+    it("clones the current state into an independent storage", async () => {
+        const storage = await createStorage();
+        await storage.set(["ctx"], "key", "value");
+
+        const clone = await storage.clone();
+        await storage.set(["ctx"], "key", "changed");
+
+        expect(await clone.get(["ctx"], "key")).equal("value");
+        await clone.close();
+        await storage.close();
+    });
+
     it("can close and reinitialize", async () => {
         const storageDir = fs.directory("storage");
         const storage = new WalStorageDriver(undefined, {
             storageDir,
             fsync: false,
-            snapshotInterval: Seconds(600),
-            cleanInterval: Seconds(1200),
+            snapshotInterval,
         });
         await storage.initialize();
         await storage.set(["ctx"], "key", "value1");
@@ -161,8 +248,7 @@ describe("WalStorageDriver", () => {
         const opts: WalStorageDriver.Options = {
             storageDir,
             fsync: false,
-            snapshotInterval: Seconds(600),
-            cleanInterval: Seconds(1200),
+            snapshotInterval,
         };
 
         const storage = new WalStorageDriver(undefined, opts);
@@ -191,8 +277,7 @@ describe("WalStorageDriver", () => {
         const storage = new WalStorageDriver(undefined, {
             storageDir,
             fsync: false,
-            snapshotInterval: Seconds(600),
-            cleanInterval: Seconds(1200),
+            snapshotInterval,
         });
         await storage.initialize();
 
@@ -205,8 +290,7 @@ describe("WalStorageDriver", () => {
         const storage2 = new WalStorageDriver(undefined, {
             storageDir,
             fsync: false,
-            snapshotInterval: Seconds(600),
-            cleanInterval: Seconds(1200),
+            snapshotInterval,
         });
         await storage2.initialize();
 
@@ -282,8 +366,7 @@ describe("WalStorageDriver", () => {
             const storage = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
-                snapshotInterval: Seconds(600),
-                cleanInterval: Seconds(1200),
+                snapshotInterval,
             });
             await storage.initialize();
 
@@ -295,8 +378,7 @@ describe("WalStorageDriver", () => {
             const storage2 = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
-                snapshotInterval: Seconds(600),
-                cleanInterval: Seconds(1200),
+                snapshotInterval,
             });
             await storage2.initialize();
             await storage2.set(["ctx"], "key3", "from-wal-3");
@@ -306,8 +388,7 @@ describe("WalStorageDriver", () => {
             const storage3 = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
-                snapshotInterval: Seconds(600),
-                cleanInterval: Seconds(1200),
+                snapshotInterval,
             });
             await storage3.initialize();
             expect(await storage3.get(["ctx"], "key1")).equal("from-wal-1");
@@ -322,8 +403,7 @@ describe("WalStorageDriver", () => {
                 storageDir,
                 fsync: false,
                 compressSnapshot: true,
-                snapshotInterval: Seconds(600),
-                cleanInterval: Seconds(1200),
+                snapshotInterval,
             });
             await storage.initialize();
 
@@ -340,8 +420,7 @@ describe("WalStorageDriver", () => {
                 storageDir,
                 fsync: false,
                 compressSnapshot: true,
-                snapshotInterval: Seconds(600),
-                cleanInterval: Seconds(1200),
+                snapshotInterval,
             });
             await storage2.initialize();
             await storage2.set(["ctx"], "key3", "from-wal-3");
@@ -352,8 +431,7 @@ describe("WalStorageDriver", () => {
                 storageDir,
                 fsync: false,
                 compressSnapshot: true,
-                snapshotInterval: Seconds(600),
-                cleanInterval: Seconds(1200),
+                snapshotInterval,
             });
             await storage3.initialize();
             expect(await storage3.get(["ctx"], "key1")).equal("from-wal-1");
@@ -376,8 +454,7 @@ describe("WalStorageDriver", () => {
             const storage = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
-                snapshotInterval: Seconds(600),
-                cleanInterval: Seconds(1200),
+                snapshotInterval,
             });
             await storage.initialize();
 
@@ -387,291 +464,534 @@ describe("WalStorageDriver", () => {
         });
     });
 
-    describe("cache", () => {
-        it("invalidates cache on write", async () => {
+    describe("load", () => {
+        it("reads its own writes", async () => {
             const storage = await createStorage();
 
-            // First write + read populates cache
             await storage.set(["ctx"], "key", "v1");
             expect(await storage.get(["ctx"], "key")).equal("v1");
 
-            // Second write invalidates, next read reloads from disk
             await storage.set(["ctx"], "key", "v2");
             expect(await storage.get(["ctx"], "key")).equal("v2");
 
             await storage.close();
         });
 
-        it("defers loading until first read", async () => {
+        it("loads the stored state during initialize", async () => {
             const storageDir = fs.directory("storage");
 
-            // Write some data
             const storage1 = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
-                snapshotInterval: Seconds(600),
-                cleanInterval: Seconds(1200),
+                snapshotInterval,
             });
             await storage1.initialize();
             await storage1.set(["ctx"], "key", "value");
             await storage1.close();
 
-            // Reopen — initialize should not load data yet
             const storage2 = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
-                snapshotInterval: Seconds(600),
-                cleanInterval: Seconds(1200),
+                snapshotInterval,
             });
             await storage2.initialize();
+            await storageDir.delete();
+            expect(await storageDir.exists()).equal(false);
 
-            // Write without reading first — should work
-            await storage2.set(["ctx"], "key2", "value2");
-
-            // Now read — loads cache from disk
             expect(await storage2.get(["ctx"], "key")).equal("value");
-            expect(await storage2.get(["ctx"], "key2")).equal("value2");
             await storage2.close();
+        });
+
+        it("restores from the snapshot alone", async () => {
+            const storageDir = fs.directory("storage");
+            const storage = await createStorage();
+            await storage.set(["ctx"], "key", "value");
+            await storage.close();
+            await deleteWal(storageDir);
+
+            const reopened = await createStorage();
+            expect(await reopened.get(["ctx"], "key")).equal("value");
+            await reopened.close();
+        });
+
+        it("keeps a write made after restoring from the snapshot alone", async () => {
+            const storageDir = fs.directory("storage");
+            const storage = await createStorage();
+            await storage.set(["ctx"], "key", "value");
+            await storage.close();
+            await deleteWal(storageDir);
+
+            const reopened = await createStorage();
+            await reopened.set(["ctx"], "key2", "value2");
+            await reopened.close();
+
+            const restarted = await createStorage();
+            expect(await restarted.values(["ctx"])).deep.equal({ key: "value", key2: "value2" });
+            await restarted.close();
+        });
+
+        it("keeps a write made after restoring from the snapshot alone when the process then crashes", async () => {
+            const storageDir = fs.directory("storage");
+            const storage = await createStorage();
+            await storage.set(["ctx"], "key", "value");
+            await storage.close();
+            await deleteWal(storageDir);
+
+            const crashed = await createStorage();
+            await crashed.set(["ctx"], "key2", "value2");
+
+            const restarted = await createStorage();
+            expect(await restarted.values(["ctx"])).deep.equal({ key: "value", key2: "value2" });
+            await restarted.close();
+            await crashed.close();
+        });
+
+        it("keeps a write made after a segment that holds only a truncated line", async () => {
+            const storageDir = fs.directory("storage");
+            const walDir = storageDir.directory("wal");
+            await walDir.mkdir();
+            const commit: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key: "value" } }] };
+            await walDir.file(segmentFilename(1)).write(serializeCommit(commit) + "\n");
+            await walDir.file(segmentFilename(2)).write('{"truncated');
+
+            const storage = await createStorage();
+            await storage.set(["ctx"], "key2", "value2");
+            await storage.close();
+            await deleteSnapshots(storageDir);
+
+            const restarted = await createStorage();
+            expect(await restarted.values(["ctx"])).deep.equal({ key: "value", key2: "value2" });
+            await restarted.close();
+        });
+
+        it("writes after a WAL that holds only compressed segments", async () => {
+            const storageDir = fs.directory("storage");
+            const walDir = storageDir.directory("wal");
+            await walDir.mkdir();
+            const commit: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key: "value" } }] };
+            await walDir
+                .file(compressedSegmentFilename(1))
+                .write(Gzip.compress([new TextEncoder().encode(serializeCommit(commit) + "\n")]));
+
+            const storage = await createStorage();
+            await storage.set(["ctx"], "key2", "value2");
+            await storage.close();
+            await deleteSnapshots(storageDir);
+
+            expect(await walDir.file(segmentFilename(2)).exists()).equal(true);
+            const restarted = await createStorage();
+            expect(await restarted.values(["ctx"])).deep.equal({ key: "value", key2: "value2" });
+            await restarted.close();
+        });
+
+        it("keeps a write made after a segment that ends in a truncated line", async () => {
+            const storageDir = fs.directory("storage");
+            const walDir = storageDir.directory("wal");
+            await walDir.mkdir();
+            const commit: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key: "value" } }] };
+            await walDir.file(segmentFilename(1)).write(serializeCommit(commit) + "\n" + '{"truncated');
+
+            const storage = await createStorage();
+            await storage.set(["ctx"], "key2", "value2");
+            await storage.close();
+            await deleteSnapshots(storageDir);
+
+            const restarted = await createStorage();
+            expect(await restarted.values(["ctx"])).deep.equal({ key: "value", key2: "value2" });
+            await restarted.close();
+        });
+
+        it("restores from the WAL alone and snapshots it right after opening", async () => {
+            const storageDir = fs.directory("storage");
+            const storage = await createStorage(withoutGzip);
+            await storage.set(["ctx"], "key", "value");
+            await storage.close();
+            await deleteSnapshots(storageDir);
+
+            const reopened = await createStorage(withoutGzip);
+            expect(await reopened.get(["ctx"], "key")).equal("value");
+            await waitFor(() => storageDir.file("snapshot.json").exists());
+
+            expect((await readSnapshot(storageDir, "snapshot"))!.data.ctx.key).equal("value");
+            await reopened.close();
+        });
+
+        it("can be closed after a failed initialize", async () => {
+            const storageDir = fs.directory("storage");
+            const storage = await createStorage();
+            await storage.set(["ctx"], "key", "value");
+            await storage.close();
+            await storageDir.file("snapshot.json.gz").write("not gzip");
+
+            const failed = new WalStorageDriver(undefined, { storageDir, fsync: false });
+            await expect(failed.initialize()).rejectedWith(StorageError);
+            await failed.close();
+            expect(failed.initialized).equal(false);
         });
     });
 
-    describe("head snapshot", () => {
-        it("creates head snapshot at truncation boundary during cleanup", async () => {
-            const storageDir = fs.directory("storage");
-            const storage = new WalStorageDriver(undefined, {
-                storageDir,
-                fsync: false,
-                snapshotInterval: Seconds(600),
-                cleanInterval: Seconds(1200),
-                maxSegmentSize: 50,
-                headSnapshot: true,
-            });
-            await storage.initialize();
+    describe("cleanup", () => {
+        async function segmentNumbers() {
+            return (await listSegments(fs.directory("storage").directory("wal"))).map(files => files.segment);
+        }
 
-            // Write data that will span multiple segments due to small maxSegmentSize
+        async function waitUntil(condition: () => Promise<boolean>) {
+            await MockTime.resolve(
+                (async () => {
+                    while (!(await condition())) {
+                        await Time.sleep("wal maintenance", Seconds(10));
+                    }
+                })(),
+                { macrotasks: true, stepMs: 1000 },
+            );
+        }
+
+        it("periodically deletes segments before the backup snapshot", async () => {
+            const storageDir = fs.directory("storage");
+            const storage = await createStorage({ maxSegmentSize: 50 });
             await storage.set(["ctx"], "key1", "value1");
             await storage.set(["ctx"], "key2", "value2");
             await storage.set(["ctx"], "key3", "value3");
+            const firstSnapshotSegment = Math.max(...(await segmentNumbers()));
 
-            // Close triggers snapshot + clean — segments before the snapshot segment get deleted
+            using notices = captureNotices();
+            await waitUntil(() => storageDir.file("snapshot.json.gz").exists());
+            expect((await segmentNumbers())[0]).equal(1);
+            expect(notices).deep.equal([]);
+
+            await storage.set(["ctx"], "key4", "value4");
+            await waitUntil(async () => (await segmentNumbers())[0] !== 1);
+
+            expect((await segmentNumbers())[0]).equal(firstSnapshotSegment);
+            expect(await storage.get(["ctx"], "key1")).equal("value1");
             await storage.close();
-
-            // Head snapshot should exist (compressed by default)
-            const headExists =
-                (await storageDir.file("head.json.gz").exists()) || (await storageDir.file("head.json").exists());
-            expect(headExists).equal(true);
         });
-    });
 
-    describe("snapshotAtTime", () => {
-        it("returns full state when no asOf given", async () => {
+        it("keeps writes made after a periodic cleanup across restart", async () => {
             const storageDir = fs.directory("storage");
-            await storageDir.mkdir();
-            const walDir = storageDir.directory("wal");
-            await walDir.mkdir();
-
-            const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key1: "a" } }] };
-            const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "ctx", values: { key2: "b" } }] };
-            await walDir
-                .file(segmentFilename(1))
-                .write(serializeCommit(commit1) + "\n" + serializeCommit(commit2) + "\n");
-
-            const storage = new WalStorageDriver(undefined, {
-                storageDir,
-                fsync: false,
-                snapshotInterval: Seconds(600),
-            });
-            await storage.initialize();
-
-            const snap = await storage.snapshotAtTime();
-            expect(snap.get(["ctx"], "key1")).equal("a");
-            expect(snap.get(["ctx"], "key2")).equal("b");
-            expect(snap.ts).equal(2000);
-
+            const storage = await createStorage({ maxSegmentSize: 50 });
+            await storage.set(["ctx"], "key1", "value1");
+            await storage.set(["ctx"], "key2", "value2");
+            await waitUntil(() => storageDir.file("snapshot.json.gz").exists());
+            await storage.set(["ctx"], "key3", "value3");
+            await waitUntil(() => storageDir.file("snapshot.prev.json.gz").exists());
+            await storage.set(["ctx"], "key1", "updated");
             await storage.close();
+
+            const storage2 = await createStorage({ maxSegmentSize: 50 });
+            expect(await storage2.get(["ctx"], "key1")).equal("updated");
+            expect(await storage2.get(["ctx"], "key2")).equal("value2");
+            expect(await storage2.get(["ctx"], "key3")).equal("value3");
+            await storage2.close();
         });
 
-        it("returns partial state at mid-history time", async () => {
+        it("restores from the backup snapshot and the WAL when the snapshot is corrupt", async () => {
             const storageDir = fs.directory("storage");
-            await storageDir.mkdir();
-            const walDir = storageDir.directory("wal");
-            await walDir.mkdir();
+            for (const session of [1, 2, 3]) {
+                const storage = await createStorage({ ...withoutGzip, maxSegmentSize: 50 });
+                await storage.set(["ctx"], `key${session}a`, "a");
+                await storage.set(["ctx"], `key${session}b`, "b");
+                await storage.close();
+            }
+            await storageDir.file("snapshot.json").write("not json");
 
-            const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key1: "a" } }] };
-            const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "ctx", values: { key2: "b" } }] };
-            const commit3: WalCommit = { ts: 3000, ops: [{ op: "upd", key: "ctx", values: { key3: "c" } }] };
-            await walDir
-                .file(segmentFilename(1))
-                .write(
-                    serializeCommit(commit1) + "\n" + serializeCommit(commit2) + "\n" + serializeCommit(commit3) + "\n",
-                );
+            const storage = await createStorage({ ...withoutGzip, maxSegmentSize: 50 });
 
-            const storage = new WalStorageDriver(undefined, {
-                storageDir,
-                fsync: false,
-                snapshotInterval: Seconds(600),
+            expect(await storage.values(["ctx"])).deep.equal({
+                key1a: "a",
+                key1b: "b",
+                key2a: "a",
+                key2b: "b",
+                key3a: "a",
+                key3b: "b",
             });
-            await storage.initialize();
+            expect(await storageDir.file("snapshot.corrupt.json").exists()).equal(true);
+            const backup = await readSnapshot(storageDir, "snapshot.prev");
 
-            const snap = await storage.snapshotAtTime(2500);
-            expect(snap.get(["ctx"], "key1")).equal("a");
-            expect(snap.get(["ctx"], "key2")).equal("b");
-            expect(snap.get(["ctx"], "key3")).equal(undefined);
-            expect(snap.ts).equal(2000);
-
+            await waitFor(async () => (await segmentNumbers())[0] === backup!.commitId.segment);
+            const current = await readSnapshot(storageDir, "snapshot");
+            expect(current!.backupCommitId).deep.equal(backup!.commitId);
             await storage.close();
         });
 
-        it("throws for future timestamp", async () => {
+        it("refuses to restore the backup snapshot when the WAL it needs is gone", async () => {
+            const storageDir = fs.directory("storage");
+            for (const session of [1, 2, 3]) {
+                const storage = await createStorage({ maxSegmentSize: 50 });
+                await storage.set(["ctx"], `key${session}a`, "a");
+                await storage.set(["ctx"], `key${session}b`, "b");
+                await storage.close();
+            }
+            const backup = await readSnapshot(storageDir, "snapshot.prev");
+            const walDir = storageDir.directory("wal");
+            for (const segment of await segmentNumbers()) {
+                if (segment <= backup!.commitId.segment + 1) {
+                    await walDir.file(segmentFilename(segment)).delete();
+                    await walDir.file(compressedSegmentFilename(segment)).delete();
+                }
+            }
+            await storageDir.file("snapshot.json.gz").write("not gzip");
+
+            await expect(createStorage({ maxSegmentSize: 50 })).rejectedWith("cannot be restored");
+        });
+
+        it("refuses to open without a snapshot when the WAL starts after its first segment", async () => {
+            const storageDir = fs.directory("storage");
+            const storage = await createStorage({ maxSegmentSize: 50 });
+            await storage.set(["ctx"], "key1", "value1");
+            await storage.set(["ctx"], "key2", "value2");
+            await storage.set(["ctx"], "key3", "value3");
+            await storage.close();
+            await deleteSnapshots(storageDir);
+            const walDir = storageDir.directory("wal");
+            await walDir.file(segmentFilename(1)).delete();
+            await walDir.file(compressedSegmentFilename(1)).delete();
+
+            await expect(createStorage({ maxSegmentSize: 50 })).rejectedWith("No snapshot");
+        });
+
+        it("refuses to open when a WAL segment in the middle is missing", async () => {
+            const storageDir = fs.directory("storage");
+            const storage = await createStorage({ maxSegmentSize: 50 });
+            for (const key of ["key1", "key2", "key3", "key4"]) {
+                await storage.set(["ctx"], key, "value");
+            }
+            await storage.close();
+            await deleteSnapshots(storageDir);
+            expect((await segmentNumbers()).slice(0, 3)).deep.equal([1, 2, 3]);
+            const walDir = storageDir.directory("wal");
+            await walDir.file(segmentFilename(2)).delete();
+            await walDir.file(compressedSegmentFilename(2)).delete();
+
+            await expect(createStorage({ maxSegmentSize: 50 })).rejectedWith("WAL segment 2 is missing");
+        });
+
+        it("fails to open when the snapshot is unreadable and no backup exists", async () => {
+            const storageDir = fs.directory("storage");
             const storage = await createStorage();
             await storage.set(["ctx"], "key", "value");
+            await storage.close();
+            await storageDir.file("snapshot.json.gz").write("not gzip");
 
-            await expect(storage.snapshotAtTime(Date.now() + 1_000_000)).rejectedWith("Timestamp is in the future");
+            await expect(createStorage()).rejectedWith(StorageError, "is unreadable");
+        });
 
+        it("flushes snapshots and compressed WAL segments before renaming them into place", async () => {
+            const flushed = new Array<string>();
+            using _recordFsyncs = fs.intercept((operation, path) => {
+                if (operation === "fsync") {
+                    flushed.push(path.split("/").at(-1) ?? path);
+                }
+            });
+            const storageDir = fs.directory("storage");
+            const storage = await createStorage({ maxSegmentSize: 50, fsync: true });
+            await storage.set(["ctx"], "key1", "value1");
+            await storage.set(["ctx"], "key2", "value2");
+            await waitUntil(() => storageDir.directory("wal").file(compressedSegmentFilename(1)).exists());
+            await storage.close();
+
+            expect(flushed).include(`${compressedSegmentFilename(1)}.tmp`);
+            expect(flushed).include("snapshot.tmp.json.gz");
+        });
+
+        it("deletes the original of an already compressed segment without compressing it again", async () => {
+            const walDir = fs.directory("storage").directory("wal");
+            await walDir.mkdir();
+            const commit: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key: "value" } }] };
+            const line = serializeCommit(commit) + "\n";
+            await walDir.file(segmentFilename(1)).write(line);
+            await walDir.file(compressedSegmentFilename(1)).write(Gzip.compress([new TextEncoder().encode(line)]));
+
+            const opened = new Array<string>();
+            using _recordOpens = fs.intercept((operation, path) => {
+                if (operation === "open") {
+                    opened.push(path.split("/").at(-1) ?? path);
+                }
+            });
+            const storage = await createStorage({ maxSegmentSize: 50 });
+            await storage.set(["ctx"], "key2", "value2");
+            await storage.set(["ctx"], "key3", "value3");
+            await waitUntil(async () => !(await walDir.file(segmentFilename(2)).exists()));
+
+            expect(opened).not.include(`${compressedSegmentFilename(1)}.tmp`);
+            expect(opened).include(`${compressedSegmentFilename(2)}.tmp`);
+
+            expect(await walDir.file(segmentFilename(1)).exists()).equal(false);
+            expect(await walDir.file(compressedSegmentFilename(2)).exists()).equal(true);
+            expect(await walDir.file(segmentFilename(3)).exists()).equal(true);
+            expect(await walDir.file(compressedSegmentFilename(3)).exists()).equal(false);
             await storage.close();
         });
 
-        it("throws when timestamp predates available logs", async () => {
+        it("deletes the segments before an older snapshot once the next snapshot backs it up", async () => {
+            const storage = await createStorage({ maxSegmentSize: 50 });
+            await storage.set(["ctx"], "key1", "value1");
+            await storage.set(["ctx"], "key2", "value2");
+            await storage.set(["ctx"], "key3", "value3");
+            await storage.close();
+            const olderSnapshot = await readSnapshot(fs.directory("storage"), "snapshot");
+            expect(olderSnapshot!.backupCommitId).equal(undefined);
+            expect((await segmentNumbers())[0]).equal(1);
+
+            const storage2 = await createStorage({ maxSegmentSize: 50 });
+            await storage2.set(["ctx"], "key4", "value4");
+            await storage2.close();
+
+            expect((await segmentNumbers())[0]).equal(olderSnapshot!.commitId.segment);
+        });
+
+        it("does not replace the backup when nothing changed since the last snapshot", async () => {
+            const storageDir = fs.directory("storage");
+            const storage = await createStorage();
+            await storage.set(["ctx"], "key", "value");
+            await storage.close();
+
+            const storage2 = await createStorage();
+            expect(await storage2.get(["ctx"], "key")).equal("value");
+            await storage2.close();
+
+            expect(await storageDir.file("snapshot.prev.json.gz").exists()).equal(false);
+        });
+
+        it("snapshots right after opening when a crash left commits after the snapshot", async () => {
+            const storageDir = fs.directory("storage");
+            const storage = await createStorage(withoutGzip);
+            await storage.set(["ctx"], "key", "value");
+            await storage.close();
+            const before = await readSnapshot(storageDir, "snapshot");
+
+            // crashed stays open while restarted opens the same directory, as after a kill
+            const crashed = await createStorage(withoutGzip);
+            await crashed.set(["ctx"], "key2", "value2");
+
+            using notices = captureNotices();
+            const restarted = await createStorage(withoutGzip);
+            await waitFor(async () => notices.length === 3);
+            expect((await readSnapshot(storageDir, "snapshot"))!.data.ctx.key2).equal("value2");
+
+            expect((await readSnapshot(storageDir, "snapshot"))!.backupCommitId).deep.equal(before!.commitId);
+            expect((await readSnapshot(storageDir, "snapshot.prev"))!.commitId).deep.equal(before!.commitId);
+            expect(notices.map(notice => notice.split(" ")[0])).deep.equal(["Restoring", "Restored", "Saved"]);
+            await restarted.set(["ctx"], "key3", "value3");
+            await restarted.close();
+            expect(notices.length).equal(3);
+            await crashed.close();
+        });
+
+        it("does not announce a later snapshot when the snapshot after opening failed", async () => {
+            const storageDir = fs.directory("storage");
+            const storage = await createStorage(withoutGzip);
+            await storage.set(["ctx"], "key", "value");
+            await storage.close();
+
+            // A periodic snapshot of crashed would race the restarted one on the same files
+            const crashed = await createStorage({ ...withoutGzip, snapshotInterval: Seconds(snapshotInterval * 1000) });
+            await crashed.set(["ctx"], "key2", "value2");
+
+            using notices = captureNotices();
+            let failSave = true;
+            using _failingSnapshot = fs.intercept((operation, path) => {
+                if (failSave && operation === "open" && path.includes("snapshot.tmp")) {
+                    failSave = false;
+                    throw new StorageError("disk full");
+                }
+            });
+            const restarted = await createStorage(withoutGzip);
+            await waitFor(async () => !failSave);
+            await MockTime.advance(snapshotInterval);
+            await waitFor(async () => (await readSnapshot(storageDir, "snapshot"))!.data.ctx.key2 !== undefined);
+
+            expect(notices.map(notice => notice.split(" ")[0])).deep.equal(["Restoring", "Restored"]);
+            await restarted.close();
+            await crashed.close();
+        });
+
+        it("does not report a restore after a clean stop with a write still pending", async () => {
+            const storage = await createStorage({ fsync: true });
+            let writeReachedDisk!: () => void;
+            const writeBlocked = new Promise<void>(resolve => (writeReachedDisk = resolve));
+            let releaseWrite!: () => void;
+            const writeReleased = new Promise<void>(resolve => (releaseWrite = resolve));
+            {
+                using _blockWalFsync = fs.intercept(async (operation, path) => {
+                    if (operation === "fsync" && path.includes("/wal/")) {
+                        writeReachedDisk();
+                        await writeReleased;
+                    }
+                });
+                const pending = storage.set(["ctx"], "key", "value");
+                await writeBlocked;
+                const closing = storage.close();
+                await settle();
+                releaseWrite();
+                await closing;
+                await pending;
+            }
+
+            using notices = captureNotices();
+            const reopened = await createStorage();
+            expect(await reopened.get(["ctx"], "key")).equal("value");
+            await settle();
+
+            expect(notices).deep.equal([]);
+            await reopened.close();
+        });
+
+        it("closes and saves a snapshot when closing the last WAL segment fails", async () => {
+            const storageDir = fs.directory("storage");
+            const storage = await createStorage(withoutGzip);
+            await storage.set(["ctx"], "key", "value");
+            {
+                using _failingClose = fs.intercept((operation, path) => {
+                    if (operation === "close" && path.includes("/wal/")) {
+                        throw new StorageError("close failed");
+                    }
+                });
+                await storage.close();
+            }
+
+            expect(storage.initialized).equal(false);
+            expect((await readSnapshot(storageDir, "snapshot"))!.data.ctx.key).equal("value");
+        });
+
+        it("keeps the backup when it opens after a clean stop", async () => {
+            const storageDir = fs.directory("storage");
+            for (const value of ["v1", "v2"]) {
+                const storage = await createStorage();
+                await storage.set(["ctx"], "key", value);
+                await storage.close();
+            }
+            const backup = await readSnapshot(storageDir, "snapshot.prev");
+
+            using notices = captureNotices();
+            const reopened = await createStorage();
+            await settle();
+
+            expect(notices).deep.equal([]);
+
+            expect((await readSnapshot(storageDir, "snapshot.prev"))!.commitId).deep.equal(backup!.commitId);
+            await reopened.close();
+        });
+
+        it("deletes an obsolete head snapshot and a leftover temporary snapshot on initialize", async () => {
             const storageDir = fs.directory("storage");
             await storageDir.mkdir();
-            const walDir = storageDir.directory("wal");
-            await walDir.mkdir();
+            const stale = [
+                "head.json.gz",
+                "head.json",
+                "head.tmp.json.gz",
+                "snapshot.tmp.json",
+                "snapshot.tmp.json.gz",
+            ];
+            for (const name of stale) {
+                await storageDir.file(name).write("stale");
+            }
 
-            // Create a snapshot with ts=5000 as the base
-            const baseSnap = new WalSnapshot({ segment: 1, offset: 0 }, 5000, { ctx: { key: "val" } });
-            await baseSnap.save(storageDir, { compress: false });
-
-            // Add a WAL commit after the snapshot
-            const commit: WalCommit = { ts: 6000, ops: [{ op: "upd", key: "ctx", values: { key2: "val2" } }] };
-            await walDir.file(segmentFilename(1)).write(serializeCommit(commit) + "\n");
-
-            const storage = new WalStorageDriver(undefined, {
-                storageDir,
-                fsync: false,
-                snapshotInterval: Seconds(600),
-            });
-            await storage.initialize();
-
-            await expect(storage.snapshotAtTime(3000)).rejectedWith("Timestamp predates available logs");
-
-            await storage.close();
-        });
-
-        it("handles legacy commits with ts=0", async () => {
-            const storageDir = fs.directory("storage");
-            await storageDir.mkdir();
-            const walDir = storageDir.directory("wal");
-            await walDir.mkdir();
-
-            // Legacy bare-array format (will be parsed as ts=0)
-            const legacyLine = toJson([{ op: "upd", key: "ctx", values: { key1: "legacy" } }] as any);
-            const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "ctx", values: { key2: "modern" } }] };
-            await walDir.file(segmentFilename(1)).write(legacyLine + "\n" + serializeCommit(commit2) + "\n");
-
-            const storage = new WalStorageDriver(undefined, {
-                storageDir,
-                fsync: false,
-                snapshotInterval: Seconds(600),
-            });
-            await storage.initialize();
-
-            // Legacy commits (ts=0) are always included since 0 > asOf is false
-            const snap = await storage.snapshotAtTime(1500);
-            expect(snap.get(["ctx"], "key1")).equal("legacy");
-            expect(snap.get(["ctx"], "key2")).equal(undefined);
-
-            await storage.close();
-        });
-
-        it("returns snapshot state when WAL is empty after snapshot", async () => {
-            const storageDir = fs.directory("storage");
-            await storageDir.mkdir();
-            const walDir = storageDir.directory("wal");
-            await walDir.mkdir();
-
-            // Create a base snapshot
-            const baseSnap = new WalSnapshot({ segment: 1, offset: 0 }, 5000, { ctx: { key: "val" } });
-            await baseSnap.save(storageDir, { compress: false });
-
-            const storage = new WalStorageDriver(undefined, {
-                storageDir,
-                fsync: false,
-                snapshotInterval: Seconds(600),
-            });
-            await storage.initialize();
-
-            const snap = await storage.snapshotAtTime(6000);
-            expect(snap.get(["ctx"], "key")).equal("val");
-            expect(snap.ts).equal(5000);
-
-            await storage.close();
-        });
-    });
-
-    describe("snapshotAtCommit", () => {
-        it("returns full state when no commitId given", async () => {
-            const storageDir = fs.directory("storage");
-            await storageDir.mkdir();
-            const walDir = storageDir.directory("wal");
-            await walDir.mkdir();
-
-            const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key1: "a" } }] };
-            const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "ctx", values: { key2: "b" } }] };
-            await walDir
-                .file(segmentFilename(1))
-                .write(serializeCommit(commit1) + "\n" + serializeCommit(commit2) + "\n");
-
-            const storage = new WalStorageDriver(undefined, {
-                storageDir,
-                fsync: false,
-                snapshotInterval: Seconds(600),
-            });
-            await storage.initialize();
-
-            const snap = await storage.snapshotAtCommit();
-            expect(snap.get(["ctx"], "key1")).equal("a");
-            expect(snap.get(["ctx"], "key2")).equal("b");
-
-            await storage.close();
-        });
-
-        it("returns state through the given commit", async () => {
-            const storageDir = fs.directory("storage");
-            await storageDir.mkdir();
-            const walDir = storageDir.directory("wal");
-            await walDir.mkdir();
-
-            const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key1: "a" } }] };
-            const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "ctx", values: { key2: "b" } }] };
-            const commit3: WalCommit = { ts: 3000, ops: [{ op: "upd", key: "ctx", values: { key3: "c" } }] };
-            await walDir
-                .file(segmentFilename(1))
-                .write(
-                    serializeCommit(commit1) + "\n" + serializeCommit(commit2) + "\n" + serializeCommit(commit3) + "\n",
-                );
-
-            const storage = new WalStorageDriver(undefined, {
-                storageDir,
-                fsync: false,
-                snapshotInterval: Seconds(600),
-            });
-            await storage.initialize();
-
-            // Stop at commit {segment: 1, offset: 1} — includes commits 0 and 1
-            const snap = await storage.snapshotAtCommit({ segment: 1, offset: 1 });
-            expect(snap.get(["ctx"], "key1")).equal("a");
-            expect(snap.get(["ctx"], "key2")).equal("b");
-            expect(snap.get(["ctx"], "key3")).equal(undefined);
-            expect(snap.commitId).deep.equal({ segment: 1, offset: 1 });
-
-            await storage.close();
-        });
-
-        it("throws when no data available", async () => {
             const storage = await createStorage();
 
-            await expect(storage.snapshotAtCommit()).rejectedWith("No data available");
-
+            for (const name of stale) {
+                expect(await storageDir.file(name).exists(), name).equal(false);
+            }
             await storage.close();
         });
     });

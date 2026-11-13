@@ -11,6 +11,7 @@ import { ClusterModifier, ElementTag, Schema } from "@matter/model";
 import { ClusterType, type ClusterTyping } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import type { BehaviorBacking } from "../internal/BehaviorBacking.js";
+import { defineClusterStatics } from "../internal/ClusterStatics.js";
 import type { RootSupervisor } from "../supervision/RootSupervisor.js";
 import { NetworkBehavior } from "../system/network/NetworkBehavior.js";
 import { ExtensionInterfaceOf, isClientBehavior } from "./cluster-behavior-utils.js";
@@ -39,8 +40,11 @@ export class ClusterBehavior extends Behavior {
 
     /**
      * The ID of ClusterBehavior implementations is the uncapitalized cluster name.
+     *
+     * A class declared with the model decorators that declares no ID gets the ID of the cluster behavior it extends, or
+     * else the property name of its cluster.
      */
-    static override id: Uncapitalize<string>;
+    declare static readonly id: Uncapitalize<string>;
 
     /**
      * The cluster namespace associated with this behavior.
@@ -62,13 +66,25 @@ export class ClusterBehavior extends Behavior {
 
     /**
      * Every cluster behavior has an associated cluster namespace defined statically.
+     *
+     * A class generated for a cluster gets its namespace when it is created.  A class whose decorations declare or
+     * extend a cluster gets its namespace, features, State and Events derived from its schema once the decorations
+     * resolve, and any other subclass inherits its parent's.  The first read of a class that has no value yet resolves
+     * its decorations.  `State` and `Events` read before that resolution are the class's own, without the derived
+     * defaults.
+     *
+     * Assigning a namespace is possible until the class's schema resolves.  A static class field that declares
+     * `cluster` replaces this accessor for that class, which then keeps its own State and Events.
+     *
+     * @throws ImplementationError if the decorations declare a cluster ID other than the one of the cluster behavior the
+     * class extends.  A different cluster needs its own class that extends {@link ClusterBehavior}.
      */
-    static readonly cluster: ClusterType.Concrete = ClusterType.Unknown;
+    declare static readonly cluster: ClusterType.Concrete;
 
     /**
-     * Supported features as a flag object.
+     * Supported features as a flag object.  Resolved like {@link cluster}.
      */
-    static readonly features: Record<string, boolean> = {};
+    declare static readonly features: Record<string, boolean>;
 
     /**
      * Method definitions.
@@ -89,15 +105,6 @@ export class ClusterBehavior extends Behavior {
      * Automatically lock state on command invoke.
      */
     static readonly lockOnInvoke = true;
-
-    constructor(agent: Agent, backing: BehaviorBacking) {
-        super(agent, backing);
-
-        const cluster = (this.constructor as typeof ClusterBehavior).cluster;
-        if (!cluster) {
-            throw new ImplementationError("ClusterBehavior class has no cluster defined");
-        }
-    }
 
     /**
      * Create a new behavior for a specific cluster namespace.
@@ -267,6 +274,8 @@ export class ClusterBehavior extends Behavior {
 
     static override Events = Events;
 }
+
+defineClusterStatics(ClusterBehavior);
 
 /**
  * The resolved cluster schema of a behavior type.

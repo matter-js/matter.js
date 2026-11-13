@@ -10,6 +10,7 @@ import { DesiredStateBehavior } from "#behavior/system/desired-state/DesiredStat
 import { ClientNetworkRuntime } from "#behavior/system/network/ClientNetworkRuntime.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
+import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Agent } from "#endpoint/Agent.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { ClientNodeEndpoints } from "#endpoint/properties/ClientNodeEndpoints.js";
@@ -34,6 +35,7 @@ import {
 } from "@matter/general";
 import { Matter, MatterModel } from "@matter/model";
 import { Interactable, OccurrenceManager, PeerAddress, PeerSet } from "@matter/protocol";
+import { FabricIndex } from "@matter/types";
 import { ClientEndpointInitializer } from "./client/ClientEndpointInitializer.js";
 import { ClientNodeInteraction } from "./client/ClientNodeInteraction.js";
 import { ClientStructure } from "./client/ClientStructure.js";
@@ -83,6 +85,25 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     override readonly nodeType: "client" | "group" = "client";
+
+    /**
+     * Our fabric index on the peer, if known: `commissioning.fabricIndexOnPeer`, else
+     * `operationalCredentials.currentFabricIndex` unless the peer reported `FabricIndex.NO_FABRIC`.
+     *
+     * Any write of a fabric-scoped list such as `acl` needs it.  The write sends only our entries and leaves out an
+     * entry of another fabric that equals a cached entry; it refuses any other entry of another fabric, and any write
+     * of a fabric-scoped list while this index is unknown.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 7.19.1.8.2
+     */
+    get fabricIndexOnPeer() {
+        const recorded = this.maybeStateOf(CommissioningClient)?.fabricIndexOnPeer;
+        if (recorded !== undefined) {
+            return recorded;
+        }
+        const current = this.maybeStateOf(OperationalCredentialsClient)?.currentFabricIndex;
+        return current === FabricIndex.NO_FABRIC ? undefined : current;
+    }
 
     /**
      * Model of Matter semantics understood by this node.
@@ -187,6 +208,20 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
             await this.delete();
         });
+    }
+
+    /**
+     * Replace this peer's operational certificate (NOC) with one for a new key pair, keeping node ID, fabric and ACLs.
+     *
+     * See {@link CommissioningClient.updateOperationalCertificate}.  Rejects with `FabricOperationInProgressError` if a
+     * commission, decommission or certificate update of this node is already in progress.
+     */
+    async updateOperationalCertificate(options?: CommissioningClient.OperationalCertificateUpdateOptions) {
+        await this.#peers.runOperationalCertificateUpdate(this, () =>
+            this.act("updateOperationalCertificate", agent =>
+                agent.commissioning.updateOperationalCertificate(options),
+            ),
+        );
     }
 
     /**
@@ -351,6 +386,12 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         return this.#interaction;
     }
 
+    /**
+     * The peer's operational address, or `undefined` if the peer is not commissioned or its storage is not available.
+     *
+     * Reads the commissioning state when it is loaded, otherwise a cached value or storage.  So it also answers for a
+     * node whose commissioning state failed to load.
+     */
     get peerAddress(): PeerAddress | undefined {
         // Whenever the commissioning backing is loaded its state is authoritative - mirror it (set or cleared)
         // so the cache cannot survive a decommission as a stale value

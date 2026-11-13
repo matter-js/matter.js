@@ -42,6 +42,7 @@ import {
     forFlavor,
     UnsupportedByControllerError,
 } from "@matter/testing";
+import { findCertCluster } from "../../src/cert/custom-clusters.js";
 
 /**
  * The log family the DUT controller's own output is written in, for a check that reads that log. matterjs-server is a
@@ -258,7 +259,7 @@ export function describeError(e: unknown): string {
  * Tracks commissioned node refs by role for one cert-test run. Each controller's own
  * `decommission()` only removes *that controller's* fabric via its own CASE session, so cleanup has
  * to visit every role independently. Shared by `TC-IDM-2.1.test.ts`/`TC-ACT-3.2.test.ts`/
- * `TC-IDM-1.1.test.ts` (single "dut" role) and `TC-CADMIN-1.17.test.ts` (multiple controller roles).
+ * `TC-IDM-1.1.test.ts` (single "dut" role) and the TC-CADMIN cases in `tc-cadmin-support.ts` (multiple controller roles).
  *
  * {@link decommissionAll} belongs in a TC's `certTest(...).finalize(...)` callback, which the engine
  * runs however the steps ended. So does anything else that keeps this map true to the TH: a
@@ -332,8 +333,9 @@ export class CommissionedRefs<Role extends string = "dut"> {
  * carrying an extra `Attribute =` line where the request's wildcard block has none, possibly still
  * in flight from an earlier step — the follower pumps the device stream asynchronously, so a
  * previous step's response can surface after this step's `mark()`). Such a candidate is skipped and
- * the search resumes at the next one; genuine absence of the block surfaces as
- * `log.expectPattern`'s own timeout error. The whole search shares one `timeout` budget.
+ * the search resumes at the next one. When no candidate completes before `timeout`, the
+ * {@link CertLogTimeoutError} names the last rejected candidate, so a block that arrived with a wrong
+ * value reads as that mismatch rather than as a missing log. The whole search shares one `timeout` budget.
  */
 export async function expectAdjacentLines(
     log: LogFollower,
@@ -349,29 +351,50 @@ export async function expectAdjacentLines(
     return { verdict: "pass", last: await adjacentRun(log, sequence, from, timeout) };
 }
 
+const ANY_LINE = /(?:)/;
+
+/**
+ * The run of consecutive lines `sequence` describes, at or after `from`; see {@link expectAdjacentLines}.
+ *
+ * Throws {@link CertLogTimeoutError} naming the pattern it was waiting for when the budget ran out, the
+ * lines from `from`, and the last candidate it rejected, if any.  A closed log throws as
+ * {@link LogFollower.expectPattern} does.
+ */
 async function adjacentRun(log: LogFollower, sequence: RegExp[], from: number, timeout: Duration): Promise<LogLine> {
     const deadline = Time.nowUs + timeout;
     const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
 
     let cursor = from;
-    for (;;) {
-        const anchor = await log.expectPattern(sequence[0], { timeoutMs: remaining(), from: cursor });
+    let awaited = sequence[0];
+    let nearMiss: string | undefined;
+    try {
+        for (;;) {
+            awaited = sequence[0];
+            const anchor = await log.expectPattern(awaited, { timeoutMs: remaining(), from: cursor });
 
-        let last = anchor;
-        let interleaved = false;
-        for (const pattern of sequence.slice(1)) {
-            const matched = await log.expectPattern(pattern, { timeoutMs: remaining(), from: last.index + 1 });
-            if (matched.index !== last.index + 1) {
-                interleaved = true;
-                break;
+            let last = anchor;
+            let rejected: string | undefined;
+            for (const pattern of sequence.slice(1)) {
+                awaited = pattern;
+                const next = await log.expectPattern(ANY_LINE, { timeoutMs: remaining(), from: last.index + 1 });
+                if (next.index !== last.index + 1 || log.lastMatchBefore(pattern, next.index + 1, 1)?.line !== next) {
+                    rejected = `line ${next.index} after the match at line ${anchor.index} is not ${pattern}: ${next.text}`;
+                    break;
+                }
+                last = next;
             }
-            last = matched;
-        }
 
-        if (!interleaved) {
-            return last;
+            if (rejected === undefined) {
+                return last;
+            }
+            nearMiss = rejected;
+            cursor = anchor.index + 1;
         }
-        cursor = anchor.index + 1;
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError) {
+            throw new CertLogTimeoutError(String(awaited), from, log.window(from, Number.MAX_SAFE_INTEGER), nearMiss);
+        }
+        throw e;
     }
 }
 
@@ -466,7 +489,7 @@ function matterjsReportAckPattern(session: string, exchange: string, counter: st
     );
 }
 
-function escapeRegExp(text: string): string {
+export function escapeRegExp(text: string): string {
     return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
@@ -693,7 +716,7 @@ function matterjsPath(fields: AttributePathSpec): string {
     // matter.js resolves a name off the addressed endpoint's own cluster, so a path wildcarding
     // either the endpoint or the cluster names nothing at all, whatever the model knows.
     const resolvable = fields.endpoint !== undefined && fields.cluster !== undefined;
-    const cluster = fields.cluster === undefined ? undefined : Matter.clusters(fields.cluster);
+    const cluster = fields.cluster === undefined ? undefined : findCertCluster(fields.cluster);
 
     const elements = [
         fields.endpoint === undefined ? "\\*" : `${fields.endpoint}`,
@@ -816,7 +839,7 @@ export function matterjsSubscribePaths(paths: AttributePathSpec[], ...flags: str
  */
 function matterjsEventPath(fields: EventPathSpec): string {
     const resolvable = fields.endpoint !== undefined && fields.cluster !== undefined;
-    const cluster = fields.cluster === undefined ? undefined : Matter.clusters(fields.cluster);
+    const cluster = fields.cluster === undefined ? undefined : findCertCluster(fields.cluster);
 
     const elements = [
         fields.endpoint === undefined ? "\\*" : `${fields.endpoint}`,
@@ -900,7 +923,7 @@ function matterjsInvokePath(endpoint: number, cluster: number, command: number):
  * its own line around it.
  */
 export function matterjsCommandPath(endpoint: number, cluster: number, command: number): string {
-    const model = Matter.clusters(cluster);
+    const model = findCertCluster(cluster);
     const path = [
         `${endpoint}`,
         matterjsElement(model?.name, cluster),
@@ -934,7 +957,7 @@ function matterjsFieldValue(value: CommandFieldValue["value"]): string {
  * numbering it: `<name>: <value>`, in payload order, on the line that names the command.
  */
 function matterjsCommandFields(cluster: number, command: number, fields: CommandFieldValue[]): RegExp {
-    const model = Matter.clusters(cluster)?.commands(command);
+    const model = findCertCluster(cluster)?.commands(command);
     const named = fields.map(({ id, value }) => {
         const name = model?.fields(id)?.name;
         if (name === undefined) {
@@ -1077,12 +1100,13 @@ export function answersWithStatus(cluster: ClusterModel, commandName: string): b
 /**
  * One `CommandFields` entry: a field id and its value. chip prints the TLV type after the value, so a
  * string is matched as `0x<id> = "<value>" (<n> chars),` — where `n` counts the string's UTF-8 bytes,
- * not its code points — and a number as `0x<id> = <value> (unsigned),`. Every numeric field any TC
- * checks so far is unsigned; chip prints a signed one as `(signed)`, which no shape here matches.
+ * not its code points — and a number as `0x<id> = <value> (unsigned),`, or `(signed)` for a field of a
+ * signed integer type.
  */
 export interface CommandFieldValue {
     id: number;
     value: number | bigint | string | Bytes;
+    signed?: boolean;
 }
 
 /** `fields` as evidence text, with byte values as hex. */
@@ -1107,16 +1131,29 @@ export function literally(value: string): string {
 }
 
 /**
- * The line chip prints for one decoded `CommandFields` entry.
+ * The line chip prints for one decoded `CommandFields` entry. A boolean prints as `true` or `false`, with no type
+ * name.
  *
  * The trailing type name is load-bearing: without it `0x0 = 2,` also matches the first two digits of
  * `0x0 = 20,`.
  */
-function chipCommandField({ id, value }: { id: number; value: number | bigint | string }): RegExp {
-    const rendered =
-        typeof value === "string"
-            ? `"${literally(value)}" \\(${new TextEncoder().encode(value).length} chars\\)`
-            : `${value} \\(unsigned\\)`;
+export function chipCommandField({
+    id,
+    value,
+    signed = false,
+}: {
+    id: number;
+    value: number | bigint | string | boolean;
+    signed?: boolean;
+}): RegExp {
+    let rendered: string;
+    if (typeof value === "string") {
+        rendered = `"${literally(value)}" \\(${new TextEncoder().encode(value).length} chars\\)`;
+    } else if (typeof value === "boolean") {
+        rendered = `${value}`;
+    } else {
+        rendered = `${value} \\(${signed ? "signed" : "unsigned"}\\)`;
+    }
     return new RegExp(`0x${id.toString(16)} = ${rendered},\\s*$`);
 }
 
@@ -1232,7 +1269,7 @@ export async function expectCommandInvoke(
         last = block.last;
         cursor = block.last.index + 1;
 
-        for (const { id, value } of fields) {
+        for (const { id, value, signed } of fields) {
             if (typeof value === "object") {
                 const bytes = await expectAdjacentLines(
                     log,
@@ -1249,7 +1286,7 @@ export async function expectCommandInvoke(
                 continue;
             }
             const result = await log.expect(
-                { chip: chipCommandField({ id, value }) },
+                { chip: chipCommandField({ id, value, signed }) },
                 { flavor, timeoutMs: remaining(), from: cursor },
             );
             if (result.verdict === "unverified") {
@@ -1291,7 +1328,7 @@ function chipGroupId(group: number) {
 
 /** A group command's path as matter.js renders it: no endpoint, then cluster and command by name or hex id. */
 function matterjsGroupCommandPath(cluster: number, command: number) {
-    const model = Matter.clusters(cluster);
+    const model = findCertCluster(cluster);
     return (
         `\\*\\.${matterjsElement(model?.name, cluster)}\\.` +
         `${matterjsElement(model?.commands(command)?.name, command)}${MATTERJS_PATH_END}`
@@ -1354,7 +1391,7 @@ export function groupCommandDispatch(
     fields: CommandFieldValue[] = [],
     exchange?: string,
 ) {
-    const model = Matter.clusters(cluster);
+    const model = findCertCluster(cluster);
     const commandModel = model?.commands(command);
     const named = fields.map(({ id, value }) => {
         const name = commandModel?.fields(id)?.name;
@@ -1571,21 +1608,44 @@ export async function invokeCommand(
     ref: CertNodeRef,
     invocation: CommandInvocation,
 ): Promise<InvokedCommand> {
+    const { cluster, endpoint, command, fields } = invocation;
+    const name = `${cluster.name}.${command}`;
+    const clusterId = requireId(cluster.id, `${cluster.name} cluster`);
+    const commandId = requireId(cluster.commands.require(command).id, name);
+    const th = theTh(cx);
+
+    const invoked = await invokeWithResponseChecks(cx, ref, invocation);
+    const logged = await expectCommandInvoke(
+        th.log,
+        th.flavor,
+        endpoint,
+        clusterId,
+        commandId,
+        fields,
+        invoked.from,
+        LOG_TIMEOUT,
+    );
+    invoked.checks.push({ what: `CommandDataIB log for ${name}`, check: () => logged });
+    return invoked;
+}
+
+/** The invoke and response checks of {@link invokeCommand}, without its log check. */
+async function invokeWithResponseChecks(
+    cx: CertStepContext,
+    ref: CertNodeRef,
+    invocation: Omit<CommandInvocation, "fields">,
+): Promise<InvokedCommand> {
     const {
         cluster,
         endpoint,
         command,
         args,
-        fields,
         describe = describeInvokeResponse,
         options,
         anyStatus = false,
     } = invocation;
     const name = `${cluster.name}.${command}`;
-    const clusterId = requireId(cluster.id, `${cluster.name} cluster`);
-    const commandId = requireId(cluster.commands.require(command).id, name);
-    const th = theTh(cx);
-    const from = th.log.mark();
+    const from = theTh(cx).log.mark();
 
     const response = await attempt(
         () => cx.controllers.dut.node(ref).invoke(cluster.name, command, args, endpoint, options),
@@ -1621,20 +1681,170 @@ export async function invokeCommand(
         checks.push({ what: `${name} response status`, check: () => statusCheck });
     }
 
-    const logged = await expectCommandInvoke(
-        th.log,
-        th.flavor,
-        endpoint,
-        clusterId,
-        commandId,
-        fields,
-        from,
-        LOG_TIMEOUT,
-    );
-    checks.push({ what: `CommandDataIB log for ${name}`, check: () => logged });
-
     return { response: response.ok ? { ok: true, value: response.value } : { ok: false }, accepted, checks, from };
 }
+
+/** The whole request payload a command carried, as each TH flavor prints it; see {@link expectCommandPayload}. */
+export interface CommandPayload {
+    /** Names the claim in the evidence. */
+    label: string;
+
+    /**
+     * Every line inside chip's `CommandFields` block, in order: {@link chipCommandField} for a number, a string or a
+     * boolean, several lines for a struct or a list. None for a command without fields.
+     */
+    chip: RegExp[];
+
+    /**
+     * The text that ends matter.js's line for the dispatched command: its fields, {@link MATTERJS_NO_PAYLOAD} for a
+     * command without fields, or {@link MATTERJS_EMPTY_PAYLOAD} for a command that sends none of its optional fields.
+     */
+    matterjs: string;
+}
+
+/**
+ * Checks that the TH's log shows `command`'s request at or after `from` carrying exactly `payload` and no other
+ * command, within `timeout`.
+ *
+ * {@link expectCommandInvoke} finds each field line anywhere after the command path, which also matches a TH
+ * subscription report printing a field of the same id and value. This check reads the request itself:
+ *
+ * - chip prints the request's raw TLV. The check demands its whole `InvokeRequests` list as consecutive lines: the
+ *   command's own `CommandPathIB`, then `payload`'s field lines, then the closing lines of the fields, the
+ *   `CommandDataIB` and the list. A field that is missing, has another value or is extra fails it, an extra field
+ *   with a tag the schema does not know included, and so does a second command in the request.
+ * - matter.js prints the arguments after decoding them through the command's schema, which drops a field whose tag
+ *   the schema does not know. The check demands `payload` at the end of the line that dispatches the command on
+ *   `endpoint`, so a missing or different known field, or an extra one, fails it; an extra unknown field cannot. It
+ *   then demands that the request summary line of the same exchange lists this command and no other.
+ */
+export async function expectCommandPayload(
+    log: LogFollower,
+    flavor: LogFlavor,
+    invocation: { cluster: ClusterModel; endpoint: number; command: string },
+    payload: CommandPayload,
+    from: number,
+    timeout: Duration,
+): Promise<CheckRecord> {
+    const { label } = payload;
+    const { cluster, endpoint, command } = invocation;
+    const model = cluster.commands.require(command);
+    const clusterId = requireId(cluster.id, `${cluster.name} cluster`);
+    const commandId = requireId(model.id, `${cluster.name}.${command}`);
+
+    if (flavorFamily(flavor) === "matterjs") {
+        return matterjsCommandPayload(log, flavor, endpoint, cluster, command, payload, from, timeout);
+    }
+    return expectSequence(
+        log,
+        flavor,
+        label,
+        {
+            chip: [
+                /InvokeRequests =\s*$/,
+                /\[\s*$/,
+                ...commandPathIBSequence(endpoint, clusterId, commandId),
+                /\},\s*$/,
+                /\[DMG\]\s*$/,
+                /CommandFields =\s*$/,
+                /\{\s*$/,
+                ...payload.chip,
+                /\},\s*$/,
+                /\},\s*$/,
+                /\[DMG\]\s*$/,
+                /\],\s*$/,
+            ],
+        },
+        from,
+        timeout,
+    );
+}
+
+/**
+ * As {@link expectCommandPayload} against a matter.js TH: the line dispatching the command, then the summary line
+ * `InteractionServer` writes for the request on the same exchange (`@<session>⇵<exchange>`), which names every
+ * command path the request carried.
+ */
+async function matterjsCommandPayload(
+    log: LogFollower,
+    flavor: LogFlavor,
+    endpoint: number,
+    cluster: ClusterModel,
+    command: string,
+    payload: CommandPayload,
+    from: number,
+    timeout: Duration,
+): Promise<CheckRecord> {
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
+    const model = cluster.commands.require(command);
+
+    // The dispatch line names the exchange, then the message (`✉…`) the command arrived in
+    const payloadText = payload.matterjs === MATTERJS_EMPTY_PAYLOAD ? "\\s*" : ` ${literally(payload.matterjs)}`;
+    const dispatchLine = new RegExp(
+        `ProtocolService Invoke « \\S+\\.ep${endpoint}\\.${camelize(cluster.name)}\\.${camelize(model.name)} ` +
+            `(@[^\\s✉]+)\\S*${payloadText}$`,
+    );
+    const dispatch = await expectDeviceLog(log, flavor, { matterjs: dispatchLine }, from, remaining());
+    const exchange = dispatch.check.matched?.match(dispatchLine)?.[1];
+    if (dispatch.check.verdict !== "pass" || exchange === undefined) {
+        return { ...dispatch.check, pattern: payload.label };
+    }
+
+    const commandPath = matterjsCommandPath(
+        endpoint,
+        requireId(cluster.id, `${cluster.name} cluster`),
+        requireId(model.id, `${cluster.name}.${command}`),
+    );
+    const request = await expectDeviceLog(
+        log,
+        flavor,
+        {
+            matterjs: new RegExp(`InteractionServer Invoke « ${literally(exchange)} (?:.* )?invokes: ${commandPath}$`),
+        },
+        from,
+        remaining(),
+    );
+    if (request.check.verdict !== "pass") {
+        return {
+            ...request.check,
+            pattern: payload.label,
+            detail:
+                `no summary line on ${exchange} lists ${command} as the request's only command: ` +
+                `${request.check.detail}`,
+        };
+    }
+    return { ...dispatch.check, pattern: payload.label };
+}
+
+/**
+ * Has the DUT invoke a command on the TH and records {@link invokeCommand}'s response checks together with
+ * {@link expectCommandPayload}'s check, for a step whose plan names every field the command carries. The payload
+ * check covers the command path as well, so this waits for the TH's log once.
+ */
+export function sendCommand(
+    cx: CertStepContext,
+    ref: CertNodeRef,
+    invocation: Omit<CommandInvocation, "fields">,
+    payload: CommandPayload,
+): Promise<void> {
+    return withChecks(cx, async checks => {
+        const invoked = await invokeWithResponseChecks(cx, ref, invocation);
+        checks.push(...invoked.checks);
+        const th = theTh(cx);
+        const logged = await expectCommandPayload(th.log, th.flavor, invocation, payload, invoked.from, LOG_TIMEOUT);
+        checks.push({ what: payload.label, check: () => logged });
+    });
+}
+
+/** What matter.js prints for a command without fields. */
+export const MATTERJS_NO_PAYLOAD = "(no payload)";
+
+/**
+ * What matter.js prints for a command whose fields are all optional and left out: the request decodes as an empty
+ * struct, which prints as nothing, so the line ends after the message id.
+ */
+export const MATTERJS_EMPTY_PAYLOAD = "";
 
 function isStatusAnswer(error: unknown): error is StatusResponseError {
     return error instanceof StatusResponseError && !(error instanceof ValidationError);
@@ -2661,23 +2871,23 @@ export async function expectRejection(
 }
 
 /**
- * A one-shot pairing code slot: {@link require} clears it on read so a commissioning attempt that
- * throws can't leave a stale code behind for a later run to pair against an expired window instead
- * of failing "the window-opening step must run first".
+ * Sleeps until `performance.now()` reaches `deadline`.  A timer may fire up to a millisecond before its delay has
+ * passed on this clock, so the wait repeats until the deadline is reached.
  */
-export class PendingPairingCode {
-    #code: string | undefined;
-
-    set(code: string): void {
-        this.#code = code;
-    }
-
-    require(): string {
-        if (this.#code === undefined) {
-            throw new InternalError("No pending manual pairing code; a commissioning-window step must run first");
-        }
-        const code = this.#code;
-        this.#code = undefined;
-        return code;
+export async function sleepUntil(what: string, deadline: number) {
+    for (let remaining = deadline - performance.now(); remaining > 0; remaining = deadline - performance.now()) {
+        await Time.sleep(what, Millis(Math.ceil(remaining)));
     }
 }
+
+/** The integer types chip prints as `(signed)` in a decoded command field, see {@link chipCommandField}. */
+export const SIGNED_TYPES: ReadonlySet<string> = new Set([
+    "int8",
+    "int16",
+    "int24",
+    "int32",
+    "int40",
+    "int48",
+    "int56",
+    "int64",
+]);

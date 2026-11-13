@@ -188,6 +188,9 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
     /**
      * CASE Authenticated Tags used to initialize the Controller the first time. Cannot be changed afterward.
      * Maximum 3 tags are supported.
+     *
+     * They are written into the controller's own NOC. The same value is also the default for the per-node
+     * `caseAuthenticatedTags` option, which is stored but not applied yet; the CATs of a peer come from its NOC.
      */
     readonly caseAuthenticatedTags?: CaseAuthenticatedTag[];
 
@@ -752,6 +755,10 @@ export class CommissioningController {
         options?: {
             discoveryTimeout?: Duration;
             forcedConnection?: boolean;
+            /**
+             * Stored, but not applied yet. Sessions present the CATs of this node's own NOC in the fabric
+             * (`ControllerBehavior.caseAuthenticatedTags`). The CATs of the peer come from its NOC.
+             */
             caseAuthenticatedTags?: CaseAuthenticatedTag[];
         },
     ): Promise<InteractionClient> {
@@ -782,14 +789,19 @@ export class CommissioningController {
         return this.#pairedNodeForNodeId(nodeId);
     }
 
-    /** Returns an array with the NodeIds of all commissioned nodes. */
+    /**
+     * Returns an array with the NodeIds of all commissioned nodes.
+     *
+     * Lists only nodes whose state is readable.  A node that is still initializing, resetting, crashed or being
+     * deleted is left out until its state is readable again.
+     */
     getCommissionedNodes() {
         const controller = this.#assertControllerIsStarted();
 
         return controller.getCommissionedNodes() ?? [];
     }
 
-    /** Returns an array with all commissioned NodeIds and their metadata. */
+    /** Returns the metadata of the nodes {@link getCommissionedNodes} lists. */
     getCommissionedNodesDetails(): PairedNodeDetails[] {
         const controller = this.#assertControllerIsStarted();
 

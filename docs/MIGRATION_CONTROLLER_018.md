@@ -277,7 +277,9 @@ A wrong passcode fails with `PasscodeMismatchError` (`@matter/protocol`), possib
 `onAttestationFailure(findings)` replaces the legacy attestation callback — return `true` to accept, `false` to
 reject, or a string to reject with that message; each finding carries `level` (`"error"` / `"warn"` / `"info"`),
 `type` and `message`. To decommission, use `node.decommission()` (contacts the device, so call it only while
-`lifecycle.isConnected`) or `node.delete()` (force-drop locally when the peer is unreachable).
+`lifecycle.isConnected`) or `node.delete()` (force-drop locally when the peer is unreachable). To rotate a node's
+operational certificate and key pair, use `node.updateOperationalCertificate()`; node ID, fabric and ACLs stay the
+same.
 
 ### Delegated / split commissioning (legacy `PaseCommissioner`)
 
@@ -621,8 +623,9 @@ When you consume `ChangeNotificationService.change`:
   ids: map them with `change.behavior.schema` or `ClusterLookup.attributeId(clusterId, name, node.matter)`.
   Attributes the model does not know arrive as `attr$<hex id>`.
 - **Events** carry `change.event` (the `EventModel`; use its `propertyName` for the camelCase name) and
-  `change.timestampKind` (`"epoch"`, `"system"`, `"epoch-delta"` or `"system-delta"`) — convert the timestamp
-  accordingly; do not assume epoch milliseconds.
+  `change.timestampKind` (`"epoch"`, `"system"`, `"epoch-delta"` or `"system-delta"`). `change.timestamp` is the
+  raw value, a delta for the delta kinds. `change.resolvedTimestamp` is the absolute time on the clock the kind
+  names, or `undefined` when matter.js cannot determine it; do not assume epoch milliseconds.
 - **There is a fourth kind, `"readable"`**, emitted when an endpoint's state becomes readable. Handle or ignore it.
 - **The first report after commissioning contains every attribute** as an `"update"`. After a restart only changed
   clusters are reported; for a full snapshot, read the cached state on `"readable"` or `lifecycle.seeded`.
@@ -657,7 +660,7 @@ observers.on(serverNode.env.get(ChangeNotificationService).change, change => {
             // peer.peerAddress.nodeId, change.endpoint.number, change.behavior.cluster.id, change.version
             break;
         }
-        case "event":  /* change.behavior/event/number/timestamp/timestampKind/priority/payload */ break;
+        case "event":  /* change.behavior/event/number/timestamp/timestampKind/resolvedTimestamp/priority/payload */ break;
         case "delete": /* change.endpoint removed */ break;
     }
 });

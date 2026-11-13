@@ -146,10 +146,11 @@ certTest("TC-SU-1.1", {
                     },
                 },
                 {
-                    // The VendorID claim rests here rather than on a check of its own: the DUT fills
-                    // that field in from its own BasicInformation, so the only independent account of
-                    // it is the one the OTA-R/TH logs for the command it received. MetadataForNode is
-                    // optional and the DUT sends none.
+                    // The VendorID claim rests here rather than on a check of its own: the DUT fills that
+                    // field in with its vendor id as it would appear in its Basic Information (§ 11.20.7.6.1.2),
+                    // which a controller without that cluster takes from its commissioner (admin) vendor id. The
+                    // only independent account of it is the one the OTA-R/TH logs for the command it received.
+                    // MetadataForNode is optional and the DUT sends none.
                     what:
                         "the OTA-R/TH received the command with the ProviderNodeID, VendorID, reason and endpoint " +
                         "the DUT sent",

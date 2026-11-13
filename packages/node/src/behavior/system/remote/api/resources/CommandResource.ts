@@ -63,7 +63,7 @@ export class CommandResource extends ApiResource {
         }
 
         // Validate input
-        input.validate(this.session);
+        input.validate(this.session, this.outbound);
 
         // Invoke
         const result = await method.call(this.#behavior, input.js);
@@ -77,7 +77,7 @@ export class CommandResource extends ApiResource {
         // Create and validate result
         const output = new Envelope({ supervisor: this.supervisorFor(responseSchema), js: result });
         try {
-            output.validate(this.session);
+            output.validate(this.session, this.inbound);
         } catch (e) {
             // If output validation fails it is an internal error
             const error = new ImplementationError("Command output validation failed");

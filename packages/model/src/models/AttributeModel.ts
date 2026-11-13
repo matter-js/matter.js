@@ -5,6 +5,7 @@
  */
 
 import { Access } from "../aspects/Access.js";
+import { Metatype } from "../common/Metatype.js";
 import { AttributeElement } from "../elements/index.js";
 import { Model } from "./Model.js";
 import { PropertyModel } from "./PropertyModel.js";
@@ -29,6 +30,17 @@ export class AttributeModel extends PropertyModel<AttributeElement> implements A
     get fabricScoped() {
         const { fabric } = this.effectiveAccess;
         return fabric === Access.Fabric.Scoped || fabric === Access.Fabric.Sensitive;
+    }
+
+    /**
+     * Whether the attribute is a fabric-scoped list: a list with fabric-scoped (`F`) or fabric-sensitive (`S`) access.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 7.6.4.1
+     * @see {@link MatterSpecification.v161.Core} § 7.6.5.1
+     * @see {@link MatterSpecification.v161.Core} § 7.19.1.8.1
+     */
+    override get fabricScopedList() {
+        return this.fabricScoped && this.effectiveMetatype === Metatype.array;
     }
 
     /**

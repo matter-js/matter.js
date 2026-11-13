@@ -4,41 +4,43 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Logger } from "#log/Logger.js";
 import { Mutex } from "#util/Mutex.js";
 import type { Directory } from "../../fs/Directory.js";
 import type { File } from "../../fs/File.js";
-import {
-    MAX_SEGMENT_LINES,
-    type WalCommitId,
-    type WalOp,
-    isCompressedSegmentFile,
-    parseSegmentFilename,
-    segmentFilename,
-    serializeCommit,
-} from "./WalCommit.js";
+import { MAX_SEGMENT_LINES, type WalCommitId, type WalOp, serializeCommit } from "./WalCommit.js";
+import { segmentFilename } from "./WalSegments.js";
+
+const logger = Logger.get("WalWriter");
 
 /**
  * Manages the current WAL segment and writes commits.
+ *
+ * The writer only ever writes to segments it created itself, starting at {@link WalWriter.Options.firstSegment}.  It
+ * never appends to a segment from an earlier run or to a segment where a write failed, because such a segment may
+ * end in a cut-off line that a new commit would join.
  */
 export class WalWriter {
     readonly #walDir: Directory;
     readonly #name: string;
     readonly #maxSegmentSize: number;
     readonly #fsync: boolean;
-    readonly #onRotate?: (closedSegment: number) => void;
+    readonly #onRotate?: () => void;
     readonly #mutex = new Mutex(this);
 
     #handle?: File.Handle;
+    #nextSegment: number;
     #currentSegment = 0;
     #currentOffset = 0;
     #currentSize = 0;
 
-    constructor(walDir: Directory, options?: WalWriter.Options) {
+    constructor(walDir: Directory, options: WalWriter.Options) {
         this.#walDir = walDir;
-        this.#name = options?.name ?? "unknown";
-        this.#maxSegmentSize = options?.maxSegmentSize ?? 16 * 1024 * 1024; // 16 MB default
-        this.#fsync = options?.fsync ?? true;
-        this.#onRotate = options?.onRotate;
+        this.#name = options.name ?? "unknown";
+        this.#maxSegmentSize = options.maxSegmentSize ?? 16 * 1024 * 1024; // 16 MB default
+        this.#fsync = options.fsync ?? true;
+        this.#onRotate = options.onRotate;
+        this.#nextSegment = options.firstSegment;
     }
 
     /**
@@ -69,9 +71,14 @@ export class WalWriter {
             const line = serializeCommit({ ts, ops }) + "\n";
             const id: WalCommitId = { segment: this.#currentSegment, offset: this.#currentOffset };
 
-            await this.#handle!.writeHandle(line);
-            if (this.#fsync) {
-                await this.#handle!.fsync();
+            try {
+                await this.#handle!.writeHandle(line);
+                if (this.#fsync) {
+                    await this.#handle!.fsync();
+                }
+            } catch (error) {
+                await this.#closeHandle();
+                throw error;
             }
 
             this.#currentOffset++;
@@ -82,90 +89,43 @@ export class WalWriter {
     }
 
     /**
-     * Close the current file handle.
+     * Wait for pending writes, then close the current segment.  Throws if closing the segment fails.
      */
     async close(): Promise<void> {
         await this.#mutex.close();
-        if (this.#handle) {
-            await this.#handle.close();
-            this.#handle = undefined;
-        }
+        const handle = this.#handle;
+        this.#handle = undefined;
+        await handle?.close();
     }
 
     async #openSegment(): Promise<void> {
         await this.#walDir.mkdir();
-
-        // Scan existing segments to determine the next segment number
-        let maxSegment = 0;
-        let maxSegmentCompressed = false;
-        if (await this.#walDir.exists()) {
-            for await (const entry of this.#walDir.entries()) {
-                if (entry.kind !== "file") continue;
-                const seg = parseSegmentFilename(entry.name);
-                if (seg !== undefined) {
-                    if (seg > maxSegment) {
-                        maxSegment = seg;
-                        maxSegmentCompressed = isCompressedSegmentFile(entry.name);
-                    } else if (seg === maxSegment && isCompressedSegmentFile(entry.name)) {
-                        maxSegmentCompressed = true;
-                    }
-                }
-            }
-        }
-
-        if (maxSegment > 0) {
-            // If the max segment is compressed, we can't append — start a new one
-            if (maxSegmentCompressed) {
-                this.#currentSegment = maxSegment + 1;
-            } else {
-                // Check how many lines exist in the last segment
-                const lastFile = this.#walDir.file(segmentFilename(maxSegment));
-                let lineCount = 0;
-                let byteSize = 0;
-                for await (const line of lastFile.readText({ lines: true })) {
-                    if (line.trim() !== "") {
-                        lineCount++;
-                    }
-                    byteSize += new TextEncoder().encode(line + "\n").length;
-                }
-
-                if (byteSize < this.#maxSegmentSize && lineCount < MAX_SEGMENT_LINES) {
-                    // Append to existing segment
-                    this.#currentSegment = maxSegment;
-                    this.#currentOffset = lineCount;
-                    this.#currentSize = byteSize;
-                    this.#handle = await lastFile.open(this.#handlePurpose, "a");
-                    return;
-                }
-
-                // Start a new segment
-                this.#currentSegment = maxSegment + 1;
-            }
-        } else {
-            this.#currentSegment = 1;
-        }
-
+        const segment = this.#nextSegment;
+        const file = this.#walDir.file(segmentFilename(segment));
+        this.#handle = await file.open(`WAL writer ${this.#name} segment ${segment}`, "a");
+        this.#nextSegment = segment + 1;
+        this.#currentSegment = segment;
         this.#currentOffset = 0;
         this.#currentSize = 0;
-        const file = this.#walDir.file(segmentFilename(this.#currentSegment));
-        this.#handle = await file.open(this.#handlePurpose, "a");
     }
 
     async #rotate(): Promise<void> {
-        if (this.#handle) {
-            await this.#handle.close();
-        }
-        const closedSegment = this.#currentSegment;
-        this.#currentSegment++;
-        this.#currentOffset = 0;
-        this.#currentSize = 0;
-        const file = this.#walDir.file(segmentFilename(this.#currentSegment));
-        this.#handle = await file.open(this.#handlePurpose, "a");
-        this.#onRotate?.(closedSegment);
+        await this.#closeHandle();
+        await this.#openSegment();
+        this.#onRotate?.();
     }
 
-    get #handlePurpose() {
-        return `WAL writer ${this.#name} segment ${this.#currentSegment}`;
+    /**
+     * Close the current segment so the next write starts a new one.  The writer continues either way, so a close
+     * failure is only logged.
+     */
+    async #closeHandle(): Promise<void> {
+        const handle = this.#handle;
+        const segment = this.#currentSegment;
+        this.#handle = undefined;
+        await handle
+            ?.close()
+            .catch(error => logger.warn(`Closing WAL segment ${segment} of ${this.#name} failed:`, error));
     }
 }
 
@@ -177,7 +137,13 @@ export namespace WalWriter {
         maxSegmentSize?: number;
         /** Whether to fsync after each write. Default true. */
         fsync?: boolean;
-        /** Called after a segment is rotated, with the closed segment number. */
-        onRotate?: (closedSegment: number) => void;
+        /** Called after a segment is rotated. */
+        onRotate?: () => void;
+
+        /**
+         * Number of the first segment to write.  Must be higher than every existing segment and than the segment of
+         * every commit the storage already knows of.
+         */
+        firstSegment: number;
     }
 }

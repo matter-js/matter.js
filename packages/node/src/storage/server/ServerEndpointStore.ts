@@ -46,7 +46,7 @@ export class ServerEndpointStore extends EndpointStore {
     }
 
     /**
-     * Create a {@link Datasource.Store} for a behavior.
+     * Create a {@link Datasource.PersistentStore} for a behavior.
      */
     createStoreForBehavior(behaviorId: string) {
         const initialValues = this.consumeInitialValues(behaviorId);

@@ -7,7 +7,7 @@
 import { camelize, deepCopy, GeneratedClass, isObject } from "@matter/general";
 import type { Schema } from "@matter/model";
 import { ElementTag, FieldValue, MandatoryDefaultValue, Metatype, ValueModel } from "@matter/model";
-import { AccessControl, PhantomReferenceError, SchemaImplementationError, Val } from "@matter/protocol";
+import { AccessControl, SchemaImplementationError, Val } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
@@ -22,8 +22,7 @@ import {
     memberValueOf,
 } from "../MemberKeys.js";
 import { NameResolver } from "../NameResolver.js";
-import type { ValReference } from "../ValReference.js";
-import { isFabricScopedList } from "./ListManager.js";
+import { ValReference } from "../ValReference.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
 
 /**
@@ -140,11 +139,11 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
     const { access, manage, validate } = supervisor.get(schema);
 
-    const fabricScopedList = isFabricScopedList(schema) && schema.effectiveMetatype === Metatype.array;
+    const fabricScopedList = schema.fabricScopedList;
 
     // We generally do not deal with default values.  If the schema defines a default it is assigned before the manager
-    // is created.  The one exception is for field references.  These we must look up dynamically at runtime because the
-    // value should always track the referenced value
+    // is created.  Field references are the exception: a name-keyed container reads the referenced value at runtime so
+    // it tracks that value, and a mirror's default is a copy of it, made in readDefault
     let defaultReader: ((val: Val) => Val) | undefined;
     if (typeof FieldValue.referenced(schema.default) === "string") {
         defaultReader = NameResolver(supervisor, schema.parent, camelize(FieldValue.referenced(schema.default)!));
@@ -153,8 +152,8 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
     // A member mandatory under the mirror's active features always reads a value even when the peer's
     // AttributeList omits it, and an optional member stays undefined even when the peer's AttributeList reports
     // it -- this mirrors the conformance-aware TypeScript typings, which know nothing about runtime AttributeList
-    // data. The container itself never holds this value, so it can't masquerade as peer data in persistence,
-    // change detection or external-change integration.
+    // data. The container never holds this value, so it can't masquerade as peer data in persistence, change
+    // detection or external-change integration; a change in place of a default container throws UncachedValueError.
     const scope = supervisor.scope;
     const isMandatory = scope.isMandatory(schema);
 
@@ -176,7 +175,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
     const referencedDefault = defaultReader;
     const readDefault: ((self: Struct) => Val | undefined) | undefined = synthesizeDefault
         ? referencedDefault
-            ? (self: Struct) => referencedDefault(self) ?? synthesizeDefault()
+            ? (self: Struct) => Internal.copy(referencedDefault(self)) ?? synthesizeDefault()
             : () => synthesizeDefault()
         : undefined;
 
@@ -185,20 +184,21 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
         set(this: Struct, value: Val) {
             access.authorizeWrite(this[Internal.session], this[Internal.reference].location);
+            const container = ValReference.writableContainerOf(this[Internal.reference]);
 
             // We allow attribute/field name or id as key.  If name is present id is ignored
             const pk = this[Internal.reference].primaryKey;
             let key = memberKeyFor(pk, name, id);
-            let storedKey = memberSlotOf(this[Internal.reference].value, key, memberFallbackKeyFor(pk, name, id));
+            let storedKey = memberSlotOf(container, key, memberFallbackKeyFor(pk, name, id));
 
             // Rollback and the fabric-scoped-list merge check must see stored truth — never the write-migration
             // slot above and never a synthesized default
-            const oldValue = memberValueOf(this[Internal.reference].value, key, memberReadFallbackKeyFor(pk, name, id));
+            const oldValue = memberValueOf(container, key, memberReadFallbackKeyFor(pk, name, id));
 
             const self = this;
 
             this[Internal.reference].change(() => {
-                const struct = this[Internal.reference].value;
+                const struct = ValReference.containerOf(this[Internal.reference]);
 
                 // Identify the target.  Usually just "struct" except when struct supports Val.Dynamic
                 let target;
@@ -214,9 +214,9 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                         if (fabricScopedList || validate) {
                             // A dynamic member's previous value lives in the provider, not the container slot;
                             // read it only when rollback or the fabric-scoped merge check may consume it, as the
-                            // provider's getter may be costly.  Unmanage in case the provider serves a managed
-                            // value — rollback must not plant a proxy that expires with this session
-                            previousValue = Internal.unmanage(properties[name]);
+                            // provider's getter may be costly.  Unwrap in case the provider serves a managed value —
+                            // rollback must not plant a proxy that expires with this session
+                            previousValue = Internal.rawOf(properties[name]);
                         }
                     } else {
                         target = struct;
@@ -225,8 +225,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                     target = struct;
                 }
 
-                // Unwrap if incoming value (or nested children) is managed
-                value = Internal.unmanage(value);
+                value = Internal.copy(value);
 
                 // Undo our change on error.  Rollback will take care of this when transactional but this handles the
                 // cases of 1.) no transaction, and 2.) error is caught within transaction.  A previously absent member
@@ -243,11 +242,14 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 if (fabricScopedList && Array.isArray(value)) {
                     // The merge must run through the proxy even for an absent member; it is what filters by fabric
                     // and supplies the accessing fabric
-                    if (previousValue === undefined) {
+                    if (previousValue === undefined || previousValue === null) {
                         target[key] = [];
                         if (storedKey !== undefined && storedKey !== key) {
                             delete target[storedKey];
                         }
+
+                        // The direct write above bypasses the cached reference; the merge below reads through it
+                        this[Internal.reference].subrefs?.[memberKeyFor(pk, name, id)]?.refresh("session");
                     }
 
                     // In the case of fabric-scoped write to established list we use the managed proxy to perform update
@@ -258,6 +260,9 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                             proxy[i] = value[i];
                         }
                         proxy.length = value.length;
+
+                        // The list prepared copies of the entries, so validate those
+                        value = Array.from(proxy, Internal.copy);
                     } catch (e) {
                         undo();
                         throw e;
@@ -284,6 +289,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                             path: this[Internal.reference].location.path,
                             siblings: struct,
                             owner: this[Internal.reference].rootOwner,
+                            remote: this[Internal.reference].mirrorsRemote ? "outbound" : undefined,
                         });
                     } catch (e) {
                         undo();
@@ -298,10 +304,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
         // For primitives, we don't need a manager so just proxy reads directly
         descriptor.get = function (this: Struct) {
             if (access.mayRead(this[Internal.session], this[Internal.reference].location)) {
-                const struct = this[Internal.reference].value as Val.Dynamic;
-                if (struct === undefined) {
-                    throw new PhantomReferenceError(this[Internal.reference].location);
-                }
+                const struct = ValReference.containerOf(this[Internal.reference]) as Val.Dynamic;
                 if (struct[Val.properties]) {
                     const properties = struct[Val.properties](
                         this[Internal.reference].rootOwner,
@@ -350,7 +353,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             let value;
 
             // Obtain the value.  Normally just struct[key] except in the case of Val.Dynamic
-            const struct = this[Internal.reference].value;
+            const struct = ValReference.containerOf(this[Internal.reference]);
             const primaryKey = this[Internal.reference].primaryKey;
             const key = memberKeyFor(primaryKey, name, id);
             if ((struct as Val.Dynamic)[Val.properties]) {
@@ -375,7 +378,12 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             }
 
             if (value === undefined) {
-                return primaryKey === "name" ? defaultReader?.(this) : readDefault?.(this);
+                if (primaryKey === "name") {
+                    return defaultReader?.(this);
+                }
+                if (readDefault === undefined) {
+                    return undefined;
+                }
             }
 
             // Value is null or a dynamic property, so just return it
@@ -384,36 +392,24 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 return value;
             }
 
-            const managed = this[Internal.reference].subrefs?.[key];
-            if (managed) {
-                return managed.owner;
+            // The reference makes the default of an absent member, once for as long as the member stays absent
+            const ref =
+                this[Internal.reference].subrefs?.[key] ??
+                new ManagedReference(
+                    this[Internal.reference],
+                    name,
+                    id,
+                    cloneContainer,
+                    this[Internal.session],
+                    "member",
+                    primaryKey === "id" && readDefault ? () => readDefault(this) : undefined,
+                );
+
+            if (ref.value === undefined || ref.value === null) {
+                return ref.value;
             }
 
-            const assertWriteOk = (value: Val) => {
-                // Note - this needs to mirror behavior in the setter above
-                access.authorizeWrite(this[Internal.session], this[Internal.reference].location);
-                if (validate) {
-                    validate(value, this[Internal.session], {
-                        path: this[Internal.reference].location.path,
-                        siblings: this[Internal.reference].value,
-                        owner: this[Internal.reference].rootOwner,
-                    });
-                }
-            };
-
-            // Clone the container before write
-            const ref = new ManagedReference(
-                this[Internal.reference],
-                name,
-                id,
-                assertWriteOk,
-                cloneContainer,
-                this[Internal.session],
-            );
-
-            ref.owner = manage(ref, this[Internal.session]);
-
-            return ref.owner;
+            return (ref.owner ??= manage(ref, this[Internal.session]));
         };
     }
 

@@ -12,20 +12,7 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import {
-    causedBy,
-    ClosedError,
-    Duration,
-    Hours,
-    isDeepEqual,
-    Logger,
-    MatterError,
-    Millis,
-    Minutes,
-    Seconds,
-    Time,
-    Timer,
-} from "@matter/general";
+import { Duration, Hours, isDeepEqual, Logger, Millis, Minutes, Seconds, Time, Timer } from "@matter/general";
 import { Fabric, PeerAddress, Write, WriteResult } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, NodeId, VendorId } from "@matter/types";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
@@ -262,33 +249,26 @@ export class OtaAnnouncements {
         }
     }
 
-    /** Announce ourselves as OTA Provider to the given node's endpoint */
+    /**
+     * Announce ourselves as OTA Provider to the given requestor endpoint of a node.
+     *
+     * Rejects when the node cannot be reached, rejects the command, or `abort` aborts; the caller decides what a
+     * failed announcement means for its update.
+     */
     async announceOtaProvider(
         endpoint: Endpoint,
-        peerAddress: PeerAddress,
         announcementReason = OtaSoftwareUpdateRequestor.AnnouncementReason.SimpleAnnouncement,
+        abort?: AbortSignal,
     ) {
-        try {
-            // Find the endpoint with Requestor behavior
-            await endpoint.commandsOf(OtaSoftwareUpdateRequestorClient).announceOtaProvider({
+        await endpoint.commandsOf(OtaSoftwareUpdateRequestorClient).announceOtaProvider(
+            {
                 providerNodeId: this.#ownNodeId,
                 vendorId: this.#ownVendorId,
                 announcementReason,
                 endpoint: this.#otaProviderEndpoint,
-            });
-        } catch (error) {
-            MatterError.accept(error);
-            if (causedBy(error, ClosedError)) {
-                logger.debug(
-                    `Node ${PeerAddress(peerAddress)}/ep${endpoint.number} closed connection during OTA announcement, will retry later`,
-                );
-            } else {
-                logger.info(
-                    `Failed to notify node ${PeerAddress(peerAddress)}/ep${endpoint.number} about available OTA update:`,
-                    error,
-                );
-            }
-        }
+            },
+            { abort },
+        );
     }
 
     async close() {

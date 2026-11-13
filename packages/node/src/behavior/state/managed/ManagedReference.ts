@@ -7,6 +7,7 @@
 import { InternalError } from "@matter/general";
 import { AccessControl, ExpiredReferenceError, Val } from "@matter/protocol";
 import type { Supervision } from "../../supervision/Supervision.js";
+import { UncachedValueError } from "./errors.js";
 import {
     memberFallbackKeyFor,
     memberKeyFor,
@@ -14,14 +15,14 @@ import {
     memberSlotOf,
     memberValueOf,
 } from "./MemberKeys.js";
-import type { ValReference } from "./ValReference.js";
+import { ValReference } from "./ValReference.js";
 
 type Container = Record<string | number, Val>;
 
 /**
  * ManagedReference manages a reference to a container property of another reference.
  *
- * The ManagedReference detects when the value changes and clones the container if it is the original copy.
+ * The ManagedReference clones the container on write unless the transaction already owns it.
  *
  * This serves the following purposes:
  *
@@ -31,9 +32,27 @@ type Container = Record<string | number, Val>;
  *
  *   - Preserves metadata regarding the state of the value
  *
- * Change detection happens automatically if the value is replaced.  If a subvalue is replaced, the logic replacing the
- * subvalue must update "changed" manually before replacing the subvalue.  For managed structures this is handled by a
- * separate ManagedReference.
+ * A member reference follows whatever container the parent holds at its key.  A list entry reference is bound to one
+ * entry instead, because an index does not identify an entry (see {@link ManagedReference.Binding}):
+ *
+ * | State   | Cause                                                    | {@link value}      | Writes                  |
+ * |---------|----------------------------------------------------------|--------------------|-------------------------|
+ * | live    | the member holds a container                             | that container     | allowed                 |
+ * | default | the member is absent; the reference has a default        | the default        | `UncachedValueError`    |
+ * | absent  | member absent without default, or container above absent;| `undefined`/`null` | `PhantomReferenceError` |
+ * |         | for an entry, only after another transaction's commit    |                    |                         |
+ * | expired | the owning context exited, a parent is read-only, or a   | last container     | `ExpiredReferenceError` |
+ * |         | change in this session moved, removed or replaced this   |                    |                         |
+ * |         | entry                                                    |                    |                         |
+ *
+ * A reference to a mandatory member has a default when its parent keys by ID, which only a mirror's root does; see
+ * {@link ValReference.PrimaryKey}.  A reference makes its default when it enters "default" and serves that same value
+ * until it leaves; a read never stores it.  A value built from the default and assigned whole is stored like any other
+ * assignment and replaces the remote value.  A write below a reference in "default" fails the same way.  Before the
+ * default is checked, a write throws what the datasource's `ExternallyMutableStore.assertWritable` throws.  "default"
+ * and "absent" return to "live" when the member holds a container again, for example after a report or an assignment.
+ * Once a transaction changed the cluster, its root keeps its own copy, so a later report does not reach it.  A live
+ * member that becomes absent again, for example by a rollback, enters "default" or "absent".  "expired" is final.
  */
 export class ManagedReference implements ValReference {
     readonly primaryKey = "name";
@@ -46,35 +65,43 @@ export class ManagedReference implements ValReference {
     #key: string | number;
     #fallbackKey: string | number | undefined;
     #readFallbackKey: string | number | undefined;
-    #assertWriteOk: (value: Val) => void;
-    #clone: ((container: Val) => Val) | undefined;
+    #clone: (container: Val) => Val;
+    #makeDefault: (() => Val) | undefined;
+    #servesDefault = false;
     #session: AccessControl.Session;
-    #expired = false;
     #location: AccessControl.Location;
-    #value: unknown;
+    #value: Val;
     #dynamicContainer: Val.Struct | undefined;
     #dynamicSource: Val | undefined;
+    #binding: ManagedReference.Binding;
+    #entry: unknown;
+    #copies?: WeakSet<object>;
+    #detached = false;
 
     /**
      * @param parent a reference to the container we reference
      * @param name the name (in the case of structs) or index (in case of lists)
      * @param id the lookup ID, used when {@link parent} keys its members by ID
-     * @param assertWriteOk enforces ACLs and read-only
-     * @param clone clones the container prior to write; undefined if not transactional
+     * @param clone clones the container prior to write
      * @param session the access control session
+     * @param binding what the reference stays bound to when the parent changes
+     * @param makeDefault makes the default to serve while the member is absent; called once each time the member
+     * becomes absent
      */
     constructor(
         parent: ValReference<Val.Collection>,
         name: string | number,
         id: number | undefined,
-        assertWriteOk: (value: Val) => void,
         clone: (container: Val) => Val,
         session: AccessControl.Session,
+        binding: ManagedReference.Binding,
+        makeDefault?: () => Val,
     ) {
         this.parent = parent;
-        this.#assertWriteOk = assertWriteOk;
         this.#clone = clone;
+        this.#makeDefault = makeDefault;
         this.#session = session;
+        this.#binding = binding;
 
         this.#location = {
             ...parent.location,
@@ -89,10 +116,8 @@ export class ManagedReference implements ValReference {
         this.#readFallbackKey = readFallbackKey;
 
         this.#bindDynamicContainer();
-        this.#value =
-            this.#dynamicContainer === undefined
-                ? memberValueOf(parent.value as Container, key, readFallbackKey)
-                : memberValueOf(this.#dynamicContainer as Container, key, fallbackKey);
+        this.#value = this.#memberValue();
+        this.#entry = this.#value;
 
         // Propagate supervision config from parent
         if (parent.supervisionConfig) {
@@ -106,34 +131,20 @@ export class ManagedReference implements ValReference {
     }
 
     get rootOwner() {
-        return this.parent!.rootOwner;
+        return this.parent.rootOwner;
+    }
+
+    get mirrorsRemote() {
+        return this.parent.mirrorsRemote;
     }
 
     get value() {
         // Authorization is unnecessary here because the reference would not exist if access is unauthorized
-        // Note that we allow read from expired references
         return this.#value;
     }
 
-    set value(newValue: Val) {
-        if (this.#value === newValue) {
-            return;
-        }
-
-        // Authorization and validation
-        this.#assertWriteOk(newValue);
-
-        // Set the value directly before change() so change() doesn't create a useless clone
-        this.#replaceValue(newValue);
-
-        // Now use change to complete the update
-        this.change(() => {
-            this.#writeTo(this.#dynamicContainer ?? (this.parent!.value as Container), newValue);
-        });
-    }
-
     get expired() {
-        return this.#expired;
+        return this.#detached || this.parent.expired;
     }
 
     get location() {
@@ -144,64 +155,129 @@ export class ManagedReference implements ValReference {
         this.#location = loc;
     }
 
-    get original() {
-        if (!this.parent!.original) {
-            return undefined;
-        }
-        if (this.#dynamicContainer !== undefined) {
-            const origProperties = (this.parent!.original as Val.Dynamic)[Val.properties](
-                this.parent!.rootOwner,
-                this.#session,
-            );
-            return memberValueOf(origProperties as Container, this.#key, this.#fallbackKey);
-        }
-        return memberValueOf(this.parent!.original as Container, this.#key, this.#readFallbackKey);
-    }
-
-    change(mutator: () => void) {
-        if (this.#expired) {
+    assertWritable() {
+        if (this.expired) {
             throw new ExpiredReferenceError(this.location);
         }
+        this.parent.assertWritable();
+        if (this.#servesDefault) {
+            throw new UncachedValueError(this.location);
+        }
+    }
 
-        this.parent!.change(() => {
-            // In transactions, clone the value if we haven't done so yet
-            if (this.#clone && this.#value === this.original) {
-                const newValue = this.#clone(this.#value);
-                this.#writeTo(this.#dynamicContainer ?? (this.parent!.value as Container), newValue);
-                this.#replaceValue(newValue);
+    /**
+     * A container a `Val.properties` provider serves, and every container below it, is never owned, even when the
+     * provider serves a container the transaction cloned for another member.  The provider keeps the value its setter
+     * accepted, so a later change must clone it again instead of changing it in place.
+     */
+    owns(container: Val) {
+        return this.#dynamicContainer === undefined && this.parent.owns(container);
+    }
+
+    adopt(container: Val) {
+        this.parent.adopt(container);
+    }
+
+    /**
+     * Clones the container unless the transaction {@link owns} it, runs {@link mutator}, then stores the container in
+     * the parent.  A dynamic provider's setter therefore receives the container after every change, with the change
+     * applied.
+     */
+    change(mutator: () => void) {
+        ValReference.writableContainerOf(this);
+
+        this.parent.change(() => {
+            // The parent's change may refresh this reference and expire it
+            ValReference.writableContainerOf(this);
+
+            if (!this.owns(this.#value)) {
+                const clone = this.#clone(this.#value);
+                this.adopt(clone);
+                if (this.#binding === "entry" && typeof clone === "object" && clone !== null) {
+                    (this.#copies ??= new WeakSet()).add(clone);
+                }
+                this.#replaceValue(clone, "session");
             }
 
-            // Apply changes
             mutator();
+
+            this.#writeTo(this.#dynamicContainer ?? (this.parent.value as Container), this.#value);
         }, this.#key);
     }
 
-    refresh() {
-        if (this.parent!.expired) {
-            this.#expired = true;
+    refresh(cause: ValReference.RefreshCause) {
+        if (this.expired) {
             return;
         }
-        if (this.parent!.value === undefined || this.parent!.value === null) {
-            this.#expired = true;
-            this.#replaceValue(undefined);
+
+        if (this.parent.value === undefined || this.parent.value === null) {
+            this.#servesDefault = false;
+            this.#follow(undefined, cause);
             return;
         }
 
         // A member the parent serves from a provider must stay served for the life of this reference; a reference that
         // found no provider is never asked again, so a parent may not start serving one either
-        if (this.#dynamicContainer !== undefined && this.parent!.value !== this.#dynamicSource) {
+        if (this.#dynamicContainer !== undefined && this.parent.value !== this.#dynamicSource) {
             this.#bindDynamicContainer();
             if (this.#dynamicContainer === undefined) {
                 throw new InternalError(`Value at ${this.location.path} no longer serves ${this.#key}`);
             }
         }
 
+        this.#follow(this.#memberValue(), cause);
+    }
+
+    #memberValue() {
         const value =
             this.#dynamicContainer === undefined
-                ? memberValueOf(this.parent!.value as Container, this.#key, this.#readFallbackKey)
+                ? memberValueOf(this.parent.value as Container, this.#key, this.#readFallbackKey)
                 : memberValueOf(this.#dynamicContainer as Container, this.#key, this.#fallbackKey);
+        if (value !== undefined || this.#makeDefault === undefined) {
+            this.#servesDefault = false;
+            return value;
+        }
+        if (!this.#servesDefault) {
+            this.#servesDefault = true;
+            return this.#makeDefault();
+        }
+        return this.#value;
+    }
 
-        this.#replaceValue(value);
+    /**
+     * Take `value` as the referenced value.  An entry reference expires instead when a change in this session put
+     * another entry at its index.  It accepts its entry and every copy it made of that entry, because only a rollback
+     * puts an earlier copy back.  After another transaction's commit, an entry reference follows its index like a
+     * member reference and binds to the entry now there.
+     */
+    #follow(value: unknown, cause: ValReference.RefreshCause) {
+        if (this.#binding === "entry") {
+            if (cause === "external") {
+                this.#entry = value;
+                this.#copies = undefined;
+            } else if (!this.#holds(value)) {
+                this.#detach();
+                return;
+            }
+        }
+
+        this.#replaceValue(value, cause);
+    }
+
+    #holds(value: unknown) {
+        if (value === this.#entry) {
+            return true;
+        }
+        return typeof value === "object" && value !== null && !!this.#copies?.has(value);
+    }
+
+    /**
+     * Stop following the entry.  The reference keeps its last value and is {@link expired}.  It leaves the parent's
+     * subrefs, so the next read at its index creates a reference for the entry now there.
+     */
+    #detach() {
+        this.#detached = true;
+        delete this.parent.subrefs?.[this.#key];
     }
 
     /**
@@ -209,7 +285,7 @@ export class ManagedReference implements ValReference {
      * struct it was derived from, so this runs again whenever the parent replaces that struct.
      */
     #bindDynamicContainer() {
-        const parent = this.parent!;
+        const parent = this.parent;
 
         this.#dynamicSource = parent.value;
         this.#dynamicContainer = undefined;
@@ -236,14 +312,27 @@ export class ManagedReference implements ValReference {
         }
     }
 
-    #replaceValue(newValue: Val) {
+    #replaceValue(newValue: Val, cause: ValReference.RefreshCause) {
         this.#value = newValue;
 
         const subrefs = this.subrefs;
         if (subrefs) {
             for (const key in subrefs) {
-                subrefs[key].refresh();
+                subrefs[key].refresh(cause);
             }
         }
     }
+}
+
+export namespace ManagedReference {
+    /**
+     * What a reference stays bound to when its parent changes.
+     *
+     * - `member`: the key.  A struct member is identified by its name, so the reference follows the container the
+     *   parent holds there.
+     * - `entry`: the entry it was read for, or the entry another transaction's commit put at its index.  An index does
+     *   not identify a list entry: a list method, a length change, an assignment at the index or of the whole list puts
+     *   another entry there.
+     */
+    export type Binding = "member" | "entry";
 }

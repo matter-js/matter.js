@@ -76,8 +76,8 @@ export const IcdManagement = Cluster(
         },
         Field({ name: "CheckInNodeId", id: 0x0, type: "node-id", conformance: "M" }),
         Field({ name: "MonitoredSubject", id: 0x1, type: "subject-id", conformance: "M" }),
-        Field({ name: "Key", id: 0x2, type: "octstr", conformance: "M", constraint: "16" }),
-        Field({ name: "VerificationKey", id: 0x3, type: "octstr", conformance: "O", constraint: "16" }),
+        Field({ name: "Key", id: 0x2, type: "octstr", conformance: "M", constraint: "16", isSecret: true }),
+        Field({ name: "VerificationKey", id: 0x3, type: "octstr", conformance: "O", constraint: "16", isSecret: true }),
         Field({ name: "ClientType", id: 0x4, type: "ClientTypeEnum", conformance: "M" })
     ),
 
@@ -92,7 +92,7 @@ export const IcdManagement = Cluster(
             response: "status"
         },
         Field({ name: "CheckInNodeId", id: 0x0, type: "node-id", conformance: "M" }),
-        Field({ name: "VerificationKey", id: 0x1, type: "octstr", conformance: "O", constraint: "16" })
+        Field({ name: "VerificationKey", id: 0x1, type: "octstr", conformance: "O", constraint: "16", isSecret: true })
     ),
 
     Command(
@@ -144,7 +144,10 @@ export const IcdManagement = Cluster(
         { name: "MonitoringRegistrationStruct", type: "struct" },
         Field({ name: "CheckInNodeId", id: 0x1, type: "node-id", access: "S", conformance: "M", quality: "N" }),
         Field({ name: "MonitoredSubject", id: 0x2, type: "subject-id", access: "S", conformance: "M", quality: "N" }),
-        Field({ name: "Key", id: 0x3, type: "octstr", access: "F", conformance: "D", constraint: "16", quality: "N" }),
+        Field({
+            name: "Key", id: 0x3, type: "octstr", access: "F", conformance: "D", constraint: "16",
+            isSecret: true, quality: "N"
+        }),
         Field({
             name: "ClientType", id: 0x4, type: "ClientTypeEnum", access: "S", conformance: "M", default: 0,
             quality: "N"

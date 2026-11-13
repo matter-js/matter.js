@@ -18,7 +18,7 @@ async function publish(recorder: EvidenceRecorder): Promise<string> {
 }
 
 function logLine(index: number, text: string): LogLine {
-    return { index, at: new Date(0), text };
+    return { index, at: new Date(0), receivedAt: 0, text };
 }
 
 const step1: CertStepDefinition = {

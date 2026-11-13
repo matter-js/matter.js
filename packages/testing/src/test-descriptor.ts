@@ -20,12 +20,15 @@ export interface TestDescriptor {
 
     /**
      * The app the test requires. A test naming an app the harness does not implement is skipped.
+     *
+     * The container's descriptor file may carry CHIP's own reference (`${ALL_CLUSTERS_APP}`); the harness brings it
+     * into harness form (`all-clusters`) when it loads the file.
      */
     app?: string;
 
     /**
      * The app chip uses for the test. The harness dispatches to it when it implements the app and falls back to the
-     * default subject otherwise.
+     * default subject otherwise. Same naming as {@link app}.
      */
     preferredApp?: string;
 
@@ -39,6 +42,13 @@ export interface TestDescriptor {
     runAt?: Date;
     passed?: boolean;
     durationMs?: number;
+
+    /**
+     * The number of steps the test reported as skipped in its last run.  A test that skips most of its steps still
+     * passes, so the report shows this next to the step count.
+     */
+    skippedSteps?: number;
+
     picsValues?: PicsFile;
 }
 
@@ -230,7 +240,7 @@ export namespace TestDescriptor {
             ...updates,
         };
 
-        for (const name of ["durationMs", "passed", "runAt"] as const) {
+        for (const name of ["durationMs", "passed", "runAt", "skippedSteps"] as const) {
             if (previous[name] !== undefined && descriptor[name] === undefined) {
                 (descriptor as Record<string, unknown>)[name] = previous[name];
             }

@@ -11,11 +11,18 @@ import {
     ImplementationError,
     InternalError,
     isObject,
+    Logger,
     MatterError,
     UnexpectedDataError,
 } from "@matter/main";
-import { OperationalCredentials, OtaSoftwareUpdateRequestor } from "@matter/main/clusters";
-import { getOperationalDeviceQname, ResultStatus } from "@matter/main/protocol";
+import {
+    Descriptor,
+    GeneralCommissioning,
+    OperationalCredentials,
+    OtaSoftwareUpdateProvider,
+    OtaSoftwareUpdateRequestor,
+} from "@matter/main/clusters";
+import { getOperationalDeviceQname, OperationalCertificateUpdateError, ResultStatus } from "@matter/main/protocol";
 import { FabricId, GlobalFabricId, NodeId, statedIdentifier, Status, StatusResponseError } from "@matter/main/types";
 import { ClusterModel, CommandModel, ValueModel } from "@matter/model";
 import type {
@@ -32,14 +39,18 @@ import type {
     CertNodeRef,
     ClientAttributePath,
     ClientEndpointEntry,
+    CommissionableNodeFilter,
     CommissioningTarget,
     ControllerAdapter,
+    DiscoveredCommissionableNode,
     EventPathSpec,
     EventReadEntry,
     GroupKeySetSpec,
     ManualPairingCodeFields,
     ObserveEventOptions,
     OnboardingPayloadFields,
+    OtaAnnouncement,
+    OtaAnnouncementRecord,
     ReadAttributeOptions,
     ReadEventOptions,
     SubscribeAttributesOptions,
@@ -61,6 +72,7 @@ import { env } from "node:process";
 import type { ChipToolCommissionerName } from "../chip-tool/chip-tool-client.js";
 import { ChipToolClient, resolveChipToolBinary } from "../chip-tool/chip-tool-client.js";
 import { chipJsonToMatter, matterToChipJson, stringifyChipJson } from "../chip-tool/json-codec.js";
+import { type LoggedAttributeStatus, loggedWriteResponseStatuses } from "../chip-tool/write-response-log.js";
 import { ControllerCommandError } from "./controller-command-error.js";
 import { assertDeclaredKeySet, declaredGroup, validateControllerGroups } from "./controller-groups.js";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
@@ -69,6 +81,8 @@ import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
 /** Name {@link UnsupportedByControllerError} reports for this adapter. */
 const CONTROLLER = "chip-tool";
+
+const logger = Logger.get("ChipToolControllerAdapter");
 
 /**
  * What this controller claims about itself, overlaying the device's PICS for a run (see
@@ -88,9 +102,11 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     // SU cases are admitted, and their first step fails on a controller that cannot serve an image at
     // all — a whole case a controller cannot drive has to skip before it commissions anything.
     "MCORE.OTA.Provider": 0,
-    "OTAR.C.M.AnnounceOTAProvider": 0,
     "OTAP.S.M.DelayedActionTime": 0,
     "OTAP.S.M.UserConsentNeeded": 0,
+
+    // `otasoftwareupdaterequestor announce-otaprovider` names another commissioned node as the provider.
+    "OTAR.C.M.AnnounceOTAProvider": 1,
 
     // command-by-id sends one command path per invoke and no CommandRef.
     "MCORE.IDM.C.InvokeRequest.BatchCommands": 0,
@@ -141,6 +157,162 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "S.C.C06.Tx": 1,
     "S.C.C40.Tx": 1,
 
+    // The client commands, and the one attribute, that the single-command client cases send or read
+    // (TC-OO-3.2, TC-I-3.2, TC-MOD-2.2, TC-LOWPOWER-2.2, TC-WNCV-6.1, TC-WNCV-7.1). Only `OO.C` (0 in
+    // matter.js's own PICS file) and `WNCV.C` (0 in CHIP's) need the overlay, because both files
+    // describe a device; the other keys state the controller's full client surface for these cases.
+    "OO.C": 1,
+    "OO.C.C00.Tx": 1,
+    "OO.C.C01.Tx": 1,
+    "OO.C.C02.Tx": 1,
+    "OO.C.C40.Tx": 1,
+    "OO.C.C41.Tx": 1,
+    "OO.C.C42.Tx": 1,
+    "I.C": 1,
+    "I.C.C00.Tx": 1,
+    "I.C.C40.Tx": 1,
+    "MOD.C": 1,
+    "MOD.C.A0002": 1,
+    "MOD.C.C00.Tx": 1,
+    "LOWPOWER.C": 1,
+    "LOWPOWER.C.C00.Tx": 1,
+    "WNCV.C": 1,
+    "WNCV.C.C00.Tx": 1,
+    "WNCV.C.C01.Tx": 1,
+    "WNCV.C.C02.Tx": 1,
+    "WNCV.C.C05.Tx": 1,
+    "WNCV.C.C08.Tx": 1,
+
+    // The Network Commissioning client features TC-CNET-4.20 and TC-CNET-4.21 require. CHIP's PICS file answers both 0,
+    // because it describes a device; the controller configures Wi-Fi and Thread networks.
+    "CNET.C.F00": 1,
+    "CNET.C.F01": 1,
+
+    // The ColorControl client commands, features and attributes that TC-CC-3.4, TC-CC-4.5, TC-CC-5.4, TC-CC-6.4,
+    // TC-CC-7.5 and TC-CC-9.4 send, read or name as the DUT's precondition. CHIP's PICS file answers the features 0,
+    // because it describes a device; the other keys state the controller's full client surface for these cases.
+    "CC.C": 1,
+    "CC.C.F00": 1,
+    "CC.C.F01": 1,
+    "CC.C.F02": 1,
+    "CC.C.F03": 1,
+    "CC.C.F04": 1,
+    "CC.C.C00.Tx": 1,
+    "CC.C.C01.Tx": 1,
+    "CC.C.C02.Tx": 1,
+    "CC.C.C03.Tx": 1,
+    "CC.C.C04.Tx": 1,
+    "CC.C.C05.Tx": 1,
+    "CC.C.C06.Tx": 1,
+    "CC.C.C07.Tx": 1,
+    "CC.C.C08.Tx": 1,
+    "CC.C.C09.Tx": 1,
+    "CC.C.C0a.Tx": 1,
+    "CC.C.C40.Tx": 1,
+    "CC.C.C41.Tx": 1,
+    "CC.C.C42.Tx": 1,
+    "CC.C.C43.Tx": 1,
+    "CC.C.C44.Tx": 1,
+    "CC.C.C47.Tx": 1,
+    "CC.C.C4b.Tx": 1,
+    "CC.C.C4c.Tx": 1,
+    "CC.C.A0000": 1,
+    "CC.C.A0001": 1,
+    "CC.C.A0007": 1,
+    "CC.C.A4000": 1,
+    "CC.C.A4002": 1,
+    "CC.C.A4003": 1,
+    "CC.C.A4004": 1,
+    "CC.C.A4005": 1,
+
+    // The Thermostat client command TC-TSTAT-3.2 sends. CHIP's PICS file answers `TSTAT.C` 0, because it describes a
+    // device; `TSTAT.C.C00.Tx` states the controller's client surface for this case.
+    "TSTAT.C": 1,
+    "TSTAT.C.C00.Tx": 1,
+
+    // The KeypadInput and TargetNavigator client commands TC-KEYPADINPUT-3.1 and TC-TGTNAV-8.2 send. CHIP's PICS file
+    // answers `TGTNAV.C` 0, because it describes a device; the other keys state the controller's client surface for these
+    // cases.
+    "KEYPADINPUT.C": 1,
+    "KEYPADINPUT.C.C00.Tx": 1,
+    "TGTNAV.C": 1,
+    "TGTNAV.C.C00.Tx": 1,
+
+    // The AudioOutput and MediaPlayback client commands TC-AUDIOOUTPUT-7.3, 7.4 and TC-MEDIAPLAYBACK-6.5, 6.7, 6.10 send.
+    // CHIP's PICS file has no `MEDIAPLAYBACK.C.C0c.Tx`, `C0d.Tx` or `C0e.Tx`; the other keys state the controller's client
+    // surface for these cases.
+    "AUDIOOUTPUT.C": 1,
+    "AUDIOOUTPUT.C.C00.Tx": 1,
+    "AUDIOOUTPUT.C.C01.Tx": 1,
+    "MEDIAPLAYBACK.C": 1,
+    "MEDIAPLAYBACK.C.C00.Tx": 1,
+    "MEDIAPLAYBACK.C.C01.Tx": 1,
+    "MEDIAPLAYBACK.C.C02.Tx": 1,
+    "MEDIAPLAYBACK.C.C03.Tx": 1,
+    "MEDIAPLAYBACK.C.C04.Tx": 1,
+    "MEDIAPLAYBACK.C.C05.Tx": 1,
+    "MEDIAPLAYBACK.C.C08.Tx": 1,
+    "MEDIAPLAYBACK.C.C09.Tx": 1,
+    "MEDIAPLAYBACK.C.C0c.Tx": 1,
+    "MEDIAPLAYBACK.C.C0d.Tx": 1,
+    "MEDIAPLAYBACK.C.C0e.Tx": 1,
+
+    // The Channel program guide commands TC-CHANNEL-5.8 sends. CHIP's PICS file has none of these keys.
+    "CHANNEL.C.C04.Tx": 1,
+    "CHANNEL.C.C06.Tx": 1,
+    "CHANNEL.C.C07.Tx": 1,
+
+    // The diagnostics client commands, and the one attribute, that TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and
+    // TC-DGWIFI-3.2 send or read. Only `DGTHREAD.C` and `DGWIFI.C.C00.Tx` need the overlay, because CHIP's file
+    // answers them 0; the other keys state the controller's full client surface for these cases.
+    "DGETH.C": 1,
+    "DGETH.C.C00.Tx": 1,
+    "DGSW.C": 1,
+    "DGSW.C.C00.Tx": 1,
+    "DGTHREAD.C": 1,
+    "DGTHREAD.C.C00.Tx": 1,
+    "DGTHREAD.C.A0006": 1,
+    "DGWIFI.C": 1,
+    "DGWIFI.C.C00.Tx": 1,
+
+    // The DoorLock client commands TC-DRLK-3.2 sends, and the WDSCH, YDSCH, HDSCH and USR features its steps use.
+    // CHIP's PICS file answers these 1 already, except YDSCH and HDSCH; the overlay states the controller's client
+    // surface.
+    "DRLK.C": 1,
+    "DRLK.C.F04": 1,
+    "DRLK.C.F08": 1,
+    "DRLK.C.F0a": 1,
+    "DRLK.C.F0b": 1,
+    "DRLK.C.C00.Tx": 1,
+    "DRLK.C.C01.Tx": 1,
+    "DRLK.C.C03.Tx": 1,
+    "DRLK.C.C0b.Tx": 1,
+    "DRLK.C.C0c.Tx": 1,
+    "DRLK.C.C0d.Tx": 1,
+    "DRLK.C.C0e.Tx": 1,
+    "DRLK.C.C0f.Tx": 1,
+    "DRLK.C.C10.Tx": 1,
+    "DRLK.C.C11.Tx": 1,
+    "DRLK.C.C12.Tx": 1,
+    "DRLK.C.C13.Tx": 1,
+    "DRLK.C.C1a.Tx": 1,
+    "DRLK.C.C1b.Tx": 1,
+    "DRLK.C.C1d.Tx": 1,
+    "DRLK.C.C22.Tx": 1,
+    "DRLK.C.C24.Tx": 1,
+    "DRLK.C.C26.Tx": 1,
+
+    // The AdministratorCommissioning client of the TC-CADMIN cases (`pairing open-commissioning-window`,
+    // RevokeCommissioning by id). Only the display and audio keys need the overlay: the CHIP PICS file answers
+    // 1 for both, and chip-tool takes a code as a command line argument and prints it, with no display a user
+    // enters a code into and no voice prompt. The other keys state the controller's client surface for these cases.
+    "CADMIN.C": 1,
+    "CADMIN.C.C00.Tx": 1,
+    "CADMIN.C.C01.Tx": 1,
+    "CADMIN.C.C02.Tx": 1,
+    "CADMIN.M.UserInterfaceDisplay": 0,
+    "CADMIN.M.AudioInterface": 0,
+
     // Every ThreadBorderRouterManagement client command TC-TBRM-3.1 sends. The CHIP PICS file answers
     // only the server side, because it describes a device; here the client is the controller.
     "TBRM.C": 1,
@@ -161,13 +333,12 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
 
     // The Switch client flags TC-SWTCH-3.2 rests on. The CHIP PICS file answers 0 for `SWTCH.C` and
     // declares F00..F04 for a *device*; here the switch client is the controller, and this overlay is
-    // the DUT-as-client declaration the plan's steps 0a-0h check for self-consistency.
+    // the DUT-as-client declaration the plan's steps 0a-0g check for self-consistency.
     "SWTCH.C": 1,
 
-    // CHIP's PICS file has no entry for the action-switch client flag, and it answers 1 for the release
-    // flag, which the cluster forbids alongside an action switch (Application Clusters § 1.13.4). The
-    // switch this controller observes is an action switch, so that is what it declares.
-    "SWTCH.C.F02": 0,
+    // The controller handles switches with momentary switch release and action switches alike. CHIP's PICS file
+    // answers 1 for the release flag and has no entry for the action-switch flag; both are stated here.
+    "SWTCH.C.F02": 1,
     "SWTCH.C.F05": 1,
 
     // Bridge-client flags. `MCORE.BRIDGECLIENT` asks whether the DUT supports a bridge, and the
@@ -183,7 +354,29 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "MCORE.DEVLIST.UseDeviceName": 0,
     "MCORE.DEVLIST.UseDeviceState": 0,
     "MCORE.DEVLIST.UseBatInfo": 0,
+    // The Operational Credentials client surface TC-OPCREDS-3.3 rests on: the commands a commissioning and a
+    // certificate update send, and the attributes the case reads. CHIP's ci-pics-values answers them 1 already; the
+    // overlay states the controller's own client surface, as for the other client cases.
+    "OPCREDS.C": 1,
+    "OPCREDS.C.A0002": 1,
+    "OPCREDS.C.A0003": 1,
+    "OPCREDS.C.A0004": 1,
+    "OPCREDS.C.A0005": 1,
+    "OPCREDS.C.C04.Tx": 1,
+    "OPCREDS.C.C06.Tx": 1,
+    "OPCREDS.C.C07.Tx": 1,
+    "OPCREDS.C.C09.Tx": 1,
+    "OPCREDS.C.C0a.Tx": 1,
+    "OPCREDS.C.C0b.Tx": 1,
 };
+
+/**
+ * chip-tool's `kMaxAllowedPaths` (`src/app/tests/suites/commands/interaction_model/InteractionModel.h`).
+ * chip-tool checks it in `InteractionModelConfig::GetAttributePaths`, which its read and write paths
+ * reach only with a live `DeviceProxy` in hand, so this guard is what keeps an over-long id list from
+ * costing a CASE session first.
+ */
+const MAX_PATHS_PER_COMMAND = 64;
 
 /**
  * What chip-tool lacks, declared with its registration so a step or case needing one of these is skipped before it acts
@@ -203,8 +396,15 @@ export const CHIP_TOOL_CAPABILITY_GAPS = {
     "chunked-write":
         "chip-tool write-by-id encodes the whole write into one message and fails with CHIP Error 0x0000000B (No memory) " +
         "when it does not fit",
+    "batch-invoke":
+        "command-by-id sends one command per invoke request: it takes a single command path and no CommandRef",
     "batch-arrival-order":
         "command-by-id sends one command per invoke request, so there is no batch whose answers arrive in an order",
+    "many-paths-per-request": `chip-tool takes at most ${MAX_PATHS_PER_COMMAND} paths per command, so a step naming more declares this`,
+    "mixed-version-write": "chip-tool takes one data version per path or none at all, not a mix",
+    "typed-list-write-with-others":
+        "chip-tool writes DefaultOTAProviders only through its typed cluster command, which writes one attribute per " +
+        "request",
     "session-introspection":
         "chip-tool exposes no session state of its own: a session lives inside the process it spawns per command, and " +
         "nothing it prints names the transport beneath one",
@@ -230,13 +430,29 @@ const WILDCARD_ATTRIBUTE = 0xffffffff;
 const WILDCARD_EVENT = 0xffffffff;
 const WILDCARD_ENDPOINT = 0xffff;
 
-/**
- * chip-tool's `kMaxAllowedPaths` (`src/app/tests/suites/commands/interaction_model/InteractionModel.h`).
- * chip-tool checks it in `InteractionModelConfig::GetAttributePaths`, which its read and write paths
- * reach only with a live `DeviceProxy` in hand, so this guard is what keeps an over-long id list from
- * costing a CASE session first.
- */
-const MAX_PATHS_PER_COMMAND = 64;
+const FABRICS: AttributePathSpec = {
+    endpoint: 0,
+    cluster: OperationalCredentials.id,
+    attribute: OperationalCredentials.attributes.fabrics.id,
+};
+
+const SERVER_LIST: AttributePathSpec = {
+    cluster: Descriptor.id,
+    attribute: Descriptor.attributes.serverList.id,
+};
+
+/** The lowest endpoint of `node` whose ServerList carries `cluster`. */
+async function endpointServing(node: CertNodeApi, ref: CertNodeRef, cluster: number): Promise<number> {
+    // The reply can also carry reports of a live subscription, such as a ClientList naming the same cluster
+    const endpoints = (await node.readAttributes([SERVER_LIST]))
+        .filter(entry => pathCovers(SERVER_LIST, entry))
+        .filter(({ value }) => Array.isArray(value) && value.map(Number).includes(cluster))
+        .map(({ endpoint }) => endpoint);
+    if (endpoints.length === 0) {
+        throw new UnexpectedDataError(`Node ${ref} has no endpoint serving cluster ${hex(cluster)}`);
+    }
+    return Math.min(...endpoints);
+}
 
 /** Digit count of the manual code form that carries a vendor and product id (§ 5.1.4.1 Table 64). */
 const MANUAL_CODE_LONG_LENGTH = 21;
@@ -935,6 +1151,78 @@ function assertCommandSucceeded(reply: ChipReply, operation: string) {
     }
 }
 
+function describeLoggedStatus({ status, clusterStatus }: LoggedAttributeStatus) {
+    return `status ${hex(status)}${clusterStatus === undefined ? "" : ` with cluster status ${hex(clusterStatus)}`}`;
+}
+
+/**
+ * The statuses of a write with a wildcard-endpoint path, from the `WriteResponseMessage` chip-tool decoded into the
+ * command's own log lines (see {@link loggedWriteResponseStatuses}). chip-tool's JSON results name only the paths that
+ * failed, so they cannot say which endpoints the wildcard reached and the device accepted.
+ *
+ * Each failure the JSON results report for a requested path must appear in the decoded message with the same code and
+ * cluster status, and each concrete requested path must appear in it at all: the device answers every concrete path
+ * with a status. Either one missing means the log lost lines, and the statuses would be incomplete.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 8.7.3.2, § 8.7.3.3
+ */
+function loggedWriteStatuses(
+    reply: ChipReply,
+    logs: string[],
+    paths: { endpoint?: number; cluster: number; attribute: number }[],
+    operation: string,
+): AttributeWriteStatus[] {
+    const logged = loggedWriteResponseStatuses(logs);
+    if (logged === undefined) {
+        throw new UnexpectedDataError(
+            `chip-tool logged no decoded WriteResponseMessage for ${operation}, so the endpoints the device wrote are ` +
+                "unknown; chip-tool decodes it only in a build with CHIP_CONFIG_IM_PRETTY_PRINT and detail logging, " +
+                "which a debug build has",
+        );
+    }
+
+    for (const { endpoint, cluster, attribute, status, clusterStatus } of reply.statuses) {
+        if (endpoint === undefined || cluster === undefined || attribute === undefined) {
+            continue;
+        }
+        if (!paths.some(path => pathCovers(path, { endpoint, cluster, attribute }))) {
+            continue;
+        }
+        // A list written as REPLACE plus ADDs is answered with one status per data item, all on the same path
+        const listed = logged.filter(
+            entry => entry.endpoint === endpoint && entry.cluster === cluster && entry.attribute === attribute,
+        );
+        const same = listed.some(
+            entry =>
+                ("code" in status ? entry.status === status.code : entry.status !== Status.Success) &&
+                (clusterStatus === undefined || entry.clusterStatus === clusterStatus),
+        );
+        if (!same) {
+            throw new UnexpectedDataError(
+                `chip-tool reported ${describeStatus(status)} for endpoint ${endpoint} cluster ${hex(cluster)} ` +
+                    `attribute ${hex(attribute)} of ${operation}, which its decoded WriteResponseMessage ` +
+                    (listed.length === 0
+                        ? "does not list"
+                        : `lists as ${listed.map(entry => describeLoggedStatus(entry)).join(", ")}`),
+            );
+        }
+    }
+
+    for (const { endpoint, cluster, attribute } of paths) {
+        if (endpoint === undefined) {
+            continue;
+        }
+        if (!logged.some(entry => pathCovers({ endpoint, cluster, attribute }, entry))) {
+            throw new UnexpectedDataError(
+                `chip-tool's decoded WriteResponseMessage for ${operation} lists no status for endpoint ${endpoint} ` +
+                    `cluster ${hex(cluster)} attribute ${hex(attribute)}, which the device must answer as a concrete path`,
+            );
+        }
+    }
+
+    return logged.map(({ endpoint, cluster, attribute, status }) => ({ endpoint, cluster, attribute, status }));
+}
+
 /** Port override for one controller role, so a test can point an adapter at a stand-in server. */
 function portOverrideFor(id: string) {
     const value = env[`MATTER_CHIP_TOOL_PORT_${id.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`];
@@ -1082,16 +1370,63 @@ class ChipToolCertNodeApi implements CertNodeApi {
         throw refusal("ota-provider", "serveOtaUpdate");
     }
 
-    async announceOtaProvider(options?: AnnounceOtaProviderOptions): Promise<never> {
-        if (options?.provider === undefined) {
+    /**
+     * Announcing another node is a plain `AnnounceOTAProvider` invoke, sent through chip-tool's typed
+     * `otasoftwareupdaterequestor announce-otaprovider`. The provider's endpoint is the lowest one whose ServerList
+     * carries the provider cluster. The VendorID is chip-tool's own: chip-tool sets its commissioner vendor id as the
+     * AdminVendorId of every node it commissions, so this node's fabric entry is where it is read.
+     *
+     * chip-tool hosts no provider, so announcing the controller itself is refused as `ota-provider-script`.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.20.7.6
+     */
+    async announceOtaProvider(options?: AnnounceOtaProviderOptions): Promise<OtaAnnouncement> {
+        const provider = options?.provider;
+        if (provider === undefined) {
             throw refusal("ota-provider-script", "announcing the controller's own OTA provider");
         }
-        throw new UnsupportedByControllerError(
-            "announceOtaProvider",
-            CONTROLLER,
-            "this adapter sends no AnnounceOTAProvider command, and its PICS declare OTAR.C.M.AnnounceOTAProvider " +
-                "unsupported",
+
+        const announcement: OtaAnnouncementRecord = {
+            providerNodeId: provider,
+            vendorId: await this.#adminVendorId(),
+            announcementReason:
+                options?.announcementReason ?? OtaSoftwareUpdateRequestor.AnnouncementReason.UpdateAvailable,
+            endpoint: await endpointServing(this.#adapter.node(provider), provider, OtaSoftwareUpdateProvider.id),
+        };
+        const requestorEndpoint = await endpointServing(this, this.#node, OtaSoftwareUpdateRequestor.id);
+
+        const reply = await this.#adapter.execute(
+            `otasoftwareupdaterequestor announce-otaprovider ${NodeId(announcement.providerNodeId)} ` +
+                `${announcement.vendorId} ${announcement.announcementReason} ${announcement.endpoint} ` +
+                `${this.#node} ${requestorEndpoint}${largePayloadArg(this.#adapter.transport)}`,
         );
+
+        const operation = "invoke OtaSoftwareUpdateRequestor.AnnounceOtaProvider";
+        assertNoFailure(reply, operation);
+        // A subscription report riding along in the reply carries attribute or event statuses, never a command's
+        const status = reply.statuses.find(({ command }) => command !== undefined);
+        if (status !== undefined) {
+            throw deviceStatusError(status, operation);
+        }
+
+        return {
+            announcement,
+            exchanges: { queryImage: [], applyUpdate: [], notifyUpdateApplied: [] },
+            observedMs: 0,
+        };
+    }
+
+    async #adminVendorId(): Promise<number> {
+        const { vendorId } = accessingFabricOf(
+            await this.readAttribute(FABRICS, { fabricFiltered: true }),
+            this.#nodeId,
+        );
+        if (typeof vendorId !== "number") {
+            throw new UnexpectedDataError(
+                `Node ${this.#node} reported its fabric entry for this controller without a vendor id`,
+            );
+        }
+        return vendorId;
     }
 
     async scriptOtaProvider(): Promise<never> {
@@ -1099,12 +1434,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
     }
 
     async invokeBatch(commands: BatchCommandSpec[]): Promise<BatchCommandResult[]> {
-        throw new UnsupportedByControllerError(
-            "invokeBatch",
-            CONTROLLER,
-            `chip-tool sends one command per invoke request (${commands.length} requested); its command-by-id ` +
-                "takes a single command path and no CommandRef",
-        );
+        throw refusal("batch-invoke", `invokeBatch of ${commands.length} commands`);
     }
 
     async readAttribute(path: AttributePathSpec, options?: ReadAttributeOptions): Promise<unknown> {
@@ -1139,11 +1469,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
             throw new ImplementationError("readAttributes requires at least one path");
         }
         if (paths.length > MAX_PATHS_PER_COMMAND) {
-            throw new UnsupportedByControllerError(
-                "readAttributes",
-                CONTROLLER,
-                `${paths.length} paths exceeds chip-tool's limit of ${MAX_PATHS_PER_COMMAND} per read`,
-            );
+            throw refusal("many-paths-per-request", `readAttributes of ${paths.length} paths`);
         }
 
         const reply = await this.#read(paths, options);
@@ -1167,7 +1493,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
             throw new ImplementationError("writeAttribute requires a concrete endpoint/cluster/attribute path");
         }
 
-        const reply = await this.#write([{ path, value }], "writeAttribute", options);
+        const { reply } = await this.#write([{ path, value }], "writeAttribute", options);
         assertNoFailure(reply, `write ${JSON.stringify(path)}`);
 
         const status = statusFor(reply.statuses, { endpoint, cluster, attribute });
@@ -1181,49 +1507,48 @@ class ChipToolCertNodeApi implements CertNodeApi {
             throw new ImplementationError("writeAttributes requires at least one attribute");
         }
         if (entries.length > MAX_PATHS_PER_COMMAND) {
-            throw new UnsupportedByControllerError(
-                "writeAttributes",
-                CONTROLLER,
-                `${entries.length} attributes exceeds chip-tool's limit of ${MAX_PATHS_PER_COMMAND} per write`,
-            );
+            throw refusal("many-paths-per-request", `writeAttributes of ${entries.length} attributes`);
         }
 
         const paths = entries.map(({ path: { endpoint, cluster, attribute } }) => {
             if (cluster === undefined || attribute === undefined) {
                 throw new ImplementationError("writeAttributes requires a concrete cluster and attribute");
             }
-            if (endpoint === undefined) {
-                // chip-tool's WriteAttribute callback records a result only for a path the device
-                // rejected, so a wildcard endpoint's successful writes are invisible and the
-                // per-endpoint statuses this method contracts to return cannot be reconstructed.
-                throw new UnsupportedByControllerError(
-                    "writeAttributes",
-                    CONTROLLER,
-                    "chip-tool reports no status for a successfully written path, so a wildcard endpoint " +
-                        "yields no per-endpoint statuses",
-                );
-            }
             return { endpoint, cluster, attribute };
         });
 
-        const versioned = entries.filter(({ dataVersion }) => dataVersion !== undefined);
-        if (versioned.length !== 0 && versioned.length !== entries.length) {
-            throw new UnsupportedByControllerError(
-                "writeAttributes",
-                CONTROLLER,
-                "chip-tool takes one data version per path or none at all, not a mix",
+        const versionedWildcard = entries.find(
+            ({ path, dataVersion }) => path.endpoint === undefined && dataVersion !== undefined,
+        );
+        if (versionedWildcard !== undefined) {
+            throw new ImplementationError(
+                `writeAttributes of ${JSON.stringify(versionedWildcard.path)} with a data version needs a concrete ` +
+                    "endpoint: a data version applies to one cluster instance",
             );
         }
 
-        const reply = await this.#write(entries, "writeAttributes");
-        assertNoFailure(reply, `write ${JSON.stringify(entries.map(({ path }) => path))}`);
+        const versioned = entries.filter(({ dataVersion }) => dataVersion !== undefined);
+        if (versioned.length !== 0 && versioned.length !== entries.length) {
+            throw refusal("mixed-version-write", "writeAttributes with a data version on some entries only");
+        }
 
-        return paths.map(path => {
+        const { reply, logs } = await this.#write(entries, "writeAttributes");
+        const operation = `write ${JSON.stringify(entries.map(({ path }) => path))}`;
+        assertNoFailure(reply, operation);
+
+        const concretePaths = paths.flatMap(({ endpoint, cluster, attribute }) =>
+            endpoint === undefined ? [] : [{ endpoint, cluster, attribute }],
+        );
+        if (concretePaths.length !== paths.length) {
+            return loggedWriteStatuses(reply, logs, paths, operation);
+        }
+
+        return concretePaths.map(path => {
             const status = statusFor(reply.statuses, path);
             return {
                 ...path,
                 // Absence of a status for a concrete path is chip-tool's only signal that the device
-                // accepted the write (Matter Core § 8.9.2.8 requires a status per concrete path).
+                // accepted the write (Matter Core § 8.7.3.2 and § 8.7.3.3 require a status per concrete path).
                 status:
                     status === undefined
                         ? Status.Success
@@ -1266,11 +1591,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
             throw new ImplementationError("subscribeAttributes requires at least one path");
         }
         if (paths.length > MAX_PATHS_PER_COMMAND) {
-            throw new UnsupportedByControllerError(
-                "subscribeAttributes",
-                CONTROLLER,
-                `${paths.length} paths exceeds chip-tool's limit of ${MAX_PATHS_PER_COMMAND} per subscription`,
-            );
+            throw refusal("many-paths-per-request", `subscribeAttributes of ${paths.length} paths`);
         }
 
         const reply = await this.#adapter.subscribe("subscribeAttributes", this.#node, paths, opts);
@@ -1290,11 +1611,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
             throw new ImplementationError("readEvents requires at least one path");
         }
         if (paths.length > MAX_PATHS_PER_COMMAND) {
-            throw new UnsupportedByControllerError(
-                "readEvents",
-                CONTROLLER,
-                `${paths.length} paths exceeds chip-tool's limit of ${MAX_PATHS_PER_COMMAND} per read`,
-            );
+            throw refusal("many-paths-per-request", `readEvents of ${paths.length} paths`);
         }
 
         // chip-tool zips its cluster/event/endpoint id lists element-wise, as it does for attributes
@@ -1337,11 +1654,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
             throw new ImplementationError("subscribeEvents requires at least one path");
         }
         if (paths.length > MAX_PATHS_PER_COMMAND) {
-            throw new UnsupportedByControllerError(
-                "subscribeEvents",
-                CONTROLLER,
-                `${paths.length} paths exceeds chip-tool's limit of ${MAX_PATHS_PER_COMMAND} per subscription`,
-            );
+            throw refusal("many-paths-per-request", `subscribeEvents of ${paths.length} paths`);
         }
 
         const reply = await this.#adapter.subscribeEvents(this.#node, paths, opts);
@@ -1400,20 +1713,117 @@ class ChipToolCertNodeApi implements CertNodeApi {
         assertCommandSucceeded(reply, `decommission of node ${this.#node}`);
     }
 
+    /**
+     * chip-tool has no single command for this, so the update runs as separate commands in its interactive process,
+     * which keeps the CASE session between them as CSRRequest and UpdateNOC require. `pairing issue-noc-chain` has
+     * chip-tool's own certificate issuer sign a NOC for the CSR the node returned. After UpdateNOC the node keeps the
+     * CASE session only until its NOCResponse is delivered (§ 11.18.6.9.1), so `sessionmanagement
+     * expire-case-sessions` drops chip-tool's side of it and CommissioningComplete opens a new one.
+     *
+     * Rejects with {@link OperationalCertificateUpdateError}, the failure as its cause. A failure after the fail-safe
+     * was armed first sends ArmFailSafe with expiry 0, so the node drops the update at once.
+     */
+    async updateOperationalCertificate(): Promise<void> {
+        const operation = `operational certificate update of node ${this.#node}`;
+        try {
+            await this.#generalCommissioning("armFailSafe", {
+                expiryLengthSeconds: NOC_UPDATE_FAILSAFE_SECONDS,
+                breadcrumb: 0,
+            });
+        } catch (error) {
+            throw new OperationalCertificateUpdateError(`${operation} could not arm the fail-safe`, { cause: error });
+        }
+        try {
+            const csr = await this.invoke(
+                "OperationalCredentials",
+                "csrRequest",
+                { csrNonce: Environment.default.get(Crypto).randomBytes(CSR_NONCE_LENGTH), isForUpdateNoc: true },
+                ROOT_ENDPOINT,
+            );
+            if (!isObject(csr) || !Bytes.isBytes(csr.nocsrElements)) {
+                throw new UnexpectedDataError(`Node ${this.#node} answered CSRRequest with ${describeValue(csr)}`);
+            }
+
+            const issued = await this.#adapter.executeWithLogs(
+                `pairing issue-noc-chain hex:${Bytes.toHex(csr.nocsrElements)} ${this.#node}`,
+            );
+            const chain = issuedNocChainOf(issued.results);
+            if (chain === undefined) {
+                assertCommandSucceeded(issued.reply, "issue-noc-chain");
+                throw new UnexpectedDataError(
+                    `chip-tool issue-noc-chain reported no certificate chain: ${JSON.stringify(issued.results)}`,
+                );
+            }
+
+            const response = await this.invoke(
+                "OperationalCredentials",
+                "updateNoc",
+                { nocValue: chain.noc, ...(chain.icac === undefined ? {} : { icacValue: chain.icac }) },
+                ROOT_ENDPOINT,
+            );
+            if (!isObject(response) || response.statusCode !== OperationalCredentials.NodeOperationalCertStatus.Ok) {
+                throw new UnexpectedDataError(`Node ${this.#node} answered UpdateNOC with ${describeValue(response)}`);
+            }
+
+            assertCommandSucceeded(
+                await this.#adapter.execute(`sessionmanagement expire-case-sessions ${this.#node}`),
+                "expire-case-sessions",
+            );
+            await this.#generalCommissioning("commissioningComplete", {});
+        } catch (error) {
+            await this.#disarmFailSafe();
+            throw new OperationalCertificateUpdateError(`${operation} failed`, { cause: error });
+        }
+    }
+
+    /** Invokes a GeneralCommissioning command and requires its ErrorCode to be OK. */
+    async #generalCommissioning(command: string, args: object) {
+        const response = await this.invoke("GeneralCommissioning", command, args, ROOT_ENDPOINT);
+        if (!isObject(response) || response.errorCode !== GeneralCommissioning.CommissioningError.Ok) {
+            throw new UnexpectedDataError(
+                `Node ${this.#node} answered GeneralCommissioning.${command} with ${describeValue(response)}`,
+            );
+        }
+    }
+
+    /**
+     * Best effort: where this fails, the node still drops the update when its fail-safe ends.  The disarm runs on a new
+     * CASE session because the node may already have dropped the one chip-tool holds, and the rollback clears the
+     * fabric's sessions on the node again, so chip-tool's sessions are expired before and after.
+     */
+    async #disarmFailSafe() {
+        await this.#expireCaseSessions();
+        try {
+            await this.invoke(
+                "GeneralCommissioning",
+                "armFailSafe",
+                { expiryLengthSeconds: 0, breadcrumb: 0 },
+                ROOT_ENDPOINT,
+            );
+        } catch (error) {
+            logger.info(`Disarming the fail-safe of node ${this.#node} failed`, error);
+        }
+        await this.#expireCaseSessions();
+    }
+
+    async #expireCaseSessions() {
+        try {
+            assertCommandSucceeded(
+                await this.#adapter.execute(`sessionmanagement expire-case-sessions ${this.#node}`),
+                "expire-case-sessions",
+            );
+        } catch (error) {
+            logger.info(`Expiring the CASE sessions of node ${this.#node} failed`, error);
+        }
+    }
+
     async operationalMdnsInstanceName(): Promise<string> {
         return getOperationalDeviceQname(await this.#adapter.globalFabricId(this.#nodeId), this.#nodeId);
     }
 
     #read(paths: AttributePathSpec[], options?: ReadAttributeOptions) {
         if (options?.largeMessage) {
-            throw new UnsupportedByControllerError(
-                "a read that requires a session permitting large payloads",
-                "chip-tool",
-                "chip-tool decides a session's transport when it establishes one and reuses the session " +
-                    "pairing already made, so it cannot be made to answer a single read over a " +
-                    "TCP-backed session",
-                "tcp-transport",
-            );
+            throw refusal("tcp-transport", "a read that requires a session permitting large payloads");
         }
 
         // chip-tool zips the three id lists into paths when their lengths match
@@ -1434,11 +1844,9 @@ class ChipToolCertNodeApi implements CertNodeApi {
                 continue;
             }
             if (entries.length !== 1) {
-                throw new UnsupportedByControllerError(
-                    operation,
-                    CONTROLLER,
-                    `${typed.command} writes one attribute per request, so it cannot carry ` +
-                        `${entries.length - 1} other entries alongside it`,
+                throw refusal(
+                    "typed-list-write-with-others",
+                    `${operation} of ${typed.command} with ${entries.length - 1} other entries`,
                 );
             }
             return this.#writeTypedList(typed, entry, options);
@@ -1450,11 +1858,10 @@ class ChipToolCertNodeApi implements CertNodeApi {
             }
             const encoded = encodeAttributeValue(cluster, attribute, value);
             if (encoded.includes(";")) {
-                throw new UnsupportedByControllerError(
-                    operation,
-                    CONTROLLER,
-                    `chip-tool splits attribute values on ";", which ${JSON.stringify(encoded)} contains ` +
-                        `(endpoint ${endpoint}, cluster ${cluster}, attribute ${attribute})`,
+                throw new ImplementationError(
+                    `${operation} of ${JSON.stringify(encoded)} (endpoint ${endpoint}, cluster ${cluster}, ` +
+                        `attribute ${attribute}): chip-tool splits attribute values on ";", so a step writing ` +
+                        "through it needs a value without one",
                 );
             }
             return encoded;
@@ -1472,7 +1879,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
         command += timedArg(options);
         command += largePayloadArg(this.#adapter.transport);
 
-        return this.#adapter.execute(command, { attributes: entries.map(({ path }) => path) });
+        return this.#adapter.executeWithLogs(command, { attributes: entries.map(({ path }) => path) });
     }
 
     #writeTypedList(
@@ -1485,7 +1892,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
             (dataVersion === undefined ? "" : ` --data-version ${dataVersion}`) +
             timedArg(options) +
             largePayloadArg(this.#adapter.transport);
-        return this.#adapter.execute(command, { attributes: [path] });
+        return this.#adapter.executeWithLogs(command, { attributes: [path] });
     }
 }
 
@@ -1505,6 +1912,91 @@ function payloadField(logs: string[], code: string, pattern: RegExp, radix = 10)
     return Number.parseInt(value, radix);
 }
 
+/**
+ * The nodes a `discover` command's results report. chip-tool records each node it discovers as one entry
+ * `{"value": {"instanceName", "longDiscriminator", "vendorId", "productId", "commissioningMode", …}}`
+ * (`RemoteDataModelLogger::LogDiscoveredNodeData`), with 0 for a vendor or product the advertisement leaves out
+ * (the defaults of `Dnssd::CommissionNodeData`). An entry naming a cluster is a subscription report that arrived
+ * while the command ran.
+ */
+export function discoveredCommissionableNodesOf(results: unknown[]): DiscoveredCommissionableNode[] {
+    const nodes = new Array<DiscoveredCommissionableNode>();
+    for (const result of results) {
+        if (!isObject(result) || "clusterId" in result || !isObject(result.value)) {
+            continue;
+        }
+        const node = result.value;
+        if (!("longDiscriminator" in node)) {
+            continue;
+        }
+        const malformed = (field: string) =>
+            new UnexpectedDataError(
+                `chip-tool reported a discovered node without ${field}: ${JSON.stringify(result.value)}`,
+            );
+        const integer = (field: string) => {
+            const value = numberOf(node, field);
+            if (value === undefined || !Number.isInteger(value)) {
+                throw malformed(field);
+            }
+            return value;
+        };
+        const { instanceName } = node;
+        if (typeof instanceName !== "string") {
+            throw malformed("instanceName");
+        }
+        nodes.push({
+            instanceName,
+            longDiscriminator: integer("longDiscriminator"),
+            vendorId: statedIdentifier(integer("vendorId")),
+            productId: statedIdentifier(integer("productId")),
+            commissioningMode: integer("commissioningMode"),
+        });
+    }
+    return nodes;
+}
+
+/** Fail-safe armed for a whole certificate update, the new CASE session included. */
+const NOC_UPDATE_FAILSAFE_SECONDS = 60;
+
+/** § 11.18.6.5: the CSRNonce is 32 octets. */
+const CSR_NONCE_LENGTH = 32;
+
+const ROOT_ENDPOINT = 0;
+
+/** chip-tool's prefix for a byte string it writes as base64 (`ToBase64` in `commands/pairing/ToTLVCert.cpp`). */
+const BASE64_PREFIX = "base64:";
+
+/**
+ * The certificates `pairing issue-noc-chain` issued, from its one result entry
+ * `{"value": {"NOC", "ICAC", "RCAC", "IPK"}}` (`RemoteDataModelLogger::LogIssueNOCChain`). Each certificate is a
+ * Matter TLV certificate written as `base64:<data>`; an empty ICAC means the chain has none. `undefined` where the
+ * results carry no such entry.
+ */
+function issuedNocChainOf(results: unknown[]): { noc: Bytes; icac?: Bytes } | undefined {
+    for (const result of results) {
+        if (!isObject(result) || "clusterId" in result || !isObject(result.value) || !("NOC" in result.value)) {
+            continue;
+        }
+        const { NOC, ICAC } = result.value;
+        const noc = base64CertificateOf(NOC, "NOC");
+        if (noc === undefined) {
+            throw new UnexpectedDataError(`chip-tool issued no NOC: ${JSON.stringify(result.value)}`);
+        }
+        return { noc, icac: base64CertificateOf(ICAC, "ICAC") };
+    }
+    return undefined;
+}
+
+function base64CertificateOf(value: unknown, name: string): Bytes | undefined {
+    if (value === "" || value === undefined) {
+        return undefined;
+    }
+    if (typeof value !== "string" || !value.startsWith(BASE64_PREFIX)) {
+        throw new UnexpectedDataError(`chip-tool wrote the issued ${name} as ${JSON.stringify(value)}`);
+    }
+    return Bytes.fromBase64(value.slice(BASE64_PREFIX.length));
+}
+
 function matchLog(logs: string[], pattern: RegExp) {
     for (const line of logs) {
         const match = pattern.exec(line);
@@ -1522,12 +2014,12 @@ function matchLog(logs: string[], pattern: RegExp) {
  * Each instance owns its own chip-tool process, storage directory (hence its own CA key and fabric)
  * and commissioner name, so several controller roles in one run never share fabric state.
  *
- * Operations chip-tool cannot express throw {@link UnsupportedByControllerError}, which the step
- * runner records as a skip. That covers a wildcard-endpoint `writeAttributes` (chip-tool reports no
- * status for a written path) and path counts above chip-tool's own limit. A capability asked of the
- * whole adapter rather than of a step — `webRtcRequestor` — throws the same error from the
- * constructor, where no step is running to record anything, so a case asking for one selects its
- * controller itself.
+ * Operations chip-tool cannot express throw {@link UnsupportedByControllerError} naming a capability in
+ * {@link CHIP_TOOL_CAPABILITY_GAPS}, such as `batch-invoke` (chip-tool sends one command per invoke request)
+ * and `many-paths-per-request`. A step that needs one declares it and is skipped before it
+ * runs; a refusal that reaches the step runner is a framework error. A capability asked of the whole
+ * adapter rather than of a step — `webRtcRequestor` — throws the same error from the constructor, where
+ * no step is running to record anything, so a case asking for one selects its controller itself.
  *
  * While a subscription is live the adapter runs a report pump: chip-tool records nothing while its
  * result slot is disarmed, so the client keeps an async-report frame parked whenever no command needs
@@ -1679,6 +2171,24 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             vendorId: carriesIdentity ? payloadField(logs, code, /VendorID:\s+(\d+)/) : undefined,
             productId: carriesIdentity ? payloadField(logs, code, /ProductID:\s+(\d+)/) : undefined,
         };
+    }
+
+    /**
+     * Reports one node at most: chip-tool's `discover` commands stop at the first node that matches
+     * (`--discover-once` defaults to true). A search that finds nothing ends in chip-tool's 30-second command
+     * timeout, which chip-tool reports like any other failure, so it rejects with {@link ChipToolCommandError}.
+     */
+    async discoverCommissionableNodes(filter?: CommissionableNodeFilter): Promise<DiscoveredCommissionableNode[]> {
+        const command =
+            filter?.longDiscriminator === undefined
+                ? "discover commissionables"
+                : `discover find-commissionable-by-long-discriminator ${filter.longDiscriminator}`;
+        const { reply, results } = await this.executeWithLogs(command);
+        const nodes = discoveredCommissionableNodesOf(results);
+        if (nodes.length === 0) {
+            assertCommandSucceeded(reply, `discovery of commissionable nodes (${command})`);
+        }
+        return nodes;
     }
 
     async commission(target: CommissioningTarget): Promise<CertNodeRef> {
@@ -1838,16 +2348,8 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     }
 
     async #readGlobalFabricId(node: NodeId): Promise<GlobalFabricId> {
-        const fabrics = await this.node(node.toString()).readAttribute(
-            {
-                endpoint: 0,
-                cluster: OperationalCredentials.id,
-                attribute: OperationalCredentials.attributes.fabrics.id,
-            },
-            { fabricFiltered: true },
-        );
-
-        const { rootPublicKey, fabricId } = accessingFabricOf(fabrics, node);
+        const fabrics = await this.node(node.toString()).readAttribute(FABRICS, { fabricFiltered: true });
+        const { rootPublicKey, fabricId } = fabricIdentityOf(fabrics, node);
         return GlobalFabricId.compute(Environment.default.get(Crypto), fabricId, rootPublicKey);
     }
 
@@ -1868,13 +2370,19 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         return (await this.executeWithLogs(command, requested)).reply;
     }
 
-    /** As {@link execute}, plus the reply's own decoded log lines for a command that answers only in logs. */
-    async executeWithLogs(command: string, requested?: RequestedPaths): Promise<{ reply: ChipReply; logs: string[] }> {
+    /**
+     * As {@link execute}, plus the reply's own decoded log lines for a command that answers only in logs, and its
+     * raw results for a command whose entries name no path.
+     */
+    async executeWithLogs(
+        command: string,
+        requested?: RequestedPaths,
+    ): Promise<{ reply: ChipReply; logs: string[]; results: unknown[] }> {
         const result = await this.#requireClient().execute(command);
         const reply = interpretReply(result.results, path => this.#isOwnPath(path, requested));
         this.#dispatchReports(reply.values);
         this.#dispatchEventReports(reply.events);
-        return { reply, logs: result.logs };
+        return { reply, logs: result.logs, results: result.results };
     }
 
     /**
@@ -2025,10 +2533,10 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
 /**
  * The descriptor of the fabric a fabric-filtered read of `OperationalCredentials.Fabrics` ran on: a
  * fabric-filtered read indicates only entries associated with the accessing fabric, so the accessing
- * fabric's own entry is the only one. Any other count leaves the fabric undecided, and a guessed
- * compressed id would attribute another fabric's advertisement to this node.
+ * fabric's own entry is the only one. Any other count leaves the fabric undecided, and a field read from
+ * a guessed entry would be another fabric's.
  */
-function accessingFabricOf(fabrics: unknown, node: NodeId): { rootPublicKey: Bytes; fabricId: FabricId } {
+function accessingFabricOf(fabrics: unknown, node: NodeId): Record<string, unknown> {
     if (!Array.isArray(fabrics) || fabrics.length !== 1) {
         throw new UnexpectedDataError(
             `Node ${node} answered a fabric-filtered read of OperationalCredentials.Fabrics with something other ` +
@@ -2043,6 +2551,15 @@ function accessingFabricOf(fabrics: unknown, node: NodeId): { rootPublicKey: Byt
         );
     }
 
+    return entry;
+}
+
+/**
+ * The fields of the accessing fabric's entry that its compressed fabric id derives from. A guessed compressed id
+ * would attribute another fabric's advertisement to this node.
+ */
+function fabricIdentityOf(fabrics: unknown, node: NodeId): { rootPublicKey: Bytes; fabricId: FabricId } {
+    const entry = accessingFabricOf(fabrics, node);
     const { rootPublicKey, fabricId } = entry;
     if (!Bytes.isBytes(rootPublicKey) || (typeof fabricId !== "number" && typeof fabricId !== "bigint")) {
         throw new UnexpectedDataError(

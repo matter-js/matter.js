@@ -31,6 +31,7 @@ import { Reactor } from "../Reactor.js";
 import { Datasource } from "../state/managed/Datasource.js";
 import { BackingEvents } from "./BackingEvents.js";
 import { BehaviorTimer } from "./BehaviorTimer.js";
+import { assertModeledClasses } from "./ModeledState.js";
 import { Reactors } from "./Reactors.js";
 
 const logger = Logger.get("BehaviorBacking");
@@ -56,7 +57,12 @@ export abstract class BehaviorBacking {
         return this.#construction;
     }
 
-    constructor(endpoint: Endpoint, type: Behavior.Type, store: Datasource.Store, options?: Behavior.Options) {
+    constructor(
+        endpoint: Endpoint,
+        type: Behavior.Type,
+        store: Datasource.PersistentStore | Datasource.ExternallyMutableStore,
+        options?: Behavior.Options,
+    ) {
         this.#endpoint = endpoint;
         this.#type = type;
         this.#protocol = endpoint.env.get(ProtocolService);
@@ -254,6 +260,8 @@ export abstract class BehaviorBacking {
     }
 
     protected get datasourceOptions(): Datasource.Options {
+        assertModeledClasses(this.#type);
+
         return {
             entropy: this.#endpoint.env.get(Entropy),
             location: {
@@ -275,7 +283,7 @@ export abstract class BehaviorBacking {
     /**
      * The data provider for {@link datasource}.
      */
-    protected readonly store: Datasource.Store;
+    protected readonly store: Datasource.PersistentStore | Datasource.ExternallyMutableStore;
 
     /**
      * Obtain internal state for a behavior instance.

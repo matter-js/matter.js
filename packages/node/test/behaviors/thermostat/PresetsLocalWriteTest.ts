@@ -5,7 +5,14 @@
  */
 
 import { Endpoint } from "#endpoint/index.js";
-import { Entropy, Environment, MemoryStorageDriver, StorageManager, StorageService } from "@matter/general";
+import {
+    Entropy,
+    Environment,
+    ImplementationError,
+    MemoryStorageDriver,
+    StorageManager,
+    StorageService,
+} from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 import { StatusResponse } from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
@@ -20,7 +27,10 @@ import {
 } from "./preset-helpers.js";
 
 async function thermostat(numberOfPresets?: number, presets?: Thermostat.Preset[]) {
-    const deviceEp = presetsEndpoint(numberOfPresets, presets);
+    return online(presetsEndpoint(numberOfPresets, presets));
+}
+
+async function online(deviceEp: Endpoint<typeof PresetsThermostat>) {
     const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: deviceEp });
     return { node, deviceEp, [Symbol.asyncDispose]: () => node.close() };
 }
@@ -47,6 +57,29 @@ describe("Presets local write", () => {
         expect(stored[0].presetHandle?.byteLength).equals(16);
         expect(stored[0].coolingSetpoint).equals(2600);
         expect(stored[0].builtIn).equals(false);
+    });
+
+    it("refuses more presets for a scenario than its preset type allows", async () => {
+        const deviceEp = new Endpoint(PresetsThermostat, {
+            id: "thermostat",
+            number: 1,
+            thermostat: {
+                ...thermostatConfig(5),
+                presetTypes: [
+                    {
+                        presetScenario: Thermostat.PresetScenario.Occupied,
+                        numberOfPresets: 1,
+                        presetTypeFeatures: { supportsNames: true },
+                    },
+                ],
+            },
+        });
+        await using _node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: deviceEp });
+
+        await expect(writePresets(deviceEp, [newPreset({ name: "Home" }), newPreset({ name: "Office" })])).rejectedWith(
+            StatusResponse.ResourceExhaustedError,
+            "Number of presets (2) for scenario Occupied exceeds allowed number (1)",
+        );
     });
 
     it("stores presets written directly to persistedPresets", async () => {
@@ -161,6 +194,62 @@ describe("Presets local write", () => {
         expect(storedPresets(deviceEp)[0].heatingSetpoint).equals(2000);
     });
 
+    it("keeps a held preset live while the presets are the configured ones", async () => {
+        await using ctx = await thermostat(undefined, [newPreset()]);
+        const { deviceEp } = ctx;
+
+        await MockTime.resolve(
+            deviceEp.act(agent => {
+                const state = agent.get(PresetsThermostatServer).state;
+                state.persistedPresets = undefined;
+                const held = state.presets[0];
+
+                // Any write refreshes the presets reference, which reads the getter again
+                state.useAutomaticModeManagement = true;
+                held.heatingSetpoint = 2200;
+            }),
+            { macrotasks: true },
+        );
+
+        expect(storedPresets(deviceEp)[0].heatingSetpoint).equals(2200);
+    });
+
+    it("keeps a held preset live after a rollback of two writes", async () => {
+        await using ctx = await thermostat(undefined, [newPreset()]);
+        const { deviceEp } = ctx;
+
+        await MockTime.resolve(
+            deviceEp.act(async agent => {
+                const held = agent.get(PresetsThermostatServer).state.presets[0];
+                held.heatingSetpoint = 2100;
+                held.heatingSetpoint = 2200;
+                await agent.context.transaction.rollback();
+
+                expect(held.heatingSetpoint).equals(2000);
+                held.heatingSetpoint = 2300;
+            }),
+            { macrotasks: true },
+        );
+
+        expect(storedPresets(deviceEp)[0].heatingSetpoint).equals(2300);
+    });
+
+    it("refuses to clear the stored presets and keeps them", async () => {
+        await using ctx = await thermostat(undefined, [newPreset()]);
+        const { deviceEp } = ctx;
+
+        await expect(
+            MockTime.resolve(
+                deviceEp.act(async agent => {
+                    agent.get(PresetsThermostatServer).state.persistedPresets = undefined;
+                }),
+                { macrotasks: true },
+            ),
+        ).rejectedWith(ImplementationError, "Cannot clear persistedPresets");
+
+        expect(storedPresets(deviceEp).length).equals(1);
+    });
+
     it("edits a stored preset addressed by its handle", async () => {
         await using ctx = await thermostat();
         const { deviceEp } = ctx;
@@ -197,7 +286,10 @@ describe("Presets local write", () => {
 
         // An observer that puts back exactly the value it was given leaves pre-commit nothing to announce, so only a
         // check of the settled presets sees this
-        const revert = (presets: Thermostat.Preset[]) => {
+        const revert = (presets: Thermostat.Preset[] | undefined) => {
+            if (presets === undefined) {
+                return;
+            }
             presets[0].presetHandle = null;
         };
         deviceEp.events.thermostat.persistedPresets$Changing.on(revert);
@@ -221,7 +313,10 @@ describe("Presets local write", () => {
         await using ctx = await thermostat();
         const { deviceEp } = ctx;
 
-        const revert = (presets: Thermostat.Preset[]) => {
+        const revert = (presets: Thermostat.Preset[] | undefined) => {
+            if (presets === undefined) {
+                return;
+            }
             for (const preset of presets) {
                 preset.presetHandle = null;
             }
@@ -264,6 +359,9 @@ describe("Presets local write", () => {
         const { deviceEp } = ctx;
 
         deviceEp.events.thermostat.persistedPresets$Changing.on(presets => {
+            if (presets === undefined) {
+                return;
+            }
             if (presets[0].presetHandle !== null) {
                 presets[0].builtIn = true;
             }
@@ -284,6 +382,9 @@ describe("Presets local write", () => {
         // An application observer registers after the behavior, so it runs after normalization; only the first
         // announcement that follows is the normalization coming back around
         deviceEp.events.thermostat.persistedPresets$Changing.on(presets => {
+            if (presets === undefined) {
+                return;
+            }
             if (presets[0].heatingSetpoint === 2000) {
                 presets[0].heatingSetpoint = 3100;
             }
@@ -366,14 +467,62 @@ describe("Presets local write", () => {
     });
 
     it("rejects more presets than the thermostat supports", async () => {
-        await using ctx = await thermostat(2);
+        const config = thermostatConfig(2);
+        await using ctx = await online(
+            new Endpoint(PresetsThermostat, {
+                id: "thermostat",
+                number: 1,
+                thermostat: {
+                    ...config,
+                    presetTypes: [
+                        { ...config.presetTypes[0], numberOfPresets: 3, presetTypeFeatures: { supportsNames: true } },
+                    ],
+                },
+            }),
+        );
         const { deviceEp } = ctx;
 
-        await expect(writePresets(deviceEp, [newPreset(), newPreset(), newPreset()])).rejectedWith(
-            "exceeds NumberOfPresets",
-        );
+        await expect(
+            writePresets(deviceEp, [newPreset({ name: "a" }), newPreset({ name: "b" }), newPreset({ name: "c" })]),
+        ).rejectedWith(StatusResponse.ResourceExhaustedError, "exceeds NumberOfPresets");
 
         expect(storedPresets(deviceEp)).deep.equals([]);
+    });
+
+    it("rejects an unknown handle before the count it would exceed", async () => {
+        await using ctx = await thermostat(1);
+        const { deviceEp } = ctx;
+
+        await writePresets(deviceEp, [newPreset()]);
+        const stored = [...storedPresets(deviceEp)];
+
+        await expect(
+            writePresets(deviceEp, [...stored, newPreset({ presetHandle: new Uint8Array([1, 2, 3, 4]) })]),
+        ).rejectedWith(StatusResponse.NotFoundError, "does not exist in old Presets");
+
+        expect(storedPresets(deviceEp)).deep.equals(stored);
+    });
+
+    it("rejects one more unnamed preset for a full scenario as exhausted, not as a duplicate name", async () => {
+        const config = thermostatConfig(2);
+        await using ctx = await online(
+            new Endpoint(PresetsThermostat, {
+                id: "thermostat",
+                number: 1,
+                thermostat: { ...config, presetTypes: [{ ...config.presetTypes[0], numberOfPresets: 1 }] },
+            }),
+        );
+        const { deviceEp } = ctx;
+
+        await writePresets(deviceEp, [newPreset()]);
+        const stored = [...storedPresets(deviceEp)];
+
+        await expect(writePresets(deviceEp, [...stored, newPreset()])).rejectedWith(
+            StatusResponse.ResourceExhaustedError,
+            "for scenario",
+        );
+
+        expect(storedPresets(deviceEp)).deep.equals(stored);
     });
 
     it("rejects a named preset when the preset type does not support names", async () => {
@@ -443,6 +592,16 @@ describe("Presets local write", () => {
         await expect(writePresets(deviceEp, [])).rejectedWith("while it is the active preset");
 
         expect(storedPresets(deviceEp).length).equals(1);
+    });
+
+    it("keeps a built-in preset that a write sends with a null builtIn", async () => {
+        const builtIn = newPreset({ presetHandle: new Uint8Array(16).fill(7), builtIn: true });
+        await using ctx = await thermostat(5, [builtIn]);
+        const { deviceEp } = ctx;
+
+        await writePresets(deviceEp, [{ ...builtIn, builtIn: null }]);
+
+        expect(storedPresets(deviceEp)[0].builtIn).equals(true);
     });
 
     it("refuses to remove a preset the application marked built-in", async () => {

@@ -140,7 +140,10 @@ describe("TC-SC-3.5 CommissioningAttempts", () => {
     });
 
     it("logs a device-side failure at debug and a refusal of the controller itself at warn", async () => {
-        const failures = [new InternalError("CASE failed"), new UnsupportedByControllerError("commission", "fake")];
+        const failures = [
+            new InternalError("CASE failed"),
+            new UnsupportedByControllerError("commission", "fake", "not offered", "attestation"),
+        ];
         let built = 0;
         const controllers = failures.map((_, index) => fakeController(index, []));
         const attempts = new CommissioningAttempts(() => controllers[built++].adapter, Millis(50));

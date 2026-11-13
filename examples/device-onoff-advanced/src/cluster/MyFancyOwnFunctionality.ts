@@ -41,7 +41,7 @@ export class MyFancyEvent {
  *
  * This cluster provides an interface to some fancy custom functions.
  */
-@cluster(myFancyClusterId)
+@cluster(myFancyClusterId, "MyFancyOwnFunctionality")
 export class MyFancyOwnFunctionalityBehavior extends ClusterBehavior {
     declare state: MyFancyOwnFunctionalityBehavior.State;
     declare events: MyFancyOwnFunctionalityBehavior.Events;

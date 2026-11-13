@@ -148,9 +148,7 @@ export async function serveOtaTransfer(
             observeAfterMs,
         });
     } catch (e) {
-        // Before the check, not after: the runner turns this into a skipped step only while the step has
-        // recorded no check and made no call that may change the device, so recording first would fail the run on a
-        // controller that cannot serve at all.
+        // A refusal is a framework error the step runner reports, not an outcome of the device
         if (e instanceof UnsupportedByControllerError) {
             throw e;
         }

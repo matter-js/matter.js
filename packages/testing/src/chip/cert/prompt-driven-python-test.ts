@@ -85,7 +85,7 @@ export class PromptDrivenPythonTest extends PythonTest {
         let handled = 0;
         try {
             for await (let line of terminal) {
-                this.#log.push({ index: this.#log.length, at: new Date(), text: line });
+                this.#log.push({ index: this.#log.length, at: new Date(), receivedAt: performance.now(), text: line });
 
                 line = parseStep(line, step);
 

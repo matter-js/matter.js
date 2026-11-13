@@ -69,7 +69,7 @@ export class LineQueue implements AsyncIterable<string> {
 
 // Node clamps a setTimeout delay above this to 1ms, which would busy-spin a timer/wake race
 // instead of actually waiting.
-const MAX_TIMEOUT_MS = 0x7fffffff;
+export const MAX_TIMEOUT_MS = 0x7fffffff;
 
 /**
  * A cancellable timeout for racing against other async work.

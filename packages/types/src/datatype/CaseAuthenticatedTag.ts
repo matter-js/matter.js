@@ -93,7 +93,7 @@ export namespace CaseAuthenticatedTag {
     };
 
     /** Validates a list of CaseAuthenticatedTags according to Matter specification rules. */
-    export const validateNocTagList = (tags: CaseAuthenticatedTag[]) => {
+    export const validateNocTagList = (tags: readonly CaseAuthenticatedTag[]) => {
         if (tags.length > 3) {
             throw new ValidationOutOfBoundsError(`Too many CaseAuthenticatedTags (${tags.length}).`);
         }

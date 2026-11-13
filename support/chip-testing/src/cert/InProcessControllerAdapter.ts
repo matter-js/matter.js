@@ -119,10 +119,12 @@ import type {
     CertSessionInfo,
     ClientAttributePath,
     ClientEndpointEntry,
+    CommissionableNodeFilter,
     CommissioningTarget,
     ControllerAdapter,
     ControllerAdapterOptions,
     ControllerTransport,
+    DiscoveredCommissionableNode,
     EventPathSpec,
     EventReadEntry,
     GroupKeySetSpec,
@@ -227,6 +229,161 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "S.C.C06.Tx": 1,
     "S.C.C40.Tx": 1,
 
+    // The client commands, and the one attribute, that the single-command client cases send or read
+    // (TC-OO-3.2, TC-I-3.2, TC-MOD-2.2, TC-LOWPOWER-2.2, TC-WNCV-6.1, TC-WNCV-7.1). Only `OO.C` (0 in
+    // matter.js's own PICS file) and `WNCV.C` (0 in CHIP's) need the overlay, because both files
+    // describe a device; the other keys state the controller's full client surface for these cases.
+    "OO.C": 1,
+    "OO.C.C00.Tx": 1,
+    "OO.C.C01.Tx": 1,
+    "OO.C.C02.Tx": 1,
+    "OO.C.C40.Tx": 1,
+    "OO.C.C41.Tx": 1,
+    "OO.C.C42.Tx": 1,
+    "I.C": 1,
+    "I.C.C00.Tx": 1,
+    "I.C.C40.Tx": 1,
+    "MOD.C": 1,
+    "MOD.C.A0002": 1,
+    "MOD.C.C00.Tx": 1,
+    "LOWPOWER.C": 1,
+    "LOWPOWER.C.C00.Tx": 1,
+    "WNCV.C": 1,
+    "WNCV.C.C00.Tx": 1,
+    "WNCV.C.C01.Tx": 1,
+    "WNCV.C.C02.Tx": 1,
+    "WNCV.C.C05.Tx": 1,
+    "WNCV.C.C08.Tx": 1,
+
+    // The Network Commissioning client features TC-CNET-4.20 and TC-CNET-4.21 require. CHIP's PICS file answers both 0,
+    // because it describes a device; the controller configures Wi-Fi and Thread networks.
+    "CNET.C.F00": 1,
+    "CNET.C.F01": 1,
+
+    // The ColorControl client commands, features and attributes that TC-CC-3.4, TC-CC-4.5, TC-CC-5.4, TC-CC-6.4,
+    // TC-CC-7.5 and TC-CC-9.4 send, read or name as the DUT's precondition. CHIP's PICS file answers the features 0,
+    // because it describes a device; the other keys state the controller's full client surface for these cases.
+    "CC.C": 1,
+    "CC.C.F00": 1,
+    "CC.C.F01": 1,
+    "CC.C.F02": 1,
+    "CC.C.F03": 1,
+    "CC.C.F04": 1,
+    "CC.C.C00.Tx": 1,
+    "CC.C.C01.Tx": 1,
+    "CC.C.C02.Tx": 1,
+    "CC.C.C03.Tx": 1,
+    "CC.C.C04.Tx": 1,
+    "CC.C.C05.Tx": 1,
+    "CC.C.C06.Tx": 1,
+    "CC.C.C07.Tx": 1,
+    "CC.C.C08.Tx": 1,
+    "CC.C.C09.Tx": 1,
+    "CC.C.C0a.Tx": 1,
+    "CC.C.C40.Tx": 1,
+    "CC.C.C41.Tx": 1,
+    "CC.C.C42.Tx": 1,
+    "CC.C.C43.Tx": 1,
+    "CC.C.C44.Tx": 1,
+    "CC.C.C47.Tx": 1,
+    "CC.C.C4b.Tx": 1,
+    "CC.C.C4c.Tx": 1,
+    "CC.C.A0000": 1,
+    "CC.C.A0001": 1,
+    "CC.C.A0007": 1,
+    "CC.C.A4000": 1,
+    "CC.C.A4002": 1,
+    "CC.C.A4003": 1,
+    "CC.C.A4004": 1,
+    "CC.C.A4005": 1,
+
+    // The Thermostat client command TC-TSTAT-3.2 sends. CHIP's PICS file answers `TSTAT.C` 0, because it describes a
+    // device; `TSTAT.C.C00.Tx` states the controller's client surface for this case.
+    "TSTAT.C": 1,
+    "TSTAT.C.C00.Tx": 1,
+
+    // The KeypadInput and TargetNavigator client commands TC-KEYPADINPUT-3.1 and TC-TGTNAV-8.2 send. CHIP's PICS file
+    // answers `TGTNAV.C` 0, because it describes a device; the other keys state the controller's client surface for these
+    // cases.
+    "KEYPADINPUT.C": 1,
+    "KEYPADINPUT.C.C00.Tx": 1,
+    "TGTNAV.C": 1,
+    "TGTNAV.C.C00.Tx": 1,
+
+    // The AudioOutput and MediaPlayback client commands TC-AUDIOOUTPUT-7.3, 7.4 and TC-MEDIAPLAYBACK-6.5, 6.7, 6.10 send.
+    // CHIP's PICS file has no `MEDIAPLAYBACK.C.C0c.Tx`, `C0d.Tx` or `C0e.Tx`; the other keys state the controller's client
+    // surface for these cases.
+    "AUDIOOUTPUT.C": 1,
+    "AUDIOOUTPUT.C.C00.Tx": 1,
+    "AUDIOOUTPUT.C.C01.Tx": 1,
+    "MEDIAPLAYBACK.C": 1,
+    "MEDIAPLAYBACK.C.C00.Tx": 1,
+    "MEDIAPLAYBACK.C.C01.Tx": 1,
+    "MEDIAPLAYBACK.C.C02.Tx": 1,
+    "MEDIAPLAYBACK.C.C03.Tx": 1,
+    "MEDIAPLAYBACK.C.C04.Tx": 1,
+    "MEDIAPLAYBACK.C.C05.Tx": 1,
+    "MEDIAPLAYBACK.C.C08.Tx": 1,
+    "MEDIAPLAYBACK.C.C09.Tx": 1,
+    "MEDIAPLAYBACK.C.C0c.Tx": 1,
+    "MEDIAPLAYBACK.C.C0d.Tx": 1,
+    "MEDIAPLAYBACK.C.C0e.Tx": 1,
+
+    // The Channel program guide commands TC-CHANNEL-5.8 sends. CHIP's PICS file has none of these keys.
+    "CHANNEL.C.C04.Tx": 1,
+    "CHANNEL.C.C06.Tx": 1,
+    "CHANNEL.C.C07.Tx": 1,
+
+    // The diagnostics client commands, and the one attribute, that TC-DGETH-3.2, TC-DGSW-3.2, TC-DGTHREAD-3.4 and
+    // TC-DGWIFI-3.2 send or read. Only `DGTHREAD.C` and `DGWIFI.C.C00.Tx` need the overlay, because CHIP's file
+    // answers them 0; the other keys state the controller's full client surface for these cases.
+    "DGETH.C": 1,
+    "DGETH.C.C00.Tx": 1,
+    "DGSW.C": 1,
+    "DGSW.C.C00.Tx": 1,
+    "DGTHREAD.C": 1,
+    "DGTHREAD.C.C00.Tx": 1,
+    "DGTHREAD.C.A0006": 1,
+    "DGWIFI.C": 1,
+    "DGWIFI.C.C00.Tx": 1,
+
+    // The DoorLock client commands TC-DRLK-3.2 sends, and the WDSCH, YDSCH, HDSCH and USR features its steps use.
+    // CHIP's PICS file answers these 1 already, except YDSCH and HDSCH; the overlay states the controller's client
+    // surface.
+    "DRLK.C": 1,
+    "DRLK.C.F04": 1,
+    "DRLK.C.F08": 1,
+    "DRLK.C.F0a": 1,
+    "DRLK.C.F0b": 1,
+    "DRLK.C.C00.Tx": 1,
+    "DRLK.C.C01.Tx": 1,
+    "DRLK.C.C03.Tx": 1,
+    "DRLK.C.C0b.Tx": 1,
+    "DRLK.C.C0c.Tx": 1,
+    "DRLK.C.C0d.Tx": 1,
+    "DRLK.C.C0e.Tx": 1,
+    "DRLK.C.C0f.Tx": 1,
+    "DRLK.C.C10.Tx": 1,
+    "DRLK.C.C11.Tx": 1,
+    "DRLK.C.C12.Tx": 1,
+    "DRLK.C.C13.Tx": 1,
+    "DRLK.C.C1a.Tx": 1,
+    "DRLK.C.C1b.Tx": 1,
+    "DRLK.C.C1d.Tx": 1,
+    "DRLK.C.C22.Tx": 1,
+    "DRLK.C.C24.Tx": 1,
+    "DRLK.C.C26.Tx": 1,
+
+    // The AdministratorCommissioning client of the TC-CADMIN cases. Only the display and audio keys need the
+    // overlay: the CHIP PICS file answers 1 for both, and this controller is a library with no display a user
+    // enters a code into and no voice prompt. The other keys state the controller's client surface for these cases.
+    "CADMIN.C": 1,
+    "CADMIN.C.C00.Tx": 1,
+    "CADMIN.C.C01.Tx": 1,
+    "CADMIN.C.C02.Tx": 1,
+    "CADMIN.M.UserInterfaceDisplay": 0,
+    "CADMIN.M.AudioInterface": 0,
+
     // Every ThreadBorderRouterManagement client command TC-TBRM-3.1 sends. The CHIP PICS file answers
     // only the server side, because it describes a device; here the client is the controller.
     "TBRM.C": 1,
@@ -247,13 +404,12 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
 
     // The Switch client flags TC-SWTCH-3.2 rests on. The CHIP PICS file answers 0 for `SWTCH.C` and
     // declares F00..F04 for a *device*; here the switch client is the controller, and this overlay is
-    // the DUT-as-client declaration the plan's steps 0a-0h check for self-consistency.
+    // the DUT-as-client declaration the plan's steps 0a-0g check for self-consistency.
     "SWTCH.C": 1,
 
-    // CHIP's PICS file has no entry for the action-switch client flag, and it answers 1 for the release
-    // flag, which the cluster forbids alongside an action switch (Application Clusters § 1.13.4). The
-    // switch this controller observes is an action switch, so that is what it declares.
-    "SWTCH.C.F02": 0,
+    // The controller handles switches with momentary switch release and action switches alike. CHIP's PICS file
+    // answers 1 for the release flag and has no entry for the action-switch flag; both are stated here.
+    "SWTCH.C.F02": 1,
     "SWTCH.C.F05": 1,
 
     // BDX roles the controller takes when it serves an OTA image (TC-BDX-1.4, TC-BDX-2.1). The CHIP
@@ -305,6 +461,20 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "MCORE.DEVLIST.UseDeviceName": 1,
     "MCORE.DEVLIST.UseDeviceState": 1,
     "MCORE.DEVLIST.UseBatInfo": 1,
+    // The Operational Credentials client surface TC-OPCREDS-3.3 rests on: the commands a commissioning and a
+    // certificate update send, and the attributes the case reads. CHIP's ci-pics-values answers them 1 already; the
+    // overlay states the controller's own client surface, as for the other client cases.
+    "OPCREDS.C": 1,
+    "OPCREDS.C.A0002": 1,
+    "OPCREDS.C.A0003": 1,
+    "OPCREDS.C.A0004": 1,
+    "OPCREDS.C.A0005": 1,
+    "OPCREDS.C.C04.Tx": 1,
+    "OPCREDS.C.C06.Tx": 1,
+    "OPCREDS.C.C07.Tx": 1,
+    "OPCREDS.C.C09.Tx": 1,
+    "OPCREDS.C.C0a.Tx": 1,
+    "OPCREDS.C.C0b.Tx": 1,
 };
 
 const adapterStreams = new Map<string, LineQueue>();
@@ -507,7 +677,7 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         const scripted = this.#scriptFor(peer).queryImage.shift();
 
         // A scripted status is answered without asking `super` at all. Its answer is a side effect as
-        // much as a value — it stages an in-progress entry and registers the peer for BDX — and a
+        // much as a value — it records an offer for the peer and registers the peer for BDX — and a
         // status written over the top afterwards would leave the provider expecting a transfer the
         // requestor was just told not to start.
         const response: OtaSoftwareUpdateProvider.QueryImageResponse =
@@ -581,10 +751,10 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         // this states directly — and the only one whose side effects must not happen, because the
         // requestor's next attempt needs the BDX registration and the image it already downloaded.
         //
-        // A refusal it does have a path to: it answers Discontinue for an update it holds no consent
-        // for. Withdrawing the consent and letting it answer is what keeps the state it is left in
-        // agreeing with the answer the requestor received; overlaying Discontinue on a successful
-        // apply would record the update as applying and report it to this controller as allowed.
+        // A refusal it does have a path to: it answers Discontinue under a known update token once
+        // removeConsent() removed the version. Letting it answer keeps the state agreeing with the answer the
+        // requestor received; overlaying Discontinue on a successful apply would record the update as applying.
+        // Under an unknown token (a scripted offer it did not make) the apply of a version above 0 proceeds.
         const scriptedAction = scripted?.action;
         let response: OtaSoftwareUpdateProvider.ApplyUpdateResponse;
         if (scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.AwaitNextAction) {
@@ -592,7 +762,11 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         } else {
             if (scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Discontinue) {
                 const peerAddress = this.#commandPeerAddress;
-                await this.agent.get(SoftwareUpdateManager).removeConsent(peerAddress, request.newVersion);
+                const manager = this.agent.get(SoftwareUpdateManager);
+                const version = manager.appliedVersionOf(peerAddress, request.updateToken, request.newVersion);
+                if (version !== undefined) {
+                    await manager.removeConsent(peerAddress, version);
+                }
             }
             // Only for the answer the script named: the base provider sends its delay only where it allows the apply,
             // so a Discontinue never names a time for something that is not going to happen
@@ -1096,7 +1270,8 @@ export class NoCommissionedPeerError extends MatterError {}
  * transport has nothing to sever.
  *
  * A state error rather than a refusal: a step that reached it has already established something
- * untrue about the session it captured, so it must fail rather than be recorded as skipped.
+ * untrue about the session it captured, so it fails as a finding about the session. A refusal would
+ * end it as a framework error instead.
  */
 export class SessionStateError extends MatterError {}
 
@@ -2034,8 +2209,21 @@ class InProcessCertNodeApi implements CertNodeApi {
         // after that would then reject it with nobody listening
         promise.catch(() => {});
 
+        const bdx = this.#controller.env.get(BdxProtocol);
         let transfer: BdxSession | undefined;
-        observers.on(this.#controller.env.get(BdxProtocol).sessionStarted, (session, sessionScope) => {
+        const follow = (session: BdxSession) => {
+            transfer = session;
+            observers.on(session.progressFinished, () => resolver(session));
+            observers.on(session.closed, () =>
+                rejecter(
+                    new OtaTransferError(
+                        `BDX transfer to node id ${this.#nodeId} ended after ${session.transferredBytes} of ` +
+                            `${session.dataLength ?? "an indefinite number of"} bytes without completing`,
+                    ),
+                ),
+            );
+        };
+        observers.on(bdx.sessionStarted, (session, sessionScope) => {
             const { fabricIndex, nodeId } = session.peerAddress;
 
             // Scope as well as peer: this controller may hold another BDX transfer with the same node —
@@ -2049,29 +2237,34 @@ class InProcessCertNodeApi implements CertNodeApi {
             ) {
                 return;
             }
-            transfer = session;
-            observers.on(session.progressFinished, () => resolver(session));
-            observers.on(session.closed, () =>
-                rejecter(
-                    new OtaTransferError(
-                        `BDX transfer to node id ${this.#nodeId} ended after ${session.transferredBytes} of ` +
-                            `${session.dataLength ?? "an indefinite number of"} bytes without completing`,
-                    ),
-                ),
-            );
+            follow(session);
         });
+
+        // A forceUpdate() trigger succeeds while a transfer of its version already runs, and that transfer
+        // started before the listener above
+        const followRunning = () => {
+            const running = bdx.sessionFor(peerAddress, scope);
+            if (transfer === undefined && running !== undefined) {
+                follow(running);
+            }
+        };
 
         const expiry = Time.sleep("cert OTA transfer", timeout);
 
-        // Anything but a completed transfer leaves the update queued, and a later forceUpdate() for this
-        // node then finds an active session and declines to start a replacement. Tracked here rather than
-        // per failure branch: a throw from the announce, a session that closed, and the budget expiring all
-        // have to undo it, and attaching that to one branch is what let two of them escape before.
+        // Anything but a completed transfer leaves the update queued, and a later forceUpdate() for another
+        // version of this node then finds an active session and refuses to start a replacement. Tracked
+        // here rather than per failure branch: a throw from the trigger, a session that closed, and the
+        // budget expiring all have to undo it.
         let served = false;
         try {
-            // The announce is inside the race, not before it: it waits on the peer, so a provider the node
-            // never answers would otherwise hold this call open past the budget it documents.
-            const completed = await Promise.race([trigger().then(() => promise), expiry.then(() => undefined)]);
+            // The budget this call documents covers the trigger as well as the transfer
+            const completed = await Promise.race([
+                trigger().then(() => {
+                    followRunning();
+                    return promise;
+                }),
+                expiry.then(() => undefined),
+            ]);
             if (completed === undefined) {
                 throw new OtaTransferError(
                     `Node id ${this.#nodeId} did not take the offered OTA image within ${Duration.format(timeout)}` +
@@ -2293,6 +2486,12 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
     }
 
+    updateOperationalCertificate(): Promise<void> {
+        return runTagged(this.#adapterId, async () => {
+            await this.#peer.updateOperationalCertificate();
+        });
+    }
+
     operationalMdnsInstanceName(): Promise<string> {
         return runTagged(this.#adapterId, async () => {
             return getOperationalDeviceQname(this.#fabric.globalId, this.#nodeId);
@@ -2309,6 +2508,12 @@ class InProcessCertNodeApi implements CertNodeApi {
  * default.
  */
 const CERT_PEER_CONNECTION_TIMEOUT = Seconds(15);
+
+/**
+ * How long {@link InProcessControllerAdapter.discoverCommissionableNodes} collects advertisements. A node already
+ * advertising answers the first query within a second; the rest covers a slow multicast path.
+ */
+const COMMISSIONABLE_DISCOVERY_WINDOW = Seconds(5);
 
 /**
  * How long to wait for a peer to hold a subscription before continuing without one.
@@ -2727,6 +2932,34 @@ export class InProcessControllerAdapter implements ControllerAdapter {
         return { shortDiscriminator, passcode, vendorId, productId };
     }
 
+    /** Discovers over DNS-SD only, for {@link COMMISSIONABLE_DISCOVERY_WINDOW}. */
+    discoverCommissionableNodes(filter?: CommissionableNodeFilter): Promise<DiscoveredCommissionableNode[]> {
+        return runTagged(this.id, async () => {
+            const nodes = await this.#startedController.peers.discover({
+                ...(filter?.longDiscriminator === undefined ? {} : { longDiscriminator: filter.longDiscriminator }),
+                timeout: COMMISSIONABLE_DISCOVERY_WINDOW,
+                discoveryCapabilities: { onIpNetwork: true },
+            });
+            // Discovery reports a node again on each new advertisement
+            // A node whose advertisement lacks an instance name or discriminator is not one a caller can select
+            return [...new Set(nodes)].flatMap(node => {
+                const { deviceIdentifier, discriminator, vendorId, productId, commissioningMode } =
+                    node.state.commissioning;
+                if (deviceIdentifier === undefined || discriminator === undefined) {
+                    return [];
+                }
+                return {
+                    instanceName: deviceIdentifier,
+                    longDiscriminator: discriminator,
+                    vendorId,
+                    productId,
+                    // § 4.3.1.7: an absent CM key means 0
+                    commissioningMode: commissioningMode ?? 0,
+                };
+            });
+        });
+    }
+
     commission(target: CommissioningTarget): Promise<CertNodeRef> {
         return runTagged(this.id, async () => {
             const { identifierData, passcode, vendorId, productId } = resolveCommissioningTarget(target);
@@ -2832,8 +3065,8 @@ class InProcessAttestationApi implements AttestationApi {
             seed: { paaRoots: chipTestRoots() },
 
             // Both are about test certificates counting at all, not about going and getting them: the
-            // seed consumer drops a test root unless the first is set, and the validator refuses one
-            // as a trust anchor unless the second is. Nothing is fetched — the service is offline.
+            // seed consumer drops a test root unless the first is set, and the validator flags a test root
+            // or the Matter test CD signer unless the second is. Nothing is fetched — the service is offline.
             fetchTestCertificates: true,
             acceptTestCertificates: true,
 

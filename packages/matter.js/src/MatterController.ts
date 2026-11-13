@@ -690,14 +690,25 @@ export class MatterController {
         await this.fabric.persist();
     }
 
+    /** True when {@link getCommissionedNodes} lists at least one node. */
     isCommissioned() {
         return !!this.getCommissionedNodes().length;
     }
 
+    /**
+     * The node ids of all commissioned peers.
+     *
+     * Lists only peers whose state is readable.  A peer that is still initializing, resetting, crashed or being deleted
+     * is left out until its state is readable again.
+     */
     getCommissionedNodes() {
-        return this.node.peers
-            .map(peer => peer.maybeStateOf(CommissioningClient)?.peerAddress?.nodeId)
+        return this.#commissionedPeers()
+            .map(peer => peer.state.commissioning.peerAddress?.nodeId)
             .filter(nodeId => nodeId !== undefined);
+    }
+
+    #commissionedPeers() {
+        return this.node.peers.commissioned.filter(peer => peer.lifecycle.isReadable);
     }
 
     #commissionedNodeDetailsForNode(peer: ClientNode): PairedNodeDetails {
@@ -717,19 +728,9 @@ export class MatterController {
         };
     }
 
+    /** The details of the peers {@link getCommissionedNodes} lists. */
     getCommissionedNodesDetails(): PairedNodeDetails[] {
-        return this.node.peers
-            .filter(peer => peer.maybeStateOf(CommissioningClient)?.peerAddress !== undefined)
-            .map(peer => this.#commissionedNodeDetailsForNode(peer));
-    }
-
-    getCommissionedNodeDetails(nodeId: NodeId) {
-        const address = this.fabric.addressOf(nodeId);
-        const peer = this.node.peers.get(address);
-        if (peer === undefined) {
-            throw new Error(`Node ${nodeId} is not commissioned.`);
-        }
-        return this.#commissionedNodeDetailsForNode(peer);
+        return this.#commissionedPeers().map(peer => this.#commissionedNodeDetailsForNode(peer));
     }
 
     /**
@@ -874,12 +875,7 @@ export class MatterController {
                 }
             }
 
-            const commissioning = RemoteDescriptor.toLongForm({
-                // Fallback discoveredAt in case discoveryData doesn't have one
-                discoveredAt: Time.nowMs,
-                ...discoveryData,
-                addresses: operationalAddress ? [operationalAddress] : [],
-            });
+            const commissioning = RemoteDescriptor.legacyRecordToLongForm(discoveryData, operationalAddress);
             logger.debug(
                 `Initialize node store for migrated node ${peerAddress.toString()}`,
                 Diagnostic.dict({ maxEventNumber, ...commissioning }),
@@ -923,6 +919,11 @@ export class MatterController {
  * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export namespace MatterController {
+    /**
+     * Options for {@link MatterController.connect}. The inherited `caseAuthenticatedTags` is stored on the peer, but
+     * not applied yet: sessions present the CATs of this node's own NOC in the fabric, and the CATs of the peer come
+     * from its NOC.
+     */
     export interface ConnectOptions extends PeerConnectionOptions {
         allowUnknownPeer?: boolean;
     }

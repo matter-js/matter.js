@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { ThermostatUserInterfaceConfigurationServer } from "@matter/main/behaviors/thermostat-user-interface-configuration";
 import { ThermostatUserInterfaceConfiguration } from "@matter/main/clusters";
 import { TemperatureSensorDevice } from "@matter/main/devices/temperature-sensor";
@@ -15,7 +15,7 @@ const TemperatureSensor = TemperatureSensorDevice.with(ThermostatUserInterfaceCo
 
 registerDeviceType({
     name: "temperature-sensor",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(TemperatureSensor, {
             number: endpoint,
             temperatureMeasurement: { measuredValue: 2500, minMeasuredValue: -5000, maxMeasuredValue: 10000 },
@@ -24,7 +24,7 @@ registerDeviceType({
                     ThermostatUserInterfaceConfiguration.ScheduleProgrammingVisibility.ScheduleProgrammingPermitted,
             },
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
         return { endpoint: ep };
     },
 });
