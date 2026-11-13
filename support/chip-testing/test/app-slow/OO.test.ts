@@ -17,5 +17,8 @@ describe("OO", () => {
             edit.sed("s/value: 30000/value: 30500/"),
         );
     });
-    chip("OO/*");
+    chip("OO/*").exclude(
+        // Checks quieter reporting of OnTime and OffWaitTime, which the On/Off cluster of Matter 1.6 does not define
+        "OO/2.8/*",
+    );
 });
