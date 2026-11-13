@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { PowerSourceServer } from "@matter/main/behaviors/power-source";
 import { PowerSource } from "@matter/main/clusters/power-source";
 import { PowerSourceEndpoint } from "@matter/main/endpoints/power-source";
@@ -16,7 +16,7 @@ const BatteryPowerSource = PowerSourceEndpoint.with(PowerSourceServer.with(Power
 
 registerDeviceType({
     name: "power-source",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(BatteryPowerSource, {
             number: endpoint,
             powerSource: {
@@ -31,7 +31,7 @@ registerDeviceType({
                 batVoltage: 3000,
             },
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
         return { endpoint: ep };
     },
 });

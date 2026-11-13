@@ -23,8 +23,13 @@ describe("ACE", () => {
 
     chip("ACE/*");
 
-    // run1 = all-clusters-no-groupcast (legacy Groups path),
-    // run2 = all-devices on-off-light + --groupcast (groupcast path).
-    chip("ACE/*/run1");
-    chip("ACE/*/run2");
+    // Selects the runs of multi-run tests, which "ACE/*" does not
+    chip("ACE/*/run*").exclude(
+        // Runs for the CHIP camera app, which matter.js has no test subject for
+        "ACE/1.2/run2",
+        "ACE/1.3/run2",
+        "ACE/1.4/run2",
+        "ACE/1.5/run2",
+        "ACE/1.6/run4",
+    );
 });
