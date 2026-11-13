@@ -192,7 +192,7 @@ describe("RotateGroupKey task integration (single member)", () => {
         await awaitState(controller, addIdFor(peer), "completed");
 
         // Seed a committed multi-epoch intent (slot 1 populated) directly, without emitting itemChanged so no
-        // reconcile fires — the object identity below is the proof the rotation never rewrote the intent.
+        // reconcile fires — the unchanged generation below is the proof the rotation never rewrote the intent.
         const multiEpoch: GroupKeyManagement.GroupKeySet = {
             groupKeySetId: GROUP_KEY_SET_ID,
             groupKeySecurityPolicy: TrustFirst,
@@ -209,6 +209,7 @@ describe("RotateGroupKey task integration (single member)", () => {
             const existing = ds.state.items[itemKey];
             ds.state.items = { ...ds.state.items, [itemKey]: { ...existing, intent: multiEpoch } };
         });
+        const seededGeneration = peer.stateOf(DesiredStateBehavior).items[itemKey]?.generation;
 
         writes.length = 0;
         await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
@@ -217,10 +218,12 @@ describe("RotateGroupKey task integration (single member)", () => {
         const status = await controller.act(a => statusOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT));
         expect(status?.error).contains("single-key steady state");
 
-        // Nothing was mutated: no device write, and the seeded intent object is untouched (reference-equal).
+        // Nothing was mutated: no device write, and the seeded intent was not rewritten.
         expect(writes.length).equals(0);
         const item = peer.stateOf(DesiredStateBehavior).items[itemKey];
-        expect(item?.intent).equals(multiEpoch);
+        expect(seededGeneration).not.undefined;
+        expect(item?.generation).equals(seededGeneration);
+        expect(item?.intent).deep.equals(multiEpoch);
         expect(item?.status.state).equals("committed");
         expect(deviceStarts(device, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
     });
