@@ -7,6 +7,7 @@
 import {
     Diagnostic,
     Duration,
+    InternalError,
     isObject,
     Logger,
     MatterError,
@@ -60,11 +61,46 @@ export const WEBRTC_SESSION_REGISTERED_LINE =
 export const WEBRTC_SESSION_REMOVED_LINE =
     /WebRtcTransportRequestorServer session removed webRtcSessionId=(?<id>\d+) fabricIndex=\d+ peerNodeId=(?<peer>\d+) peerEndpointId=\d+ requestorEndpointId=(?<endpoint>\d+)/;
 
+/**
+ * Matches the line matter.js's `Endpoint` logs once the server's camera-controller endpoint is ready, which carries the
+ * endpoint's number. The server adds that endpoint with id `camera-controller` and lets matter.js number it, so the
+ * number depends on the endpoints the server adds before it, and the WebSocket API does not report it.
+ *
+ * Provisional until verified against a live server log.
+ */
+export const CAMERA_CONTROLLER_READY_LINE = /\bcamera-controller ready endpoint#: (?<number>\d+)\b/;
+
 /** How long the server may take to log what it already did, once its response or command result arrived. */
 const LOG_LAG = Seconds(10);
 
-/** The server did not log the session registration or removal the harness waits for. */
+/**
+ * The server did not log what the harness waits for: the session registration or removal, or its camera-controller
+ * endpoint.
+ */
 export class MatterServerWebRtcError extends MatterError {}
+
+/**
+ * The number of the server's camera-controller endpoint, its WebRTC requestor, read from the server's log (see
+ * {@link CAMERA_CONTROLLER_READY_LINE}). Reads the whole log, so call it on the log of the server's whole run.
+ *
+ * @throws MatterServerWebRtcError where the log does not show the endpoint within `timeout`
+ */
+export async function cameraControllerEndpointOf(log: LogFollower, timeout: Duration = LOG_LAG): Promise<number> {
+    let line;
+    try {
+        line = await log.expectPattern(CAMERA_CONTROLLER_READY_LINE, { from: 0, timeoutMs: timeout });
+    } catch (error) {
+        throw new MatterServerWebRtcError(
+            `The server's log showed no ready camera-controller endpoint within ${Duration.format(timeout)}`,
+            { cause: error },
+        );
+    }
+    const number = CAMERA_CONTROLLER_READY_LINE.exec(line.text)?.groups?.number;
+    if (number === undefined) {
+        throw new InternalError(`The camera-controller ready line matched without its number: ${line.text}`);
+    }
+    return Number(number);
+}
 
 /** The `event_type` of a `webrtc_callback` to the signal kind. */
 const CALLBACK_KINDS = new Map<string, WebRtcSignalRecord["kind"]>([

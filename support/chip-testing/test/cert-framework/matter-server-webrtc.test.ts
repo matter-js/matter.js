@@ -10,7 +10,11 @@ import { NodeId } from "@matter/main/types";
 import type { WebRtcSignalRecord } from "@matter/testing";
 import { LineQueue, LogFollower } from "@matter/testing";
 import { expect } from "chai";
-import { MatterServerWebRtcError, MatterServerWebRtcRequestor } from "../../src/cert/matter-server-webrtc.js";
+import {
+    cameraControllerEndpointOf,
+    MatterServerWebRtcError,
+    MatterServerWebRtcRequestor,
+} from "../../src/cert/matter-server-webrtc.js";
 import { MatterServerClient } from "../../src/matter-server/matter-server-client.js";
 import { FakeMatterServer, type FakeServerRequest } from "./fake-matter-server.js";
 
@@ -408,5 +412,57 @@ describe("matterjs-server WebRTC requestor", () => {
         await new Promise(resolve => setTimeout(resolve, 50));
 
         expect(requestor.signals()).deep.equals([]);
+    });
+});
+
+describe("matterjs-server camera-controller endpoint", () => {
+    let lines: LineQueue;
+    let log: LogFollower;
+
+    /** What matter.js logs once an endpoint is initialized. */
+    function readyLine(id: string, number: number) {
+        return (
+            `2026-11-13 10:00:00.010 INFO Endpoint matter-server.${id} ready endpoint#: ${number} ` +
+            `type: CameraController (0x147, rev 1) behaviors: [descriptor, webRtcTransportRequestor]`
+        );
+    }
+
+    beforeEach(() => {
+        lines = new LineQueue();
+        log = new LogFollower(lines.follow(), "dut");
+    });
+
+    afterEach(async () => {
+        lines.close();
+        await log.close();
+    });
+
+    it("reads the number from the endpoint's ready line, not from another endpoint's", async () => {
+        lines.push(readyLine("ota-provider", 1));
+        lines.push(readyLine("camera-controller", 2));
+
+        expect(await cameraControllerEndpointOf(log, Millis(200))).equals(2);
+    });
+
+    it("waits for a ready line logged after the call", async () => {
+        const endpoint = cameraControllerEndpointOf(log, Millis(2000));
+        lines.push(readyLine("camera-controller", 3));
+
+        expect(await endpoint).equals(3);
+    });
+
+    it("reads a ready line logged before the log was marked", async () => {
+        lines.push(readyLine("camera-controller", 2));
+        await log.settled();
+        log.mark();
+
+        expect(await cameraControllerEndpointOf(log, Millis(100))).equals(2);
+    });
+
+    it("throws where the server never logs the endpoint", async () => {
+        lines.push(readyLine("ota-provider", 1));
+
+        const error = await rejectionOf(cameraControllerEndpointOf(log, Millis(100)));
+        expect(error).instanceOf(MatterServerWebRtcError);
     });
 });
