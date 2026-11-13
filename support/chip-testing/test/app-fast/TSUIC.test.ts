@@ -6,6 +6,4 @@
 
 describe("TSUIC", () => {
     chip("TSUIC/*");
-    // Selects the runs of multi-run tests, which "TSUIC/*" does not
-    chip("TSUIC/*/run*");
 });

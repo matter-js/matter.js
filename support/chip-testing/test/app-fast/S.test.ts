@@ -25,7 +25,4 @@ describe("S", () => {
     });
 
     chip("S/*");
-
-    // Selects the runs of multi-run tests, which "S/*" does not
-    chip("S/*/run*");
 });

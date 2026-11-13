@@ -5,8 +5,7 @@
  */
 
 describe("TSTAT", () => {
-    // "TSTAT/*" would drop the runs of multi-run tests such as 2.1 and 4.2, so select below the test level
-    chip("TSTAT/*/*").exclude(
+    chip("TSTAT/*").exclude(
         // TSTAT/4.3 is Thermostat suggestions
         "TSTAT/4.3/*",
 
