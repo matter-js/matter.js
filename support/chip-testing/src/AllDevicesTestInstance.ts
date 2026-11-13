@@ -196,8 +196,9 @@ function kebabCaseToTitleCase(type: string) {
 }
 
 /**
- * Applies the checks of CHIP's `DeviceTypeParser::ValidateConfig`.  Unlike CHIP, a parent must come before its
- * children, because a matter.js endpoint joins its parent when it is added.  So no parent cycle can occur.
+ * Applies the checks of CHIP's `DeviceTypeParser::ValidateConfig`.  Unlike CHIP, a parent must be a numbered
+ * device before its children, because a matter.js endpoint joins its parent when it is added and an unnumbered
+ * device gets its number only then.  So no parent cycle can occur.
  */
 function validateDeviceSpecs(specs: DeviceSpec[]) {
     const typeByEndpoint = new Map<number, string>();
@@ -218,7 +219,7 @@ function validateDeviceSpecs(specs: DeviceSpec[]) {
             const parentType = typeByEndpoint.get(parent);
             if (parentType === undefined) {
                 throw new ValidationError(
-                    `Parent endpoint ${parent} of --device "${type}" is not the endpoint of a --device before it`,
+                    `Parent endpoint ${parent} of --device "${type}" is not the number of a numbered --device before it`,
                 );
             }
             if (type === BRIDGED_NODE && parentType !== AGGREGATOR) {
