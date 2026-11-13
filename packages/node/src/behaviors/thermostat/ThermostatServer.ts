@@ -6,6 +6,7 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
+import type { OnlineEvent } from "#behavior/Events.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { OccupancySensingServer } from "#behaviors/occupancy-sensing";
 import { TemperatureMeasurementServer } from "#behaviors/temperature-measurement";
@@ -20,7 +21,12 @@ import {
     Entropy,
     ImplementationError,
     Logger,
+    Millis,
     Observable,
+    Seconds,
+    Time,
+    Timestamp,
+    type Timer,
     type Transaction,
 } from "@matter/general";
 import { FieldElement, Specification } from "@matter/model";
@@ -32,6 +38,13 @@ import { AtomicWriteHandler } from "./AtomicWriteHandler.js";
 import { ThermostatBehavior } from "./ThermostatBehavior.js";
 
 const logger = Logger.get("ThermostatServer");
+
+/**
+ * The shortest time between two LocalTemperatureChange events.
+ *
+ * @see {@link MatterSpecification.v161.Cluster} § 4.3.13.2
+ */
+const LOCAL_TEMPERATURE_CHANGE_INTERVAL = Seconds(60);
 
 /**
  * The presets an application configured.  `defaultsFor` is the merged view: the endpoint's options with the
@@ -109,11 +122,27 @@ const schema = ThermostatBehaviorLogicBase.schema.extend({
  * We implement all features beside the following:
  * * ScheduleConfiguration: This feature is deprecated and not allowed to be enabled.
  * * Setback: This feature is considered deprecated.
- * * Events and ThermostatSuggestions are not implemented.
+ * * ThermostatSuggestions is not implemented.
  * * The use of the "setpointHoldExpiryTimestamp" attribute is currently not supported.
  *
  * MatterScheduleConfiguration is implemented, but may only be enabled while the "thermostat-msch" forward feature is
  * active (see {@link Specification.isForwardFeatureEnabled}), until certification tests have validated it.
+ *
+ * Events is implemented, but is provisional in the Matter specification and may only be enabled while the
+ * "thermostat-events" forward feature is active. The server generates an event only when the Events feature is
+ * selected and the event exists on {@link ThermostatBaseServer.Events}. The event exists when its feature conformance
+ * holds (for example Occupancy for OccupancyChange) and the application enabled it with {@link ThermostatServer.enable},
+ * because provisional events are optional. With the AutoMode feature the Events feature makes the
+ * ThermostatRunningMode attribute mandatory. Events are generated after the change is committed:
+ * * SetpointChange carries the Occupancy field only when the Occupancy feature is supported
+ * * ActivePresetChange and ActiveScheduleChange are generated for every change of the handle, including changes made
+ *   by the application
+ * * LocalTemperatureChange is generated for significant changes only, see the state field
+ *   localTemperatureChangeThreshold, and at most once per 60 seconds
+ * * RunningStateChange follows the ThermostatRunningState attribute, which the application maintains
+ *
+ * Values that change while the node starts generate events too, for example LocalTemperatureChange when the first
+ * measurement replaces null, or ActivePresetChange when initialization clears a handle that matches no preset.
  *
  * This implementation mainly provides all validation and base logic required by the Matter specification.
  * It implements some thermostat logic, partially beyond Matter specification definition, notably:
@@ -149,6 +178,8 @@ const schema = ThermostatBehaviorLogicBase.schema.extend({
  *
  * TODO: Currently the general purpose "atomic write" Matter feature is only implemented in this specific cluster because
  *  only used here so far. Also see information in AtomicWriteHandler.ts.
+ *
+ * @see {@link MatterSpecification.v161.Cluster} § 4.3.13
  */
 export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     declare protected internal: ThermostatBaseServer.Internal;
@@ -166,6 +197,11 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         if (this.features.matterScheduleConfiguration && !Specification.isForwardFeatureEnabled("thermostat-msch")) {
             throw new ImplementationError(
                 `MatterScheduleConfiguration feature is not released yet; it requires the "thermostat-msch" forward feature until certification tests have validated it`,
+            );
+        }
+        if (this.features.events && !Specification.isForwardFeatureEnabled("thermostat-events")) {
+            throw new ImplementationError(
+                `Events feature is provisional in the Matter specification; it requires the "thermostat-events" forward feature until it is no longer provisional`,
             );
         }
         if (!this.features.presets && !this.features.matterScheduleConfiguration) {
@@ -269,6 +305,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         this.#setupThermostatLogic();
         this.#setupPresets();
         this.#setupSchedules();
+        this.#setupEvents();
     }
 
     /**
@@ -1747,6 +1784,187 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
     }
 
+    /**
+     * Generates the Thermostat events from committed attribute changes.  Events record at once when emitted, so they
+     * are never emitted from a write site that could still roll back.
+     */
+    #setupEvents() {
+        const { events } = this;
+
+        const systemModeChange = events.systemModeChange;
+        if (systemModeChange) {
+            this.reactTo(
+                events.systemMode$Changed,
+                function (this: ThermostatBaseServer, currentSystemMode, previousSystemMode) {
+                    systemModeChange.emit({ previousSystemMode, currentSystemMode }, this.context);
+                },
+            );
+        }
+
+        const occupancyChange = events.occupancyChange;
+        if (occupancyChange) {
+            this.reactTo(events.occupancy$Changed, function (this: ThermostatBaseServer, currentOccupancy, previous) {
+                occupancyChange.emit({ previousOccupancy: previous, currentOccupancy }, this.context);
+            });
+        }
+
+        const runningModeChange = events.runningModeChange;
+        if (runningModeChange) {
+            this.maybeReactTo(
+                events.thermostatRunningMode$Changed,
+                function (this: ThermostatBaseServer, currentRunningMode, previousRunningMode) {
+                    runningModeChange.emit({ previousRunningMode, currentRunningMode }, this.context);
+                },
+            );
+        }
+
+        const runningStateChange = events.runningStateChange;
+        if (runningStateChange) {
+            this.maybeReactTo(
+                events.thermostatRunningState$Changed,
+                function (this: ThermostatBaseServer, currentRunningState, previousRunningState) {
+                    runningStateChange.emit({ previousRunningState, currentRunningState }, this.context);
+                },
+            );
+        }
+
+        const activePresetChange = events.activePresetChange;
+        if (activePresetChange) {
+            this.reactTo(
+                events.activePresetHandle$Changed,
+                function (this: ThermostatBaseServer, currentPresetHandle, previousPresetHandle) {
+                    activePresetChange.emit({ previousPresetHandle, currentPresetHandle }, this.context);
+                },
+            );
+        }
+
+        const activeScheduleChange = events.activeScheduleChange;
+        if (activeScheduleChange) {
+            this.reactTo(
+                events.activeScheduleHandle$Changed,
+                function (this: ThermostatBaseServer, currentScheduleHandle, previousScheduleHandle) {
+                    activeScheduleChange.emit({ previousScheduleHandle, currentScheduleHandle }, this.context);
+                },
+            );
+        }
+
+        this.#setupSetpointChange();
+        this.#setupLocalTemperatureChange();
+    }
+
+    #setupSetpointChange() {
+        const setpointChange = this.events.setpointChange;
+        if (!setpointChange) {
+            return;
+        }
+
+        const { events, features } = this;
+        const emitChange = (
+            systemMode: Thermostat.SystemMode,
+            occupied: boolean,
+            currentSetpoint: number,
+            previousSetpoint: number | undefined,
+            context: ActionContext,
+        ) => {
+            setpointChange.emit(
+                {
+                    systemMode,
+                    occupancy: features.occupancy ? { occupied } : undefined,
+                    previousSetpoint,
+                    currentSetpoint,
+                },
+                context,
+            );
+        };
+
+        const { Heat, Cool } = Thermostat.SystemMode;
+        this.maybeReactTo(events.occupiedHeatingSetpoint$Changed, function (this: ThermostatBaseServer, value, old) {
+            emitChange(Heat, true, value, old, this.context);
+        });
+        this.maybeReactTo(events.unoccupiedHeatingSetpoint$Changed, function (this: ThermostatBaseServer, value, old) {
+            emitChange(Heat, false, value, old, this.context);
+        });
+        this.maybeReactTo(events.occupiedCoolingSetpoint$Changed, function (this: ThermostatBaseServer, value, old) {
+            emitChange(Cool, true, value, old, this.context);
+        });
+        this.maybeReactTo(events.unoccupiedCoolingSetpoint$Changed, function (this: ThermostatBaseServer, value, old) {
+            emitChange(Cool, false, value, old, this.context);
+        });
+    }
+
+    #setupLocalTemperatureChange() {
+        if (!this.events.localTemperatureChange) {
+            return;
+        }
+
+        this.#assertLocalTemperatureChangeThreshold(this.state.localTemperatureChangeThreshold);
+        this.reactTo(this.events.localTemperatureChangeThreshold$Changing, this.#assertLocalTemperatureChangeThreshold);
+
+        this.internal.lastReportedLocalTemperature = this.state.localTemperature;
+        this.reactTo(this.events.localTemperature$Changed, this.#handleLocalTemperatureChange);
+    }
+
+    #assertLocalTemperatureChangeThreshold(threshold: number) {
+        if (!Number.isFinite(threshold) || threshold <= 0) {
+            throw new ImplementationError(
+                `localTemperatureChangeThreshold of ${this.endpoint} is ${threshold} but must be a finite number greater than 0`,
+            );
+        }
+    }
+
+    /**
+     * Reports a significant change at once, or at the end of the {@link LOCAL_TEMPERATURE_CHANGE_INTERVAL} after the
+     * last report.  A pending report stops when the value moves back to one that is not significant.
+     */
+    #handleLocalTemperatureChange(localTemperature: number | null) {
+        const { internal } = this;
+        internal.localTemperatureChangeTimer?.stop();
+        if (!this.#isSignificantLocalTemperatureChange(localTemperature)) {
+            return;
+        }
+
+        const { lastLocalTemperatureReportAt } = internal;
+        const elapsed =
+            lastLocalTemperatureReportAt === undefined
+                ? LOCAL_TEMPERATURE_CHANGE_INTERVAL
+                : Timestamp.delta(lastLocalTemperatureReportAt, Time.nowUs);
+        if (elapsed >= LOCAL_TEMPERATURE_CHANGE_INTERVAL) {
+            this.#reportLocalTemperatureChange(localTemperature);
+            return;
+        }
+
+        internal.localTemperatureChangeTimer = this.reactorTimer(
+            "Thermostat LocalTemperatureChange",
+            Millis(LOCAL_TEMPERATURE_CHANGE_INTERVAL - elapsed),
+            this.#reportPendingLocalTemperatureChange,
+        ).start();
+    }
+
+    #reportPendingLocalTemperatureChange() {
+        const { localTemperature } = this.state;
+        if (this.#isSignificantLocalTemperatureChange(localTemperature)) {
+            this.#reportLocalTemperatureChange(localTemperature);
+        }
+    }
+
+    #reportLocalTemperatureChange(currentLocalTemperature: number | null) {
+        this.internal.lastReportedLocalTemperature = currentLocalTemperature;
+        this.internal.lastLocalTemperatureReportAt = Time.nowUs;
+        this.events.localTemperatureChange?.emit({ currentLocalTemperature }, this.context);
+    }
+
+    /**
+     * A change is significant when the value switches between null and not null, or when it differs from the last
+     * reported value by at least the localTemperatureChangeThreshold.
+     */
+    #isSignificantLocalTemperatureChange(localTemperature: number | null) {
+        const reported = this.internal.lastReportedLocalTemperature;
+        if (localTemperature === null || reported === null) {
+            return localTemperature !== reported;
+        }
+        return Math.abs(localTemperature - reported) >= this.state.localTemperatureChangeThreshold;
+    }
+
     #setupSchedules() {
         if (!this.features.matterScheduleConfiguration) {
             return;
@@ -2331,6 +2549,17 @@ export namespace ThermostatBaseServer {
         useAutomaticModeManagement: boolean = false;
 
         /**
+         * The smallest change of the local temperature that is significant for the LocalTemperatureChange event, in
+         * 0.01 degrees Celsius, like the localTemperature attribute.  The default of 50 is 0.5 degrees Celsius.
+         *
+         * Matter leaves the size of a significant change to the server.  Used only when the LocalTemperatureChange
+         * event is enabled.  Must be a finite number greater than 0.
+         *
+         * @see {@link MatterSpecification.v161.Cluster} § 4.3.13.2
+         */
+        localTemperatureChangeThreshold: number = 50;
+
+        /**
          * Persisted presets stored in the device, needed because the original "presets" is a virtual property
          */
         persistedPresets?: Thermostat.Preset[];
@@ -2451,6 +2680,21 @@ export namespace ThermostatBaseServer {
     }
 
     export class Events extends ThermostatBehaviorLogicBase.Events {
+        declare systemModeChange?: OnlineEvent<[payload: Thermostat.SystemModeChangeEvent, context: ActionContext]>;
+        declare localTemperatureChange?: OnlineEvent<
+            [payload: Thermostat.LocalTemperatureChangeEvent, context: ActionContext]
+        >;
+        declare occupancyChange?: OnlineEvent<[payload: Thermostat.OccupancyChangeEvent, context: ActionContext]>;
+        declare setpointChange?: OnlineEvent<[payload: Thermostat.SetpointChangeEvent, context: ActionContext]>;
+        declare runningStateChange?: OnlineEvent<[payload: Thermostat.RunningStateChangeEvent, context: ActionContext]>;
+        declare runningModeChange?: OnlineEvent<[payload: Thermostat.RunningModeChangeEvent, context: ActionContext]>;
+        declare activeScheduleChange?: OnlineEvent<
+            [payload: Thermostat.ActiveScheduleChangeEvent, context: ActionContext]
+        >;
+        declare activePresetChange?: OnlineEvent<[payload: Thermostat.ActivePresetChangeEvent, context: ActionContext]>;
+
+        localTemperatureChangeThreshold$Changing =
+            Observable<[value: number, oldValue: number, context: ActionContext]>();
         externalMeasuredIndoorTemperature$Changed =
             Observable<[value: number, oldValue: number, context: ActionContext]>();
         externallyMeasuredOccupancy$Changed = Observable<[value: boolean, oldValue: boolean, context: ActionContext]>();
@@ -2536,6 +2780,15 @@ export namespace ThermostatBaseServer {
          * The value will be updated on initialization and when the localTemperature Attribute changes.
          */
         localTemperature: number | null = null;
+
+        /** The value of the last LocalTemperatureChange event, or the value at startup before the first event. */
+        lastReportedLocalTemperature: number | null = null;
+
+        /** The time of the last LocalTemperatureChange event on the monotonic clock ({@link Time.nowUs}). */
+        lastLocalTemperatureReportAt?: Timestamp;
+
+        /** Runs while a LocalTemperatureChange event waits for the end of the minimum interval. */
+        localTemperatureChangeTimer?: Timer;
 
         /**
          * Storing fixed value internally to ensure it can not be modified.
