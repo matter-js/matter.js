@@ -394,7 +394,12 @@ const controller = await ServerNode.create(ServerNode.RootEndpointWithoutGroupca
 Several controllers in one fabric (for example a gateway and phone apps) need the same root certificate, fabric ID
 and IPK, so let the issuer provide `fabric`. Each running controller needs its own node ID (`adminNodeId`), and the
 node IDs the controllers assign to devices must not overlap. matter.js does not check any of this across
-controllers.
+controllers. Use `nodeIdAssignment: "random"` in `ControllerBehavior` state for that: the `"sequential"` counter starts
+at the same value on every controller, and it is not stored, so it starts again after each restart. To let every
+controller administer the devices any of them commissions, give all of them the same CASE Authenticated Tag in
+`caseAuthenticatedTags` before each controller creates its fabric (a tag added later only logs a warning, because the
+NOC keeps its CATs), and set `caseAdminSubject: NodeId.fromCaseAuthenticatedTag(tag)` in
+`ControllerBehavior` state or in the commissioning options.
 
 ---
 

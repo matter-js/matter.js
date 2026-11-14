@@ -97,6 +97,17 @@ export type ControllerCommissioningFlowOptions = {
     adminVendorId?: VendorId;
 
     /**
+     * The CASE admin subject sent in AddNOC.  The device writes it as the subject of its first Administer ACL entry.
+     *
+     * Defaults to the root node ID of the fabric, which is our node ID when this controller created the fabric.  A CASE
+     * Authenticated Tag subject ({@link NodeId.fromCaseAuthenticatedTag}) gives administrative access to every controller whose NOC carries that
+     * tag with the same identifier and an equal or higher version.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.6.8
+     */
+    caseAdminSubject?: NodeId;
+
+    /**
      * Required credentials if the device is to connect to a wifi network provide the credentials here.
      */
     wifiNetwork?: {
@@ -1512,7 +1523,7 @@ export class ControllerCommissioningFlow {
                     icacValue: icac ?? new Uint8Array(0),
                     ipkValue: this.fabric.identityProtectionKey,
                     adminVendorId: this.fabric.rootVendorId,
-                    caseAdminSubject: this.fabric.rootNodeId,
+                    caseAdminSubject: this.commissioningOptions.caseAdminSubject ?? this.fabric.rootNodeId,
                 },
             },
             {
@@ -2229,11 +2240,13 @@ function loggedOptionsOf(options: ControllerCommissioningFlowOptions) {
         wifiNetwork,
         threadNetwork,
         otaUpdateProviderLocation,
+        caseAdminSubject,
     } = options;
     return {
         regulatoryLocation,
         regulatoryCountryCode,
         adminVendorId,
+        caseAdminSubject: caseAdminSubject === undefined ? undefined : NodeId.strOf(caseAdminSubject),
         wifiSsid: wifiNetwork?.wifiSsid,
         threadNetwork: threadNetwork && (threadNetwork.networkName ?? "(dataset only)"),
         otaUpdateProviderLocation,

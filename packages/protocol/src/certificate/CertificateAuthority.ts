@@ -326,16 +326,13 @@ export class CertificateAuthority {
             );
         }
 
-        const issuedTags = [...(caseAuthenticatedTags ?? [])].sort((a, b) => a - b);
-        const requestedTags = [...(request.caseAuthenticatedTags ?? [])].sort((a, b) => a - b);
         if (
             nodeId !== request.nodeId ||
             fabricId !== request.fabricId ||
-            issuedTags.length !== requestedTags.length ||
-            issuedTags.some((tag, index) => tag !== requestedTags[index])
+            !CaseAuthenticatedTag.areEqual(caseAuthenticatedTags, request.caseAuthenticatedTags)
         ) {
             throw new CertificateError(
-                `External issuer returned a NOC for node ${NodeId.strOf(nodeId)} in fabric ${fabricId} with CATs ${issuedTags.join(",")}, requested was node ${NodeId.strOf(request.nodeId)} in fabric ${request.fabricId} with CATs ${requestedTags.join(",")}`,
+                `External issuer returned a NOC for node ${NodeId.strOf(nodeId)} in fabric ${fabricId} with CATs ${CaseAuthenticatedTag.strOfList(caseAuthenticatedTags)}, requested was node ${NodeId.strOf(request.nodeId)} in fabric ${request.fabricId} with CATs ${CaseAuthenticatedTag.strOfList(request.caseAuthenticatedTags)}`,
             );
         }
         if (!Bytes.areEqual(ellipticCurvePublicKey, request.publicKey)) {

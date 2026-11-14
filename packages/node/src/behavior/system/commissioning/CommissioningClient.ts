@@ -311,6 +311,7 @@ export class CommissioningClient extends Behavior {
             threadNetwork: options.threadNetwork,
             regulatoryLocation: options.regulatoryLocation,
             regulatoryCountryCode: options.regulatoryCountryCode,
+            caseAdminSubject: options.caseAdminSubject ?? controller.state.caseAdminSubject,
             timeout: options.timeout,
             caseConnectionTiming: options.caseConnectionTiming ?? defaultCaseConnectionTiming,
             caseConnectionTimeout: options.caseConnectionTimeout,
@@ -1374,6 +1375,19 @@ export namespace CommissioningClient {
          * Defaults to "XX" (unspecified).
          */
         regulatoryCountryCode?: ControllerCommissioningFlowOptions["regulatoryCountryCode"];
+
+        /**
+         * The subject of the device's first Administer ACL entry.  Defaults to `ControllerBehavior.caseAdminSubject`,
+         * else to the root node ID of the fabric, which is our node ID when this controller created the fabric.  A
+         * CASE Authenticated Tag subject gives administrative access to every controller holding that tag.
+         *
+         * Commissioning fails with `CaseAdminSubjectError` before PASE when the subject is neither an operational
+         * node ID nor a valid CASE Authenticated Tag, or when our NOC on the fabric does not satisfy it.  Our NOC is
+         * not checked when another node finishes the commissioning, through the {@link finalizeCommissioning} option
+         * or an override of {@link CommissioningClient.finalizeCommissioning}.  `peers.commission()` fails with this
+         * error when the first device is found.
+         */
+        caseAdminSubject?: ControllerCommissioningFlowOptions["caseAdminSubject"];
 
         /**
          * Override the final operational step of commissioning.

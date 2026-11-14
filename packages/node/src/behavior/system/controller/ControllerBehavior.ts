@@ -131,8 +131,9 @@ export class ControllerBehavior extends Behavior {
      *   IDs, and addresses reserved for a commissioning under way.
      * - Once the peer is removed, that check no longer holds the address, so a random draw or a node ID the
      *   caller supplies may be the one a removed peer had.
-     * - The `"sequential"` counter only counts up and is stored, so it never hands out a value it has already
-     *   handed out. It skips a value that is in use when it arrives at it, and moves past it for good. A
+     * - The `"sequential"` counter only counts up while the node runs. It is not stored, so after a restart it
+     *   starts again at {@link ControllerBehavior.State.nextNodeId}, or at 1, and may hand out a value a removed
+     *   peer had. It skips a value that is in use when it arrives at it, and moves past it for good. A
      *   caller-supplied ID does not advance the counter, so the counter reaches that value later: it skips it
      *   while that peer is commissioned, and issues it to another device if the peer is gone by then.
      */
@@ -205,10 +206,13 @@ export class ControllerBehavior extends Behavior {
     }
 
     get fabricAuthorityConfig(): FabricAuthorityConfiguration {
-        const biState = this.endpoint.stateOf(BasicInformationBehavior);
+        const { adminFabricLabel, adminFabricId, adminNodeId, caseAuthenticatedTags } = this.state;
         return {
-            adminVendorId: biState.vendorId,
-            ...this.state,
+            adminVendorId: this.endpoint.stateOf(BasicInformationBehavior).vendorId,
+            adminFabricLabel,
+            adminFabricId,
+            adminNodeId,
+            caseAuthenticatedTags,
         };
     }
 
@@ -287,8 +291,9 @@ export namespace ControllerBehavior {
         /**
          * Next assigned ID when {@link nodeIdAssignment} is "sequential".
          *
-         * matter.js increments this value automatically after allocating a new node ID.  This means that the
-         * "sequential" strategy does not reuse IDs from decommissioned nodes.
+         * matter.js increments this value automatically after allocating a new node ID, so within one run the
+         * "sequential" strategy does not reuse IDs from decommissioned nodes.  The value is not stored; after a restart
+         * the counter starts again at the configured value, or at 1.
          *
          * If there is a conflict with an existing ID, matter.js increments this value until it identifies a free ID.
          */
@@ -302,22 +307,39 @@ export namespace ControllerBehavior {
         /**
          * Contains the FabricId of the admin fabric when a defined number needs to be used because special Certificates
          * are used.
-         * If not provided, a random FabricId will be generated.
+         * If not provided, the fabric ID comes from the external issuer or the root certificate, else it is random.
+         * Only used when this controller creates the fabric; a different value later logs a warning the next time the
+         * controller looks up its fabric, for example at the next commissioning.
          */
         adminFabricId?: FabricId = undefined;
 
         /**
          * Contains the NodeId of the admin node when a defined number needs to be used because special Certificates
          * are used.
-         * If not provided, a random NodeId will be generated.
+         * If not provided, a random NodeId will be generated.  Only used when this controller creates the fabric; a
+         * different value later logs a warning the next time the controller looks up its fabric, for example at the
+         * next commissioning.
          */
         adminNodeId?: NodeId = undefined;
 
         /**
-         * Only used when this controller creates the fabric; sessions on that fabric present them in the controller's
-         * NOC.
+         * The CASE Authenticated Tags of the controller's NOC.  Only used when this controller creates the fabric; a
+         * different value later logs a warning the next time the controller looks up its fabric, for example at the
+         * next commissioning.
          */
         caseAuthenticatedTags?: CaseAuthenticatedTag[] = undefined;
+
+        /**
+         * Default subject of the Administer ACL entry a commissioned device creates for us.  Undefined means the root
+         * node ID of the fabric, which is our node ID when this controller created the fabric.  Set a CASE
+         * Authenticated Tag subject ({@link NodeId.fromCaseAuthenticatedTag}) so that every controller holding that tag
+         * administers the device.  The default applies to every fabric this controller commissions into, and our NOC on
+         * that fabric must satisfy it unless another node finishes the commissioning.  A commissioning option overrides
+         * it.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 11.18.6.8
+         */
+        caseAdminSubject?: NodeId = undefined;
 
         /**
          * Model of Matter semantics used for peers commissioned or discovered by this controller.

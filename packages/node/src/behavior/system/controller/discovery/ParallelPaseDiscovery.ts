@@ -69,6 +69,14 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
     protected abstract get failureMessage(): string;
 
     /**
+     * Whether an attempt error would occur for every candidate, such as an invalid option.  Such an error cancels the
+     * discovery with that error instead of waiting for further candidates.
+     */
+    protected failsEveryCandidate(_error: unknown) {
+        return false;
+    }
+
+    /**
      * Registers a parallel PASE attempt for the given node.
      *
      * @param factory Produces the attempt promise.  Receives a {@code winOnPase} callback that the implementation
@@ -118,6 +126,10 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
                 if (isWinner) {
                     // Winner's error is meaningful — capture it for onComplete to rethrow
                     this.#winnerError = error;
+                    return undefined;
+                }
+                if (this.failsEveryCandidate(error)) {
+                    this.cancel(error);
                     return undefined;
                 }
                 // Loser: resolve to prevent unhandled rejection.

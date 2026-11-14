@@ -81,4 +81,16 @@ describe("NodeId", () => {
             expect(NodeId.isValidCaseAuthenticatedTag(NodeId(100n))).equals(false);
         });
     });
+
+    describe("isValidCaseAdminSubject", () => {
+        it("accepts an operational node ID and a valid CAT subject", () => {
+            expect(NodeId.isValidCaseAdminSubject(NodeId(100n))).equals(true);
+            expect(NodeId.isValidCaseAdminSubject(NodeId(0xffff_fffd_0001_0001n))).equals(true);
+        });
+
+        it("refuses a CAT subject with version 0 and a group node ID", () => {
+            expect(NodeId.isValidCaseAdminSubject(NodeId(0xffff_fffd_0001_0000n))).equals(false);
+            expect(NodeId.isValidCaseAdminSubject(NodeId.fromGroupId(1))).equals(false);
+        });
+    });
 });

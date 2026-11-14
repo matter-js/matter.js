@@ -10,8 +10,13 @@ import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { DeviceAttestationValidator } from "#certificate/DeviceAttestationValidator.js";
 import { CommissionableDevice, DiscoveryData, DiscoveryDataDiagnostics, ScannerSet } from "#common/Scanner.js";
 import { Fabric } from "#fabric/Fabric.js";
+import { subjectMatches } from "#interaction/subjectMatches.js";
 import { CommissioningConnection } from "#peer/CommissioningConnection.js";
-import { CommissioningError, PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
+import {
+    CaseAdminSubjectError,
+    CommissioningError,
+    PairRetransmissionLimitReachedError,
+} from "#peer/CommissioningError.js";
 import {
     ControllerCommissioningFlow,
     ControllerCommissioningFlowOptions,
@@ -47,7 +52,13 @@ import {
     ServerAddressSet,
     TransportSet,
 } from "@matter/general";
-import { FabricIndex, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
+import {
+    CaseAuthenticatedTag,
+    FabricIndex,
+    NodeId,
+    SECURE_CHANNEL_PROTOCOL_ID,
+    SecureChannelStatusCode,
+} from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { OperationalCertificateUpdate } from "./OperationalCertificateUpdate.js";
@@ -279,6 +290,7 @@ export class ControllerCommissioner {
 
         this.#assertRequestedNodeIdAvailable(fabric, nodeId);
         this.#validateCommissioningOptions(options);
+        this.#assertCaseAdminSubject(fabric, options);
 
         const addressCandidates = this.#addressesToCandidates(addresses, discoveryData);
 
@@ -567,6 +579,32 @@ export class ControllerCommissioner {
     #assertRequestedNodeIdAvailable(fabric: Fabric, nodeId?: NodeId) {
         if (nodeId !== undefined) {
             this.#assertPeerAddress(fabric.addressOf(nodeId));
+        }
+    }
+
+    /**
+     * Our NOC is checked only when we open the CASE session ourselves.  With a `finalizeCommissioning` hook another
+     * node may finish the commissioning with its own NOC.
+     */
+    #assertCaseAdminSubject(fabric: Fabric, { caseAdminSubject, finalizeCommissioning }: CommissioningOptions) {
+        if (caseAdminSubject === undefined) {
+            return;
+        }
+        const subject = NodeId.strOf(caseAdminSubject);
+        if (!NodeId.isValidCaseAdminSubject(caseAdminSubject)) {
+            throw new CaseAdminSubjectError(
+                `CASE admin subject ${subject} is neither an operational node ID nor a valid CASE Authenticated Tag`,
+            );
+        }
+        if (finalizeCommissioning !== undefined) {
+            return;
+        }
+        const { nodeId, caseAuthenticatedTags } = fabric;
+        const ourSubjects = [nodeId, ...caseAuthenticatedTags.map(NodeId.fromCaseAuthenticatedTag)];
+        if (!ourSubjects.some(ours => subjectMatches(caseAdminSubject, ours))) {
+            throw new CaseAdminSubjectError(
+                `Our NOC on fabric ${fabric.fabricIndex} does not satisfy CASE admin subject ${subject}: it has node ID ${NodeId.strOf(nodeId)} and CASE Authenticated Tags ${CaseAuthenticatedTag.strOfList(caseAuthenticatedTags)}; CASE Authenticated Tags configured after the fabric was created do not apply`,
+            );
         }
     }
 

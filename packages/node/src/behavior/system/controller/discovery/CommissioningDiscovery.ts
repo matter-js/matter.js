@@ -7,7 +7,8 @@
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { Logger, Minutes } from "@matter/general";
+import { causedBy, Logger, Minutes } from "@matter/general";
+import { CaseAdminSubjectError } from "@matter/protocol";
 import { VendorId } from "@matter/types";
 import { Discovery } from "./Discovery.js";
 import { ParallelPaseDiscovery } from "./ParallelPaseDiscovery.js";
@@ -19,6 +20,9 @@ const logger = Logger.get("CommissioningDiscovery");
  * PASE wins.  Discovery is stopped at PASE time and the abort signal fires to cancel remaining in-flight PASE
  * attempts.  Any candidate that establishes PASE after the winner cleans up its session without proceeding to
  * commissioning.  {@link onComplete} awaits the winner's commissioning to finish before returning.
+ *
+ * A {@link CaseAdminSubjectError} ends the discovery with that error at the first device found, because the same
+ * options fail for every device.
  */
 export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
     #options: CommissioningDiscovery.Options;
@@ -56,6 +60,10 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
 
     protected override get failureMessage() {
         return "No device could be commissioned";
+    }
+
+    protected override failsEveryCandidate(error: unknown) {
+        return causedBy(error, CaseAdminSubjectError);
     }
 
     protected override onDiscovered(node: ClientNode) {

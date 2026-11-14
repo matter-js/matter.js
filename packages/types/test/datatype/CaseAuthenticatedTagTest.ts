@@ -41,6 +41,28 @@ describe("CaseAuthenticatedTag", () => {
         expect(() => CaseAuthenticatedTag(0x12340000)).to.throw("CaseAuthenticatedTag version number must not be 0.");
     });
 
+    it("formats a list as hex", () => {
+        expect(
+            CaseAuthenticatedTag.strOfList([CaseAuthenticatedTag(0x0001_0002), CaseAuthenticatedTag(0xabcd_0001)]),
+        ).equal("[0x00010002, 0xabcd0001]");
+        expect(CaseAuthenticatedTag.strOfList(undefined)).equal("[]");
+    });
+
+    describe("areEqual", () => {
+        it("compares the tags in any order", () => {
+            const a = CaseAuthenticatedTag(0x0001_0001);
+            const b = CaseAuthenticatedTag(0x0002_0001);
+            expect(CaseAuthenticatedTag.areEqual([a, b], [b, a])).true;
+            expect(CaseAuthenticatedTag.areEqual([b, a], [a, b])).true;
+            expect(CaseAuthenticatedTag.areEqual([a, a], [a, b])).false;
+            expect(CaseAuthenticatedTag.areEqual([a, b], [a, a])).false;
+            expect(CaseAuthenticatedTag.areEqual([a], [a, b])).false;
+            expect(CaseAuthenticatedTag.areEqual(undefined, [])).true;
+            expect(CaseAuthenticatedTag.areEqual([], undefined)).true;
+            expect(CaseAuthenticatedTag.areEqual(undefined, [a])).false;
+        });
+    });
+
     describe("isValid", () => {
         it("accepts a tag with a version other than 0", () => {
             expect(CaseAuthenticatedTag.isValid(0x1234_0001)).equals(true);

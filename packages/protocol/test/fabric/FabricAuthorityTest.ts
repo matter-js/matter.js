@@ -136,6 +136,23 @@ describe("FabricAuthority", () => {
         await authority.construction;
     });
 
+    /** Collects the texts of FabricAuthority warnings until `Logger.destinations.capture` is deleted. */
+    function captureWarnings() {
+        const warnings = new Array<string>();
+        Logger.destinations.capture = LogDestination({
+            add(message: Diagnostic.Message) {
+                if (message.facility === "FabricAuthority" && message.level === LogLevel.WARN) {
+                    warnings.push(message.values.map(value => String(value)).join(" "));
+                }
+            },
+        });
+        return warnings;
+    }
+
+    afterEach(() => {
+        delete Logger.destinations.capture;
+    });
+
     describe("createFabric", () => {
         it("refuses the Matter Standard vendor ID as admin vendor ID", async () => {
             await expect(
@@ -532,6 +549,87 @@ describe("FabricAuthority", () => {
         });
     });
 
+    describe("stored identity", () => {
+        const config = {
+            adminFabricLabel: "identity",
+            adminNodeId: NodeId(100n),
+            adminFabricId: FabricId(1n),
+            caseAuthenticatedTags: [CaseAuthenticatedTag(0x0001_0001)],
+        };
+
+        it("does not warn when the configuration matches our NOC", async () => {
+            const stored = await authority.createFabric(config);
+            const warnings = captureWarnings();
+
+            expect(await authority.defaultFabric(config, false)).equal(stored);
+
+            expect(warnings).deep.equal([]);
+        });
+
+        it("warns once and keeps the NOC when the configured node ID, fabric ID and CATs differ", async () => {
+            await authority.createFabric(config);
+            const changed = {
+                ...config,
+                adminNodeId: NodeId(200n),
+                adminFabricId: FabricId(2n),
+                caseAuthenticatedTags: [CaseAuthenticatedTag(0x0001_0002)],
+            };
+            const warnings = captureWarnings();
+
+            await authority.defaultFabric(changed);
+            const fabric = await authority.defaultFabric(changed);
+
+            expect(
+                warnings.filter(text => text.includes(`not the configured ${NodeId.strOf(NodeId(200n))}`)).length,
+            ).equal(1);
+            expect(warnings.filter(text => text.includes("not the configured 2;")).length).equal(1);
+            expect(warnings.filter(text => text.includes("CASE Authenticated Tags")).length).equal(1);
+            const { subject } = Noc.fromTlv(fabric.operationalCert).cert;
+            expect(subject.nodeId).equal(config.adminNodeId);
+            expect(subject.caseAuthenticatedTags).deep.equal(config.caseAuthenticatedTags);
+        });
+
+        it("warns again when the configured value changes", async () => {
+            await authority.createFabric(config);
+            const warnings = captureWarnings();
+
+            await authority.defaultFabric({ ...config, adminNodeId: NodeId(200n) }, false);
+            await authority.defaultFabric({ ...config, adminNodeId: NodeId(300n) }, false);
+
+            expect(warnings.length).equal(2);
+            expect(warnings[1]).contains(`not the configured ${NodeId.strOf(NodeId(300n))}`);
+        });
+
+        it("warns when our NOC has CATs but an empty list is configured", async () => {
+            await authority.createFabric(config);
+            const warnings = captureWarnings();
+
+            await authority.defaultFabric({ ...config, caseAuthenticatedTags: [] }, false);
+
+            expect(warnings.filter(text => text.includes("CASE Authenticated Tags")).length).equal(1);
+        });
+
+        it("does not compare values that are not configured", async () => {
+            const stored = await authority.createFabric(config);
+            const warnings = captureWarnings();
+
+            expect(await authority.defaultFabric({ adminFabricLabel: config.adminFabricLabel }, false)).equal(stored);
+
+            expect(warnings).deep.equal([]);
+        });
+
+        it("compares a later configuration after a call without identity values", async () => {
+            await authority.createFabric(config);
+            const warnings = captureWarnings();
+
+            await authority.defaultFabric({ adminFabricLabel: config.adminFabricLabel }, false);
+            await authority.defaultFabric({ ...config, adminNodeId: NodeId(200n) }, false);
+
+            expect(warnings.length).equal(1);
+            expect(warnings[0]).contains(`not the configured ${NodeId.strOf(NodeId(200n))}`);
+        });
+    });
+
     describe("external issuer", () => {
         const IPK = Bytes.fromHex("000102030405060708090a0b0c0d0e0f");
 
@@ -548,23 +646,6 @@ describe("FabricAuthority", () => {
             await authority.construction;
             return authority;
         }
-
-        /** Collects the texts of FabricAuthority warnings until `Logger.destinations.capture` is deleted. */
-        function captureWarnings() {
-            const warnings = new Array<string>();
-            Logger.destinations.capture = LogDestination({
-                add(message: Diagnostic.Message) {
-                    if (message.facility === "FabricAuthority" && message.level === LogLevel.WARN) {
-                        warnings.push(message.values.map(value => String(value)).join(" "));
-                    }
-                },
-            });
-            return warnings;
-        }
-
-        afterEach(() => {
-            delete Logger.destinations.capture;
-        });
 
         it("creates the fabric with the issuer's fabric ID and IPK", async () => {
             const signer = await CertificateAuthority.create(crypto);
@@ -783,6 +864,38 @@ describe("FabricAuthority", () => {
             ).defaultFabric({ adminFabricLabel: "external" });
             expect(sameIpk.some(text => text.includes("serves fabric ID 10"))).true;
             expect(sameIpk.some(text => text.includes("another IPK"))).false;
+        });
+
+        it("warns about the issuer's and the configured fabric ID when both differ from the stored one", async () => {
+            const signer = await CertificateAuthority.create(crypto);
+            await (
+                await externalAuthority({ signer, fabric: { fabricId: FabricId(9n), identityProtectionKey: IPK } })
+            ).createFabric({ adminFabricLabel: "external" });
+            const warnings = captureWarnings();
+
+            await (
+                await externalAuthority({ signer, fabric: { fabricId: FabricId(10n), identityProtectionKey: IPK } })
+            ).defaultFabric({ adminFabricLabel: "external", adminFabricId: FabricId(11n) });
+
+            expect(warnings.filter(text => text.includes("serves fabric ID 10")).length).equal(1);
+            expect(warnings.filter(text => text.includes("not the configured 11")).length).equal(1);
+        });
+
+        it("warns about a configured fabric ID that differs when the issuer's fabric ID matches", async () => {
+            const signer = await CertificateAuthority.create(crypto);
+            const issuerFabric = { fabricId: FabricId(9n), identityProtectionKey: IPK };
+            await (
+                await externalAuthority({ signer, fabric: issuerFabric })
+            ).createFabric({
+                adminFabricLabel: "external",
+            });
+            const warnings = captureWarnings();
+
+            await (
+                await externalAuthority({ signer, fabric: issuerFabric })
+            ).defaultFabric({ adminFabricLabel: "external", adminFabricId: FabricId(10n) });
+
+            expect(warnings.filter(text => text.includes("not the configured 10")).length).equal(1);
         });
     });
 
