@@ -304,6 +304,18 @@ describe("ThermostatBehavior", () => {
 
             await node.close();
         });
+
+        it("starts and stays off above the target in Auto with HeatingWithReheat and automatic mode management", async () => {
+            const { node, device } = await createAutoThermo({
+                controlSequenceOfOperation: HeatingWithReheat,
+                useAutomaticModeManagement: true,
+                externalMeasuredIndoorTemperature: 3000,
+            });
+
+            expect(device.state.thermostat.thermostatRunningMode).equals(Thermostat.ThermostatRunningMode.Off);
+
+            await node.close();
+        });
     });
 
     describe("limit validation", () => {
