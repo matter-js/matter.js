@@ -2349,7 +2349,7 @@ describe("MatterServerControllerAdapter construction", () => {
         expect(error).instanceOf(UnsupportedByControllerError);
         expect(messageOf(error))
             .contains("Offer or Answer")
-            .and.contains("before the SolicitOffer or ProvideOffer response");
+            .and.contains("before it has processed the SolicitOffer or ProvideOffer response");
     });
 
     it("stops a server that finished starting after the adapter was closed", async () => {
