@@ -2339,6 +2339,19 @@ describe("MatterServerControllerAdapter construction", () => {
         }
     });
 
+    it("refuses webRtcRequestor naming the early-signal reason", () => {
+        let error: unknown;
+        try {
+            new MatterServerControllerAdapter("dut", { webRtcRequestor: true });
+        } catch (e) {
+            error = e;
+        }
+        expect(error).instanceOf(UnsupportedByControllerError);
+        expect(messageOf(error))
+            .contains("Offer or Answer")
+            .and.contains("before it has processed the SolicitOffer or ProvideOffer response");
+    });
+
     it("stops a server that finished starting after the adapter was closed", async () => {
         const server = await FakeMatterServer.start();
         try {

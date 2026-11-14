@@ -36,7 +36,7 @@ certCameraCase({
                 }
                 const kept = await expectSessionHeld(cx, session, held);
                 const noneAccepted = expectNoneAccepted(cx, session, "offer", refusal.refusedId);
-                const control = await expectControlAccepted(cx, session, "offer", held, solicitOffer);
+                const control = await expectControlAccepted(cx, session, "offer", solicitOffer);
 
                 return kept && noneAccepted && control ? "pass" : "fail";
             },

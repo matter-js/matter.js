@@ -3347,17 +3347,19 @@ none of them is visible from the plan document:
   adds a camera-controller endpoint to the in-process controller; chip-tool's adapter refuses the
   option, since a commissioner process is not a node. A case wanting this must therefore skip on any
   other controller implementation, which is what makes it matter.js-only rather than a flavor gap.
-- **The provider's Offer beats a registration made after the solicitation's response.** chip's camera
-  invokes `Offer` from inside its own handling of `SolicitOffer`, so where controller and provider
-  share a host the Offer lands first and a session registered on the response is refused — a failure
-  that looks exactly like the defect the case hunts. Register the id the provider is about to mint
-  *before* soliciting (ids are sequential, `WebRTCTransportProviderCluster::GenerateSessionId`) and
-  confirm it against the answer. A local run over a Docker bridge is slow enough to hide this; CI is
-  not.
+- **The provider's Offer can beat a registration made after the solicitation's response.** chip's
+  camera app schedules its `Offer` to run right after it handles `SolicitOffer`, so the Offer can
+  arrive before the response is processed, and a session registered on the response is refused — a failure
+  that looks exactly like the defect the case hunts. The in-process adapter's
+  `WebRtcRequestorApi.solicitOffer`/`provideOffer` register the id the provider is about to mint
+  *before* sending (chip mints ids in sequence from one counter per process,
+  `WebRTCTransportProviderCluster::GenerateSessionId`, so the prediction is kept per peer node) and
+  confirm it against the answer; a mismatch throws `WebRtcSessionPredictionError`, a harness error.
+  A local run over a Docker bridge is slow enough to hide this race; CI is not.
 - **A refusal is only evidence once something comparable was accepted.** The requestor refuses
   signaling for every id it does not track, so "it answered `NOT_FOUND`" is satisfied by an
-  implementation that looked at nothing. Registering the id the provider minted
-  (`ControllerAdapter.webRtcRequestor.upsertSession`) is necessary but not sufficient: the case also
+  implementation that looked at nothing. Holding the session the provider minted is necessary but
+  not sufficient: the case also
   solicits a second session once the injected fault is spent — it is armed for one call — and
   requires *that* Offer to be accepted. Only the pair separates "refuses by session id" from
   "refuses everything".
@@ -3380,9 +3382,10 @@ Two more things the first live run settled, neither of which is visible from the
   controller needs a TCP client.** matter.js requires a TCP session for such a command
   (`ClientInteraction`'s `requiredTransport`) and its own server refuses one arriving on an MRP
   session with `InvalidTransportType`, which is what the specification's "Large Message Quality"
-  section states. An adapter built without `transport: "tcp"` has no TCP interface at all, so the
-  solicitation stalls and then fails as `Peer has been unreachable for 15s` — a message that names
-  neither the transport nor the command. Ask for `transport: "tcp"` alongside `webRtcRequestor`.
+  section states. An adapter with no TCP interface lets the solicitation stall and then fail as
+  `Peer has been unreachable for 15s` — a message that names neither the transport nor the command.
+  `webRtcRequestor` therefore implies TCP: the in-process adapter turns it on with the requestor, and
+  a case does not also ask for `transport: "tcp"`.
 - **On macOS the harness container advertises on the Docker bridge, not on the LAN interface.** The
   usual `MATTER_MDNS_NETWORKINTERFACE=en0` pins the controller to an interface the container's
   records never reach, and the case fails in commissioning with nothing discovered. Name the bridge
@@ -3428,12 +3431,15 @@ those cases settled:
     certifying a connection built on an answer the harness altered. Reported upstream as
     [connectedhomeip#74310](https://github.com/project-chip/connectedhomeip/issues/74310); both the
     substitution and the check that records it go when the camera app answers with a settled role.
-  - Ending a session is two things: `EndSession` tells the provider, and `removeSession` stops the
-    requestor reporting it. The cluster drops a session by itself only when the *peer* ends it (chip's
-    camera answers `EndSession` by cleaning up its own side and sends no `End` back), so a controller
-    that skips the second half keeps a session it ended in `CurrentSessions`. Read `TC-WEBRTCR-2.5`'s
-    last read for what it is: the harness performs the removal, so that read states the controller
-    stopped reporting the session, not that the cluster decided to.
+  - Ending a session is two things: `EndSession` tells the provider, and the requestor stops reporting
+    the session. `WebRtcRequestorApi.endSession` resolves only once both happened. The cluster drops a
+    session by itself only when the *peer* ends it (chip's camera answers `EndSession` by cleaning up
+    its own side and sends no `End` back), so a controller that skips the second half keeps a session
+    it ended in `CurrentSessions`. The in-process adapter removes the session itself; matterjs-server
+    removes it while it handles the `EndSession` the adapter sends through `device_command`, and the
+    adapter waits for the requestor's removal line in the server's log. Read `TC-WEBRTCR-2.5`'s last
+    read for what it is: it states the controller stopped reporting the session, not that the
+    cluster decided to.
 
 A prompt-driven script's multi-line prompt is one more trap of its own: each line arrives separately,
 so a `PromptHandler` pattern that matches a hint line inside the prompt writes a second answer, which
