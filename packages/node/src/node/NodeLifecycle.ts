@@ -16,6 +16,7 @@ export class NodeLifecycle extends EndpointLifecycle {
     #online = AsyncObservable<[context: ActionContext]>();
     #goingOffline = AsyncObservable<[context: ActionContext]>();
     #offline = AsyncObservable<[context: ActionContext]>();
+    #softwareVersionChanged = AsyncObservable<[softwareVersion: number, context: ActionContext]>();
     #commissioned = Observable<[context: ActionContext]>();
     #decommissioned = Observable<[context: ActionContext]>();
     #initialized = Observable<[isCommissioned: boolean]>();
@@ -86,6 +87,13 @@ export class NodeLifecycle extends EndpointLifecycle {
      */
     get offline() {
         return this.#offline;
+    }
+
+    /**
+     * Emits when the peer's BasicInformation softwareVersion changes.
+     */
+    get softwareVersionChanged() {
+        return this.#softwareVersionChanged;
     }
 
     /**

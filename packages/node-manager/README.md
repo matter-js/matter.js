@@ -1,0 +1,191 @@
+# @matter/node-manager - controller-side node management for matter.js
+
+This package keeps the devices a controller owns in the state the controller intends, and runs multi-step
+work — group provisioning, key rotation — as tasks that can be observed, cancelled and undone.
+
+It is a controller-side package, imported directly: `@matter/main` does not re-export it. Use it from a
+`ServerNode` that commissions and manages peers.
+
+## Two layers
+
+**Reconciliation.** `ReconcilerBehavior` applies desired state to a peer. An application writes an _intent_
+for an _item_ — an ACL entry, a binding, a group key set, a group mapping, a group membership — and the
+reconciler writes it to the device, retries what is recoverable, and reports what the device holds. Intents
+survive a restart and an offline peer: reconciliation resumes when the peer comes back.
+
+**Tasks.** `TaskManagerBehavior` drives work that spans several intents and several peers, where a failure
+half way leaves the fleet in a state nobody asked for. A task writes intents through the reconciler, waits for
+them to commit, and records what it changed so the work can be undone.
+
+## Running a task
+
+```ts
+const handle = await node.act(agent => {
+    const manager = agent.get(TaskManagerBehavior);
+    manager.register(MyTask); // built-in types are registered already
+    return manager.run(AddNodeToGroup, {
+        peer, // the node's PeerAddress — see "Naming a node" below
+        endpoint: 1,
+        groupId: 1,
+        groupKeySetId: 1,
+        groupKeySecurityPolicy: GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst,
+        epochKey0,
+        epochStartTime0,
+    });
+});
+
+await handle.settled();
+console.log(handle.status.state, handle.status.wrote);
+```
+
+Every verb runs inside an activity, and the task runs outside one: `run` returns as soon as the work is
+admitted, so `settled()` is awaited after the activity ends. A handle reads through to the run, so it keeps
+answering as the run progresses and after it retires. `settled()` rejects with `TaskManagerClosingError` if the
+node shuts down before the run reaches an outcome, and with `TaskOutcomeUnrecordedError` if the run ended but
+storage refused the write that records the outcome — in both cases the record keeps the state it had and a
+later start states an outcome for it.
+
+Built-in task types: `AddNodeToGroup`, `RemoveNodeFromGroup`, `RotateGroupKey`, and the `Rollback` that undoes
+them.
+
+A task of your own declares its phases and validates its own parameters — they are read back from storage on
+resume, so a task refuses what it cannot drive:
+
+```ts
+import { addressLabel, GroupMembership, Require, TaskDefinition } from "@matter/node-manager";
+import { PeerAddress } from "@matter/protocol";
+import { GroupId } from "@matter/types";
+
+const MyTask: TaskDefinition<{ peer: PeerAddress; groupId: number }> = {
+    type: "myTask",
+    validate(params) {
+        Require.params("myTask", params);
+        Require.peer("peer", params.peer);
+        Require.id("groupId", params.groupId, 0xffff);
+    },
+    slotKeyFor: params => `myTask:${addressLabel(params.peer)}:${params.groupId}`,
+    // The peers this task names. Without this the manager cannot tell that the work is for a fabric it does
+    // not answer for, nor that the peer has left before the task has written anything.
+    peers: params => [params.peer],
+    // Everything this task does is on that one peer. Say so, or a departure ends the run: the default is that
+    // work cannot continue without a peer it names.
+    survivesWithout: () => false,
+    phases: params => [
+        {
+            name: "write",
+            run: async ctx => {
+                const peer = ctx.resolvePeer(params.peer);
+                await ctx.setIntent(peer, GroupMembership, String(params.groupId), {
+                    localEndpoint: 1,
+                    groupId: GroupId(params.groupId),
+                });
+            },
+        },
+    ],
+};
+```
+
+The item kinds the reconciler registers (`GroupKey`, `GroupKeyMap`, `GroupMembership`, `Acl`, `Binding`) are
+exported as the single instance of each, so a task names a kind by reference and the intent type follows.
+
+### Naming a node
+
+A task names a node by its `PeerAddress` — its fabric index and node id — and never by the local id a store
+hands out, which is free again once the node is removed. A record outlives the node's presence, so an id that
+can be re-issued would let an undo write to whatever device inherited it. `node.peerAddress` is the value to
+pass; a group has one too, with its group id in the node id.
+
+### One fabric per manager
+
+Groups, group keys, bindings and ACL entries are fabric-scoped, so "group key set 42" names one thing only
+once a fabric is fixed. A manager therefore manages the nodes of exactly one fabric: a controller holding
+several runs one manager per fabric, and work naming a peer of another fabric is refused
+(`TaskForeignFabricError`).
+
+A controller with one fabric needs no configuration — the manager adopts it. With several, name the one to
+manage:
+
+```ts
+ServerNode.RootEndpoint.with(TaskManagerBehavior, ReconcilerBehavior.set({ fabric: FabricIndex(2) }));
+```
+
+Until a fabric is settled no work is admitted at all (`TaskNoManagedFabricError`): every item this layer
+writes is fabric-scoped, so a manager holding no fabric can do nothing an operator would want reported as done.
+Which fabric a manager adopted is stored, by an identity that survives the fabric index — an index is reissued
+to a later fabric once its own is removed — so a restart manages the same fabric it did before. The identity is never
+forgotten on its own: a fabric table drops a fabric before it announces the removal, so "one fabric left and
+nothing remembered" is exactly what a deletion leaves behind, and adopting that fabric would drive one fabric's
+records against another. Name the fabric's index to take over.
+
+Every run records the fabric it acts on, by that same identity, and is driven only while the manager manages
+that fabric. When a fabric leaves the controller, its runs end: an unfinished run is recorded `failed`, an
+unfinished or failed rollback `abandoned`, and nothing they changed is undone or kept for an undo — no device
+of that fabric can be reached again, and its addresses may later name devices of another fabric. Their targets
+are released. A fabric that left while the controller was stopped is settled at the next start.
+
+### One task per target
+
+A task names the _target_ it changes — one peer's group membership, one fabric's key set — and one target has
+one task at a time. A second request for a busy target is refused, unless it repeats the `externalId` of the
+run that holds it, in which case it joins that run instead of starting a second one. A run that is draining,
+settling or waiting for its type to be registered is refused before the `externalId` is even compared, because
+there is no live run to join:
+
+```ts
+const handle = manager.run(AddNodeToGroup, params, { externalId: "provision-kitchen" });
+```
+
+Refusals the layer can code are `TaskRefusedError`s carrying a `TaskFindingCode`, so an interface can render
+the cause rather than the message. A caller that misuses the API — a definition that was never registered, or one
+only `cancel()` may start — gets an `ImplementationError` instead, because that is a defect in the calling code
+rather than a state an operator can act on. To ask before committing to the call:
+
+```ts
+const feasibility = manager.assess(AddNodeToGroup, params, { externalId: "provision-kitchen" });
+// "ready" | "joins" (feasibility.joins names the run) | "blocked" (feasibility.findings says why)
+```
+
+`assess` answers from the admission rules themselves, so it reports exactly what `run` would do about
+contention. It does not answer capacity — that is checked once the run starts, against the capacity each peer
+last reported, never by asking the device then — and it reserves nothing, so a caller still handles the
+refusals `run` throws.
+
+## Stopping and undoing
+
+`cancel(runId)` stops a run and undoes what it wrote. The outcome says what happened to the device:
+
+| `TaskCancelOutcome` | meaning                                                                  |
+| ------------------- | ------------------------------------------------------------------------ |
+| `Rollback`          | an undo is running; `cancellation.rollback` is its handle                 |
+| `NothingToUndo`     | the run had changed nothing                                              |
+| `Irreversible`      | the run passed the point its type declines to roll back, and it stands  |
+
+A rollback is a run of its own, so it too can fail — a peer that goes offline mid-undo, for instance. When it
+does, the device is left part-changed and only an operator can decide what happens next:
+
+- `retryRollback(originalRunId)` drives the undo again, from what the original recorded.
+- `abandon(rollbackRunId, reason)` gives up on it, leaving the device as it is.
+
+The two take different identities, and the parameter names say which: a retry is asked of the run that was
+undone, an abandonment of the undo itself. `failedRollbacks` hands you the rollback; its `status.rollbackOf`
+names the original, and the original's `status.rollbackRunId` names the undo.
+
+## Seeing what is outstanding
+
+```ts
+manager.tasks; // runs that still hold a target
+manager.history(20); // retired runs, newest retirement first
+manager.failedRollbacks; // failed undos: devices left part-changed, awaiting a retry or an abandon
+manager.awaitingRegistration; // runs this build cannot drive: their task type is not registered
+manager.get(runId);
+manager.forExternalId("provision-kitchen");
+```
+
+`events.runChanged` reports every durable change to a run, carrying the status as of that write:
+
+```ts
+node.events.taskManager.runChanged.on(status => render(status));
+```
+
+History is bounded by `state.historyLimit` (100 by default). A retired run whose rollback could still be
+retried is never evicted, so nothing that asks for an operator's attention disappears from these lists.
