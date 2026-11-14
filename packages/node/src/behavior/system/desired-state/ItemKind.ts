@@ -4,7 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { ClientNode } from "#node/ClientNode.js";
+import { ImplementationError } from "@matter/general";
 import { DuplicateItemKindError, UnknownItemKindError } from "./errors.js";
 import type { ManagedItem } from "./types.js";
 
@@ -12,6 +15,18 @@ import type { ManagedItem } from "./types.js";
 export interface CapacityInfo {
     limit: number;
     used: number;
+}
+
+/** A cached attribute whose reports can show drift for an item. */
+export interface ItemWatch {
+    /** The endpoint that reports it: the root, or the one the item names. */
+    endpoint: Endpoint;
+
+    /** The client behavior holding the attribute, e.g. `AccessControlClient`. */
+    behavior: ClusterBehavior.Type;
+
+    /** The attribute's name in that behavior's state, e.g. `"acl"`. */
+    attribute: string;
 }
 
 export interface ItemKind<I = unknown> {
@@ -49,12 +64,37 @@ export interface ItemKind<I = unknown> {
      * shared entry is not deleted while referenced. Unimplemented ⇒ no dependents ⇒ always removable.
      */
     isReferenced?(node: ClientNode, key: string): boolean;
+
+    /**
+     * Cached attributes whose reports can show drift for `item`. Absent: the kind is verify-only. Declared
+     * together with `satisfiedBy` and `verify`, or not at all. Returns nothing when the endpoint or the cluster is
+     * absent on the node.
+     */
+    watches?(node: ClientNode, item: ManagedItem<I>): ItemWatch[];
+
+    /**
+     * Whether the subscription cache satisfies `item`, counting only entries of the node's fabric. A trigger
+     * filter: an unsatisfied answer leads to a live `verify`, which alone decides, so a kind declaring this must
+     * declare `verify` too.
+     */
+    satisfiedBy?(node: ClientNode, item: ManagedItem<I>): boolean;
 }
 
 export class ItemKindRegistry {
     readonly #kinds = new Map<string, ItemKind>();
 
     register(kind: ItemKind): void {
+        if (kind.watches !== undefined && kind.satisfiedBy === undefined) {
+            throw new ImplementationError(`Item kind "${kind.kind}" declares watches but not satisfiedBy`);
+        }
+        if (kind.satisfiedBy !== undefined && kind.watches === undefined) {
+            throw new ImplementationError(`Item kind "${kind.kind}" declares satisfiedBy but not watches`);
+        }
+        if (kind.satisfiedBy !== undefined && kind.verify === undefined) {
+            throw new ImplementationError(
+                `Item kind "${kind.kind}" declares watches and satisfiedBy but not verify, so no drift it reports could be read`,
+            );
+        }
         if (this.#kinds.has(kind.kind)) {
             throw new DuplicateItemKindError(`Item kind "${kind.kind}" is already registered`);
         }

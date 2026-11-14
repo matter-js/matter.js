@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { CapacityInfo, ClientNode, ItemKind, ManagedItem } from "@matter/node";
+import type { Immutable } from "@matter/general";
+import type { CapacityInfo, ClientNode, ItemKind, ItemWatch, ManagedItem } from "@matter/node";
 import { AccessControlClient } from "@matter/node/behaviors/access-control";
 import { FabricIndex, Status } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
@@ -17,8 +18,14 @@ type Entry = AccessControl.AccessControlEntry;
 // limit is momentarily unread, so pre-flight admission stays meaningful instead of failing open.
 const ACL_ENTRIES_PER_FABRIC_MIN = 4;
 
-function toGrant(entry: Entry): AclGrant {
-    return { privilege: entry.privilege, authMode: entry.authMode, subjects: entry.subjects, targets: entry.targets };
+/** Takes cached (read-only) and live entries alike; the copies keep the grant's arrays mutable. */
+function toGrant(entry: Immutable<Entry>): AclGrant {
+    return {
+        privilege: entry.privilege,
+        authMode: entry.authMode,
+        subjects: entry.subjects && [...entry.subjects],
+        targets: entry.targets && entry.targets.map(target => ({ ...target })),
+    };
 }
 
 function toEntry(grant: AclGrant): Entry {
@@ -29,6 +36,11 @@ function toEntry(grant: AclGrant): Entry {
         targets: grant.targets,
         fabricIndex: FabricIndex.OMIT_FABRIC,
     };
+}
+
+/** The one decision of whether `entries` (all of our fabric) grant the intent; used by `verify`, `satisfiedBy` and `apply`. */
+function satisfies(entries: readonly Immutable<Entry>[], intent: AclGrant) {
+    return coversGrant(entries.map(toGrant), intent);
 }
 
 /**
@@ -49,7 +61,7 @@ export class AclItemKind implements ItemKind<AclGrant> {
 
     async apply(node: ClientNode, item: ManagedItem<AclGrant>): Promise<void> {
         const current = await this.#readAcl(node);
-        if (coversGrant(current.map(toGrant), item.intent)) {
+        if (satisfies(current, item.intent)) {
             return;
         }
         await node.setStateOf(AccessControlClient, {
@@ -58,8 +70,27 @@ export class AclItemKind implements ItemKind<AclGrant> {
     }
 
     async verify(node: ClientNode, item: ManagedItem<AclGrant>): Promise<boolean> {
-        const current = await this.#readAcl(node);
-        return coversGrant(current.map(toGrant), item.intent);
+        return satisfies(await this.#readAcl(node), item.intent);
+    }
+
+    watches(node: ClientNode): ItemWatch[] {
+        if (!node.behaviors.has(AccessControlClient)) {
+            return [];
+        }
+        return [{ endpoint: node, behavior: AccessControlClient, attribute: "acl" }];
+    }
+
+    /**
+     * Judges the cached `acl` by the same match as `verify`. Cached entries carry the index the device gave our
+     * fabric, so only entries with {@link ClientNode.fabricIndexOnPeer} count. Without that index no entry counts,
+     * and the answer `false` leads to a live `verify`.
+     */
+    satisfiedBy(node: ClientNode, item: ManagedItem<AclGrant>): boolean {
+        const cached = node.maybeStateOf(AccessControlClient)?.acl ?? [];
+        return satisfies(
+            cached.filter(entry => entry.fabricIndex === node.fabricIndexOnPeer),
+            item.intent,
+        );
     }
 
     async remove(node: ClientNode, item: ManagedItem<AclGrant>): Promise<void> {

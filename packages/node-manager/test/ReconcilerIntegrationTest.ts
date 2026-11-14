@@ -10,6 +10,7 @@ import {
     Diagnostic,
     Duration,
     ImplementationError,
+    InternalError,
     LogDestination,
     Logger,
     LogLevel,
@@ -23,9 +24,11 @@ import {
     ItemEnforcement,
     ItemKind,
     itemMapKey,
+    ItemWatch,
     ServerNode,
 } from "@matter/node";
 import { AccessControlServer } from "@matter/node/behaviors/access-control";
+import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { FabricManager } from "@matter/protocol";
 import { NodeId, Status, StatusResponseError, SubjectId } from "@matter/types";
@@ -710,7 +713,7 @@ describe("drift dispositions", () => {
         const { controller } = await controllerWithReconciler(site);
         const peer = await subscribedPeer(controller, "peer1");
         const failing = await committedScripted(controller, peer, "failing", "converge");
-        const moved = await committedScripted(controller, peer, "moved", "converge", true);
+        const moved = await committedScripted(controller, peer, "moved", "converge", { withCapacity: true });
         failing.answer = "throws";
         moved.answer = false;
 
@@ -951,26 +954,43 @@ interface Script {
     applyHold?: { entered: () => void; released: Promise<void> };
     /** The registered kind, for `retry()`. */
     kind: ItemKind;
+    /** What the subscription cache shows for the item, when the kind was created `watching` an attribute. */
+    satisfied: boolean;
 }
 
-/** Register a kind whose live read answers as the test says, and commit one `k` item of it. */
+type LabelAttribute = "nodeLabel" | "location";
+
+/**
+ * Register a kind whose live read answers as the test says, and commit one `k` item of it. A kind `watching` a Basic
+ * Information attribute of the root endpoint is judged by {@link Script.satisfied} when that attribute is reported,
+ * and an apply makes the cache satisfied again.
+ */
 async function committedScripted(
     controller: ServerNode,
     peer: ClientNode,
     name: string,
     mode: "converge" | "maintain",
-    withCapacity = false,
+    options: { withCapacity?: boolean; watching?: LabelAttribute } = {},
 ): Promise<Script> {
+    const { withCapacity = false, watching } = options;
     const capacity = async () => {
         script.capacityReads++;
         return { limit: 10, used: 0 };
     };
+    const watch = {
+        watches: (node: ClientNode): ItemWatch[] => [
+            { endpoint: node, behavior: BasicInformationClient, attribute: watching ?? "nodeLabel" },
+        ],
+        satisfiedBy: () => script.satisfied,
+    };
     const kind: ItemKind = {
         ...(withCapacity ? { capacity } : {}),
+        ...(watching === undefined ? {} : watch),
         kind: name,
         priority: 0,
         async apply() {
             script.applies++;
+            script.satisfied = true;
             const hold = script.applyHold;
             if (hold !== undefined) {
                 script.applyHold = undefined;
@@ -990,7 +1010,7 @@ async function committedScripted(
             return script.answer;
         },
     };
-    const script: Script = { answer: true, reads: 0, applies: 0, capacityReads: 0, kind };
+    const script: Script = { answer: true, reads: 0, applies: 0, capacityReads: 0, kind, satisfied: true };
     await controller.act(agent => agent.get(ReconcilerBehavior).registerItemKind(kind));
     await peer.act(async agent => {
         const ds = agent.get(DesiredStateBehavior);
@@ -1035,3 +1055,365 @@ async function plainKind(controller: ServerNode) {
     );
     return plain;
 }
+
+/** Change the device's value and wait until the peer's cache shows it, which is when the report was handled. */
+async function report(device: ServerNode, peer: ClientNode, attribute: LabelAttribute, value: string) {
+    const reported = new Promise<void>(resolve =>
+        peer.eventsOf(BasicInformationClient)[`${attribute}$Changed`].once(() => resolve()),
+    );
+    await MockTime.resolve(device.set({ basicInformation: { [attribute]: value } }));
+    await MockTime.resolve(reported, { macrotasks: true });
+}
+
+/** Let `duration` pass, then wait for every pass queued on the peer's lock by then to finish. */
+async function passesAfter(controller: ServerNode, peer: ClientNode, duration: Duration) {
+    await MockTime.advance(duration);
+    await MockTime.macrotask;
+    await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
+}
+
+/**
+ * Hold the peer's lock with a pass that writes a pending item, until `release` is called or the result is disposed,
+ * so a failing assertion does not leave the lock held.
+ */
+async function holdPeerLock(controller: ServerNode, peer: ClientNode) {
+    let release!: () => void;
+    const released = new Promise<void>(resolve => (release = resolve));
+    let entered!: () => void;
+    const holding = new Promise<void>(resolve => (entered = resolve));
+    await controller.act(agent =>
+        agent.get(ReconcilerBehavior).registerItemKind({
+            kind: "blocker",
+            priority: 0,
+            async apply() {
+                entered();
+                await released;
+            },
+        }),
+    );
+    await peer.act(agent => agent.get(DesiredStateBehavior).setIntent("blocker", "k", {}));
+    await MockTime.resolve(holding);
+    return { release, [Symbol.dispose]: release };
+}
+
+/**
+ * Make every pass for the peer throw after its live read, until the result is disposed: an item of a kind whose
+ * `recoverable` throws is in `commitFailed`, and planning asks it.
+ */
+async function breakPasses(controller: ServerNode, peer: ClientNode) {
+    let broken = true;
+    await controller.act(agent =>
+        agent.get(ReconcilerBehavior).registerItemKind({
+            kind: "breaker",
+            priority: 0,
+            async apply() {},
+            recoverable() {
+                if (broken) {
+                    throw new InternalError("planning failed");
+                }
+                return false;
+            },
+        }),
+    );
+    await peer.act(agent => {
+        const ds = agent.get(DesiredStateBehavior);
+        ds.setIntent("breaker", "k", {});
+        ds.updateStatus("breaker", "k", "commitFailed", Status.Failure);
+    });
+    return {
+        [Symbol.dispose]() {
+            broken = false;
+        },
+    };
+}
+
+/** Let `duration` pass and the passes it started finish, without queuing a pass of our own. */
+async function timePasses(duration: Duration) {
+    await MockTime.advance(duration);
+    for (let i = 0; i < 5; i++) {
+        await MockTime.macrotask;
+    }
+}
+
+describe("drift passes", () => {
+    const QUIET = Seconds(2);
+
+    before(() => {
+        MockTime.init();
+    });
+
+    async function watchedPeer(site: MockSite, reconciler?: { sweepInterval?: Duration }) {
+        const { controller, device } = await controllerWithReconciler(site, reconciler);
+        const peer = await subscribedPeer(controller, "peer1");
+        const label = await committedScripted(controller, peer, "label", "converge", {
+            watching: "nodeLabel",
+            withCapacity: true,
+        });
+        const location = await committedScripted(controller, peer, "location", "converge", { watching: "location" });
+        const unwatched = await committedScripted(controller, peer, "unwatched", "converge");
+        const reads = () => ({ label: label.reads, location: location.reads, unwatched: unwatched.reads });
+        return { controller, device, peer, label, location, unwatched, reads };
+    }
+
+    it("reads only the suspects a report found, once the quiet period passed", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer, label, reads } = await watchedPeer(site);
+        const before = reads();
+
+        label.satisfied = false;
+        await report(device, peer, "nodeLabel", "changed");
+        await passesAfter(controller, peer, Seconds(1));
+        expect(reads()).deep.equals(before);
+
+        await passesAfter(controller, peer, Seconds(1));
+        expect(reads()).deep.equals({ ...before, label: before.label + 1 });
+    });
+
+    it("merges the suspects of two drift requests into one pass", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer, label, location, reads } = await watchedPeer(site);
+        const before = reads();
+        const capacityReads = label.capacityReads;
+
+        using lock = await holdPeerLock(controller, peer);
+        label.satisfied = false;
+        await report(device, peer, "nodeLabel", "changed");
+        await MockTime.advance(QUIET);
+        location.satisfied = false;
+        await report(device, peer, "location", "DE");
+        await MockTime.advance(QUIET);
+        lock.release();
+        await passesAfter(controller, peer, Seconds(0));
+
+        expect(reads()).deep.equals({ ...before, label: before.label + 1, location: before.location + 1 });
+        expect(label.capacityReads).equals(capacityReads + 1);
+    });
+
+    it("refreshes the capacity of the suspects' kinds only", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer, label, location } = await watchedPeer(site);
+        const capacityReads = label.capacityReads;
+        const reads = location.reads;
+
+        location.satisfied = false;
+        await report(device, peer, "location", "DE");
+        await passesAfter(controller, peer, QUIET);
+
+        expect(location.reads).equals(reads + 1);
+        expect(label.capacityReads).equals(capacityReads);
+    });
+
+    it("reads every committed item when a drift request meets another verify reason", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer, label, reads } = await watchedPeer(site);
+        const before = reads();
+
+        using lock = await holdPeerLock(controller, peer);
+        label.satisfied = false;
+        await report(device, peer, "nodeLabel", "changed");
+        await MockTime.advance(QUIET);
+        await MockTime.resolve(peer.act(agent => peer.lifecycle.softwareVersionChanged.emit(1, agent.context)));
+        lock.release();
+        await passesAfter(controller, peer, Seconds(0));
+
+        expect(reads()).deep.equals({
+            label: before.label + 1,
+            location: before.location + 1,
+            unwatched: before.unwatched + 1,
+        });
+    });
+
+    it("does not read a suspect again that an explicit verify in between wrote back", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer, label } = await watchedPeer(site);
+
+        using lock = await holdPeerLock(controller, peer);
+        label.satisfied = false;
+        label.answer = false;
+        const explicit = controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer, { verify: true }));
+        await MockTime.macrotask;
+        await report(device, peer, "nodeLabel", "changed");
+        await MockTime.advance(QUIET);
+        const reads = label.reads;
+        lock.release();
+        await MockTime.resolve(explicit);
+        await passesAfter(controller, peer, Seconds(0));
+
+        expect(label.applies).equals(1);
+        expect(label.reads).equals(reads + 1);
+    });
+
+    it("drops a suspect whose item was written again before the pass, without a read or a longer wait", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer, label, location } = await watchedPeer(site);
+
+        using lock = await holdPeerLock(controller, peer);
+        label.satisfied = false;
+        await report(device, peer, "nodeLabel", "changed");
+        await MockTime.advance(QUIET);
+        await peer.act(agent => agent.get(DesiredStateBehavior).setIntent("label", "k", { rewritten: true }));
+        const reads = label.reads;
+        const applies = label.applies;
+        lock.release();
+        await passesAfter(controller, peer, Seconds(0));
+
+        expect(label.reads).equals(reads);
+        expect(label.applies).equals(applies + 1);
+
+        // A pass that had read nothing and called that a failure would make the next suspect wait twice as long
+        const locationReads = location.reads;
+        location.satisfied = false;
+        await report(device, peer, "location", "DE");
+        await passesAfter(controller, peer, QUIET);
+        expect(location.reads).equals(locationReads + 1);
+    });
+
+    it("tries a suspect whose live read failed again after twice the wait, and only that one", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer, label, location, reads } = await watchedPeer(site);
+        const before = reads();
+
+        label.satisfied = false;
+        label.answer = "throws";
+        location.satisfied = false;
+        await report(device, peer, "nodeLabel", "changed");
+        await report(device, peer, "location", "DE");
+        await passesAfter(controller, peer, QUIET);
+        expect(reads()).deep.equals({ ...before, label: before.label + 1, location: before.location + 1 });
+
+        await passesAfter(controller, peer, QUIET);
+        expect(label.reads).equals(before.label + 1);
+
+        await passesAfter(controller, peer, QUIET);
+        expect(reads()).deep.equals({ ...before, label: before.label + 2, location: before.location + 1 });
+    });
+
+    it("tries every suspect again after twice the wait when the pass throws after its read", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer, label } = await watchedPeer(site);
+        const reads = label.reads;
+        using _broken = await breakPasses(controller, peer);
+
+        label.satisfied = false;
+        await report(device, peer, "nodeLabel", "changed");
+        await timePasses(QUIET);
+        expect(label.reads).equals(reads + 1);
+
+        await timePasses(QUIET);
+        expect(label.reads).equals(reads + 1);
+        await timePasses(QUIET);
+        expect(label.reads).equals(reads + 2);
+    });
+
+    describe("waits the quiet period again once a pass read every item", () => {
+        async function afterFullRead(
+            site: MockSite,
+            readAll: (controller: ServerNode, peer: ClientNode) => Promise<void>,
+        ) {
+            const { controller, device, peer, label, location } = await watchedPeer(site);
+            label.satisfied = false;
+            label.answer = "throws";
+            await report(device, peer, "nodeLabel", "changed");
+            await passesAfter(controller, peer, QUIET);
+            label.answer = true;
+            await readAll(controller, peer);
+            const reads = location.reads;
+
+            location.satisfied = false;
+            await report(device, peer, "location", "DE");
+            await passesAfter(controller, peer, QUIET);
+            expect(location.reads).equals(reads + 1);
+        }
+
+        it("after a firmware change", async () => {
+            await using site = new MockSite();
+            await afterFullRead(site, async (controller, peer) => {
+                await MockTime.resolve(peer.act(agent => peer.lifecycle.softwareVersionChanged.emit(1, agent.context)));
+                await passesAfter(controller, peer, Seconds(0));
+            });
+        });
+
+        it("after an explicit verify", async () => {
+            await using site = new MockSite();
+            await afterFullRead(site, (controller, peer) =>
+                MockTime.resolve(
+                    controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer, { verify: true })),
+                ),
+            );
+        });
+    });
+
+    it("leaves the suspects to the drift pass when an explicit pass without verify runs first", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer, label } = await watchedPeer(site);
+        const reads = label.reads;
+
+        using lock = await holdPeerLock(controller, peer);
+        const explicit = controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer));
+        await MockTime.macrotask;
+        label.satisfied = false;
+        await report(device, peer, "nodeLabel", "changed");
+        await MockTime.advance(QUIET);
+        lock.release();
+        await MockTime.resolve(explicit);
+        await passesAfter(controller, peer, Seconds(0));
+
+        expect(label.reads).equals(reads + 1);
+    });
+
+    it("waits at most the sweep interval before it tries a failed suspect again", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer, label } = await watchedPeer(site, { sweepInterval: Seconds(3) });
+        const reads = label.reads;
+
+        label.satisfied = false;
+        label.answer = "throws";
+        await report(device, peer, "nodeLabel", "changed");
+        await passesAfter(controller, peer, QUIET);
+        expect(label.reads).equals(reads + 1);
+
+        await passesAfter(controller, peer, Seconds(2));
+        expect(label.reads).equals(reads + 1);
+        await passesAfter(controller, peer, Seconds(1));
+        expect(label.reads).equals(reads + 2);
+    });
+
+    it("waits the quiet period again once a drift pass read its suspects", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer, label, location } = await watchedPeer(site);
+
+        label.satisfied = false;
+        label.answer = "throws";
+        await report(device, peer, "nodeLabel", "changed");
+        await passesAfter(controller, peer, QUIET);
+        label.answer = true;
+        await passesAfter(controller, peer, Seconds(4));
+        const reads = location.reads;
+
+        location.satisfied = false;
+        await report(device, peer, "location", "DE");
+        await passesAfter(controller, peer, QUIET);
+        expect(location.reads).equals(reads + 1);
+    });
+
+    it("keeps the longer wait when a drift pass finds nothing left to read", async () => {
+        await using site = new MockSite();
+        const { controller, device, peer, label, location } = await watchedPeer(site);
+
+        label.satisfied = false;
+        label.answer = "throws";
+        await report(device, peer, "nodeLabel", "changed");
+        await passesAfter(controller, peer, QUIET);
+        // The suspect is handed over again after the doubled wait, but its item is gone by then
+        await peer.act(agent => agent.get(DesiredStateBehavior).dropItem("label", "k"));
+        await passesAfter(controller, peer, Seconds(4));
+        const reads = location.reads;
+
+        location.satisfied = false;
+        await report(device, peer, "location", "DE");
+        await passesAfter(controller, peer, QUIET);
+        expect(location.reads).equals(reads);
+        await passesAfter(controller, peer, QUIET);
+        expect(location.reads).equals(reads + 1);
+    });
+});
