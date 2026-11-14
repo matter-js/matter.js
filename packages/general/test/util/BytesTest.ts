@@ -49,6 +49,59 @@ describe("ByteArray", () => {
         });
     });
 
+    describe("utf8Length", () => {
+        const cases: Record<string, string> = {
+            empty: "",
+            ASCII: "matter",
+            "two-byte": "é",
+            "three-byte": "日本",
+            "surrogate pair": "😀",
+            "lone high surrogate": "a\ud800",
+            "lone low surrogate": "\udc00b",
+            "reversed surrogates": "\udc00\ud800",
+            "two high surrogates": "\ud800\udbff",
+            "two low surrogates": "\udc00\udfff",
+            "below the surrogate range before a low surrogate": "\ud7ff\udc00",
+            "high surrogate before a character above the surrogate range": "\ud800\ue000",
+            "highest surrogate pair": "\udbff\udfff",
+            mixed: "aé日😀",
+        };
+
+        for (const [name, value] of Object.entries(cases)) {
+            it(`matches fromString for ${name}`, () => {
+                expect(Bytes.utf8Length(value)).equal(Bytes.fromString(value).byteLength);
+            });
+        }
+    });
+
+    describe("truncateUtf8", () => {
+        it("keeps a string that fits", () => {
+            expect(Bytes.truncateUtf8("aé", 3)).equal("aé");
+        });
+
+        it("cuts before a character that does not fit", () => {
+            expect(Bytes.truncateUtf8("aé", 2)).equal("a");
+        });
+
+        it("does not split a surrogate pair", () => {
+            expect(Bytes.truncateUtf8("a😀", 4)).equal("a");
+            expect(Bytes.truncateUtf8("a😀", 5)).equal("a😀");
+        });
+
+        it("returns an empty string for a limit of 0", () => {
+            expect(Bytes.truncateUtf8("a", 0)).equal("");
+        });
+
+        it("counts a lone surrogate as three bytes", () => {
+            expect(Bytes.truncateUtf8("\ud800", 2)).equal("");
+            expect(Bytes.truncateUtf8("\ud800", 3)).equal("\ud800");
+        });
+
+        it("cuts by bytes, not characters", () => {
+            expect(Bytes.truncateUtf8("日".repeat(20), 32)).equal("日".repeat(10));
+        });
+    });
+
     describe("toHex", () => {
         it("encodes the bytes as a hex string", () => {
             const result = Bytes.toHex(Uint8Array.of(0x12, 0x34));

@@ -15,12 +15,13 @@ describe("DT", () => {
         "DT/1.1/run6",
         "DT/1.1/run7",
         "DT/1.1/run8",
-        // Runs for CHIP apps matter.js has no test subject for: evse, microwave-oven, network-management,
+        // Runs for CHIP apps matter.js has no test subject for: camera, evse, microwave-oven, network-management,
         // lighting-app-no-unique-id, electrical-protection
         "DT/1.1/run10",
         "DT/1.1/run12",
         "DT/1.1/run14",
         "DT/1.1/run15",
         "DT/1.1/run20",
+        "DT/1.1/run21",
     );
 });

@@ -12,6 +12,9 @@ import { NodeSession } from "#session/NodeSession.js";
 import {
     Bytes,
     ImplementationError,
+    LogFormat,
+    Logger,
+    LogLevel,
     MatterFlowError,
     MemoryStorageDriver,
     StandardCrypto,
@@ -29,6 +32,25 @@ const REGISTRATION = {
     key: Bytes.fromHex("00112233445566778899aabbccddeeff"),
     clientType: IcdManagement.ClientType.Permanent,
 };
+
+async function captureWarnings(fn: () => Promise<void>) {
+    const dest = Logger.destinations.default;
+    const { format, write } = dest;
+    const warnings = new Array<string>();
+    try {
+        dest.format = LogFormat.formats.plain;
+        dest.write = (message, { level }) => {
+            if (level === LogLevel.WARN) {
+                warnings.push(message);
+            }
+        };
+        await fn();
+        return warnings;
+    } finally {
+        dest.format = format;
+        dest.write = write;
+    }
+}
 
 async function provisionGroup(fabric: Fabric) {
     await fabric.groups.setFromGroupKeySet({
@@ -104,6 +126,34 @@ describe("FabricManager", () => {
             await fabrics.construction.ready;
             expect(fabrics.fabrics.length).to.equal(1);
             expect(fabrics.fabrics[0].config).to.deep.equal(fabric.config);
+        });
+
+        it("shortens a stored label over 32 bytes in UTF-8 and stores it shortened", async () => {
+            const fabric = await TestFabric();
+            // 11 × "日" is 33 bytes in UTF-8 but only 11 UTF-16 code units
+            const stored = [{ ...fabric.config, label: "日".repeat(11) }];
+            storage.set(["Context"], "fabrics", stored);
+
+            const warnings = await captureWarnings(async () => {
+                fabrics = new FabricManager(crypto, storageManager.createContext("Context"));
+                await fabrics.construction.ready;
+            });
+
+            expect(fabrics.fabrics[0].label).equal("日".repeat(10));
+            expect(storage.get(["Context"], "fabrics")).not.equal(stored);
+            expect(storage.get(["Context"], "fabrics")).deep.equal([{ ...fabric.config, label: "日".repeat(10) }]);
+            expect(warnings.some(message => message.includes(`is now "${"日".repeat(10)}"`))).true;
+        });
+
+        it("does not rewrite stored labels within 32 bytes", async () => {
+            const fabric = await TestFabric();
+            const stored = [{ ...fabric.config, label: "日".repeat(10) }];
+            storage.set(["Context"], "fabrics", stored);
+
+            fabrics = new FabricManager(crypto, storageManager.createContext("Context"));
+            await fabrics.construction.ready;
+
+            expect(storage.get(["Context"], "fabrics")).equal(stored);
         });
     });
 

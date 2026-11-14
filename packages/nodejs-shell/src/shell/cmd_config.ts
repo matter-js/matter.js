@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "@matter/general";
+import { Bytes, Logger } from "@matter/general";
 import { DclCertificateService } from "@matter/protocol";
 import { Argv } from "yargs";
 import { setLogLevel } from "../app.js";
@@ -446,8 +446,8 @@ async function doControllerFabricLabel(
                 console.log(`Cannot change Controller Fabric Label: new value not provided`);
                 return;
             }
-            if (value.length === 0 || value.length > 32) {
-                console.log(`Cannot change Controller Fabric Label: value must be between 1 and 32 characters`);
+            if (value.length === 0 || Bytes.utf8Length(value) > 32) {
+                console.log(`Cannot change Controller Fabric Label: value must be between 1 and 32 bytes in UTF-8`);
                 return;
             }
             await theNode.Store.set("ControllerFabricLabel", value);

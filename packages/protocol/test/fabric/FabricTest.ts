@@ -134,7 +134,13 @@ describe("Fabric", () => {
         it("rejects a label that exceeds the maximum length", async () => {
             const fabric = await TestFabric();
 
-            await expect(fabric.setLabel("x".repeat(33))).rejectedWith(/at most 32 characters/);
+            await expect(fabric.setLabel("x".repeat(33))).rejectedWith(/the maximum is 32/);
+        });
+
+        it("rejects a label of fewer than 32 characters that exceeds 32 bytes", async () => {
+            const fabric = await TestFabric();
+
+            await expect(fabric.setLabel("日".repeat(11))).rejectedWith(/the maximum is 32/);
         });
     });
 

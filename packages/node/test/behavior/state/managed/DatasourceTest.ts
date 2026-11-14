@@ -1384,6 +1384,205 @@ describe("Datasource", () => {
         });
     });
 
+    describe("stored strings over their byte limit", () => {
+        class LabeledState {
+            label: string | null = "";
+            free = "";
+            tags = new Array<string>();
+            codes = new Array<string>();
+            pins = new Array<string>();
+            secrets = new Array<string>();
+            entries: Array<{ name?: string; value: number } | null> | null = [];
+            other = 0;
+        }
+
+        const labeledSupervisor = BehaviorSupervisor({
+            id: "labeled",
+            State: LabeledState,
+
+            schema: new DatatypeModel({
+                name: "Labeled",
+                type: "struct",
+
+                children: [
+                    FieldElement({ name: "label", type: "string", constraint: "max 4", quality: "X N" }),
+                    FieldElement({ name: "free", type: "string", quality: "N" }),
+                    FieldElement({
+                        name: "tags",
+                        type: "list",
+                        constraint: "max 2[max 4]",
+                        quality: "N",
+                        children: [FieldElement({ name: "entry", type: "string" })],
+                    }),
+                    FieldElement({
+                        name: "codes",
+                        type: "list",
+                        constraint: "max 2[max 4]",
+                        quality: "N",
+                        children: [FieldElement({ name: "entry", type: "string", constraint: "max 2" })],
+                    }),
+                    FieldElement({
+                        name: "pins",
+                        type: "list",
+                        constraint: "max 2[max 2]",
+                        quality: "N",
+                        children: [FieldElement({ name: "entry", type: "string", constraint: "max 8" })],
+                    }),
+                    FieldElement({
+                        name: "secrets",
+                        type: "list",
+                        quality: "N",
+                        isSecret: true,
+                        children: [FieldElement({ name: "entry", type: "string", constraint: "max 4" })],
+                    }),
+                    FieldElement({
+                        name: "entries",
+                        type: "list",
+                        quality: "X N",
+                        children: [
+                            FieldElement({
+                                name: "entry",
+                                type: "struct",
+                                children: [
+                                    FieldElement({ name: "name", type: "string", constraint: "max 4" }),
+                                    FieldElement({ name: "value", type: "uint8" }),
+                                ],
+                            }),
+                        ],
+                    }),
+                    FieldElement({ name: "other", type: "uint32", quality: "N" }),
+                ],
+            }),
+        });
+
+        function createLabeled(store: Datasource.PersistentStore, migrate?: (values: Val.Struct) => void) {
+            return createDatasource({ type: LabeledState, supervisor: labeledSupervisor, store, migrate });
+        }
+
+        it("shortens a stored string by UTF-8 bytes and persists it with the next write", async () => {
+            using log = captureLog(LogLevel.WARN);
+            const store = createStore({ label: "ééé" });
+            const ds = createLabeled(store);
+            expect(ds.view.label).equals("éé");
+            expect(log.messages.some(message => /ééé.*is now.*éé/.test(message))).true;
+
+            await withReference(ds, ({ state }) => (state.other = 1));
+            await withReference(ds, ({ state }) => (state.other = 2));
+
+            expect(store.sets).deep.equals([{ other: 1, label: "éé" }, { other: 2 }]);
+        });
+
+        it("shortens a stored string inside a list entry and keeps the other entries", async () => {
+            const kept = { name: "ab", value: 1 };
+            const store = createStore({ entries: [kept, { name: "日日", value: 2 }] });
+            const ds = createLabeled(store);
+
+            expect(rawValuesOf(ds.view.entries!)).deep.equals([kept, { name: "日", value: 2 }]);
+
+            await withReference(ds, ({ state }) => (state.other = 1));
+
+            expect(store.sets).deep.equals([{ other: 1, entries: [kept, { name: "日", value: 2 }] }]);
+        });
+
+        it("keeps stored strings within their byte limit", async () => {
+            using log = captureLog(LogLevel.WARN);
+            const store = createStore({ label: "éé", entries: [{ name: "日", value: 1 }] });
+            const ds = createLabeled(store);
+
+            await withReference(ds, ({ state }) => (state.other = 1));
+
+            expect(store.sets).deep.equals([{ other: 1 }]);
+            expect(log.messages).deep.equals([]);
+        });
+
+        it("shortens stored strings of a list whose constraint states the entry limit", async () => {
+            const store = createStore({ tags: ["ab", "ééé"] });
+            const ds = createLabeled(store);
+
+            expect([...ds.view.tags]).deep.equals(["ab", "éé"]);
+        });
+
+        it("shortens a stored list entry to the smaller of the list's and the entry type's limits", async () => {
+            const store = createStore({ codes: ["éé"], pins: ["éé"] });
+            const ds = createLabeled(store);
+
+            expect([...ds.view.codes]).deep.equals(["é"]);
+            expect([...ds.view.pins]).deep.equals(["é"]);
+        });
+
+        it("redacts a shortened string inside a secret list in the warning", async () => {
+            using log = captureLog(LogLevel.WARN);
+            const store = createStore({ secrets: ["ééé"] });
+            const ds = createLabeled(store);
+
+            expect([...ds.view.secrets]).deep.equals(["éé"]);
+            expect(log.messages.some(message => message.includes("(redacted) is now (redacted)"))).true;
+            expect(log.messages.some(message => message.includes("é"))).false;
+        });
+
+        it("keeps stored null values and list entries without the string", async () => {
+            using log = captureLog(LogLevel.WARN);
+            const store = createStore({ label: null, entries: [null, { value: 3 }] });
+            const ds = createLabeled(store);
+
+            expect(ds.view.label).equals(null);
+            expect(rawValuesOf(ds.view.entries!)).deep.equals([null, { value: 3 }]);
+
+            await withReference(ds, ({ state }) => (state.entries = null));
+            await withReference(ds, ({ state }) => (state.other = 1));
+
+            expect(store.sets).deep.equals([{ entries: null }, { other: 1 }]);
+            expect(log.messages).deep.equals([]);
+        });
+
+        it("keeps a stored string whose length has no numeric maximum", async () => {
+            const long = "日".repeat(100);
+            const store = createStore({ free: long });
+            const ds = createLabeled(store);
+
+            expect(ds.view.free).equals(long);
+
+            await withReference(ds, ({ state }) => (state.other = 1));
+
+            expect(store.sets).deep.equals([{ other: 1 }]);
+        });
+
+        it("shortens a string the migration moved", async () => {
+            const store = createStore({ legacyLabel: "ééé" });
+            const ds = createLabeled(store, values => {
+                values.label = values.legacyLabel;
+                delete values.legacyLabel;
+            });
+
+            expect(ds.view.label).equals("éé");
+
+            await withReference(ds, ({ state }) => (state.other = 1));
+
+            expect(store.sets).deep.equals([{ other: 1, label: "éé", legacyLabel: undefined }]);
+        });
+
+        it("does not shorten the stored strings of a mirror", async () => {
+            const store: Datasource.ExternallyMutableStore = {
+                initialValues: { label: "ééé" },
+                version: 1,
+                prepare: () => async () => {},
+                assertWritable: () => {},
+                async externalSet() {
+                    return {};
+                },
+                async forgetVersion() {},
+            };
+            const ds = createDatasource({
+                type: LabeledState,
+                supervisor: labeledSupervisor,
+                primaryKey: "id",
+                store,
+            });
+
+            expect(ds.view.label).equals("ééé");
+        });
+    });
+
     describe("store metadata", () => {
         class MirrorState {
             foo? = "bar";

@@ -30,6 +30,23 @@ import { Fabric } from "./Fabric.js";
 
 const logger = Logger.get("FabricManager");
 
+/**
+ * Shorten a stored fabric label that is longer than {@link Fabric.MAX_LABEL_BYTES} in UTF-8.
+ *
+ * Earlier versions limited the label in UTF-16 code units, so storage may hold a label that is now too long.  Returns
+ * the config unchanged or a copy with the shortened label.
+ */
+function shortenStoredLabel(config: Fabric.Config): Fabric.Config {
+    const label = Bytes.truncateUtf8(config.label, Fabric.MAX_LABEL_BYTES);
+    if (label === config.label) {
+        return config;
+    }
+    logger.warn(
+        `Shortened the stored label of fabric ${config.fabricIndex} to ${Fabric.MAX_LABEL_BYTES} bytes in UTF-8: "${config.label}" is now "${label}"`,
+    );
+    return { ...config, label };
+}
+
 /** Specific Error for when a fabric is not found. */
 export class FabricNotFoundError extends MatterError {}
 export class FabricTableFullError extends MatterError {}
@@ -65,12 +82,24 @@ export class FabricManager {
                     return;
                 }
 
-                const fabrics = await this.#storage.get<Fabric.Config[]>("fabrics", []);
+                const stored = await this.#storage.get<Fabric.Config[]>("fabrics", []);
+                const fabrics = stored.map(shortenStoredLabel);
                 for (const fabricConfig of fabrics) {
                     this.#addNewFabric(await Fabric.create(crypto, fabricConfig));
                 }
 
                 this.#nextFabricIndex = await this.#storage.get("nextFabricIndex", this.#nextFabricIndex);
+
+                if (fabrics.some((config, index) => config !== stored[index])) {
+                    try {
+                        await this.#storage.set("fabrics", fabrics);
+                    } catch (error) {
+                        logger.warn(
+                            "Could not store the shortened fabric labels, they are shortened again at the next start:",
+                            error,
+                        );
+                    }
+                }
 
                 this.#initializationDone = true;
             };

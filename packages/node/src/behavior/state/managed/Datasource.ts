@@ -5,19 +5,21 @@
  */
 
 import {
+    Bytes,
     deepCopy,
     Diagnostic,
     Entropy,
     ImplementationError,
     InternalError,
     isDeepEqual,
+    isObject,
     Lifetime,
     Logger,
     MaybePromise,
     Observable,
     Transaction,
 } from "@matter/general";
-import { AttributeModel, DataModelPath } from "@matter/model";
+import { AttributeModel, DataModelPath, Metatype, SecretRedaction, ValueModel } from "@matter/model";
 import { AccessControl, ExpiredReferenceError, hasRemoteActor, Val, ValidateError } from "@matter/protocol";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import type { Supervision } from "../../supervision/Supervision.js";
@@ -117,6 +119,104 @@ function reconcileStoredValues(
         }
         return { kept, discarded };
     }
+}
+
+/**
+ * Shorten stored strings that are longer than their constraint's maximum in UTF-8 bytes.
+ *
+ * Earlier versions counted string lengths in UTF-16 code units, so storage may hold a string that was valid then and is
+ * too long now.  Without this step the value fails validation after initialization and the behavior does not start.
+ * Only a numeric maximum is handled.  Strings within lists and structs are shortened as well.  The shortened values
+ * are stored with the next write of the datasource; until then each load shortens them again.
+ *
+ * Returns the stored values, with each changed top-level value copied, and the keys of the changed values.
+ */
+function shortenStoredStrings(supervisor: RootSupervisor, path: DataModelPath, stored: Val.Struct) {
+    /**
+     * @param listMax the entry limit a containing list states, such as the 32 of "max 10[max 32]"
+     * @param secretContainer a containing value the model marks as secret
+     */
+    const shorten = (
+        schema: ValueModel,
+        value: unknown,
+        location: DataModelPath,
+        listMax?: unknown,
+        secretContainer?: ValueModel,
+    ): unknown => {
+        secretContainer ??= schema.effectiveIsSecret ? schema : undefined;
+
+        switch (schema.effectiveMetatype) {
+            case Metatype.string: {
+                const limits = [schema.effectiveConstraint.max, listMax].filter(max => typeof max === "number");
+                if (typeof value !== "string" || !limits.length) {
+                    return value;
+                }
+                const max = Math.min(...limits);
+                const shortened = Bytes.truncateUtf8(value, max);
+                if (shortened !== value) {
+                    const redactWith = secretContainer ?? schema;
+                    logger.warn(
+                        `Shortened the stored value of ${location} to ${max} bytes in UTF-8:`,
+                        SecretRedaction.redact(redactWith, value),
+                        "is now",
+                        SecretRedaction.redact(redactWith, shortened),
+                    );
+                }
+                return shortened;
+            }
+
+            case Metatype.array: {
+                const entry = schema.listEntry;
+                if (!Array.isArray(value) || entry === undefined) {
+                    return value;
+                }
+                const listMax = schema.effectiveConstraint.entry?.max;
+                const entries = value.map((item, index) =>
+                    shorten(entry, item, location.at(index), listMax, secretContainer),
+                );
+                return entries.some((item, index) => item !== value[index]) ? entries : value;
+            }
+
+            case Metatype.object: {
+                if (!isObject(value)) {
+                    return value;
+                }
+                let result: Record<string, unknown> | undefined;
+                for (const member of supervisor.membersOf(schema)) {
+                    const key = member.propertyName;
+                    if (!(key in value)) {
+                        continue;
+                    }
+                    const shortened = shorten(member, value[key], location.at(key), undefined, secretContainer);
+                    if (shortened !== value[key]) {
+                        (result ??= { ...value })[key] = shortened;
+                    }
+                }
+                return result ?? value;
+            }
+
+            default:
+                return value;
+        }
+    };
+
+    let values = stored;
+    const changed = new Set<string>();
+    for (const member of supervisor.membersOf(supervisor.schema)) {
+        const key = member.propertyName;
+        if (!(key in stored)) {
+            continue;
+        }
+        const shortened = shorten(member, stored[key], path.at(key));
+        if (shortened !== stored[key]) {
+            if (values === stored) {
+                values = { ...stored };
+            }
+            values[key] = shortened;
+            changed.add(key);
+        }
+    }
+    return { values, changed };
 }
 
 // Once-per-act() guard for local sessions (frozen — can't set interactionStarted on the session).
@@ -551,6 +651,14 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         let storedValues = options.store?.initialValues;
         if (storedValues !== undefined && options.migrate !== undefined && !this.mirrorsRemote) {
             storedValues = this.#migrate(options.migrate, storedValues);
+        }
+
+        if (storedValues !== undefined && !this.mirrorsRemote) {
+            const { values, changed } = shortenStoredStrings(options.supervisor, options.location.path, storedValues);
+            storedValues = values;
+            for (const key of changed) {
+                (this.migratedStoreKeys ??= new Set()).add(key);
+            }
         }
 
         if (options.supervisor.featureMap.children.length) {

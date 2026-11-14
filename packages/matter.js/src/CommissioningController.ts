@@ -196,7 +196,7 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
 
     /**
      * The Fabric Label to set for the commissioned devices. The #label is used for users to identify the admin.
-     * The maximum length are 32 characters!
+     * The maximum length is 32 bytes in UTF-8.
      * The value will automatically be checked on connection to a node and updated if necessary.
      */
     readonly adminFabricLabel: string;

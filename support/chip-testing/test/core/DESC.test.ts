@@ -20,7 +20,7 @@ describe("DESC", () => {
         "DESC/2.2/run6",
         "DESC/2.2/run7",
         "DESC/2.2/run8",
-        // Runs for CHIP apps matter.js has no test subject for: evse, microwave-oven, network-management,
+        // Runs for CHIP apps matter.js has no test subject for: camera, evse, microwave-oven, network-management,
         // lighting-app-no-unique-id, electrical-protection
         "DESC/2.1/run10",
         "DESC/2.1/run12",
@@ -32,5 +32,8 @@ describe("DESC", () => {
         "DESC/2.2/run14",
         "DESC/2.2/run15",
         "DESC/2.2/run20",
+        "DESC/2.1/run21",
+        "DESC/2.2/run21",
+        "DESC/2.3/run3",
     );
 });
