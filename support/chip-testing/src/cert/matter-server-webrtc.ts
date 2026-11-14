@@ -43,9 +43,10 @@ export const WEBRTC_SIGNAL_REFUSED_LINE =
     /WebRtcTransportRequestorServer session refused signal=(?<kind>\w+) webRtcSessionId=(?<id>\d+) fabricIndex=\d+ peerNodeId=(?<peer>\d+) requestorEndpointId=(?<endpoint>\d+)/;
 
 /**
- * Matches the requestor's debug line for a session registered with it (`WebRtcTransportRequestorServer.upsertSession`),
- * which is when the requestor starts to accept the peer's signaling for it. The server runs matter.js at debug level;
- * the line reaches a server build only with a matter.js version that logs it.
+ * Matches the requestor's debug line for a session registered with it, logged once the change to its `currentSessions`
+ * commits, which is when the requestor starts to accept the peer's signaling for it. A changed registration logs it
+ * again. The server runs matter.js at debug level; the line reaches a server build only with a matter.js version that
+ * logs it.
  *
  * Provisional until verified against a live server log.
  */
@@ -53,10 +54,10 @@ export const WEBRTC_SESSION_REGISTERED_LINE =
     /WebRtcTransportRequestorServer session upserted webRtcSessionId=(?<id>\d+) fabricIndex=\d+ peerNodeId=(?<peer>\d+) peerEndpointId=\d+ requestorEndpointId=(?<endpoint>\d+)/;
 
 /**
- * Matches the requestor's debug line for a session dropped from it (`WebRtcTransportRequestorServer.removeSession`),
- * logged only where an entry was removed, whether the case, the server or the peer's `End` ended the session. The
- * requestor refuses the peer's signaling for it from then on. The server runs matter.js at debug level; the line
- * reaches a server build only with a matter.js version that logs it.
+ * Matches the requestor's debug line for a session dropped from it, logged once the change to its `currentSessions`
+ * commits, whether the case, the server or the peer's `End` ended the session or its fabric was removed. The requestor
+ * refuses the peer's signaling for it from then on. The server runs matter.js at debug level; the line reaches a server
+ * build only with a matter.js version that logs it.
  *
  * Provisional until verified against a live server log.
  */
@@ -170,8 +171,7 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
     readonly #held = new Map<string, WebRtcSessionRecord>();
     readonly #logWaits = new Set<LogWait>();
     readonly #listener: (event: string, data: unknown) => void;
-    readonly #stopped: Promise<undefined>;
-    #stop!: () => void;
+    #stopReading?: () => void;
     #clock = 0;
     #closed = false;
 
@@ -179,10 +179,6 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
         this.#host = host;
         this.#listener = (event, data) => this.#onEvent(event, data);
         host.events.on(this.#listener);
-
-        this.#stopped = new Promise<undefined>(resolve => {
-            this.#stop = () => resolve(undefined);
-        });
         this.#readLog(host.log.lines.length).catch(error =>
             logger.warn("Reading the server's log for WebRTC signaling stopped:", error),
         );
@@ -278,7 +274,9 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
 
     /**
      * Stops reading events and log. A pending {@link nextSignal} resolves `undefined`; a pending {@link solicitOffer},
-     * {@link provideOffer} or {@link endSession} throws {@link MatterServerWebRtcClosedError}.
+     * {@link provideOffer} or {@link endSession} throws {@link MatterServerWebRtcClosedError} once its command completed;
+     * a command already sent is not withdrawn. From then on every command method throws
+     * {@link MatterServerWebRtcClosedError} without sending its command.
      */
     close() {
         if (this.#closed) {
@@ -286,7 +284,7 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
         }
         this.#closed = true;
         this.#host.events.off(this.#listener);
-        this.#stop();
+        this.#stopReading?.();
         for (const wait of [...this.#logWaits]) {
             wait.abort();
         }
@@ -377,7 +375,11 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
         }
     }
 
+    /** @throws MatterServerWebRtcClosedError after {@link close}, so no command reaches the server */
     #addressed(peer: CertNodeRef): NodeId {
+        if (this.#closed) {
+            throw new MatterServerWebRtcClosedError("The WebRTC requestor was closed before the command");
+        }
         const nodeId = this.#host.nodeIdOf(peer);
         this.#peers.add(BigInt(nodeId));
         return nodeId;
@@ -412,8 +414,12 @@ export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
         const iterator = this.#host.log.follow()[Symbol.asyncIterator]();
         let index = 0;
         for (;;) {
-            const next = await Promise.race([iterator.next(), this.#stopped]);
-            if (next === undefined || next.done) {
+            const next = await new Promise<IteratorResult<string> | undefined>((resolve, reject) => {
+                this.#stopReading = () => resolve(undefined);
+                iterator.next().then(resolve, reject);
+            });
+            this.#stopReading = undefined;
+            if (next === undefined || next.done || this.#closed) {
                 return;
             }
             if (index++ >= start) {

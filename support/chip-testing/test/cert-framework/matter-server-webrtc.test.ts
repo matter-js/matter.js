@@ -318,6 +318,25 @@ describe("matterjs-server WebRTC requestor", () => {
         expect(error).instanceOf(MatterServerWebRtcClosedError);
     });
 
+    it("commands after close throw a closed error without reaching the server", async () => {
+        requestor.close();
+
+        for (const call of [
+            () => requestor.solicitOffer({ peer: PEER, endpoint: PEER_ENDPOINT, streamUsage: STREAM_USAGE }),
+            () => requestor.provideOffer({ peer: PEER, endpoint: PEER_ENDPOINT, streamUsage: STREAM_USAGE, sdp: "x" }),
+            () => requestor.provideAnswer(PEER, PEER_ENDPOINT, 7, "x"),
+            () =>
+                requestor.provideIceCandidates(PEER, PEER_ENDPOINT, 7, [
+                    { candidate: "c", sdpMid: null, sdpmLineIndex: null },
+                ]),
+            () => requestor.endSession(PEER, PEER_ENDPOINT, 7, 0),
+        ]) {
+            expect(await rejectionOf(call())).instanceOf(MatterServerWebRtcClosedError);
+        }
+        expect(server.requests.map(request => request.command)).not.contains("send_webrtc_provider_command");
+        expect(server.requests.map(request => request.command)).not.contains("device_command");
+    });
+
     it("nextSignal passes over a signal that does not match and resolves with the next that does", async () => {
         const waiting = requestor.nextSignal(each => each.kind === "answer", 2000);
         await pushCallback("offer", 3, { sdp: "x" });

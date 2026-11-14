@@ -17,6 +17,7 @@ import {
     LogDestination,
     Logger,
     LogLevel,
+    MatterError,
     MockCrypto,
     MockStorageService,
     Network,
@@ -29,6 +30,8 @@ import { WebRtcTransportDefinitions } from "@matter/types/clusters/web-rtc-trans
 import { WebRtcTransportRequestor } from "@matter/types/clusters/web-rtc-transport-requestor";
 
 type WebRtcSession = WebRtcTransportDefinitions.WebRtcSession;
+
+class RollbackError extends MatterError {}
 
 async function createTestNode() {
     MockTime.init();
@@ -118,7 +121,7 @@ describe("WebRtcTransportRequestorServer", () => {
             expect(sessions[0].streamUsage).to.equal(StreamUsage.Recording);
         });
 
-        it("logs the session it registered and the one it removed", async () => {
+        async function capturedDebugLines(work: () => Promise<void>) {
             const messages = new Array<string>();
             Logger.destinations.capture = LogDestination({
                 add(message: Diagnostic.Message) {
@@ -128,21 +131,85 @@ describe("WebRtcTransportRequestorServer", () => {
                 },
             });
             try {
-                await cameraEndpoint!.act(agent => {
-                    const server = agent.get(WebRtcTransportRequestorServer);
-                    server.upsertSession(makeSession({ id: 3 }));
-                    server.removeSession({ id: 3, fabricIndex: FabricIndex(1), peerNodeId: NodeId(42n) });
-                    server.removeSession({ id: 3, fabricIndex: FabricIndex(1), peerNodeId: NodeId(42n) });
-                });
+                await work();
             } finally {
                 delete Logger.destinations.capture;
             }
+            return messages;
+        }
 
-            const endpoint = cameraEndpoint!.number;
+        function sessionLine(change: "upserted" | "removed", id: number) {
+            return (
+                `session ${change} webRtcSessionId=${id} fabricIndex=1 peerNodeId=42 peerEndpointId=1 ` +
+                `requestorEndpointId=${cameraEndpoint!.number}`
+            );
+        }
+
+        it("logs the session it registered and the one it removed once each change commits", async () => {
+            const messages = await capturedDebugLines(async () => {
+                for (const id of [3, 4]) {
+                    await cameraEndpoint!.act(agent => {
+                        agent.get(WebRtcTransportRequestorServer).upsertSession(makeSession({ id }));
+                    });
+                }
+                await cameraEndpoint!.act(agent => {
+                    const server = agent.get(WebRtcTransportRequestorServer);
+                    server.removeSession({ id: 3, fabricIndex: FabricIndex(1), peerNodeId: NodeId(42n) });
+                    server.removeSession({ id: 3, fabricIndex: FabricIndex(1), peerNodeId: NodeId(42n) });
+                });
+            });
+
             expect(messages).deep.equals([
-                `session upserted webRtcSessionId=3 fabricIndex=1 peerNodeId=42 peerEndpointId=1 requestorEndpointId=${endpoint}`,
-                `session removed webRtcSessionId=3 fabricIndex=1 peerNodeId=42 peerEndpointId=1 requestorEndpointId=${endpoint}`,
+                sessionLine("upserted", 3),
+                sessionLine("upserted", 4),
+                sessionLine("removed", 3),
             ]);
+        });
+
+        it("logs a registered session again where its replacement changed it", async () => {
+            const messages = await capturedDebugLines(async () => {
+                for (const streamUsage of [StreamUsage.LiveView, StreamUsage.Recording, StreamUsage.Recording]) {
+                    await cameraEndpoint!.act(agent => {
+                        agent.get(WebRtcTransportRequestorServer).upsertSession(makeSession({ id: 3, streamUsage }));
+                    });
+                }
+            });
+
+            expect(messages).deep.equals([sessionLine("upserted", 3), sessionLine("upserted", 3)]);
+        });
+
+        it("logs no registration that rolled back", async () => {
+            const messages = await capturedDebugLines(async () => {
+                await expect(
+                    cameraEndpoint!.act(async agent => {
+                        agent.get(WebRtcTransportRequestorServer).upsertSession(makeSession({ id: 3 }));
+                        throw new RollbackError("rolled back");
+                    }),
+                ).rejectedWith("rolled back");
+            });
+
+            expect(messages).deep.equals([]);
+            expect(cameraEndpoint!.stateOf(WebRtcTransportRequestorServer).currentSessions).deep.equals([]);
+        });
+
+        it("logs no removal that rolled back", async () => {
+            await cameraEndpoint!.act(agent => {
+                agent.get(WebRtcTransportRequestorServer).upsertSession(makeSession({ id: 3 }));
+            });
+
+            const messages = await capturedDebugLines(async () => {
+                await expect(
+                    cameraEndpoint!.act(async agent => {
+                        agent
+                            .get(WebRtcTransportRequestorServer)
+                            .removeSession({ id: 3, fabricIndex: FabricIndex(1), peerNodeId: NodeId(42n) });
+                        throw new RollbackError("rolled back");
+                    }),
+                ).rejectedWith("rolled back");
+            });
+
+            expect(messages).deep.equals([]);
+            expect(cameraEndpoint!.stateOf(WebRtcTransportRequestorServer).currentSessions).lengthOf(1);
         });
 
         it("keeps sessions with the same id from different peer nodes", async () => {
