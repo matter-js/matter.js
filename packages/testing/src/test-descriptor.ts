@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { FilesystemSync } from "@nacho-iot/js-tools";
+import { globSync, type FilesystemSync } from "@nacho-iot/js-tools";
 import { readFile, writeFile } from "node:fs/promises";
 import { PicsExpression } from "./chip/pics/expression.js";
 import type { PicsFile } from "./chip/pics/file.js";
@@ -291,6 +291,22 @@ export namespace TestDescriptor {
         descriptor.members = newMembers;
 
         return descriptor;
+    }
+
+    /**
+     * Resolve glob patterns to the paths of the tests they name.
+     *
+     * A pattern without wildcards names a test whether CHIP runs it once or in several runs. For a test with several runs
+     * the result is the path of the test, which {@link filter} expands to every run. A name that matches no test
+     * resolves to no path.
+     */
+    export function glob(patterns: string | string[], fs: Filesystem) {
+        const paths = new Array<string>();
+        for (const pattern of typeof patterns === "string" ? [patterns] : patterns) {
+            const matches = globSync(pattern, fs);
+            paths.push(...(matches.length || pattern.endsWith("/") ? matches : globSync(`${pattern}/`, fs)));
+        }
+        return paths;
     }
 
     /**

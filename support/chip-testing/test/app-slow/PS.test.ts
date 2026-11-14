@@ -21,12 +21,13 @@ describe("PS", () => {
         "PS/3.1/run6",
         "PS/3.1/run7",
         "PS/3.1/run8",
-        // Runs for CHIP apps matter.js has no test subject for: electrical-protection, evse, lighting-app-no-unique-id, microwave-oven, network-management
+        // Runs for CHIP apps matter.js has no test subject for: camera, electrical-protection, evse, lighting-app-no-unique-id, microwave-oven, network-management
         "PS/3.1/run10",
         "PS/3.1/run12",
         "PS/3.1/run14",
         "PS/3.1/run15",
         "PS/3.1/run20",
+        "PS/3.1/run21",
     );
 
     // A python test with a single run does not select its app, so this names the all-devices power-source subject
