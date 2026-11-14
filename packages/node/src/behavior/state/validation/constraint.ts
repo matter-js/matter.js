@@ -5,7 +5,7 @@
  */
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
-import { camelize, InternalError } from "@matter/general";
+import { Bytes, camelize, InternalError } from "@matter/general";
 import { Constraint, EncodedConstraint, FeatureMap, FieldValue, Metatype, ValueModel } from "@matter/model";
 import { ConstraintError, Val } from "@matter/protocol";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
@@ -203,12 +203,12 @@ function create(
         case Metatype.string: {
             const validateLength: ValueSupervisor.Validate = (value: Val, _session, location) => {
                 assertSequence(value, location);
-                const length = typeof value === "string" ? value.length : value.byteLength;
+                const length = typeof value === "string" ? Bytes.utf8Length(value) : value.byteLength;
                 if (!constraint.test(length, nameResolverFactory(location))) {
                     throw new ConstraintError(
                         schema,
                         location,
-                        `String length of ${length} is not within bounds defined by constraint`,
+                        `String length of ${length} bytes is not within bounds defined by constraint`,
                         stated,
                     );
                 }

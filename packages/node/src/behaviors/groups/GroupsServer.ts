@@ -9,7 +9,7 @@ import { IdentifyBehavior } from "#behaviors/identify";
 import { ScenesManagementServer } from "#behaviors/scenes-management";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { RootEndpoint } from "#endpoints/root";
-import { InternalError, Logger } from "@matter/general";
+import { Bytes, InternalError, Logger } from "@matter/general";
 import { assertRemoteActor, Fabric } from "@matter/protocol";
 import { FabricIndex, Status, StatusResponseError } from "@matter/types";
 import { Groups } from "@matter/types/clusters/groups";
@@ -98,7 +98,7 @@ export class GroupsServer extends GroupsBase {
         if (groupId < 1) {
             return { status: Status.ConstraintError, groupId };
         }
-        if (groupName.length > 16) {
+        if (Bytes.utf8Length(groupName) > 16) {
             return { status: Status.ConstraintError, groupId };
         }
 

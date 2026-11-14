@@ -6,6 +6,7 @@
 
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
 import {
+    Bytes,
     Duration,
     Environment,
     Filesystem,
@@ -323,7 +324,15 @@ export class MatterNode {
             });
 
             if (await this.Store.has("ControllerFabricLabel")) {
-                await this.#fabric.setLabel(await this.Store.get<string>("ControllerFabricLabel", ADMIN_FABRIC_LABEL));
+                const storedLabel = await this.Store.get<string>("ControllerFabricLabel", ADMIN_FABRIC_LABEL);
+                const label = Bytes.truncateUtf8(storedLabel, Fabric.MAX_LABEL_BYTES);
+                if (label !== storedLabel) {
+                    logger.warn(
+                        `Shortened the stored controller fabric label to ${Fabric.MAX_LABEL_BYTES} bytes in UTF-8: "${storedLabel}" is now "${label}"`,
+                    );
+                    await this.Store.set("ControllerFabricLabel", label);
+                }
+                await this.#fabric.setLabel(label);
             }
 
             this.#observers = this.#observers ?? new ObserverGroup(this.#environment.runtime);

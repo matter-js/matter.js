@@ -8,7 +8,16 @@ import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ClusterEvents } from "#behavior/cluster/ClusterEvents.js";
 import { Events } from "#behavior/Events.js";
 import { Supervision } from "#behavior/supervision/Supervision.js";
-import { BasicSet, deepCopy, InternalError, Logger, MaybePromise, ObserverGroup, serialize } from "@matter/general";
+import {
+    BasicSet,
+    Bytes,
+    deepCopy,
+    InternalError,
+    Logger,
+    MaybePromise,
+    ObserverGroup,
+    serialize,
+} from "@matter/general";
 import {
     any,
     bool,
@@ -280,7 +289,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         transitionTime,
         extensionFieldSetStructs,
     }: ScenesManagement.AddSceneRequest): ScenesManagement.AddSceneResponse {
-        if (sceneId > 254 || transitionTime > 60000000) {
+        if (sceneId > 254 || transitionTime > 60000000 || Bytes.utf8Length(sceneName) > 16) {
             return constraintErrorWithSceneId(reqGroupId, sceneId);
         }
 

@@ -252,6 +252,16 @@ describe("UserLabelServer", () => {
             });
         }
 
+        it("rejects a label of 9 two-byte characters, which is 18 bytes", async () => {
+            await using site = new MockSite();
+            const { write, stored } = await labelDevice(site);
+
+            await write(replaceAll([{ label: "keep", value: "me" }]));
+            const statuses = await write(rawWrite(replaceAllWith([{ label: "é".repeat(9), value: "v" }])));
+            expect(statuses.map(({ status }) => status)).deep.equals([Status.ConstraintError]);
+            expect(stored()).deep.equals([{ label: "keep", value: "me" }]);
+        });
+
         // Characterization of a difference from CHIP, which decodes a LabelStruct without Value as empty and accepts it.
         // Spec 9.7.4.1 makes Value mandatory (M), so matter.js refuses it.
         it("rejects an entry without value in a REPLACE_ALL", async () => {

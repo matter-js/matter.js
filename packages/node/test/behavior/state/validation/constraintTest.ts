@@ -547,8 +547,23 @@ const AllTests = Tests({
             error: {
                 type: ConstraintError,
                 message:
-                    'Validating Test.test: Constraint "max 2": String length of 3 is not within bounds defined by constraint',
+                    'Validating Test.test: Constraint "max 2": String length of 3 bytes is not within bounds defined by constraint',
             },
+        },
+
+        "rejects if over in UTF-8 bytes": {
+            record: { test: "éa" },
+            error: {
+                type: ConstraintError,
+                message:
+                    'Validating Test.test: Constraint "max 2": String length of 3 bytes is not within bounds defined by constraint',
+            },
+        },
+    }),
+
+    "string minimum length": Tests(Fields({ type: "string", constraint: "min 3" }), {
+        "accepts multi-byte characters that reach the minimum in bytes": {
+            record: { test: "éa" },
         },
     }),
 
