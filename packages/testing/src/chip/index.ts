@@ -141,9 +141,9 @@ export type {
     SubscribeOptions,
     TimedInteractionOptions,
     WebRtcIceCandidate,
+    WebRtcOfferRequest,
     WebRtcRequestorApi,
     WebRtcSessionRecord,
-    WebRtcSessionSpec,
     WebRtcSignalRecord,
 } from "./cert/controller-adapter.js";
 export { CertConfigError, resolveControllerImplementation, resolveDeviceFlavor } from "./cert/device-config.js";

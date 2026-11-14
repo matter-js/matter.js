@@ -1377,9 +1377,13 @@ export interface ControllerAdapterOptions {
      * signaling needs: a provider answers a solicited offer by invoking `Offer` back on the
      * controller, and a controller with no requestor cluster has nowhere for that command to land.
      *
-     * Off by default. The cluster accepts signaling only for sessions the case registered through
-     * {@link WebRtcRequestorApi.upsertSession}, so a controller that hosts it still refuses everything
-     * until a case says otherwise.
+     * Off by default. The cluster accepts signaling only for sessions the controller established
+     * through {@link WebRtcRequestorApi}, so a controller that hosts it still refuses everything until
+     * a case establishes one.
+     *
+     * Implies the transport the requestor's signaling needs: every WebRTC signaling command has the
+     * Large Message quality, which requires a TCP session. A case does not also ask for
+     * {@link ControllerAdapterOptions.transport}.
      *
      * @see {@link MatterSpecification.v161.Device} § 16.8
      */
@@ -1471,27 +1475,21 @@ export interface AttestationApi {
 }
 
 /**
- * A WebRTC session as the requestor cluster tracks it. A session's id is minted by the provider, so a
- * case learns it from the provider's own `SolicitOffer`/`ProvideOffer` response and registers it here
- * before the provider signals against it.
+ * A new session a case asks the provider for, with `SolicitOffer` or `ProvideOffer`.
  *
- * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.5
+ * @see {@link MatterSpecification.v161.Cluster} § 11.5.6.1
+ * @see {@link MatterSpecification.v161.Cluster} § 11.5.6.3
  */
-export interface WebRtcSessionSpec {
-    id: number;
-
+export interface WebRtcOfferRequest {
     /** The provider, as {@link ControllerAdapter.commission} named it. */
     peer: CertNodeRef;
 
-    /** The endpoint of the provider cluster the session was solicited from. */
-    peerEndpointId: number;
+    /** Provider endpoint. */
+    endpoint: number;
 
     streamUsage: number;
     videoStreamId?: number | null;
     audioStreamId?: number | null;
-
-    /** Defaults to false, which is what a session carrying no metadata stream states. */
-    metadataEnabled?: boolean;
 }
 
 /** A session the requestor cluster tracks, as it holds it. */
@@ -1548,13 +1546,58 @@ export interface WebRtcRequestorApi {
     readonly endpoint: number;
 
     /**
-     * Registers a session the case has established with a provider, so the provider's later signaling
-     * for that id is accepted. Re-registering an id for the same peer replaces the entry.
+     * Sends `SolicitOffer` and resolves with the session id the provider minted, once the requestor
+     * holds that session.
+     *
+     * The provider's signaling for the new session can arrive before its response is processed: chip's
+     * camera app schedules its `Offer` to run right after it handles `SolicitOffer`. An implementation
+     * must accept that signaling. Where it cannot establish which id the provider minted, it throws a harness error,
+     * not a verdict about the controller, and holds no session for that solicitation.
+     *
+     * @see {@link MatterSpecification.v161.Cluster} § 11.5.6.1
      */
-    upsertSession(session: WebRtcSessionSpec): Promise<void>;
+    solicitOffer(request: WebRtcOfferRequest): Promise<number>;
 
-    /** Stops tracking the session with this id held with `peer`. No-op where there is none. */
-    removeSession(peer: CertNodeRef, id: number): Promise<void>;
+    /**
+     * Sends `ProvideOffer` for a new session. Same contract as {@link solicitOffer}: the provider may
+     * send its `Answer` before the response arrives.
+     *
+     * @see {@link MatterSpecification.v161.Cluster} § 11.5.6.3
+     */
+    provideOffer(request: WebRtcOfferRequest & { sdp: string }): Promise<number>;
+
+    /**
+     * Sends `ProvideAnswer` for session `id` to the provider at `peer`/`endpoint`.
+     *
+     * @see {@link MatterSpecification.v161.Cluster} § 11.5.6.5
+     */
+    provideAnswer(peer: CertNodeRef, endpoint: number, id: number, sdp: string): Promise<void>;
+
+    /**
+     * Sends `ProvideICECandidates` for session `id` to the provider at `peer`/`endpoint`.
+     *
+     * @see {@link MatterSpecification.v161.Cluster} § 11.5.6.6
+     */
+    provideIceCandidates(
+        peer: CertNodeRef,
+        endpoint: number,
+        id: number,
+        candidates: readonly WebRtcIceCandidate[],
+    ): Promise<void>;
+
+    /**
+     * Sends `EndSession` to the provider, and resolves once the requestor no longer holds the session.
+     *
+     * The requestor cluster drops a session by itself only when the peer ends it, so the controller
+     * has to remove it: the in-process adapter removes it after the command; matterjs-server removes
+     * it while it handles the command, and its adapter waits for the server's log to show that.
+     *
+     * Throws where the command fails, and on matterjs-server also where the removal does not show
+     * within the log wait. In both cases the requestor may still hold the session.
+     *
+     * @see {@link MatterSpecification.v161.Cluster} § 11.5.6.7
+     */
+    endSession(peer: CertNodeRef, endpoint: number, id: number, reason: number): Promise<void>;
 
     /** The sessions the cluster tracks, which is what a refusal was judged against. */
     sessions(): Promise<readonly WebRtcSessionRecord[]>;
@@ -1564,7 +1607,7 @@ export interface WebRtcRequestorApi {
 
     /**
      * Resolves with the first signal matching `predicate`, or `undefined` where none arrives within
-     * `timeoutMs`. Signals already recorded are matched too, so a case that registers a session and
+     * `timeoutMs`. Signals already recorded are matched too, so a case that establishes a session and
      * then waits does not race the provider.
      */
     nextSignal(

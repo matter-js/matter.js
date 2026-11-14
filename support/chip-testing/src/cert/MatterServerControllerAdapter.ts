@@ -99,6 +99,7 @@ import {
 import { findCertCluster } from "./custom-clusters.js";
 import { MatterServerIcdClient } from "./matter-server-icd-client.js";
 import { MatterServerOtaError, serveOtaUpdateThroughServer } from "./matter-server-ota.js";
+import { cameraControllerEndpointOf, MatterServerWebRtcRequestor } from "./matter-server-webrtc.js";
 import { assertSingleQrPayload, OnboardingPayloadRefusedError } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
@@ -161,7 +162,10 @@ export const MATTERJS_SERVER_CAPABILITY_GAPS = {
         "Matter model",
     "batch-arrival-order":
         "batched_device_commands answers in request order, so the order the device's answers arrived in is not visible",
-    "webrtc-requestor": "the WebSocket API does not expose the server's requestor cluster to a case",
+    "webrtc-requestor":
+        "the server refuses a camera's Offer or Answer that arrives before it has processed the SolicitOffer or " +
+        "ProvideOffer response, and a CHIP camera can send it that early; this case runs once the server accepts " +
+        "that early signaling",
     "noc-update":
         "the WebSocket API has no command that replaces a node's operational certificate, and a device_command " +
         "UpdateNOC cannot stand in: the NOC must be issued by the server's certificate authority, which the API " +
@@ -341,6 +345,8 @@ export class MatterServerControllerAdapter implements ControllerAdapter {
     readonly #invokeQueues = new Map<string, Mutex>();
     readonly #autoSubscriptions = new AutoSubscriptions(() => this.#started.client);
     readonly #sustainSubscriptions: boolean;
+    readonly #hostsWebRtcRequestor: boolean;
+    #webRtcRequestor?: MatterServerWebRtcRequestor;
     readonly #icdClients = new Map<string, MatterServerIcdClient>();
     #listening?: Promise<void>;
     readonly #closing = new AbortController();
@@ -357,6 +363,7 @@ export class MatterServerControllerAdapter implements ControllerAdapter {
         this.id = id;
         this.#launch = launch;
         this.#sustainSubscriptions = options?.sustainedSubscription === true;
+        this.#hostsWebRtcRequestor = options?.webRtcRequestor === true;
         validateControllerGroups(id, options?.groups);
         this.#groups = options?.groups;
         const revocationSet = declaredRevocationSet(id, options);
@@ -416,6 +423,17 @@ export class MatterServerControllerAdapter implements ControllerAdapter {
         }
         this.#connection = connection;
         this.#subscriptions = new MatterServerSubscriptions(connection.client);
+
+        if (this.#hostsWebRtcRequestor) {
+            const { client, log } = connection;
+            this.#webRtcRequestor = new MatterServerWebRtcRequestor({
+                command: (command, args) => client.command(command, args),
+                events: client.events,
+                log,
+                nodeIdOf: ref => NodeId(BigInt(ref)),
+                endpoint: await cameraControllerEndpointOf(log),
+            });
+        }
     }
 
     /** Also stops a server still starting, before it resolves. */
@@ -427,11 +445,17 @@ export class MatterServerControllerAdapter implements ControllerAdapter {
         const subscriptions = this.#subscriptions;
         this.#connection = undefined;
         this.#subscriptions = undefined;
+        this.#webRtcRequestor?.close();
+        this.#webRtcRequestor = undefined;
         try {
             await subscriptions?.closeAll();
         } finally {
             await connection?.close();
         }
+    }
+
+    get webRtcRequestor(): MatterServerWebRtcRequestor | undefined {
+        return this.#webRtcRequestor;
     }
 
     get #started() {
