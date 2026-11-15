@@ -116,8 +116,12 @@ export class StoreLifecycle {
      * End the store without clearing its storage.  {@link finish} runs once the running writes ended.
      */
     async close(finish?: () => Promise<void>) {
-        if (this.#state === "active") {
-            return this.#end("closing", "closed", finish);
+        switch (this.#state) {
+            case "active":
+                return this.#end("closing", "closed", finish);
+
+            case "closing":
+                return this.#ending;
         }
         await this.#ended();
     }

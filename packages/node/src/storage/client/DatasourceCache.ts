@@ -331,7 +331,11 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
         if (eraseStored === undefined) {
             return;
         }
-        await (this.#buffer?.clear(eraseStored) ?? eraseStored());
+        if (this.#buffer === undefined) {
+            await eraseStored();
+        } else {
+            await this.#buffer.clear(eraseStored);
+        }
     }
 
     /**

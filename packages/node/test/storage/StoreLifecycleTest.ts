@@ -53,6 +53,18 @@ describe("StoreLifecycle", () => {
         await expect(second).rejectedWith("Wipe refused for test");
     });
 
+    it("rejects a close that joins a failing close with its failure", async () => {
+        const lifecycle = new StoreLifecycle(store);
+        const finish = createPromise<void>();
+        const closing = lifecycle.close(() => finish.promise);
+        const joining = lifecycle.close();
+
+        finish.rejecter(new ImplementationError("Close refused for test"));
+
+        await expect(closing).rejectedWith(ImplementationError, /refused for test/);
+        await expect(joining).rejectedWith(ImplementationError, /refused for test/);
+    });
+
     it("resolves a close that waits for a failing erase", async () => {
         const lifecycle = new StoreLifecycle(store);
         const wipe = createPromise<void>();

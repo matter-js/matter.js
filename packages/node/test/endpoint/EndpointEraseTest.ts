@@ -604,6 +604,22 @@ describe("Endpoint.erase", () => {
         await closing;
     });
 
+    it("refuses to add a part below an endpoint whose close was requested and names that endpoint", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+        const light = await aggregator.add(OnOffLightDevice, { id: "light" });
+        const gate = createPromise<void>();
+        const blocked = node.lifecycle.treeMutex.hold("blocking for test", () => gate.promise);
+        const closing = aggregator.close();
+
+        expect(() => light.parts.add(new Endpoint(OnOffLightDevice, { id: "late" }))).throws(
+            DestroyedDependencyError,
+            /aggregator.*closing/,
+        );
+        gate.resolver();
+        await Promise.all([blocked, closing]);
+    });
+
     it("refuses to add a node as a part", async () => {
         await using node = await MockServerNode.createOnline(undefined, { device: undefined });
         const other = new MockServerNode();

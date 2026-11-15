@@ -5,7 +5,7 @@
  */
 
 import type { Datasource } from "#behavior/state/managed/Datasource.js";
-import { MaybePromise, StorageContext, StorageDriver, StorageError, SupportedStorageTypes } from "@matter/general";
+import { MaybePromise, StorageContext, StorageDriver, SupportedStorageTypes } from "@matter/general";
 import { Val } from "@matter/protocol";
 import { namingStoreFailure, StoreLifecycle } from "./StoreLifecycle.js";
 
@@ -167,8 +167,8 @@ export class EndpointStore {
     /**
      * Remove all persisted information for the {@link Endpoint} and forget the values loaded from it.  Waits for the
      * writes that are running.  The store is erased afterwards, also if clearing the storage fails; a later erase or
-     * close behaves as {@link StoreLifecycle} describes.  A failure to clear the storage rejects with a
-     * {@link StorageError} that names the store.
+     * close behaves as {@link StoreLifecycle} describes.  A failure to clear the storage rejects with a `StorageError`
+     * that names the store.
      */
     async erase() {
         await this.#lifecycle.erase(async () => {

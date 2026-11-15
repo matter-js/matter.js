@@ -112,7 +112,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `ClientNode.act()` on an inactive node waits for a lifecycle verb in progress instead of restarting the node
     - Adjustment: `ClientGroup.erase()` drops the cached data of its endpoints instead of erasing its whole store
     - Adjustment: `Parts.add()` of a node throws `ImplementationError` instead of `IdentityConflictError`
-    - Adjustment: `Parts.add()` to an endpoint whose close or delete was requested throws `DestroyedDependencyError`
+    - Adjustment: `Parts.add()` throws `DestroyedDependencyError` once a close or delete of the endpoint or of an ancestor in the same node was requested
     - Adjustment: `Peers.get(address)` also returns a node whose close or delete was requested, or that crashed
     - Adjustment: `DatasourceCache` persists only through a `ClientCacheBuffer` and applies values in memory before it persists them; `forgetVersion()` rejects when that persist fails
     - Adjustment: `MockSite` enables `MockTime` when it is created

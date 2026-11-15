@@ -56,10 +56,11 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
                 `Cannot add ${endpoint} to ${this.#endpoint} because a node cannot be a part`,
             );
         }
-        if (this.#endpoint.lifecycle.isTerminal) {
+        const cause = this.#endpoint.lifecycle.terminalCause;
+        if (cause !== undefined) {
             throw new DestroyedDependencyError(
-                `${this.#endpoint}`,
-                `is closing, closed, being deleted or deleted, so ${endpoint} cannot be added`,
+                `${cause}`,
+                `is closing, closed, being deleted or deleted, so ${endpoint} cannot be added to ${this.#endpoint}`,
             );
         }
 
