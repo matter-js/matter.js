@@ -94,6 +94,7 @@ export class FabricOperationInProgressError extends CommissioningError {}
 export class Peers extends EndpointContainer<ClientNode> {
     #expirationInterval?: CancelablePromise;
     #installedSubscriptionHandler?: ClientSubscriptionHandler;
+    /** Level 3 of the lock order in `LifecycleMutex`. */
     #mutex = new Mutex(this);
     #closed = false;
     #fabricOperations = new Map<ClientNode, { operation: FabricOperation; settled: Promise<void> }>();
@@ -196,6 +197,7 @@ export class Peers extends EndpointContainer<ClientNode> {
             try {
                 await peer.applyIntent();
             } catch (e) {
+                MatterError.accept(e);
                 logger.warn(`Error taking peer ${peer} offline:`, e);
             }
         }
@@ -277,7 +279,9 @@ export class Peers extends EndpointContainer<ClientNode> {
         // hand-off or a retry — would resolve to the live peer and could delete it. Must check before forAddress()
         // since that call sets peerAddress, which flips lifecycle.isCommissioned true immediately.
         const existing = this.get(address);
-        if (existing?.lifecycle.isCommissioned) {
+
+        // A peer whose close or delete was requested is refused by runCommissioning() as gone
+        if (existing?.lifecycle.isCommissioned && !existing.lifecycle.isTerminal) {
             throw new ImplementationError(`${existing} is already commissioned`);
         }
 
@@ -429,8 +433,11 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     /**
-     * Look up a peer by numeric/string id or {@link PeerAddress}. A {@link PeerAddress} matches the commissioned
-     * peer whose {@link CommissioningClient} peer address equals it; otherwise the container's id lookup is used.
+     * Look up a peer by numeric/string id or {@link PeerAddress}. A {@link PeerAddress} matches the peer whose
+     * `ClientNode.peerAddress` equals it until the peer is destroyed and leaves the peers, whatever state its behaviors
+     * are in, so {@link forAddress} never adds a second node for one address.  A peer whose close or delete was
+     * requested still matches; a call on it rejects with `DestroyedDependencyError`.  Otherwise the container's id
+     * lookup is used.
      *
      * Look up by {@link PeerAddress} for anything held while a peer is commissioned: a local id may be reissued to a
      * different device once the peer it named is gone, so the same string can resolve to a peer that never saw the
@@ -442,11 +449,9 @@ export class Peers extends EndpointContainer<ClientNode> {
         if (typeof id !== "string" && typeof id !== "number") {
             const address = PeerAddress(id);
             for (const node of this) {
-                if (node.behaviors.active.some(behavior => behavior.id === "commissioning")) {
-                    const nodeAddress = node.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined;
-                    if (nodeAddress !== undefined && PeerAddress.is(nodeAddress, address)) {
-                        return node;
-                    }
+                const nodeAddress = node.peerAddress;
+                if (nodeAddress !== undefined && PeerAddress.is(nodeAddress, address)) {
+                    return node;
                 }
             }
             return undefined;

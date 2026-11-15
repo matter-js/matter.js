@@ -65,6 +65,9 @@ import {
     ImplementationError,
     InternalError,
     Lifecycle,
+    LogDestination,
+    Logger,
+    LogLevel,
     MatterAggregateError,
     MaybePromise,
     MemoryStorageDriver,
@@ -1925,17 +1928,283 @@ describe("ClientNode", () => {
         await MockTime.resolve(peer1.disable());
         const store = peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
         const eraseCaches = store.eraseCaches.bind(store);
-        let acting: Promise<Lifecycle.Status> | undefined;
+        let acting: Promise<{ status?: Lifecycle.Status; error?: unknown }> | undefined;
         using _eraseCaches = removedOnDispose(store, "eraseCaches");
         store.eraseCaches = async () => {
-            acting = Promise.resolve(peer1.act(() => peer1.construction.status));
+            acting = Promise.resolve(peer1.act(() => peer1.construction.status)).then(
+                status => ({ status }),
+                (error: unknown) => ({ error }),
+            );
             await eraseCaches();
         };
 
         await MockTime.resolve(peer1.erase());
 
-        expect(await MockTime.resolve(acting!)).equals(Lifecycle.Status.Active);
+        expect(await MockTime.resolve(acting!)).deep.equals({ status: Lifecycle.Status.Active });
         expect(peer1.construction.status).equals(Lifecycle.Status.Active);
+    });
+
+    it("finishes an erase whose new store failed to load on start() and keeps its commissioning", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const address = peer1.peerAddress!;
+        const driver = controller.env.get(StorageManager).driver;
+        const has = driver.has.bind(driver);
+        const store = peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
+        const eraseCaches = store.eraseCaches.bind(store);
+        using _eraseCaches = removedOnDispose(store, "eraseCaches");
+        store.eraseCaches = async () => {
+            await eraseCaches();
+            driver.has = () => {
+                driver.has = has;
+                throw new StorageError("Load refused for test");
+            };
+        };
+        await expect(MockTime.resolve(peer1.erase())).rejectedWith(MatterAggregateError);
+        expect(peer1.construction.status).equals(Lifecycle.Status.Crashed);
+
+        await MockTime.resolve(peer1.start(), { macrotasks: true });
+
+        expect(peer1.lifecycle.isCommissioned).equals(true);
+        expect(peer1.peerAddress).deep.equals(address);
+        expect(peer1.lifecycle.isOnline).equals(true);
+    });
+
+    it("finds the peer by its address while it is erased, so forAddress() adds no second node", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const address = peer1.peerAddress!;
+        const store = peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
+        const eraseCaches = store.eraseCaches.bind(store);
+        let found: ClientNode | undefined;
+        let added: Promise<ClientNode> | undefined;
+        using _eraseCaches = removedOnDispose(store, "eraseCaches");
+        store.eraseCaches = async () => {
+            found = controller.peers.get(address);
+            added = controller.peers.forAddress(address);
+            await eraseCaches();
+        };
+
+        await MockTime.resolve(peer1.erase());
+
+        expect(found).equals(peer1);
+        expect(await MockTime.resolve(added!)).equals(peer1);
+        expect([...controller.peers].length).equals(1);
+    });
+
+    it("stays disabled when a disable() fails while the peer has no store", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await MockTime.resolve(peer1.disable());
+        const stores = peer1.env.get(ServerNodeStore).clientStores;
+        using _storeOf = removedOnDispose(stores, "storeOf");
+        stores.storeOf = () => undefined;
+
+        await expect(MockTime.resolve(peer1.disable())).rejectedWith(StoreClosedError);
+
+        expect(peer1.isDisabled).equals(true);
+    });
+
+    it("stays disabled when a disable() after a restart fails while the peer has no store", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        await MockTime.resolve((await subscribedPeer(controller, "peer1")).disable(), { macrotasks: true });
+        const { id } = controller;
+        await MockTime.resolve(controller.close(), { macrotasks: true });
+        const rebooted = await site.addNode(undefined, {
+            id,
+            device: undefined,
+            commissioning: { enabled: false },
+            online: false,
+        });
+        const peer1 = rebooted.peers.get("peer1")!;
+        expect(peer1.isDisabled).equals(true);
+        const stores = rebooted.env.get(ServerNodeStore).clientStores;
+        using _storeOf = removedOnDispose(stores, "storeOf");
+        stores.storeOf = () => undefined;
+
+        await expect(MockTime.resolve(peer1.disable())).rejectedWith(StoreClosedError);
+
+        expect(peer1.isDisabled).equals(true);
+    });
+
+    it("does not start its server node and so reverse a stop of the server node that is in progress", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await MockTime.resolve(peer1.stop());
+
+        const stopping = controller.stop();
+        const starting = peer1.start();
+
+        // The start may run before the server node goes offline or reject after it; either way the stop applies
+        await MockTime.resolve(Promise.allSettled([stopping, starting]), { macrotasks: true });
+        await stopping;
+        expect(controller.lifecycle.intent.target).equals("offline");
+        expect(controller.lifecycle.isOnline).equals(false);
+    });
+
+    it("rejects the start of a disabled peer at once while another call holds the peer", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await MockTime.resolve(peer1.disable());
+        const { blocking, release } = await blockMutexOf(peer1);
+
+        let rejection: unknown;
+        const starting = peer1.start().catch(e => {
+            rejection = e;
+        });
+        await MockTime.yield();
+        await MockTime.yield();
+
+        expect(rejection).instanceOf(NodeDisabledError);
+        release();
+        await MockTime.resolve(blocking);
+        await starting;
+    });
+
+    it("erases the storage of a closed peer once, so a later store with its ID survives a repeated removal", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const { id } = peer1;
+        await MockTime.resolve(peer1.close());
+        await MockTime.resolve(peer1.deleteDespiteServerTeardown());
+        const stores = controller.env.get(ServerNodeStore).clientStores;
+        const later = stores.storeForNode(id);
+        await later.construction.ready;
+        await later.recordNodeDisabled(true);
+
+        await MockTime.resolve(peer1.deleteDespiteServerTeardown());
+
+        expect(stores.storeOf(id)).equals(later);
+        expect(site.storageFor(controller)[`nodes.${id}.settings`]).deep.equals({ isDisabled: true });
+    });
+
+    it("does not take the close of its server node as the close of an endpoint of the peer", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const ep1 = peer1.parts.get("ep1")!;
+
+        const closing = controller.close();
+
+        expect(peer1.lifecycle.terminalCause).equals(controller);
+        expect(ep1.lifecycle.terminalCause).equals(undefined);
+        await MockTime.resolve(closing, { macrotasks: true });
+    });
+
+    it("rejects a decommission of a deleted peer with DestroyedDependencyError", async () => {
+        const { site, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        await MockTime.resolve(peer1.delete());
+
+        await expect(peer1.decommission()).rejectedWith(DestroyedDependencyError);
+    });
+
+    it("lists the failures of a delete and of its finish at one level", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const stores = controller.env.get(ServerNodeStore).clientStores;
+        using _eraseStore = removedOnDispose(stores, "eraseStore");
+        stores.eraseStore = async () => {
+            throw new ImplementationError("Store erase refused for test");
+        };
+        const protocolPeer = controller.env.get(PeerSet).get(peer1.peerAddress!)!;
+        using _delete = removedOnDispose(protocolPeer, "delete");
+        protocolPeer.delete = async () => {
+            throw new ImplementationError("Peer removal refused for test");
+        };
+
+        const error = await MockTime.resolve(peer1.delete()).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        if (!(error instanceof MatterAggregateError)) {
+            expect.fail(`Expected a MatterAggregateError, got ${error}`);
+        }
+        expect(error.errors.map(e => (e instanceof Error ? e.message : String(e)))).deep.equals([
+            "Store erase refused for test",
+            "Peer removal refused for test",
+        ]);
+    });
+
+    it("stays offline after an erase when its start failed as its server node came online", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        const startup = NetworkClient.prototype.startup;
+        NetworkClient.prototype.startup = async () => {
+            throw new ImplementationError("Startup refused for test");
+        };
+        try {
+            await MockTime.resolve(controller.start(), { macrotasks: true });
+            await MockTime.resolve(
+                peer1.lifecycle.mutex.hold("settle", async () => {}),
+                { macrotasks: true },
+            );
+        } finally {
+            NetworkClient.prototype.startup = startup;
+        }
+        expect(peer1.lifecycle.intent.target).equals("online");
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+
+        await MockTime.resolve(peer1.erase(), { macrotasks: true });
+
+        expect(peer1.behaviors.internalsOf(NetworkClient).runtime).undefined;
+    });
+
+    it("logs no warning when a peer fails to start because it closes as its server node goes online", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(controller.stop(), { macrotasks: true });
+        const messages = new Array<{ level: LogLevel; text: string }>();
+        const destination = LogDestination({
+            name: "peers-start-test",
+            level: LogLevel.DEBUG,
+            write: (text, message) => {
+                if (message.facility === "Peers") {
+                    messages.push({ level: message.level, text });
+                }
+            },
+        });
+        Logger.destinations[destination.name] = destination;
+        const startup = NetworkClient.prototype.startup;
+        NetworkClient.prototype.startup = async () => {
+            throw new DestroyedDependencyError(peer1.toString(), "is closing for test");
+        };
+        try {
+            await MockTime.resolve(controller.start(), { macrotasks: true });
+            await MockTime.resolve(
+                peer1.lifecycle.mutex.hold("settle", async () => {}),
+                { macrotasks: true },
+            );
+        } finally {
+            NetworkClient.prototype.startup = startup;
+            delete Logger.destinations[destination.name];
+        }
+
+        const reported = messages.filter(({ text }) => text.includes(`${peer1}`));
+        expect(reported.map(({ level }) => level)).deep.equals([LogLevel.DEBUG]);
+        expect(reported[0].text).contains("does not start");
+    });
+
+    it("finds a peer by its address while it closes, so forAddress() returns it instead of a second node", async () => {
+        const { site, controller, peer1 } = await peerWithLightOn();
+        await using _site = site;
+        const address = peer1.peerAddress!;
+        const { blocking, release } = await blockMutexOf(peer1);
+        const closing = peer1.close();
+
+        const found = controller.peers.get(address);
+        const added = await MockTime.resolve(controller.peers.forAddress(address));
+        release();
+        await MockTime.resolve(Promise.all([blocking, closing]));
+
+        expect(found).equals(peer1);
+        expect(added).equals(peer1);
+        expect(controller.peers.get(address)).equals(undefined);
+        await expect(peer1.disable()).rejectedWith(DestroyedDependencyError);
     });
 
     it("runs an action called while the peer is erased also when the erase fails", async () => {
@@ -1947,16 +2216,19 @@ describe("ClientNode", () => {
         });
         const store = peer1.env.get(ServerNodeStore).clientStores.storeForNode(peer1);
         const eraseCaches = store.eraseCaches.bind(store);
-        let acting: Promise<Lifecycle.Status> | undefined;
+        let acting: Promise<{ status?: Lifecycle.Status; error?: unknown }> | undefined;
         using _eraseCaches = removedOnDispose(store, "eraseCaches");
         store.eraseCaches = async () => {
-            acting = Promise.resolve(peer1.act(() => peer1.construction.status));
+            acting = Promise.resolve(peer1.act(() => peer1.construction.status)).then(
+                status => ({ status }),
+                (error: unknown) => ({ error }),
+            );
             await eraseCaches();
         };
 
         await expect(MockTime.resolve(peer1.erase())).rejectedWith(MatterAggregateError);
 
-        expect(await MockTime.resolve(acting!)).equals(Lifecycle.Status.Active);
+        expect(await MockTime.resolve(acting!)).deep.equals({ status: Lifecycle.Status.Active });
     });
 
     it("stays down and offline when the erase cannot drop the cache of an online peer", async () => {

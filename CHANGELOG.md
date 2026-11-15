@@ -21,12 +21,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: WAL storage snapshots right after an open that replayed its log, and refuses to open when its log is incomplete instead of opening with partial data
 
 - @matter/node
-    - Breaking: `erase()` on an endpoint restarts it with its default values and options and keeps its endpoint number; on a server node the ConfigurationVersion increases
+    - Breaking: `erase()` on an endpoint restarts it, if it was started, with its default values and options and keeps its endpoint number; on a server node the ConfigurationVersion increases
     - Breaking: `erase()` of an endpoint or node rejects with a `MatterAggregateError` when a step fails, also for a storage failure
     - Breaking: A failed storage erase leaves the endpoint or node crashed
-    - Adjustment: `start()` recovers a crashed `ServerNode` that the runtime did not close, and finishes the erase of a `ClientNode` that crashed in `erase()`
     - Breaking: A node that cannot go offline before or online after an erase crashes; a peer whose server node is offline stays offline instead
-    - Breaking: `ServerNode.delete()` erases the node's storage and closes the node; it no longer restarts the node first
     - Breaking: `ClientNode.erase()` keeps commissioning, network settings, ICD state and the disabled flag, reconnects when it was started, and rebuilds its endpoints from the peer as new instances
     - Breaking: `erase()`, `delete()` and `close()` of an endpoint of a `ClientNode` that is not a `ClientGroup` reject with `ImplementationError`; erase, delete or close the node instead
     - Breaking: `Endpoint.reset()`, `Node.reset()` and `EndpointContainer.reset()` are removed; `erase()` resets and also wipes the persisted data
@@ -34,6 +32,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: `EndpointInitializer.eraseDescendant()` is replaced by `prepareEraseDescendant()` and `prepareDeleteDescendant()`
     - Enhancement: `EndpointInitializer.assertVerbAdmitted()` lets a node refuse an erase, delete or close of one of its endpoints
     - Adjustment: `EndpointInitializer.deactivateDescendant()` runs once the endpoint is destroyed, on close and on delete
+    - Adjustment: `ServerNode.delete()` erases the node's storage and closes the node; it no longer restarts the node first
     - Breaking: `erase()` and `delete()` throw `DestroyedDependencyError` once a close of the endpoint, or a close or delete of an ancestor of the same node, was requested
     - Breaking: `erase()` also throws `DestroyedDependencyError` once a delete of the endpoint was requested
     - Breaking: `erase()` and `delete()` of a `ClientNode` also throw `DestroyedDependencyError` once a close or delete of its server node was requested
@@ -48,7 +47,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: The `NodeLifecycle` constructor takes the initial intent of the node
     - Breaking: `NodeLifecycle.mutex` is internal and no longer a `Mutex`
     - Breaking: A write to an erased or closed `EndpointStore` or `ClientNodeStore` rejects with the new `StoreClosedError`
-    - Breaking: An erased or closed `EndpointStore` throws `StoreClosedError` instead of handing out a store for a behavior or a part
+    - Breaking: An erased or closed `EndpointStore` throws `StoreClosedError` instead of creating a store for a behavior or a part
     - Breaking: `ClientNodeStores.storeForNode()` throws `StoreClosedError` while an erase of that node's store or of all client stores runs
     - Breaking: The environment of a `ClientNode` no longer holds its `ClientNodeStore`; `ClientNodeStores.storeOf()` returns the current store of a node
     - Breaking: `LocalWriter` is removed; `DatasourceCache` takes a `persist` function, and its `flush()` requires a transaction
@@ -57,12 +56,14 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: The `ClientEndpointInitializer` constructor takes the store of the node
     - Adjustment: The protected `eraseWithMutex()` of `ServerNode` and `ClientNode` is removed; override `prepareErase()` instead
     - Adjustment: The protected `Node.closeWithMutex()` is removed
+    - Adjustment: A subclass of `Node` implements the protected `createLifecycle()` and `appliedIntent`
     - Adjustment: The protected `ClientNode.store` getter is removed; `ClientNodeStores.storeOf()` returns the current store of a node
     - Breaking: The `ClientNodeStore` constructor no longer takes `onErase`
     - Breaking: `ClientNodeStores.knownIds` leaves out the nodes whose store is being erased
     - Deprecation: `NetworkClient` state `isDisabled` mirrors `ClientNode.isDisabled`; writing it is deprecated, use `ClientNode.disable()` / `enable()`
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
     - Enhancement: `delete()` also removes an endpoint or node that crashed
+    - Enhancement: `start()` recovers a crashed `ServerNode` that the runtime did not close and first finishes a factory reset it crashed in, and finishes the erase of a `ClientNode` that crashed in `erase()`
     - Enhancement: A lifecycle operation of a node or endpoint that waits 10 seconds for another one logs a warning naming both
     - Enhancement: `ClientNode.isDisabled` tells whether the node is disabled
     - Enhancement: `Peers.erase()` takes an optional storage erase, which runs before `forAddress()` can add a node again
@@ -75,6 +76,14 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: A `ClientNode` whose last call was `start()` or `enable()` goes online again when its server node restarts, also with `autoStartCommissionedPeers: false`
     - Adjustment: The auto-start of commissioned peers skips a peer whose last call was a `stop()` or `disable()` that did not fail
     - Adjustment: A `ClientNode` whose start fails as its server node comes online reports `Disconnected` and tries again on its next `start()` or server node restart
+    - Adjustment: `NodeLifecycle.goingOffline` also emits after a start that fails once its network runtime was created; `offline` follows only if the node went online
+    - Adjustment: `ClientNode.act()` on an inactive node waits for a lifecycle verb in progress instead of restarting the node
+    - Adjustment: `ClientGroup.erase()` drops the cached data of its endpoints instead of erasing its whole store
+    - Adjustment: `Parts.add()` of a node throws `ImplementationError` instead of `IdentityConflictError`
+    - Adjustment: `Parts.add()` to an endpoint whose close or delete was requested throws `DestroyedDependencyError`
+    - Adjustment: `Peers.get(address)` also returns a node whose close or delete was requested, or that crashed
+    - Adjustment: `DatasourceCache` persists only through a `ClientCacheBuffer` and applies values in memory before it persists them; `forgetVersion()` rejects when that persist fails
+    - Adjustment: `MockSite` enables `MockTime` when it is created
     - Adjustment: Adding a part with a number that another endpoint of the node holds fails at once also while the parent resets, instead of when the parent restarts
     - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
     - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
@@ -91,21 +100,23 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: With a storage driver that writes at once, such as SQLite, the cache writes of several peers at the same time persist one after another and no longer fail with "Transaction is in progress"
     - Fix: A node that `Peers.forAddress()` adds during a factory reset keeps its store
     - Fix: A value that a server node commits while it is erased no longer returns after the erase
-    - Fix: Removing a closing peer erases its storage also when the stores of its server node close meanwhile
+    - Fix: Removing a closing peer erases its storage also when the stores of its server node begin to close after the removal began
     - Fix: A second erase of a removed peer no longer clears the storage of a new peer with the same ID
     - Fix: Logging a deleted peer that has no address no longer creates a store for it
-    - Fix: A cache flush that keeps failing warns once per kind of failure until a flush succeeds, not on every resubscribe
+    - Fix: With a flush interval, a cache flush that keeps failing warns once per kind of failure until a flush succeeds, not on every resubscribe
     - Fix: A `start()` right after a failed start waits for the old network runtime to close instead of failing with "Handler for protocol 1 already registered"
     - Fix: A peer whose network start fails no longer logs an unhandled error when it closes its network runtime
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
+    - Fix: A factory reset removes the legacy storage also when the erase of the node fails
 
 - @matter/protocol
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
 
 - @project-chip/matter.js
     - Adjustment: `PairedNode.connect()` also starts a stopped peer, not only a disabled one
+    - Adjustment: `CommissioningController` start logs a warning instead of failing when it cannot apply `autoConnect` or `autoSubscribe` to a peer, and with `autoConnect` it enables disabled peers after the start
 
 ## 0.18.0 (2026-10-20)
 

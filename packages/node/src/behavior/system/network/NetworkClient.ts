@@ -42,10 +42,10 @@ import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
 
 /**
- * The server nodes that logged the deprecation of the write of {@link NetworkClient.State.isDisabled}, so each logs it
- * once.
+ * Marks the environment of a server node that logged the deprecation of the write of
+ * {@link NetworkClient.State.isDisabled}, so each server node logs it once.
  */
-const disabledWriteNoticed = new WeakSet<Node>();
+class DisabledWriteNoticed {}
 
 export class NetworkClient extends NetworkBehavior {
     declare internal: NetworkClient.Internal;
@@ -154,22 +154,29 @@ export class NetworkClient extends NetworkBehavior {
             return;
         }
 
-        if (!disabledWriteNoticed.has(node.owner)) {
-            disabledWriteNoticed.add(node.owner);
+        const serverEnv = node.owner.env;
+        if (!serverEnv.owns(DisabledWriteNoticed)) {
+            serverEnv.set(DisabledWriteNoticed, new DisabledWriteNoticed());
             logger.notice(
                 "Writing the network state isDisabled of a peer is deprecated; use ClientNode.disable() or enable() instead",
             );
         }
 
         const { mirrorDisabled } = this.internal;
-        node.applyDisabledWrite(isDisabled).catch(error => {
-            if (error instanceof DestroyedDependencyError) {
-                logger.debug(`Ignoring the write of isDisabled to ${node} as it closes:`, error);
-            } else {
+
+        // Not awaited: the write applies through #mirrorDisabled, which waits for the behavior lock this reactor holds
+        node.applyDisabledWrite(isDisabled)
+            .catch(error => {
+                if (error instanceof DestroyedDependencyError) {
+                    logger.debug(`Ignoring the write of isDisabled to ${node} as it closes:`, error);
+                    return;
+                }
                 logger.warn(`Could not apply the write of isDisabled = ${isDisabled} to ${node}:`, error);
-            }
-            mirrorDisabled?.();
-        });
+                return mirrorDisabled?.();
+            })
+            .catch(error => {
+                logger.warn(`Could not restore the isDisabled state of ${node} after a failed write:`, error);
+            });
     }
 
     async #handleAutoSubscribeChange() {
@@ -617,7 +624,7 @@ export namespace NetworkClient {
 
         /**
          * Runs startup and the reactions to {@link State.autoSubscribe} and {@link State.defaultSubscription} one at a
-         * time.
+         * time.  Level 5a of the lock order in `LifecycleMutex`.
          */
         subscriptionChanges = new Mutex(this);
 
@@ -696,7 +703,8 @@ export namespace NetworkClient {
         /**
          * Whether the node is disabled, as `ClientNode.isDisabled` reports it.  The node updates this field; it is not
          * persisted.  Writing true disables the node like `ClientNode.disable()`.  Writing false clears the flag and
-         * keeps the node offline until it starts, or until its server node goes online and starts its peers.
+         * keeps the node offline until it starts, or until its server node goes online and starts its peers, unless a
+         * `ClientNode.start()`, `stop()`, `enable()` or `disable()` in this process set its target.
          *
          * @deprecated use `ClientNode.isDisabled`, `ClientNode.disable()` and `ClientNode.enable()`
          */

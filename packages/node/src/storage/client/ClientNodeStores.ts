@@ -40,7 +40,14 @@ const CLIENT_ID_PREFIX = "peer";
 export class ClientNodeStores {
     #storage: StorageContext;
     #stores = new Map<string, ClientNodeStores.Entry>();
+    /** The erases of one ID, chained per ID: level 7 of the lock order in `LifecycleMutex`. */
     #erasing = new Map<string, Promise<void>>();
+
+    /**
+     * The IDs whose storage holds data while the index has no store for them: the new store of an erased cache failed
+     * to load, and no store replaced it since.
+     */
+    #unloaded = new Map<string, ClientNodeStores.Entry>();
     #resets = 0;
     #construction: Construction<ClientNodeStores>;
     #nextAutomaticId = 1;
@@ -158,27 +165,32 @@ export class ClientNodeStores {
         } catch (refusal) {
             await refuseAfter(prepare, refusal, `Error while erasing the store of ${id}`);
         }
-        await this.#end(id, entry =>
-            MatterAggregateError.settleSeries(
-                [() => prepare?.(), () => entry?.store.erase()],
+        await this.#end(id, entry => {
+            const unloaded = this.#unloaded.get(id);
+            this.#unloaded.delete(id);
+            return MatterAggregateError.settleSeries(
+                [() => prepare?.(), () => (entry === undefined ? unloaded?.storage.clearAll() : entry.store.erase())],
                 `Error while erasing the store of ${id}`,
-            ),
-        );
+            );
+        });
     }
 
     /**
      * Erase the values cached from the node with {@link id} and open a new store of the node that loads what remains.
      * The new store comes from the same storage as the store it replaces, also if the erase fails, and persists its
-     * caches through the buffer of the store it replaces.  A new store that fails to load leaves the index, so the next {@link storeForNode} opens
-     * another one.  The erase counts as requested at once, like {@link eraseStore}.  Without a current store this does
-     * nothing.
+     * caches through the buffer of the store it replaces.  A new store that fails to load leaves the index, so the next
+     * {@link storeForNode} opens another one, and the next call of this loads a store of the node first and erases
+     * through it.  The erase counts as requested at once, like {@link eraseStore}.  Without a current store otherwise
+     * this does nothing.
      *
      * Rejects with a `MatterAggregateError` of the failures, or with `DestroyedDependencyError` once {@link close} was
      * called.
      */
     async eraseCaches(id: string) {
         this.#construction.assert();
-        await this.#end(id, async entry => {
+        await this.#end(id, async taken => {
+            const unloaded = this.#unloaded.get(id);
+            const entry = taken ?? (unloaded === undefined ? undefined : await this.#load(id, unloaded));
             if (entry === undefined) {
                 return;
             }
@@ -209,6 +221,7 @@ export class ClientNodeStores {
 
         const stores = [...this.#stores.values()].map(({ store }) => store);
         this.#stores.clear();
+        this.#unloaded.clear();
 
         await MatterAggregateError.settleSeries(
             [
@@ -249,7 +262,9 @@ export class ClientNodeStores {
             throw new StoreClosedError(`Cannot hand out the store of node ${id} because an erase of it runs`);
         }
         if (this.#resets) {
-            throw new StoreClosedError(`Cannot hand out the store of node ${id} because all client stores are erased`);
+            throw new StoreClosedError(
+                `Cannot hand out the store of node ${id} because all client stores are being erased`,
+            );
         }
         return this.#stores.get(id)?.store;
     }
@@ -261,16 +276,33 @@ export class ClientNodeStores {
         } catch (e) {
             if (this.#stores.get(id)?.store === renewed) {
                 this.#stores.delete(id);
+                this.#unloaded.set(id, { store: renewed, storage });
             }
             throw e;
         }
     }
 
+    /**
+     * Load a store like the one in {@link unloaded} outside the index, so an erase of its caches erases what its
+     * storage holds.
+     */
+    async #load(id: string, { store: { isPreexisting, buffer }, storage }: ClientNodeStores.Entry) {
+        const store = this.#create(id, storage, isPreexisting, buffer);
+        await store.construction.ready;
+        return { store, storage };
+    }
+
     #open(id: string, storage: StorageContext, isPreexisting: boolean, buffer?: ClientCacheBuffer) {
+        this.#unloaded.delete(id);
+        const store = this.#create(id, storage, isPreexisting, buffer);
+        this.#stores.set(id, { store, storage });
+        return store;
+    }
+
+    #create(id: string, storage: StorageContext, isPreexisting: boolean, buffer?: ClientCacheBuffer) {
         const store = new ClientNodeStore(id, storage, isPreexisting);
         store.buffer = buffer;
         store.construction.start();
-        this.#stores.set(id, { store, storage });
         return store;
     }
 

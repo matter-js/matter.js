@@ -438,8 +438,8 @@ off, persisted); `NetworkServer.autoStartCommissionedPeers` (below) is a control
 auto-connect at all) that leaves every node enabled.
 
 **Bulk "connect all nodes" is no longer a manual loop.** When the controller `ServerNode` comes online,
-its `Peers` container automatically starts every commissioned peer that is not disabled — disabled peers
-are skipped and stay offline until explicitly `enable()`d. So the legacy pattern
+its `Peers` container automatically starts every commissioned peer that is not disabled and that you did not
+stop in this process — disabled peers are skipped and stay offline until explicitly `enable()`d. So the legacy pattern
 
 ```ts
 // legacy: connect every commissioned node
@@ -460,15 +460,15 @@ for (const peer of serverNode.peers.commissioned) {
 **Opting out of the automatic bulk connect.** The online-time bulk connect is gated by
 `NetworkServer.autoStartCommissionedPeers` (default `true` = auto-connect commissioned peers on online).
 Set it to `false` at `ServerNode.create` (`network: { autoStartCommissionedPeers: false }`) for manual /
-on-demand control — the node then connects **no** peer on online. With it off, a commissioned peer is only
+on-demand control — the node then connects on online only the peers you started or enabled in this process. With it off, a commissioned peer is only
 usable **after you explicitly bring it online**: call `clientNode.enable()`, which clears the disabled
 flag and starts the peer (`start()` alone throws `NodeDisabledError` on a disabled peer). This is the
 new-API replacement for the legacy `pairedNode.connect()` call: there is no implicit connect, you
 `enable()`/`start()` on demand. A peer you started this way goes online again when the controller node
 restarts in the same process, as a server restart keeps the intent of each peer. Only the disabled flag
 persists, so with `autoStartCommissionedPeers: false` the peer does **not** connect after the process
-restarts. With `true`, the sweep starts each commissioned peer that is not disabled, unless a `start()`, `stop()`,
-`enable()` or `disable()` of its own set what it should be and did not fail. The nodejs-shell uses `false` so a debug session
+restarts. With `true`, the sweep starts each commissioned peer that is not disabled, unless the last `start()`, `stop()`,
+`enable()` or `disable()` of the peer was a `stop()` or `disable()` that did not fail. The nodejs-shell uses `false` so a debug session
 connects only the peers you ask for.
 
 ---

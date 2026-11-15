@@ -14,6 +14,7 @@ import {
     DestroyedDependencyError,
     ImplementationError,
     InternalError,
+    Lifecycle,
     MatterAggregateError,
     MemoryStorageDriver,
     Seconds,
@@ -201,6 +202,17 @@ describe("ClientNodeStore", () => {
         expect(() => endpointStore.createStoreForLocalBehavior("commissioning")).throws(StoreClosedError);
     });
 
+    it("ends the store also when it fails to erase its caches", async () => {
+        const { driver, store } = await storeWith();
+        driver.clearAll = async () => {
+            throw new ImplementationError("Clear refused for test");
+        };
+
+        await expect(store.eraseCaches()).rejectedWith(MatterAggregateError);
+
+        expect(store.construction.status).equals(Lifecycle.Status.Destroyed);
+    });
+
     it("forgets the disabled flag when it is erased", async () => {
         const { storage, store } = await storeWith();
         await store.recordNodeDisabled(true);
@@ -303,7 +315,7 @@ describe("ClientNodeStores", () => {
         const erasing = stores.eraseStore("peer1", () => prepared.promise);
 
         const resetting = stores.erase();
-        expect(() => stores.storeForNode("peer2")).throws(StoreClosedError, /all client stores are erased/);
+        expect(() => stores.storeForNode("peer2")).throws(StoreClosedError, /all client stores are being erased/);
         expect(stores.storeOf("peer3")).undefined;
         prepared.resolver();
         await Promise.all([erasing, resetting]);
@@ -403,8 +415,9 @@ describe("ClientNodeStores", () => {
 
         let erasedAll = false;
         const erasingAll = stores.erase().then(() => (erasedAll = true));
-        await MockTime.yield();
-        await MockTime.yield();
+        for (let i = 0; i < 10; i++) {
+            await MockTime.yield();
+        }
 
         expect(erasedAll).equals(false);
         prepared.resolver();
@@ -419,8 +432,14 @@ describe("ClientNodeStores", () => {
 
         const order = new Array<string>();
         const closing = stores.close().then(() => order.push("closed"));
-        const erased = erasing.then(() => order.push("erased"));
-        const refused = stores.eraseStore("peer2");
+        const erased = erasing.then(
+            () => order.push("erased"),
+            (e: unknown) => order.push(`erase failed: ${e}`),
+        );
+        const refused = stores.eraseStore("peer2").then(
+            () => undefined,
+            (e: unknown) => e,
+        );
         for (let i = 0; i < 10; i++) {
             await MockTime.yield();
         }
@@ -429,7 +448,7 @@ describe("ClientNodeStores", () => {
 
         expect(order).deep.equals(["erased", "closed"]);
         expect(await keysOf(storage, "peer1")).deep.equals([]);
-        await expect(refused).rejectedWith(DestroyedDependencyError);
+        expect(await refused).instanceOf(DestroyedDependencyError);
     });
 
     it("still runs what it waits for when it refuses an erase once it closed", async () => {
@@ -444,6 +463,82 @@ describe("ClientNodeStores", () => {
         await expect(erasing).rejectedWith(DestroyedDependencyError);
         expect(prepared).equals(true);
         await expect(stores.eraseCaches("peer1")).rejectedWith(DestroyedDependencyError);
+    });
+
+    it("hands out no store of any ID while it erases all stores", async () => {
+        const { stores } = await storesWithPeer();
+        const other = stores.storeForNode("peer2");
+        await other.construction.ready;
+        const prepared = createPromise<void>();
+        const erasing = stores.eraseStore("peer1", () => prepared.promise);
+
+        const resetting = stores.erase();
+
+        expect(stores.storeOf("peer2")).undefined;
+        expect(stores.knownIds).deep.equals([]);
+        prepared.resolver();
+        await Promise.all([erasing, resetting]);
+        await stores.close();
+    });
+
+    it("runs what a second erase of an ID waits for only once the first erase of it ended", async () => {
+        const { stores } = await storesWithPeer();
+        const first = createPromise<void>();
+        const erasing = stores.eraseStore("peer1", () => first.promise);
+        let secondPrepared = false;
+
+        const second = stores.eraseStore("peer1", async () => {
+            secondPrepared = true;
+        });
+        for (let i = 0; i < 10; i++) {
+            await MockTime.yield();
+        }
+
+        expect(secondPrepared).equals(false);
+        first.resolver();
+        await Promise.all([erasing, second]);
+        expect(secondPrepared).equals(true);
+        await stores.close();
+    });
+
+    it("hands out no store of an ID once an erase of it ended while a later erase of it waits", async () => {
+        const { stores } = await storesWithPeer();
+        const later = createPromise<void>();
+        const erasing = stores.eraseStore("peer1");
+        const waiting = stores.eraseStore("peer1", () => later.promise);
+
+        await erasing;
+
+        expect(stores.storeOf("peer1")).undefined;
+        expect(() => stores.storeForNode("peer1")).throws(StoreClosedError);
+        later.resolver();
+        await waiting;
+        await stores.close();
+    });
+
+    it("reports what it waits for and the refusal when it refuses an erase once it closed", async () => {
+        const { stores } = await storesWithPeer();
+        await stores.close();
+
+        const failures = await failuresOf(
+            stores.eraseStore("peer1", async () => {
+                throw new ImplementationError("Close refused for test");
+            }),
+        );
+
+        expect(failures.length).equals(2);
+        expect(failures[0]).equals("Close refused for test");
+        expect(failures[1]).contains("closed");
+    });
+
+    it("keeps a store loaded from storage preexisting when it erases its cache", async () => {
+        const { stores, store } = await storesWithPeer();
+        expect(store.isPreexisting).equals(true);
+
+        await stores.eraseCaches("peer1");
+
+        expect(stores.storeOf("peer1")?.isPreexisting).equals(true);
+        await stores.close();
     });
 
     it("opens no store for an ID while an erase of it runs", async () => {
@@ -486,6 +581,25 @@ describe("ClientNodeStores", () => {
         loading.resolver();
         await Promise.all([renewing, erasing]);
         expect(stores.storeOf("peer1")).undefined;
+        await stores.close();
+    });
+
+    it("erases the storage of an ID whose new store of an erased cache failed to load", async () => {
+        const { driver, storage, stores, store } = await storesWithPeer();
+        const has = driver.has.bind(driver);
+        const eraseCaches = store.eraseCaches.bind(store);
+        store.eraseCaches = async () => {
+            await eraseCaches();
+            driver.has = () => {
+                driver.has = has;
+                throw new ImplementationError("Load refused for test");
+            };
+        };
+        expect(await failuresOf(stores.eraseCaches("peer1"))).deep.equals(["Load refused for test"]);
+
+        await stores.eraseStore("peer1");
+
+        expect(await keysOf(storage, "peer1")).deep.equals([]);
         await stores.close();
     });
 

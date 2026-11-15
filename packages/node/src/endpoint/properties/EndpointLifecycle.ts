@@ -225,7 +225,8 @@ export class EndpointLifecycle {
      * Mutex that {@link Endpoint.erase}, {@link Endpoint.delete} and {@link Endpoint.close} hold, so a verb never
      * overlaps with a verb on an ancestor or a part of the same node.  All endpoints of a node share the tree mutex of
      * the node, and the endpoints of a tree not added to a node share the mutex of its topmost endpoint.  It is not
-     * held while a node starts or stops.  See {@link LifecycleMutex} for the lock order.
+     * held while a node starts or stops, except while a start recovers a crashed node.  See {@link LifecycleMutex} for
+     * the lock order.
      *
      * @internal
      */
@@ -278,9 +279,6 @@ export class EndpointLifecycle {
         if (this.isNode) {
             const owner = this.#endpoint.owner;
             return owner?.lifecycle.isTerminal ? owner : undefined;
-        }
-        if (this.ownsTreeMutex) {
-            return;
         }
         for (let owner = this.#endpoint.owner; owner !== undefined; owner = owner.owner) {
             if (owner.lifecycle.isTerminal) {

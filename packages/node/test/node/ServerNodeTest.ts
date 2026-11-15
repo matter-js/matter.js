@@ -30,6 +30,7 @@ import { IdentityService } from "#node/server/IdentityService.js";
 import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
+import { ServerEndpointStore } from "#storage/server/ServerEndpointStore.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { StoreClosedError } from "#storage/StoreLifecycle.js";
 import {
@@ -68,6 +69,7 @@ import {
     NetworkSimulator,
     Seconds,
     STANDARD_MATTER_PORT,
+    StorageError,
     StorageManager,
     StorageService,
     Time,
@@ -1915,6 +1917,193 @@ describe("ServerNode", () => {
 
         expect(node.construction.status).equals(Lifecycle.Status.Active);
         expect(node.lifecycle.isOnline).equals(true);
+    });
+
+    it("finishes a factory reset that failed to erase the fabrics before start() brings it online", async () => {
+        await using site = new MockSite();
+        const { device: commissioned } = await site.addCommissionedPair();
+        const { id } = commissioned;
+        await MockTime.resolve(commissioned.close(), { macrotasks: true });
+
+        // A node that runs as a worker of the runtime closes when it crashes, so the reset runs before the first start
+        const device = await site.addNode(undefined, { id, device: OnOffLightDevice, online: false });
+        const storage = site.storageFor(id);
+        const fabrics = device.env.get(FabricManager);
+        expect(fabrics.length).equals(1);
+
+        const clear = fabrics.clear.bind(fabrics);
+        fabrics.clear = async () => {
+            throw new ImplementationError("Fabric erase refused for test");
+        };
+        await expect(MockTime.resolve(device.erase(), { macrotasks: true })).rejectedWith(MatterAggregateError);
+        expect(device.construction.status).equals(Lifecycle.Status.Crashed);
+        expect(storageKeysUnder(storage, "fabrics")).not.deep.equals([]);
+        fabrics.clear = clear;
+
+        let fabricsWhenOnline: number | undefined;
+        let fabricKeysWhenOnline: string[] | undefined;
+        device.lifecycle.online.once(() => {
+            fabricsWhenOnline = fabrics.length;
+            fabricKeysWhenOnline = storageKeysUnder(storage, "fabrics");
+        });
+        let resets = 0;
+        let joined: Promise<void> | undefined;
+        device.lifecycle.reset.on(() => {
+            resets++;
+            joined ??= device.erase();
+        });
+
+        await MockTime.resolve(device.start(), { macrotasks: true });
+        if (joined === undefined) {
+            expect.fail("The recovery did not reset the node");
+        }
+        await MockTime.resolve(joined);
+
+        expect(fabricsWhenOnline).equals(0);
+        expect(fabricKeysWhenOnline).deep.equals([]);
+        expect(resets).equals(1);
+        expect(device.lifecycle.isOnline).equals(true);
+    });
+
+    it("rejects start() of a node whose failed factory reset waits to run again and lets that reset finish", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { online: false });
+        const fabrics = node.env.get(FabricManager);
+        const clear = fabrics.clear.bind(fabrics);
+        let clears = 0;
+        fabrics.clear = async () => {
+            clears++;
+            if (clears === 1) {
+                throw new ImplementationError("Fabric erase refused for test");
+            }
+            await clear();
+        };
+        await expect(MockTime.resolve(node.erase(), { macrotasks: true })).rejectedWith(MatterAggregateError);
+        expect(node.construction.status).equals(Lifecycle.Status.Crashed);
+
+        const started = node.start();
+        const erased = node.erase();
+
+        await expect(MockTime.resolve(started, { macrotasks: true })).rejectedWith(CrashedDependencyError);
+        await MockTime.resolve(erased, { macrotasks: true });
+        expect(clears).equals(2);
+        expect(node.construction.status).equals(Lifecycle.Status.Active);
+    });
+
+    it("finishes a factory reset that fails to erase the fabrics on a start() queued behind it", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { online: false });
+        const fabrics = node.env.get(FabricManager);
+        const clear = fabrics.clear.bind(fabrics);
+        let clears = 0;
+        fabrics.clear = async () => {
+            clears++;
+            if (clears === 1) {
+                throw new ImplementationError("Fabric erase refused for test");
+            }
+            await clear();
+        };
+        let clearsWhenOnline: number | undefined;
+        node.lifecycle.online.once(() => {
+            clearsWhenOnline = clears;
+        });
+
+        const erasing = node.erase().then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+        const starting = node.start().then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+        await MockTime.resolve(Promise.all([erasing, starting]), { macrotasks: true });
+
+        expect(await erasing).instanceOf(MatterAggregateError);
+        expect(await starting).equals(undefined);
+        expect(clearsWhenOnline).equals(2);
+    });
+
+    it("clears the endpoint storage on start() after a factory reset whose clear and reload failed", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { online: false });
+        const defaultLabel = node.state.basicInformation.nodeLabel;
+        await node.set({ basicInformation: { nodeLabel: "before the reset" } });
+        const driver = node.env.get(ServerNodeStore).storage.driver;
+        const clearAll = driver.clearAll.bind(driver);
+        driver.clearAll = contexts => {
+            if (contexts[0] === "root") {
+                driver.clearAll = clearAll;
+                throw new StorageError("Clear refused for test");
+            }
+            return clearAll(contexts);
+        };
+        const loadNextNumber = ServerEndpointStore.loadNextNumber;
+        ServerEndpointStore.loadNextNumber = () => {
+            ServerEndpointStore.loadNextNumber = loadNextNumber;
+            throw new StorageError("Load refused for test");
+        };
+        try {
+            await expect(MockTime.resolve(node.erase(), { macrotasks: true })).rejectedWith(MatterAggregateError);
+        } finally {
+            driver.clearAll = clearAll;
+            ServerEndpointStore.loadNextNumber = loadNextNumber;
+        }
+        expect(node.construction.status).equals(Lifecycle.Status.Crashed);
+
+        await MockTime.resolve(node.start(), { macrotasks: true });
+
+        expect(node.state.basicInformation.nodeLabel).equals(defaultLabel);
+        expect(node.env.get(FabricManager).length).equals(0);
+    });
+
+    it("rejects a failed factory reset with its failures listed at one level", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { online: false });
+        node.env.get(FabricManager).clear = async () => {
+            throw new ImplementationError("Fabric erase refused for test");
+        };
+
+        const error = await MockTime.resolve(node.erase(), { macrotasks: true }).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        if (!(error instanceof MatterAggregateError)) {
+            expect.fail(`Expected a MatterAggregateError, got ${error}`);
+        }
+        expect(error.message).equals("Error erasing node0");
+        expect(error.errors.map(e => (e instanceof Error ? e.message : String(e)))).deep.equals([
+            "Fabric erase refused for test",
+        ]);
+    });
+
+    it("recovers a crash after a factory reset that finished again without another reset", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { online: false });
+        const fabrics = node.env.get(FabricManager);
+        const clear = fabrics.clear.bind(fabrics);
+        let clears = 0;
+        fabrics.clear = async () => {
+            clears++;
+            if (clears === 1) {
+                throw new ImplementationError("Fabric erase refused for test");
+            }
+            await clear();
+        };
+        await expect(MockTime.resolve(node.erase(), { macrotasks: true })).rejectedWith(MatterAggregateError);
+        await MockTime.resolve(node.erase(), { macrotasks: true });
+        expect(clears).equals(2);
+
+        node.construction.crash();
+        await MockTime.resolve(node.start(), { macrotasks: true });
+
+        expect(clears).equals(2);
+        expect(node.lifecycle.isOnline).equals(true);
+    });
+
+    it("should not be online once its close was requested", async () => {
+        await using node = await MockServerNode.createOnline();
+
+        const closing = node.close();
+
+        expect(node.lifecycle.shouldBeOnline).equals(false);
+        expect(node.lifecycle.shouldBeOffline).equals(true);
+        await MockTime.resolve(closing, { macrotasks: true });
     });
 
     it("crashes when it cannot go online again after a factory reset", async () => {

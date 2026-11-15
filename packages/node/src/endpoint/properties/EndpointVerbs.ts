@@ -6,6 +6,7 @@
 
 import {
     createPromise,
+    CrashedDependencyError,
     DestroyedDependencyError,
     ImplementationError,
     Lifecycle,
@@ -53,6 +54,11 @@ export class EndpointVerbs {
     #verb?: VerbState;
     #isEraseUnfinished = false;
 
+    /**
+     * Set while an admitted erase waits for its turn: from its admission until its step runs or the erase ends.
+     */
+    #waitingErase?: {};
+
     constructor(endpoint: Endpoint, host: EndpointVerbs.Host) {
         this.#endpoint = endpoint;
         this.#host = host;
@@ -66,8 +72,8 @@ export class EndpointVerbs {
     }
 
     /**
-     * Whether the last erase of the endpoint left it crashed, so a recovery finishes that erase.  An erase that
-     * succeeds clears this.
+     * Whether the last erase of the endpoint left it crashed, so a recovery finishes that erase.  Set once an erase is
+     * admitted, so a call that waits behind a failing erase sees it; an erase that succeeds clears this.
      */
     get isEraseUnfinished() {
         return this.#isEraseUnfinished;
@@ -86,7 +92,8 @@ export class EndpointVerbs {
      *
      * Origin `structure` skips {@link EndpointInitializer.assertVerbAdmitted}; it removes an endpoint of a client node
      * that the peer no longer reports.  Origin `recovery` is for a caller that holds the node mutex and has taken the
-     * node offline; it must not run while another verb of the endpoint waits for the node mutex.
+     * node offline.  It rejects with {@link crashError} while an admitted erase waits for its turn, as that erase
+     * finishes the work, and it does not join an erase whose step already ended.
      */
     run(verb: "erase", origin: "application" | "recovery"): Promise<void>;
     run(verb: "delete", origin: "application" | "structure" | "despiteOwnerTeardown"): Promise<void>;
@@ -94,13 +101,28 @@ export class EndpointVerbs {
     async run(verb: EndpointVerbs.Verb, origin: EndpointVerbs.Origin): Promise<void> {
         switch (verb) {
             case "erase":
-                return this.#erase(origin);
+                return this.#flattening("erasing", this.#erase(origin));
 
             case "delete":
-                return this.#delete(origin);
+                return this.#flattening("deleting", this.#delete(origin));
 
             case "close":
                 return this.#close();
+        }
+    }
+
+    /**
+     * Reject with the failures of {@link operation} listed at one level: an erase or delete that fails in a step rejects
+     * with one {@link MatterAggregateError} of the leaf failures, whoever reports them.  A refusal rejects as is.
+     */
+    async #flattening(phase: "erasing" | "deleting", operation: Promise<void>) {
+        try {
+            await operation;
+        } catch (e) {
+            if (e instanceof MatterAggregateError) {
+                throw new MatterAggregateError(leafErrorsOf(e), `Error ${phase} ${this.#endpoint}`);
+            }
+            throw e;
         }
     }
 
@@ -189,35 +211,74 @@ export class EndpointVerbs {
             await this.#eraseOnce(origin);
             this.#isEraseUnfinished = false;
         } catch (e) {
-            this.#isEraseUnfinished = this.#endpoint.construction.status === Lifecycle.Status.Crashed;
+            this.#isEraseUnfinished &&= this.#endpoint.construction.status === Lifecycle.Status.Crashed;
             throw e;
         }
     }
 
     async #eraseOnce(origin: EndpointVerbs.Origin) {
-        const joined = this.#joinOrThrow("erasing");
-        if (joined !== undefined) {
-            return await joined;
+        if (origin === "recovery") {
+            this.#admitRecovery();
+        } else {
+            const joined = this.#joinOrThrow("erasing");
+            if (joined !== undefined) {
+                return await joined;
+            }
         }
         this.#assertInNode("erased");
         this.#assertAdmitted("erase");
-        const hold =
-            origin === "recovery"
-                ? (operation: string, step: () => Promise<void>) =>
-                      this.#endpoint.lifecycle.treeMutex.hold(operation, step)
-                : this.#host.hold;
-        await this.#begin("erasing", () =>
-            this.#withErasure(
-                "erasing",
-                async prepared => {
-                    // A delete requested before the erase began wipes the data itself
-                    if (this.#verb?.phase !== "deleting") {
-                        await this.#eraseSteps(prepared);
-                    }
-                },
-                hold,
-            ),
-        );
+        this.#isEraseUnfinished = true;
+        let hold = this.#host.hold;
+        const waiting = {};
+        if (origin === "recovery") {
+            hold = (operation, step) => this.#endpoint.lifecycle.treeMutex.hold(operation, step);
+        } else {
+            this.#waitingErase = waiting;
+        }
+        const endWait = () => {
+            if (this.#waitingErase === waiting) {
+                this.#waitingErase = undefined;
+            }
+        };
+        try {
+            await this.#begin("erasing", () =>
+                this.#withErasure(
+                    "erasing",
+                    async prepared => {
+                        endWait();
+
+                        // A delete requested before the erase began wipes the data itself
+                        if (this.#verb?.phase !== "deleting") {
+                            await this.#eraseSteps(prepared);
+                        }
+                    },
+                    hold,
+                ),
+            );
+        } finally {
+            endWait();
+        }
+    }
+
+    /**
+     * Admit an erase that recovers the endpoint: refuse while an admitted erase waits for its turn or once a delete or
+     * close destroys the endpoint.  An erase whose step already ended is not joined, as it only finishes.
+     */
+    #admitRecovery() {
+        if (this.#waitingErase !== undefined) {
+            throw this.crashError();
+        }
+        const cause = this.#endpoint.lifecycle.terminalCause;
+        if (cause !== undefined) {
+            throw this.refusal(cause, "be erased");
+        }
+    }
+
+    /**
+     * The error that tells that the endpoint crashed: the cause of the crash if known.
+     */
+    crashError() {
+        return this.#endpoint.construction.error ?? new CrashedDependencyError(this.#endpoint.toString(), "crashed");
     }
 
     /**
@@ -261,11 +322,7 @@ export class EndpointVerbs {
             wipeFailures.push(e);
         }
         if (wipeFailures.length) {
-            errors.push(
-                erasure.deletesParts
-                    ? new MatterAggregateError(wipeFailures, `Error erasing the storage of ${endpoint}`)
-                    : wipeFailures[0],
-            );
+            errors.push(...wipeFailures);
             wiped = false;
             endpoint.construction.crash();
         }
@@ -364,13 +421,8 @@ export class EndpointVerbs {
             try {
                 await finish();
             } catch (error) {
-                const failures = new Array<unknown>();
-                if (stepFailure?.error instanceof MatterAggregateError) {
-                    failures.push(...stepFailure.error.errors);
-                } else if (stepFailure !== undefined) {
-                    failures.push(stepFailure.error);
-                }
-                throw new MatterAggregateError([...failures, error], `Error ${phase} ${this.#endpoint}`);
+                const failures = stepFailure === undefined ? [error] : [stepFailure.error, error];
+                throw new MatterAggregateError(failures, `Error ${phase} ${this.#endpoint}`);
             }
         }
 
@@ -424,14 +476,10 @@ export class EndpointVerbs {
         const verb: VerbState = { phase, promise, byDelete };
         this.#verb = verb;
 
-        try {
-            if (phase === "deleting" || phase === "closing") {
-                this.#endpoint.lifecycle.change(EndpointLifecycle.Change.Destroying);
-            }
-            operation().then(resolver, rejecter);
-        } catch (e) {
-            rejecter(e);
+        if (phase === "deleting" || phase === "closing") {
+            this.#endpoint.lifecycle.change(EndpointLifecycle.Change.Destroying);
         }
+        operation().then(resolver, rejecter);
         return promise;
     }
 
@@ -533,6 +581,13 @@ export class EndpointVerbs {
     get #isDeleting() {
         return this.#verb?.phase === "deleting" || this.#verb?.byDelete === true;
     }
+}
+
+/**
+ * The errors in {@link error} that are not aggregates.
+ */
+function leafErrorsOf(error: unknown): unknown[] {
+    return error instanceof MatterAggregateError ? error.errors.flatMap(leafErrorsOf) : [error];
 }
 
 export namespace EndpointVerbs {

@@ -24,13 +24,13 @@ const logger = Logger.get("LifecycleMutex");
  * | level | lock                                                   | held while awaiting                                         |
  * |-------|--------------------------------------------------------|-------------------------------------------------------------|
  * | 1     | server node mutex (`NodeLifecycle.mutex`)              | 2; 4 of each peer (`Peers` applies the intent of its peers) |
- * | 2     | server tree mutex (`EndpointLifecycle.treeMutex`)      | 3 (`resetStorage()` erases the peers); 4 (the destruction closes the peers) |
+ * | 2     | server tree mutex (`EndpointLifecycle.treeMutex`)      | 3 (`resetStorage()` erases the peers); 4 (the destruction closes the peers); 8 (the wipe of a server endpoint) |
  * | 3     | `Peers` mutex                                          | 4 and 6 (a peer delete, an act that joins a peer verb); 7   |
  * | 4     | peer node mutex                                        | 5a, 5b, 6                                                   |
  * | 5a    | `NetworkClient` subscription changes                   | 5b, 5c                                                      |
  * | 5b    | `ClientStructure` report apply                         | 6 (a delete of an endpoint the peer dropped)                |
  * | 5c    | `ClientStructure` fabric filter adoption               | 8, 9                                                        |
- * | 6     | peer tree mutex                                        | 7 (the wipe of a delete or erase)                           |
+ * | 6     | peer tree mutex                                        | 7, 8 (the wipe of a delete or erase)                        |
  * | 7     | `ClientNodeStores` erase of one ID                     | 8                                                           |
  * | 8     | `StoreLifecycle` of a store (erase and close wait for running writes) | 9                                            |
  * | 9     | `ClientCacheBuffer` queue                              | nothing; a flush write refuses instead of waiting           |

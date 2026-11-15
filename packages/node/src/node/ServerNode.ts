@@ -30,6 +30,7 @@ import { GroupcastServer } from "../behaviors/groupcast/GroupcastServer.js";
 import { RootEndpoint as BaseRootEndpoint } from "../endpoints/root.js";
 import { Peers } from "./client/Peers.js";
 import { Node } from "./Node.js";
+import { NodeLifecycle } from "./NodeLifecycle.js";
 import { Plugins } from "./Plugins.js";
 import { DeviceTypeConformanceService } from "./server/DeviceTypeConformanceService.js";
 import { IdentityService } from "./server/IdentityService.js";
@@ -111,6 +112,14 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
         return new ServerNetworkRuntime(this);
     }
 
+    protected override createLifecycle() {
+        return new NodeLifecycle(this, { target: "offline" });
+    }
+
+    protected override get appliedIntent(): NodeLifecycle.Intent {
+        return { target: this.appliedTarget };
+    }
+
     override async [Construction.destruct]() {
         await MatterAggregateError.settleSeries(
             [() => this.#peers?.close(), () => super[Construction.destruct](), () => ServerEnvironment.close(this)],
@@ -139,8 +148,9 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      *
      * Rejects with a {@link MatterAggregateError} if a step fails.  A failed reset still erases the storage and
      * restarts the node.  The node crashes if it cannot go offline first, in which case nothing is erased, if the
-     * storage erase fails, or if it cannot go online again.  A crashed node that the runtime did not close recovers on
-     * {@link start}.
+     * storage erase fails, or if it cannot go online again.  A crashed node that the runtime did not close finishes the
+     * factory reset on {@link start} before it goes online; if the reset fails again, the start rejects and the node
+     * stays crashed.  An {@link erase} meanwhile joins that reset.
      */
     override async erase() {
         using _erasing = this.construction.join("erasing");
@@ -201,7 +211,7 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
 
         // The node's services outlive the reset, so what they hold for the state it discarded does not.  This is
         // deliberately not part of resetStorage(), which an application may override
-        await this.resetServiceState();
+        this.#resetServiceState();
     }
 
     /**
@@ -235,7 +245,7 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
     /**
      * Discard the in-memory state the node's services hold for what a factory reset erases.
      */
-    private async resetServiceState() {
+    #resetServiceState() {
         this.env.get(IdentityService).releaseReservedPeerAddresses();
         this.env.get(DeviceTypeConformanceService).reset();
         this.env.get(EndpointInitializer).variableService?.invalidate();

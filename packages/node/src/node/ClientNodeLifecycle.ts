@@ -77,7 +77,7 @@ export class ClientNodeLifecycle extends NodeLifecycle<ClientNodeLifecycle.Inten
     }
 
     override request(change: Partial<ClientNodeLifecycle.Intent>) {
-        if ("isDisabled" in change) {
+        if (change.isDisabled !== undefined) {
             this.#isDisabledRequested = true;
         }
         return super.request(change);

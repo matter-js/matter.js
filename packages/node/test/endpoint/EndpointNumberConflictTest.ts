@@ -355,18 +355,29 @@ describe("EndpointNumberConflict", () => {
     it("refuses a part with a held number added while a factory reset resets the node", async () => {
         await using node = await MockServerNode.createOnline(undefined, { device: undefined });
         const held = await node.add(OnOffLightDevice, { id: "held", number: 5 });
-        let refusal: unknown;
-        node.lifecycle.reset.once(() => {
-            try {
-                node.parts.add(new Endpoint(OnOffLightDevice, { id: "duplicate", number: 5 }));
-            } catch (error) {
-                refusal = error;
-            }
+        const duplicate = new Endpoint(OnOffLightDevice, { id: "duplicate", number: 5 });
+        let duplicateFailure: unknown;
+        duplicate.construction.onError(error => {
+            duplicateFailure = error;
         });
+        let refusal: unknown;
+        const reset = new Promise<void>(resolve =>
+            node.lifecycle.reset.once(() => {
+                try {
+                    node.parts.add(duplicate);
+                } catch (error) {
+                    refusal = error;
+                }
+                resolve();
+            }),
+        );
 
-        await MockTime.resolve(node.erase(), { macrotasks: true });
-
+        const erasing = node.erase();
+        await reset;
         expect(refusal).instanceOf(IdentityConflictError);
+        await MockTime.resolve(erasing, { macrotasks: true });
+        expect(duplicateFailure).equals(undefined);
+
         expect([...node.parts]).deep.equals([held]);
     });
 

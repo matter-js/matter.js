@@ -41,7 +41,10 @@ import { IdentityService } from "./IdentityService.js";
 
 const logger = Logger.get("ServerEnvironment");
 
-const closedNodes = new WeakSet<ServerNode>();
+/**
+ * Marks the environment of a server node whose services closed.
+ */
+class ServicesClosed {}
 
 /**
  * Manages components that are present for the lifetime of a server.
@@ -106,7 +109,7 @@ export namespace ServerEnvironment {
      * @internal
      */
     export function clientCacheBufferOf(node: ServerNode): ClientCacheBuffer {
-        if (closedNodes.has(node)) {
+        if (node.env.owns(ServicesClosed)) {
             throw new DestroyedDependencyError(
                 node.toString(),
                 "closed its services, so it has no client cache buffer",
@@ -132,7 +135,7 @@ export namespace ServerEnvironment {
      */
     export async function close(node: ServerNode) {
         const { env } = node;
-        closedNodes.add(node);
+        env.set(ServicesClosed, new ServicesClosed());
 
         await MatterAggregateError.settleSeries(
             [

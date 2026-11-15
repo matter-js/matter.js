@@ -231,8 +231,8 @@ export namespace NetworkServer {
          * Controller-level connection policy for commissioned peers.
          *
          * When true (default), the node auto-connects every commissioned, non-disabled peer as it goes online, unless
-         * the last `ClientNode.start()`, `stop()`, `enable()` or `disable()` of the peer set what it should be and did
-         * not fail — the right choice for a headless controller or bridge that wants all peers live.
+         * the last `ClientNode.start()`, `stop()`, `enable()` or `disable()` of the peer was a `stop()` or `disable()`
+         * that did not fail — the right choice for a headless controller or bridge that wants all peers live.
          *
          * When false, the node connects on online only a peer whose last of these calls was a `start()` or `enable()`
          * that did not fail, and the consumer starts peers on demand.  Use this for interactive or debug controllers

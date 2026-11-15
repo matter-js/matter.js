@@ -129,7 +129,10 @@ export class ClientStructure {
     #node: Node;
     #cacheRecord: ClientStructure.CacheRecord;
     #epoch = new ClientStructure.Epoch(true);
+    /** Fabric filter adoption, level 5c of the lock order in `LifecycleMutex`. */
     #adoptions = new Mutex(this);
+
+    /** Report apply, level 5b of the lock order in `LifecycleMutex`. */
     #applies = new Mutex(this);
     #pendingChanges = new Map<EndpointStructure, PendingChange>();
     #pendingStructureEvents = Array<PendingEvent>();

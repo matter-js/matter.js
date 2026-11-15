@@ -1018,13 +1018,14 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * node (see `ClientNode.erase()`).  The endpoint keeps its ID and number and stays in the PartsList of its parent.
      * An endpoint that was not started stays down.  On a server node the ConfigurationVersion increases when an
      * endpoint below the node is erased; erasing a `ServerNode` is a factory reset.  A {@link close} or {@link delete}
-     * called meanwhile runs once the erase is done and the erase skips the restart; if the delete was requested before
-     * the erase began, the erase does nothing and the delete wipes the data.
+     * called meanwhile runs once the erase is done and the erase skips the restart; if the delete was requested while
+     * the erase waited for its turn, the erase does nothing and the delete wipes the data.
      *
      * Throws {@link DestroyedDependencyError} once a delete or close of the endpoint or of an ancestor of the same node
-     * was requested.  Throws {@link ImplementationError} for an endpoint below a client node other than a group, as it
-     * mirrors the peer; erase the node instead.  Rejects with a {@link MatterAggregateError} if a step fails.  A failed
-     * reset does not stop the erase; a failed wipe leaves the endpoint crashed.
+     * was requested.  Throws {@link ImplementationError} for an endpoint that was never added to a node, and for an
+     * endpoint below a client node other than a group, as it mirrors the peer; erase the node instead.  Rejects with a
+     * {@link MatterAggregateError} that lists the failures at one level if a step fails.  A failed reset does not stop
+     * the erase; a failed wipe leaves the endpoint crashed.
      *
      * @see {@link MatterSpecification.v161.Core} § 7.7.2
      */

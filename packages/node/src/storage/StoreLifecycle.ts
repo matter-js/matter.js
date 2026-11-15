@@ -7,9 +7,9 @@
 import { ClosedError, MaybePromise, StorageError } from "@matter/general";
 
 /**
- * Thrown when a store that is erased or closed, or is ending, is asked to write, to erase or to hand out a store for a
- * behavior.  An erase of a closed store throws it too.  Teardown races raise it, such as a commit that lands while the
- * node is erased, so it is a {@link ClosedError}, not an error of the caller.
+ * Thrown when a store that is erased or closed, or is ending, is asked to write or to hand out a store for a behavior,
+ * and when a store that is closed or closing is asked to erase.  Teardown races raise it, such as a commit that lands
+ * while the node is erased, so it is a {@link ClosedError}, not an error of the caller.
  */
 export class StoreClosedError extends ClosedError {}
 
@@ -40,6 +40,8 @@ export async function namingStoreFailure(store: object, action: string, step: ()
  * A failed erase still ends erased; what it left behind is the caller's to discard.  The failure of an erase or close
  * goes to the calls that asked for that work, so an erase that joins an erase rejects with its failure, while a close
  * that waits for an erase resolves once the store ended.
+ *
+ * Level 8 of the lock order in `LifecycleMutex`.
  *
  * @internal
  */

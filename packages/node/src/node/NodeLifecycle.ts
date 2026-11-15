@@ -8,7 +8,7 @@ import { ActionContext } from "#behavior/context/ActionContext.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { LifecycleMutex } from "#endpoint/properties/LifecycleMutex.js";
-import { AsyncObservable, Observable } from "@matter/general";
+import { AsyncObservable, isDeepEqual, Observable } from "@matter/general";
 
 /**
  * Extended lifecycle information that only applies to root endpoints.
@@ -165,11 +165,11 @@ export class NodeLifecycle<I extends NodeLifecycle.Intent = NodeLifecycle.Intent
      *
      * @internal
      */
-    request(change: Partial<I>): NodeLifecycle.IntentTicket {
-        if ("target" in change) {
+    request(change: Partial<I | NodeLifecycle.Intent>): NodeLifecycle.IntentTicket {
+        if (change.target !== undefined) {
             this.#isTargetRequested = true;
         }
-        this.#setIntent({ ...this.#intent, ...change });
+        this.#setIntent(NodeLifecycle.changed(this.#intent, change));
         return ++this.#lastTicket;
     }
 
@@ -241,6 +241,20 @@ export namespace NodeLifecycle {
      */
     export interface Intent {
         readonly target: TargetState;
+    }
+
+    /**
+     * {@link intent} with {@link change} applied.
+     */
+    export function changed<I extends Intent>(intent: I, change: Partial<I | Intent>): I {
+        return { ...intent, ...change };
+    }
+
+    /**
+     * Whether every value of {@link change} holds in {@link intent}.
+     */
+    export function holds<I extends Intent>(intent: I, change: Partial<I | Intent>) {
+        return isDeepEqual(changed(intent, change), intent);
     }
 
     /**

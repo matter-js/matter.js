@@ -19,7 +19,7 @@ const NEXT_NUMBER_KEY = "__nextNumber__";
  * This is the API {@link Endpoint} uses for reading and writing non-volatile values.
  *
  * A store owns the stores of its parts.  A part store that ends leaves the store whether its erase succeeds or not, and
- * a store that is ending or ended hands out no part store and no behavior store; it throws `StoreClosedError` instead.
+ * a store that is ending or ended throws `StoreClosedError` instead of creating a store for a behavior or a part.
  */
 export class ServerEndpointStore extends EndpointStore {
     #number: number | undefined;

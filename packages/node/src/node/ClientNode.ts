@@ -22,7 +22,6 @@ import { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { StoreClosedError } from "#storage/StoreLifecycle.js";
 import {
-    CrashedDependencyError,
     Diagnostic,
     Duration,
     Identity,
@@ -73,13 +72,14 @@ export class NodeDisabledError extends MatterError {}
  * device — `ControllerBehavior.allocatePeerAddress` documents when — so a reference kept for longer must cope
  * both with finding nothing and with finding someone else.
  */
-export class ClientNode extends Node<ClientNode.RootEndpoint> {
+export class ClientNode extends Node<ClientNode.RootEndpoint, ClientNodeLifecycle.Intent> {
     #matter?: MatterModel;
     #interaction?: ClientNodeInteraction;
     #blockInteractions = false;
     #cachedPeerAddress?: PeerAddress;
     #stores?: ClientNodeStores;
     #isInitialized = false;
+    #isDisabledPersisted = false;
 
     constructor(options: ClientNode.Options) {
         const opts = {
@@ -159,6 +159,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
         store.write = RemoteWriter(this, initializer.structure);
 
+        this.#isDisabledPersisted = store.isNodeDisabled;
         if (!this.#isInitialized) {
             this.#isInitialized = true;
             this.lifecycle.initializeDisabled(store.isNodeDisabled);
@@ -346,21 +347,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * delete of the node or of its server node was requested.
      */
     override async erase() {
-        await this.#flattenEraseFailures(() => super.erase());
-    }
-
-    /**
-     * Run an erase of the node and list its failures at one level.
-     */
-    async #flattenEraseFailures(erase: () => Promise<void>) {
-        try {
-            await erase();
-        } catch (e) {
-            if (e instanceof MatterAggregateError) {
-                throw new MatterAggregateError(leafErrorsOf(e), `Error erasing ${this}`);
-            }
-            throw e;
-        }
+        await super.erase();
     }
 
     /**
@@ -483,7 +470,8 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     /**
      * Apply a write of the deprecated `NetworkClient` state field `isDisabled` with the meaning the field had.  True
      * disables the node like {@link disable}.  False clears the flag and keeps the target, so the node goes online only
-     * by a later {@link start} or by the auto-start of its server node.  Throws like {@link disable}.
+     * by a later {@link start}, or by the auto-start of its server node unless a {@link start}, {@link stop},
+     * {@link enable} or {@link disable} in this process set its target.  Throws like {@link disable}.
      *
      * @internal
      */
@@ -492,8 +480,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
             await this.disable();
             return;
         }
-        const change: Partial<ClientNodeLifecycle.Intent> = { isDisabled: false };
-        await this.requestIntent(change, "clear-disabled");
+        await this.requestIntent({ isDisabled: false }, "clear-disabled");
     }
 
     protected override async persistIntentWithMutex() {
@@ -502,13 +489,16 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
             throw new StoreClosedError(`Cannot persist the disabled flag of ${this} because it has no store`);
         }
         await store.recordNodeDisabled(this.lifecycle.isDisabled);
+        this.#isDisabledPersisted = store.isNodeDisabled;
     }
 
     /**
-     * A node without a loaded store is not disabled.
+     * The disabled flag is the persisted one.  While the node has no store, such as during an erase of its store, it
+     * is the flag the node last read or persisted, so a failed call never restores a flag that differs from storage.
+     * Before the node is initialized it is not disabled.
      */
     protected override get appliedIntent(): ClientNodeLifecycle.Intent {
-        return { ...super.appliedIntent, isDisabled: this.#ownStore?.isNodeDisabled ?? false };
+        return { target: this.appliedTarget, isDisabled: this.#ownStore?.isNodeDisabled ?? this.#isDisabledPersisted };
     }
 
     /**
@@ -548,23 +538,23 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     /**
-     * A node that crashed in {@link erase} finishes the erase as the erase verb: it deletes its remaining endpoints,
-     * resets, erases its caches and initializes again.  An {@link erase} meanwhile joins it.  An {@link act} meanwhile
-     * waits for it once the reset made the node inactive; before that, while the endpoints are deleted, the node is
-     * still crashed and the act fails with the crash, as during an {@link erase} of a crashed node.  Rejects with the
-     * failures of that erase, which leave the node crashed.  A node that crashed for another reason, or whose erase
-     * waits for its turn and recovers it then, stays crashed, and this rejects with the cause of the crash; erase or
-     * delete such a node.
+     * A node that crashed in {@link erase} finishes the erase as `Node.recoverWithMutex()` describes: it deletes its
+     * remaining endpoints, resets, erases its caches and initializes again.  An {@link act} meanwhile waits for it once
+     * the reset made the node inactive; before that, while the endpoints are deleted, the node is still crashed and the
+     * act fails with the crash, as during an {@link erase} of a crashed node.  Rejects with the failures of that erase,
+     * listed at one level.  A node that crashed for another reason stays crashed, and this rejects with the cause of
+     * the crash; erase or delete such a node.
      */
     protected override async recoverWithMutex() {
-        if (!this.verbs.isEraseUnfinished || this.verbs.inProgress !== undefined) {
-            throw this.construction.error ?? new CrashedDependencyError(this.toString(), "crashed");
+        if (!this.verbs.isEraseUnfinished) {
+            throw this.verbs.crashError();
         }
-        await this.#flattenEraseFailures(() => this.verbs.run("erase", "recovery"));
+        await super.recoverWithMutex();
     }
 
     protected override async resetWithMutex() {
-        this.#cachedPeerAddress = undefined;
+        // Peers finds the node by this address until its behaviors initialize again
+        this.#cachedPeerAddress = this.peerAddress;
         this.lifecycle.resetSeeded();
         await super.resetWithMutex();
     }
@@ -704,13 +694,6 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
  */
 function disabling(isDisabled: boolean): Partial<ClientNodeLifecycle.Intent> {
     return { target: isDisabled ? "offline" : "online", isDisabled };
-}
-
-/**
- * The errors in {@link error} that are not aggregates, so nested aggregates report at one level.
- */
-function leafErrorsOf(error: unknown): unknown[] {
-    return error instanceof MatterAggregateError ? error.errors.flatMap(leafErrorsOf) : [error];
 }
 
 export namespace ClientNode {

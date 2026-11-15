@@ -37,6 +37,7 @@ const logger = Logger.get("ClientCacheBuffer");
 export class ClientCacheBuffer {
     #dirty = new Set<DatasourceCache>();
     #abort = new Abort();
+    /** Level 9 of the lock order in `LifecycleMutex`. */
     #queue = new Mutex(this);
     #closed = false;
     #storageDriver: StorageDriver;
@@ -176,7 +177,7 @@ export class ClientCacheBuffer {
             try {
                 await tx[Symbol.asyncDispose]();
             } catch (e) {
-                logger.warn("Cannot roll back a failed cache flush:", e);
+                logger.warn("Cannot close the transaction of a cache flush:", e);
             }
         }
         return failures;

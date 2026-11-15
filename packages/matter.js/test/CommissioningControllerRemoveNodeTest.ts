@@ -32,4 +32,25 @@ describe("CommissioningController removeNode", () => {
         release();
         await MockTime.resolve(Promise.all([blocking, closing]), { macrotasks: true });
     });
+
+    it("removes a node and its storage while the node closes", async () => {
+        await using site = new LegacyControllerSite();
+        const { controller, nodeId } = await site.addCommissionedPair();
+        const { node } = controller;
+        const [peer] = node.peers;
+        const { promise: entered, resolver: enter } = createPromise<void>();
+        const { promise: released, resolver: release } = createPromise<void>();
+        const blocking = peer.lifecycle.mutex.hold("blocking", async () => {
+            enter();
+            await released;
+        });
+        await entered;
+        const closing = peer.close();
+
+        const removing = controller.removeNode(nodeId, false);
+        release();
+        await MockTime.resolve(Promise.all([blocking, closing, removing]), { macrotasks: true });
+
+        expect(node.env.get(ServerNodeStore).clientStores.knownIds).deep.equals([]);
+    });
 });

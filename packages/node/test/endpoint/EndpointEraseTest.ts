@@ -728,6 +728,57 @@ describe("Endpoint.erase", () => {
         expect(node.endpoints.has(light)).equals(false);
     });
 
+    it("erases nothing itself when a delete is requested while the erase waits for its turn", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const light = await node.add(OnOffLightDevice, { id: "light" });
+        const initializer = node.env.get(EndpointInitializer);
+        const prepareEraseDescendant = initializer.prepareEraseDescendant.bind(initializer);
+        let erasePrepared = 0;
+        initializer.prepareEraseDescendant = endpoint => {
+            erasePrepared++;
+            return prepareEraseDescendant(endpoint);
+        };
+        const gate = createPromise<void>();
+        const blocked = node.lifecycle.treeMutex.hold("blocking for test", () => gate.promise);
+
+        const erasing = light.erase();
+        const deleting = light.delete();
+        gate.resolver();
+        await Promise.all([blocked, erasing, deleting]);
+
+        expect(erasePrepared).equals(0);
+        expect(light.construction.status).equals(Lifecycle.Status.Destroyed);
+    });
+
+    it("closes an endpoint that never initialized without an error", async () => {
+        const endpoint = new Endpoint(OnOffLightDevice, { id: "never-initialized" });
+
+        const { errors } = await captureErrors(() => endpoint.close());
+
+        expect(errors).deep.equals([]);
+        expect(endpoint.construction.status).equals(Lifecycle.Status.Destroyed);
+    });
+
+    it("emits Destroying once for a part that is closed while its parent closes", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+        const light = await aggregator.add(OnOffLightDevice, { id: "light" });
+        let destroying = 0;
+        light.lifecycle.destroying.on(() => {
+            destroying++;
+        });
+        const gate = createPromise<void>();
+        const blocked = node.lifecycle.treeMutex.hold("blocking for test", () => gate.promise);
+
+        const closingParent = aggregator.close();
+        const closingLight = light.close();
+        gate.resolver();
+        await Promise.all([blocked, closingParent, closingLight]);
+
+        expect(destroying).equals(1);
+        expect(light.construction.status).equals(Lifecycle.Status.Destroyed);
+    });
+
     it("increases the ConfigurationVersion once for an endpoint deleted while it is erased", async () => {
         await using node = await MockServerNode.createOnline(undefined, { device: undefined });
         const light = await node.add(OnOffLightDevice, { id: "light" });

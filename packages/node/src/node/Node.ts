@@ -56,18 +56,14 @@ const INTENT_CALLS: Record<Node.IntentCall, { admission: Node.IntentAdmission; a
 };
 
 /**
- * Whether every value of {@link change} holds in {@link intent}.
- */
-function holdsIn(intent: object, change: object) {
-    return Object.entries(change).every(([key, value]) => Reflect.get(intent, key) === value);
-}
-
-/**
  * A Matter Node.
  *
  * In Matter, a "node" is an individually addressable top-level network resource.
  */
-export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEndpoint> extends Endpoint<T> {
+export abstract class Node<
+    T extends Node.CommonRootEndpoint = Node.CommonRootEndpoint,
+    I extends NodeLifecycle.Intent = NodeLifecycle.Intent,
+> extends Endpoint<T> {
     #environment: Environment;
     #runtime?: NetworkRuntime;
 
@@ -135,8 +131,8 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
         return this.env.get(ProtocolService).protocol;
     }
 
-    override get lifecycle(): NodeLifecycle {
-        return super.lifecycle as NodeLifecycle;
+    override get lifecycle(): NodeLifecycle<I> {
+        return super.lifecycle as NodeLifecycle<I>;
     }
 
     /**
@@ -179,7 +175,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
      * describes.  At its turn the call applies the current intent only if every value of {@link change} still holds in
      * it, so no later call reversed it.
      */
-    protected async requestIntent(change: Partial<NodeLifecycle.Intent>, call: Node.IntentCall) {
+    protected async requestIntent(change: Partial<I | NodeLifecycle.Intent>, call: Node.IntentCall) {
         const { admission, action, operation } = INTENT_CALLS[call];
         if (!this.#admitOrThrow(admission, action)) {
             return;
@@ -188,7 +184,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
             change.target === "online" &&
             this.lifecycle.isOnline &&
             this.lifecycle.shouldBeOnline &&
-            holdsIn(this.appliedIntent, change)
+            NodeLifecycle.holds(this.appliedIntent, change)
         ) {
             return;
         }
@@ -203,7 +199,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
             }
             await this.lifecycle.mutex.hold(`${operation} ${this}`, async () => {
                 // A close or delete may have been requested while this call waited for the mutex
-                if (holdsIn(this.lifecycle.intent, change) && this.#admitOrThrow(admission, action)) {
+                if (NodeLifecycle.holds(this.lifecycle.intent, change) && this.#admitOrThrow(admission, action)) {
                     await this.#applyIntentWithMutex();
                 }
             });
@@ -216,7 +212,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
     /**
      * Bring the node online if its intent is online and no {@link onlineBlocker} keeps it offline, else take it
      * offline.  Bringing a crashed node online recovers it first as {@link recoverWithMutex} describes, which for a
-     * client node that crashed in an erase is a whole erase.  Records no intent.  The owner of a blocker calls this
+     * node that crashed in an erase is a whole erase.  Records no intent.  The owner of a blocker calls this
      * when the blocker appears or lifts, and only after its own `isOnline` reflects the change.  Does nothing once a
      * close or delete of the node was requested, as that takes the node offline itself.  A failed apply is logged by
      * the caller; the next apply or a {@link start} tries again.
@@ -243,10 +239,15 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
     protected async persistIntentWithMutex() {}
 
     /**
-     * What the node is: online while its network runtime runs.
+     * What the node is.  Its target is {@link appliedTarget}.
      */
-    protected get appliedIntent(): NodeLifecycle.Intent {
-        return { target: this.#runtime === undefined ? "offline" : "online" };
+    protected abstract get appliedIntent(): I;
+
+    /**
+     * The target the node is at: online while its network runtime runs.
+     */
+    protected get appliedTarget(): NodeLifecycle.TargetState {
+        return this.#runtime === undefined ? "offline" : "online";
     }
 
     /**
@@ -281,12 +282,30 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
     }
 
     /**
-     * Bring a crashed node back before it goes online, or reject with the reason it cannot come back.  By default the
-     * node resets and initializes again; if the cause of the crash persists, the node crashes again and this rejects
-     * with that failure.  An override either recovers the node or rejects.  The caller holds the node mutex (level 1 or
-     * 4 of the lock order in `LifecycleMutex`) and the node is offline.
+     * Bring a crashed node back before it goes online, or reject with the reason it cannot come back.  An override
+     * either recovers the node or rejects.  The caller holds the node mutex (level 1 or 4 of the lock order in
+     * `LifecycleMutex`) and the node is offline.
+     *
+     * | crashed in                                  | recovery                                                     |
+     * |---------------------------------------------|--------------------------------------------------------------|
+     * | {@link erase}, no erase waits for its turn  | finishes the erase as the erase verb; an `erase()` joins it  |
+     * | {@link erase}, an erase waits for its turn  | none; rejects with the cause, the waiting erase finishes it  |
+     * | anything else                               | resets and initializes again                                 |
+     *
+     * The erase verb decides whether an erase waits for its turn; see `EndpointVerbs.run()` with origin `recovery`.
+     *
+     * Within this process, a node that crashed in an erase goes online only once that erase is finished, so a failed
+     * factory reset leaves no security data behind on a node that runs.  The flag is not persisted, and a started
+     * `ServerNode` that crashes is closed by its runtime.  If a step fails again, the node stays crashed and this
+     * rejects with that failure.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 13.4
      */
     protected async recoverWithMutex() {
+        if (this.verbs.isEraseUnfinished) {
+            await this.verbs.run("erase", "recovery");
+            return;
+        }
         await this.lifecycle.treeMutex.hold(`recovering ${this}`, () => this.resetWithMutex());
         this.construction.start();
         await this.construction;
@@ -310,6 +329,8 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
 
     /**
      * Bring the node online.  The caller holds the node mutex (level 1 or 4 of the lock order in `LifecycleMutex`).
+     * After a failed start, the next start and the close of the node first wait for the runtime of that start to
+     * close, which waits at most 5 s for the activity of the node to end.
      */
     protected async startWithMutex() {
         if (this.isRuntimeWorker) {
@@ -544,9 +565,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
         });
     }
 
-    protected override createLifecycle(): NodeLifecycle {
-        return new NodeLifecycle(this, { target: "offline" });
-    }
+    protected abstract override createLifecycle(): NodeLifecycle<I>;
 
     protected statusUpdate(message: string) {
         logger.notice(Diagnostic.strong(this.toString()), message);

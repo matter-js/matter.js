@@ -11,6 +11,7 @@ import { InvalidGroupOperationError } from "#node/client/ClientGroupInteraction.
 import { ClientStructure } from "#node/client/ClientStructure.js";
 import { ClientGroup } from "#node/ClientGroup.js";
 import { ClientNode } from "#node/ClientNode.js";
+import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { Lifecycle } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 import { EndpointNumber, GroupId, NodeId } from "@matter/types";
@@ -112,6 +113,17 @@ describe("ClientGroup", () => {
 
         expect(endpoint.construction.status).equals(Lifecycle.Status.Destroyed);
         expect(group.parts.size).equals(0);
+    });
+
+    it("hands out the same store each time the group asks for it", async () => {
+        const { node, group } = await groupWithEndpoint();
+        await using _node = node;
+        if (!(group instanceof ClientGroup)) {
+            expect.fail(`Expected a ClientGroup, got ${group}`);
+        }
+        const stores = node.env.get(ServerNodeStore).clientStores;
+
+        expect(stores.storeForGroup(group)).equals(stores.storeForGroup(group));
     });
 
     it("keeps its endpoints on erase", async () => {

@@ -59,7 +59,7 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
         if (this.#endpoint.lifecycle.isTerminal) {
             throw new DestroyedDependencyError(
                 `${this.#endpoint}`,
-                `is closing or being deleted, so ${endpoint} cannot be added`,
+                `is closing, closed, being deleted or deleted, so ${endpoint} cannot be added`,
             );
         }
 

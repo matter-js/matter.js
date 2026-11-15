@@ -138,6 +138,33 @@ describe("ClientNode deprecated network isDisabled", () => {
         expect(settingsOf(site, controller)?.isDisabled).equals(true);
     });
 
+    it("ignores a write while the peer closes and logs it at debug level", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, PEER);
+        const messages = new Array<{ level: LogLevel; text: string }>();
+        const destination = LogDestination({
+            name: "disabled-mirror-closing",
+            level: LogLevel.DEBUG,
+            write: (text, message) => {
+                if (message.facility === "NetworkClient" && text.includes("write of isDisabled")) {
+                    messages.push({ level: message.level, text });
+                }
+            },
+        });
+        Logger.destinations[destination.name] = destination;
+        try {
+            const closing = peer.close();
+            await peer.set({ network: { isDisabled: true } });
+            await MockTime.resolve(closing, { macrotasks: true });
+        } finally {
+            delete Logger.destinations[destination.name];
+        }
+
+        expect(messages.map(({ level }) => level)).deep.equals([LogLevel.DEBUG]);
+        expect(peer.isDisabled).false;
+    });
+
     it("does not persist the field", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();

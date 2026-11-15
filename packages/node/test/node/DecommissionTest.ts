@@ -448,8 +448,8 @@ describe("Decommission", () => {
     it("erases a peer that its server node closes while the erase clears the storage", async () => {
         class SlowClearStorage extends MemoryStorageDriver {
             override async clearAll(contexts: string[]) {
-                await new Promise<void>(resolve => setTimeout(resolve, 0));
-                super.clearAll(contexts);
+                await MockTime.yield();
+                return super.clearAll(contexts);
             }
         }
         await using site = new MockSite({ createStorageDriver: store => new SlowClearStorage(store) });

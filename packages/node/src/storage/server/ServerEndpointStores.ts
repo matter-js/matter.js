@@ -79,6 +79,9 @@ export class ServerEndpointStores {
         await MatterAggregateError.settleSeries(
             [
                 () => root.erase(),
+
+                // A root that ended already, such as one whose reload after an erase failed, erases nothing
+                () => storage.clearAll(),
                 () => {
                     this.#holders = new Map();
                     this.#nextNumber = 1;
