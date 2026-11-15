@@ -162,6 +162,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
     - Fix: `config fabricLabel set` checks the 32-byte limit in UTF-8 bytes instead of characters
     - Fix: A stored controller fabric label over 32 UTF-8 bytes is shortened on start with a warning
+    - Fix: Command and attribute write values may leave out optional struct or list fields and set nullable struct or list values to null, and `null` or a list given for a struct is refused with a clear error
 
 - @matter/protocol
     - Fix: An ICD advertises SAI in its operational DNS-SD record, and SII while it operates as SIT, also when the value equals the MRP default, as the specification requires
