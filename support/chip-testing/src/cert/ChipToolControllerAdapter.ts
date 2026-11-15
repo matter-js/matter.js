@@ -781,8 +781,9 @@ interface ChipGlobalStatus {
 }
 
 /**
- * The entries of a chip-tool command's own results. Subscription reports on paths the command did not ask about are not
- * part of it (see {@link isOwnResult}).
+ * Decoded chip-tool result entries. The reply {@link ChipToolControllerAdapter.execute} returns holds only the command's
+ * own entries, so subscription reports on paths the command did not ask about are not part of it (see
+ * {@link isOwnResult}).
  */
 interface ChipReply {
     values: ChipAttributeValue[];
@@ -820,18 +821,18 @@ interface RequestedPaths {
     events?: EventPathSpec[];
 }
 
-const NO_PATHS: RequestedPaths = {};
+const NO_PATHS: Readonly<RequestedPaths> = Object.freeze({});
 
 /**
  * Whether `result` is the command's own entry rather than a subscription report chip-tool recorded into the command's
  * results. Reports carry no subscription id (`RemoteDataModelLogger::LogAttributeAsJSON`), so the path decides:
  *
- * | entry                                    | own when                             |
- * |------------------------------------------|--------------------------------------|
- * | event value or status                    | a requested event path covers it     |
- * | attribute value or status                | a requested attribute path covers it |
- * | status without endpoint or cluster       | always                               |
- * | command status or response               | always: a report names no command    |
+ * | entry                                       | own when                             |
+ * |---------------------------------------------|--------------------------------------|
+ * | event value or status                       | a requested event path covers it     |
+ * | attribute value or status                   | a requested attribute path covers it |
+ * | entry without endpoint or cluster           | always                               |
+ * | any other, such as a command status         | always: no report has this shape     |
  *
  * A status without a path is usually chip-tool's account of the command's own failure. It can also be the error of a
  * subscription that ended (`ReportCommand::OnError`), which nothing in the entry tells apart, so it counts as the
@@ -871,7 +872,10 @@ function bigIntOf(entry: Record<string, unknown>, key: string): bigint | undefin
     return undefined;
 }
 
-/** Decodes the command's own entries of a reply, as {@link isOwnResult} selects them. */
+/**
+ * Decodes chip-tool result entries. {@link ChipToolControllerAdapter.execute} passes only the command's own ones (see
+ * {@link isOwnResult}).
+ */
 function interpretReply(results: unknown[]): ChipReply {
     const reply: ChipReply = {
         values: new Array<ChipAttributeValue>(),
@@ -2273,7 +2277,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
         }
 
         // Registering only now is what draws the seeding boundary: the priming values in this reply reach
-        // only earlier subscriptions of the same paths, so they are the caller's return value and every
+        // only earlier subscriptions covering these paths, so they are the caller's return value and every
         // report after them is an update.
         this.#subscriptions.push({ paths, onUpdate: opts.onUpdate });
         this.#requireClient().armReports();
@@ -2375,24 +2379,24 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
 
     /**
      * As {@link execute}, plus the reply's own decoded log lines for a command that answers only in logs, and its
-     * raw results for a command whose entries name no path.
+     * raw results for a command whose entries name no path. The raw results still hold the subscription reports.
      */
     async executeWithLogs(
         command: string,
         requested: RequestedPaths,
     ): Promise<{ reply: ChipReply; logs: string[]; results: unknown[] }> {
         const result = await this.#requireClient().execute(command);
-        const own = new Array<unknown>();
-        for (const entry of result.results) {
-            if (isOwnResult(entry, requested)) {
-                own.push(entry);
+        const owned = result.results.map(entry => isOwnResult(entry, requested));
+        const reply = interpretReply(result.results.filter((_, index) => owned[index]));
+        for (const [index, entry] of result.results.entries()) {
+            if (owned[index]) {
                 // A value on a requested path may also be a report of a subscription covering that path
                 this.#deliver(entry);
             } else {
                 this.#deliverReport(entry);
             }
         }
-        return { reply: interpretReply(own), logs: result.logs, results: result.results };
+        return { reply, logs: result.logs, results: result.results };
     }
 
     #requireClient() {

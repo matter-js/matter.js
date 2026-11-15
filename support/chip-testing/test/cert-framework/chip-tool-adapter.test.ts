@@ -2013,6 +2013,8 @@ describe("ChipToolControllerAdapter", function () {
 
             expect((await node.readEvents([EVENT_PATH])).map(({ eventNumber }) => eventNumber)).deep.equal([4n]);
             expect(updates).length(1);
+            await delay(50);
+            expect(adapter?.log.lines.some(line => line.text.includes("Unattributed"))).equal(false);
         });
 
         it("wildcards every path segment the caller left out", async () => {
@@ -2374,6 +2376,8 @@ describe("ChipToolControllerAdapter", function () {
             expect(await node.readAttribute(VENDOR_ID_PATH)).equal(0xfff1);
 
             expect(updates).deep.equal([false]);
+            await delay(50);
+            expect(adapter?.log.lines.some(line => line.text.includes("Unattributed"))).equal(false);
         });
 
         it("hands a read's value of a subscribed path to onUpdate as well, since it may be a report", async () => {
@@ -2421,7 +2425,7 @@ describe("ChipToolControllerAdapter", function () {
                 await node.decommission();
             });
 
-            it("is logged where no subscription can take it", async () => {
+            it("is logged when it is a status, which no subscription takes", async () => {
                 const { node } = await subscribedToFailingReport();
 
                 await node.invoke("OnOff", "on", {}, 1);
@@ -2432,6 +2436,24 @@ describe("ChipToolControllerAdapter", function () {
                 );
                 const line = adapter?.log.lines.find(candidate => candidate.text.includes("Unattributed"))?.text;
                 expect(line).contains("UNSUPPORTED_ATTRIBUTE");
+            });
+
+            it("is logged as unusable where it cannot be decoded, without failing the command", async () => {
+                const { node } = await commissioned();
+                const eventWithoutNumber = {
+                    clusterId: BASIC_INFORMATION.id,
+                    endpointId: 0,
+                    eventId: requireId(START_UP.id, "startUp"),
+                    value: { softwareVersion: 1 },
+                };
+                fake.reply = () => ({ results: [eventWithoutNumber, vendorIdValue()] });
+
+                expect(await node.readAttribute(VENDOR_ID_PATH)).equal(0xfff1);
+
+                await waitFor(
+                    () => adapter?.log.lines.some(line => line.text.includes("Unusable chip-tool result")) === true,
+                    "the undecodable report to reach the controller log",
+                );
             });
 
             it("is no entry of a read's result", async () => {
