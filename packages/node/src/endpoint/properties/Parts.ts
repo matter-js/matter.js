@@ -183,6 +183,11 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
     initialize() {
         const { lifecycle } = this.#endpoint;
 
+        // A close or delete requested during the initialization destroys the parts anyway
+        if (lifecycle.isTerminal) {
+            return;
+        }
+
         // Sanity check
         if (!lifecycle.isReady) {
             throw new ImplementationError(`Cannot initialize parts because endpoint is not ready`);

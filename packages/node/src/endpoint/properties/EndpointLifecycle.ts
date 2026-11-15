@@ -327,6 +327,11 @@ export class EndpointLifecycle {
                 break;
 
             case EndpointLifecycle.Change.Ready:
+                // An initialization that ends after a close or delete was requested leaves the endpoint not ready
+                if (this.#destructionBegun) {
+                    return;
+                }
+
                 // Sanity checks
                 if (!this.#hasId) {
                     throw new ImplementationError("Endpoint reports as ready but has no ID assigned");
@@ -338,6 +343,10 @@ export class EndpointLifecycle {
                 break;
 
             case EndpointLifecycle.Change.PartsReady:
+                if (this.#destructionBegun) {
+                    return;
+                }
+
                 // Sanity checks
                 if (!this.#isReady) {
                     throw new ImplementationError("Endpoint reports as parts-ready but is not itself ready");

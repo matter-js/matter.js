@@ -2053,6 +2053,90 @@ describe("ServerNode", () => {
         expect(node.env.get(FabricManager).length).equals(0);
     });
 
+    it("closes after a factory reset whose restart a close interrupts once the node is ready", async () => {
+        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+        await aggregator.add(OnOffLightDevice, { id: "light" });
+        let resetDone = false;
+        node.lifecycle.reset.on(() => {
+            resetDone = true;
+        });
+        let closing: Promise<void> | undefined;
+        node.lifecycle.ready.on(() => {
+            if (resetDone) {
+                closing ??= node.close();
+            }
+        });
+
+        const erased = await MockTime.resolve(node.erase(), { macrotasks: true }).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+        if (closing === undefined) {
+            expect.fail("The restart of the factory reset did not reach ready");
+        }
+        await MockTime.resolve(closing, { macrotasks: true });
+
+        expect(erased).equals(undefined);
+        expect(node.construction.status).equals(Lifecycle.Status.Destroyed);
+    });
+
+    it("closes after a factory reset whose restart a close interrupts once a part is ready", async () => {
+        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+        const light = await aggregator.add(OnOffLightDevice, { id: "light" });
+        let resetDone = false;
+        node.lifecycle.reset.on(() => {
+            resetDone = true;
+        });
+        let closing: Promise<void> | undefined;
+        light.lifecycle.ready.on(() => {
+            if (resetDone) {
+                closing ??= node.close();
+            }
+        });
+
+        const erased = await MockTime.resolve(node.erase(), { macrotasks: true }).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+        if (closing === undefined) {
+            expect.fail("The restart of the factory reset did not reach a ready part");
+        }
+        await MockTime.resolve(closing, { macrotasks: true });
+
+        expect(erased).equals(undefined);
+        expect(node.construction.status).equals(Lifecycle.Status.Destroyed);
+    });
+
+    it("does not report ready when a close interrupts the restart of a factory reset before it is ready", async () => {
+        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        await node.add(OnOffLightDevice, { id: "light" });
+        let resetDone = false;
+        node.lifecycle.reset.on(() => {
+            resetDone = true;
+        });
+        let closing: Promise<void> | undefined;
+        node.construction.change.on(status => {
+            if (resetDone && status === Lifecycle.Status.Initializing) {
+                closing ??= node.close();
+            }
+        });
+        let readyAfterClose = false;
+        node.lifecycle.ready.on(() => {
+            readyAfterClose ||= closing !== undefined;
+        });
+
+        await MockTime.resolve(node.erase(), { macrotasks: true });
+        if (closing === undefined) {
+            expect.fail("The restart of the factory reset did not begin");
+        }
+        await MockTime.resolve(closing, { macrotasks: true });
+
+        expect(readyAfterClose).equals(false);
+        expect(node.construction.status).equals(Lifecycle.Status.Destroyed);
+    });
+
     it("rejects a failed factory reset with its failures listed at one level", async () => {
         await using node = await MockServerNode.createOnline(undefined, { online: false });
         node.env.get(FabricManager).clear = async () => {
