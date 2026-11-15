@@ -6,13 +6,14 @@
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { Api } from "#behavior/system/remote/api/Api.js";
+import { ApiPath } from "#behavior/system/remote/api/ApiPath.js";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { Environment } from "@matter/general";
+import { Environment, ImplementationError } from "@matter/general";
 import { ClusterModel, Matter, MatterModel } from "@matter/model";
 import { MockSite, subscribedPeer } from "@matter/node/testing";
-import { ClusterType } from "@matter/types";
+import { ClusterType, FabricIndex, Status } from "@matter/types";
 
 const CLUSTER_ID = 0xfff1_fc20;
 
@@ -44,7 +45,17 @@ function schemaWith(legacyConformance: string, levelMax: number) {
                 response: "ConfigureResponse",
                 access: "O",
                 conformance: "M",
-                children: [{ tag: "field", id: 0, name: "Policy", type: "uint8", conformance: legacyConformance }],
+                children: [
+                    { tag: "field", id: 0, name: "Policy", type: "uint8", conformance: legacyConformance },
+                    {
+                        tag: "field",
+                        id: 1,
+                        name: "Limit",
+                        type: "uint8",
+                        conformance: "O",
+                        constraint: `max ${levelMax}`,
+                    },
+                ],
             },
             {
                 tag: "command",
@@ -52,7 +63,26 @@ function schemaWith(legacyConformance: string, levelMax: number) {
                 name: "ConfigureResponse",
                 direction: "response",
                 conformance: "M",
-                children: [{ tag: "field", id: 0, name: "Legacy", type: "uint8", conformance: legacyConformance }],
+                children: [
+                    {
+                        tag: "field",
+                        id: 0,
+                        name: "Legacy",
+                        type: "uint8",
+                        conformance: legacyConformance,
+                        constraint: `max ${levelMax}`,
+                    },
+                    { tag: "field", id: 1, name: "Entry", type: "EntryStruct", conformance: "O" },
+                ],
+            },
+            {
+                tag: "datatype",
+                name: "EntryStruct",
+                type: "struct",
+                children: [
+                    { tag: "field", id: 0, name: "Value", type: "uint8", conformance: "M" },
+                    { tag: "field", id: 0xfe, name: "FabricIndex", type: "fabric-idx", conformance: "M" },
+                ],
             },
             {
                 tag: "datatype",
@@ -67,10 +97,24 @@ function schemaWith(legacyConformance: string, levelMax: number) {
     });
 }
 
+let configureCalls = 0;
+
+/** The policy for which the device adds a fabric-scoped entry to its response */
+const ENTRY_POLICY = 3;
+
+/** A fabric index the device reports that differs from the controller's fabric index on the device */
+const DEVICE_FABRIC_INDEX = 7;
+
 function behaviorFor(schema: ClusterModel) {
     const behavior = class extends ClusterBehavior.for(ClusterType(schema) as ClusterType.Concrete) {};
     Object.defineProperty(behavior.prototype, "configure", {
-        value: () => ({ legacy: 1 }),
+        value: ({ policy }: { policy?: number }) => {
+            configureCalls++;
+            if (policy === ENTRY_POLICY) {
+                return { legacy: policy, entry: { value: 1, fabricIndex: DEVICE_FABRIC_INDEX } };
+            }
+            return { legacy: policy ?? 1 };
+        },
         writable: true,
         configurable: true,
     });
@@ -130,6 +174,91 @@ describe("remote API on a peer", () => {
         expect(response.kind === "value" && response.value.js).deep.equals({ legacy: 1 });
     });
 
+    it("accepts a response field outside the local bounds", async () => {
+        const { site, controller } = await peerSite();
+        await using _site = site;
+
+        const response = await execute(controller, {
+            target: "peers/peer1/1/legacyApi/configure",
+            method: "invoke",
+            parameters: { policy: 50 },
+        });
+
+        expect(response.kind).equals("value");
+        expect(response.kind === "value" && response.value.js).deep.equals({ legacy: 50 });
+    });
+
+    // Characterization: passes on the code before this change; fails if the fabric index of a response is replaced
+    it("keeps the fabric index the device sent in a command response", async () => {
+        const { site, controller } = await peerSite();
+        await using _site = site;
+
+        const response = await execute(controller, {
+            target: "peers/peer1/1/legacyApi/configure",
+            method: "invoke",
+            parameters: { policy: ENTRY_POLICY },
+        });
+
+        const { fabricIndexOnPeer } = controller.peers.get("peer1")!.state.commissioning;
+        expect(fabricIndexOnPeer).not.undefined;
+        expect(fabricIndexOnPeer).not.equals(DEVICE_FABRIC_INDEX);
+
+        expect(response.kind).equals("value");
+        expect(response.kind === "value" && response.value.js).deep.equals({
+            legacy: ENTRY_POLICY,
+            entry: { value: 1, fabricIndex: DEVICE_FABRIC_INDEX },
+        });
+    });
+
+    it("refuses a command response whose fabric-scoped struct arrived without FabricIndex", async () => {
+        const { site, controller } = await peerSite();
+        await using _site = site;
+
+        const caught = await MockTime.resolve(
+            controller.act(async agent => {
+                // A struct decoded without its FabricIndex holds OMIT_FABRIC there
+                const endpoint = controller.peers.get("peer1")!.parts.get(1)!;
+                const client = endpoint.agentFor(agent.context).get(endpoint.behaviors.supported.legacyApi);
+                Object.defineProperty(client, "configure", {
+                    value: () => ({ legacy: 1, entry: { value: 1, fabricIndex: FabricIndex.OMIT_FABRIC } }),
+                });
+                const item = await Api.resourceFor(agent, new ApiPath("peers/peer1/1/legacyApi/configure"));
+                if (item === undefined) {
+                    expect.fail("Expected the configure command of the peer");
+                }
+                return item.invoke({ js: { policy: 1 } }).then(
+                    () => undefined,
+                    (e: unknown) => e,
+                );
+            }),
+            { macrotasks: true },
+        );
+
+        if (!(caught instanceof ImplementationError)) {
+            expect.fail(`Expected an ImplementationError, got ${String(caught)}`);
+        }
+        expect(caught.message).equals("Command output validation failed");
+    });
+
+    it("declines a command field outside the local bounds (characterization)", async () => {
+        // The request is checked against its TLV bounds when the invoke request is built, after model validation
+        // forwarded it
+        const { site, controller } = await peerSite();
+        await using _site = site;
+        const callsBefore = configureCalls;
+
+        const response = await execute(controller, {
+            target: "peers/peer1/1/legacyApi/configure",
+            method: "invoke",
+            parameters: { limit: 50 },
+        });
+
+        expect(response.kind).equals("error");
+        expect(response.kind === "error" && response.error.message).contains("50 is above the maximum, 10");
+        expect(response.kind === "error" && response.error).property("code", Status.ConstraintError);
+        expect(configureCalls).equals(callsBefore);
+    });
+
     it("writes an obsolete enum value", async () => {
         const { site, controller, device } = await peerSite();
         await using _site = site;
@@ -144,7 +273,7 @@ describe("remote API on a peer", () => {
         expect(deviceState(device, "mode")).equals(0);
     });
 
-    it("declines a value outside the local bounds without sending it", async () => {
+    it("writes a value outside the local bounds that the device accepts", async () => {
         const { site, controller, device } = await peerSite();
         await using _site = site;
 
@@ -154,8 +283,26 @@ describe("remote API on a peer", () => {
             value: 50,
         });
 
-        expect(response.kind).equals("error");
-        expect(deviceState(device, "level")).equals(0);
+        expect(response.kind).equals("ok");
+        expect(deviceState(device, "level")).equals(50);
+    });
+
+    it("patches a value outside the local bounds that the device accepts", async () => {
+        const { site, controller, device } = await peerSite();
+        await using _site = site;
+
+        await MockTime.resolve(
+            controller.act(async agent => {
+                const item = await Api.resourceFor(agent, new ApiPath("peers/peer1/1/legacyApi/level"));
+                if (item === undefined) {
+                    expect.fail("Expected the level attribute of the peer");
+                }
+                item.patch({ js: 50 });
+            }),
+            { macrotasks: true },
+        );
+
+        expect(deviceState(device, "level")).equals(50);
     });
 
     it("declines a value of the wrong type without sending it (characterization)", async () => {
@@ -170,6 +317,18 @@ describe("remote API on a peer", () => {
 
         expect(response.kind).equals("error");
         expect(deviceState(device, "level")).equals(0);
+    });
+
+    it("validates a value of a local endpoint as a local value", async () => {
+        const { site, device } = await peerSite();
+        await using _site = site;
+
+        const isRemote = await device.parts.get(1)!.act(async agent => {
+            const item = await Api.resourceFor(agent, new ApiPath(""));
+            return item?.isRemote;
+        });
+
+        expect(isRemote).false;
     });
 
     describe("on a local endpoint", () => {
@@ -191,6 +350,20 @@ describe("remote API on a peer", () => {
                 target: `host/${number}/legacyApi/mode`,
                 method: "write",
                 value: 0,
+            });
+
+            expect(response.kind).equals("error");
+        });
+
+        // Characterization: a local endpoint enforces its own bounds
+        it("rejects a value outside the bounds", async () => {
+            const { site, controller, number } = await localSite();
+            await using _site = site;
+
+            const response = await execute(controller, {
+                target: `host/${number}/legacyApi/level`,
+                method: "write",
+                value: 50,
             });
 
             expect(response.kind).equals("error");

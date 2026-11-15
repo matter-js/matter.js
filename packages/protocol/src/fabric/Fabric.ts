@@ -73,7 +73,7 @@ export class Fabric {
     readonly intermediateCACert: Bytes | undefined;
     readonly operationalCert: Bytes;
     readonly #keyPair: Key;
-    readonly #sessions = new Set<SecureSession>();
+    #sessions = new Set<SecureSession>();
     #groups: FabricGroups;
     #icd?: FabricIcd;
     #accessControl: FabricAccessControl;
@@ -191,8 +191,10 @@ export class Fabric {
     }
 
     async setLabel(label: string) {
-        if (label.length > 32) {
-            throw new ImplementationError("Fabric label must be at most 32 characters long.");
+        if (Bytes.utf8Length(label) > Fabric.MAX_LABEL_BYTES) {
+            throw new ImplementationError(
+                `Fabric label is ${Bytes.utf8Length(label)} bytes long in UTF-8, the maximum is ${Fabric.MAX_LABEL_BYTES}.`,
+            );
         }
         if (this.#label === label) {
             return;
@@ -279,10 +281,11 @@ export class Fabric {
     }
 
     /**
-     * Take over the runtime state of {@link previous}, the object this one replaces for the same fabric: groups, access
-     * control, ICD state and the storage context.  Both objects then share the same instances, so sessions still bound
-     * to {@link previous} see every change.  The derived group keys depend on the root, fabric ID and IPK, so these
-     * must be unchanged.
+     * Take over the runtime state of {@link previous}, the object this one replaces for the same fabric: sessions,
+     * groups, access control, ICD state and the storage context.  Both objects then share the same instances.  Sessions
+     * still bound to {@link previous} see every change to groups, access control and ICD state, and deleting, leaving
+     * or replacing either object closes the sessions bound to both.  The derived group keys depend on the root, fabric
+     * ID and IPK, so these must be unchanged.
      */
     takeOverRuntimeStateOf(previous: Fabric) {
         if (
@@ -293,6 +296,7 @@ export class Fabric {
                 `Fabric ${this.fabricIndex} can only be replaced by new operational credentials under the same root, fabric ID and IPK`,
             );
         }
+        this.#sessions = previous.#sessions;
         this.#groups = previous.#groups;
         this.#accessControl = previous.#accessControl;
         this.#icd = previous.icd;
@@ -411,12 +415,17 @@ export class Fabric {
         this.#sessions.delete(session);
     }
 
+    /**
+     * Whether an established session with {@link peerNodeId} exists in this fabric, closing sessions included.  A
+     * session whose handshake still runs does not count.
+     */
     hasSessionForPeer(peerNodeId: NodeId) {
         for (const session of this.#sessions) {
-            if (session.peerNodeId === peerNodeId) {
+            if (session.peerNodeId === peerNodeId && !session.isEstablishing) {
                 return true;
             }
         }
+        return false;
     }
 
     set persistCallback(callback: ((isUpdate?: boolean) => MaybePromise<void>) | undefined) {
@@ -652,8 +661,10 @@ export class FabricBuilder {
     }
 
     setLabel(label: string) {
-        if (label.length > 32) {
-            throw new ImplementationError("Fabric label must be at most 32 characters long.");
+        if (Bytes.utf8Length(label) > Fabric.MAX_LABEL_BYTES) {
+            throw new ImplementationError(
+                `Fabric label is ${Bytes.utf8Length(label)} bytes long in UTF-8, the maximum is ${Fabric.MAX_LABEL_BYTES}.`,
+            );
         }
         this.#label = label;
         return this;
@@ -708,6 +719,13 @@ export class FabricBuilder {
 }
 
 export namespace Fabric {
+    /**
+     * The longest fabric label in UTF-8 bytes.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.4.5
+     */
+    export const MAX_LABEL_BYTES = 32;
+
     /**
      * Configuration required to initialize a fabric.
      */

@@ -9,7 +9,7 @@ import { CommissioningMode, MdnsService } from "@matter/main/protocol";
 import { VendorId } from "@matter/main/types";
 import { expect } from "chai";
 import { advertiseCommissionableAlias, cachedTxtValue } from "../../src/cert/mdns-alias.js";
-import { discoverCommissionable } from "../../src/cert/mdns-check.js";
+import { discoverCommissionable, expectMdns } from "../../src/cert/mdns-check.js";
 
 describe("advertiseCommissionableAlias", function () {
     this.timeout(60_000);
@@ -52,5 +52,41 @@ describe("advertiseCommissionableAlias", function () {
             await Time.sleep("alias withdrawal", Millis(250));
         }
         expect(names.maybeGet(alias.qname)?.parameters.get("ZZ")).equal(undefined);
+    });
+
+    it("lets expectMdns accept only the named commissionable instances", async () => {
+        const discriminator = DISCRIMINATOR + 1;
+        const alias = await advertiseCommissionableAlias(
+            {
+                kind: "commissionable",
+                mode: CommissioningMode.Basic,
+                discriminator,
+                name: "alias-instance-test",
+                deviceType: 0x100,
+                vendorId: VendorId(0xfff1),
+                productId: 0x8001,
+                port: PORT + 1,
+            },
+            {},
+        );
+        try {
+            const device = { commissioning: { discriminator } };
+            const [instanceName] = alias.qname.split(".");
+            const own = await expectMdns(
+                device,
+                { commissionable: true },
+                { timeoutMs: 10_000, commissionableInstanceNames: [instanceName.toLowerCase()] },
+            );
+            expect(own.verdict, own.detail).equal("pass");
+
+            const other = await expectMdns(
+                device,
+                { commissionable: true },
+                { timeoutMs: 2_000, commissionableInstanceNames: ["0000000000000000"] },
+            );
+            expect(other.verdict, other.detail).equal("fail");
+        } finally {
+            await alias.close();
+        }
     });
 });

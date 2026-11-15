@@ -61,6 +61,7 @@ const NODE: Classified<CertNodeApi> = {
     scriptOtaProvider: "none",
     openCommissioningWindow: "action",
     decommission: "action",
+    updateOperationalCertificate: "action",
     operationalMdnsInstanceName: "none",
 };
 
@@ -76,8 +77,11 @@ const ATTESTATION: Classified<AttestationApi> = {
 
 const WEB_RTC_REQUESTOR: Classified<WebRtcRequestorApi> = {
     endpoint: "none",
-    upsertSession: "none",
-    removeSession: "none",
+    solicitOffer: "action",
+    provideOffer: "action",
+    provideAnswer: "action",
+    provideIceCandidates: "action",
+    endSession: "action",
     sessions: "none",
     signals: "none",
     nextSignal: "none",
@@ -91,6 +95,7 @@ const CONTROLLER: Classified<ControllerAdapter> = {
     commission: "action",
     parseQrPayload: "none",
     parseManualPairingCode: "none",
+    discoverCommissionableNodes: "none",
     node: { handle: NODE },
     group: { handle: GROUP },
     webRtcRequestor: { handle: WEB_RTC_REQUESTOR },

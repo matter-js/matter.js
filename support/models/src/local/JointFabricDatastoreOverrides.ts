@@ -23,5 +23,14 @@ LocalMatter.children.push({
                 { tag: "field", id: 0x4, name: "Targets", constraint: "none" },
             ],
         },
+        {
+            tag: "datatype",
+            name: "DatastoreGroupKeySetStruct",
+            children: [
+                { tag: "field", id: 0x2, name: "EpochKey0", isSecret: true },
+                { tag: "field", id: 0x4, name: "EpochKey1", isSecret: true },
+                { tag: "field", id: 0x6, name: "EpochKey2", isSecret: true },
+            ],
+        },
     ],
 });

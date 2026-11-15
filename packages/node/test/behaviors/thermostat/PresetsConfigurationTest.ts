@@ -129,7 +129,15 @@ describe("Presets configuration", () => {
         // so it carries no handle and no client can address it
         const values = storage.store("thermostat-node").data;
         expect(values[context], "the thermostat's stored values").not.undefined;
-        values[context].presets = [newPreset()] as never;
+        values[context].presets = [
+            {
+                presetHandle: null,
+                presetScenario: Thermostat.PresetScenario.Occupied,
+                coolingSetpoint: 2600,
+                heatingSetpoint: 2000,
+                builtIn: false,
+            },
+        ];
 
         // Without this the seed never runs, so the stale value could not have been consulted either way
         delete values[context].persistedPresets;
@@ -146,5 +154,48 @@ describe("Presets configuration", () => {
 
             await node.close();
         }
+    });
+
+    it("starts with more stored presets than NumberOfPresets allows and raises the limit", async () => {
+        const environment = new Environment("test");
+        environment.set(StorageService, new MockStorageService(environment));
+        const namedPresetsEndpoint = (numberOfPresets: number, presets?: Thermostat.Preset[]) =>
+            new Endpoint(PresetsThermostat, {
+                id: "thermostat",
+                number: 1,
+                thermostat: {
+                    ...thermostatConfig(numberOfPresets, presets),
+                    presetTypes: [
+                        {
+                            presetScenario: Thermostat.PresetScenario.Occupied,
+                            numberOfPresets,
+                            presetTypeFeatures: { supportsNames: true },
+                        },
+                    ],
+                },
+            });
+
+        {
+            await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, {
+                id: "pres",
+                device: namedPresetsEndpoint(5, [
+                    newPreset({ presetHandle: Uint8Array.of(1), name: "Home" }),
+                    newPreset({ presetHandle: Uint8Array.of(2), name: "Office" }),
+                ]),
+                environment,
+            });
+            await node.close();
+        }
+
+        const deviceEp = namedPresetsEndpoint(1);
+        await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, {
+            id: "pres",
+            device: deviceEp,
+            environment,
+        });
+
+        expect(deviceEp.state.thermostat.persistedPresets?.length).equals(2);
+        expect(deviceEp.state.thermostat.numberOfPresets).equals(2);
+        await node.close();
     });
 });

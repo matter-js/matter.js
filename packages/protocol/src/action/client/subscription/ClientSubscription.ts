@@ -57,6 +57,11 @@ export abstract class ClientSubscription implements ActiveSubscription {
         this.#lifetime.name = [this.kind, Diagnostic.strong(id)];
     }
 
+    /** Whether {@link close} ran; no new reports are routed to a closed subscription. */
+    get isClosed() {
+        return this.#isClosed;
+    }
+
     close() {
         if (this.#isClosed) {
             return;

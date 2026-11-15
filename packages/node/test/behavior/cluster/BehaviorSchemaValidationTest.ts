@@ -41,15 +41,19 @@ const INTERNAL_ELEMENTS: Record<string, string[]> = {
     ScenesManagement: ["sceneTable"],
     Switch: ["debounceDelay", "longPressDelay", "momentaryNeutralPosition", "multiPressDelay", "rawPosition"],
     Thermostat: [
+        "OverriddenSuggestionId",
         "PersistedPresets",
+        "PersistedSchedules",
         "externalMeasuredIndoorTemperature",
         "externallyMeasuredOccupancy",
         "localIndoorTemperatureMeasurementEndpoint",
         "localOccupancyMeasurementEndpoint",
+        "localTemperatureChangeThreshold",
         "useAutomaticModeManagement",
     ],
     UserLabel: ["maxLabels"],
     WindowCovering: ["supportsMaintenanceMode"],
+    ZoneManagement: ["lastZoneId"],
 };
 
 /**

@@ -36,6 +36,32 @@ describe("TlvString", () => {
 
             expect(Bytes.toHex(result)).equal("0c0674657374c3a8");
         });
+
+        it("uses a two-byte length field from 256 bytes even when the string has fewer characters", () => {
+            const value = "日".repeat(86);
+            const result = TlvString.encode(value);
+
+            expect(Bytes.toHex(result).slice(0, 6)).equal("0d0201");
+            expect(TlvString.decode(result)).equal(value);
+        });
+
+        it("uses a four-byte length field from 65536 bytes even when the string has fewer characters", () => {
+            const Unbounded = TlvString.bound({ maxLength: 100_000 });
+            const value = "日".repeat(21_846);
+            const result = Unbounded.encode(value);
+
+            expect(Bytes.toHex(result).slice(0, 10)).equal("0e02000100");
+            expect(Unbounded.decode(result)).equal(value);
+        });
+
+        it("uses a two-byte length field when multi-byte characters exceed 255 bytes", () => {
+            const value = "日".repeat(100);
+            const result = TlvString.encode(value);
+
+            expect(Bytes.toHex(result).slice(0, 6)).equal("0d2c01");
+            expect(result.byteLength).equal(303);
+            expect(TlvString.decode(result)).equal(value);
+        });
     });
 
     describe("decode", () => {
@@ -68,6 +94,12 @@ describe("TlvString", () => {
 
             expect(() => Bounded.decode(Bytes.fromHex("0c0661621f636465"))).throw(ValidationError, "too long");
         });
+
+        it("enforces maxLength in UTF-8 bytes on the string before Information Separator 1 truncation", () => {
+            const Bounded = TlvString.bound({ maxLength: 4 });
+
+            expect(() => Bounded.decode(Bytes.fromHex("0c06c3a9c3a91f61"))).throw(ValidationError, "6 bytes");
+        });
     });
 
     describe("calculate byte size", () => {
@@ -96,6 +128,20 @@ describe("TlvString", () => {
                 }
             });
         }
+
+        it("counts maxLength in UTF-8 bytes", () => {
+            const Bounded = TlvString.bound({ maxLength: 64 });
+
+            expect(() => Bounded.validate("日".repeat(21))).not.throw();
+            expect(() => Bounded.validate("日".repeat(22))).throw(ValidationError, "66 bytes, max 64");
+        });
+
+        it("counts minLength in UTF-8 bytes", () => {
+            const Bounded = TlvString.bound({ minLength: 4 });
+
+            expect(() => Bounded.validate("éé")).not.throw();
+            expect(() => Bounded.validate("éa")).throw(ValidationError, "3 bytes, min 4");
+        });
     });
 });
 

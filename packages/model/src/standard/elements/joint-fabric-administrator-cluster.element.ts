@@ -46,7 +46,7 @@ export const JointFabricAdministrator = Cluster(
             response: "status"
         },
         Field({ name: "CommissioningTimeout", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" }),
-        Field({ name: "PakePasscodeVerifier", id: 0x1, type: "octstr", conformance: "M", constraint: "97" }),
+        Field({ name: "PakePasscodeVerifier", id: 0x1, type: "octstr", conformance: "M", constraint: "97", isSecret: true }),
         Field({ name: "Discriminator", id: 0x2, type: "uint16", conformance: "M", constraint: "max 4095" }),
         Field({ name: "Iterations", id: 0x3, type: "uint32", conformance: "M", constraint: "1000 to 100000" }),
         Field({ name: "Salt", id: 0x4, type: "octstr", conformance: "M", constraint: "16 to 32" })

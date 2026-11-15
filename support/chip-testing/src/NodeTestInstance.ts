@@ -67,7 +67,7 @@ export abstract class NodeTestInstance extends DeviceTestInstance implements Sub
         const {
             passcode,
             discriminator,
-            pairingCodes: { qrPairingCode },
+            pairingCodes: { qrPairingCode, manualPairingCode },
         } = this.node.state.commissioning;
 
         return {
@@ -75,6 +75,7 @@ export abstract class NodeTestInstance extends DeviceTestInstance implements Sub
             passcode,
             discriminator,
             qrPairingCode,
+            manualPairingCode,
         };
     }
 

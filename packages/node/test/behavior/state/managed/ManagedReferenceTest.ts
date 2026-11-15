@@ -407,6 +407,17 @@ describe("ManagedReference", () => {
             expect(() => (held!.length = 0)).throws(ExpiredReferenceError);
         });
 
+        it("names the nested member a write through a held proxy fails for", async () => {
+            const state = TestState();
+            let held: Holder | undefined;
+            await state.write(s => {
+                held = s.holder!;
+            });
+
+            expect(() => (held!.id = 2)).throws(ExpiredReferenceError, "TestStruct.holder:");
+            expect(() => held!.list.pop()).throws(ExpiredReferenceError, "TestStruct.holder.list:");
+        });
+
         it("refuses a read through a held root proxy (characterization)", async () => {
             const state = TestState();
             let root: State | undefined;
@@ -457,7 +468,11 @@ describe("ManagedReference", () => {
                 this.initialValues = initialValues;
             }
 
-            async set() {}
+            assertWritable() {}
+
+            prepare() {
+                return async () => {};
+            }
 
             async forgetVersion() {}
 

@@ -13,6 +13,7 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
+    Bytes,
     createPromise,
     Diagnostic,
     LogDestination,
@@ -27,11 +28,14 @@ import {
     BaseDataReport,
     DataReportPayload,
     DataReportPayloadIterator,
-    GroupMessageEventInfo,
+    ExchangeManager,
+    GroupMessageAuthenticatedInfo,
+    GroupSession,
     InteractionServerMessenger,
     InvokeRequest,
     InvokeResponse,
     InvokeResponseForSend,
+    MessageCounter,
     MessageType,
     ReadRequest,
     SessionManager,
@@ -47,6 +51,9 @@ import {
     EventId,
     EventNumber,
     FabricIndex,
+    INTERACTION_PROTOCOL_ID,
+    GroupId,
+    NodeId,
     Status,
     StatusResponseError,
     TlvArray,
@@ -68,10 +75,12 @@ import {
     VendorId,
     WildcardPathFlagsBitmap,
 } from "@matter/types";
+import { AccessControl } from "@matter/types/clusters/access-control";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
+import { Groupcast } from "@matter/types/clusters/groupcast";
 import { createDummyMessageExchange } from "./InteractionTestUtils.js";
 
 const TlvStartUpEvent = TlvOfModel(BasicInformation.events.startUp);
@@ -2578,9 +2587,11 @@ describe("InteractionProtocol", () => {
             const exchange = await createDummyMessageExchange(node, { fabric });
             const { messenger } = createMockInvokeMessenger();
 
-            const emitted = new Array<GroupMessageEventInfo>();
+            const emitted = new Array<GroupMessageAuthenticatedInfo>();
             node.env.get(SessionManager).onGroupMessage.on(info => {
-                emitted.push(info);
+                if (info.kind === "authenticated") {
+                    emitted.push(info);
+                }
             });
 
             await interactionProtocol.handleInvokeRequest(
@@ -2599,9 +2610,11 @@ describe("InteractionProtocol", () => {
             const exchange = await createDummyMessageExchange(node, { fabric });
             const { messenger } = createMockInvokeMessenger();
 
-            const emitted = new Array<GroupMessageEventInfo>();
+            const emitted = new Array<GroupMessageAuthenticatedInfo>();
             node.env.get(SessionManager).onGroupMessage.on(info => {
-                emitted.push(info);
+                if (info.kind === "authenticated") {
+                    emitted.push(info);
+                }
             });
 
             await interactionProtocol.handleInvokeRequest(exchange, INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS, messenger, {
@@ -2611,6 +2624,124 @@ describe("InteractionProtocol", () => {
 
             expect(emitted.length).equals(1);
             expect(emitted[0].sourceIp).equals("fd00::7");
+        });
+
+        // Characterization: dispatch-time behavior that passes without the decode-time GroupKeyMap check
+        describe("group invoke", () => {
+            const GROUP = GroupId(2);
+
+            const GROUP_ON_REQUEST: InvokeRequest = {
+                ...INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS,
+                invokeRequests: [
+                    {
+                        commandPath: { clusterId: ClusterId(6), commandId: CommandId(1) },
+                        commandFields: TlvNoArguments.encodeTlv(undefined),
+                    },
+                ],
+            };
+
+            const GROUP_MESSAGE = {
+                ...interaction.BarelyMockedGroupMessage,
+                packetHeader: { ...interaction.BarelyMockedGroupMessage.packetHeader, destGroupId: GROUP },
+            };
+
+            /**
+             * A fabric whose key set 1 is mapped to {@link GROUP} on endpoint 0, an ACL that lets that group operate, and
+             * an exchange on the group session that decode creates for a message authenticated with that key set.
+             */
+            async function receivedGroupMessage() {
+                const fabric = await node.addFabric();
+                await fabric.groups.setFromGroupKeySet({
+                    groupKeySetId: 1,
+                    groupKeySecurityPolicy: 0,
+                    epochKey0: Bytes.fromHex("000102030405060708090a0b0c0d0e0f"),
+                    epochStartTime0: 1,
+                    epochKey1: null,
+                    epochStartTime1: null,
+                    epochKey2: null,
+                    epochStartTime2: null,
+                    groupKeyMulticastPolicy: 0,
+                });
+                fabric.groups.groupKeyIdMap = new Map([[GROUP, 1]]);
+                fabric.groups.endpoints.set(GROUP, [EndpointNumber(0)]);
+                await node.set({
+                    accessControl: {
+                        acl: [
+                            {
+                                authMode: AccessControl.AccessControlEntryAuthMode.Group,
+                                fabricIndex: fabric.fabricIndex,
+                                privilege: AccessControl.AccessControlEntryPrivilege.Operate,
+                                subjects: null,
+                                // Group entries reach endpoint 0 only through an explicit target
+                                targets: [{ cluster: ClusterId(6), endpoint: EndpointNumber(0), deviceType: null }],
+                            },
+                        ],
+                    },
+                });
+
+                const current = fabric.groups.keySets.currentKeyForId(1);
+                const exchange = node.env.get(ExchangeManager).initiateExchangeForSession(
+                    new GroupSession({
+                        manager: node.env.get(SessionManager),
+                        id: current.sessionId!,
+                        fabric,
+                        keySetId: 1,
+                        operationalGroupKey: current.key,
+                        operationalPrivacyKey: current.privacyKey,
+                        peerNodeId: NodeId(0x1234),
+                        multicastAddress: fabric.groups.multicastAddressFor(GROUP),
+                        messageCounter: new MessageCounter(fabric.crypto),
+                    }),
+                    INTERACTION_PROTOCOL_ID,
+                );
+
+                const emitted = new Array<GroupMessageAuthenticatedInfo>();
+                node.env.get(SessionManager).onGroupMessage.on(info => {
+                    if (info.kind === "authenticated") {
+                        emitted.push(info);
+                    }
+                });
+
+                return { fabric, exchange, emitted };
+            }
+
+            it("executes a group command whose key set GroupKeyMap maps to the group", async () => {
+                const { exchange, emitted } = await receivedGroupMessage();
+                const { messenger } = createMockInvokeMessenger();
+
+                await interactionProtocol.handleInvokeRequest(exchange, GROUP_ON_REQUEST, messenger, GROUP_MESSAGE);
+
+                expect(onOffState).equals(true);
+                expect(emitted.map(({ result, accessAllowed }) => ({ result, accessAllowed }))).deep.equals([
+                    { result: Groupcast.GroupcastTestResult.Success, accessAllowed: true },
+                ]);
+            });
+
+            it("reports success without access when access control filters every endpoint", async () => {
+                const { exchange, emitted } = await receivedGroupMessage();
+                const { messenger } = createMockInvokeMessenger();
+                await node.set({ accessControl: { acl: [] } });
+
+                await interactionProtocol.handleInvokeRequest(exchange, GROUP_ON_REQUEST, messenger, GROUP_MESSAGE);
+
+                expect(onOffState).equals(false);
+                expect(emitted.map(({ result, accessAllowed }) => ({ result, accessAllowed }))).deep.equals([
+                    { result: Groupcast.GroupcastTestResult.Success, accessAllowed: false },
+                ]);
+            });
+
+            it("reports failed authentication when GroupKeyMap changed between decode and dispatch", async () => {
+                const { fabric, exchange, emitted } = await receivedGroupMessage();
+                const { messenger } = createMockInvokeMessenger();
+                fabric.groups.groupKeyIdMap = new Map([[GroupId(3), 1]]);
+
+                await interactionProtocol.handleInvokeRequest(exchange, GROUP_ON_REQUEST, messenger, GROUP_MESSAGE);
+
+                expect(onOffState).equals(false);
+                expect(emitted.map(({ result, groupId, fabric }) => ({ result, groupId, fabric }))).deep.equals([
+                    { result: Groupcast.GroupcastTestResult.FailedAuth, groupId: undefined, fabric },
+                ]);
+            });
         });
 
         it("invoke command with with timed interaction success", async () => {

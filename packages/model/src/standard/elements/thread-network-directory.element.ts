@@ -35,10 +35,15 @@ export const ThreadNetworkDirectory = Cluster(
         name: "ThreadNetworkTableSize", id: 0x2, type: "uint8", access: "R V", conformance: "M",
         constraint: "desc", quality: "F"
     }),
+
     Command(
         { name: "AddNetwork", id: 0x0, access: "M T", conformance: "M", direction: "request", response: "status" },
-        Field({ name: "OperationalDataset", id: 0x0, type: "octstr", conformance: "M", constraint: "max 254" })
+        Field({
+            name: "OperationalDataset", id: 0x0, type: "octstr", conformance: "M", constraint: "max 254",
+            isSecret: true
+        })
     ),
+
     Command(
         { name: "RemoveNetwork", id: 0x1, access: "M T", conformance: "M", direction: "request", response: "status" },
         Field({ name: "ExtendedPanId", id: 0x0, type: "octstr", conformance: "M", constraint: "8" })
@@ -54,7 +59,10 @@ export const ThreadNetworkDirectory = Cluster(
 
     Command(
         { name: "OperationalDatasetResponse", id: 0x3, conformance: "M", direction: "response" },
-        Field({ name: "OperationalDataset", id: 0x0, type: "octstr", conformance: "M", constraint: "max 254" })
+        Field({
+            name: "OperationalDataset", id: 0x0, type: "octstr", conformance: "M", constraint: "max 254",
+            isSecret: true
+        })
     ),
 
     Datatype(

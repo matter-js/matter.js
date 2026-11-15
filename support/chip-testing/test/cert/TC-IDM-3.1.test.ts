@@ -19,7 +19,12 @@ import type {
 } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
-import { SimpleStruct, UnitTestingCluster } from "../../src/cert/unit-testing-cluster.js";
+import {
+    LONG_OCTET_STRING_ENTRY,
+    SimpleStruct,
+    UNIT_TESTING_ENDPOINT,
+    UnitTestingServer,
+} from "../../src/cert/unit-testing-cluster.js";
 import { chunkedWriteNotApplicable, expectChunkedWrite } from "./tc-idm-3.1-support.js";
 import type { RecordedCheck } from "./tc-support.js";
 import {
@@ -31,7 +36,6 @@ import {
     requireId,
     withChecks,
 } from "./tc-support.js";
-import { LONG_OCTET_STRING_ENTRY, UNIT_TESTING_ENDPOINT, unitTestingNotApplicable } from "./unit-testing-cluster.js";
 
 const LEVEL_CONTROL = Matter.clusters.require("LevelControl");
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
@@ -62,7 +66,7 @@ const IDENTIFY_TIME = IDENTIFY.attributes.require("identifyTime");
 const LOCAL_TEMPERATURE_CALIBRATION = THERMOSTAT.attributes.require("localTemperatureCalibration");
 const LABEL_LIST = USER_LABEL.attributes.require("labelList");
 
-const UNIT_TESTING = registerCertCustomCluster(UnitTestingCluster);
+const UNIT_TESTING = registerCertCustomCluster(UnitTestingServer);
 const UNIT_TESTING_ID = requireId(UNIT_TESTING.id, "UnitTesting cluster");
 
 function unitTestingPath(name: string): AttributePathSpec {
@@ -365,7 +369,6 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
         ),
         {
             pics: "MCORE.IDM.C.WriteRequest.Attribute.DataType_FloatingPoint",
-            notApplicable: unitTestingNotApplicable,
             expected: "Verify on the TH that the correct WriteRequestMessage has been received.",
         },
     )
@@ -387,7 +390,6 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
         ),
         {
             pics: "MCORE.IDM.C.WriteRequest.Attribute.DataType_OctetString",
-            notApplicable: unitTestingNotApplicable,
             expected: "Verify on the TH that the correct WriteRequestMessage has been received.",
         },
     )
@@ -401,7 +403,6 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
         ),
         {
             pics: "MCORE.IDM.C.WriteRequest.Attribute.DataType_Struct",
-            notApplicable: unitTestingNotApplicable,
             expected: "Verify on the TH that the correct WriteRequestMessage has been received.",
         },
     )
@@ -475,7 +476,6 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             });
         }),
         {
-            notApplicable: unitTestingNotApplicable,
             notApplicableAtRun: cx =>
                 chunkedWriteNotApplicable(
                     cx,

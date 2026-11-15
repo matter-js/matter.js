@@ -158,6 +158,10 @@ export abstract class Semantics {
             replacement.quality = original.quality;
         }
 
+        if ("isSecret" in original && "isSecret" in replacement) {
+            replacement.isSecret = original.isSecret;
+        }
+
         this.#localModel = replacement;
     }
 

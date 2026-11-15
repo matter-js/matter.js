@@ -21,8 +21,7 @@ certTest("TC-LOWPOWER-2.2", {
     pics: ["LOWPOWER.C"],
     app: "all-clusters",
 
-    // matter.js's all-clusters test device has no LowPower cluster; only its TV device does, and that device is not a
-    // cert subject.
+    // matter.js's all-clusters test device has no LowPower cluster
     flavors: ["chip-local", "chip-docker"],
 })
     .step("0", "Preconditions: the DUT commissions the TH.", commissionThStep(commissioned), {

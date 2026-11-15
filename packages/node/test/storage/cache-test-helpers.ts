@@ -7,8 +7,9 @@
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
+import type { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { createPromise, Instant, MemoryStorageDriver, StorageDriver } from "@matter/general";
-import { Val } from "@matter/protocol";
+import { Val, WriteResult } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 
 /**
@@ -26,7 +27,7 @@ export function createCache(options?: {
     const buffer =
         options?.buffer ?? (localWriter ? new ClientCacheBuffer(MemoryStorageDriver.create(), Instant) : undefined);
     return new DatasourceCache({
-        writer: (() => {}) as any,
+        writer: sendingWriter([]),
         nodeId: "test-peer",
         endpointNumber: EndpointNumber(1),
         behaviorId: "test",
@@ -36,6 +37,25 @@ export function createCache(options?: {
         eraseStored: localWriter?.erase,
         buffer,
     });
+}
+
+/**
+ * A remote writer that prepares every proposal as it is and answers every write with {@link statuses}.
+ */
+export function sendingWriter(statuses: WriteResult.AttributeStatus[]): RemoteWriter {
+    return {
+        assertWritable: () => {},
+        prepare: ({ number, behaviorId, values }) => preparedWrite(number, behaviorId, values),
+        send: async () => statuses,
+    };
+}
+
+export function preparedWrite(
+    number: EndpointNumber,
+    behaviorId: string,
+    values: Val.Struct,
+): RemoteWriter.PreparedWrite {
+    return { number, behaviorId, values, attributes: [], declined: [] };
 }
 
 export function attrs(entries: Record<string, unknown>): Val.StructMap {
@@ -84,17 +104,17 @@ export function recordingConsumer() {
 
 /**
  * A local writer whose every persist waits until the test lets it finish, then patches {@link stored} like
- * storage does.
+ * storage does, or fail.
  */
 export function gatedWriter() {
     const stored: Val.Struct = {};
-    const pending = new Array<{ values: Val.Struct; finish: () => void }>();
+    const pending = new Array<{ values: Val.Struct; finish: () => void; fail: (error: Error) => void }>();
     return {
         stored,
         pending,
         persistInTransaction: async (_tx: unknown, _ep: unknown, _bid: unknown, values: Val.Struct) => {
-            const { promise, resolver } = createPromise<void>();
-            pending.push({ values, finish: resolver });
+            const { promise, resolver, rejecter } = createPromise<void>();
+            pending.push({ values, finish: resolver, fail: rejecter });
             await promise;
             Object.assign(stored, values);
         },

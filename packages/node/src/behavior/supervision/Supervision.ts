@@ -6,7 +6,6 @@
 
 import type { Val } from "@matter/protocol";
 import { Internal } from "../state/managed/Internal.js";
-import type { ValReference } from "../state/managed/ValReference.js";
 import { bareObjectConfigs, commandSupervisionConfigs, GlobalConfig } from "./SupervisionConfig.js";
 
 /**
@@ -82,7 +81,7 @@ export function Supervision(
 function supervisionForObject(object: Val.Struct, fieldName?: string): Supervision.Config | Supervision {
     let config: Supervision.Config;
 
-    const ref = (object as Record<symbol, unknown>)[Internal.reference] as ValReference | undefined;
+    const ref = Internal.referenceOf(object);
     if (ref) {
         if (!ref.supervisionConfig) {
             ref.supervisionConfig = new GlobalConfig();

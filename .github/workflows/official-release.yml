@@ -22,17 +22,21 @@ on:
 jobs:
   publish-config:
     if: github.repository == 'matter-js/matter.js'
-    runs-on: ubuntu-latest
+    # CHIP's test runner and Pigweed bootstrap do not work on ubuntu-26.04 (Python 3.14) yet
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Maximize build space
         uses: easimon/maximize-build-space@v10
         with:
-          root-reserve-mb: 4096
+          # Cache archives, /tmp and the caches in the home directory stay on the root disk; only the workspace moves
+          root-reserve-mb: 8192
           temp-reserve-mb: 3096
           remove-dotnet: 'true'
           remove-android: 'true'
           remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
 
       - name: Checkout code
         uses: actions/checkout@v7
@@ -54,6 +58,7 @@ jobs:
         with:
           build-matter-js: "false"
           patch-test-yaml: "true"
+          python-venv: "false"
 
       - name: chip-tool-test execution
         if: ${{ !inputs.skipChipTests }}

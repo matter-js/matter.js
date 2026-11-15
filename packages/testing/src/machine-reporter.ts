@@ -24,6 +24,7 @@ export class MachineReporter implements Reporter {
     #testNumber = 0;
     #failureCount = 0;
     #passCount = 0;
+    #skipCount = 0;
     #failuresDir = "build/failures";
     #currentTest: string | undefined;
 
@@ -35,6 +36,7 @@ export class MachineReporter implements Reporter {
         this.#testNumber = 0;
         this.#failureCount = 0;
         this.#passCount = 0;
+        this.#skipCount = 0;
         this.#currentFile = undefined;
         this.#currentSuite = [];
 
@@ -96,6 +98,13 @@ export class MachineReporter implements Reporter {
         process.stdout.write(`${indent}${this.#testNumber}. ${this.#currentTest} PASS\n`);
     }
 
+    skipTest(name: string): void {
+        this.#testNumber++;
+        this.#skipCount++;
+        const indent = "  ".repeat(this.#currentSuite.length);
+        process.stdout.write(`${indent}${this.#testNumber}. ${name} SKIP\n`);
+    }
+
     failTest(name: string, detail: FailureDetail, descriptor?: TestDescriptor): void {
         this.#testNumber++;
         this.#failureCount++;
@@ -116,12 +125,14 @@ export class MachineReporter implements Reporter {
     }
 
     endRun(_stats?: Stats): void {
-        process.stdout.write(`--- ${this.#failureCount} failed, ${this.#passCount} passed ---\n`);
+        process.stdout.write(
+            `--- ${this.#failureCount} failed, ${this.#passCount} passed, ${this.#skipCount} skipped ---\n`,
+        );
 
         // Update progress status so the runner knows whether tests passed
         if (this.#failureCount > 0) {
             this.#progress.status = Progress.Status.Failure;
-        } else if (this.#passCount > 0) {
+        } else if (this.#passCount + this.#skipCount > 0) {
             this.#progress.status = Progress.Status.Success;
         } else {
             this.#progress.status = Progress.Status.Failure;

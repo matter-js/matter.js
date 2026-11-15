@@ -229,7 +229,7 @@ describe("TCP Session-Connection Binding", () => {
 
             const channel = new MockTcpChannel("tcp-1");
             const session = createSessionOnTcpChannel(channel);
-            manager.sessions.sessions.add(session);
+            manager.sessions.registeredSessions.add(session);
 
             transport.simulateDisconnect(channel);
             await settled(() => session.isClosing);
@@ -246,7 +246,7 @@ describe("TCP Session-Connection Binding", () => {
 
             const channel = new MockTcpChannel("tcp-1");
             const session = createSessionOnTcpChannel(channel);
-            manager.sessions.sessions.add(session);
+            manager.sessions.registeredSessions.add(session);
 
             const dest = Logger.destinations.default;
             const original = { ...dest };
@@ -298,7 +298,7 @@ describe("TCP Session-Connection Binding", () => {
 
             const channel = new MockTcpChannel("tcp-unbound");
             const session = createSessionOnTcpChannel(channel);
-            sessions.sessions.add(session);
+            sessions.registeredSessions.add(session);
 
             const dest = Logger.destinations.default;
             const original = { ...dest };
@@ -334,8 +334,8 @@ describe("TCP Session-Connection Binding", () => {
             const surviving = new MockTcpChannel("tcp-2");
             const onDropped = createSessionOnTcpChannel(dropped, 1);
             const onSurviving = createSessionOnTcpChannel(surviving, 2);
-            manager.sessions.sessions.add(onDropped);
-            manager.sessions.sessions.add(onSurviving);
+            manager.sessions.registeredSessions.add(onDropped);
+            manager.sessions.registeredSessions.add(onSurviving);
 
             // Settling on *both* rather than on the dropped one: a wait that ended as soon as the
             // dropped session closed would assert the survivor before the handler could have reached
@@ -356,7 +356,7 @@ describe("TCP Session-Connection Binding", () => {
 
             const channel = new MockTcpChannel("tcp-1");
             const session = createSessionOnTcpChannel(channel);
-            manager.sessions.sessions.add(session);
+            manager.sessions.registeredSessions.add(session);
             const exchange = createExchange(session);
 
             let cause: unknown;

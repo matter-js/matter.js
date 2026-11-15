@@ -21,7 +21,7 @@ export abstract class MessageReceptionState {
 
 /**
  * Implements a message reception state for encrypted messages without rollover.
- * A counter in the range [(max_message_counter + 1) to (2^31 - 1)] SHALL be considered new, and cause the
+ * A counter in the range [(max_message_counter + 1) to (2^32 - 1)] SHALL be considered new, and cause the
  * max_message_counter value to be updated.
  * Message counters within the range of the bitmap SHALL be considered duplicate if the corresponding bit
  * offset is set to true. All other message counters SHALL be considered duplicate.
@@ -124,7 +124,7 @@ export class MessageReceptionStateEncryptedWithoutRollover extends MessageRecept
         }
 
         const diff = this.calculateDiff(messageCounter);
-        // A counter in the range [(max_message_counter + 1) to (2^31 - 1)] SHALL be considered new, and cause the
+        // A counter in the range [(max_message_counter + 1) to (2^32 - 1)] SHALL be considered new, and cause the
         // max_message_counter value to be updated.
         // Message counters within the range of the bitmap SHALL be considered duplicate if the corresponding bit
         // offset is set to true. All other message counters SHALL be considered duplicate.

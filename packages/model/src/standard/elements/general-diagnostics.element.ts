@@ -92,7 +92,7 @@ export const GeneralDiagnostics = Cluster(
     ),
     Command(
         { name: "TestEventTrigger", id: 0x0, access: "M", conformance: "M", direction: "request", response: "status" },
-        Field({ name: "EnableKey", id: 0x0, type: "octstr", conformance: "M", constraint: "16" }),
+        Field({ name: "EnableKey", id: 0x0, type: "octstr", conformance: "M", constraint: "16", isSecret: true }),
         Field({ name: "EventTrigger", id: 0x1, type: "uint64", conformance: "M" })
     ),
     Command({
@@ -110,7 +110,7 @@ export const GeneralDiagnostics = Cluster(
             name: "PayloadTestRequest", id: 0x3, access: "M", conformance: "DMTEST", direction: "request",
             response: "PayloadTestResponse"
         },
-        Field({ name: "EnableKey", id: 0x0, type: "octstr", conformance: "M", constraint: "16" }),
+        Field({ name: "EnableKey", id: 0x0, type: "octstr", conformance: "M", constraint: "16", isSecret: true }),
         Field({ name: "Value", id: 0x1, type: "uint8", conformance: "M" }),
         Field({ name: "Count", id: 0x2, type: "uint16", conformance: "M", constraint: "max 2048" })
     ),

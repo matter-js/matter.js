@@ -7,7 +7,7 @@
 import { Bytes, CertificateError, Crypto, Diagnostic, PublicKey } from "@matter/general";
 import { FabricId } from "@matter/types";
 import { Certificate } from "./Certificate.js";
-import { ExtensionKeyUsageSchema } from "./definitions/base.js";
+import { rawKeyUsage } from "./definitions/base.js";
 import { OperationalCertificate } from "./definitions/operational.js";
 import { OperationalBase } from "./OperationalBase.js";
 import { Rcac } from "./Rcac.js";
@@ -70,18 +70,13 @@ export class Icac extends OperationalBase<OperationalCertificate.Icac> {
         }
 
         // The subject DN MAY encode at most one matter-fabric-id attribute.
-        if (fabricId !== undefined) {
-            if (Array.isArray(fabricId)) {
-                throw new CertificateError(`Invalid fabricId in NoC certificate: ${Diagnostic.json(fabricId)}`);
-            }
-            // If present, the matter-fabric-id attribute’s value SHALL NOT be 0
-            if (fabricId === FabricId(0)) {
-                throw new CertificateError(`Invalid fabricId in NoC certificate: ${Diagnostic.json(fabricId)}`);
-            }
+        // If present, the matter-fabric-id attribute’s value SHALL NOT be 0
+        if (fabricId === FabricId(0)) {
+            throw new CertificateError(`Invalid fabricId in Ica certificate: ${Diagnostic.json(fabricId)}`);
         }
 
         // The subject DN SHALL encode exactly one matter-icac-id attribute.
-        if (icacId === undefined || Array.isArray(icacId)) {
+        if (icacId === undefined) {
             throw new CertificateError(`Invalid icacId in Ica certificate: ${Diagnostic.json(icacId)}`);
         }
 
@@ -128,10 +123,10 @@ export class Icac extends OperationalBase<OperationalCertificate.Icac> {
 
         // The key usage extension SHALL be encoded with at least two flags: keyCertSign (0x0020) and CRLSign (0x0040)
         // and optionally with digitalSignature (0x0001).
-        const keyUsage = ExtensionKeyUsageSchema.encode(extensions.keyUsage);
+        const keyUsage = rawKeyUsage(extensions.keyUsage);
         if (keyUsage !== 0x0060 && keyUsage !== 0x0061) {
             throw new CertificateError(
-                `Ica certificate keyUsage must have keyCertSign and CRLSign and optionally digitalSignature set.`,
+                `Ica certificate keyUsage must have keyCertSign and CRLSign and optionally digitalSignature set: 0x${keyUsage.toString(16)}`,
             );
         }
 

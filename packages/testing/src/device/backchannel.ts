@@ -21,9 +21,11 @@ export type BackchannelCommand =
     | BackchannelCommand.RvcRemoveArea
     | BackchannelCommand.RvcAddArea
     | BackchannelCommand.SetBooleanState
+    | BackchannelCommand.ZoneTriggered
     | BackchannelCommand.BridgeSimulation
     | BackchannelCommand.SendOnOffToBindings
     | BackchannelCommand.UserIntentCommissioningStart
+    | BackchannelCommand.FactoryResetWithAppArgs
     | BackchannelCommand.NoParameters;
 
 export namespace BackchannelCommand {
@@ -133,6 +135,14 @@ export namespace BackchannelCommand {
     };
 
     /**
+     * Activity a camera detects in a zone.
+     */
+    export type ZoneTriggered = {
+        name: "zoneTriggered";
+        zoneId: number;
+    };
+
+    /**
      * State a bridge simulates on the devices behind it.
      *
      * Each command names the devices it acts on rather than a count, because chip's `bridge-app`
@@ -174,6 +184,16 @@ export namespace BackchannelCommand {
      */
     export type UserIntentCommissioningStart = {
         name: "userIntentCommissioningStart";
+    };
+
+    /**
+     * Factory-reset the device and start it with `appArgs` in place of the arguments its case declared. The arguments
+     * the harness adds itself, such as ports, stay. A case that starts the TH with a different certificate set for each
+     * of its vectors uses it. Only a chip-local device takes it; the others refuse it as unsupported.
+     */
+    export type FactoryResetWithAppArgs = {
+        name: "factoryResetWithAppArgs";
+        appArgs: string[];
     };
 
     export type NoParameters = {

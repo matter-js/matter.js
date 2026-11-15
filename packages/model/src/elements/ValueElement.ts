@@ -47,6 +47,12 @@ export type ValueElement = BaseElement & {
     byteSize?: ValueElement.ByteSize;
 
     /**
+     * The value is a secret such as a key, a passcode or a network credential.  Log output replaces the value with a
+     * placeholder.  This is a matter.js extension; the Matter specification has no such quality.
+     */
+    isSecret?: boolean;
+
+    /**
      * The default value for the element.
      */
     default?: FieldValue;

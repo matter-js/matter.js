@@ -70,6 +70,7 @@ import {
     FabricRemovedError,
     LocatedNodeCommissioningOptions,
     OperationalAddress,
+    OperationalCertificateUpdateError,
     PaseClient,
     Peer,
     PeerAddress,
@@ -127,9 +128,22 @@ export class CommissioningClient extends Behavior {
      * Older versions stored a peer's session parameters under `sessionParameters`: the full effective set once a
      * session existed, otherwise only the DNS-SD intervals.  The first becomes the reported set, the second the
      * advertised intervals.  Values already under the new keys win.
+     *
+     * Stored discovery TTLs are dropped, so the default TTL applies.  Versions before 0.16.11 stored TTLs inflated by
+     * powers of 1000 or `null`, which fail validation or keep an address from expiring.  Current discovery stores no
+     * TTL.
      */
     static override migrate(values: Val.Struct) {
         super.migrate(values);
+
+        delete values.ttl;
+        if (Array.isArray(values.addresses)) {
+            for (const address of values.addresses) {
+                if (isObject(address)) {
+                    delete address.ttl;
+                }
+            }
+        }
 
         const { sessionParameters } = values;
         delete values.sessionParameters;
@@ -474,6 +488,85 @@ export class CommissioningClient extends Behavior {
             );
         } finally {
             leaveEvents?.off(onLeave);
+        }
+    }
+
+    /**
+     * Replace the node's operational certificate (NOC) with one for a new operational key pair the node generates.
+     *
+     * Node ID, fabric, fabric index and ACL entries stay unchanged; only the NOC and the key pair change.  The update
+     * runs under a fail-safe and ends with a CASE session that uses the new NOC.  Existing sessions with the node close,
+     * and subscriptions re-establish over a new session.
+     *
+     * On failure the node keeps or returns to its previous NOC, unless another operation of the same fabric completed
+     * the fail-safe (the new NOC is then in place) or the outcome cannot be determined.  When the update changed or may
+     * have changed the node, the error message says which NOC it holds, or that this could not be determined.  If
+     * CommissioningComplete took effect but its answer was lost, the update resolves.  Throws `OperationalCertificateUpdateBusyError` when the node's fail-safe may be in use
+     * (retry later), `OperationalCertificateUpdateRefusedError` when the node refused the fail-safe otherwise,
+     * `OperationalCertificateUpdateError` for any later failure once the node was reached, the
+     * connection error if it cannot be reached, and {@link ImplementationError} if the node is not commissioned, this
+     * controller is not the certificate authority of its fabric or {@link CommissioningClient.OperationalCertificateUpdateOptions.failsafe}
+     * is out of range.
+     *
+     * The update reads the node's CurrentFabricIndex first.  Once that read succeeded, the read index replaces
+     * {@link CommissioningClient.State.fabricIndexOnPeer}, also when the update fails afterwards.  On failure the index
+     * is stored and committed in its own transaction, because the caller's transaction rolls back with the error; if
+     * that store fails, the failure is logged and the update error is thrown unchanged.  That transaction waits for the
+     * lock on this state, so do not call this method from a transaction that already holds that lock.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.18.6.9
+     */
+    async updateOperationalCertificate(options?: CommissioningClient.OperationalCertificateUpdateOptions) {
+        const { peerAddress } = this.state;
+        if (peerAddress === undefined) {
+            throw new ImplementationError(
+                `Cannot update the operational certificate of ${this.endpoint} because it is not commissioned`,
+            );
+        }
+
+        let fabricIndexOnPeer: FabricIndex;
+        try {
+            ({ fabricIndexOnPeer } = await this.env.get(ControllerCommissioner).updateOperationalCertificate({
+                ...options,
+                address: ProtocolPeerAddress(peerAddress),
+            }));
+        } catch (error) {
+            if (error instanceof OperationalCertificateUpdateError && error.fabricIndexOnPeer !== undefined) {
+                await this.#storeFabricIndexOfFailedUpdate(error.fabricIndexOnPeer);
+            }
+            throw error;
+        }
+
+        await this.#storeReportedFabricIndex(fabricIndexOnPeer);
+    }
+
+    /** Never rejects, so the update error stays the one the caller sees. */
+    async #storeFabricIndexOfFailedUpdate(fabricIndexOnPeer: FabricIndex) {
+        try {
+            await this.endpoint.act("store-fabric-index-on-peer", agent =>
+                agent.get(CommissioningClient).#storeReportedFabricIndex(fabricIndexOnPeer),
+            );
+        } catch (error) {
+            logger.warn(
+                `${this.endpoint} could not store fabric index ${fabricIndexOnPeer} read before its failed operational certificate update:`,
+                error,
+            );
+        }
+    }
+
+    async #storeReportedFabricIndex(fabricIndexOnPeer: FabricIndex) {
+        const { transaction } = this.context;
+        await transaction.addResources(this);
+        await transaction.begin();
+
+        const known = this.state.fabricIndexOnPeer;
+        if (fabricIndexOnPeer !== known) {
+            if (known !== undefined) {
+                logger.warn(
+                    `${this.endpoint} reports fabric index ${fabricIndexOnPeer} for our fabric, but ${known} was stored; using the reported one`,
+                );
+            }
+            this.state.fabricIndexOnPeer = fabricIndexOnPeer;
         }
     }
 
@@ -833,6 +926,21 @@ export namespace CommissioningClient {
     }
 
     /**
+     * Options for {@link CommissioningClient.updateOperationalCertificate}.
+     */
+    export interface OperationalCertificateUpdateOptions {
+        /**
+         * Fail-safe armed for the whole update, including the CASE reconnect with the new certificate.  Defaults to one
+         * minute; must lie between 30 s and 65535 s.  The node ends the fail-safe early at its
+         * `MaxCumulativeFailsafeSeconds`.
+         */
+        failsafe?: Duration;
+
+        /** Aborts waiting for a CASE session with the node. */
+        abort?: AbortSignal;
+    }
+
+    /**
      * Concrete version of {@link ProtocolPeerAddress}.
      */
     export class PeerAddress implements ProtocolPeerAddress {
@@ -964,7 +1072,10 @@ export namespace CommissioningClient {
         peerAddress?: PeerAddress;
 
         /**
-         * Case Authenticated Tags (CATs)
+         * Case Authenticated Tags (CATs) intended for sessions with this node.
+         *
+         * Stored, but not applied yet. Sessions present the CATs of this node's own NOC in the fabric
+         * (`ControllerBehavior.caseAuthenticatedTags`). The CATs of the peer come from its NOC.
          *
          * See {@link PeerDescriptor}
          */
@@ -1015,9 +1126,11 @@ export namespace CommissioningClient {
         commissionedAt?: Timestamp;
 
         /**
-         * Fabric index the peer assigned to our identity (from the AddNoc response).  Substituted for the
-         * {@link FabricIndex.OMIT_FABRIC} sentinel on fabric-scoped struct writes so the local cache mirrors
-         * the value the peer will store.
+         * Fabric index the peer assigned to our identity.  It is taken from the AddNoc response, from the
+         * CurrentFabricIndex a certificate update reads, or, when none is stored, from the CurrentFabricIndex in the
+         * cached OperationalCredentials state.  A write of a fabric-scoped list sends our entries with this FabricIndex,
+         * as the peer loads the accessing fabric into a written entry, so the local cache holds the value the peer
+         * stores.
          *
          * Distinct from {@link peerAddress.fabricIndex} which is our local fabric index.
          */
@@ -1025,7 +1138,7 @@ export namespace CommissioningClient {
         fabricIndexOnPeer?: FabricIndex;
 
         /**
-         * The TTL of the discovery record if applicable (in seconds).
+         * The TTL of the discovery record if applicable.
          */
         @field(duration, nonvolatile)
         ttl?: Duration;
@@ -1225,7 +1338,10 @@ export namespace CommissioningClient {
         autoStateInitialize?: boolean;
 
         /**
-         * Case Authenticated Tags (CATs)
+         * Case Authenticated Tags (CATs) intended for sessions with this node.
+         *
+         * Stored, but not applied yet. Sessions present the CATs of this node's own NOC in the fabric
+         * (`ControllerBehavior.caseAuthenticatedTags`). The CATs of the peer come from its NOC.
          */
         caseAuthenticatedTags?: CaseAuthenticatedTag[];
 

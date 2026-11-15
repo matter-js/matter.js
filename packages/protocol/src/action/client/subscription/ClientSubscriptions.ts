@@ -171,7 +171,7 @@ export class ClientSubscriptions implements Lifetime.Owner {
     }
 
     /**
-     * Unregister a {@link PeerSubscription}.
+     * Unregister a subscription.  Stops the timeout timer once no {@link PeerSubscription} remains.
      */
     delete(subscription: ClientSubscription) {
         const forPeer = this.#peers.get(subscription.peer);
@@ -181,6 +181,9 @@ export class ClientSubscriptions implements Lifetime.Owner {
             }
         }
         this.#active.delete(subscription);
+        if (!this.#peers.size) {
+            this.#timeout?.stop();
+        }
     }
 
     /**

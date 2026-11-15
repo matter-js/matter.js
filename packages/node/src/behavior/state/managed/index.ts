@@ -5,3 +5,4 @@
  */
 
 export * from "./Instrumentation.js";
+export * from "./errors.js";

@@ -76,7 +76,10 @@ export interface MatterServerOtaHost {
      */
     enableAutoSubscription(): Promise<boolean>;
 
-    /** Switches the server's own subscription to the node off again. */
+    /**
+     * Switches the server's own subscription to the node off again, except one the adapter keeps for a case that
+     * declares `sustained-subscription`.
+     */
     disableAutoSubscription(): Promise<void>;
 
     /** Resolves once the server forwards node events to this connection. */

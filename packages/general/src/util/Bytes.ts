@@ -130,6 +130,53 @@ export namespace Bytes {
         return new TextEncoder().encode(string);
     }
 
+    /**
+     * The number of bytes {@link fromString} produces for `string`, computed without encoding it.
+     *
+     * A lone surrogate counts as three bytes because UTF-8 encoding replaces it with U+FFFD.
+     */
+    export function utf8Length(string: string) {
+        let length = 0;
+        for (let i = 0; i < string.length; i++) {
+            const code = string.charCodeAt(i);
+            if (code < 0x80) {
+                length += 1;
+            } else if (code < 0x800) {
+                length += 2;
+            } else if (isHighSurrogate(code) && isLowSurrogate(string.charCodeAt(i + 1))) {
+                length += 4;
+                i++;
+            } else {
+                length += 3;
+            }
+        }
+        return length;
+    }
+
+    /**
+     * The longest prefix of `string` whose UTF-8 encoding fits in `maxBytes`, cut only between code points.
+     */
+    export function truncateUtf8(string: string, maxBytes: number) {
+        let length = 0;
+        let end = 0;
+        for (const codePoint of string) {
+            length += utf8Length(codePoint);
+            if (length > maxBytes) {
+                break;
+            }
+            end += codePoint.length;
+        }
+        return string.slice(0, end);
+    }
+
+    function isHighSurrogate(code: number) {
+        return code >= 0xd800 && code <= 0xdbff;
+    }
+
+    function isLowSurrogate(code: number) {
+        return code >= 0xdc00 && code <= 0xdfff;
+    }
+
     export function fromBigInt(value: bigint, minBytes?: number) {
         // Quick & dirty for now
         let hex = value.toString(16);

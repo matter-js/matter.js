@@ -24,7 +24,10 @@ const OPERATIONAL_POLL_INTERVAL = Millis(500);
 export interface MdnsExpectations {
     /** Whether a live `_matter._tcp` SRV record exists for `options.operationalInstanceName`. */
     operationalRecords?: number;
-    /** Whether `device`'s own discriminator is currently advertised under `_matterc._udp`. */
+    /**
+     * Whether `device`'s own discriminator is currently advertised under `_matterc._udp`, by one of the instances
+     * `options.commissionableInstanceNames` names if it names any.
+     */
     commissionable?: boolean;
 }
 
@@ -45,6 +48,8 @@ interface ExpectationResult {
  * `commissionable` is scoped to `device` via {@link CommissionableMdnsScanner} — the scanner
  * `ControllerBehavior`/`CommissioningController.discoverCommissionableDevices` construct the same way
  * (`new CommissionableMdnsScanner(environment.get(MdnsService).names)`) — keyed on `device.commissioning.discriminator`.
+ * The discriminator alone also matches another device that advertises it, and a record an earlier device left in
+ * the shared cache; `options.commissionableInstanceNames` narrows the check to the DNS-SD instances a device names.
  *
  * `operationalRecords` needs `options.operationalInstanceName`: attributing an operational `_matter._tcp`
  * SRV record to a specific node needs its compressed fabric id and assigned node id, and {@link CertDevice}
@@ -68,7 +73,11 @@ interface ExpectationResult {
 export async function expectMdns(
     device: CommissionableIdentity,
     expectations: MdnsExpectations,
-    options?: { timeoutMs?: number; operationalInstanceName?: string | string[] },
+    options?: {
+        timeoutMs?: number;
+        operationalInstanceName?: string | string[];
+        commissionableInstanceNames?: string[];
+    },
 ): Promise<CheckRecord> {
     if (expectations.commissionable === undefined && expectations.operationalRecords === undefined) {
         throw new ImplementationError("expectMdns requires at least one of commissionable/operationalRecords");
@@ -81,7 +90,15 @@ export async function expectMdns(
 
     const checks = new Array<Promise<ExpectationResult>>();
     if (expectations.commissionable !== undefined) {
-        checks.push(checkCommissionable(names, device, expectations.commissionable, timeoutMs));
+        checks.push(
+            checkCommissionable(
+                names,
+                device,
+                expectations.commissionable,
+                timeoutMs,
+                options?.commissionableInstanceNames ?? [],
+            ),
+        );
     }
     if (expectations.operationalRecords !== undefined) {
         const { operationalInstanceName } = options ?? {};
@@ -124,13 +141,26 @@ async function checkCommissionable(
     device: CommissionableIdentity,
     expected: boolean,
     timeoutMs: number,
+    instanceNames: string[],
 ): Promise<ExpectationResult> {
     const discriminator = device.commissioning.discriminator;
-    const seen = (await scanCommissionable(names, discriminator, Millis(timeoutMs))) !== undefined;
+    const seen =
+        (await scanCommissionable(
+            names,
+            discriminator,
+            Millis(timeoutMs),
+            instanceNames.length === 0 ? undefined : found => instanceNames.some(name => isInstance(found, name)),
+        )) !== undefined;
+    const scope = instanceNames.length === 0 ? "" : `, instance ${instanceNames.join(" or ")}`;
     return {
         matched: seen === expected,
-        detail: `commissionable (discriminator ${discriminator}): expected ${expected}, observed ${seen}`,
+        detail: `commissionable (discriminator ${discriminator}${scope}): expected ${expected}, observed ${seen}`,
     };
+}
+
+/** Whether `device` is the DNS-SD instance `instanceName`; DNS names compare without case. */
+export function isInstance(device: CommissionableDevice, instanceName: string) {
+    return device.deviceIdentifier.toLowerCase() === instanceName.toLowerCase();
 }
 
 /**

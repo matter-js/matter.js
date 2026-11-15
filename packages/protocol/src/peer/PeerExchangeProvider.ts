@@ -5,10 +5,11 @@
  */
 
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { SessionClosedError } from "#protocol/errors.js";
 import { ExchangeProvider, NewExchangeOptions, type ReachabilityReason } from "#protocol/ExchangeProvider.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { MRP } from "#protocol/MRP.js";
-import { ChannelType, Duration, InternalError } from "@matter/general";
+import { ChannelType, Duration } from "@matter/general";
 import { INTERACTION_PROTOCOL_ID } from "@matter/types";
 import { Peer } from "./Peer.js";
 import { PeerConnection } from "./PeerConnection.js";
@@ -76,10 +77,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
 
         while (true) {
             if (!isGroup && !options?.requireExistingSession) {
-                // Connections grab their own network slot so connect before getting our own.
-                // Probes skip connect because they verify liveness of the current session — calling
-                // connect would establish a new session if the current one is broken, defeating the
-                // purpose of a lightweight reachability check.
+                // Connections grab their own network slot so connect before getting our own
                 await this.connect(options);
                 abort?.throwIfAborted();
             }
@@ -117,7 +115,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
                 if (session === undefined) {
                     if (options?.requireExistingSession) {
                         // Slot will be closed when error is caught
-                        throw new InternalError("No existing session available for probe");
+                        throw new SessionClosedError(`No existing session to ${this.#peer.address}`);
                     }
                     // We had a session before getting the slot, but it was closed. Restart
                     slot.close();

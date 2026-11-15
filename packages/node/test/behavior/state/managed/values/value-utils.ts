@@ -67,23 +67,30 @@ export interface Online2 {
 class TestState {}
 
 /**
+ * How the datasource of a test value keys its members: by name (the default) or by ID, or `{ mirrorsRemote: true }`
+ * for a datasource keyed by ID that mirrors a remote node, with the defaults as the values the node reported.
+ */
+export type TestKeying = "name" | "id" | { mirrorsRemote: true };
+
+/**
  * Utility for creating a managed struct via a datasource.
  */
 export function TestStruct(
     fields: Record<string, string | Partial<FieldElement>>,
     defaults: Val.Struct = {},
-    primaryKey?: "name" | "id",
+    keying?: TestKeying,
 ) {
-    return managedTestValue(new FieldModel(structOf(fields)), Object.keys(fields), defaults, primaryKey);
+    return managedTestValue(new FieldModel(structOf(fields)), Object.keys(fields), defaults, keying);
 }
 
 /**
  * Utility for creating the managed state of a cluster with the specified attributes, for behavior that depends on the
- * schema being an attribute.
+ * schema being an attribute.  Attribute IDs count from 1 in the order of {@link attributes}.
  */
 export function TestCluster(
     attributes: Record<string, Omit<AttributeElement.Properties, "name" | "id">>,
     defaults: Val.Struct = {},
+    keying?: TestKeying,
 ) {
     const cluster = new ClusterModel({
         name: "TestCluster",
@@ -91,10 +98,26 @@ export function TestCluster(
             AttributeElement({ ...definition, id: index + 1, name }),
         ),
     });
-    return managedTestValue(cluster, Object.keys(attributes), defaults);
+    return managedTestValue(cluster, Object.keys(attributes), defaults, keying);
 }
 
-function managedTestValue(schema: Schema, fieldNames: string[], defaults: Val.Struct, primaryKey?: "name" | "id") {
+/**
+ * A store for a datasource that holds the values of a remote node, starting with {@link initialValues}.  It drops every
+ * write.
+ */
+function remoteStoreOf(initialValues: Val.Struct): Datasource.ExternallyMutableStore {
+    return {
+        initialValues: { ...initialValues },
+        version: 0,
+        prepare: () => () => {},
+        assertWritable: () => {},
+        externalSet: async () => ({}),
+        forgetVersion: async () => {},
+    };
+}
+
+function managedTestValue(schema: Schema, fieldNames: string[], defaults: Val.Struct, keying?: TestKeying) {
+    const remote = typeof keying === "object";
     const supervisor = RootSupervisor.for(schema);
 
     const notifies: { index: string | undefined; oldValue: Val; newValue: Val }[] = [];
@@ -117,9 +140,9 @@ function managedTestValue(schema: Schema, fieldNames: string[], defaults: Val.St
         },
         type: TestState,
         supervisor,
-        defaults,
         events,
-        primaryKey,
+        primaryKey: remote ? "id" : keying,
+        ...(remote ? { store: remoteStoreOf(defaults) } : { defaults }),
     });
 
     return {

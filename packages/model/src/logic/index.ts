@@ -21,6 +21,7 @@ export * from "./ModelVariantTraversal.js";
 export * from "./RequirementApplicability.js";
 export * from "./RequirementResolver.js";
 export * from "./Scope.js";
+export * from "./SecretRedaction.js";
 export * from "./SelectDefaultValue.js";
 export * from "./ValidateModel.js";
 import "./definition-validation/index.js";

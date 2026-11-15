@@ -7,7 +7,7 @@
 import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { AttributePathSpec, CertStepContext, CheckRecord } from "@matter/testing";
-import { certTest, CertStepNotApplicableError, flavorFamily } from "@matter/testing";
+import { certTest, CertStepNotApplicableError } from "@matter/testing";
 import type { RecordedCheck } from "./tc-support.js";
 import {
     attempt,
@@ -49,10 +49,9 @@ const ENDPOINT_0 = 0;
 const ENDPOINT_1 = 1;
 
 // Matter's MEI cluster-ID encoding puts a nonzero vendor-id prefix in the upper 16 bits for every
-// manufacturer-specific cluster; standard clusters always have a zero prefix. Verified against a
-// real chip-all-clusters-app's zap config, whose manufacturer-specific clusters (Fault Injection
-// 0xFFF1FC06, Unit Testing 0xFFF1FC05, Test Hidden Manufacturer Specific 0xFFF1FC21) all fall in
-// this range; matter.js's own all-clusters app defines none.
+// manufacturer-specific cluster; standard clusters always have a zero prefix. chip's all-clusters app
+// serves Fault Injection 0xFFF1FC06, Unit Testing 0xFFF1FC05 and Test Hidden Manufacturer Specific
+// 0xFFF1FC21; matter.js's serves Unit Testing.
 const MANUFACTURER_SPECIFIC_CLUSTER_THRESHOLD = 0x10000;
 
 /** A single `AttributePathSpec`-wildcard entry read back from `readAttribute`. */
@@ -776,7 +775,6 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
         21,
         "DUT sends the Read Request Message to the TH with Manufacturer specific clusters and attributes to read all attributes in all clusters and all endpoints Path = [[ ]]. On receipt of this message, TH should send a report data action with the attribute values to the DUT.",
         commissioned.withRef("dut", async (cx, ref) => {
-            const th = cx.devices.th;
             const spec: AttributePathSpec = {};
             const { value, logCheck } = await readAndCheckLog(cx, ref, spec);
             await recordAll(cx, [
@@ -795,17 +793,6 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 {
                     what: "Manufacturer-specific clusters in the wildcard read",
                     check: () => {
-                        if (flavorFamily(th.flavor) !== "chip") {
-                            return {
-                                type: "response",
-                                verdict: "unverified",
-                                detail: "matter.js all-clusters app defines no manufacturer-specific cluster",
-                                accepted:
-                                    "the matter.js all-clusters app defines no manufacturer-specific cluster, so this " +
-                                    "device cannot answer the read the step asks for",
-                            };
-                        }
-
                         const manufacturerSpecificClusters = distinct(
                             asWildcardEntries(value)
                                 .filter(entry => entry.cluster >= MANUFACTURER_SPECIFIC_CLUSTER_THRESHOLD)

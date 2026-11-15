@@ -15,11 +15,6 @@ type LengthConstraints = {
     length?: number;
 };
 
-/**
- * Schema to encode an byte string or an Utf8 string in TLV.
- *
- * @see {@link MatterSpecification.v161.Core} § A.11.2
- */
 const stringBoundCache = new WeakMap<StringSchema<any>, Map<string, StringSchema<any>>>();
 
 const DEFAULT_MAX_STRING_LENGTH = 65_536;
@@ -31,6 +26,20 @@ const DEFAULT_MAX_STRING_LENGTH = 65_536;
  */
 const INFORMATION_SEPARATOR_1 = "\u001f";
 
+function byteLengthOf(value: string | Bytes) {
+    return typeof value === "string" ? Bytes.utf8Length(value) : value.byteLength;
+}
+
+/**
+ * Schema to encode an octet string or a UTF-8 character string in TLV.
+ *
+ * All lengths count bytes, also for a character string: the TLV length field, `minLength`, `maxLength` and the default
+ * maximum of 65,536 count UTF-8 bytes, not characters.
+ *
+ * @see {@link MatterSpecification.v161.Core} § A.11.2
+ * @see {@link MatterSpecification.v161.Core} § 7.18.3.3
+ * @see {@link MatterSpecification.v161.Core} § 7.18.3.6
+ */
 export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> extends TlvSchema<TlvToPrimitive[T]> {
     constructor(
         readonly type: T,
@@ -48,7 +57,7 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
     }
 
     override encodeTlvInternal(writer: TlvWriter, value: TlvToPrimitive[T], tag?: TlvTag): void {
-        const length = typeof value === "string" ? value.length : value.byteLength;
+        const length = byteLengthOf(value);
         const typeLength: TlvTypeLength = { type: this.type, length: TlvCodec.getUIntTlvLength(length) };
         writer.writeTag(typeLength, tag);
         writer.writePrimitive(typeLength, value);
@@ -60,9 +69,10 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
         if (this.type === TlvType.Utf8String && typeof value === "string") {
             const separatorIndex = value.indexOf(INFORMATION_SEPARATOR_1);
             if (separatorIndex !== -1) {
-                if (value.length > this.maxLength)
+                const length = byteLengthOf(value);
+                if (length > this.maxLength)
                     throw new ValidationOutOfBoundsError(
-                        `String ${serialize(value)} is too long: ${value.length}, max ${this.maxLength}.`,
+                        `String ${serialize(value)} is too long: ${length} bytes, max ${this.maxLength}.`,
                     );
                 return value.slice(0, separatorIndex) as TlvToPrimitive[T];
             }
@@ -79,14 +89,14 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
             throw new ValidationDatatypeMismatchError(
                 "Character string must not contain Information Separator 1 (0x1F).",
             );
-        const length = typeof value === "string" ? value.length : value.byteLength;
+        const length = byteLengthOf(value);
         if (length > this.maxLength)
             throw new ValidationOutOfBoundsError(
-                `String ${serialize(value)} is too long: ${length}, max ${this.maxLength}.`,
+                `String ${serialize(value)} is too long: ${length} bytes, max ${this.maxLength}.`,
             );
         if (length < this.minLength)
             throw new ValidationOutOfBoundsError(
-                `String ${serialize(value)} is too short: ${length}, min ${this.minLength}.`,
+                `String ${serialize(value)} is too short: ${length} bytes, min ${this.minLength}.`,
             );
     }
 

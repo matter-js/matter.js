@@ -168,11 +168,19 @@ export class SecureChannelMessenger {
     }
 
     sendError(code: SecureChannelStatusCode, abort?: AbortSignal) {
-        return this.#sendStatusReport(GeneralStatusCode.Failure, code, abort);
+        return this.#sendStatusReport(GeneralStatusCode.Failure, code, { abort });
     }
 
-    sendSuccess(abort?: AbortSignal) {
-        return this.#sendStatusReport(GeneralStatusCode.Success, SecureChannelStatusCode.Success, abort);
+    /**
+     * Send the success status report, which ends a session establishment handshake.
+     *
+     * {@link onTransmitted} runs once the first transmission of the report went out, before the wait for its ack.
+     */
+    sendSuccess(abort?: AbortSignal, onTransmitted?: ExchangeSendOptions["onTransmitted"]) {
+        return this.#sendStatusReport(GeneralStatusCode.Success, SecureChannelStatusCode.Success, {
+            abort,
+            onTransmitted,
+        });
     }
 
     sendBusy(minimumRetryInterval: Duration, abort?: AbortSignal) {
@@ -181,17 +189,18 @@ export class SecureChannelMessenger {
         }
         const writer = new DataWriter(Endian.Little);
         writer.writeUInt16(Math.min(minimumRetryInterval, 0xffff));
-        return this.#sendStatusReport(
-            GeneralStatusCode.Busy,
-            SecureChannelStatusCode.Busy,
+        return this.#sendStatusReport(GeneralStatusCode.Busy, SecureChannelStatusCode.Busy, {
             abort,
-            true,
-            writer.toByteArray(),
-        );
+            suppressAck: true,
+            protocolData: writer.toByteArray(),
+        });
     }
 
     sendCloseSession(abort?: AbortSignal) {
-        return this.#sendStatusReport(GeneralStatusCode.Success, SecureChannelStatusCode.CloseSession, abort, true);
+        return this.#sendStatusReport(GeneralStatusCode.Success, SecureChannelStatusCode.CloseSession, {
+            abort,
+            suppressAck: true,
+        });
     }
 
     get channelName() {
@@ -209,9 +218,12 @@ export class SecureChannelMessenger {
     async #sendStatusReport(
         generalStatus: GeneralStatusCode,
         protocolStatus: SecureChannelStatusCode,
-        abort?: AbortSignal,
-        suppressAck?: true,
-        protocolData?: Bytes,
+        {
+            abort,
+            suppressAck,
+            protocolData,
+            onTransmitted,
+        }: Pick<ExchangeSendOptions, "abort" | "suppressAck" | "onTransmitted"> & { protocolData?: Bytes } = {},
     ) {
         await this.exchange.send(
             SecureMessageType.StatusReport,
@@ -227,6 +239,7 @@ export class SecureChannelMessenger {
                     protocolStatus: SecureChannelStatusCode[protocolStatus] ?? Diagnostic.hex(protocolStatus),
                 },
                 abort,
+                onTransmitted,
             },
         );
     }

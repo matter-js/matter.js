@@ -159,14 +159,21 @@ export class MdnsRelevanceFilter {
     }
 
     /**
+     * Whether {@link isRelevant} can drop packets.  The filter accepts everything while an owner registered `"all"` or
+     * no owner registered a footprint.
+     */
+    get isActive() {
+        return this.#allOwnerCount === 0 && this.#footprints.size > 0;
+    }
+
+    /**
      * Scan a raw packet for a registered footprint, deciding whether it is worth a full decode. Walks the DNS name
      * structure only — header counts then each question/RR name — skipping RDATA via `rdlength`, and follows
      * compression pointers so every label is visited regardless of how the packet encoded the name. Returns true
      * (keep) on any structural uncertainty so the decoder makes the authoritative call.
      */
     isRelevant(message: Bytes): boolean {
-        // Inactive (accept all) when an owner cannot enumerate its interest, or nobody has registered a footprint
-        if (this.#allOwnerCount > 0 || this.#footprints.size === 0) {
+        if (!this.isActive) {
             return true;
         }
         const footprints = this.#footprints;

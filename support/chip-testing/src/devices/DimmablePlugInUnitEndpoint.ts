@@ -4,20 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { DimmablePlugInUnitDevice } from "@matter/main/devices/dimmable-plug-in-unit";
 import { EndpointNumber } from "@matter/main/types";
+import { TEST_SCENE_TABLE_SIZE } from "../cluster/scene-table.js";
 import { registerDeviceType } from "./DeviceTypeRegistry.js";
 import { DimmableLevelControlServer, dimmableLevelControlState } from "./dimmable-load.js";
 
 registerDeviceType({
     name: "dimmable-plug-in-unit",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(DimmablePlugInUnitDevice.with(DimmableLevelControlServer), {
             number: endpoint,
+            scenesManagement: { sceneTableSize: TEST_SCENE_TABLE_SIZE },
             levelControl: dimmableLevelControlState(),
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
         return { endpoint: ep };
     },
 });

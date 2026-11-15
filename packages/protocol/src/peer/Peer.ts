@@ -256,13 +256,18 @@ export class Peer {
         return this.#descriptor;
     }
 
+    /**
+     * The open sessions with the peer.  The set holds established sessions only, as it is filled from
+     * `SessionManager.sessions`.  So {@link hasSession}, {@link newestSession} and observers of `peer.sessions.added`
+     * never see a session whose handshake still runs.
+     */
     get sessions() {
         return this.#sessions;
     }
 
     get subscriptions() {
         // TODO - this should just be #subscriptions
-        return [...this.#sessions].flatMap(session => [...session.subscriptions]);
+        return this.#context.sessions.sessionsFor(this.address).flatMap(session => [...session.subscriptions]);
     }
 
     get exchangeProvider() {
@@ -422,21 +427,6 @@ export class Peer {
 
         while (true) {
             const { transports } = this.#transportDecision(options?.requiredTransport, options?.preferredTransport);
-            /* Debug aid (one line per connect — noisy); uncomment to trace transport selection:
-            {
-                const { reason, diag } = this.#transportDecision(options?.requiredTransport, options?.preferredTransport);
-                logger.debug(
-                    "Transport resolution",
-                    Diagnostic.dict({
-                        peer: this.address.toString(),
-                        result: transports === undefined ? "UDP (no constraint)" : transports.join("+"),
-                        reason,
-                        peerPreference: this.transportPreference ?? "none",
-                        ...diag,
-                    }),
-                );
-            }
-            */
             let session: NodeSession | undefined;
             if (transports === undefined) {
                 session = this.newestSession();
@@ -634,6 +624,8 @@ export class Peer {
             return;
         }
 
+        this.#logTransportDecision(options);
+
         const abort = new Abort({ abort: this.#abort });
 
         // Abort connection if a session is established from any source
@@ -671,6 +663,29 @@ export class Peer {
             },
         };
         this.#workers.add(this.#connecting);
+    }
+
+    /**
+     * Log the transport decision once per connection process, so a log shows why TCP or UDP was tried.
+     *
+     * {@link PeerConnection} resolves the transports again for each address, so a later mDNS update can still change
+     * them. The address URL in each "Connecting" line shows the transport actually used.
+     */
+    #logTransportDecision(options?: Peer.ConnectOptions) {
+        const { transports, reason, diag } = this.#transportDecision(
+            options?.requiredTransport,
+            options?.preferredTransport,
+        );
+        logger.debug(
+            Diagnostic.via(this.address.toString()),
+            "Transport decision",
+            Diagnostic.dict({
+                transports: transports === undefined ? "no constraint" : transports.join("+"),
+                reason,
+                peerPreference: this.transportPreference ?? "none",
+                ...diag,
+            }),
+        );
     }
 }
 

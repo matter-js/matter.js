@@ -25,6 +25,7 @@ import {
     TlvUInt8,
     TypeFromSchema,
 } from "@matter/types";
+import { TlvDistinguishedName } from "../DistinguishedName.js";
 import { ExtensionKeyUsageBitmap } from "./base.js";
 
 /**
@@ -55,11 +56,12 @@ export namespace OperationalCertificate {
     /** All defined Matter fields for subject and issuer that we always allow optionally to be encoded */
     const AllowedSubjectAndIssuerMatterFields = {
         nodeId: TlvOptionalField(17, TlvNodeId),
-        firmwareSigningId: TlvOptionalField(18, TlvUInt32),
+        firmwareSigningId: TlvOptionalField(18, TlvUInt64),
         icacId: TlvOptionalField(19, TlvUInt64),
         rcacId: TlvOptionalField(20, TlvUInt64),
         fabricId: TlvOptionalField(21, TlvFabricId),
         caseAuthenticatedTags: TlvOptionalRepeatedField(22, TlvCaseAuthenticatedTag, { maxLength: 3 }),
+        vvsId: TlvOptionalField(23, TlvUInt64),
     };
 
     /**
@@ -106,8 +108,7 @@ export namespace OperationalCertificate {
             dnQualifierPs: TlvOptionalField(142, TlvString),
             pseudonymPs: TlvOptionalField(143, TlvString),
         };
-        // Order-preserving: subject/issuer DN sub-lists are part of the certificate's signed bytes; re-encode must reproduce caller order.
-        return TlvTaggedListPreservingOrder(fields);
+        return TlvDistinguishedName(fields);
     };
 
     /**

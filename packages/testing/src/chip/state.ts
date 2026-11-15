@@ -20,6 +20,7 @@ import { afterRun, beforeRun } from "../mocha.js";
 import { TestRunner } from "../runner.js";
 import { RootTestDescriptor, TestDescriptor, TestFileDescriptor } from "../test-descriptor.js";
 import { AccessoryServer } from "./accessory-server.js";
+import { normalizeAppReferences } from "./app-reference.js";
 import { createRegisteredCertTest } from "./cert/cert-test.js";
 import { CERT_BINS_PLATFORM, chipBinsPlatformSupported, prepareChipBins, resolveChipBinsSource } from "./chip-bins.js";
 import type { chip } from "./chip.js";
@@ -328,9 +329,11 @@ export const State = {
             await State.container.exec(["bash", "-c", 'export GLOBIGNORE="/tmp/*_fifo_*"; rm -rf /tmp/*']);
 
             if (!startCommissioned) {
-                // Initialize single-use subject
+                // A single-use subject is closed by deactivateSubject(), also when it fails to start, and nothing
+                // else may hold it: a closed subject still references its log and the steps of its test
+                Values.activeSubject = subject;
+                Values.singleUseSubject = true;
                 await subject.initialize();
-                State.onClose(subject.close.bind(subject));
 
                 await beforeStart?.(subject, test);
                 await subject.start();
@@ -581,6 +584,7 @@ async function configureTests() {
         throw new Error(`CHIP test descriptor has no members`);
     }
 
+    normalizeAppReferences(descriptor);
     Values.tests = TestDescriptor.Filesystem(descriptor);
 }
 

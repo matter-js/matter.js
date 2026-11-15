@@ -6,8 +6,10 @@
 
 import { MalformedRequestError } from "#action/request/MalformedRequestError.js";
 import { Write } from "#action/request/Write.js";
-import { Seconds } from "@matter/general";
+import { Bytes, Diagnostic, LogFormat, Seconds } from "@matter/general";
+import { SecretRedaction } from "@matter/model";
 import { AttributeId, ClusterId, EndpointNumber, TlvString, TlvUInt8 } from "@matter/types";
+import { DoorLock } from "@matter/types/clusters/door-lock";
 import { OnOff } from "@matter/types/clusters/on-off";
 
 describe("Write", () => {
@@ -322,6 +324,24 @@ describe("Write", () => {
             });
 
             expect(request.interactionModelRevision).equal(99);
+        });
+    });
+
+    describe("log output", () => {
+        it("replaces a secret attribute value", () => {
+            const key = Bytes.fromHex("00112233445566778899aabbccddeeff");
+            const request = Write(
+                Write.Attribute({
+                    endpoint: EndpointNumber(1),
+                    cluster: DoorLock,
+                    attributes: "aliroGroupResolvingKey",
+                    value: key,
+                }),
+            );
+
+            const text = LogFormat.formats.plain(Diagnostic.message({ values: [request] }));
+            expect(text).not.contains(Bytes.toHex(key));
+            expect(text).contains(SecretRedaction.PLACEHOLDER);
         });
     });
 });

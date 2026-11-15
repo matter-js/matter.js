@@ -97,7 +97,7 @@ export function NameResolver(
         }
 
         return (val: Val) => {
-            const parent = (val as Internal.Collection)?.[Internal.reference]?.parent?.owner;
+            const parent = Internal.referenceOf(val)?.parent?.owner;
             if (parent) {
                 return parentReader(parent as Val.Collection);
             }

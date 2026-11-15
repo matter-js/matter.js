@@ -10,8 +10,7 @@ import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import type { CommandModel } from "@matter/model";
-import { ClientInteraction, Invoke, ResultStatus } from "@matter/protocol";
-import { Status } from "@matter/types";
+import { ClientInteraction, Invoke, InvokeResult } from "@matter/protocol";
 
 /**
  * Create the command method for a client behavior.
@@ -45,23 +44,9 @@ export function ClientCommandMethod(name: string, commandModel?: CommandModel) {
                 invoke.largeMessage = true;
             }
 
-            const chunks = (node.interaction as ClientInteraction).invoke(invoke, context ?? this.context);
-
-            for await (const chunk of chunks) {
-                for (const entry of chunk) {
-                    // We send only one command, so we only get one response back
-                    switch (entry.kind) {
-                        case "cmd-status":
-                            if (entry.status !== Status.Success) {
-                                throw ResultStatus.errorOf(entry);
-                            }
-                            return;
-
-                        case "cmd-response":
-                            return entry.data;
-                    }
-                }
-            }
+            return InvokeResult.responseOfSingleCommand(
+                (node.interaction as ClientInteraction).invoke(invoke, context ?? this.context),
+            );
         },
     };
 

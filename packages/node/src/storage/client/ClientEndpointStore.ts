@@ -122,7 +122,7 @@ export class ClientEndpointStore extends EndpointStore {
     }
 
     /**
-     * Create a {@link Datasource.Store} for a behavior that does not track a remote cluster.
+     * Create a {@link Datasource.PersistentStore} for a behavior that does not track a remote cluster.
      *
      * Throws {@link ImplementationError} if {@link behaviorId} is a cluster ID, as an erase of the cache would take the
      * state of the behavior with it.

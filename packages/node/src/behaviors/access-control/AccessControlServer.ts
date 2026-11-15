@@ -742,14 +742,14 @@ export namespace AccessControlServer {
     }
 
     export declare const ExtensionInterface: {
-        extensionEntryValidator: (extension: AccessControlTypes.AccessControlExtension) => void;
-        extensionEntryAccessCheck: (
+        extensionEntryValidator(extension: AccessControlTypes.AccessControlExtension): void;
+        extensionEntryAccessCheck(
             aclList: AclList,
             aclEntry: AclEntry,
             subjectDesc: IncomingSubjectDescriptor,
             endpoint: AclEndpointContext,
             clusterId: ClusterId,
-        ) => boolean;
+        ): boolean;
     };
 
     /**

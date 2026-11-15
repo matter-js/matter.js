@@ -8,6 +8,7 @@ import { Advertiser } from "#advertisement/Advertiser.js";
 import { CommissioningMode } from "#advertisement/CommissioningMode.js";
 import { ServiceDescription } from "#advertisement/ServiceDescription.js";
 import { DeviceAdvertiser, DeviceAdvertiserContext, IcdAdvertisement } from "#protocol/DeviceAdvertiser.js";
+import type { NodeSession } from "#session/NodeSession.js";
 import { SessionIntervals } from "#session/SessionIntervals.js";
 import { Millis, Observable, Seconds } from "@matter/general";
 import { FabricIndex, NodeId, VendorId } from "@matter/types";
@@ -63,7 +64,7 @@ function createMockContext() {
         },
         retry,
         subscriptionsChanged,
-        forFabric: () => [] as any[],
+        sessionsForFabricIndex: () => new Array<NodeSession>(),
         sessionParameters: { ...SessionIntervals.defaults },
     } as unknown as DeviceAdvertiserContext["sessions"];
 

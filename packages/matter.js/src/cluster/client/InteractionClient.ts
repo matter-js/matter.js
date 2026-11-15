@@ -17,7 +17,7 @@ import {
     ServerAddressUdp,
     UnexpectedDataError,
 } from "@matter/general";
-import { Matter, Specification } from "@matter/model";
+import { Matter, SecretRedaction, Specification } from "@matter/model";
 import type { ServerNode } from "@matter/node";
 import { ClientNodeInteraction } from "@matter/node";
 import {
@@ -116,15 +116,24 @@ export interface DiscoveryOptions {
 }
 
 /**
- * Extended discovery options that include case authenticated tags for peer connections.
+ * Options for establishing a peer connection.  Except for `caseAuthenticatedTags` of `MatterController.connect()`,
+ * these options are ignored.
  *
- * @deprecated Scheduled for removal in 0.19.  These options are ignored
+ * @deprecated Scheduled for removal in 0.19.  Part of the legacy controller API superseded by `ClientNode` in `@matter/node`.
  */
 export interface PeerConnectionOptions {
     discoveryOptions?: DiscoveryOptions;
 
     /**
-     * @deprecated Scheduled for removal in 0.19.  Set CATs on CommissioningBehavior#state
+     * Case Authenticated Tags intended for sessions with the peer.
+     *
+     * Only `MatterController.connect()` uses this value: it stores the value in the `caseAuthenticatedTags` state of
+     * the peer's `CommissioningClient`.  `MatterController.createInteractionClient()` and
+     * `InteractionClientProvider.getNodeInteractionClient()` ignore it.  The value is not applied to sessions yet.
+     * Sessions present the CATs of this node's own NOC in the fabric (`ControllerBehavior.caseAuthenticatedTags`), and
+     * the CATs of the peer come from its NOC.
+     *
+     * @deprecated Scheduled for removal in 0.19.  Set the `caseAuthenticatedTags` state of `CommissioningClient`
      */
     caseAuthenticatedTags?: CaseAuthenticatedTag[];
 
@@ -775,9 +784,9 @@ export class InteractionClient {
                 Diagnostic.dict({
                     attributes: attributes
                         .map(
-                            ({ endpointId, clusterId, attribute: { id }, value, dataVersion }) =>
+                            ({ endpointId, clusterId, attribute: { id, schema }, value, dataVersion }) =>
                                 `${resolveAttributeName({ endpointId, clusterId, attributeId: id })} = ${Diagnostic.json(
-                                    value,
+                                    SecretRedaction.redact(schema, value),
                                 )} (version=${dataVersion})`,
                         )
                         .join(", "),

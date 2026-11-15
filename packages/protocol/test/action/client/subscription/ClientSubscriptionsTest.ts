@@ -28,10 +28,10 @@ import { FabricIndex, NodeId } from "@matter/types";
 
 const PEER = PeerAddress({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) });
 
-function fakePeerSub(timeout: Duration, timedOut: () => void): PeerSubscription {
+function fakePeerSub(timeout: Duration, timedOut: () => void, subscriptionId = 1): PeerSubscription {
     return {
         peer: PEER,
-        subscriptionId: 1,
+        subscriptionId,
         isReading: false,
         timeout,
         timedOut,
@@ -76,6 +76,37 @@ describe("ClientSubscriptions", () => {
             await MockTime.advance(Seconds(10));
 
             expect(timedOutCount).equal(1);
+        });
+    });
+
+    describe("delete", () => {
+        it("stops the timeout timer when the last subscription leaves", () => {
+            const timersBefore = MockTime.timerCountFor("Subscription timeout");
+            const subscriptions = new ClientSubscriptions(Lifetime("test client subscriptions"));
+            const first = fakePeerSub(Seconds(10), () => {});
+            const second = fakePeerSub(Seconds(10), () => {}, 2);
+            subscriptions.addPeer(first);
+            subscriptions.addPeer(second);
+
+            subscriptions.delete(first);
+            expect(MockTime.timerCountFor("Subscription timeout")).equal(timersBefore + 1);
+
+            subscriptions.delete(second);
+            expect(MockTime.timerCountFor("Subscription timeout")).equal(timersBefore);
+
+            subscriptions.addPeer(fakePeerSub(Seconds(10), () => {}, 3));
+            expect(MockTime.timerCountFor("Subscription timeout")).equal(timersBefore + 1);
+        });
+
+        it("stops the timeout timer when the last subscription leaves as it times out", async () => {
+            const timersBefore = MockTime.timerCountFor("Subscription timeout");
+            const subscriptions = new ClientSubscriptions(Lifetime("test client subscriptions"));
+            const subscription: PeerSubscription = fakePeerSub(Seconds(10), () => subscriptions.delete(subscription));
+            subscriptions.addPeer(subscription);
+
+            await MockTime.advance(Seconds(10));
+
+            expect(MockTime.timerCountFor("Subscription timeout")).equal(timersBefore);
         });
     });
 

@@ -4,15 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { TestCert_PAA_FFF1_Cert, TestCert_PAA_NoVID_Cert } from "#certificate/ChipPAAuthorities.js";
-import { Paa } from "#certificate/kinds/AttestationCertificates.js";
+import {
+    TestCert_PAA_FFF1_Cert,
+    TestCert_PAA_FFF1_SKID,
+    TestCert_PAA_NoVID_Cert,
+} from "#certificate/ChipPAAuthorities.js";
+import { Paa, Pai } from "#certificate/kinds/AttestationCertificates.js";
+import { Certificate } from "#certificate/kinds/Certificate.js";
 import { CertificationDeclaration } from "#certificate/kinds/CertificationDeclaration.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
+import type { CertSeedEntry, SeedSource } from "#dcl/SeedTypes.js";
 import {
     Bytes,
+    CertificateError,
     ClosedError,
     Crypto,
     Diagnostic,
+    EcdsaSignature,
     Environment,
     LogFormat,
     Logger,
@@ -23,6 +31,8 @@ import {
     StandardCrypto,
     StorageService,
 } from "@matter/general";
+import { ChipCsaSignedCdVector } from "../certificate/ChipCdTestVectors.js";
+import { CsaCdSigningKey001 } from "../certificate/CsaCdCertificates.js";
 import { buildSignedTestCrl, buildTestCrl, chipTestPaaCrlSigner, pemEncode } from "../certificate/TestHelpers.js";
 
 // Mock DCL responses - using colon format as returned by real DCL API
@@ -1567,8 +1577,11 @@ describe("DclCertificateService", () => {
         });
     });
 
-    describe("getOrFetchCdSigner", () => {
-        it("returns locally injected CD signer without DCL lookup", async () => {
+    describe("lookupCdSigner", () => {
+        const unknownSkid = "DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF";
+        const testSigner = CertificationDeclaration.testSignerInfo();
+
+        function mockRootCertificates() {
             fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
             fetchMock.addResponse(
                 "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
@@ -1578,87 +1591,312 @@ describe("DclCertificateService", () => {
                 "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
                 mockDclCertificateFFF1,
             );
-            fetchMock.install();
+        }
 
-            const service = new DclCertificateService(environment);
-            await service.construction;
-
-            await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner");
-
-            const { subjectKeyId, publicKey } = CertificationDeclaration.testSignerInfo();
-            const callCountBefore = fetchMock.getCallLog().length;
-
-            const result = await service.getOrFetchCdSigner(subjectKeyId);
-            expect(result).to.not.be.undefined;
-            expect(Bytes.toHex(result!.publicKey)).to.equal(Bytes.toHex(publicKey));
-            expect(result!.isProduction).to.be.false;
-            // No additional DCL call made
-            expect(fetchMock.getCallLog().length).to.equal(callCountBefore);
-
-            await service.close();
-        });
-
-        it("fetches CD signer from DCL on cache miss", async () => {
-            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
-            fetchMock.addResponse(
-                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
-                mockDclCertificateNoVID,
-            );
-            fetchMock.addResponse(
-                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
-                mockDclCertificateFFF1,
-            );
-
-            const { subjectKeyId, publicKey } = CertificationDeclaration.testSignerInfo();
-            const skidWithColons = Bytes.toHex(subjectKeyId)
-                .toUpperCase()
-                .match(/.{1,2}/g)!
-                .join(":");
-            // Mock the all-certificates by-SKID endpoint to return the test CD signer PEM
+        /** Mock the DCL's by-SKID answer for `skid` with the given DER certificates. */
+        function mockSkidAnswer(skid: string, ...certificates: Bytes[]) {
+            const skidWithColons = skid.match(/.{1,2}/g)!.join(":");
             fetchMock.addResponse(`/dcl/pki/all-certificates?subjectKeyId=${encodeURIComponent(skidWithColons)}`, {
                 certificates: [
                     {
                         subject: "",
                         subjectKeyId: skidWithColons,
-                        certs: [
-                            { pemCert: pemEncode(CertificationDeclaration.testSignerCertificate()), schemaVersion: 0 },
-                        ],
+                        certs: certificates.map(der => ({ pemCert: pemEncode(der), schemaVersion: 0 })),
                         schemaVersion: 0,
                     },
                 ],
             });
+        }
+
+        async function onlineService(options: DclCertificateService.Options = {}) {
             fetchMock.install();
-
-            const service = new DclCertificateService(environment);
+            const service = new DclCertificateService(environment, { updateInterval: null, ...options });
             await service.construction;
+            return service;
+        }
 
-            const result = await service.getOrFetchCdSigner(subjectKeyId);
-            expect(result).to.not.be.undefined;
-            expect(Bytes.toHex(result!.publicKey)).to.equal(Bytes.toHex(publicKey));
-            expect(result!.isProduction).to.be.true; // DCL-fetched → production
+        function cdSignerSeed(entries: CertSeedEntry[]): SeedSource<CertSeedEntry> {
+            return {
+                builtAt: new Date(0).toISOString(),
+                expectedCount: entries.length,
+                entries: (async function* () {
+                    yield* entries;
+                })(),
+            };
+        }
+
+        async function offlineService(seed?: SeedSource<CertSeedEntry>) {
+            const service = new DclCertificateService(environment, {
+                updateInterval: null,
+                offline: true,
+                seed: seed === undefined ? undefined : { cdSigners: seed },
+            });
+            await service.construction;
+            return service;
+        }
+
+        function skidCalls() {
+            return fetchMock.getCallLog().filter(({ url }) => url.includes("all-certificates"));
+        }
+
+        it("finds a built-in CSA signing key without asking the DCL", async () => {
+            mockRootCertificates();
+            const service = await onlineService();
+
+            const signer = await service.lookupCdSigner(CsaCdSigningKey001.subjectKeyId);
+            expect(signer && Bytes.toHex(signer.publicKey)).equal(CsaCdSigningKey001.publicKeyHex);
+            expect(signer?.isTestSigner).equal(false);
+            expect(skidCalls()).length(0);
 
             await service.close();
         });
 
-        it("returns undefined when DCL has no CD signer for the SKID", async () => {
-            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
-            fetchMock.addResponse(
-                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
-                mockDclCertificateNoVID,
-            );
-            fetchMock.addResponse(
-                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
-                mockDclCertificateFFF1,
-            );
-            // DCL returns empty certificates array for unknown SKID
-            fetchMock.addResponse(`/dcl/pki/all-certificates?subjectKeyId=`, { certificates: [] });
-            fetchMock.install();
+        it("finds the test signer as such without asking the DCL, whatever the test certificate policy", async () => {
+            mockRootCertificates();
+            const service = await onlineService();
 
-            const service = new DclCertificateService(environment);
+            const signer = await service.lookupCdSigner(testSigner.subjectKeyId);
+            expect(signer?.isTestSigner).equal(true);
+            expect(signer && Bytes.toHex(signer.publicKey)).equal(Bytes.toHex(testSigner.publicKey));
+            expect(skidCalls()).length(0);
+
+            await service.close();
+        });
+
+        it("does not know a subject key identifier that is not 20 bytes and does not ask the DCL", async () => {
+            mockRootCertificates();
+            fetchMock.addResponse("/dcl/pki/all-certificates?subjectKeyId=", {
+                certificates: [{ subject: "", subjectKeyId: "", certs: [], schemaVersion: 0 }],
+            });
+            const service = await onlineService();
+
+            expect(await service.lookupCdSigner("")).undefined;
+            expect(await service.lookupCdSigner("DEADBEEF")).undefined;
+            expect(await service.lookupCdSigner("Z".repeat(40))).undefined;
+            expect(skidCalls()).length(0);
+
+            await service.close();
+        });
+
+        it("does not know a signer the DCL does not list", async () => {
+            mockRootCertificates();
+            fetchMock.addResponse(`/dcl/pki/all-certificates?subjectKeyId=`, { certificates: [] });
+            const service = await onlineService();
+
+            expect(await service.lookupCdSigner(unknownSkid)).undefined;
+
+            await service.close();
+        });
+
+        it("does not know a signer whose DCL certificate cannot be parsed, and stores nothing", async () => {
+            mockRootCertificates();
+            mockSkidAnswer(unknownSkid, Bytes.fromHex("3003020101"));
+            const service = await onlineService();
+
+            expect(await service.lookupCdSigner(unknownSkid)).undefined;
+            expect(service.getCertificate(unknownSkid)).undefined;
+
+            await service.close();
+        });
+
+        it("does not take a PAA or PAI the DCL returns for its own SKID as a CD signer", async () => {
+            mockRootCertificates();
+            const paaSkid = Bytes.toHex(TestCert_PAA_FFF1_SKID).toUpperCase();
+            mockSkidAnswer(paaSkid, TestCert_PAA_FFF1_Cert);
+            const pai = Bytes.fromHex(ChipCsaSignedCdVector.pai);
+            const paiSkid = Bytes.toHex(Pai.fromAsn1(pai).cert.extensions.subjectKeyIdentifier).toUpperCase();
+            mockSkidAnswer(paiSkid, pai);
+            const service = await onlineService();
+
+            expect(await service.lookupCdSigner(paaSkid)).undefined;
+            expect(await service.lookupCdSigner(paiSkid)).undefined;
+            expect(service.getCertificate(paiSkid)).undefined;
+            expect(service.getCertificate(paaSkid)?.kind ?? "PAA").equal("PAA");
+
+            await service.close();
+        });
+
+        it("does not take a CSA-issued certificate the DCL returns for another SKID", async () => {
+            mockRootCertificates();
+            mockSkidAnswer(unknownSkid, Bytes.fromHex(CsaCdSigningKey001.certificateHex));
+            const service = await onlineService();
+
+            expect(await service.lookupCdSigner(unknownSkid)).undefined;
+            expect(service.getCertificate(CsaCdSigningKey001.subjectKeyId)).undefined;
+
+            await service.close();
+        });
+
+        it("does not know a signer while the DCL cannot be asked", async () => {
+            mockRootCertificates();
+            fetchMock.addResponse(
+                `/dcl/pki/all-certificates?subjectKeyId=`,
+                { code: 13, message: "internal" },
+                { status: 500 },
+            );
+            const service = await onlineService();
+
+            expect(await service.lookupCdSigner(unknownSkid)).undefined;
+
+            await service.close();
+        });
+
+        it("does not know a signer offline, and does not trust a seeded certificate the CSA did not issue", async () => {
+            const pai = Bytes.fromHex(ChipCsaSignedCdVector.pai);
+            const paiSkid = Pai.fromAsn1(pai).cert.extensions.subjectKeyIdentifier;
+            const service = await offlineService(
+                cdSignerSeed([{ subjectKeyId: Bytes.toHex(paiSkid), derHex: Bytes.toHex(pai), kind: "production" }]),
+            );
+
+            expect(await service.lookupCdSigner(unknownSkid)).undefined;
+            expect(service.getCertificate(paiSkid)?.kind).equal("CDSigner");
+            expect(await service.lookupCdSigner(paiSkid)).undefined;
+
+            await service.close();
+        });
+
+        describe("a CSA-issued signer that is not built in", () => {
+            // CSA signing key 001 with another subject key identifier stands in for a future CSA key; the CSA root
+            // cannot sign it here, so the crypto accepts the root signature over exactly its TBSCertificate
+            const futureSkid = "C0FFEE00C0FFEE00C0FFEE00C0FFEE00C0FFEE00";
+            const futureKey = Bytes.fromHex(
+                CsaCdSigningKey001.certificateHex.replace(CsaCdSigningKey001.subjectKeyId.toLowerCase(), futureSkid),
+            );
+            const futureTbs = Certificate.parseAsn1Certificate(futureKey).tbsDer ?? new Uint8Array();
+
+            class CsaRootSignsFutureKey extends StandardCrypto {
+                override async verifyEcdsa(key: JsonWebKey, data: Bytes, signature: EcdsaSignature) {
+                    if (!Bytes.areEqual(data, futureTbs)) {
+                        await super.verifyEcdsa(key, data, signature);
+                    }
+                }
+            }
+
+            beforeEach(() => {
+                environment.set(Crypto, new CsaRootSignsFutureKey());
+            });
+
+            it("trusts it from the DCL, stores it, and then finds it without asking again", async () => {
+                mockRootCertificates();
+                mockSkidAnswer(futureSkid, TestCert_PAA_FFF1_Cert, futureKey);
+                const service = await onlineService();
+
+                const fromDcl = await service.lookupCdSigner(futureSkid);
+                expect(fromDcl && Bytes.toHex(fromDcl.publicKey)).equal(CsaCdSigningKey001.publicKeyHex);
+                expect(fromDcl?.isTestSigner).equal(false);
+                const stored = service.getCertificate(futureSkid);
+                expect({ kind: stored?.kind, isProduction: stored?.isProduction }).deep.equal({
+                    kind: "CDSigner",
+                    isProduction: true,
+                });
+                expect(skidCalls()).length(1);
+
+                expect((await service.lookupCdSigner(futureSkid))?.isTestSigner).equal(false);
+                expect(skidCalls()).length(1);
+
+                await service.close();
+            });
+
+            it("replaces a stored certificate that does not verify once the DCL answers with one that does", async () => {
+                mockRootCertificates();
+                mockSkidAnswer(futureSkid, futureKey);
+                const forgedSerial = Bytes.toHex(futureKey).replace("63736163646b31", "63736163646b39");
+                const service = await onlineService({
+                    seed: {
+                        cdSigners: cdSignerSeed([
+                            { subjectKeyId: futureSkid, derHex: forgedSerial, kind: "production" },
+                        ]),
+                    },
+                });
+                expect(Bytes.toHex(await service.getCertificateAsDer(futureSkid))).equal(forgedSerial);
+
+                expect(await service.lookupCdSigner(futureSkid)).not.undefined;
+                expect(Bytes.toHex(await service.getCertificateAsDer(futureSkid))).equal(Bytes.toHex(futureKey));
+                expect(await service.lookupCdSigner(futureSkid)).not.undefined;
+                expect(skidCalls()).length(1);
+
+                await service.close();
+            });
+
+            it("asks the DCL when the stored certificate cannot be read", async () => {
+                mockRootCertificates();
+                mockSkidAnswer(futureSkid, futureKey);
+                const service = await onlineService({
+                    seed: {
+                        cdSigners: cdSignerSeed([
+                            { subjectKeyId: futureSkid, derHex: Bytes.toHex(futureKey), kind: "production" },
+                        ]),
+                    },
+                });
+                const storage = await environment.get(StorageService).open("certificates");
+                await storage.createContext("root").delete(futureSkid);
+                expect(service.getCertificate(futureSkid)?.kind).equal("CDSigner");
+
+                expect((await service.lookupCdSigner(futureSkid))?.isTestSigner).equal(false);
+                expect(skidCalls()).length(1);
+                expect(Bytes.toHex(await service.getCertificateAsDer(futureSkid))).equal(Bytes.toHex(futureKey));
+
+                await service.close();
+            });
+
+            it("finds it offline from a seed", async () => {
+                const service = await offlineService(
+                    cdSignerSeed([{ subjectKeyId: futureSkid, derHex: Bytes.toHex(futureKey), kind: "production" }]),
+                );
+
+                expect((await service.lookupCdSigner(futureSkid))?.isTestSigner).equal(false);
+
+                await service.close();
+            });
+        });
+    });
+
+    describe("addCertificate as CD signer", () => {
+        it("stores a CSA-issued certificate and the Matter test CD signer", async () => {
+            const service = new DclCertificateService(environment, { updateInterval: null, offline: true });
             await service.construction;
 
-            const result = await service.getOrFetchCdSigner("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF");
-            expect(result).to.be.undefined;
+            expect(await service.addCertificate(Bytes.fromHex(CsaCdSigningKey001.certificateHex), "CDSigner")).equal(
+                true,
+            );
+            expect(await service.addCertificate(CertificationDeclaration.testSignerCertificate(), "CDSigner")).equal(
+                true,
+            );
+
+            await service.close();
+        });
+
+        it("refuses a certificate the CSA did not issue", async () => {
+            const service = new DclCertificateService(environment, { updateInterval: null, offline: true });
+            await service.construction;
+            const pai = Bytes.fromHex(ChipCsaSignedCdVector.pai);
+
+            await expect(service.addCertificate(pai, "CDSigner")).rejectedWith(CertificateError, /not the CSA CD root/);
+
+            const testSignerHex = Bytes.toHex(CertificationDeclaration.testSignerCertificate());
+            const otherKey = Bytes.fromHex(testSignerHex.replace("043c398922", "043c398923"));
+            await expect(service.addCertificate(otherKey, "CDSigner")).rejectedWith(
+                CertificateError,
+                /test CD signer's key identifier but another key/,
+            );
+            expect(service.getCertificate(Pai.fromAsn1(pai).cert.extensions.subjectKeyIdentifier)).undefined;
+
+            await service.close();
+        });
+    });
+
+    describe("getOrFetchCdSigner", () => {
+        it("maps a known signer and leaves any other lookup undefined", async () => {
+            const service = new DclCertificateService(environment, { updateInterval: null, offline: true });
+            await service.construction;
+            const { subjectKeyId, publicKey } = CertificationDeclaration.testSignerInfo();
+
+            expect(await service.getOrFetchCdSigner(subjectKeyId)).deep.equal({ publicKey, isProduction: false });
+            expect(await service.getOrFetchCdSigner(CsaCdSigningKey001.subjectKeyId)).deep.equal({
+                publicKey: Bytes.fromHex(CsaCdSigningKey001.publicKeyHex),
+                isProduction: true,
+            });
+            expect(await service.getOrFetchCdSigner("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF")).undefined;
 
             await service.close();
         });

@@ -25,6 +25,7 @@ import {
 } from "@matter/general";
 import { SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { FabricManager, FabricNotFoundError } from "../../fabric/FabricManager.js";
+import { SessionClosedError } from "../../protocol/errors.js";
 import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { ProtocolHandler } from "../../protocol/ProtocolHandler.js";
 import { ChannelStatusResponseError } from "../../securechannel/SecureChannelMessenger.js";
@@ -72,6 +73,7 @@ export class CaseServer implements ProtocolHandler {
                     ChannelStatusResponseError,
                     TransientPeerCommunicationError,
                     ShutdownError,
+                    SessionClosedError,
                 )
             ) {
                 logger.info(messenger.via, "Error establishing CASE session:", Diagnostic.errorMessage(error));
@@ -184,14 +186,13 @@ export class CaseServer implements ProtocolHandler {
             isResumption: true,
             reportedSessionParameters: cx.peerSessionParams,
             caseAuthenticatedTags,
-            delayManagerRegistration: true, // Session establishment could still fail, so add session ourselves to the manager
+            establishing: true,
         });
 
-        // Generate sigma 2 resume
-        const resumeSalt = Bytes.concat(cx.peerRandom, cx.localResumptionId);
-        const resumeKey = await crypto.createHkdfKey(sharedSecret, resumeSalt, KDFSR2_KEY_INFO);
-        const resumeMic = crypto.encrypt(resumeKey, new Uint8Array(0), RESUME2_MIC_NONCE);
         try {
+            const resumeSalt = Bytes.concat(cx.peerRandom, cx.localResumptionId);
+            const resumeKey = await crypto.createHkdfKey(sharedSecret, resumeSalt, KDFSR2_KEY_INFO);
+            const resumeMic = crypto.encrypt(resumeKey, new Uint8Array(0), RESUME2_MIC_NONCE);
             const responderSessionParams = this.#sessions.sessionParameters;
             await cx.messenger.sendSigma2Resume({
                 resumptionId: cx.localResumptionId,
@@ -199,21 +200,18 @@ export class CaseServer implements ProtocolHandler {
                 responderSessionId,
                 responderSessionParams,
             });
+
+            // The responder of a resumption has an established session only once the peer's SigmaFinished arrives
+            await cx.messenger.waitForSuccess({ description: "Sigma2Resume-Success" });
+            completeEstablishmentOf(secureSession);
         } catch (error) {
-            // If we fail to send the resume message, we destroy the session
-            await secureSession.initiateClose();
+            // Force close: the peer may not hold the session keys, so a CloseSession would only wait for its MRP window
+            await secureSession.initiateForceClose({ cause: asError(error) });
             throw error;
         }
-
-        // Now we are sure, add the session to the manager
         NodeSession.logNew(logger, "Resumed", secureSession, cx.messenger, fabric, peerNodeId);
 
-        this.#sessions.sessions.add(secureSession);
-
-        cx.resumptionRecord.resumptionId = cx.localResumptionId; /* Update the ID */
-
-        // Wait for success on the peer side
-        await cx.messenger.waitForSuccess({ description: "Sigma2Resume-Success" });
+        cx.resumptionRecord.resumptionId = cx.localResumptionId;
 
         await cx.messenger.close();
         await this.#sessions.saveResumptionRecord(cx.resumptionRecord);
@@ -325,11 +323,26 @@ export class CaseServer implements ProtocolHandler {
             isResumption: false,
             reportedSessionParameters: cx.peerSessionParams,
             caseAuthenticatedTags,
+            establishing: true,
         });
 
+        // Established once SigmaFinished went out for the first time, as in the CHIP SDK
+        try {
+            await cx.messenger.sendSuccess(undefined, () => secureSession.completeEstablishment());
+        } catch (error) {
+            if (secureSession.isEstablishing) {
+                await secureSession.initiateForceClose({ cause: asError(error) });
+                throw error;
+            }
+            // Once SigmaFinished went out the initiator may use the session, so a later failure does not close it
+            logger.debug(
+                cx.messenger.via,
+                "Sending SigmaFinished failed after it went out, session stays established:",
+                Diagnostic.errorMessage(asError(error)),
+            );
+        }
+        completeEstablishmentOf(secureSession);
         NodeSession.logNew(logger, "New", secureSession, cx.messenger, fabric, peerNodeId);
-
-        await cx.messenger.sendSuccess();
 
         const resumptionRecord = {
             peerNodeId,
@@ -348,6 +361,17 @@ export class CaseServer implements ProtocolHandler {
 
     async close() {
         // Nothing to do
+    }
+}
+
+/**
+ * Complete the establishment of {@link session}.
+ *
+ * @throws SessionClosedError if the session closed during its handshake
+ */
+function completeEstablishmentOf(session: NodeSession) {
+    if (!session.completeEstablishment()) {
+        throw new SessionClosedError(`Session ${session.via} closed before its establishment completed`);
     }
 }
 

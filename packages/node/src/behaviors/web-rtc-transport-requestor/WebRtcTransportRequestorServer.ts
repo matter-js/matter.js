@@ -7,7 +7,7 @@
 import { AccessControlServer } from "#behaviors/access-control";
 import { Node } from "#node/Node.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { Logger, Observable } from "@matter/general";
+import { isDeepEqual, Logger, Observable } from "@matter/general";
 import { assertRemoteActor, FabricAuthority, NodeSession, PeerAddress } from "@matter/protocol";
 import { Status, StatusResponseError } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
@@ -47,6 +47,7 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
         logger.info(
             `WebRtcTransportRequestor initialized on endpoint=${this.endpoint.number} (id="${this.endpoint.id}")`,
         );
+        this.reactTo(this.events.currentSessions$Changed, this.#logSessionChanges);
         this.reactTo(node.lifecycle.online, this.#nodeOnline);
         if (node.lifecycle.isOnline) {
             await this.#nodeOnline();
@@ -122,6 +123,32 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
     }
 
     /**
+     * Logs each session added, changed or removed once the change to `currentSessions` commits, which is when the
+     * cluster starts or stops accepting the peer's signaling for it. The lines show the net change of one transaction,
+     * so a session added and removed in the same transaction logs nothing, as does a change that rolls back.
+     */
+    #logSessionChanges(sessions: readonly WebRtcSession[], previous: readonly WebRtcSession[]) {
+        for (const session of sessions) {
+            const before = previous.find(s => isSameSession(s, session));
+            if (before === undefined || !isDeepEqual(before, session)) {
+                logger.debug(`session upserted ${this.#describe(session)}`);
+            }
+        }
+        for (const session of previous) {
+            if (!sessions.some(s => isSameSession(s, session))) {
+                logger.debug(`session removed ${this.#describe(session)}`);
+            }
+        }
+    }
+
+    #describe(session: WebRtcSession) {
+        return (
+            `webRtcSessionId=${session.id} fabricIndex=${session.fabricIndex} peerNodeId=${session.peerNodeId} ` +
+            `peerEndpointId=${session.peerEndpointId} requestorEndpointId=${this.endpoint.number}`
+        );
+    }
+
+    /**
      * Invoked by the peer to deliver an SDP offer. Surfaces it via the {@link WebRtcTransportRequestorServer.Events}
      * `offer` event.
      */
@@ -175,6 +202,10 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
             isSameSession(s, { id, fabricIndex: peer.fabricIndex, peerNodeId: peer.nodeId }),
         );
         if (session === undefined) {
+            logger.debug(
+                `session refused signal=${signal} webRtcSessionId=${id} fabricIndex=${peer.fabricIndex} ` +
+                    `peerNodeId=${peer.nodeId} requestorEndpointId=${this.endpoint.number}`,
+            );
             this.events.refused.emit(signal, id, peer);
             throw new StatusResponseError(`WebRTC session ${id} not found`, Status.NotFound);
         }

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { MicrowaveOvenControlServer } from "@matter/main/behaviors/microwave-oven-control";
 import { MicrowaveOvenModeServer } from "@matter/main/behaviors/microwave-oven-mode";
 import { MicrowaveOvenMode, OperationalState } from "@matter/main/clusters";
@@ -23,7 +23,7 @@ const MicrowaveOven = MicrowaveOvenDevice.with(
 
 registerDeviceType({
     name: "microwave-oven",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(MicrowaveOven, {
             number: endpoint,
             operationalState: {
@@ -53,7 +53,7 @@ registerDeviceType({
                 selectedWattIndex: 0,
             },
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
 
         return { endpoint: ep };
     },

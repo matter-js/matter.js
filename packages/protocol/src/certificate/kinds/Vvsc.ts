@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, CertificateError, Crypto, Diagnostic } from "@matter/general";
+import { Bytes, CertificateError, Crypto } from "@matter/general";
+import { rawKeyUsage } from "./definitions/base.js";
 import { OperationalCertificate } from "./definitions/operational.js";
 import { OperationalBase } from "./OperationalBase.js";
+
+const KEY_USAGE_DIGITAL_SIGNATURE = 0x0001;
 
 /**
  * Represents an Vendor Verification Signer Certificate
@@ -20,13 +23,9 @@ export class Vvsc extends OperationalBase<OperationalCertificate.Vvsc> {
 
     /** Validates all basic certificate fields on construction. */
     protected validateFields() {
-        const {
-            extensions: {
-                basicConstraints: { isCa },
-            },
-        } = this.cert;
-        if (!isCa) {
-            throw new CertificateError("Intermediate certificate must be a CA.");
+        // The basic constraints extension SHALL be encoded with is-ca set to false.
+        if (this.cert.extensions.basicConstraints.isCa) {
+            throw new CertificateError("Vendor ID Verification Signer certificate must not be a CA.");
         }
     }
 
@@ -39,19 +38,29 @@ export class Vvsc extends OperationalBase<OperationalCertificate.Vvsc> {
     }
 
     /**
-     * Verify requirements a Matter Intermediate CA certificate must fulfill.
-     * Rules for this are listed in @see {@link MatterSpecification.v161.Core} §6.5.x
-     * // TODO ADD Verification once we know more about the chain
+     * Verify requirements a Vendor Verification Signer certificate must fulfill.
+     * Rules for this are listed in @see {@link MatterSpecification.v161.Core} § 6.5.12
+     * // TODO Verify the VVSC chain, see the open TODO in VendorIdVerification.verifyData
      */
     async verify(_crypto: Crypto) {
         this.generalVerify();
 
-        const { subject } = this.cert;
-        const { vvsId } = subject;
+        const {
+            subject,
+            extensions: { keyUsage },
+        } = this.cert;
+
+        // The key usage extension SHALL be encoded with exactly one flag: digitalSignature.
+        const keyUsageBits = rawKeyUsage(keyUsage);
+        if (keyUsageBits !== KEY_USAGE_DIGITAL_SIGNATURE) {
+            throw new CertificateError(
+                `Vvsc certificate keyUsage must have only digitalSignature set: 0x${keyUsageBits.toString(16)}`,
+            );
+        }
 
         // The subject DN SHALL encode exactly one matter-vvs-id attribute.
-        if (vvsId === undefined || Array.isArray(vvsId)) {
-            throw new CertificateError(`Invalid vvsId in Vsc certificate: ${Diagnostic.json(vvsId)}`);
+        if (subject.vvsId === undefined) {
+            throw new CertificateError("Vvsc certificate must contain a vvsId.");
         }
 
         // The subject DN SHALL NOT encode any matter-node-id attribute.

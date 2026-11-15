@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { IlluminanceMeasurement } from "@matter/main/clusters";
 import { LightSensorDevice } from "@matter/main/devices/light-sensor";
 import { EndpointNumber } from "@matter/main/types";
@@ -12,7 +12,7 @@ import { registerDeviceType } from "./DeviceTypeRegistry.js";
 
 registerDeviceType({
     name: "light-sensor",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(LightSensorDevice, {
             number: endpoint,
             illuminanceMeasurement: {
@@ -23,7 +23,7 @@ registerDeviceType({
                 lightSensorType: IlluminanceMeasurement.LightSensorType.Photodiode,
             },
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
         return { endpoint: ep };
     },
 });

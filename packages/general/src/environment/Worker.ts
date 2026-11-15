@@ -25,6 +25,10 @@ export interface Worker extends Partial<PromiseLike<any>>, Partial<Cancellable>,
      *     workers and exit
      *
      *   - If the worker is destroyed the runtime deletes it from the set of known workers
+     *
+     * The runtime installs this monitoring when the worker is added, so a worker without construction at that time is
+     * not monitored.  On {@link RuntimeService.cancel} the runtime reads the construction again: it closes the worker
+     * once construction succeeds, and drops that close if the runtime took on new work in the meantime.
      */
     construction?: Construction<any>;
 

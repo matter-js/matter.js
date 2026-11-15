@@ -93,7 +93,7 @@ function propertyChangesOf(from: Model, to: Model) {
     return changes;
 }
 
-/** Documentation, how a local override applies, and whether the element came from a seed model */
+/** Documentation, how a local override applies, whether the element came from a seed model and the matter.js secret mark */
 const IGNORED_PROPERTIES = new Set([
     "tag",
     "name",
@@ -105,6 +105,7 @@ const IGNORED_PROPERTIES = new Set([
     "asOf",
     "until",
     "isSeed",
+    "isSecret",
 ]);
 
 /**

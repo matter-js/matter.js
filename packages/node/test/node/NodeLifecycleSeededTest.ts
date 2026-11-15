@@ -8,6 +8,7 @@ import { BasicInformationClient } from "#behaviors/basic-information";
 import { DescriptorClient } from "#behaviors/descriptor";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ClientNode } from "#node/ClientNode.js";
 import { ClientNodeLifecycle } from "#node/ClientNodeLifecycle.js";
@@ -23,8 +24,10 @@ import { Descriptor } from "@matter/types/clusters/descriptor";
 
 const ROOT_NODE = ServerNode.RootEndpoint.deviceType;
 const OTA_PROVIDER = DeviceTypeId(0x0014);
+const AGGREGATOR = AggregatorEndpoint.deviceType;
 
 const ROOT_ONLY_WARNING = "has no endpoint besides its root";
+const MISSING_ROOT_DEVICE_TYPE_WARNING = "reports no device type on its root endpoint";
 
 function descriptorReports(
     endpointId: number,
@@ -81,6 +84,33 @@ function descriptorReports(
         attr(Descriptor.attributes.serverList.id, serverList),
         attr(Descriptor.attributes.clientList.id, []),
         ...(partsList === undefined ? [] : [attr(Descriptor.attributes.partsList.id, partsList)]),
+    ];
+}
+
+/** Root BasicInformation values, so the cluster is stored and comes back after a restart. */
+function basicInformationReports(version: number): ReadResult.Report[] {
+    const attr = (attributeId: number, value: unknown): ReadResult.Report => ({
+        kind: "attr-value",
+        path: { endpointId: EndpointNumber(0), clusterId: BasicInformation.id, attributeId: AttributeId(attributeId) },
+        value,
+        version,
+        tlv: TlvAny,
+    });
+
+    return [
+        attr(ClusterRevision.id, 4),
+        attr(FeatureMap.id, {}),
+        attr(AttributeList.id, [
+            BasicInformation.attributes.vendorName.id,
+            GeneratedCommandList.id,
+            AcceptedCommandList.id,
+            AttributeList.id,
+            FeatureMap.id,
+            ClusterRevision.id,
+        ]),
+        attr(AcceptedCommandList.id, []),
+        attr(GeneratedCommandList.id, []),
+        attr(BasicInformation.attributes.vendorName.id, "Vendor"),
     ];
 }
 
@@ -393,6 +423,24 @@ describe("NodeLifecycle#isSeeded/seeded", () => {
         expect(peer.lifecycle.isSeeded).true;
     });
 
+    it("places an aggregator's devices reported before the root's PartsList once the root names it", async () => {
+        await using site = new MockSite();
+        const { peer, seededCount } = await unreadPeer(site);
+
+        await applyRead(
+            peer,
+            descriptorReports(1, [AggregatorEndpoint.deviceType], [2], 10),
+            descriptorReports(2, [OnOffLightDevice.deviceType], [], 10),
+        );
+        expect([...peer.endpoints].map(endpoint => endpoint.number)).deep.equals([0]);
+
+        await applyRead(peer, descriptorReports(0, [ROOT_NODE], [1], 10));
+
+        expect([...peer.endpoints].map(endpoint => endpoint.number).sort()).deep.equals([0, 1, 2]);
+        expect(peer.lifecycle.isSeeded).true;
+        expect(seededCount()).equals(1);
+    });
+
     it("does not wait for a PartsList entry that is no endpoint number", async () => {
         await using site = new MockSite();
         const warnings = captureRootOnlyWarnings();
@@ -402,6 +450,172 @@ describe("NodeLifecycle#isSeeded/seeded", () => {
 
         expect(peer.lifecycle.isSeeded).true;
         expect(warnings.length).equals(1);
+    });
+});
+
+describe("ClientNode with a root that reports no device type", () => {
+    before(() => {
+        MockTime.init();
+    });
+
+    afterEach(() => {
+        delete Logger.destinations.capture;
+    });
+
+    function captureMissingRootDeviceTypeWarnings() {
+        const warnings = new Array<string>();
+        Logger.destinations.capture = LogDestination({
+            add(message: Diagnostic.Message) {
+                const text = message.values.map(String).join(" ");
+                if (message.level === LogLevel.WARN && text.includes(MISSING_ROOT_DEVICE_TYPE_WARNING)) {
+                    warnings.push(text);
+                }
+            },
+        });
+        return warnings;
+    }
+
+    it("installs and seeds the endpoints the root names and warns once", async () => {
+        await using site = new MockSite();
+        const warnings = captureMissingRootDeviceTypeWarnings();
+        const { peer, seededCount } = await unreadPeer(site);
+
+        await applyRead(peer, [
+            ...descriptorReports(0, [], [1], 10),
+            ...descriptorReports(1, [OnOffLightDevice.deviceType], [], 10),
+        ]);
+
+        expect([...peer.endpoints].map(endpoint => endpoint.number)).deep.equals([0, 1]);
+        expect(peer.lifecycle.isSeeded).true;
+        expect(seededCount()).equals(1);
+        expect(warnings.length).equals(1);
+        expect(warnings[0]).contains(peer.toString());
+
+        await applyRead(peer, descriptorReports(0, [], [1], 11));
+        expect(warnings.length).equals(1);
+    });
+
+    it("places a nested part below its closest claimant", async () => {
+        await using site = new MockSite();
+        const { peer } = await unreadPeer(site);
+
+        await applyRead(peer, [
+            ...descriptorReports(0, [], [1, 2], 10),
+            ...descriptorReports(1, [AGGREGATOR], [2], 10),
+            ...descriptorReports(2, [OnOffLightDevice.deviceType], [], 10),
+        ]);
+
+        expect(peer.lifecycle.isSeeded).true;
+        expect(peer.endpoints.for(EndpointNumber(1)).owner?.number).equals(0);
+        expect(peer.endpoints.for(EndpointNumber(2)).owner?.number).equals(1);
+    });
+
+    it("places parts below an aggregator when the root reports only an application device type", async () => {
+        await using site = new MockSite();
+        const { peer } = await unreadPeer(site);
+
+        await applyRead(peer, [
+            ...descriptorReports(0, [OnOffLightDevice.deviceType], [1, 2], 10),
+            ...descriptorReports(1, [AGGREGATOR], [2], 10),
+            ...descriptorReports(2, [OnOffLightDevice.deviceType], [], 10),
+        ]);
+
+        expect(peer.endpoints.for(EndpointNumber(1)).owner?.number).equals(0);
+        expect(peer.endpoints.for(EndpointNumber(2)).owner?.number).equals(1);
+    });
+
+    it("places the devices an aggregator names when the root also omits one of them", async () => {
+        await using site = new MockSite();
+        const warnings = new Array<string>();
+        Logger.destinations.capture = LogDestination({
+            add(message: Diagnostic.Message) {
+                if (message.level === LogLevel.WARN) {
+                    warnings.push(message.values.map(String).join(" "));
+                }
+            },
+        });
+        const { peer } = await unreadPeer(site);
+
+        for (const version of [10, 11]) {
+            await applyRead(peer, [
+                ...descriptorReports(0, [], [1, 2], version),
+                ...descriptorReports(1, [AGGREGATOR], [2, 3], version),
+                ...descriptorReports(2, [OnOffLightDevice.deviceType], [], version),
+                ...descriptorReports(3, [OnOffLightDevice.deviceType], [], version),
+            ]);
+        }
+
+        expect(peer.lifecycle.isSeeded).true;
+        expect(peer.endpoints.for(EndpointNumber(1)).owner?.number).equals(0);
+        expect(peer.endpoints.for(EndpointNumber(2)).owner?.number).equals(1);
+        expect(peer.endpoints.for(EndpointNumber(3)).owner?.number).equals(1);
+        expect(warnings.filter(text => text.includes(MISSING_ROOT_DEVICE_TYPE_WARNING)).length).equals(1);
+        const incompleteRoot = warnings.filter(text => text.includes("in the PartsList of its root endpoint"));
+        expect(incompleteRoot.length).equals(1);
+        expect(incompleteRoot[0]).contains("does not name endpoints 3 in");
+    });
+
+    it("restores the endpoints from storage and warns again after a restart", async () => {
+        await using site = new MockSite();
+        const warnings = captureMissingRootDeviceTypeWarnings();
+        const { peer, controller } = await unreadPeer(site);
+        await applyRead(peer, [
+            ...descriptorReports(0, [], [1], 10),
+            ...descriptorReports(1, [OnOffLightDevice.deviceType], [], 10),
+            ...basicInformationReports(10),
+        ]);
+        const peerId = peer.id;
+
+        await site.close();
+
+        const restarted = await site.addController({
+            id: controller.id,
+            index: 1,
+            network: { autoStartCommissionedPeers: false },
+        });
+        await MockTime.resolve(restarted.start());
+
+        const restored = restarted.peers.get(peerId)!;
+        expect([...restored.endpoints].map(endpoint => endpoint.number)).deep.equals([0, 1]);
+        expect(restored.lifecycle.isSeeded).true;
+        expect(warnings.length).equals(2);
+    });
+
+    it("does not warn about a non-root endpoint that reports no device type", async () => {
+        await using site = new MockSite();
+        const warnings = captureMissingRootDeviceTypeWarnings();
+        const { peer } = await unreadPeer(site);
+
+        await applyRead(peer, [...descriptorReports(0, [ROOT_NODE], [1], 10), ...descriptorReports(1, [], [], 10)]);
+
+        expect(peer.endpoints.for(EndpointNumber(1)).owner?.number).equals(0);
+        expect(warnings).deep.equals([]);
+    });
+
+    it("does not warn about a root that has not reported its DeviceTypeList", async () => {
+        await using site = new MockSite();
+        const warnings = captureMissingRootDeviceTypeWarnings();
+        const { peer } = await unreadPeer(site);
+
+        await applyRead(peer, descriptorReports(0, undefined, [], 10));
+        await applyRead(peer, descriptorReports(0, undefined, [], 11));
+
+        expect(peer.maybeStateOf(DescriptorClient)?.deviceTypeList).deep.equals([]);
+        expect(warnings).deep.equals([]);
+    });
+
+    it("does not warn about a root that reports Root Node", async () => {
+        await using site = new MockSite();
+        const warnings = captureMissingRootDeviceTypeWarnings();
+        const { peer } = await unreadPeer(site);
+
+        await applyRead(peer, [
+            ...descriptorReports(0, [ROOT_NODE], [1], 10),
+            ...descriptorReports(1, [OnOffLightDevice.deviceType], [], 10),
+        ]);
+
+        expect(peer.lifecycle.isSeeded).true;
+        expect(warnings).deep.equals([]);
     });
 });
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "@matter/general";
+import { Bytes, Logger } from "@matter/general";
 import { DclCertificateService } from "@matter/protocol";
 import { Argv } from "yargs";
 import { setLogLevel } from "../app.js";
@@ -261,7 +261,7 @@ export default function commands(theNode: MatterNode) {
                 // DCL Test Certificates
                 .command(
                     "dcl-test-certificates",
-                    "Manage DCL test certificate fetching (production only vs. include test)",
+                    "Manage DCL test certificates: fetching them and trusting test PAAs and the Matter test CD signer",
                     yargs => {
                         return yargs
                             .command(
@@ -279,7 +279,7 @@ export default function commands(theNode: MatterNode) {
                             )
                             .command(
                                 "set <value>",
-                                "Enable or disable test certificate fetching from DCL",
+                                "Enable or disable fetching and trusting test certificates",
                                 yargs => {
                                     return yargs.positional("value", {
                                         describe: "Enable test certificates (true/false)",
@@ -446,8 +446,8 @@ async function doControllerFabricLabel(
                 console.log(`Cannot change Controller Fabric Label: new value not provided`);
                 return;
             }
-            if (value.length === 0 || value.length > 32) {
-                console.log(`Cannot change Controller Fabric Label: value must be between 1 and 32 characters`);
+            if (value.length === 0 || Bytes.utf8Length(value) > 32) {
+                console.log(`Cannot change Controller Fabric Label: value must be between 1 and 32 bytes in UTF-8`);
                 return;
             }
             await theNode.Store.set("ControllerFabricLabel", value);
@@ -577,7 +577,7 @@ async function doOtaTestImages(
     switch (action) {
         case "get":
             console.log(
-                `OTA test images: ${theNode.allowTestOtaImages ? "enabled (production + test DCL)" : "disabled (production DCL only)"}`,
+                `OTA test images: ${theNode.allowTestOtaImages ? "enabled (production + test DCL, local images)" : "disabled (production DCL only)"}`,
             );
             break;
         case "set":
@@ -588,7 +588,7 @@ async function doOtaTestImages(
             const newValue = value === "true";
             await theNode.setAllowTestOtaImages(newValue);
             console.log(
-                `OTA test images: ${newValue ? "enabled (production + test DCL)" : "disabled (production DCL only)"}`,
+                `OTA test images: ${newValue ? "enabled (production + test DCL, local images)" : "disabled (production DCL only)"}`,
             );
             break;
         case "delete":

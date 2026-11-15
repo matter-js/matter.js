@@ -41,7 +41,7 @@ export const ThreadBorderRouterManagement = Cluster(
     }),
     Command(
         { name: "DatasetResponse", id: 0x2, conformance: "M", direction: "response" },
-        Field({ name: "Dataset", id: 0x0, type: "octstr", conformance: "M", constraint: "max 254" })
+        Field({ name: "Dataset", id: 0x0, type: "octstr", conformance: "M", constraint: "max 254", isSecret: true })
     ),
 
     Command(
@@ -49,7 +49,7 @@ export const ThreadBorderRouterManagement = Cluster(
             name: "SetActiveDatasetRequest", id: 0x3, access: "M T", conformance: "M", direction: "request",
             response: "status"
         },
-        Field({ name: "ActiveDataset", id: 0x0, type: "octstr", conformance: "M", constraint: "max 254" }),
+        Field({ name: "ActiveDataset", id: 0x0, type: "octstr", conformance: "M", constraint: "max 254", isSecret: true }),
         Field({ name: "Breadcrumb", id: 0x1, type: "uint64", conformance: "O" })
     ),
 
@@ -58,7 +58,7 @@ export const ThreadBorderRouterManagement = Cluster(
             name: "SetPendingDatasetRequest", id: 0x4, access: "M T", conformance: "PC", direction: "request",
             response: "status"
         },
-        Field({ name: "PendingDataset", id: 0x0, type: "octstr", conformance: "M", constraint: "max 254" })
+        Field({ name: "PendingDataset", id: 0x0, type: "octstr", conformance: "M", constraint: "max 254", isSecret: true })
     )
 );
 

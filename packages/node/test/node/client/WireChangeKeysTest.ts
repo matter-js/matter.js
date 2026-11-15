@@ -23,7 +23,8 @@ function recordingStructure(node: MockServerNode) {
             const store: Datasource.ExternallyMutableStore = {
                 initialValues: values,
                 version: 0,
-                set: async () => {},
+                prepare: () => async () => {},
+                assertWritable: () => {},
                 externalSet: async (incoming: Val.StructMap) => {
                     for (const [key, value] of incoming) {
                         values[String(key)] = value;

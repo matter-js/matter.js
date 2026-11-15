@@ -7,7 +7,7 @@
 import { isAclOrExtensionPath } from "#action/request/Write.js";
 import { ReadResult } from "#action/response/ReadResult.js";
 import { Mark } from "#common/Mark.js";
-import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
+import { PeerAckMissingError, PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import { UnexpectedMessageError } from "#protocol/errors.js";
 import {
     asError,
@@ -978,8 +978,15 @@ function subscriptionIdOf(message: Message) {
     }
 }
 
+/**
+ * Which of our Success statuses to a data report the peer did not acknowledge: one to a chunk that more chunks follow,
+ * or the one to the final chunk.
+ */
+export type UnacknowledgedReportStatus = "chunk" | "final";
+
 export class IncomingInteractionClientMessenger extends InteractionMessenger {
     #reportAwaitsStatus = false;
+    #unacknowledgedReportStatus?: UnacknowledgedReportStatus;
     #subscriptionId?: SubscriptionId;
 
     async waitFor(expectedMessageInfo: string, messageType: number, options?: ExchangeReceiveOptions) {
@@ -1024,20 +1031,14 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
 
             this.#reportAwaitsStatus = false;
             if (report.moreChunkedMessages) {
-                await this.sendStatus(Status.Success, {
-                    multipleMessageInteraction: true,
-                    logContext: this.#logContextOf(report),
-                });
+                await this.#sendReportStatus(report);
             } else if (!report.suppressResponse) {
                 // We don't need to wait for this promise to succeed and any error is non-fatal.  But we do need to
                 // track the promise and thus prevent the session from closing prematurely to prevent errors in the logs
                 // if a dependent process closes its session after the read.
                 try {
                     this.trackEndMessage(
-                        this.sendStatus(Status.Success, {
-                            multipleMessageInteraction: true,
-                            logContext: this.#logContextOf(report),
-                        }),
+                        this.#sendReportStatus(report),
                         "Error sending success after final data report chunk",
                     );
                 } catch (e) {
@@ -1050,6 +1051,29 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
                 break;
             }
         }
+    }
+
+    async #sendReportStatus(report: DataReport) {
+        try {
+            await this.sendStatus(Status.Success, {
+                multipleMessageInteraction: true,
+                logContext: this.#logContextOf(report),
+            });
+        } catch (error) {
+            if (causedBy(error, PeerAckMissingError)) {
+                this.#unacknowledgedReportStatus = report.moreChunkedMessages ? "chunk" : "final";
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Our Success status to a data report that the peer never acknowledged, so it may never have received it; undefined
+     * when the peer acknowledged all of them.  Final only after {@link close} resolves, because {@link close} waits for
+     * the status of the final report.
+     */
+    get unacknowledgedReportStatus() {
+        return this.#unacknowledgedReportStatus;
     }
 
     /** Whether the peer waits for our status on the last data report it sent. */
@@ -1137,13 +1161,18 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
     }
 
     async sendReadRequest(readRequest: ReadRequest, options?: ExchangeSendOptions) {
-        await this.send(MessageType.ReadRequest, this.#encodeReadingRequest(TlvReadRequest, readRequest), options);
+        const { payload } = this.#encodeReadingRequest(TlvReadRequest, readRequest);
+        await this.send(MessageType.ReadRequest, payload, options);
     }
 
+    /**
+     * Encodes a read or subscribe request, dropping DataVersionFilters from its end until it fits one message.
+     * `allDataVersionFiltersSent` tells whether none had to be dropped.
+     */
     #encodeReadingRequest<T extends TlvSchema<any>>(schema: T, request: TypeFromSchema<T>) {
         const encoded = schema.encode(request);
         if (encoded.byteLength <= this.exchange.maxPayloadSize) {
-            return encoded;
+            return { payload: encoded, allDataVersionFiltersSent: true };
         }
 
         const originalDataVersionFilters = [...(request.dataVersionFilters ?? [])];
@@ -1158,13 +1187,14 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
             );
         }
 
-        return schema.encode({
-            ...request,
-            dataVersionFilters: this.#shortenDataVersionFilters(
-                originalDataVersionFilters,
-                this.exchange.maxPayloadSize - requestWithoutDataVersionFilters.byteLength,
-            ),
-        });
+        const dataVersionFilters = this.#shortenDataVersionFilters(
+            [...originalDataVersionFilters],
+            this.exchange.maxPayloadSize - requestWithoutDataVersionFilters.byteLength,
+        );
+        return {
+            payload: schema.encode({ ...request, dataVersionFilters }),
+            allDataVersionFiltersSent: dataVersionFilters.length === originalDataVersionFilters.length,
+        };
     }
 
     #shortenDataVersionFilters(
@@ -1194,9 +1224,17 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         return dataVersionFilters;
     }
 
+    /**
+     * Sends a subscribe request.  Resolves with whether the request carried all its DataVersionFilters; DataVersion
+     * filters that do not fit one message are dropped, and the peer then reports the data they cover in full.
+     */
     async sendSubscribeRequest(subscribeRequest: SubscribeRequest, options?: ExchangeSendOptions) {
-        const request = this.#encodeReadingRequest(TlvSubscribeRequest, subscribeRequest);
-        await this.send(MessageType.SubscribeRequest, request, options);
+        const { payload, allDataVersionFiltersSent } = this.#encodeReadingRequest(
+            TlvSubscribeRequest,
+            subscribeRequest,
+        );
+        await this.send(MessageType.SubscribeRequest, payload, options);
+        return { allDataVersionFiltersSent };
     }
 
     /**

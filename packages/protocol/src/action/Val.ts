@@ -55,6 +55,14 @@ export namespace Val {
          * Obtain a context-aware property source (and sink).  Supervision will read/write properties from here if
          * present.  Otherwise they're read from static state as normal.
          *
+         * A setter of a list or struct member receives a new copy of the whole value after each nested change, with
+         * the change applied.  It may therefore run several times in one transaction.  The setter may keep the value it
+         * receives; a setter that throws leaves the value it kept before unchanged.
+         *
+         * A getter of a list returns the same array on every read until its setter stores a new one.  A held entry
+         * proxy is bound to the entry object, so a getter that builds a new list on each read expires every held entry
+         * proxy of that list.
+         *
          * @param owner the owner of the root reference of the managed value
          * @param session the {@link AccessControl.Session} accessing the value
          */

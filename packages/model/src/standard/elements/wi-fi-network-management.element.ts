@@ -25,7 +25,7 @@ export const WiFiNetworkManagement = Cluster(
     }),
     Command(
         { name: "NetworkPassphraseResponse", id: 0x1, conformance: "M", direction: "response" },
-        Field({ name: "Passphrase", id: 0x0, type: "octstr", conformance: "M", constraint: "max 64" })
+        Field({ name: "Passphrase", id: 0x0, type: "octstr", conformance: "M", constraint: "max 64", isSecret: true })
     )
 );
 

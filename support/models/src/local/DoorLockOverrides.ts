@@ -151,6 +151,47 @@ LocalMatter.children.push({
             ],
         },
 
+        { tag: "attribute", id: 0x84, name: "AliroGroupResolvingKey", isSecret: true },
+        {
+            tag: "command",
+            id: 0x0,
+            name: "LockDoor",
+            children: [{ tag: "field", id: 0x0, name: "PinCode", isSecret: true }],
+        },
+        {
+            tag: "command",
+            id: 0x1,
+            name: "UnlockDoor",
+            children: [{ tag: "field", id: 0x0, name: "PinCode", isSecret: true }],
+        },
+        {
+            tag: "command",
+            id: 0x3,
+            name: "UnlockWithTimeout",
+            children: [{ tag: "field", id: 0x1, name: "PinCode", isSecret: true }],
+        },
+        {
+            tag: "command",
+            id: 0x22,
+            name: "SetCredential",
+            children: [{ tag: "field", id: 0x2, name: "CredentialData", isSecret: true }],
+        },
+        {
+            tag: "command",
+            id: 0x27,
+            name: "UnboltDoor",
+            children: [{ tag: "field", id: 0x0, name: "PinCode", isSecret: true }],
+        },
+        {
+            tag: "command",
+            id: 0x28,
+            name: "SetAliroReaderConfig",
+            children: [
+                { tag: "field", id: 0x0, name: "SigningKey", isSecret: true },
+                { tag: "field", id: 0x3, name: "GroupResolvingKey", isSecret: true },
+            ],
+        },
+
         // The specification describes the priority of these events in prose: CRITICAL for the states that matter,
         // INFO permitted for the rest.  A model states one priority, so it states the one the specification requires
         { tag: "event", id: 0x1, name: "DoorStateChange", priority: "critical" },

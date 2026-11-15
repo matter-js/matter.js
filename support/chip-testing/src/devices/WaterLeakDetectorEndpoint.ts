@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { BooleanStateServer } from "@matter/main/behaviors";
 import { WaterLeakDetectorDevice } from "@matter/main/devices/water-leak-detector";
 import { EndpointNumber } from "@matter/main/types";
@@ -13,12 +13,12 @@ import { registerDeviceType } from "./DeviceTypeRegistry.js";
 
 registerDeviceType({
     name: "water-leak-detector",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(WaterLeakDetectorDevice, {
             number: endpoint,
             booleanState: { stateValue: false },
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
         return {
             endpoint: ep,
             async handleBackchannel(command: BackchannelCommand) {

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import {
     AirQualityServer,
     CarbonDioxideConcentrationMeasurementServer,
@@ -31,7 +31,7 @@ const AirQualitySensor = AirQualitySensorDevice.with(
 
 registerDeviceType({
     name: "air-quality-sensor",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(AirQualitySensor, {
             number: endpoint,
             airQuality: { airQuality: AirQuality.AirQualityEnum.Fair },
@@ -50,7 +50,7 @@ registerDeviceType({
                 measurementMedium: ConcentrationMeasurement.MeasurementMedium.Air,
             },
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
         return { endpoint: ep };
     },
 });

@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
+import type { ValidationLocation } from "#behavior/state/validation/location.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { GlobalConfig } from "#behavior/supervision/SupervisionConfig.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
+import { LogLevel } from "@matter/general";
 import {
     AttributeModel,
     ClusterModel,
@@ -18,6 +21,7 @@ import {
     Matter,
     MatterModel,
 } from "@matter/model";
+import { captureLog } from "@matter/node/testing";
 import {
     ConformanceError,
     ConstraintError,
@@ -31,6 +35,12 @@ import {
 import { BitmapEncodedValue, FabricIndex, NodeId } from "@matter/types";
 
 describe("ValueValidator", () => {
+    it("shows the first 60 characters of a long value in a datatype error", () => {
+        const value = `${"a".repeat(60)}${"b".repeat(10)}`;
+
+        expect(new DatatypeError({ path: "test" }, "a number", value).message).contains(`"${"a".repeat(60)}…"`);
+    });
+
     implementInt("uint8", 0, 0xff);
     implementInt("uint32", 0, 0xffffffff);
     implementInt("uint64", 0, 0xffffffffffffffffn);
@@ -101,7 +111,7 @@ describe("ValueValidator", () => {
         });
     });
 
-    describe("fabricIndex sentinel slot", () => {
+    describe("fabricIndex field of a fabric-scoped struct", () => {
         const memberSchema = new FieldModel(
             { name: "Entry", type: "struct" },
             Field({ id: 1, name: "subject", type: "uint8" }),
@@ -109,25 +119,57 @@ describe("ValueValidator", () => {
         );
         const validator = RootSupervisor.for(memberSchema).validate!;
         const memberPath = { path: new DataModelPath(memberSchema.path) };
+        const session = LocalActorContext.ReadOnly;
 
-        function peerSession(fabricIndexOnPeer: FabricIndex | undefined) {
-            return { clientPeerContext: { fabricIndexOnPeer } } as ValueSupervisor.Session;
-        }
-
-        it("substitutes in place when the sentinel is stored at the field's id slot", () => {
-            const struct: Val.Struct = { subject: 5, 254: FabricIndex.OMIT_FABRIC };
-            validator(struct, peerSession(FabricIndex(3)), memberPath);
-            expect(struct[254]).equals(3);
-            expect("fabricIndex" in struct).is.false;
+        it("accepts OMIT_FABRIC in a value sent to a remote node and leaves the struct unchanged", () => {
+            const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex.OMIT_FABRIC };
+            validator(struct, session, toPeer(memberPath));
+            expect(struct).deep.equals({ subject: 5, fabricIndex: FabricIndex.OMIT_FABRIC });
         });
 
-        it("substitutes in place when the sentinel is stored at the field's name slot", () => {
-            // Characterizes pre-existing name-slot behavior; passes unchanged before and after this fix, so it is
-            // not evidence for it.
+        it("accepts OMIT_FABRIC at the field's id slot of a value sent to a peer", () => {
+            const struct: Val.Struct = { subject: 5, 254: FabricIndex.OMIT_FABRIC };
+            validator(struct, session, toPeer(memberPath));
+            expect(struct).deep.equals({ subject: 5, 254: FabricIndex.OMIT_FABRIC });
+        });
+
+        it("accepts OMIT_FABRIC written to the field alone of a value sent to a peer", () => {
+            const fieldSchema = memberSchema.children[1];
+            const fieldValidator = RootSupervisor.for(fieldSchema).validate!;
+            const fieldPath = { path: new DataModelPath(fieldSchema.path) };
+            expect(() => fieldValidator(FabricIndex.OMIT_FABRIC, session, toPeer(fieldPath))).not.throws();
+        });
+
+        // Characterization: a server node's own value
+        it("refuses OMIT_FABRIC in a value of our own node", () => {
             const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex.OMIT_FABRIC };
-            validator(struct, peerSession(FabricIndex(3)), memberPath);
-            expect(struct.fabricIndex).equals(3);
-            expect(254 in struct).is.false;
+            expect(() => validator(struct, session, memberPath)).throws(IntegerRangeError);
+        });
+
+        it("refuses OMIT_FABRIC in a value the device sent", () => {
+            const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex.OMIT_FABRIC };
+            expect(() => validator(struct, session, { ...memberPath, remote: "inbound" })).throws(IntegerRangeError);
+            expect(struct.fabricIndex).equals(FabricIndex.OMIT_FABRIC);
+        });
+
+        // Matter § 7.19.1.8.2: the device ignores an entry of another fabric in a write; the remote writer decides
+        it("accepts another fabric's index in a value sent to a peer and leaves it unchanged", () => {
+            const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex(7) };
+            validator(struct, session, toPeer(memberPath));
+            expect(struct.fabricIndex).equals(7);
+        });
+
+        // Characterization: only cluster state leaves errors to the device, so the constraint refuses NO_FABRIC here
+        it("leaves NO_FABRIC unchanged in a value sent to a peer; only the model constraint refuses it", () => {
+            const struct: Val.Struct = { subject: 5, fabricIndex: FabricIndex.NO_FABRIC };
+            expect(() => validator(struct, session, toPeer(memberPath))).throws(ConstraintError);
+            expect(struct.fabricIndex).equals(FabricIndex.NO_FABRIC);
+        });
+
+        // Characterization: an index outside its wire type is never left to the device
+        it("validates a written fabric index outside its wire type in a value sent to a peer", () => {
+            const struct: Val.Struct = { subject: 5, fabricIndex: 300 };
+            expect(() => validator(struct, session, toPeer(memberPath))).throws(IntegerRangeError);
         });
     });
 
@@ -165,7 +207,6 @@ describe("ValueValidator", () => {
 
         const local = {} as ValueSupervisor.Session;
         const wire = { subject: Subject.Node({ id: NodeId(1) }) } as ValueSupervisor.Session;
-        const peer = { clientPeerContext: {} } as ValueSupervisor.Session;
 
         it("rejects a bit gated on an unsupported feature on a local write", () => {
             const { validate, path } = bitmapCluster();
@@ -293,7 +334,9 @@ describe("ValueValidator", () => {
         it("forwards the bit on a client peer write", () => {
             const { validate, path } = bitmapCluster();
 
-            expect(() => validate({ modes: { ifFeature: true } }, peer, path)).not.throws();
+            expect(() =>
+                validate({ modes: { ifFeature: true } }, LocalActorContext.ReadOnly, toPeer(path)),
+            ).not.throws();
         });
 
         // A conformance failure is forwarded for a peer write, which unwinds the validator, so the structural checks
@@ -301,10 +344,9 @@ describe("ValueValidator", () => {
         it("still rejects a structurally invalid bit alongside a non-conformant one on a peer write", () => {
             const { validate, path } = bitmapCluster();
 
-            expect(() => validate({ modes: { ifFeature: true, range: 99 } }, peer, path)).throws(
-                DatatypeError,
-                "in range of bit field",
-            );
+            expect(() =>
+                validate({ modes: { ifFeature: true, range: 99 } }, LocalActorContext.ReadOnly, toPeer(path)),
+            ).throws(DatatypeError, "in range of bit field");
         });
     });
 
@@ -355,7 +397,6 @@ describe("ValueValidator", () => {
         }
 
         const server = {} as ValueSupervisor.Session;
-        const peer = { clientPeerContext: {} } as ValueSupervisor.Session;
 
         it("rejects an obsolete attribute on a server write", () => {
             const { validate, path } = obsoleteCluster();
@@ -364,7 +405,7 @@ describe("ValueValidator", () => {
 
         it("forwards an obsolete attribute on a client peer write", () => {
             const { validate, path } = obsoleteCluster();
-            expect(() => validate({ legacy: 1 }, peer, path)).not.throws();
+            expect(() => validate({ legacy: 1 }, LocalActorContext.ReadOnly, toPeer(path))).not.throws();
         });
 
         it("rejects an obsolete enum value on a server write", () => {
@@ -374,7 +415,7 @@ describe("ValueValidator", () => {
 
         it("forwards an obsolete enum value on a client peer write", () => {
             const { validate, path } = obsoleteCluster();
-            expect(() => validate({ mode: 0 }, peer, path)).not.throws();
+            expect(() => validate({ mode: 0 }, LocalActorContext.ReadOnly, toPeer(path))).not.throws();
         });
     });
 
@@ -409,39 +450,72 @@ describe("ValueValidator", () => {
         const gatedValidator = RootSupervisor.for(gatedCluster).get(gatedCluster).validate!;
         const gatedPath = { path: new DataModelPath(gatedCluster.path) };
 
-        // Bitmap with a reserved gap (bit 3) and reserved high bit (bit 7).
+        // Forwarding applies only to cluster state, so these attributes live in a cluster as on a peer
         const bitmapSchema = new AttributeModel(
             { id: 1, name: "TestBitmap", type: "map8" },
             Field({ name: "multiA", constraint: "0 to 2" }),
             Field({ name: "multiB", constraint: "4 to 6" }),
         );
-        const bitmapValidator = RootSupervisor.for(bitmapSchema).validate!;
+        const intSchema = new AttributeModel({ id: 2, name: "Int", type: "uint8" });
+
+        // A value within the type but outside the schema constraint raises a ConstraintError, which the wire can carry;
+        // a type-width overflow raises an IntegerRangeError, which it cannot
+        const boundedIntSchema = new AttributeModel({
+            id: 3,
+            name: "BoundedInt",
+            type: "uint8",
+            constraint: "0 to 10",
+        });
+        const boundedStringSchema = new AttributeModel({
+            id: 4,
+            name: "BoundedString",
+            type: "string",
+            constraint: "max 4",
+        });
+        const boundedListSchema = new AttributeModel(
+            { id: 5, name: "BoundedList", type: "list", constraint: "max 1" },
+            new FieldModel({ name: "entry", type: "uint8" }),
+        );
+        const peerCluster = new ClusterModel({
+            name: "Peer",
+            children: [bitmapSchema, intSchema, boundedIntSchema, boundedStringSchema, boundedListSchema],
+        });
+        const peerSupervisor = RootSupervisor.for(peerCluster);
+        const bitmapValidator = peerSupervisor.get(bitmapSchema).validate!;
         const bitmapPath = { path: new DataModelPath(bitmapSchema.path) };
         function reservedBitmap() {
             const value: Val.Struct = { multiA: 0, multiB: 0 };
             Object.defineProperty(value, BitmapEncodedValue, { value: 0b1000_0000 });
             return value;
         }
-
-        const intSchema = new FieldModel({ name: "foo", type: "uint8" });
-        const intValidator = RootSupervisor.for(intSchema).validate!;
+        const intValidator = peerSupervisor.get(intSchema).validate!;
         const intPath = { path: new DataModelPath(intSchema.path) };
-
-        // Bounded integer: a value within the type but outside the schema constraint raises a ConstraintError (distinct
-        // from the IntegerRangeError raised by a type-width overflow); both must stay local.
-        const boundedIntSchema = new FieldModel({ name: "foo", type: "uint8", constraint: "0 to 10" });
-        const boundedIntValidator = RootSupervisor.for(boundedIntSchema).validate!;
+        const boundedIntValidator = peerSupervisor.get(boundedIntSchema).validate!;
         const boundedIntPath = { path: new DataModelPath(boundedIntSchema.path) };
+        const boundedStringValidator = peerSupervisor.get(boundedStringSchema).validate!;
+        const boundedStringPath = { path: new DataModelPath(boundedStringSchema.path) };
+        const boundedListValidator = peerSupervisor.get(boundedListSchema).validate!;
+        const boundedListPath = { path: new DataModelPath(boundedListSchema.path) };
+
+        // Behavior state that is not a cluster, such as CommissioningClient state, stays local on a client node
+        const localStruct = new DatatypeModel(
+            { name: "LocalState", type: "struct" },
+            new FieldModel({ name: "bounded", type: "uint8", constraint: "0 to 10" }),
+            new FieldModel({ name: "mode", type: "enum8" }, Field({ id: 1, name: "plain" })),
+            new FieldModel({ name: "gone", type: "uint8", conformance: "X" }),
+            new FieldModel({ name: "flags", type: "map8" }, Field({ name: "low", constraint: "0 to 2" })),
+        );
+        const localValidator = RootSupervisor.for(localStruct).validate!;
+        const localPath = { path: new DataModelPath(localStruct.path) };
 
         const server = {} as ValueSupervisor.Session;
-        const peer = { clientPeerContext: {} } as ValueSupervisor.Session;
 
         it("rejects a feature-gated enum value on a server write", () => {
             expect(() => enumValidator({ test: 4 }, server, enumPath)).throws(EnumValueConformanceError);
         });
 
         it("forwards a feature-gated enum value on a client peer write", () => {
-            expect(() => enumValidator({ test: 4 }, peer, enumPath)).not.throws();
+            expect(() => enumValidator({ test: 4 }, LocalActorContext.ReadOnly, toPeer(enumPath))).not.throws();
         });
 
         it("accepts a value in a range member on a server write", () => {
@@ -457,34 +531,94 @@ describe("ValueValidator", () => {
         });
 
         it("forwards an undefined enum value on a client peer write", () => {
-            expect(() => enumValidator({ test: 99 }, peer, enumPath)).not.throws();
+            expect(() => enumValidator({ test: 99 }, LocalActorContext.ReadOnly, toPeer(enumPath))).not.throws();
         });
 
         it("rejects reserved bitmap bits on a server write", () => {
             expect(() => bitmapValidator(reservedBitmap(), server, bitmapPath)).throws(DatatypeError);
         });
 
+        it("logs each check of an undefined enum value it leaves to the device at debug", () => {
+            using log = captureLog(LogLevel.DEBUG);
+
+            enumValidator({ test: 99 }, LocalActorContext.ReadOnly, toPeer(enumPath));
+
+            const lines = log.messages.filter(message => message.includes("the local model rejects"));
+            expect(lines).length(2);
+            for (const line of lines) {
+                expect(line).contains(" DEBUG ");
+            }
+        });
+
         it("forwards reserved bitmap bits on a client peer write", () => {
-            expect(() => bitmapValidator(reservedBitmap(), peer, bitmapPath)).not.throws();
+            expect(() =>
+                bitmapValidator(reservedBitmap(), LocalActorContext.ReadOnly, toPeer(bitmapPath)),
+            ).not.throws();
         });
 
         it("still rejects a structurally invalid bitmap field even alongside reserved bits on a peer write", () => {
             // multiA spans bits 0-2 (max 7); 99 is out of range.  A forwarded reserved-bit failure must not skip this.
             const value: Val.Struct = { multiA: 99, multiB: 0 };
             Object.defineProperty(value, BitmapEncodedValue, { value: 0b1000_0000 });
-            expect(() => bitmapValidator(value, peer, bitmapPath)).throws(DatatypeError, "in range of bit field");
+            expect(() => bitmapValidator(value, LocalActorContext.ReadOnly, toPeer(bitmapPath))).throws(
+                DatatypeError,
+                "in range of bit field",
+            );
         });
 
         it("still rejects a wrong-datatype value on a client peer write", () => {
-            expect(() => intValidator("nope", peer, intPath)).throws(DatatypeError);
+            expect(() => intValidator("nope", LocalActorContext.ReadOnly, toPeer(intPath))).throws(DatatypeError);
         });
 
-        it("still rejects a value-range constraint on a client peer write", () => {
-            expect(() => intValidator(0x1ff, peer, intPath)).throws(IntegerRangeError);
+        // Characterization: unchanged by forwarding
+        it("still rejects an integer outside its wire type on a client peer write", () => {
+            expect(() => intValidator(0x1ff, LocalActorContext.ReadOnly, toPeer(intPath))).throws(IntegerRangeError);
         });
 
-        it("still rejects a schema-constraint violation on a client peer write", () => {
-            expect(() => boundedIntValidator(20, peer, boundedIntPath)).throws(ConstraintError);
+        // Characterization: unchanged by forwarding
+        it("rejects a schema-constraint violation on a server write", () => {
+            expect(() => boundedIntValidator(20, server, boundedIntPath)).throws(ConstraintError);
+        });
+
+        it("forwards a schema-constraint violation on a client peer write", () => {
+            expect(() => boundedIntValidator(20, LocalActorContext.ReadOnly, toPeer(boundedIntPath))).not.throws();
+        });
+
+        it("accepts a schema-constraint violation in a value the device sent", () => {
+            expect(() =>
+                boundedIntValidator(20, LocalActorContext.ReadOnly, {
+                    ...boundedIntPath,
+                    remote: "inbound",
+                }),
+            ).not.throws();
+        });
+
+        it("logs an error it leaves to the device at debug", () => {
+            using log = captureLog(LogLevel.DEBUG);
+
+            boundedIntValidator(20, LocalActorContext.ReadOnly, toPeer(boundedIntPath));
+
+            const lines = log.messages.filter(message => message.includes("the local model rejects"));
+            expect(lines).length(1);
+            expect(lines[0]).contains(" DEBUG ").contains('Constraint "0 to 10"');
+        });
+
+        it("forwards a string length violation on a client peer write", () => {
+            expect(() =>
+                boundedStringValidator("too long", LocalActorContext.ReadOnly, toPeer(boundedStringPath)),
+            ).not.throws();
+        });
+
+        it("forwards a list length violation on a client peer write", () => {
+            expect(() =>
+                boundedListValidator([1, 2], LocalActorContext.ReadOnly, toPeer(boundedListPath)),
+            ).not.throws();
+        });
+
+        it("still validates list entries when a forwarded list length violation would otherwise skip them", () => {
+            expect(() => boundedListValidator([1, "nope"], LocalActorContext.ReadOnly, toPeer(boundedListPath))).throws(
+                DatatypeError,
+            );
         });
 
         it("rejects a feature-disallowed attribute on a server write", () => {
@@ -492,11 +626,55 @@ describe("ValueValidator", () => {
         });
 
         it("forwards a feature-disallowed attribute with a valid value on a client peer write", () => {
-            expect(() => gatedValidator({ gated: 5 }, peer, gatedPath)).not.throws();
+            expect(() => gatedValidator({ gated: 5 }, LocalActorContext.ReadOnly, toPeer(gatedPath))).not.throws();
         });
 
         it("still validates datatype when a forwarded conformance failure would otherwise skip it", () => {
-            expect(() => gatedValidator({ gated: "nope" }, peer, gatedPath)).throws(DatatypeError);
+            expect(() => gatedValidator({ gated: "nope" }, LocalActorContext.ReadOnly, toPeer(gatedPath))).throws(
+                DatatypeError,
+            );
+        });
+
+        it("refuses a constraint violation locally on a client peer write to non-cluster state", () => {
+            expect(() => localValidator({ bounded: 20 }, LocalActorContext.ReadOnly, toPeer(localPath))).throws(
+                ConstraintError,
+            );
+        });
+
+        it("refuses an undefined enum value locally on a client peer write to non-cluster state", () => {
+            expect(() => localValidator({ mode: 99 }, LocalActorContext.ReadOnly, toPeer(localPath))).throws(
+                UnknownEnumValueError,
+            );
+        });
+
+        it("refuses a conformance violation locally on a client peer write to non-cluster state", () => {
+            expect(() => localValidator({ gone: 1 }, LocalActorContext.ReadOnly, toPeer(localPath))).throws(
+                ConformanceError,
+            );
+        });
+
+        it("refuses reserved bitmap bits locally on a client peer write to non-cluster state", () => {
+            const flags: Val.Struct = { low: 0 };
+            Object.defineProperty(flags, BitmapEncodedValue, { value: 0b1000_0000 });
+
+            expect(() => localValidator({ flags }, LocalActorContext.ReadOnly, toPeer(localPath))).throws(
+                DatatypeError,
+            );
+        });
+
+        it("forwards a choice conformance failure of the cluster on a client peer write", () => {
+            const choiceCluster = new ClusterModel({
+                name: "Choice",
+                children: [
+                    new AttributeModel({ id: 0, name: "A", type: "uint8", conformance: "O.a+" }),
+                    new AttributeModel({ id: 1, name: "B", type: "uint8", conformance: "O.a+" }),
+                ],
+            });
+            const choiceValidator = RootSupervisor.for(choiceCluster).get(choiceCluster).validate!;
+            const choicePath = { path: new DataModelPath(choiceCluster.path) };
+
+            expect(() => choiceValidator({}, LocalActorContext.ReadOnly, toPeer(choicePath))).not.throws();
+            expect(() => choiceValidator({}, server, choicePath)).throws(ConformanceError);
         });
     });
 });
@@ -564,4 +742,11 @@ function implementIntWithNullability(type: string, nullable: boolean, min: numbe
             ).throws(IntegerRangeError, `Value ${tooHigh} is above the ${name} maximum of ${max}`);
         });
     });
+}
+
+/**
+ * {@link location} for a value sent to a peer node.
+ */
+function toPeer<L extends ValidationLocation>(location: L): L {
+    return { ...location, remote: "outbound" };
 }

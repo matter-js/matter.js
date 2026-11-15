@@ -9,7 +9,7 @@ import { Bytes } from "@matter/main";
 import { AttributeModel, ClusterModel, FieldModel, Matter } from "@matter/model";
 import { expect } from "chai";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
-import { UnitTestingCluster } from "../../src/cert/unit-testing-cluster.js";
+import { UnitTestingServer } from "../../src/cert/unit-testing-cluster.js";
 import {
     chipJsonToMatter,
     matterToChipJson,
@@ -78,7 +78,7 @@ const UTC_TIME_ATTRIBUTE = TIME_SYNCHRONIZATION.attributes.require("utcTime");
 
 describe("chip-tool json codec", () => {
     describe("a list stating no type of its own", () => {
-        const unitTesting = registerCertCustomCluster(UnitTestingCluster);
+        const unitTesting = registerCertCustomCluster(UnitTestingServer);
         const listLongOctetString = unitTesting.attributes.require("listLongOctetString");
 
         it("encodes each octet-string entry as an octet string", () => {

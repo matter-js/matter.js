@@ -172,9 +172,9 @@ export namespace DclBehavior {
         fetchTestCertificates = false;
 
         /**
-         * Whether to trust test (non-production) certificates as valid trust anchors during device
-         * attestation. Independent of {@link fetchTestCertificates}. When unset, defaults to the value of
-         * `fetchTestCertificates`.
+         * Whether device attestation trusts test (non-production) certificates: test PAAs and the Matter test CD
+         * signer. When not trusted, each is reported as a `TrustedAsTestCertificate` finding. Independent of
+         * {@link fetchTestCertificates}. When unset, defaults to the value of `fetchTestCertificates`.
          */
         @field(bool)
         acceptTestCertificates?: boolean = undefined;

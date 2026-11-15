@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ValidationLocation } from "#behavior/state/validation/location.js";
 import type { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { asJson, Bytes } from "@matter/general";
 import { DataModelPath } from "@matter/model";
@@ -30,14 +31,15 @@ export class Envelope<T = unknown> {
 
     /**
      * Validate against the schema.  Casts to appropriate types if necessary.
+     *
+     * @param remote the remote node the value is sent to or received from, if any
      */
-    validate(session: ValueSupervisor.Session, path?: DataModelPath) {
-        if (!path) {
-            path = new DataModelPath(this.#supervisor.schema.path);
-        }
-
+    validate(session: ValueSupervisor.Session, remote?: ValidationLocation["remote"]) {
         this.#js = this.#supervisor.cast(this.#js) as T;
-        this.#supervisor.validate?.(this.js, session, { path });
+        this.#supervisor.validate?.(this.js, session, {
+            path: new DataModelPath(this.#supervisor.schema.path),
+            remote,
+        });
     }
 
     /**

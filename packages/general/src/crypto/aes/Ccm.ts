@@ -12,8 +12,9 @@
  * OpenSSL: https://github.com/openssl/openssl/blob/master/crypto/modes/ccm128.c
  */
 
+import { assertAeadInput } from "#crypto/AeadInput.js";
 import { CRYPTO_AEAD_MIC_LENGTH_BYTES } from "#crypto/CryptoConstants.js";
-import { CryptoDecryptError, CryptoInputError } from "#crypto/CryptoError.js";
+import { CryptoDecryptError } from "#crypto/CryptoError.js";
 import { Bytes } from "#util/Bytes.js";
 import { Aes } from "./Aes.js";
 import { WordArray } from "./WordArray.js";
@@ -65,14 +66,10 @@ export function Ccm(key: Bytes) {
 
     return {
         encrypt(input: Ccm.EncryptInput): Bytes {
-            validateNonceAndAdata(input);
             const micLength = input.micLength ?? CRYPTO_AEAD_MIC_LENGTH_BYTES;
-            const L = bytesInLengthFor(input.nonce.length);
-
             const ptLength = input.pt.length;
-            if (ptLength > maxPlaintextForL(L, micLength)) {
-                throw new CryptoInputError(`Cannot encrypt plaintext exceeding maximum length for L=${L}`);
-            }
+            assertCcmInput(input, micLength, ptLength);
+            const L = lengthFieldBytesFor(input.nonce.length);
 
             // Create view for loading plaintext words in platform byte order
             const ptView = new DataView(input.pt.buffer, input.pt.byteOffset, input.pt.byteLength);
@@ -94,18 +91,10 @@ export function Ccm(key: Bytes) {
         },
 
         decrypt(input: Ccm.DecryptInput): Bytes {
-            validateNonceAndAdata(input);
             const micLength = input.micLength ?? CRYPTO_AEAD_MIC_LENGTH_BYTES;
-            const L = bytesInLengthFor(input.nonce.length);
-
             const ptLength = input.ct.length - micLength;
-
-            if (ptLength < 0) {
-                throw new CryptoInputError(`Cannot decrypt ciphertext shorter than minimum length of ${micLength}`);
-            }
-            if (ptLength > maxPlaintextForL(L, micLength)) {
-                throw new CryptoInputError(`Cannot decrypt ciphertext exceeding maximum length for L=${L}`);
-            }
+            assertCcmInput(input, micLength, ptLength);
+            const L = lengthFieldBytesFor(input.nonce.length);
 
             // Extract ciphertext (zero copy using a DataView) and load the received tag (micLength bytes, big-endian,
             // zero-padded to a full block) into the MIC buffer
@@ -171,10 +160,19 @@ export function Ccm(key: Bytes) {
 
         // Add adata
         if (adataLength) {
-            // Add length (2 bytes) + first 14 bytes of adata
-            tempBlock1.view.setInt16(0, input.adata!.length);
-            for (let i = 0; i < 14; i++) {
-                tempBlock1.bytes[i + 2] = i < adataLength ? input.adata![i] : 0;
+            // NIST SP 800-38C A.2.2: a length below 2^16 - 2^8 takes 2 bytes, a longer one 0xfffe and 4 bytes
+            let lengthFieldLength;
+            if (adataLength < 0xff00) {
+                tempBlock1.view.setUint16(0, adataLength);
+                lengthFieldLength = 2;
+            } else {
+                tempBlock1.view.setUint16(0, 0xfffe);
+                tempBlock1.view.setUint32(2, adataLength);
+                lengthFieldLength = 6;
+            }
+            const firstAdataLength = 16 - lengthFieldLength;
+            for (let i = 0; i < firstAdataLength; i++) {
+                tempBlock1.bytes[i + lengthFieldLength] = i < adataLength ? input.adata![i] : 0;
             }
 
             // Flip to platform byte order and add
@@ -182,9 +180,9 @@ export function Ccm(key: Bytes) {
             add();
 
             // Add remainder of adata
-            if (adataLength > 14) {
+            if (adataLength > firstAdataLength) {
                 const adataView = new DataView(input.adata!.buffer, input.adata!.byteOffset, input.adata!.byteLength);
-                for (let i = 14; i < adataLength; i += 16) {
+                for (let i = firstAdataLength; i < adataLength; i += 16) {
                     WordArray.bytesToBlock(adataView, tempBlock1.words, i);
                     add();
                 }
@@ -283,10 +281,6 @@ export namespace Ccm {
     }
 }
 
-export const BYTES_IN_LENGTH = 2; // NIST q parameter, length of payload length; only 2 bytes supported by Matter
-export const MAX_CIPHERTEXT_LENGTH = Math.pow(2, BYTES_IN_LENGTH * 8);
-export const MAX_PLAINTEXT_LENGTH = MAX_CIPHERTEXT_LENGTH - CRYPTO_AEAD_MIC_LENGTH_BYTES;
-
 /**
  * A buffer used for encryption.
  *
@@ -351,32 +345,18 @@ const tempBlock1 = new SingletonBuffer();
  */
 const tempBlock2 = new SingletonBuffer();
 
-function validateNonceAndAdata(input: Ccm.Input) {
-    if (input.nonce.length !== 12 && input.nonce.length !== 13) {
-        throw new CryptoInputError("Nonce must be 12 or 13 bytes");
-    }
-
-    // NIST SP 800-38C permits an even tag length in [4, 16]; anything else corrupts the flag byte or truncates the tag
-    if (input.micLength !== undefined && (input.micLength < 4 || input.micLength > 16 || input.micLength % 2 !== 0)) {
-        throw new CryptoInputError("Tag length must be an even value between 4 and 16 bytes");
-    }
-
-    if (input.adata && input.adata.length > 0xffff) {
-        throw new CryptoInputError(`Associated adata exceeds maximum length of ${0xffff}`);
-    }
+function assertCcmInput(input: Ccm.Input, micLength: number, plaintextLength: number) {
+    assertAeadInput({
+        nonceLength: input.nonce.length,
+        tagLength: micLength,
+        aadLength: input.adata?.length ?? 0,
+        plaintextLength,
+    });
 }
 
-/** Derive the NIST length parameter L from the nonce length; only L=2 (13-byte) and L=3 (12-byte) are supported. */
-function bytesInLengthFor(nonceLength: number): number {
-    const L = 15 - nonceLength;
-    if (L < 2 || L > 3) {
-        throw new CryptoInputError(`Unsupported nonce length ${nonceLength}; expected 12 (L=3) or 13 (L=2)`);
-    }
-    return L;
-}
-
-function maxPlaintextForL(L: number, micLength: number): number {
-    return Math.pow(2, L * 8) - micLength;
+/** The NIST length parameter L: the bytes of the message length field, which the nonce leaves free. */
+function lengthFieldBytesFor(nonceLength: number) {
+    return 15 - nonceLength;
 }
 
 /** Serialize a MIC buffer's four words big-endian into its own byte view, yielding canonical tag bytes. */

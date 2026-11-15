@@ -41,17 +41,17 @@ platform's image directly, at the cost of extra tags accumulating in the registr
 `install` stage, wrong GN roots) *and* orphaned: nothing in `.github/workflows/` ever referenced
 `ghcr.io/matter-js/chip-<app>`. The per-app binaries that name-checked those apps
 (`chip-lock-app`, `chip-tv-app`, etc.) are actually built by
-`.github/actions/prepare-chip-testing/action.yml` via connectedhomeip's own
+`.github/actions/prepare-chip-testing/action.yml` (the image builds `chip-tv-app` and `chip-lock-app` too, for the cert legs) via connectedhomeip's own
 `build_examples.py --target linux-x64-<name>-<variant>` convention, entirely independent of this
 Dockerfile/bake file. If per-app matter-js/chip-* images are wanted again, they need a fresh design,
 not a resurrection of the removed stages.
 
-## arm64 coverage is the core group plus a binary smoke check
+## arm64 coverage is the core groups plus a binary smoke check
 
-`test-core-arm64` runs the core CHIP test group against the arm64 image on a native arm64 runner,
+`test-core-arm64` runs the core CHIP test groups (`core`, `core-security`) against the arm64 image on a native arm64 runner,
 and `publish-image-arm64` gates on it. Every other group (`test-app-*`, `test-icd`, and the matterjs
-controller variant of core) runs against the amd64 image only, so an arch-specific defect confined
-to those paths would still ship. The app binaries the core group never starts get an execution check
+controller variant of the core groups) runs against the amd64 image only, so an arch-specific defect confined
+to those paths would still ship. The app binaries the core groups never start get an execution check
 in `chip-image-arm64`'s smoke step instead. Running the full matrix twice was judged not worth the
 CI minutes.
 

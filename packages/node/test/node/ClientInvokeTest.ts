@@ -555,6 +555,7 @@ describe("ClientInvoke", () => {
             ["suppressResponse", { suppressResponse: true }],
             ["delayReportData", { delayReportData: { delayMinMs: 0, delayJitterWindowMs: 0 } }],
             ["largeMessage", { largeMessage: true }],
+            ["requireExistingSession", { requireExistingSession: true }],
         ];
 
         for (const [field, options] of sendDirect) {

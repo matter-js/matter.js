@@ -7,6 +7,7 @@
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { TestFabric } from "#fabric/TestFabric.js";
+import { SessionClosedError } from "#protocol/errors.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
@@ -133,7 +134,13 @@ describe("Fabric", () => {
         it("rejects a label that exceeds the maximum length", async () => {
             const fabric = await TestFabric();
 
-            await expect(fabric.setLabel("x".repeat(33))).rejectedWith(/at most 32 characters/);
+            await expect(fabric.setLabel("x".repeat(33))).rejectedWith(/the maximum is 32/);
+        });
+
+        it("rejects a label of fewer than 32 characters that exceeds 32 bytes", async () => {
+            const fabric = await TestFabric();
+
+            await expect(fabric.setLabel("日".repeat(11))).rejectedWith(/the maximum is 32/);
         });
     });
 
@@ -251,6 +258,60 @@ describe("Fabric", () => {
 
             expect(session1Destroyed).to.be.false;
             expect(session2Destroyed).to.be.false;
+        });
+    });
+
+    describe("sessions for a peer", () => {
+        const PEER_NODE_ID = NodeId(0x1234n);
+        let nextId = 1;
+
+        async function session(manager: SessionManager, fabric: Fabric, establishing?: true) {
+            const id = nextId++;
+            return await manager.createSecureSession({
+                id,
+                fabric,
+                peerNodeId: PEER_NODE_ID,
+                peerSessionId: id,
+                sharedSecret: NO_BYTES,
+                salt: NO_BYTES,
+                isInitiator: false,
+                isResumption: false,
+                establishing,
+            });
+        }
+
+        it("has no session for the peer when its established session closes while another one is establishing", async () => {
+            const fabric = await TestFabric();
+            const manager = await createManager();
+            const established = await session(manager, fabric);
+            const establishing = await session(manager, fabric, true);
+            expect(fabric.hasSessionForPeer(PEER_NODE_ID)).true;
+
+            await established.initiateForceClose({ cause: new SessionClosedError("test") });
+            expect(fabric.hasSessionForPeer(PEER_NODE_ID)).false;
+
+            establishing.completeEstablishment();
+            expect(fabric.hasSessionForPeer(PEER_NODE_ID)).true;
+        });
+
+        it("has no session for the peer while its only session is establishing", async () => {
+            const fabric = await TestFabric();
+            const manager = await createManager();
+            const establishing = await session(manager, fabric, true);
+            expect(fabric.hasSessionForPeer(PEER_NODE_ID)).false;
+
+            await establishing.initiateForceClose({ cause: new SessionClosedError("test") });
+            expect(fabric.hasSessionForPeer(PEER_NODE_ID)).false;
+        });
+
+        it("closes a session that is still establishing when the fabric is removed (characterization)", async () => {
+            const fabric = await TestFabric();
+            const manager = await createManager();
+            const establishing = await session(manager, fabric, true);
+
+            await fabric.delete();
+
+            expect(establishing.isClosed).true;
         });
     });
 });

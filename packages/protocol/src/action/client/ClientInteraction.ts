@@ -80,6 +80,25 @@ import { SustainedSubscription } from "./subscription/SustainedSubscription.js";
 const logger = Logger.get("ClientInteraction");
 
 /**
+ * Estimates whether a subscribe request like `request` primes with little data.  It does when every attribute path
+ * names one attribute or the request carried at least one DataVersionFilter and all of them fit, and when it has no
+ * event requests or carries an event filter.  The estimate ignores attribute sizes and which clusters the filters
+ * cover.
+ */
+function primesCompactly(request: Read, allDataVersionFiltersSent: boolean) {
+    const { attributeRequests, dataVersionFilters, eventRequests, eventFilters } = request;
+    const attributesCompact =
+        attributeRequests === undefined ||
+        attributeRequests.every(
+            ({ endpointId, clusterId, attributeId }) =>
+                endpointId !== undefined && clusterId !== undefined && attributeId !== undefined,
+        ) ||
+        (allDataVersionFiltersSent && !!dataVersionFilters?.length);
+    const eventsCompact = !eventRequests?.length || !!eventFilters?.length;
+    return attributesCompact && eventsCompact;
+}
+
+/**
  * Returns a log-friendly peer address diagnostic for sessions that expose one
  * (currently: group multicast).
  */
@@ -207,6 +226,7 @@ function isBatchable(request: ClientInvoke) {
         useExtendedFailSafeMessageResponseTimeout: !!request.useExtendedFailSafeMessageResponseTimeout,
         additionalMrpDelay: request.additionalMrpDelay !== undefined,
         addressOverride: request.addressOverride !== undefined,
+        requireExistingSession: !!request.requireExistingSession,
         // Server only
         beforeDispatch: request.beforeDispatch !== undefined,
     };
@@ -225,6 +245,7 @@ export class ClientInteraction<
     /** One entry per running interaction; retries may reuse request objects. */
     readonly #interactions = new BasicSet<symbol>();
     #subscriptions?: ClientSubscriptions;
+    readonly #established = new Set<ClientSubscription>();
     readonly #abort: Abort;
     readonly #sustainRetries: RetrySchedule;
     readonly #address?: PeerAddress;
@@ -270,14 +291,10 @@ export class ClientInteraction<
         using _closing = this.#lifetime.closing();
 
         // Close subscriptions established through this interaction so they do not outlive the interactable; a
-        // sustained subscription would otherwise retry forever against a closed interactable.
-        const peer = this.#exchangeProvider.peerAddress;
-        if (this.#subscriptions !== undefined && peer !== undefined) {
-            for (const subscription of [...this.#subscriptions]) {
-                if (PeerAddress.is(peer, subscription.peer)) {
-                    subscription.close();
-                }
-            }
+        // sustained subscription would otherwise retry forever against a closed interactable.  Subscriptions other
+        // interactions established to the same peer stay open.
+        for (const subscription of [...this.#established]) {
+            subscription.close();
         }
 
         // Close batching
@@ -560,14 +577,17 @@ export class ClientInteraction<
 
                     const data = commandFields === undefined ? undefined : responseSchema?.decodeTlv(commandFields);
 
-                    logger.info(
-                        "Invoke",
-                        Mark.INBOUND,
-                        messenger.exchange.via,
-                        messenger.exchange.diagnostics,
-                        Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
-                        isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
-                    );
+                    logger.info(() => {
+                        const loggedData = Invoke.redactResponseFields(cmd, data);
+                        return [
+                            "Invoke",
+                            Mark.INBOUND,
+                            messenger.exchange.via,
+                            messenger.exchange.diagnostics,
+                            Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
+                            isObject(loggedData) ? Diagnostic.dict(loggedData) : Diagnostic.weak("(no payload)"),
+                        ];
+                    });
 
                     chunk.push({
                         kind: "cmd-response",
@@ -679,19 +699,7 @@ export class ClientInteraction<
                 ...request,
                 commands: batchCommands,
                 invokeRequests: batchInvokeRequests,
-                [Diagnostic.value]: () =>
-                    Diagnostic.list(
-                        [...batchCommands.values()].map(cmd => {
-                            const { commandRef } = cmd;
-                            const fields = "fields" in cmd ? cmd.fields : undefined;
-                            return [
-                                Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
-                                "with",
-                                isObject(fields) ? Diagnostic.dict(fields) : "(no payload)",
-                                commandRef !== undefined && batchCommands.size > 1 ? `(ref ${commandRef})` : "",
-                            ];
-                        }),
-                    ),
+                [Diagnostic.value]: () => Invoke.diagnosticOf(batchCommands.values()),
             };
             return this.#invokeSingle(batchRequest, session);
         });
@@ -1015,6 +1023,11 @@ export class ClientInteraction<
         if (subscriptionPathsCount === 0) {
             throw new ImplementationError("When subscribing to attributes and events, at least one must be specified.");
         }
+        if (request.sustain && request.requireExistingSession) {
+            throw new ImplementationError(
+                "A sustained subscription re-establishes its session, so it cannot require an existing session",
+            );
+        }
         if (subscriptionPathsCount > this.#exchangeProvider.subscribePathsSupported) {
             logger.info(
                 `Subscribe interactions with more than ${this.#exchangeProvider.subscribePathsSupported} paths might be not allowed by the device.`,
@@ -1070,15 +1083,16 @@ export class ClientInteraction<
             );
 
             let responseMessage: Message;
+            let allDataVersionFiltersSent: boolean;
             try {
-                await messenger.sendSubscribeRequest(
+                ({ allDataVersionFiltersSent } = await messenger.sendSubscribeRequest(
                     {
                         ...request,
                         minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
                         maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
                     },
                     { abort },
-                );
+                ));
 
                 await this.#handleSubscriptionResponse(request, readChunks(messenger, abort));
                 abort.throwIfAborted();
@@ -1102,12 +1116,17 @@ export class ClientInteraction<
                 lifetime: this.subscriptions,
                 request,
                 peer,
-                closed: () => this.subscriptions.delete(subscription),
+                closed: () => {
+                    this.subscriptions.delete(subscription);
+                    this.#established.delete(subscription);
+                },
                 response,
                 abort,
                 maxPeerResponseTime: this.maximumPeerResponseTime(SUBSCRIPTION_PROCESSING_TIME),
+                compactPriming: primesCompactly(request, allDataVersionFiltersSent),
             });
             this.subscriptions.addPeer(subscription);
+            this.#established.add(subscription);
 
             logger.info(
                 "Subscription successful",
@@ -1145,7 +1164,10 @@ export class ClientInteraction<
                 lifetime: this.subscriptions,
                 subscribe,
                 peer,
-                closed: () => this.subscriptions.delete(subscription),
+                closed: () => {
+                    this.subscriptions.delete(subscription);
+                    this.#established.delete(subscription);
+                },
                 request,
                 // Both, or an abort by the caller would end only the attempt in flight while the
                 // sustainer treats that as a failure to retry
@@ -1165,6 +1187,7 @@ export class ClientInteraction<
         }
 
         this.subscriptions.addActive(subscription);
+        this.#established.add(subscription);
 
         return subscription as unknown as SubscriptionResult<T>;
     }
@@ -1252,6 +1275,7 @@ export class ClientInteraction<
                     abort,
                     connectionTimeout: session?.connectionTimeout,
                     addressOverride: request.addressOverride,
+                    requireExistingSession: request.requireExistingSession,
                     requiredTransport,
                 });
             } catch (e) {

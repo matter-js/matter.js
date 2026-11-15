@@ -5,6 +5,8 @@
  */
 
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
+import { PeerSubscription } from "#action/client/subscription/PeerSubscription.js";
+import type { Read } from "#action/request/Read.js";
 import { Subscribe } from "#action/request/Subscribe.js";
 import { Message } from "#codec/MessageCodec.js";
 import { MessageType } from "#interaction/InteractionMessenger.js";
@@ -24,7 +26,18 @@ import {
     Seconds,
 } from "@matter/general";
 import { Specification } from "@matter/model";
-import { FabricIndex, NodeId, Status, TlvDataReport, TlvStatusResponse, TlvSubscribeResponse } from "@matter/types";
+import {
+    AttributeId,
+    ClusterId,
+    EndpointNumber,
+    EventNumber,
+    FabricIndex,
+    NodeId,
+    Status,
+    TlvDataReport,
+    TlvStatusResponse,
+    TlvSubscribeResponse,
+} from "@matter/types";
 import { createDummyMessageExchange } from "../../interaction/interaction-utils.js";
 
 /** A peer that accepts a subscribe request and then sends nothing until the receiving side gives up. */
@@ -182,6 +195,28 @@ function subscribeResponse(): Message {
         }),
     } as Message;
 }
+
+/** Subscribes with a script that confirms the subscription; reports whether an unacknowledged final status ends it. */
+async function closesOnUnacknowledgedFinalStatus(options: Read.Options) {
+    const provider = new ScriptedPeerExchangeProvider();
+    const client = new ClientInteraction({ environment: Environment.default, exchangeProvider: provider });
+    const subscribing = client.subscribe(Subscribe(options));
+    const exchange = await provider.nextExchange();
+    await exchange.requestSent;
+    exchange.deliver(primingReport());
+    exchange.deliver(subscribeResponse());
+    const subscription = await subscribing;
+    if (!(subscription instanceof PeerSubscription)) {
+        expect.fail("Expected a peer subscription");
+    }
+
+    subscription.reportStatusUnacknowledged(subscription.nextReportNumber(), "final");
+    const { isClosed } = subscription;
+    await client.close();
+    return isClosed;
+}
+
+const ON_OFF = { endpointId: EndpointNumber(1), clusterId: ClusterId(6) };
 
 describe("ClientInteraction subscribe", () => {
     it("rejects an aborted subscribe at once and stops waiting for the peer's report on close", async () => {
@@ -348,5 +383,42 @@ describe("ClientInteraction subscribe", () => {
         await client.close();
 
         expect(await bdx).instanceOf(AbortedError);
+    });
+    describe("compact priming", () => {
+        it("counts a subscription of single attributes as compact", async () => {
+            expect(
+                await closesOnUnacknowledgedFinalStatus({ attributes: [{ ...ON_OFF, attributeId: AttributeId(0) }] }),
+            ).true;
+        });
+
+        it("counts a subscription of all attributes of a cluster as not compact", async () => {
+            expect(await closesOnUnacknowledgedFinalStatus({ attributes: [ON_OFF] })).false;
+        });
+
+        it("counts a wildcard subscription without DataVersionFilters as not compact", async () => {
+            expect(await closesOnUnacknowledgedFinalStatus({ attributes: [{}] })).false;
+        });
+
+        it("counts a wildcard subscription whose DataVersionFilters all fit as compact", async () => {
+            const versionFilters = [{ path: ON_OFF, dataVersion: 1 }];
+            expect(await closesOnUnacknowledgedFinalStatus({ attributes: [{}], versionFilters })).true;
+        });
+
+        it("counts a wildcard subscription whose DataVersionFilters do not all fit as not compact", async () => {
+            const versionFilters = Array.from({ length: 200 }, (_, i) => ({
+                path: { endpointId: EndpointNumber(i), clusterId: ClusterId(6) },
+                dataVersion: 2 ** 32 - 1,
+            }));
+            expect(await closesOnUnacknowledgedFinalStatus({ attributes: [{}], versionFilters })).false;
+        });
+
+        it("counts a subscription of events without an event filter as not compact", async () => {
+            expect(await closesOnUnacknowledgedFinalStatus({ events: [{}] })).false;
+        });
+
+        it("counts a subscription of events with an event filter as compact", async () => {
+            const eventFilters = [{ eventMin: EventNumber(5) }];
+            expect(await closesOnUnacknowledgedFinalStatus({ events: [{}], eventFilters })).true;
+        });
     });
 });

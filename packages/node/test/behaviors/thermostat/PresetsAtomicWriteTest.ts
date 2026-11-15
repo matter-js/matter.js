@@ -6,15 +6,22 @@
 
 import { ThermostatClient } from "#behaviors/thermostat";
 import { Endpoint } from "#endpoint/index.js";
+import { Bytes } from "@matter/general";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { Write } from "@matter/protocol";
 import { EndpointNumber, Status } from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
-import { newPreset, PRESETS_ATTRIBUTE, presetsEndpoint, recordThermostatChanges } from "./preset-helpers.js";
+import {
+    newPreset,
+    PRESETS_ATTRIBUTE,
+    presetsEndpoint,
+    PresetsThermostat,
+    recordThermostatChanges,
+    thermostatConfig,
+} from "./preset-helpers.js";
 
-async function commissionedThermostat() {
+async function commissionedThermostat(deviceEp = presetsEndpoint()) {
     const site = new MockSite();
-    const deviceEp = presetsEndpoint();
     const { controller, device } = await site.addCommissionedPair({
         device: { type: MockServerNode.RootEndpoint, device: deviceEp },
     });
@@ -118,6 +125,40 @@ describe("Presets atomic write", () => {
         expect(clientReports[clientReports.length - 1][0].presetHandle?.byteLength).equals(16);
     });
 
+    it("keeps a built-in preset that a write sends with a null builtIn", async () => {
+        const builtInHandle = Bytes.fromHex("0102030405060708090a0b0c0d0e0f10");
+        const config = thermostatConfig(5, [newPreset({ presetHandle: builtInHandle, builtIn: true })]);
+        await using ctx = await commissionedThermostat(
+            new Endpoint(PresetsThermostat, {
+                id: "thermostat",
+                number: 1,
+                thermostat: {
+                    ...config,
+                    presetTypes: [
+                        ...config.presetTypes,
+                        {
+                            presetScenario: Thermostat.PresetScenario.Unoccupied,
+                            numberOfPresets: 5,
+                            presetTypeFeatures: {},
+                        },
+                    ],
+                },
+            }),
+        );
+        const { deviceEp, ep1 } = ctx;
+
+        await beginWrite(ep1);
+        await writePresets(ep1, [
+            newPreset({ presetHandle: builtInHandle, builtIn: null }),
+            newPreset({ presetScenario: Thermostat.PresetScenario.Unoccupied }),
+        ]);
+
+        expect((await commitWrite(ep1)).statusCode).equals(Status.Success);
+
+        const persisted = deviceEp.state.thermostat.persistedPresets!;
+        expect(persisted.map(({ builtIn }) => builtIn)).deep.equals([true, false]);
+    });
+
     it("declines a write outside an atomic write", async () => {
         await using ctx = await commissionedThermostat();
         const { deviceEp, ep1 } = ctx;
@@ -168,7 +209,10 @@ describe("Presets atomic write", () => {
         await using ctx = await commissionedThermostat();
         const { device, deviceEp, ep1 } = ctx;
 
-        deviceEp.events.thermostat.persistedPresets$Changing.on((presets: Thermostat.Preset[]) => {
+        deviceEp.events.thermostat.persistedPresets$Changing.on(presets => {
+            if (presets === undefined) {
+                return;
+            }
             for (const preset of presets) {
                 preset.presetHandle = null;
             }

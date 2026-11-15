@@ -66,11 +66,10 @@ export interface PeerDescriptor {
     tcpUnsupported?: boolean;
 
     /**
-     * Case Authenticated Tags (CATs) to use for operational CASE sessions with this node.
+     * Case Authenticated Tags (CATs) intended for operational CASE sessions with this node.
      *
-     * CATs provide additional authentication context for Matter operational sessions. They are only used for
-     * operational CASE connections after commissioning is complete, not during the initial PASE commissioning
-     * process.
+     * Stored, but not applied yet. Sessions present the CATs of this node's own NOC in the fabric
+     * (`ControllerBehavior.caseAuthenticatedTags`). The CATs of the peer come from its NOC.
      */
     caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
 }

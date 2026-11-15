@@ -173,10 +173,7 @@ export namespace LocalActorContext {
     /**
      * {@link LocalActorContext} configuration options.
      */
-    export interface Options
-        extends
-            Omit<InteractionSettings, "transaction">,
-            Pick<ValueSupervisor.SupervisionSettings, "clientPeerContext"> {
+    export interface Options extends Omit<InteractionSettings, "transaction"> {
         lifetime?: Lifetime.Owner;
         command?: boolean;
         activity?: NodeActivity;

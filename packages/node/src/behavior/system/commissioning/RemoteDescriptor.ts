@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Immutable, ServerAddress } from "@matter/general";
+import { Immutable, ServerAddress, Time } from "@matter/general";
 import {
     CommissionableDevice,
     OperationalDevice,
@@ -162,6 +162,22 @@ export namespace RemoteDescriptor {
         }
 
         return result;
+    }
+
+    /**
+     * Convert a peer record of the legacy controller storage (`commissionedNodes`) to the long form.
+     *
+     * Drops the discovery TTLs: versions before 0.16.11 stored them inflated by powers of 1000 or as `null`, which
+     * fails validation when the result is written to {@link CommissioningClient}.  `discoveredAt` defaults to the
+     * current time.
+     */
+    export function legacyRecordToLongForm(discoveryData?: RemoteDescriptor, operationalAddress?: ServerAddress) {
+        return toLongForm({
+            discoveredAt: Time.nowMs,
+            ...discoveryData,
+            ttl: undefined,
+            addresses: operationalAddress ? [{ ...operationalAddress, ttl: undefined }] : [],
+        });
     }
 
     export function toLongForm(descriptor: RemoteDescriptor | undefined, long: Long = {}) {

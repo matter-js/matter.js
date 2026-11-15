@@ -28,7 +28,7 @@ import {
     Transaction,
     UnexpectedDataError,
 } from "@matter/general";
-import { ClusterModel } from "@matter/model";
+import { ClusterModel, SecretRedaction } from "@matter/model";
 import { ClusterTypeProtocol, Val } from "@matter/protocol";
 import type { ClusterId, ClusterType } from "@matter/types";
 import type { Agent } from "../Agent.js";
@@ -148,6 +148,7 @@ export class Behaviors {
 
             if (elements.attributes.size) {
                 const behaviorData = new Array<unknown>();
+                const attributeModels = schema instanceof ClusterModel ? schema.attributes : undefined;
                 for (const attributeName of elements.attributes) {
                     const attr = cluster.attributes?.[attributeName];
                     if (attr) {
@@ -155,7 +156,10 @@ export class Behaviors {
                             attributeName,
                             Diagnostic.dict({
                                 id: Diagnostic.hex(attr.id),
-                                val: (backing?.stateView as Val.Struct | undefined)?.[attributeName],
+                                val: SecretRedaction.redact(
+                                    attributeModels?.(attr.id) ?? attr.schema,
+                                    (backing?.stateView as Val.Struct | undefined)?.[attributeName],
+                                ),
                                 flags: Diagnostic.asFlags({
                                     fabricScoped: attr.schema.fabricScoped,
                                 }),

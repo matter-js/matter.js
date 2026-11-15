@@ -98,6 +98,11 @@ export class FabricGroups {
         return this.#groups.currentKeyForId(groupId);
     }
 
+    /** Whether GroupKeyMap maps the group to a key set that holds the given operational key. */
+    mappingAllows(id: GroupId, operationalKey: Bytes) {
+        return this.#groups.mappingAllows(id, operationalKey);
+    }
+
     subjectForGroup(id: GroupId, operationalKey: Bytes) {
         return this.#groups.subjectForGroup(id, operationalKey);
     }

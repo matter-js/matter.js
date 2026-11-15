@@ -85,6 +85,12 @@ export namespace Subject {
         passcode: number;
         discriminator: number;
         qrPairingCode: string;
+
+        /**
+         * The manual pairing code for the same passcode and discriminator, for tests that commission with a manual code.
+         */
+        manualPairingCode?: string;
+
         network?: WifiNetwork | ThreadNetwork;
     }
 }

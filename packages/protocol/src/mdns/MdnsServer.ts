@@ -5,87 +5,89 @@
  */
 
 import {
-    AsyncCache,
+    ClosedError,
     describeList,
     Diagnostic,
     DnsMessageType,
     DnsMessageTypeFlag,
     DnsRecord,
-    DnsRecordType,
-    Instant,
-    isDeepEqual,
     Lifetime,
     Logger,
-    MatterAggregateError,
+    MaybePromise,
     MdnsSocket,
     Millis,
-    Minutes,
+    Mutex,
     NetworkInterfaceDetails,
     ObserverGroup,
+    Seconds,
     Time,
     Timer,
-    Timestamp,
 } from "@matter/general";
+import { InterfaceResponder } from "./InterfaceResponder.js";
 
 const logger = Logger.get("MdnsServer");
 
 const RESPONDER_NAMES_OWNER = "mdns-responder";
 
-/** RFC 6762 §7.3 - Window for duplicate question suppression (999ms per python-zeroconf) */
-export const QUESTION_SUPPRESSION_WINDOW = Millis(999);
+/** RFC 6762 §8.3: a responder announces a change at least twice, one second apart */
+const CHANGE_REPEAT_INTERVAL = Seconds(1);
 
+/**
+ * The mDNS responder: publishes the records of registered services, answers queries for them and says goodbye when
+ * a service is withdrawn.  Each network interface has its own {@link InterfaceResponder}, which sends one packet at a
+ * time.
+ *
+ * While services are registered, the server observes {@link Network.interfacesChanged}.  On a change it reads the
+ * interface details again and publishes all services on the reported interfaces, or on every interface if the host
+ * name changed; one second later it publishes them once more.  The first publication says goodbye to the addresses an
+ * interface lost; both announce the current ones, see {@link InterfaceResponder.publish}.
+ *
+ * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-8.4} RFC 6762 §8.4
+ */
 export class MdnsServer {
     #lifetime: Lifetime;
     #observers = new ObserverGroup();
-    #recordsGenerator = new Map<string, MdnsServer.RecordGenerator>();
-    readonly #records: AsyncCache<MdnsServer.InterfaceRecords>;
-    // Union of advertised names across interfaces, fed to the socket so it keeps queries for our records (notably
-    // bare-hostname A/AAAA queries, which carry no service-type label) before decoding.  Reset when records change.
-    readonly #responderNames = new Set<string>();
-    #hostname?: string;
-    readonly #recordLastSentAsMulticastAnswer = new Map<string, number>();
-    readonly #truncatedQueryCache = new Map<string, { message: MdnsSocket.Message; timer: Timer }>();
-    /** RFC 6762 §7.3 - Tracks recently answered queries for duplicate suppression */
-    readonly #recentlyAnsweredQueries = new Map<
+    readonly #registrations = new Map<
         string,
-        {
-            knownAnswerHashes: Set<string>;
-            timestamp: Timestamp;
-        }
+        { registration: MdnsServer.Registration; generator: MdnsServer.RecordGenerator }
     >();
+    #generation = 0;
+    readonly #responders = new Map<string, InterfaceResponder>();
+    readonly #owner: InterfaceResponder.Owner;
+    readonly #hostnameChoice = new Mutex(this);
+    #closing?: Promise<void>;
+    #pendingAnnouncement?: PendingAnnouncement;
+    #hostname?: string;
+    readonly #truncatedQueryCache = new Map<string, { message: MdnsSocket.Message; timer: Timer }>();
+    readonly #interfacesChangedObserver = (names: string[]) => this.#handleInterfacesChanged(names);
+    #isFollowingInterfaces = false;
+    /** The interfaces to publish on again when {@link #changeRepeat} fires */
+    #repeatOn?: Set<string> | "all";
+    readonly #changeRepeat: Timer;
 
     readonly #socket: MdnsSocket;
 
     constructor(socket: MdnsSocket, lifetime = Lifetime.process) {
         this.#socket = socket;
         this.#lifetime = lifetime.join("mdns server");
-        this.#records = new AsyncCache<MdnsServer.InterfaceRecords>(
-            "MDNS discovery",
-            this.#lifetime,
-            async (multicastInterface: string) => {
-                const byService = new Map<string, DnsRecord<any>[]>();
-                const ownedNames = new Set<string>();
-                const addrs = await this.network.getIpMac(multicastInterface);
-                if (addrs === undefined) {
-                    return { byService, ownedNames };
-                }
-                const hostname = this.#hostname ?? hostnameForMac(addrs.mac);
-
-                for (const [service, generator] of this.#recordsGenerator) {
-                    const records = generator(multicastInterface, addrs, hostname);
-                    byService.set(service, records);
-                    for (const record of records) {
-                        ownedNames.add(record.name.toLowerCase());
-                    }
-                }
-
-                this.#registerResponderNames(ownedNames);
-
-                return { byService, ownedNames };
+        const server = this;
+        this.#owner = {
+            socket,
+            registrations: this.#registrations,
+            get generation() {
+                return server.#generation;
             },
-            Minutes(15) /* matches maximum standard commissioning window time */,
-        );
+            hostnameFor: details => this.#hostname ?? hostnameForMac(details.mac),
+            viewChanged: () => this.#updateNames(),
+        };
         this.#observers.on(this.#socket.receipt, this.#handleMessage.bind(this));
+        this.#changeRepeat = Time.getTimer("mDNS interface change repeat", CHANGE_REPEAT_INTERVAL, () =>
+            this.#repeatChange(),
+        );
+    }
+
+    toString() {
+        return "mDNS server";
     }
 
     get network() {
@@ -96,17 +98,10 @@ export class MdnsServer {
         return this.#socket.supportsIpv4;
     }
 
-    buildDnsRecordKey(record: DnsRecord<any>, netInterface?: string, unicastTarget?: string) {
-        return `${record.name.toLowerCase()}-${record.recordClass}-${record.recordType}-${netInterface}-${unicastTarget}`;
-    }
-
     async #handleMessage(incomingMessage: MdnsSocket.Message) {
         using _processing = this.#lifetime.join("processing message");
 
-        const { byService, ownedNames } = await this.#records.get(incomingMessage.sourceIntf);
-
-        // Ignore if we have no records for interface
-        if (byService.size === 0) {
+        if (this.#registrations.size === 0) {
             return;
         }
 
@@ -115,207 +110,338 @@ export class MdnsServer {
             return;
         }
 
-        const { sourceIntf, sourceIp, transactionId, queries, answers: knownAnswers } = message;
-
-        // Skip unrelated LAN traffic; run after #prepareMessage so TC continuations are first merged.
-        if (!queries.some(q => ownedNames.has(q.name.toLowerCase()))) {
+        let responder;
+        try {
+            responder = await this.#withCurrentDetails(message.sourceIntf);
+        } catch (error) {
+            this.#detailsUnavailable(`Cannot answer a query on interface ${message.sourceIntf}`, error);
             return;
         }
-
-        let sentPreviousPacket = false;
-        for (const portRecords of byService.values()) {
-            let answers = queries.flatMap(query => this.#queryRecords(query, portRecords));
-            if (answers.length === 0) continue;
-
-            // Only send additional records if the query is not for A or AAAA records
-            let additionalRecords =
-                queries.find(
-                    query => query.recordType !== DnsRecordType.A && query.recordType !== DnsRecordType.AAAA,
-                ) !== undefined
-                    ? portRecords.filter(record => !answers.includes(record) && record.recordType !== DnsRecordType.PTR)
-                    : [];
-            if (knownAnswers.length > 0) {
-                for (const knownAnswersRecord of knownAnswers) {
-                    answers = answers.filter(record => !this.#suppressedByKnownAnswer(record, knownAnswersRecord));
-                    if (answers.length === 0) break; // Nothing to send
-                }
-                if (answers.length === 0) continue; // Nothing to send
-                if (additionalRecords.length > 0) {
-                    for (const knownAnswersRecord of knownAnswers) {
-                        additionalRecords = additionalRecords.filter(
-                            record => !this.#suppressedByKnownAnswer(record, knownAnswersRecord),
-                        );
-                    }
-                }
-            }
-
-            const now = Time.nowMs;
-            let uniCastResponse = queries.filter(query => !query.uniCastResponse).length === 0;
-            const answersTimeSinceLastSent = answers.map(answer => ({
-                timeSinceLastMultiCast: Millis(
-                    now - (this.#recordLastSentAsMulticastAnswer.get(this.buildDnsRecordKey(answer, sourceIntf)) ?? 0),
-                ),
-                ttl: answer.ttl,
-            }));
-            if (
-                uniCastResponse &&
-                answersTimeSinceLastSent.some(({ timeSinceLastMultiCast, ttl }) => timeSinceLastMultiCast > ttl / 4)
-            ) {
-                // If the query is for unicast response, still send as multicast if they were last sent as multicast longer then 1/4 of their ttl
-                uniCastResponse = false;
-            }
-            if (!uniCastResponse) {
-                answers = answers.filter(
-                    // The last time sent as multicast was more than 900 ms ago
-                    (_, index) => answersTimeSinceLastSent[index].timeSinceLastMultiCast >= Millis(900),
-                );
-                if (answers.length === 0) continue; // Nothing to send
-
-                // RFC 6762 §7.3 - Check for duplicate question suppression
-                if (this.#shouldSuppressResponse(queries, knownAnswers, sourceIntf, answers)) {
-                    continue; // Another responder already answered
-                }
-
-                answers.forEach(answer =>
-                    this.#recordLastSentAsMulticastAnswer.set(this.buildDnsRecordKey(answer, sourceIntf), now),
-                );
-            }
-
-            if (sentPreviousPacket) {
-                await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100)));
-            }
-            this.#socket
-                .send(
-                    {
-                        messageType: DnsMessageType.Response,
-                        transactionId,
-                        answers: sendable(answers, portRecords, uniCastResponse),
-                        additionalRecords: sendable(additionalRecords, portRecords, uniCastResponse),
-                    },
-                    sourceIntf,
-                    uniCastResponse ? sourceIp : undefined,
-                )
-                .catch(error => {
-                    logger.warn(`Failed to send mDNS response to ${sourceIp}`, error);
-                });
-            sentPreviousPacket = true;
-        }
+        await responder.answer(message);
     }
 
-    async #announceRecordsForInterface(netInterface: string, records: DnsRecord<any>[]) {
-        // RFC 6762 §8.3: announcements carry all records in the answer section
-        await this.#socket.send(
-            {
-                messageType: DnsMessageType.Response,
-                answers: records,
-            },
-            netInterface,
+    /**
+     * Register the records that {@link generator} produces for {@link service}, replacing the registration under that
+     * name.  The server answers queries for them from now on, but announces nothing until a {@link broadcast}.  A
+     * broadcast or withdrawal of another service, or a goodbye retry, announces it too when its records replace
+     * records peers cache, see {@link InterfaceResponder.publish}.  The registration is in place before the first
+     * await; resolves once the host name is chosen again.
+     *
+     * Use the returned handle to call the generator again or to withdraw the service.  A replaced registration's
+     * handle does nothing.  Once {@link close} started, also while this runs, the handle is inert and nothing stays
+     * registered.  If {@link generator} throws while an interface has details, the registration is removed again and
+     * the error is rethrown; without details the generator first runs at the next answer or announcement.
+     */
+    async register(service: string, generator: MdnsServer.RecordGenerator): Promise<MdnsServer.Registration> {
+        const registration: MdnsServer.Registration = {
+            service,
+            refresh: () => this.#refresh(registration),
+            withdraw: () => this.#withdraw(registration),
+            [Symbol.asyncDispose]: () => registration.withdraw(),
+        };
+        this.#registrations.set(service, { registration, generator });
+        this.#registrationsChanged();
+        try {
+            await this.#updateHost();
+        } catch (error) {
+            this.#unregister(registration);
+            throw error;
+        }
+        if (this.#closing !== undefined) {
+            logger.debug(`Not registering ${service}, ${this} is closed`);
+            this.#unregister(registration);
+        }
+        return registration;
+    }
+
+    async #refresh(registration: MdnsServer.Registration) {
+        if (!this.#isRegistered(registration)) {
+            return;
+        }
+        this.#registrationsChanged();
+        await this.#updateHost();
+    }
+
+    async #withdraw(registration: MdnsServer.Registration) {
+        const { service } = registration;
+        using _withdrawing = this.#lifetime.join("withdrawing", Diagnostic.strong(service));
+        if (!this.#unregister(registration)) {
+            return;
+        }
+        await Promise.all(
+            this.#currentResponders().map(responder =>
+                responder
+                    .publish([])
+                    .catch(error => this.#logPublishFailure(`Goodbye for ${service}`, responder, error)),
+            ),
         );
     }
 
+    /** Remove {@link registration} if it is the current one for its service; returns whether it was. */
+    #unregister(registration: MdnsServer.Registration) {
+        if (!this.#isRegistered(registration)) {
+            return false;
+        }
+        this.#registrations.delete(registration.service);
+        this.#registrationsChanged();
+        this.#updateNames();
+        return true;
+    }
+
+    #logPublishFailure(what: string, responder: InterfaceResponder, error: unknown) {
+        if (this.#lifetime.isClosing || !responder.isListed) {
+            logger.debug(`${what} not sent on interface ${responder.name}`, error);
+        } else {
+            logger.warn(`${what} not sent on interface ${responder.name}`, error);
+        }
+    }
+
+    /** A failed details read is logged by the responder, see {@link InterfaceResponder.readDetails}. */
+    #detailsUnavailable(what: string, error: unknown) {
+        if (error instanceof ClosedError) {
+            logger.debug(`${what}, ${this} is closed`);
+        }
+    }
+
+    #isRegistered(registration: MdnsServer.Registration) {
+        return this.#registrations.get(registration.service)?.registration === registration;
+    }
+
+    /**
+     * Announce the named services, or all registered services if none are named, on every multicast interface.
+     * Requests made before the event loop turns are sent together, in one message per interface, split into
+     * datagrams by size, that also says goodbye to records that left; so advertisements that announce in the same
+     * turn share one announcement with each shared record once.  An announcement is never held by the one-second rule
+     * of RFC 6762 §6.  A service whose records replace records that get a goodbye is announced too, as after a change
+     * of the host name, see {@link InterfaceResponder.publish}.
+     *
+     * Logs and does not throw on failure.
+     */
     async broadcast(...services: string[]) {
         using _broadcasting = this.#lifetime.join("broadcasting", Diagnostic.strong(describeList("and", ...services)));
+        await this.#announce(services.length ? services : "all");
+    }
 
-        await MatterAggregateError.allSettled(
-            (await this.#getMulticastInterfacesForAnnounce()).map(async ({ name: netInterface }) => {
-                const { byService } = await this.#records.get(netInterface);
-                let sentPreviousPacket = false;
-                for (const [service, serviceRecords] of byService) {
-                    if (services.length && !services.includes(service)) continue;
+    /**
+     * Join the pending announcement, or start one that goes out in the next macrotask.  A macrotask, not a timer:
+     * advertisements that start together register and broadcast within one event-loop turn, because the interface
+     * lookups behind registration are synchronous on Node.js, and a longer window would delay every announcement.
+     */
+    #announce(services: string[] | "all") {
+        const pending = (this.#pendingAnnouncement ??= this.#startAnnouncement());
+        if (services === "all") {
+            pending.all = true;
+        } else {
+            for (const service of services) {
+                pending.services.add(service);
+            }
+        }
+        return pending.done;
+    }
 
-                    if (sentPreviousPacket) {
-                        await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100)));
+    #startAnnouncement(): PendingAnnouncement {
+        const request = { services: new Set<string>(), all: false };
+        return Object.assign(request, { done: Time.macrotask.then(() => this.#sendAnnouncement(request)) });
+    }
+
+    async #sendAnnouncement(request: AnnouncementRequest) {
+        if (this.#pendingAnnouncement === request) {
+            this.#pendingAnnouncement = undefined;
+        }
+        await this.#publishOnListedInterfaces(request.all ? "all" : [...request.services]);
+    }
+
+    /** Publish on each listed interface, or only on those in {@link only}. */
+    async #publishOnListedInterfaces(services: string[] | "all", only?: ReadonlySet<string>) {
+        try {
+            const listed = await this.#listInterfaces();
+            await Promise.all(
+                listed.map(async ({ name }) => {
+                    if (only !== undefined && !only.has(name)) {
+                        return;
                     }
-                    await this.#announceRecordsForInterface(netInterface, serviceRecords);
-                    sentPreviousPacket = true;
-                }
-            }),
-            "Error announcing MDNS messages",
-        ).catch(error => {
+                    const responder = this.#interfaceFor(name);
+                    try {
+                        await this.#withCurrentDetails(name);
+                    } catch (error) {
+                        this.#detailsUnavailable(`Announcement not sent on interface ${name}`, error);
+                        return;
+                    }
+                    try {
+                        await responder.publish(services);
+                    } catch (error) {
+                        this.#logPublishFailure("Announcement", responder, error);
+                    }
+                }),
+            );
+        } catch (error) {
             if (this.#lifetime.isClosing) {
                 logger.debug("Error announcing MDNS messages while closing", error);
             } else {
-                logger.error("Error announcing MDNS messages", error);
+                logger.warn("Error announcing MDNS messages", error);
             }
-        });
+        }
     }
 
-    async expireAnnouncements(...services: string[]) {
-        using _expiring = this.#lifetime.join("expiring", Diagnostic.strong(describeList("and", ...services)));
+    #registrationsChanged() {
+        this.#generation++;
+        this.#followInterfaces(this.#registrations.size > 0 && this.#closing === undefined);
+    }
 
-        await MatterAggregateError.allSettled(
-            this.#records.keys().map(async netInterface => {
-                const { byService } = await this.#records.get(netInterface);
-                let sentPreviousPacket = false;
-                for (const [service, serviceRecords] of byService) {
-                    if (services.length && !services.includes(service)) continue;
+    /** Interface changes matter only while services are registered, and observing them starts the periodic checks. */
+    #followInterfaces(follow: boolean) {
+        if (follow === this.#isFollowingInterfaces) {
+            return;
+        }
+        this.#isFollowingInterfaces = follow;
+        if (follow) {
+            this.network.interfacesChanged.on(this.#interfacesChangedObserver);
+        } else {
+            this.network.interfacesChanged.off(this.#interfacesChangedObserver);
+            this.#changeRepeat.stop();
+            this.#repeatOn = undefined;
+        }
+    }
 
-                    // Set TTL to Instant for all records to expire them
-                    serviceRecords.forEach(record => {
-                        record.ttl = Instant;
-                    });
-
-                    if (sentPreviousPacket) {
-                        await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100)));
-                    }
-                    await this.#announceRecordsForInterface(netInterface, serviceRecords);
-                    this.#recordsGenerator.delete(service);
-                    sentPreviousPacket = true;
-                }
-            }),
-            "Error happened when expiring MDNS announcements",
-        ).catch(error => {
+    /** Logs and does not throw, so the other observers of {@link Network.interfacesChanged} still run. */
+    async #handleInterfacesChanged(names: string[]) {
+        using _changing = this.#lifetime.join("interface change", Diagnostic.strong(describeList("and", ...names)));
+        logger.debug(`Interfaces ${describeList("and", ...names)} changed, publishing the current records`);
+        try {
+            await this.#publishChange(names);
+        } catch (error) {
             if (this.#lifetime.isClosing) {
-                logger.debug("Error happened when expiring MDNS announcements while closing", error);
+                logger.debug("mDNS records not published after an interface change, the server closed", error);
             } else {
-                logger.warn("Error happened when expiring MDNS announcements", error);
-            }
-        });
-        await this.#resetServices();
-    }
-
-    async setRecordsGenerator(service: string, generator: MdnsServer.RecordGenerator) {
-        this.#recordsGenerator.set(service, generator);
-        await this.#resetServices();
-    }
-
-    async #resetServices() {
-        await this.#chooseHostname();
-        await this.#records.clear();
-        this.#recordLastSentAsMulticastAnswer.clear();
-        this.#recentlyAnsweredQueries.clear();
-        // Reset the accumulator but leave the prior footprints registered until the cache rebuilds and replaces them:
-        // an empty registration here would open a window where queries for our own hostname get dropped, while stale
-        // footprints only ever cause a harmless extra decode.
-        this.#responderNames.clear();
-    }
-
-    // Accumulate the union of advertised names across interfaces; re-register only when it grows.  Stale entries from a
-    // vanished interface are at worst extra keeps and are cleared on the next #resetServices.
-    #registerResponderNames(ownedNames: Iterable<string>) {
-        let changed = false;
-        for (const name of ownedNames) {
-            if (!this.#responderNames.has(name)) {
-                this.#responderNames.add(name);
-                changed = true;
+                logger.warn("Cannot publish the mDNS records after an interface change", error);
             }
         }
-        if (changed) {
-            this.#socket.registerRelevantNames(RESPONDER_NAMES_OWNER, this.#responderNames);
+    }
+
+    async #publishChange(names: string[]) {
+        const previousHostname = this.#hostname;
+        for (const name of names) {
+            this.#responders.get(name)?.detailsChanged();
+        }
+        await this.#updateHost();
+        if (!this.#isFollowingInterfaces) {
+            return;
+        }
+
+        const changed = this.#hostname === previousHostname ? new Set(names) : undefined;
+        if (changed === undefined || this.#repeatOn === "all") {
+            this.#repeatOn = "all";
+        } else {
+            this.#repeatOn = new Set([...(this.#repeatOn ?? []), ...changed]);
+        }
+        this.#changeRepeat.stop().start();
+        await this.#publishOnListedInterfaces("all", changed);
+    }
+
+    async #repeatChange() {
+        using _repeating = this.#lifetime.join("repeating interface change");
+        const repeatOn = this.#repeatOn;
+        if (repeatOn === undefined) {
+            return;
+        }
+        this.#repeatOn = undefined;
+        await this.#publishOnListedInterfaces("all", repeatOn === "all" ? undefined : repeatOn);
+    }
+
+    /** Read the interface details, choose the host name again and update the socket names. */
+    async #updateHost() {
+        await this.#hostnameChoice.produce(() => this.#chooseHostname());
+        this.#updateNames();
+    }
+
+    /**
+     * Tell the socket the names of the records the current views publish, so it keeps queries for them before
+     * decoding.  Runs on every registration change and every rebuild of a view.  While no interface has details yet,
+     * the socket keeps the previous names; after the last withdrawal it keeps none, and once close started this does
+     * nothing, as close removed them.
+     */
+    #updateNames() {
+        if (this.#closing !== undefined) {
+            return;
+        }
+        const names = new Set<string>();
+        for (const responder of this.#responders.values()) {
+            for (const name of responder.names()) {
+                names.add(name);
+            }
+        }
+        if (!names.size && this.#registrations.size) {
+            return;
+        }
+        if (names.size) {
+            this.#socket.registerRelevantNames(RESPONDER_NAMES_OWNER, names);
+        } else {
+            this.#socket.unregisterRelevantNames(RESPONDER_NAMES_OWNER);
         }
     }
 
-    async close() {
+    #interfaceFor(name: string) {
+        if (this.#closing !== undefined) {
+            throw new ClosedError(`${this} is closed, cannot use interface ${name}`);
+        }
+        let responder = this.#responders.get(name);
+        if (responder === undefined) {
+            responder = new InterfaceResponder(name, this.#owner);
+            this.#responders.set(name, responder);
+        }
+        return responder;
+    }
+
+    /** The responder of interface {@link name} with details read within their lifetime; reads them first if not. */
+    #withCurrentDetails(name: string): MaybePromise<InterfaceResponder> {
+        const responder = this.#interfaceFor(name);
+        if (!responder.needsDetailsRead) {
+            return responder;
+        }
+        return MaybePromise.then(responder.readDetails(), () => responder);
+    }
+
+    /** The responders, after dropping those whose state expired. */
+    #currentResponders() {
+        for (const responder of this.#responders.values()) {
+            if (responder.prune()) {
+                this.#responders.delete(responder.name);
+            }
+        }
+        return [...this.#responders.values()];
+    }
+
+    /** List the multicast interfaces and note on each responder whether its interface is listed. */
+    async #listInterfaces() {
+        const listed = await this.#getMulticastInterfacesForAnnounce();
+        const names = new Set(listed.map(({ name }) => name));
+        for (const responder of this.#currentResponders()) {
+            responder.isListed = names.has(responder.name);
+        }
+        return listed;
+    }
+
+    /**
+     * Stop answering and announcing.  The goodbyes of a withdrawal that waits for its interface still go out.  A
+     * service withdrawn after this started gets no goodbye, and neither do the records a refresh removed while the
+     * {@link broadcast} that would carry their goodbye still waits for its event-loop turn.  Settles once the sends in
+     * flight settled; may be called again.
+     */
+    close() {
+        this.#closing ??= this.#close();
+        return this.#closing;
+    }
+
+    async #close() {
         using _closing = this.#lifetime.closing();
         this.#observers.close();
+        this.#followInterfaces(false);
         this.#socket.unregisterRelevantNames(RESPONDER_NAMES_OWNER);
-        await this.#records.close();
         for (const { timer } of this.#truncatedQueryCache.values()) {
             timer.stop();
         }
         this.#truncatedQueryCache.clear();
-        this.#recordLastSentAsMulticastAnswer.clear();
-        this.#recentlyAnsweredQueries.clear();
+        await Promise.all([...this.#responders.values()].map(responder => responder.close()));
     }
 
     /**
@@ -328,14 +454,15 @@ export class MdnsServer {
     async #chooseHostname() {
         try {
             const candidates = new Array<string>();
-            for (const { name } of await this.#getMulticastInterfacesForAnnounce()) {
-                let details;
+            for (const { name } of await this.#listInterfaces()) {
+                const responder = this.#interfaceFor(name);
                 try {
-                    details = await this.network.getIpMac(name);
-                } catch (error) {
-                    logger.debug(`Interface ${name} skipped for the mDNS host name`, error);
+                    await responder.readDetails();
+                } catch {
+                    // The responder logged the failed read; the interface offers no host name
                     continue;
                 }
+                const { details } = responder;
                 if (details?.ipV4.length || details?.ipV6.length) {
                     if (/[1-9a-f]/i.test(details.mac)) {
                         candidates.push(hostnameForMac(details.mac));
@@ -346,101 +473,17 @@ export class MdnsServer {
                 this.#hostname = candidates[0];
             }
         } catch (error) {
-            logger.warn("Cannot list network interfaces to choose the mDNS host name", error);
+            if (error instanceof ClosedError) {
+                logger.debug("mDNS host name not chosen, the server closed", error);
+            } else {
+                logger.warn("Cannot list network interfaces to choose the mDNS host name", error);
+            }
         }
     }
 
     #getMulticastInterfacesForAnnounce() {
         const { netInterface } = this.#socket;
         return netInterface === undefined ? this.network.getNetInterfaces() : [{ name: netInterface }];
-    }
-
-    /**
-     * Whether a querier's known answer already carries {@link record}.
-     *
-     * A record is identified by its name, type, class and value; the cache-flush bit is framing, meaningful only in a
-     * response.  A known answer suppresses only while more than half its lifetime remains.
-     *
-     * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-7.1} RFC 6762 §7.1
-     */
-    #suppressedByKnownAnswer(record: DnsRecord<any>, knownAnswer: DnsRecord<any>): boolean {
-        // Cheapest discriminators first: this runs once per (answer, known answer) pair on every inbound query
-        return (
-            record.recordType === knownAnswer.recordType &&
-            record.recordClass === knownAnswer.recordClass &&
-            knownAnswer.ttl > record.ttl / 2 &&
-            sameName(record.name, knownAnswer.name) &&
-            isDeepEqual(record.value, knownAnswer.value)
-        );
-    }
-
-    #queryRecords({ name, recordType }: { name: string; recordType: DnsRecordType }, records: DnsRecord<any>[]) {
-        // DNS names are case-insensitive per RFC 6762 §16 / RFC 1035 §2.3.3.
-        const queryName = name.toLowerCase();
-        if (recordType === DnsRecordType.ANY) {
-            return records.filter(record => record.name.toLowerCase() === queryName);
-        } else {
-            return records.filter(
-                record => record.name.toLowerCase() === queryName && record.recordType === recordType,
-            );
-        }
-    }
-
-    /**
-     * RFC 6762 §7.3 - Checks if we should suppress a response because another responder
-     * has recently answered the same question with answers that cover what we'd send.
-     * Also, lazily cleans up expired entries from the cache.
-     */
-    #shouldSuppressResponse(
-        queries: { name: string; recordType: DnsRecordType }[],
-        knownAnswers: DnsRecord<any>[],
-        sourceIntf: string,
-        answers: DnsRecord<any>[],
-    ): boolean {
-        const now = Time.nowMs;
-
-        // Clean up expired entries
-        for (const [key, entry] of this.#recentlyAnsweredQueries) {
-            if (now - entry.timestamp >= QUESTION_SUPPRESSION_WINDOW) {
-                this.#recentlyAnsweredQueries.delete(key);
-            }
-        }
-
-        // Build query signature; names lower-cased per RFC 6762 §16.
-        const queryKey =
-            queries
-                .map(q => `${q.name.toLowerCase()}-${q.recordType}`)
-                .sort()
-                .join("|") + `-${sourceIntf}`;
-
-        const cached = this.#recentlyAnsweredQueries.get(queryKey);
-
-        if (cached && now - cached.timestamp < QUESTION_SUPPRESSION_WINDOW) {
-            // Check if all our answers are already in the known answers from the cached response
-            const answerHashes = answers.map(a => this.buildDnsRecordKey(a, sourceIntf));
-            const allAnswersKnown = answerHashes.every(h => cached.knownAnswerHashes.has(h));
-
-            if (allAnswersKnown) {
-                return true; // Suppress - another responder already answered with our records
-            }
-        }
-
-        // Record that we're answering this question
-        const knownAnswerHashes = new Set<string>();
-        for (const answer of knownAnswers) {
-            knownAnswerHashes.add(this.buildDnsRecordKey(answer, sourceIntf));
-        }
-        // Also add our answers to the known set
-        for (const answer of answers) {
-            knownAnswerHashes.add(this.buildDnsRecordKey(answer, sourceIntf));
-        }
-
-        this.#recentlyAnsweredQueries.set(queryKey, {
-            knownAnswerHashes,
-            timestamp: now,
-        });
-
-        return false;
     }
 
     async #processTruncatedQuery(key: string) {
@@ -504,67 +547,64 @@ export class MdnsServer {
 }
 
 export namespace MdnsServer {
+    /**
+     * Produces the records of one service on one interface.  Called again for every change of the registrations, the
+     * interface details or the host name; the returned records are never changed by the server.  Every call returns
+     * new record objects, and a record returned once is never changed afterwards: the server keeps it to say goodbye
+     * with the data it announced.
+     */
     export interface RecordGenerator {
         (intf: string, addrs: NetworkInterfaceDetails, hostname: string): DnsRecord[];
     }
 
-    export interface InterfaceRecords {
-        byService: Map<string, DnsRecord<any>[]>;
+    /**
+     * A service registered with {@link MdnsServer.register}.  Each method does nothing once the service was withdrawn
+     * or registered again under the same name.
+     */
+    export interface Registration extends AsyncDisposable {
+        readonly service: string;
 
-        /** Lower-cased names of records we own on this interface - used to fast-reject unrelated LAN queries. */
-        ownedNames: Set<string>;
+        /**
+         * Call the generator again.  Answers use the new records at once; the next {@link MdnsServer.broadcast}
+         * announces them and, in the same packet, says goodbye to every record that left, a replaced one included.
+         * The goodbye of a record whose name, type and class still has records carries no cache-flush bit, so it
+         * removes only the old record.  The next withdrawal sends the same goodbyes.  Sends nothing itself.  Settles
+         * once the host name is chosen again.
+         *
+         * RFC 6762 §8.4 says a host SHOULD omit the goodbye for a replaced unique record and rely on the cache-flush
+         * bit of the new one.  The goodbye is sent anyway, because the new record may go out in another packet, more
+         * than a second later, or without the bit.
+         *
+         * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-8.4} RFC 6762 §8.4
+         */
+        refresh(): Promise<void>;
+
+        /**
+         * Stop answering for the service and send a goodbye.
+         *
+         * On each interface, the goodbye names a record only while the records the remaining registrations publish
+         * there are known, and only if those no longer contain it; an interface without valid details sends none.  So
+         * the host's A/AAAA records and the `_services._dns-sd._udp.local` pointers that services of one type share
+         * stay while another service publishes them.  The registration is removed before the first await; settles once
+         * the goodbyes are sent.  Logs and does not throw on failure.  A goodbye that did not leave on every address
+         * family of an interface is sent again, with or without a later publication, until it leaves or peers drop the
+         * records at the end of their TTL.
+         *
+         * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-10.1} RFC 6762 §10.1
+         */
+        withdraw(): Promise<void>;
     }
+}
+
+interface AnnouncementRequest {
+    services: Set<string>;
+    all: boolean;
+}
+
+interface PendingAnnouncement extends AnnouncementRequest {
+    done: Promise<void>;
 }
 
 function hostnameForMac(mac: string) {
     return `${mac.replace(/:/g, "").toUpperCase()}0000.local`;
-}
-
-/**
- * Prepares records for the wire, clearing the cache-flush bit wherever we cannot honor what it claims.
- *
- * The bit says the receiver may drop everything else it holds for the name and type, which is only true if this
- * response carries that whole set — suppression and rate limiting both remove records before we get here.  A legacy
- * resolver, which we cannot distinguish because the source port does not reach us, must never see the bit at all, so
- * a unicast response omits it.
- *
- * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-10.2} RFC 6762 §10.2
- * @see {@link https://www.rfc-editor.org/rfc/rfc6762#section-6.7} RFC 6762 §6.7
- */
-function sendable(sent: DnsRecord<any>[], complete: DnsRecord<any>[], isUnicast: boolean) {
-    if (isUnicast) {
-        return sent.map(record => (record.flushCache ? { ...record, flushCache: false } : record));
-    }
-
-    if (!sent.some(record => record.flushCache)) {
-        return sent;
-    }
-
-    const sentSizes = setSizes(sent);
-    const completeSizes = setSizes(complete);
-
-    return sent.map(record =>
-        record.flushCache && (sentSizes.get(setKeyOf(record)) ?? 0) < (completeSizes.get(setKeyOf(record)) ?? 0)
-            ? { ...record, flushCache: false }
-            : record,
-    );
-}
-
-/** Identifies the record set a record belongs to: RFC 6762 scopes the cache-flush bit to one name, type and class. */
-function setKeyOf(record: DnsRecord<any>) {
-    return `${record.recordType}-${record.recordClass}-${record.name.toLowerCase()}`;
-}
-
-function setSizes(records: DnsRecord<any>[]) {
-    const sizes = new Map<string, number>();
-    for (const record of records) {
-        const key = setKeyOf(record);
-        sizes.set(key, (sizes.get(key) ?? 0) + 1);
-    }
-    return sizes;
-}
-
-/** DNS names are case-insensitive (RFC 6762 §16), but they rarely differ in case, so try the cheap comparison first. */
-function sameName(a: string, b: string) {
-    return a === b || a.toLowerCase() === b.toLowerCase();
 }

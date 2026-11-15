@@ -93,14 +93,14 @@ async function toggle(
 function nextReport(node: MockServerNode) {
     const start = Time.nowMs;
     const exchangeManager = node.env.get(ExchangeManager);
-    const { initiateExchange } = exchangeManager;
+    const { initiateExchangeForSession } = exchangeManager;
     let after: number | undefined;
-    exchangeManager.initiateExchange = (...args) => {
+    exchangeManager.initiateExchangeForSession = (...args) => {
         after ??= Time.nowMs - start;
-        return initiateExchange.apply(exchangeManager, args);
+        return initiateExchangeForSession.apply(exchangeManager, args);
     };
     const received = interaction.receiveData(node, 1, 0).finally(() => {
-        exchangeManager.initiateExchange = initiateExchange;
+        exchangeManager.initiateExchangeForSession = initiateExchangeForSession;
     });
     return {
         start,
@@ -134,12 +134,12 @@ async function identify(node: MockServerNode, fabric: Fabric, delayReportData: D
  */
 function acknowledgeReports(node: MockServerNode) {
     const exchangeManager = node.env.get(ExchangeManager);
-    const { initiateExchange } = exchangeManager;
+    const { initiateExchangeForSession } = exchangeManager;
     const sent = new Array<number>();
     const acknowledgements = new Array<Promise<void>>();
-    exchangeManager.initiateExchange = (...args) => {
+    exchangeManager.initiateExchangeForSession = (...args) => {
         sent.push(Time.nowMs);
-        const exchange = initiateExchange.apply(exchangeManager, args);
+        const exchange = initiateExchangeForSession.apply(exchangeManager, args);
         // Queued before the node waits for it, so waiting for the acknowledgement does not advance mock time
         if (exchange instanceof ProtocolMocks.Exchange) {
             acknowledgements.push(exchange.writeStatus());

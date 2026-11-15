@@ -40,7 +40,7 @@ async function rejectionOf(promise: Promise<unknown>) {
 }
 
 function linesOf(texts: string[]): LogLine[] {
-    return texts.map((text, index) => ({ index, at: new Date(), text }));
+    return texts.map((text, index) => ({ index, at: new Date(), receivedAt: 0, text }));
 }
 
 /** matter.js's two log lines of a `registerClient` the server sent `node` over TCP, and its answer. */

@@ -7,6 +7,7 @@
 import { DataModelPath } from "@matter/model";
 import { Val } from "@matter/protocol";
 import type { Supervision } from "../../supervision/Supervision.js";
+import type { leaveErrorsToRemote } from "./remote-validation.js";
 
 /**
  * Contextual information tracked during validation.
@@ -39,6 +40,13 @@ export interface ValidationLocation {
      * datasource holding the values knows the owner, and a raw state class carries no reference to reach it through.
      */
     owner?: unknown;
+
+    /**
+     * Set if the values under validation are sent to a remote node (`"outbound"`) or received from one (`"inbound"`).
+     * A validation error of such a value may be left to the device to decide on rather than thrown; see
+     * {@link leaveErrorsToRemote}.
+     */
+    remote?: "outbound" | "inbound";
 
     /**
      * Fallback resolver for cross-struct references.  When a name cannot be resolved in siblings or the ownership

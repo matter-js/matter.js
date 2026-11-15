@@ -16,7 +16,7 @@ export namespace X520 {
      */
     export const OID_TO_FIELD_MAP: { [oidHex: string]: string } = {
         // All others are registered dynamically during function creation
-        "06092a864886f70d010901": "domainComponent",
+        "0992268993f22c640119": "domainComponent",
     };
 
     /**
@@ -75,6 +75,6 @@ export namespace X520 {
     export const Pseudonym = GenericString_X520(65, "pseudonym");
     /** domain-component = ASN.1 OID 0.9.2342.19200300.100.1.25, IA5String */
     export const DomainComponent = (value: string) => [
-        DerObject("06092A864886F70D010901", { value: DatatypeOverride(DerType.IA5String, value) }),
+        DerObject("0992268993F22C640119", { value: DatatypeOverride(DerType.IA5String, value) }),
     ];
 }

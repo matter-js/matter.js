@@ -7,7 +7,7 @@
 import { InteractionSession } from "#action/Interactable.js";
 import { OccurrenceManager } from "#events/OccurrenceManager.js";
 import { MaybePromise, Observable } from "@matter/general";
-import { DataModelPath, MatterModel } from "@matter/model";
+import { AttributeModel, DataModelPath, MatterModel } from "@matter/model";
 import type {
     AttributeId,
     ClusterId,
@@ -191,6 +191,12 @@ export interface AttributeTypeProtocol extends AddressableElementProtocol<Attrib
      * The TLV schema for this property.
      */
     tlv: TlvSchema<unknown>;
+
+    /**
+     * The model of this attribute.  Read and write logs use it to hide values the model marks secret; without it they
+     * log values as they are.
+     */
+    schema?: AttributeModel;
 
     /**
      * Access control information for the attribute.

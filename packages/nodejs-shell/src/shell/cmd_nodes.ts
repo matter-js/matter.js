@@ -23,12 +23,12 @@ import {
     SoftwareUpdateManager,
 } from "@matter/node";
 import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
-import { FabricAuthority, PeerAddress, PeerSet } from "@matter/protocol";
-import { FabricIndex, NodeId, VendorId } from "@matter/types";
+import { FabricAuthority, PeerSet } from "@matter/protocol";
+import { NodeId, VendorId } from "@matter/types";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
 import { awaitSeeded } from "../util/awaitSeeded.js";
-import { resolveDclMode, withDclModeOption } from "./ota-dcl-mode.js";
+import { noteSkippedStoredImages, resolveDclMode, withDclModeOption } from "./ota-dcl-mode.js";
 
 const logger = Logger.get("cmd_nodes");
 
@@ -594,6 +594,7 @@ export default function commands(theNode: MatterNode) {
                                         `  Current Software Version: ${basicInfo.softwareVersion} (${basicInfo.softwareVersionString})`,
                                     );
                                     console.log(`  DCL Mode: ${dclMode}\n`);
+                                    noteSkippedStoredImages(local, mode, isProduction);
 
                                     const updateInfo = await (
                                         await theNode.otaService()
@@ -617,6 +618,11 @@ export default function commands(theNode: MatterNode) {
                                         }
                                         if (updateInfo.releaseNotesUrl) {
                                             console.log(`  Release Notes: ${updateInfo.releaseNotesUrl}`);
+                                        }
+                                        if (updateInfo.source !== "dcl-prod" && !theNode.allowTestOtaImages) {
+                                            console.log(
+                                                `  Note: a ${updateInfo.source === "local" ? "local" : "test-net"} image is only offered to nodes with config ota-test-images.`,
+                                            );
                                         }
                                         console.log(
                                             `\nRun "nodes ota download ${nodeIdStr}${mode === "auto" ? "" : ` --mode ${mode}`}" to download this update.`,
@@ -685,6 +691,7 @@ export default function commands(theNode: MatterNode) {
                                         `  Current Software Version: ${basicInfo.softwareVersion} (${basicInfo.softwareVersionString})`,
                                     );
                                     console.log(`  DCL Mode: ${dclMode}\n`);
+                                    noteSkippedStoredImages(local, mode, isProduction);
 
                                     const updateInfo = await (
                                         await theNode.otaService()
@@ -807,19 +814,29 @@ export default function commands(theNode: MatterNode) {
                                     );
                                     console.log(`  DCL Mode: ${dclMode}\n`);
 
+                                    // Nodes are offered only production images while config ota-test-images is off
+                                    const production = theNode.allowTestOtaImages ? isProduction : true;
+                                    if (production !== isProduction) {
+                                        console.log(
+                                            `Only production images are applied while config ota-test-images is off.`,
+                                        );
+                                    } else {
+                                        noteSkippedStoredImages(local, mode, production);
+                                    }
+
                                     const localUpdates = await (
                                         await theNode.otaService()
-                                    ).find({
+                                    ).findApplicable({
                                         vendorId: basicInfo.vendorId,
                                         productId: basicInfo.productId,
-                                        currentVersion: basicInfo.softwareVersion,
+                                        currentSoftwareVersion: basicInfo.softwareVersion,
+                                        includeNonProductionImages: production !== true,
                                     });
 
                                     if (local && !localUpdates.length) {
-                                        console.log("No applicable updates available in local storage.");
+                                        console.log(`No applicable updates available in local storage.`);
                                         return;
                                     }
-
                                     const updateInfo = await (
                                         await theNode.otaService()
                                     ).checkForUpdate({
@@ -827,17 +844,26 @@ export default function commands(theNode: MatterNode) {
                                         productId: basicInfo.productId,
                                         currentSoftwareVersion: basicInfo.softwareVersion,
                                         includeStoredUpdates: local,
-                                        isProduction,
+                                        isProduction: production,
                                     });
 
-                                    let updateVersion: number;
-                                    if (!updateInfo && !local) {
+                                    if (!updateInfo) {
                                         console.log("No updates available in DCL. Device is up to date.");
                                         return;
-                                    } else if (updateInfo) {
+                                    }
+                                    const updateVersion = updateInfo.softwareVersion;
+                                    if (updateInfo.otaUrl === undefined) {
+                                        if (forceDownload) {
+                                            console.log(`A stored image has no URL; --force has no effect on it.`);
+                                        }
+                                        await (await theNode.otaService()).downloadUpdate(updateInfo);
+                                        console.log(
+                                            `Update to version ${updateVersion} (${updateInfo.softwareVersionString}) found in local storage`,
+                                        );
+                                    } else {
                                         console.log("Update found:");
                                         console.log(
-                                            `  New Version: ${updateInfo.softwareVersion} (${updateInfo.softwareVersionString})`,
+                                            `  New Version: ${updateVersion} (${updateInfo.softwareVersionString})`,
                                         );
                                         console.log(`  OTA URL: ${updateInfo.otaUrl}`);
                                         if (updateInfo.otaFileSize) {
@@ -850,15 +876,8 @@ export default function commands(theNode: MatterNode) {
                                             await theNode.otaService()
                                         ).downloadUpdate(updateInfo, forceDownload);
 
-                                        updateVersion = updateInfo.softwareVersion;
-
                                         console.log(
                                             `✓ Update to version ${updateVersion} (${updateInfo.softwareVersionString}) downloaded and stored successfully: ${fd.text}`,
-                                        );
-                                    } else {
-                                        updateVersion = localUpdates[0].softwareVersion;
-                                        console.log(
-                                            `Update to version ${updateVersion} (${localUpdates[0].softwareVersionString}) found in local storage: ${localUpdates[0].filename}`,
                                         );
                                     }
 
@@ -878,17 +897,18 @@ export default function commands(theNode: MatterNode) {
                                     }
 
                                     await theNode.otaProviderEndpoint.act(agent => {
-                                        return agent
-                                            .get(SoftwareUpdateManager)
-                                            .forceUpdate(PeerAddress({ nodeId, fabricIndex: FabricIndex(1) }), {
-                                                vendorId: basicInfo.vendorId as VendorId,
-                                                productId: basicInfo.productId as number,
-                                                targetSoftwareVersion: updateVersion,
-                                                maxBdxBlockSize: maxBlockSize,
-                                                bdxAdditionalMrpDelay:
-                                                    mrpMargin === undefined ? undefined : Millis(mrpMargin),
-                                            });
+                                        return agent.get(SoftwareUpdateManager).forceUpdate(peerAddress, {
+                                            vendorId: basicInfo.vendorId as VendorId,
+                                            productId: basicInfo.productId as number,
+                                            targetSoftwareVersion: updateVersion,
+                                            maxBdxBlockSize: maxBlockSize,
+                                            bdxAdditionalMrpDelay:
+                                                mrpMargin === undefined ? undefined : Millis(mrpMargin),
+                                        });
                                     });
+                                    console.log(
+                                        `Update of node ${nodeIdStr} to version ${updateVersion} started or already running.`,
+                                    );
                                 },
                             )
                             .demandCommand(1, "Please specify an OTA subcommand"),

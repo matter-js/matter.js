@@ -54,7 +54,7 @@ const MOMENTARY_FEATURE_MAPS = [MS | MSL | MSM | AS, MS | MSR | MSL | MSM];
 const POSITIONS = 2;
 
 /**
- * The DUT's own declaration of what it supports as a switch *client*, which is what steps 0a-0h check
+ * The DUT's own declaration of what it supports as a switch *client*, which is what steps 0a-0g check
  * for self-consistency. It is the controller's PICS overlaid on the device file, because the DUT here
  * is the controller.
  */
@@ -142,7 +142,16 @@ function declares(pics: PicsValues, key: string): boolean {
 }
 
 /**
- * One of the plan's eight consistency rules, each of which names a combination the DUT's declaration
+ * Why step 0h does not apply. It carries the conformance of MSR, `[MS & !AS]` (Application Clusters § 1.13.4), over
+ * to the client flags. That conformance describes one switch device. A client's flag says which kind of switch it
+ * handles, and one client handles switches of several kinds.
+ */
+const DEVICE_EXCLUSION_RULE =
+    "The rule is the conformance of MSR for a single switch device, `[MS & !AS]` (Application Clusters § 1.13.4). " +
+    "A client that handles switches with momentary switch release and action switches alike declares both.";
+
+/**
+ * One of the plan's consistency rules, each of which names a combination the DUT's declaration
  * must not hold. The step passes when the combination is absent, which is what "FAIL the test - ..."
  * asks for read the other way round.
  */
@@ -425,18 +434,12 @@ certTest("TC-SWTCH-3.2", {
     )
     .step(
         "0d",
-        "Consistency check: when supporting MSL also MSR or AS must be supported",
+        "Consistency check: when supporting MSL also MSR must be supported",
         consistencyStep(
-            pics => declares(pics, PICS_MSL) && !declares(pics, PICS_MSR) && !declares(pics, PICS_AS),
-            "long press with neither momentary switch release nor an action switch",
+            pics => declares(pics, PICS_MSL) && !declares(pics, PICS_MSR),
+            "long press without momentary switch release",
         ),
-        {
-            expected:
-                "The DUT does not declare long press without either momentary switch release or an action " +
-                "switch. The plan's own rule here is that MSL requires MSR, which contradicts MSL's " +
-                "conformance `[MS & (MSR | AS)]` (Application Clusters § 1.13.4) and the plan's own step 0h " +
-                "and step 3b, so this step applies the conformance instead.",
-        },
+        { expected: "The DUT does not declare long press without momentary switch release." },
     )
     .step(
         "0e",
@@ -449,17 +452,12 @@ certTest("TC-SWTCH-3.2", {
     )
     .step(
         "0f",
-        "Consistency check: when supporting MSM also MSR or AS must be supported",
+        "Consistency check: when supporting MSM also MSR must be supported",
         consistencyStep(
-            pics => declares(pics, PICS_MSM) && !declares(pics, PICS_MSR) && !declares(pics, PICS_AS),
-            "multi press with neither momentary switch release nor an action switch",
+            pics => declares(pics, PICS_MSM) && !declares(pics, PICS_MSR),
+            "multi press without momentary switch release",
         ),
-        {
-            expected:
-                "The DUT does not declare multi press without either momentary switch release or an action " +
-                "switch. As step 0d: MSM's conformance is `AS, [MS & MSR]`, so an action switch both permits " +
-                "and requires it.",
-        },
+        { expected: "The DUT does not declare multi press without momentary switch release." },
     )
     .step(
         "0g",
@@ -470,15 +468,9 @@ certTest("TC-SWTCH-3.2", {
         ),
         { expected: "The DUT declares that it reads switch state, receives events for it, or both." },
     )
-    .step(
-        "0h",
-        "Consistency check: when supporting MSR the AS must not be supported",
-        consistencyStep(
-            pics => declares(pics, PICS_MSR) && declares(pics, PICS_AS),
-            "momentary switch release together with an action switch",
-        ),
-        { expected: "The DUT does not declare both momentary switch release and action switch." },
-    )
+    .step("0h", "Consistency check: when supporting MSR the AS must not be supported", async () => {}, {
+        notApplicable: DEVICE_EXCLUSION_RULE,
+    })
     .step("1a", "Commission DUT to TH, and set it up so the switch state can be observed", commissionTh, {
         pics: PICS_LS,
         expected:
@@ -675,12 +667,11 @@ certTest("TC-SWTCH-3.2", {
         },
     )
     .step("4b", "TH simulates a short press, sending InitialPress and ShortRelease", async () => {}, {
-        pics: `${PICS_MS} & ${PICS_MSR} & ${PICS_EVENTING}`,
+        pics: `${PICS_MS} & ${PICS_EVENTING}`,
         notApplicable:
-            "This controller declares the switch it observes, which is an action switch, and one never " +
-            "generates the ShortRelease this step waits for (Application Clusters § 1.13.6.4). The plan " +
-            "gates the step on the momentary switch alone, which its own step 3b contradicts by allowing " +
-            "an action-switch TH; the release flag gates it here.",
+            "The TH's momentary switch is an action switch, which never generates the ShortRelease this step " +
+            "waits for (Application Clusters § 1.13.6.4). Which kind of switch is under test is the TH's " +
+            "FeatureMap (step 3b), not the client's flags.",
     })
     .step(
         "4c",

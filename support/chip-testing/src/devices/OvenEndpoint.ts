@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { IdentifyServer } from "@matter/main/behaviors/identify";
 import { OnOffServer } from "@matter/main/behaviors/on-off";
 import { OvenModeServer } from "@matter/main/behaviors/oven-mode";
@@ -27,7 +27,7 @@ const Surface = CookSurfaceDevice.with(IdentifyServer, OnOffServer);
 
 registerDeviceType({
     name: "oven",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber, numbers: EndpointNumberAllocator) {
+    async create(parent: Endpoint, endpoint: EndpointNumber, numbers: EndpointNumberAllocator) {
         // Children come with their parent, so the parent's composition is judged complete at construction
         const ep = new Endpoint(OvenDevice, {
             number: endpoint,
@@ -47,7 +47,7 @@ registerDeviceType({
                 new Endpoint(Surface, { id: "surface", number: numbers.next() }),
             ],
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
 
         return { endpoint: ep };
     },

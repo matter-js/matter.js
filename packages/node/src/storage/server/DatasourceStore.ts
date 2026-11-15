@@ -18,7 +18,7 @@ interface StorageParticipant extends Transaction.Participant {
 }
 
 /**
- * Factory function for the default implementation of {@link Datasource.Store}.
+ * Factory function for the default implementation of {@link Datasource.PersistentStore}.
  *
  * Performs read & write for non-volatile values for a single behavior via the {@link ServerEndpointStore} interface.
  */
@@ -26,7 +26,7 @@ export function DatasourceStore(
     endpointStore: EndpointStore,
     behaviorId: string,
     initialValues: Val.Struct | undefined,
-): Datasource.Store {
+): Datasource.PersistentStore {
     return {
         initialValues,
 

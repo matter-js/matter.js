@@ -471,7 +471,7 @@ describe("expectTimedFollowUp", () => {
                 "invoke",
                 {
                     outcome: "found",
-                    line: { index: 0, at: new Date(0), text: "timed request" },
+                    line: { index: 0, at: new Date(0), receivedAt: 0, text: "timed request" },
                     check: { type: "device-log", verdict: "pass" },
                 },
                 TIMEOUT,

@@ -280,7 +280,8 @@ reject, or a string to reject with that message; each finding carries `level` (`
 `lifecycle.isConnected`) or `node.delete()` (force-drop locally when the peer is unreachable). `node.delete()` rejects
 with `DestroyedDependencyError` once a close or delete of the server node was requested, for example when the server
 node shuts down at the same time. A close of the server node then closes the peer and keeps its storage; a delete of
-the server node removes it.
+the server node removes it. To rotate a node's operational certificate and key pair, use
+`node.updateOperationalCertificate()`; node ID, fabric and ACLs stay the same.
 
 ### Delegated / split commissioning (legacy `PaseCommissioner`)
 

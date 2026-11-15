@@ -35,7 +35,13 @@ import {
     SelectableDeviceFlavor,
 } from "./cert-context.js";
 import { CertControllerGapError, CertTest, registerCertTestFactory } from "./cert-test.js";
-import { chipImageBase, ChipDockerSubject, ChipLocalSubject, resolveChipLocalAppDir } from "./chip-app-subject.js";
+import {
+    chipImageBase,
+    ChipDockerSubject,
+    ChipLocalSubject,
+    clearChipLocalPlatformState,
+    resolveChipLocalAppDir,
+} from "./chip-app-subject.js";
 import type {
     ControllerCapability,
     ControllerRoleKind,
@@ -135,6 +141,13 @@ export interface CertTestOptions {
      * keeps the transport every other test's evidence and timing were written against.
      */
     transport?: ControllerTransport;
+
+    /**
+     * Has the test's controllers judge device attestation against the chip test roots
+     * (`ControllerAdapterOptions.attestation`), for a case about which attestations a commissioner accepts or refuses.
+     * Implies the `attestation` capability, so a case with a controller that cannot judge attestation is skipped.
+     */
+    attestation?: boolean;
 
     /**
      * What the whole test needs of its controllers beyond the {@link ControllerAdapter} interface. Where a
@@ -343,6 +356,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         flavors: options.flavors,
         chipBinsSources: options.chipBinsSources,
         transport: options.transport,
+        attestation: options.attestation,
         controllers: controllerRoles,
         controllerCapabilities: options.controllerCapabilities,
         controllerGroups: options.controllerGroups,
@@ -376,6 +390,13 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
                 throw new Error(
                     `certTest "${tc}" step ${number} declares a long-running step with no reason, which would skip ` +
                         "it with nothing recorded to explain why — give the reason, or omit the option",
+                );
+            }
+
+            if (opts?.controllerCapabilities?.includes("sustained-subscription")) {
+                throw new Error(
+                    `certTest "${tc}" step ${number} declares sustained-subscription, which a controller has to hold ` +
+                        "from commissioning on — only certTest() takes it, so declare it there and not on the step",
                 );
             }
 
@@ -608,6 +629,11 @@ function defineCertTest(
                 this.skip();
             }
 
+            // The primary role starts first and #buildContext starts the other roles after it
+            if (flavor === "chip-local") {
+                await clearChipLocalPlatformState();
+            }
+
             await State.activateSubject(
                 factory,
                 false,
@@ -646,14 +672,17 @@ export function unmetTestPics(definition: CertTestDefinition, pics = certPicsFil
  * one can: the capabilities it declares, and those its adapter options imply.
  */
 export function unmetControllerCapabilities(
-    definition: Pick<CertTestDefinition, "controllers" | "controllerCapabilities" | "transport">,
+    definition: Pick<CertTestDefinition, "controllers" | "controllerCapabilities" | "transport" | "attestation">,
     selection: ControllerSelection = resolveControllerSelection(),
 ): string | undefined {
     return controllerCapabilityGap(requiredCapabilities(definition), Object.values(definition.controllers), selection);
 }
 
-function requiredCapabilities(definition: Pick<CertTestDefinition, "controllerCapabilities" | "transport">) {
-    return [...(definition.controllerCapabilities ?? []), ...capabilitiesFor({ transport: definition.transport })];
+function requiredCapabilities(
+    definition: Pick<CertTestDefinition, "controllerCapabilities" | "transport" | "attestation">,
+) {
+    const { transport, attestation } = definition;
+    return [...(definition.controllerCapabilities ?? []), ...capabilitiesFor({ transport, attestation })];
 }
 
 /**
@@ -675,7 +704,7 @@ function controllerNotApplicable(
  * (see {@link controllerCapabilityOutOfScope}).
  */
 function outOfControllerScope(
-    definition: Pick<CertTestDefinition, "controllers" | "controllerCapabilities" | "transport">,
+    definition: Pick<CertTestDefinition, "controllers" | "controllerCapabilities" | "transport" | "attestation">,
     selection: ControllerSelection,
 ): string | undefined {
     return controllerCapabilityOutOfScope(
@@ -1034,6 +1063,9 @@ class WiredCertTest extends CertTest {
                     name,
                     {
                         transport: this.definition.transport,
+                        attestation: this.definition.attestation,
+                        sustainedSubscription:
+                            this.definition.controllerCapabilities?.includes("sustained-subscription"),
                         groups: kind === "dut" ? this.#controllerGroups() : undefined,
                     },
                     kind,

@@ -6,8 +6,27 @@
 
 import { ServerNetworkRuntime } from "#behavior/system/network/ServerNetworkRuntime.js";
 import { GeneralDiagnosticsServer } from "#behaviors/general-diagnostics";
-import { NetworkError, Time } from "@matter/general";
+import { Environment, MemoryStorageDriver, NetworkError, StorageManager, StorageService, Time } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
+
+/**
+ * An environment whose storage survives closing a node, so a second node on it starts as the same node rebooted.
+ */
+async function persistentEnvironment() {
+    const environment = new Environment("test");
+    const storage = new StorageManager(new MemoryStorageDriver());
+    storage.close = () => {};
+    await storage.initialize();
+    environment.get(StorageService).open = () => Promise.resolve(storage);
+    return environment;
+}
+
+async function reboot(environment: Environment, node?: MockServerNode) {
+    await node?.close();
+    const next = new MockServerNode({ id: "node0", environment });
+    await next.start();
+    return next;
+}
 
 describe("GeneralDiagnosticsServer operational hours", () => {
     beforeEach(() => {
@@ -182,5 +201,38 @@ describe("GeneralDiagnosticsServer operational hours", () => {
         expect(node.stateOf(GeneralDiagnosticsServer).totalOperationalHoursCounter).equals(counterWhenStopped);
 
         await MockTime.resolve(node.close());
+    });
+
+    // § 11.12.6.2: "The RebootCount attribute SHOULD be incremented each time the Node reboots. ... The RebootCount
+    // attribute SHALL only be reset to 0 upon a factory reset of the Node."
+    it("increments rebootCount once per reboot and keeps it across reboots", async () => {
+        const environment = await persistentEnvironment();
+
+        let node = await reboot(environment);
+        const first = node.stateOf(GeneralDiagnosticsServer).rebootCount;
+
+        node = await reboot(environment, node);
+        expect(node.stateOf(GeneralDiagnosticsServer).rebootCount).equals(first + 1);
+
+        node = await reboot(environment, node);
+        expect(node.stateOf(GeneralDiagnosticsServer).rebootCount).equals(first + 2);
+
+        await node.close();
+    });
+
+    // § 11.12.6.4: "The TotalOperationalHours attribute SHALL only be reset upon a factory reset of the Node."
+    it("keeps totalOperationalHours across a reboot", async () => {
+        const environment = await persistentEnvironment();
+
+        let node = await reboot(environment);
+        await MockTime.advance(90 * 60_000);
+
+        node = await reboot(environment, node);
+        expect(node.stateOf(GeneralDiagnosticsServer).totalOperationalHours).equals(1);
+
+        await MockTime.advance(30 * 60_000);
+        expect(node.stateOf(GeneralDiagnosticsServer).totalOperationalHours).equals(2);
+
+        await node.close();
     });
 });

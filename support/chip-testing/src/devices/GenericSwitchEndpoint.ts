@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ServerNode } from "@matter/main";
+import { Endpoint } from "@matter/main";
 import { SwitchServer } from "@matter/main/behaviors/switch";
 import { GenericSwitchDevice } from "@matter/main/devices/generic-switch";
 import { EndpointNumber } from "@matter/main/types";
@@ -16,9 +16,9 @@ const GenericSwitch = GenericSwitchDevice.with(SwitchServer.with("LatchingSwitch
 
 registerDeviceType({
     name: "generic-switch",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(parent: Endpoint, endpoint: EndpointNumber) {
         const ep = new Endpoint(GenericSwitch, { number: endpoint });
-        await serverNode.add(ep);
+        await parent.add(ep);
         return { endpoint: ep };
     },
 });

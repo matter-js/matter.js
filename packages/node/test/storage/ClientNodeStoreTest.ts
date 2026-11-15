@@ -22,6 +22,7 @@ import {
     StorageManager,
 } from "@matter/general";
 import { EndpointNumber } from "@matter/types";
+import { sendingWriter } from "./cache-test-helpers.js";
 import { HoldingStorageDriver, WriteHold } from "./holding-storage-driver.js";
 
 async function storeWith(prepare?: (storage: StorageManager) => Promise<void>, driver = new MemoryStorageDriver()) {
@@ -135,7 +136,7 @@ describe("ClientNodeStore", () => {
         const { store } = await storeWith(async storage => {
             await behaviorStorageOf(storage, "1", "6").set({ 0: true });
         });
-        store.write = async () => [];
+        store.write = sendingWriter([]);
         const endpointStore = store.storeForEndpointNumber(EndpointNumber(1));
         for (let i = 0; i < 3; i++) {
             await endpointStore.createStoreForBehavior("6").erase();
@@ -167,7 +168,7 @@ describe("ClientNodeStore", () => {
             },
             new HoldingStorageDriver({}, hold),
         );
-        store.write = async () => [];
+        store.write = sendingWriter([]);
         const buffer = new ClientCacheBuffer(driver, Seconds(60));
         store.buffer = buffer;
         const cache = store.storeForEndpointNumber(EndpointNumber(1)).createStoreForBehavior("6");

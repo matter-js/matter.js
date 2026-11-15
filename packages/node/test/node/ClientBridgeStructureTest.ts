@@ -16,7 +16,7 @@ import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { Diagnostic, LogDestination, Logger, LogLevel } from "@matter/general";
 import { AcceptedCommandList, AttributeList, ClusterRevision, FeatureMap, GeneratedCommandList } from "@matter/model";
-import { MockSite } from "@matter/node/testing";
+import { clientStructureOf, MockSite } from "@matter/node/testing";
 import { Read, ReadResult } from "@matter/protocol";
 import { AttributeId, EndpointNumber, TlvAny } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
@@ -27,7 +27,7 @@ const BridgedLightDevice = OnOffLightDevice.with(BridgedDeviceBasicInformationSe
  * A bridge of the shape the bridge test plans use: an aggregator carrying a composed device with two
  * sensors of its own, and a light beside it.
  *
- * An aggregator names every descendant in its `PartsList` (Matter Core § 9.2.3's full-family
+ * An aggregator names every descendant in its `PartsList` (Matter Core § 9.2.7.2's full-family
  * pattern), so the sensors appear both there and in the composed device's own list. Which endpoint
  * owns them cannot be read off either list alone.
  */
@@ -245,7 +245,7 @@ describe("a peer that reports its bridge across two interactions", () => {
         expect(composed!.parts.size).equals(SENSORS.length);
     });
 
-    it("does not install a part the root has stopped naming while its owner was unknown", async () => {
+    it("installs a part the root has stopped naming while an endpoint on the node still names it", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair({ device: { type: ServerNode.RootEndpoint } });
         const peer = controller.peers.get("peer1")!;
@@ -263,9 +263,8 @@ describe("a peer that reports its bridge across two interactions", () => {
             ),
         );
 
-        // The peer drops one sensor from the root's list — the list that says what the node has — but
-        // the composed device it hung from has not caught up and still names it. The claim therefore
-        // survives and becomes decidable in this same interaction.
+        // The peer drops one sensor from the root's list, but the composed device it hangs from still
+        // names it, so it is still on the node
         const kept = SENSORS[0];
         const dropped = SENSORS[1];
         await drain(
@@ -285,7 +284,7 @@ describe("a peer that reports its bridge across two interactions", () => {
         const composed = aggregator?.parts.get(`ep${COMPOSED}`);
         expect(composed, "the composed device belongs to the aggregator").not.undefined;
         expect(composed!.parts.get(`ep${kept}`), `endpoint ${kept} is still on the node`).not.undefined;
-        expect(composed!.parts.get(`ep${dropped}`), `endpoint ${dropped} is not`).undefined;
+        expect(composed!.parts.get(`ep${dropped}`), `endpoint ${dropped} is too`).not.undefined;
     });
 
     it("takes the device types of an endpoint that has only utility ones", async () => {
@@ -351,14 +350,14 @@ describe("a peer that reports its bridge across two interactions", () => {
 });
 
 /**
- * A peer whose root does not name every endpoint it serves.
+ * A peer that serves an endpoint no `PartsList` on the node names.
  *
- * Matter Core § 9.2.3 defines descendants of an endpoint as those in its `PartsList` plus their
- * descendants, and a root node composes its list of every one of them. An endpoint the root omits is
- * therefore not part of the tree the peer describes, however well it answers reads — so it is left
- * out, and the parts it claims belong to whoever else claims them.
+ * Matter Core § 9.2 defines the descendants of an endpoint as those in its `PartsList` plus their
+ * descendants. An endpoint that neither the root nor any endpoint on the node names is not part of
+ * the tree the peer describes, however well it answers reads — so it is left out, and the parts it
+ * claims belong to whoever else claims them.
  */
-describe("a peer whose root omits an endpoint it serves", () => {
+describe("a peer that serves an endpoint no PartsList on the node names", () => {
     before(() => {
         MockTime.init();
     });
@@ -390,7 +389,8 @@ describe("a peer whose root omits an endpoint it serves", () => {
     }
 
     function expectPlugsOnTheRoot(peer: Endpoint) {
-        expect(peer.parts.get(`ep${AGGREGATOR_EP}`), "the endpoint the root omits is not on the node").undefined;
+        expect(peer.parts.get(`ep${AGGREGATOR_EP}`), "the endpoint nothing on the node names is not on the node")
+            .undefined;
 
         for (const number of PLUGS) {
             expect(peer.parts.get(`ep${number}`), `endpoint ${number} belongs to the root`).not.undefined;
@@ -413,6 +413,251 @@ describe("a peer whose root omits an endpoint it serves", () => {
         await using _site = site;
 
         expectPlugsOnTheRoot(peer);
+    });
+});
+
+describe("a peer whose root names only its aggregator", () => {
+    before(() => {
+        MockTime.init();
+    });
+
+    afterEach(() => {
+        delete Logger.destinations.capture;
+    });
+
+    const AGGREGATOR_EP = 1;
+    const LIGHTS = [2, 3];
+    const INCOMPLETE_ROOT_WARNING = "in the PartsList of its root endpoint";
+
+    async function peerOf() {
+        const site = new MockSite();
+        const { controller } = await site.addCommissionedPair({ device: { type: ServerNode.RootEndpoint } });
+        const peer = controller.peers.get("peer1")!;
+        const structure = clientStructureOf(peer);
+        const request = Read({ attributes: [{}], fabricFilter: structure.cacheFabricFiltered });
+        return { site, controller, peer, structure, request };
+    }
+
+    function bridgeReports(rootParts: number[], version: number) {
+        return [
+            [descriptorAttr(0, Descriptor.attributes.partsList.id, rootParts, version)],
+            descriptorReports(AGGREGATOR_EP, AggregatorEndpoint.deviceType, 2, LIGHTS, version),
+            ...LIGHTS.map(number => descriptorReports(number, LIGHT_DEVICE_TYPE, 3, [], version)),
+        ];
+    }
+
+    function bridgeOf(peer: Endpoint) {
+        return [...peer.parts].flatMap(part => [part.number, ...[...part.parts].map(below => below.number)]);
+    }
+
+    function captureIncompleteRootWarnings() {
+        const warnings = new Array<string>();
+        Logger.destinations.capture = LogDestination({
+            add(message: Diagnostic.Message) {
+                const text = message.values.map(String).join(" ");
+                if (message.level === LogLevel.WARN && text.includes(INCOMPLETE_ROOT_WARNING)) {
+                    warnings.push(text);
+                }
+            },
+        });
+        return warnings;
+    }
+
+    it("places the devices the aggregator names and warns once", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+        const warnings = captureIncompleteRootWarnings();
+
+        await drain(structure.mutate(request, readResult(...bridgeReports([AGGREGATOR_EP], 10))));
+        await drain(structure.mutate(request, readResult(...bridgeReports([AGGREGATOR_EP], 11))));
+
+        expect(bridgeOf(peer)).deep.equals([AGGREGATOR_EP, ...LIGHTS]);
+        expect(warnings.length).equals(1);
+        expect(warnings[0]).contains("does not name endpoints 2, 3");
+    });
+
+    it("keeps the devices when the root stops naming them", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        await drain(structure.mutate(request, readResult(...bridgeReports([AGGREGATOR_EP, ...LIGHTS], 10))));
+        expect(bridgeOf(peer)).deep.equals([AGGREGATOR_EP, ...LIGHTS]);
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult([descriptorAttr(0, Descriptor.attributes.partsList.id, [AGGREGATOR_EP], 11)]),
+            ),
+        );
+        expect(bridgeOf(peer)).deep.equals([AGGREGATOR_EP, ...LIGHTS]);
+    });
+
+    it("does not wait for a device the aggregator names but the peer never reported", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, [AGGREGATOR_EP], 10)],
+                    descriptorReports(AGGREGATOR_EP, AggregatorEndpoint.deviceType, 2, [...LIGHTS, 9], 10),
+                    ...LIGHTS.map(number => descriptorReports(number, LIGHT_DEVICE_TYPE, 3, [], 10)),
+                ),
+            ),
+        );
+
+        expect(bridgeOf(peer)).deep.equals([AGGREGATOR_EP, ...LIGHTS]);
+        expect(peer.lifecycle.isSeeded).true;
+    });
+
+    it("places a device the peer reports after the aggregator named it", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        const [root, aggregator, ...lights] = bridgeReports([AGGREGATOR_EP], 10);
+        await drain(structure.mutate(request, readResult(root, aggregator, lights[0])));
+        expect(bridgeOf(peer)).deep.equals([AGGREGATOR_EP, LIGHTS[0]]);
+
+        await drain(structure.mutate(request, readResult(lights[1])));
+        expect(bridgeOf(peer)).deep.equals([AGGREGATOR_EP, ...LIGHTS]);
+    });
+
+    it("does not place a device the aggregator names before the peer reports its Descriptor lists", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        const [root, aggregator, ...lights] = bridgeReports([AGGREGATOR_EP], 10);
+        await drain(
+            structure.mutate(
+                request,
+                readResult(root, aggregator, lights[0], [descriptorAttr(LIGHTS[1], ClusterRevision.id, 3, 10)]),
+            ),
+        );
+        expect(bridgeOf(peer)).deep.equals([AGGREGATOR_EP, LIGHTS[0]]);
+    });
+
+    it("keeps an endpoint added locally that no PartsList names", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+        const LOCAL_EP = 9;
+        peer.endpoints.require(LOCAL_EP);
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(...bridgeReports([AGGREGATOR_EP], 10), [
+                    descriptorAttr(LOCAL_EP, ClusterRevision.id, 3, 10),
+                ]),
+            ),
+        );
+        await drain(structure.mutate(request, readResult(...bridgeReports([AGGREGATOR_EP], 11))));
+
+        expect(peer.endpoints.has(LOCAL_EP)).true;
+    });
+
+    it("places devices reported before the root names their aggregator", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        await drain(
+            structure.mutate(request, readResult([descriptorAttr(0, Descriptor.attributes.partsList.id, [], 10)])),
+        );
+        const [, ...aggregatorAndLights] = bridgeReports([], 11);
+        await drain(structure.mutate(request, readResult(...aggregatorAndLights)));
+        expect(bridgeOf(peer)).deep.equals([]);
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult([descriptorAttr(0, Descriptor.attributes.partsList.id, [AGGREGATOR_EP], 12)]),
+            ),
+        );
+        expect(bridgeOf(peer)).deep.equals([AGGREGATOR_EP, ...LIGHTS]);
+    });
+
+    it("does not erase an endpoint the root stops naming before it was placed", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+        const UNPLACED_EP = 5;
+        const warnings = new Array<string>();
+        Logger.destinations.capture = LogDestination({
+            add(message: Diagnostic.Message) {
+                if (message.level >= LogLevel.WARN) {
+                    warnings.push(message.values.map(String).join(" "));
+                }
+            },
+        });
+
+        // The root claims endpoint 5 by a full-family list, which waits for endpoint 5's own PartsList
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, [AGGREGATOR_EP, UNPLACED_EP], 10)],
+                    descriptorReports(AGGREGATOR_EP, AggregatorEndpoint.deviceType, 2, [], 10),
+                ),
+            ),
+        );
+        expect(bridgeOf(peer)).deep.equals([AGGREGATOR_EP]);
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult([descriptorAttr(0, Descriptor.attributes.partsList.id, [AGGREGATOR_EP], 11)]),
+            ),
+        );
+
+        expect(bridgeOf(peer)).deep.equals([AGGREGATOR_EP]);
+        expect(warnings).deep.equals([]);
+    });
+
+    it("restores the devices from storage after a restart", async () => {
+        const { site, controller, peer, structure, request } = await peerOf();
+        await using _site = site;
+        await drain(structure.mutate(request, readResult(...bridgeReports([AGGREGATOR_EP], 10))));
+        expect(bridgeOf(peer)).deep.equals([AGGREGATOR_EP, ...LIGHTS]);
+
+        await site.close();
+        const restarted = await site.addController({
+            id: controller.id,
+            index: 1,
+            network: { autoStartCommissionedPeers: false },
+        });
+        await MockTime.resolve(restarted.start());
+
+        const restored = restarted.peers.get("peer1")!;
+        expect(bridgeOf(restored)).deep.equals([AGGREGATOR_EP, ...LIGHTS]);
+        expect(restored.lifecycle.isSeeded).true;
+    });
+
+    it("warns again and erases a device the peer removed while the controller was stopped", async () => {
+        const { site, controller, structure, request } = await peerOf();
+        await using _site = site;
+        await drain(structure.mutate(request, readResult(...bridgeReports([AGGREGATOR_EP], 10))));
+
+        await site.close();
+        const warnings = captureIncompleteRootWarnings();
+        const restarted = await site.addController({
+            id: controller.id,
+            index: 1,
+            network: { autoStartCommissionedPeers: false },
+        });
+        await MockTime.resolve(restarted.start());
+        expect(warnings.length).equals(1);
+
+        const restored = restarted.peers.get("peer1")!;
+        const restoredStructure = clientStructureOf(restored);
+        const [kept, removed] = LIGHTS;
+        await drain(
+            restoredStructure.mutate(
+                Read({ attributes: [{}], fabricFilter: restoredStructure.cacheFabricFiltered }),
+                readResult(descriptorReports(AGGREGATOR_EP, AggregatorEndpoint.deviceType, 2, [kept], 11)),
+            ),
+        );
+
+        expect(bridgeOf(restored)).deep.equals([AGGREGATOR_EP, kept]);
+        expect(restored.endpoints.has(removed)).false;
     });
 });
 
@@ -460,15 +705,38 @@ describe("a peer that changes what it says between interactions", () => {
 
         // The root drops the aggregator but still names the sensors below it. Erasing it would close
         // them too and nothing can move them first, so it stays and they stay with it.
-        await drain(
-            structure.mutate(request, readResult([descriptorAttr(0, Descriptor.attributes.partsList.id, SENSORS, 11)])),
-        );
+        const warnings = new Array<string>();
+        Logger.destinations.capture = LogDestination({
+            add(message: Diagnostic.Message) {
+                const text = message.values.map(String).join(" ");
+                if (message.level === LogLevel.WARN && text.startsWith("Keeping")) {
+                    warnings.push(text);
+                }
+            },
+        });
+        try {
+            await drain(
+                structure.mutate(
+                    request,
+                    readResult([descriptorAttr(0, Descriptor.attributes.partsList.id, SENSORS, 11)]),
+                ),
+            );
+            await drain(
+                structure.mutate(
+                    request,
+                    readResult([descriptorAttr(0, Descriptor.attributes.partsList.id, SENSORS, 12)]),
+                ),
+            );
+        } finally {
+            delete Logger.destinations.capture;
+        }
 
         expect(treeOf(peer)).deep.equals([`/ep${AGGREGATOR}`, ...SENSORS.map(n => `/ep${AGGREGATOR}/ep${n}`)]);
+        expect(warnings.length).equals(1);
 
         // Once the peer stops naming them too, it goes and takes them with it
         await drain(
-            structure.mutate(request, readResult([descriptorAttr(0, Descriptor.attributes.partsList.id, [], 12)])),
+            structure.mutate(request, readResult([descriptorAttr(0, Descriptor.attributes.partsList.id, [], 13)])),
         );
 
         expect(treeOf(peer)).deep.equals([]);
@@ -1033,9 +1301,7 @@ describe("a peer that reports an aggregator below an aggregator", () => {
 
         expect(treeOf(peer)).deep.equals(NESTED_BRIDGE_TREE.filter(path => !path.endsWith(`/ep${dropped}`)));
     });
-    // The root's list is what says what the node has, so an endpoint it drops goes even while the
-    // aggregators below it still name it
-    it("drops an endpoint the root stops naming while the nested aggregator still does", async () => {
+    it("drops an endpoint the root stops naming once the nested aggregator stops naming it too", async () => {
         const { site, peer, structure, request } = await peerOf();
         await using _site = site;
 
@@ -1062,6 +1328,25 @@ describe("a peer that reports an aggregator below an aggregator", () => {
                         11,
                     ),
                 ]),
+            ),
+        );
+
+        expect(treeOf(peer)).deep.equals(NESTED_BRIDGE_TREE);
+
+        const remaining = DALI_LIGHTS.filter(number => number !== dropped);
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    descriptorReports(
+                        ZIGBEE_AGGREGATOR,
+                        AggregatorEndpoint.deviceType,
+                        2,
+                        [...ZIGBEE_LIGHTS, DALI_AGGREGATOR, ...remaining],
+                        12,
+                    ),
+                    descriptorReports(DALI_AGGREGATOR, BRIDGED_AGGREGATOR_TYPES, 2, remaining, 12),
+                ),
             ),
         );
 
@@ -1152,7 +1437,7 @@ describe("a peer that bridges a device of several endpoints", () => {
         ).deep.equals({ 1: 0, 41: 1, 42: 1, 43: 42 });
     });
 
-    it("does not wait for an endpoint the root no longer names", async () => {
+    it("does not wait for an endpoint only a list below the root names and the peer never reported", async () => {
         expect(
             await parentsAfter(
                 [descriptorAttr(0, Descriptor.attributes.partsList.id, [1, 41, 42], 10)],
@@ -1161,6 +1446,28 @@ describe("a peer that bridges a device of several endpoints", () => {
                 descriptorReports(42, LIGHT_DEVICE_TYPE, 3, [], 10),
             ),
         ).deep.equals({ 1: 0, 41: 1, 42: 41 });
+    });
+
+    it("ignores the root in a PartsList below it", async () => {
+        expect(
+            await parentsAfter(
+                [descriptorAttr(0, Descriptor.attributes.partsList.id, [1, 2], 10)],
+                descriptorReports(1, AggregatorEndpoint.deviceType, 2, [0, 2], 10),
+                descriptorReports(2, LIGHT_DEVICE_TYPE, 3, [], 10),
+            ),
+        ).deep.equals({ 1: 0, 2: 1 });
+    });
+
+    // Each light claims the other, so neither can be placed below the other first
+    it("stops on PartsLists that name each other", async () => {
+        expect(
+            await parentsAfter(
+                [descriptorAttr(0, Descriptor.attributes.partsList.id, [1], 10)],
+                descriptorReports(1, AggregatorEndpoint.deviceType, 2, [2, 3], 10),
+                descriptorReports(2, LIGHT_DEVICE_TYPE, 3, [3], 10),
+                descriptorReports(3, LIGHT_DEVICE_TYPE, 3, [2], 10),
+            ),
+        ).deep.equals({ 1: 0 });
     });
 
     // Two endpoints that each name a part in a list of their own children break the single-parent rule.
@@ -1265,15 +1572,16 @@ describe("a peer that bridges a device of several endpoints", () => {
         expect(warnings[0]).match(/^Taking .*ep10 as the parent of .*ep12: the peer also named it a part of .*ep11,/);
     });
 
-    it("does not warn about an endpoint the root no longer names", async () => {
-        expect(
-            await warningsAfter(
-                [descriptorAttr(0, Descriptor.attributes.partsList.id, [10, 11], 10)],
-                descriptorReports(10, LIGHT_DEVICE_TYPE, 3, [12], 10),
-                descriptorReports(11, LIGHT_DEVICE_TYPE, 3, [12], 10),
-                descriptorReports(12, LIGHT_DEVICE_TYPE, 3, [], 10),
-            ),
-        ).deep.equals([]);
+    it("warns that the root does not name an endpoint other endpoints name", async () => {
+        const warnings = await warningsAfter(
+            [descriptorAttr(0, Descriptor.attributes.partsList.id, [10, 11], 10)],
+            descriptorReports(10, LIGHT_DEVICE_TYPE, 3, [12], 10),
+            descriptorReports(11, LIGHT_DEVICE_TYPE, 3, [12], 10),
+            descriptorReports(12, LIGHT_DEVICE_TYPE, 3, [], 10),
+        );
+        expect(warnings.length).equals(2);
+        expect(warnings[0]).match(/does not name endpoints 12 in the PartsList of its root endpoint/);
+        expect(warnings[1]).match(/^Taking .*ep10 as the parent of .*ep12/);
     });
 
     // The bridge the matterjs-server tests run against, including a bridged node of the one-endpoint

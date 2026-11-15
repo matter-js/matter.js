@@ -24,25 +24,10 @@ import {
 import { ContactSensorDevice } from "@matter/main/devices/contact-sensor";
 import { MdnsAdvertiser } from "@matter/main/protocol";
 import { DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
+import { argValue } from "./app-args.js";
 import { IcdTestEventServer } from "./cluster/IcdTestEventServer.js";
 import { DeviceTestInstanceConfig } from "./GenericTestApp.js";
 import { NodeTestInstance } from "./NodeTestInstance.js";
-
-/** Read a `--name value` or `--name=value` argument from the chip-supplied app-args (or the process.argv fallback). */
-function argValue(args: string[], name: string): string | undefined {
-    const flags = [`-${name}`, `--${name}`];
-    for (let i = 0; i < args.length; i++) {
-        const arg = args[i];
-        if (flags.includes(arg)) {
-            return i + 1 < args.length ? args[i + 1] : undefined;
-        }
-        const eq = flags.map(f => `${f}=`).find(prefix => arg.startsWith(prefix));
-        if (eq !== undefined) {
-            return arg.slice(eq.length);
-        }
-    }
-    return undefined;
-}
 
 /** Parse a non-negative integer app-arg, failing loudly on a malformed value rather than silently building a broken device. */
 function intArg(args: string[], name: string, fallback: number): number {

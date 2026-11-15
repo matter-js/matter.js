@@ -11,7 +11,14 @@ import { WriteResult } from "#action/response/WriteResult.js";
 import { AccessControl, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits } from "#action/server/DataResponse.js";
 import { Diagnostic, InternalError, Logger, serialize, toHex } from "@matter/general";
-import { AccessLevel, AttributeModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "@matter/model";
+import {
+    AccessLevel,
+    AttributeModel,
+    DataModelPath,
+    ElementTag,
+    FabricIndex as FabricIndexField,
+    SecretRedaction,
+} from "@matter/model";
 import {
     ArraySchema,
     AttributePath,
@@ -429,7 +436,10 @@ export class AttributeWriteResponse<
                 const decoded = this.#decodeWithSchema(tlv, value);
                 // REPLACE_ALL
                 //await this.session.transaction?.begin();
-                logger.debug(() => `Writing attribute ${this.node.inspectPath(path)}=${Diagnostic.json(decoded)}`);
+                logger.debug(
+                    () =>
+                        `Writing attribute ${this.node.inspectPath(path)}=${Diagnostic.json(SecretRedaction.redact(attribute.schema, decoded))}`,
+                );
                 const writeState = await this.#guardedCurrentCluster.openForWrite(this.session);
                 writeState[attributeId] = decoded;
                 await this.session.transaction?.commit();
@@ -444,7 +454,8 @@ export class AttributeWriteResponse<
                 const writeState = await this.#guardedCurrentCluster.openForWrite(this.session);
                 const decoded = this.#decodeWithSchema(tlv.elementSchema, value);
                 logger.debug(
-                    () => `Writing attribute chunk ${this.node.inspectPath(path)} adding ${serialize(decoded)}`,
+                    () =>
+                        `Writing attribute chunk ${this.node.inspectPath(path)} adding ${serialize(SecretRedaction.redactEntry(attribute.schema, decoded))}`,
                 );
                 (writeState[attributeId] as any[]).push(decoded);
                 await this.session.transaction?.commit();

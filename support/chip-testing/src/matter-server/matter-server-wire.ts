@@ -17,7 +17,7 @@ import {
 } from "@matter/main/types";
 import { AttributeModel, ClusterModel, Matter, SchemaImplementationError, ValueModel } from "@matter/model";
 import { registerCertCustomCluster } from "../cert/custom-clusters.js";
-import { UnitTestingCluster } from "../cert/unit-testing-cluster.js";
+import { UnitTestingServer } from "../cert/unit-testing-cluster.js";
 
 const logger = Logger.get("MatterServerWire");
 
@@ -25,7 +25,7 @@ const logger = Logger.get("MatterServerWire");
  * The clusters outside the Matter model that matterjs-server models too (its `custom-clusters` package) and a case
  * addresses. Each definition here must match the server's attribute for attribute.
  */
-const SERVER_CUSTOM_CLUSTERS = [registerCertCustomCluster(UnitTestingCluster)];
+const SERVER_CUSTOM_CLUSTERS = [registerCertCustomCluster(UnitTestingServer)];
 
 /**
  * The model matterjs-server encodes and decodes `cluster` with, `undefined` for a cluster outside its model. The

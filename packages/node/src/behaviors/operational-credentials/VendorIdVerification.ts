@@ -20,7 +20,14 @@ import {
     UnexpectedDataError,
 } from "@matter/general";
 import { Icac, Noc, PeerSet, Rcac, Vvsc } from "@matter/protocol";
-import { FabricId, FabricIndex, ReceivedStatusResponseError, StatusResponse, VendorId } from "@matter/types";
+import {
+    FabricId,
+    FabricIndex,
+    ReceivedStatusResponseError,
+    StatusResponse,
+    ValidationError,
+    VendorId,
+} from "@matter/types";
 import type { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { OperationalCredentialsClient } from "../operational-credentials/OperationalCredentialsClient.js";
 
@@ -163,6 +170,8 @@ export namespace VendorIdVerification {
     /**
      * Verify VendorId ownership using VID Verification protocol on pure data level
      *
+     * Returns `false` when a certificate the peer sent does not decode or its chain does not verify.
+     *
      * @see {@link MatterSpecification.v161.Core} § 6.4.10.1.
      */
     export async function verifyData(
@@ -184,38 +193,58 @@ export namespace VendorIdVerification {
             rcac,
             fabric: { vendorId: rootVendorId, vidVerificationStatement, fabricIndex },
         } = options;
-        const {
-            subject: { fabricId },
-            ellipticCurvePublicKey: rootPublicKey,
-        } = Noc.fromTlv(noc).cert;
 
-        const tbs = dataToSign({
-            fabricBindingVersion,
-            clientChallenge,
-            attChallenge,
-            fabricIndex,
-            fabric: {
-                rootPublicKey,
-                fabricId,
-                rootVendorId,
-                vidVerificationStatement,
-            },
-        }).signatureData;
-
+        let tbs: Bytes;
+        let vvscCert: Vvsc | undefined;
         try {
+            const nocCert = Noc.fromTlv(noc);
+            const {
+                subject: { fabricId },
+                ellipticCurvePublicKey: rootPublicKey,
+            } = nocCert.cert;
+
+            tbs = dataToSign({
+                fabricBindingVersion,
+                clientChallenge,
+                attChallenge,
+                fabricIndex,
+                fabric: {
+                    rootPublicKey,
+                    fabricId,
+                    rootVendorId,
+                    vidVerificationStatement,
+                },
+            }).signatureData;
+
             // Validate signature over TBS data
             await crypto.verifyEcdsa(PublicKey(rootPublicKey), tbs, new EcdsaSignature(signature));
 
             // Verify Noc cert chain using trusted root
             const rootCert = Rcac.fromTlv(rcac);
-            const nocCert = Noc.fromTlv(noc);
             const icaCert = icac ? Icac.fromTlv(icac) : undefined;
             if (icaCert !== undefined) {
                 await icaCert.verify(crypto, rootCert);
             }
             await nocCert.verify(crypto, rootCert, icaCert);
+
+            if (vidVerificationStatement && vvsc !== undefined) {
+                vvscCert = Vvsc.fromTlv(vvsc);
+                // TODO Gather and Verify the VVSC cert chain using trusted root
+                // Validate the path of VIDVerificationSignerCertificate using the certificates in the Operational
+                // Trust Anchors Schema under the expected VendorID (VID field) being verified. If
+                // the path is invalid (e.g. any element of the chain missing, any certificate malformed, any
+                // signature verification fails, etc), then the procedure terminates as failed. Only the self-
+                // signed certificates among the set SHALL be considered as trust anchors during certificate
+                // path validation. The path length SHALL NOT be longer than 3. The verifier MAY
+                // apply knowledge of revoked entities obtained from outside the Distributed Compliance
+                // Ledger.
+                await vvscCert.verify(crypto);
+            }
         } catch (error) {
-            CryptoError.accept(error);
+            // TLV the peer sent that does not decode, such as a repeated or missing field, fails the verification
+            if (!(error instanceof UnexpectedDataError || error instanceof ValidationError)) {
+                CryptoError.accept(error);
+            }
             logger.warn("Could not verify VendorId: certificate chain verification failed", error);
             return false;
         }
@@ -231,10 +260,7 @@ export namespace VendorIdVerification {
                 throw new UnexpectedDataError("VID Verification Statement is missing signature");
             }
 
-            let vvscCert: Vvsc;
-            if (vvsc !== undefined) {
-                vvscCert = Vvsc.fromTlv(vvsc);
-            } else {
+            if (vvscCert === undefined) {
                 // TODO Fetch VVSC from DCL if needed
                 // Otherwise, look up the entry in the Operational Trust Anchors Schema
                 // under the expected VendorID (VID field) being verified whose IsVIDVerificationSigner
@@ -252,17 +278,6 @@ export namespace VendorIdVerification {
                     `VVSC SubjectKeyIdentifier does not match signerSkid in VID Verification Statement`,
                 );
             }
-
-            // TODO Gather and Verify the VVSC cert chain using trusted root
-            // Validate the path of VIDVerificationSignerCertificate using the certificates in the Operational
-            // Trust Anchors Schema under the expected VendorID (VID field) being verified. If
-            // the path is invalid (e.g. any element of the chain missing, any certificate malformed, any
-            // signature verification fails, etc), then the procedure terminates as failed. Only the self-
-            // signed certificates among the set SHALL be considered as trust anchors during certificate
-            // path validation. The path length SHALL NOT be longer than 3. The verifier MAY
-            // apply knowledge of revoked entities obtained from outside the Distributed Compliance
-            // Ledger.
-            await vvscCert.verify(crypto);
 
             const ourStatement = createStatementBytes({
                 version: vidStatementVersion,

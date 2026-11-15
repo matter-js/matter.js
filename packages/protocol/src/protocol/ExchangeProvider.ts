@@ -46,8 +46,9 @@ export interface NewExchangeOptions extends Omit<InteractionSettings, "transacti
     addressOverride?: ServerAddressUdp;
 
     /**
-     * When true, requires an existing session and does not attempt to establish a new one.
-     * The exchange creation fails if no active session is available.
+     * When true, requires an existing session and does not attempt to establish a new one.  The exchange creation
+     * fails with `SessionClosedError` if no active session is available.  A provider bound to a fixed session
+     * never establishes one, so the flag does not change it.
      */
     requireExistingSession?: boolean;
 

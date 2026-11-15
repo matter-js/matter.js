@@ -27,7 +27,8 @@ import { AdministratorCommissioningBehavior } from "./AdministratorCommissioning
 
 /**
  * Extend the AdministratorCommissioning model to relax constraints on OpenCommissioningWindow fields.  This prevents
- * the interaction layer from rejecting with ConstraintError so the behavior can validate and return PakeParameterError.
+ * the interaction layer from rejecting with ConstraintError so the behavior can validate and return PakeParameterError
+ * or INVALID_COMMAND as § 11.19.8.1 requires.
  */
 const openCommissioningWindow = AdministratorCommissioning.schema.commands.require("OpenCommissioningWindow");
 
@@ -38,8 +39,11 @@ const AdministratorCommissioningSchema = AdministratorCommissioning.schema.exten
         openCommissioningWindow.fields.extend("PakePasscodeVerifier", { constraint: "none" }),
         openCommissioningWindow.fields.extend("Iterations", { constraint: "none" }),
         openCommissioningWindow.fields.extend("Salt", { constraint: "none" }),
+        openCommissioningWindow.fields.extend("Discriminator", { constraint: "none" }),
     ),
 );
+
+const MAX_DISCRIMINATOR = 0xfff;
 
 const AdministratorCommissioningBase = AdministratorCommissioningBehavior.for(
     AdministratorCommissioning,
@@ -70,6 +74,10 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         salt,
         commissioningTimeout,
     }: AdministratorCommissioning.OpenCommissioningWindowRequest) {
+        const commissioner = this.env.get(DeviceCommissioner);
+        const adminFabric = this.#adminFabric();
+        this.#assertNoCommissioningInProgress(commissioner);
+
         // We monkey patched the Tlv definition above, so take care about correct error handling
         if (pakePasscodeVerifier.byteLength !== PAKE_PASSCODE_VERIFIER_LENGTH) {
             throw new AdministratorCommissioning.PakeParameterError("PAKE passcode verifier length is invalid");
@@ -80,11 +88,13 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         if (salt.byteLength < 16 || salt.byteLength > 32) {
             throw new AdministratorCommissioning.PakeParameterError("PAKE salt has invalid length.");
         }
-
-        const commissioner = this.env.get(DeviceCommissioner);
-        const timeout = Seconds(commissioningTimeout);
-        this.#assertCommissioningWindowRequirements(timeout, commissioner);
-        const adminFabric = this.#adminFabric();
+        const timeout = this.#windowTimeout(commissioningTimeout);
+        if (discriminator > MAX_DISCRIMINATOR) {
+            throw new StatusResponseError(
+                `Discriminator ${discriminator} exceeds the maximum of ${MAX_DISCRIMINATOR}`,
+                Status.InvalidCommand,
+            );
+        }
 
         await commissioner.allowEnhancedCommissioning(
             discriminator,
@@ -107,9 +117,9 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         commissioningTimeout,
     }: AdministratorCommissioning.OpenBasicCommissioningWindowRequest) {
         const commissioner = this.env.get(DeviceCommissioner);
-        const timeout = Seconds(commissioningTimeout);
-        this.#assertCommissioningWindowRequirements(timeout, commissioner);
         const adminFabric = this.#adminFabric();
+        this.#assertNoCommissioningInProgress(commissioner);
+        const timeout = this.#windowTimeout(commissioningTimeout);
 
         await commissioner.allowBasicCommissioning(this.#windowOptions(timeout));
 
@@ -151,9 +161,19 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         await this.#closeCommissioningWindow();
     }
 
+    /**
+     * The fabric of the administrator that opens the window.  A PASE session has none before AddNOC.  The
+     * specification names no status for that case; CHIP answers PAKEParameterError.
+     */
     #adminFabric() {
         assertRemoteActor(this.context);
-        return this.context.session.associatedFabric;
+        const { fabric } = this.context.session;
+        if (fabric === undefined) {
+            throw new AdministratorCommissioning.PakeParameterError(
+                "Opening a commissioning window requires a session on a fabric",
+            );
+        }
+        return fabric;
     }
 
     #windowOptions(timeout: Duration): DeviceCommissioner.WindowOptions {
@@ -186,30 +206,33 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
     }
 
     /**
-     * This method validates if a commissioning window can be opened and throws various exceptions in case of failures.
+     * Throws Busy while an administrator's window is open or the fail-safe is armed.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.19.8.1
      */
-    #assertCommissioningWindowRequirements(commissioningTimeout: Duration, commissioner: DeviceCommissioner) {
-        if (commissioner.isAdministratorWindowOpen) {
-            throw new AdministratorCommissioning.BusyError("A commissioning window is already opened");
-        }
-
-        if (commissioningTimeout > this.internal.maximumCommissioningTimeout) {
-            throw new StatusResponseError(
-                `Commissioning timeout must not exceed ${this.internal.maximumCommissioningTimeout} seconds.`,
-                Status.InvalidCommand,
-            );
-        }
-
-        if (commissioningTimeout < this.internal.minimumCommissioningTimeout) {
-            throw new StatusResponseError(
-                `Commissioning timeout must not be lower then ${this.internal.minimumCommissioningTimeout} seconds.`,
-                Status.InvalidCommand,
-            );
-        }
-
+    #assertNoCommissioningInProgress(commissioner: DeviceCommissioner) {
         if (commissioner.isFailsafeArmed) {
             throw new AdministratorCommissioning.BusyError("Failsafe timer armed, assume commissioning in progress.");
         }
+
+        if (commissioner.isAdministratorWindowOpen) {
+            throw new AdministratorCommissioning.BusyError("A commissioning window is already opened");
+        }
+    }
+
+    /**
+     * The window duration of a CommissioningTimeout field in seconds, or INVALID_COMMAND outside the configured bounds.
+     */
+    #windowTimeout(commissioningTimeout: number) {
+        const timeout = Seconds(commissioningTimeout);
+        const { minimumCommissioningTimeout, maximumCommissioningTimeout } = this.internal;
+        if (timeout < minimumCommissioningTimeout || timeout > maximumCommissioningTimeout) {
+            throw new StatusResponseError(
+                `Commissioning timeout ${Duration.format(timeout)} is outside ${Duration.format(minimumCommissioningTimeout)} to ${Duration.format(maximumCommissioningTimeout)}`,
+                Status.InvalidCommand,
+            );
+        }
+        return timeout;
     }
 
     /**

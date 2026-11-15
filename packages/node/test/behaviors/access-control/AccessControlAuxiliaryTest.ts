@@ -377,4 +377,24 @@ describe("AccessControlServer auxiliary ACL", () => {
         const [fabric] = [...device.env.get(FabricManager)];
         expect(checkedFabrics.has(fabric.fabricIndex)).true;
     });
+
+    it("lets a subclass of a derived type override the extension methods and call super", () => {
+        // Type-level check only: a failure shows as a build error in this file
+        class OverridingAccessControl extends AccessControlServer.with("Extension") {
+            override extensionEntryValidator(extension: AccessControl.AccessControlExtension) {
+                super.extensionEntryValidator(extension);
+            }
+
+            override extensionEntryAccessCheck(
+                aclList: AclList,
+                aclEntry: AclEntry,
+                subjectDesc: IncomingSubjectDescriptor,
+                endpoint: AclEndpointContext,
+                clusterId: ClusterId,
+            ) {
+                return super.extensionEntryAccessCheck(aclList, aclEntry, subjectDesc, endpoint, clusterId);
+            }
+        }
+        void OverridingAccessControl;
+    });
 });

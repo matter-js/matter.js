@@ -27,8 +27,24 @@ LocalMatter.children.push({
                     quality: "N",
                     asOf: "1.3",
                     until: "1.7",
+                    isSecret: true,
                 },
             ],
+        },
+        {
+            tag: "command",
+            id: 0x0,
+            name: "RegisterClient",
+            children: [
+                { tag: "field", id: 0x2, name: "Key", isSecret: true },
+                { tag: "field", id: 0x3, name: "VerificationKey", isSecret: true },
+            ],
+        },
+        {
+            tag: "command",
+            id: 0x2,
+            name: "UnregisterClient",
+            children: [{ tag: "field", id: 0x1, name: "VerificationKey", isSecret: true }],
         },
     ],
 });

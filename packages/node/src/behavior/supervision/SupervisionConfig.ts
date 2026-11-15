@@ -6,7 +6,6 @@
 
 import type { Val } from "@matter/protocol";
 import { Internal } from "../state/managed/Internal.js";
-import type { ValReference } from "../state/managed/ValReference.js";
 import type { Supervision } from "./Supervision.js";
 
 /**
@@ -134,7 +133,7 @@ export function maybeConfigOf(
 function maybeConfigOfObject(object: Val.Struct, fieldName?: string): Supervision.Config | Supervision | undefined {
     let config: Supervision.Config | undefined;
 
-    const ref = (object as Record<symbol, unknown>)[Internal.reference] as ValReference | undefined;
+    const ref = Internal.referenceOf(object);
     if (ref) {
         config = ref.supervisionConfig;
     } else {

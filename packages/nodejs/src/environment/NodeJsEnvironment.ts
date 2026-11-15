@@ -207,7 +207,7 @@ function cryptoDespite(defect: string): Crypto {
         return new NodeJsCrypto();
     }
 
-    logger.notice(`Using standard crypto because Node.js crypto offers ${defect}`);
+    logger.debug(`Using standard crypto because Node.js crypto offers ${defect}`);
     return standardCrypto;
 }
 

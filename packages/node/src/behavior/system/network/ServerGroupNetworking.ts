@@ -24,7 +24,8 @@ const JOIN_RETRY_INTERVAL = Seconds(30);
 
 /**
  * Joins the multicast address of every group the fabrics use on the node's UDP transport and follows group changes.
- * An address stays joined while any fabric still uses it.
+ * A fabric uses a group while the group has an entry in its {@link FabricGroups.endpoints}, and the address joined is
+ * {@link FabricGroups.multicastAddressFor} of that group.  An address stays joined while any fabric still uses it.
  */
 export class ServerGroupNetworking {
     #construction: Construction<ServerGroupNetworking>;
@@ -202,7 +203,7 @@ export class ServerGroupNetworking {
         const fabricIndex = fabric.fabricIndex;
 
         // Multicast membership follows group existence (groups with endpoints to receive for), not key availability:
-        // a group whose key mapping was removed still receives datagrams so Groupcast testing can report NoAvailableKey
+        // a group whose key mapping was removed still receives datagrams so Groupcast testing can report them
         const observers = this.#observersForFabric(fabricIndex);
         observers.on(fabric.groups.endpoints.added, groupId => {
             this.#want(groupId, fabric);

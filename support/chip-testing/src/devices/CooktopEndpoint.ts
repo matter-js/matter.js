@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CommonPositionTag, Endpoint, ServerNode } from "@matter/main";
+import { CommonPositionTag, Endpoint } from "@matter/main";
 import { DescriptorServer } from "@matter/main/behaviors/descriptor";
 import { IdentifyServer } from "@matter/main/behaviors/identify";
 import { OnOffServer } from "@matter/main/behaviors/on-off";
@@ -24,7 +24,7 @@ const CookSurface = CookSurfaceDevice.with(
 
 registerDeviceType({
     name: "cooktop",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber, numbers: EndpointNumberAllocator) {
+    async create(parent: Endpoint, endpoint: EndpointNumber, numbers: EndpointNumberAllocator) {
         // Children come with their parent, so the parent's composition is judged complete at construction
         const ep = new Endpoint(CooktopDevice, {
             number: endpoint,
@@ -41,7 +41,7 @@ registerDeviceType({
                 }),
             ],
         });
-        await serverNode.add(ep);
+        await parent.add(ep);
 
         return { endpoint: ep };
     },

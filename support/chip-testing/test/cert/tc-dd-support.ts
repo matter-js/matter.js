@@ -25,11 +25,18 @@ import type {
     CommissioningTarget,
     ControllerAdapter,
     ControllerCapability,
+    DiscoveredCommissionableNode,
     LogFollower,
     OnboardingPayloadFields,
 } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
-import { controllerCapabilityGap, flavorFamily, forFlavor, UnsupportedByControllerError } from "@matter/testing";
+import {
+    CertLogTimeoutError,
+    controllerCapabilityGap,
+    flavorFamily,
+    forFlavor,
+    UnsupportedByControllerError,
+} from "@matter/testing";
 import { ControllerCommandError } from "../../src/cert/controller-command-error.js";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
@@ -725,14 +732,17 @@ export function recordGeneratedPayload(
 export const PARSES_PAYLOAD: readonly ControllerCapability[] = ["onboarding-payload-parse"];
 
 /**
- * The commissioning attempts a TC has told the DUT to refuse.
+ * The commissioning attempts a TC expects to fail: one the DUT has to refuse, or one a TH controller makes that
+ * the TH has to refuse.
+ *
+ * `Role` names the case's controller roles that make such attempts besides the DUT (`dut`).
  *
  * A TC's `finalize` must {@link settle} this. An attempt outlives the check that judged it —
  * {@link expectRejection} stops waiting at its budget but the commissioning carries on — so a
  * fabric this class asked for can land after every other cleanup has run.
  */
-export class CommissioningRefusals {
-    #attempts = new Array<Promise<CertNodeRef | undefined>>();
+export class CommissioningRefusals<Role extends string = "dut"> {
+    #attempts = new Array<Promise<{ role: Role | "dut"; ref: CertNodeRef } | undefined>>();
     #refusalTimeout: Duration;
     #settleTimeout: Duration;
 
@@ -753,11 +763,14 @@ export class CommissioningRefusals {
      * remove. An attempt whose outcome the step *did* see is owned by the step, and handing that one
      * over as well would have its fabric removed twice. Kept as a settled outcome so an attempt nobody
      * awaits again cannot surface as an unhandled rejection.
+     *
+     * `role` names the controller that made the attempt, which is the one {@link settle} removes the
+     * fabric with.
      */
-    track(attempt: Promise<CertNodeRef>): void {
+    track(attempt: Promise<CertNodeRef>, role: Role | "dut"): void {
         this.#attempts.push(
             attempt.then(
-                ref => ref,
+                ref => ({ role, ref }),
                 () => undefined,
             ),
         );
@@ -773,7 +786,7 @@ export class CommissioningRefusals {
      */
     async requireRefusal(cx: CertStepContext, target: CommissioningTarget, what: string): Promise<void> {
         const attempt = cx.controllers.dut.commission(target);
-        this.track(attempt);
+        this.track(attempt, "dut");
 
         record(
             cx,
@@ -844,7 +857,7 @@ export class CommissioningRefusals {
 
         const label = `commissioning from ${describeTarget(target)}`;
         const attempt = dut.commission(target);
-        this.track(attempt);
+        this.track(attempt, "dut");
 
         const outcome = await expectRejection(label, attempt, timeout, isCommissioningGiveUp);
         const checks: RecordedCheck[] = [
@@ -880,20 +893,21 @@ export class CommissioningRefusals {
 
         if (refs === undefined) {
             throw new CertCleanupError(
-                `${attempts.length} commissioning attempt(s) the DUT was asked to refuse are still running after ` +
+                `${attempts.length} commissioning attempt(s) expected to fail are still running after ` +
                     `${Duration.format(this.#settleTimeout)}; one that succeeds now cannot be cleaned up`,
             );
         }
 
         const failures = new Array<string>();
-        for (const ref of refs) {
-            if (ref === undefined) {
+        for (const onboarded of refs) {
+            if (onboarded === undefined) {
                 continue;
             }
+            const { role, ref } = onboarded;
             try {
-                await cx.controllers.dut.node(ref).decommission();
+                await cx.controllers[role].node(ref).decommission();
             } catch (e) {
-                failures.push(`${ref}: ${e instanceof Error ? e.message : String(e)}`);
+                failures.push(`${role} ${ref}: ${e instanceof Error ? e.message : String(e)}`);
             }
         }
         if (failures.length) {
@@ -1143,15 +1157,164 @@ export const MANUAL_CODE_GUIDELINES =
     "special attention to the CHECK_DIGIT using the Verhoeff algorithm.";
 
 /**
+ * The TH's commissionable DNS-SD instance name. chip's minimal mDNS lists the instance when it starts advertising and
+ * a platform build names it in its publish line; matter.js names it when it publishes.
+ */
+const COMMISSIONABLE_INSTANCE = {
+    chip: /Responding with ([0-9A-Fa-f]+)\._matterc\._udp\.local|mDNS service published: _matterc\._udp; instance name: ([0-9A-Fa-f]+)/,
+    matterjs: /MdnsAdvertisement Publishing kind: commissionable service: mdns:([0-9A-Fa-f]+)\._matterc\._udp\.local/,
+};
+
+/** How long after deciding to advertise a TH names its instance; chip lists it a few milliseconds later. */
+const INSTANCE_NAME_DELAY = Seconds(2);
+
+/**
+ * The instance names `th`'s log says it advertises as commissionable under, from log line `from` on. A TH draws each name at random, so
+ * a record that another device or an earlier TH left for the same discriminator carries another one. A matter.js TH
+ * draws a new name each time it advertises again, and peers may still cache the earlier ones, so every name counts.
+ *
+ * Waits up to {@link COMMISSIONING_LOG_TIMEOUT} for the TH to decide what to advertise, which every platform logs, and
+ * then up to {@link INSTANCE_NAME_DELAY} for a name. Empty when the log names none by then, as a chip platform build on
+ * Darwin may not at boot; the caller then matches by discriminator.
+ */
+export async function thCommissionableInstanceNames(th: CertDevice, from = 0): Promise<string[]> {
+    const pattern = forFlavor(COMMISSIONABLE_INSTANCE, th.flavor);
+    if (pattern === undefined) {
+        return [];
+    }
+    try {
+        const decided = await th.log.expect(ADVERTISING_DECIDED, {
+            flavor: th.flavor,
+            from,
+            timeoutMs: COMMISSIONING_LOG_TIMEOUT,
+        });
+        if (decided.verdict === "pass") {
+            await th.log.expectPattern(pattern, { from: decided.matched.index, timeoutMs: INSTANCE_NAME_DELAY });
+        }
+    } catch (error) {
+        if (!(error instanceof CertLogTimeoutError)) {
+            throw error;
+        }
+    }
+    await th.log.settled();
+    const instanceNames = new Set<string>();
+    for (const { text, synthetic } of th.log.lines.slice(from)) {
+        if (synthetic) {
+            continue;
+        }
+        const match = pattern.exec(text);
+        const instanceName = match?.[1] ?? match?.[2];
+        if (instanceName !== undefined) {
+            instanceNames.add(instanceName);
+        }
+    }
+    return [...instanceNames];
+}
+
+/**
+ * Whether `th` is discoverable as a commissionable device. Only the TH's own instance counts, see
+ * {@link thCommissionableInstanceNames}.
+ */
+export async function commissionableCheck(th: CertDevice): Promise<CheckRecord> {
+    const commissionableInstanceNames = await thCommissionableInstanceNames(th);
+    return expectMdns(th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT, commissionableInstanceNames });
+}
+
+/**
  * Records that the TH is discoverable as a commissionable device, which every commissioning-flow plan
- * states as its own step or precondition.
+ * states as its own step or precondition; see {@link commissionableCheck}.
  */
 export async function recordCommissionable(
     cx: CertStepContext,
     what = "TH advertising as commissionable",
     th = theTh(cx),
 ): Promise<void> {
-    record(cx, await expectMdns(th, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT }), what);
+    record(cx, await commissionableCheck(th), what);
+}
+
+/** What a step that has the DUT discover commissionable nodes needs of it: {@link recordDiscoveredTh}. */
+export const DISCOVERS_COMMISSIONABLE: readonly ControllerCapability[] = ["commissionable-discovery"];
+
+/** The onboarding values a discovered TH has to be reported with. */
+export interface ExpectedDiscoveredNode {
+    /** The TH's DNS-SD instances, see {@link thCommissionableInstanceNames}; any instance if empty. */
+    instanceNames: string[];
+    longDiscriminator: number;
+    vendorId: number;
+    productId: number;
+}
+
+/**
+ * Judges what the DUT reported from a commissionable discovery: a pass needs one reported node that carries the TH's
+ * long discriminator together with the vendor and product its onboarding payload names. The detail names every node
+ * the DUT reported, so a failure shows what the DUT saw instead.
+ */
+export function discoveredThCheck(
+    nodes: readonly DiscoveredCommissionableNode[],
+    expected: ExpectedDiscoveredNode,
+): CheckRecord {
+    const found = nodes.some(
+        node =>
+            (expected.instanceNames.length === 0 ||
+                expected.instanceNames.some(name => name.toLowerCase() === node.instanceName.toLowerCase())) &&
+            node.longDiscriminator === expected.longDiscriminator &&
+            node.vendorId === expected.vendorId &&
+            node.productId === expected.productId,
+    );
+    const reported = nodes.length
+        ? nodes
+              .map(
+                  node =>
+                      `${node.instanceName} (D=${node.longDiscriminator} vendorId=${node.vendorId} ` +
+                      `productId=${node.productId} CM=${node.commissioningMode})`,
+              )
+              .join(", ")
+        : "no commissionable node";
+    return {
+        type: "response",
+        verdict: found ? "pass" : "fail",
+        detail:
+            `DUT reported ${reported}; the TH advertises as ${expected.instanceNames.join(" or ") || "any instance"}, its ` +
+            `onboarding payload names D=${expected.longDiscriminator} vendorId=${expected.vendorId} ` +
+            `productId=${expected.productId}`,
+    };
+}
+
+/**
+ * Has the DUT discover commissionable nodes over DNS-SD, and records whether it reported `th` with the values of the
+ * TH's own onboarding payload. The DUT is asked to look for the TH's long discriminator, as a commissioner holding
+ * that payload would; a DUT that cannot narrow its search reports every node it found, and the check selects.
+ */
+export async function recordDiscoveredTh(cx: CertStepContext, th = theTh(cx)): Promise<void> {
+    const dut = cx.controllers.dut;
+    if (dut.discoverCommissionableNodes === undefined) {
+        throw new UnsupportedByControllerError(
+            "discoverCommissionableNodes",
+            dut.id,
+            "the adapter offers no commissionable discovery",
+            "commissionable-discovery",
+        );
+    }
+
+    const { vendorId, productId, discriminator: longDiscriminator } = qrPayloadFields(await thQrPayload(th));
+
+    const instanceNames = await thCommissionableInstanceNames(th);
+    let nodes: DiscoveredCommissionableNode[];
+    try {
+        nodes = await dut.discoverCommissionableNodes({ longDiscriminator });
+    } catch (e) {
+        if (e instanceof UnsupportedByControllerError) {
+            throw e;
+        }
+        cx.recorder.check({ type: "response", verdict: "fail", detail: `DUT commissionable discovery failed: ${e}` });
+        throw e;
+    }
+
+    record(
+        cx,
+        discoveredThCheck(nodes, { instanceNames, longDiscriminator, vendorId, productId }),
+        "Commissionable discovery",
+    );
 }
 
 /**
@@ -1247,6 +1410,55 @@ export async function chipToolDiscoveryGaveUp(log: LogFollower, from: number): P
         };
     }
     return timedOut.check;
+}
+
+const CHIP_TOOL_PAIRING_ENDED = /\[TOO\] Secure Pairing (Failed|Success)/;
+const CHIP_TOOL_PASE_FAILED = /Failed during PASE session setup|PASESession timed out while waiting for a response/;
+const CHIP_TOOL_PASE_SUCCEEDED = /PASE establishment successful|Secure Pairing Success/;
+
+/**
+ * chip-tool's own log showing that an attempt from `from` on ended without a commissioning: every PASE it started
+ * failed (`PASESession` logs `Failed during PASE session setup`, or that it timed out waiting for the device), none
+ * succeeded, and without a PASE attempt its discovery timed out.  chip-tool tries every device it discovers and keeps
+ * discovering after a refused PASE.  Its discovery timeout does not end a PASE still running, so the attempt ends only
+ * where chip-tool reports `Secure Pairing Failed`, once per command.  For a step whose plan accepts a device that
+ * still advertises but refuses PASE; the caller checks on the device that no PASE was accepted.
+ */
+export async function chipToolGaveUpOrPaseFailed(log: LogFollower, from: number): Promise<CheckRecord> {
+    const ended = await expectDeviceLog(log, "chip", { chip: CHIP_TOOL_PAIRING_ENDED }, from, LOG_TIMEOUT);
+    const until = ended.check.logLine;
+    if (ended.check.verdict !== "pass" || until === undefined) {
+        return ended.check;
+    }
+    const lines = log.lines.filter(line => line.index >= from && line.index <= until);
+    const succeeded = lines.find(line => CHIP_TOOL_PASE_SUCCEEDED.test(line.text));
+    if (succeeded !== undefined) {
+        return { type: "device-log", verdict: "fail", detail: `chip-tool established PASE: ${succeeded.text}` };
+    }
+    const attempts = lines.filter(line => CHIP_TOOL_PASE_ATTEMPT.test(line.text)).length;
+    const failures = lines.filter(line => CHIP_TOOL_PASE_FAILED.test(line.text)).length;
+    if (attempts === 0) {
+        const timedOut = lines.find(line => CHIP_TOOL_DISCOVERY_TIMED_OUT.test(line.text));
+        if (timedOut === undefined) {
+            return {
+                type: "device-log",
+                verdict: "fail",
+                detail: `chip-tool's pairing failed without a PASE attempt or a discovery timeout: ${ended.check.matched}`,
+            };
+        }
+        return { ...ended.check, detail: `chip-tool's discovery timed out: ${timedOut.text}` };
+    }
+    if (failures < attempts) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            detail: `chip-tool started ${attempts} PASE attempt(s) and logged ${failures} failed before: ${ended.check.matched}`,
+        };
+    }
+    return {
+        ...ended.check,
+        detail: `chip-tool's ${attempts} PASE attempt(s) all failed before: ${ended.check.matched}`,
+    };
 }
 
 /**
@@ -1374,7 +1586,7 @@ export async function recordVendorOutcome(
             // Only now does cleanup own the attempt: an outcome this step saw is already owned, by
             // `commissioned` for one that onboarded, and handing it over as well would have the fabric
             // removed twice.
-            refusals.track(attempt);
+            refusals.track(attempt, "dut");
             record(
                 cx,
                 {
@@ -1449,8 +1661,9 @@ export async function recordUnpair(
  * family has no known means, so this throws before resetting or probing it.
  *
  * **The device's line is what witnesses the transition; the mDNS probe corroborates it.** A probe on
- * its own is answered by any live record for the TH's discriminator, including one cached before it
- * was ever commissioned — and every flavor pins its discriminator across restarts. Measured, not
+ * its own is answered by any live record of an instance the TH's log names, including one it published
+ * before it was commissioned, and where the log names none, by any live record for the TH's
+ * discriminator, which every flavor pins across restarts. Measured, not
  * theorised: on a matterjs run the probe passed at 13:05:44.088 and the device published its
  * commissionable record at 13:05:44.123, 35 ms later.
  *
@@ -1513,8 +1726,8 @@ export async function recordBackInCommissioningMode(
         `${th.id} announced it is advertising commissionable again`,
     );
 
-    // Corroboration only. On its own this is answered by any live record for the TH's discriminator,
-    // including the one it published before it was ever commissioned; the announcement checked above
+    // Corroboration only. On its own this is answered by any live record of an instance the TH named,
+    // including one it published before it was commissioned; the announcement checked above
     // is what witnesses the transition.
     await probeCommissionable(cx, what);
 }
@@ -1526,7 +1739,7 @@ export async function recordBackInCommissioningMode(
  * The fabric comes off first, so the controller never holds a peer for a fabric the device has
  * forgotten.
  */
-async function restoreCommissioningMode(
+export async function restoreCommissioningMode(
     cx: CertStepContext,
     commissioned: CommissionedRefs,
     probeCommissionable?: (cx: CertStepContext, what: string) => Promise<void>,

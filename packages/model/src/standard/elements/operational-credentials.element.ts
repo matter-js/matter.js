@@ -95,7 +95,7 @@ export const OperationalCredentials = Cluster(
         { name: "AddNoc", id: 0x6, access: "A", conformance: "M", direction: "request", response: "NocResponse" },
         Field({ name: "NocValue", id: 0x0, type: "octstr", conformance: "M", constraint: "max 400" }),
         Field({ name: "IcacValue", id: 0x1, type: "octstr", conformance: "O", constraint: "max 400" }),
-        Field({ name: "IpkValue", id: 0x2, type: "octstr", conformance: "M", constraint: "16" }),
+        Field({ name: "IpkValue", id: 0x2, type: "octstr", conformance: "M", constraint: "16", isSecret: true }),
         Field({ name: "CaseAdminSubject", id: 0x3, type: "subject-id", conformance: "M" }),
         Field({ name: "AdminVendorId", id: 0x4, type: "vendor-id", conformance: "M" })
     ),

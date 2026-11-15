@@ -32,7 +32,12 @@ export class ServerBehaviorBacking extends BehaviorBacking {
     #suppressedChanges?: Map<string, "changesOmitted" | "quieter">;
     #quietObservers?: ObserverGroup;
 
-    constructor(endpoint: Endpoint, type: Behavior.Type, store: Datasource.Store, options?: Behavior.Options) {
+    constructor(
+        endpoint: Endpoint,
+        type: Behavior.Type,
+        store: Datasource.PersistentStore,
+        options?: Behavior.Options,
+    ) {
         super(endpoint, type, store, options);
 
         this.#configureEventSuppression();
