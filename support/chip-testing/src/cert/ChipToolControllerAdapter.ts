@@ -780,6 +780,10 @@ interface ChipGlobalStatus {
     clusterStatus?: number;
 }
 
+/**
+ * The entries of a chip-tool command's own results. Subscription reports on paths the command did not ask about are not
+ * part of it (see {@link isOwnResult}).
+ */
 interface ChipReply {
     values: ChipAttributeValue[];
     events: ChipEventValue[];
@@ -807,50 +811,51 @@ function isExitFailureMarker(result: unknown) {
     return isObject(result) && Object.keys(result).length === 1 && result.error === "FAILURE";
 }
 
-/** A concrete path chip-tool reported an entry for, of either kind. */
-type ReportedPath = { endpoint: number; cluster: number } & (
-    | { attribute: number; event?: undefined }
-    | { event: number; attribute?: undefined }
-);
-
-/** The paths a chip-tool command asked about, by kind. */
+/**
+ * The attribute and event paths a chip-tool command asked about. A command that asks about none, such as an invoke or a
+ * `pairing` command, passes {@link NO_PATHS}.
+ */
 interface RequestedPaths {
     attributes?: AttributePathSpec[];
     events?: EventPathSpec[];
 }
 
-/**
- * Whether the command a reply belongs to could itself have produced an entry for one concrete path,
- * as opposed to a live subscription of some other command.
- */
-type OwnPathTest = (path: ReportedPath) => boolean;
+const NO_PATHS: RequestedPaths = {};
 
 /**
- * Whether `result` accounts for the command's non-zero exit, which only an interaction status can:
- * one chip-tool logged for the interaction as a whole (`RemoteDataModelLogger::LogErrorAsJSON(const
- * CHIP_ERROR &)`), or one for a path this command itself could have asked about. An attribute value or
- * a command response says nothing about why the command failed.
+ * Whether `result` is the command's own entry rather than a subscription report chip-tool recorded into the command's
+ * results. Reports carry no subscription id (`RemoteDataModelLogger::LogAttributeAsJSON`), so the path decides:
+ *
+ * | entry                                    | own when                             |
+ * |------------------------------------------|--------------------------------------|
+ * | event value or status                    | a requested event path covers it     |
+ * | attribute value or status                | a requested attribute path covers it |
+ * | status without endpoint or cluster       | always                               |
+ * | command status or response               | always: a report names no command    |
+ *
+ * A status without a path is usually chip-tool's account of the command's own failure. It can also be the error of a
+ * subscription that ended (`ReportCommand::OnError`), which nothing in the entry tells apart, so it counts as the
+ * command's own.
+ *
+ * An entry on a requested path that a live subscription also covers stays the command's own, so a step that subscribes
+ * and then writes the same attribute sees the status the device answered its write with.
  */
-function accountsForFailure(result: unknown, isOwnPath: OwnPathTest) {
-    if (!isObject(result) || !("error" in result)) {
-        return false;
+function isOwnResult(result: unknown, requested: RequestedPaths) {
+    if (!isObject(result)) {
+        return true;
     }
     const endpoint = numberOf(result, "endpointId");
     const cluster = numberOf(result, "clusterId");
     const attribute = numberOf(result, "attributeId");
     const event = numberOf(result, "eventId");
     if (endpoint === undefined || cluster === undefined) {
-        // Only a per-path status carries a whole path, so a status with less than one cannot be a
-        // subscription's report and is this command's own
         return true;
     }
-    // Event first, matching ChipToolControllerAdapter's own #isOwnPath, so the two never classify one
-    // entry against different subscription lists
     if (event !== undefined) {
-        return isOwnPath({ endpoint, cluster, event });
+        return requested.events?.some(path => eventPathCovers(path, { endpoint, cluster, event })) === true;
     }
     if (attribute !== undefined) {
-        return isOwnPath({ endpoint, cluster, attribute });
+        return requested.attributes?.some(path => pathCovers(path, { endpoint, cluster, attribute })) === true;
     }
     return true;
 }
@@ -866,7 +871,8 @@ function bigIntOf(entry: Record<string, unknown>, key: string): bigint | undefin
     return undefined;
 }
 
-function interpretReply(results: unknown[], isOwnPath: OwnPathTest): ChipReply {
+/** Decodes the command's own entries of a reply, as {@link isOwnResult} selects them. */
+function interpretReply(results: unknown[]): ChipReply {
     const reply: ChipReply = {
         values: new Array<ChipAttributeValue>(),
         events: new Array<ChipEventValue>(),
@@ -880,13 +886,11 @@ function interpretReply(results: unknown[], isOwnPath: OwnPathTest): ChipReply {
     // FAILURE is that marker: an earlier one is a status chip-tool derived from a `StatusIB`.
     const markerIndex = isExitFailureMarker(results[results.length - 1]) ? results.length - 1 : -1;
 
-    // The marker is redundant once the reply carries the failure's own account — a wildcard read's
-    // per-path statuses, say. Nothing else in a reply is such an account: chip-tool records values and
-    // subscription reports into whichever frame owns its result slot, so a failed command's reply can
-    // consist of the marker beside a value on a path the command itself asked about, and taking that
-    // for an account would report the failure as a success.
+    // The marker is redundant once the reply carries the failure's own account, which only a status is: a failed
+    // command's reply can consist of the marker beside a value on a path the command asked about, and taking that for
+    // an account would report the failure as a success.
     const accountedFor =
-        markerIndex !== -1 && results.slice(0, markerIndex).some(result => accountsForFailure(result, isOwnPath));
+        markerIndex !== -1 && results.slice(0, markerIndex).some(result => isObject(result) && "error" in result);
 
     for (const [index, result] of results.entries()) {
         if (index === markerIndex) {
@@ -1185,9 +1189,6 @@ function loggedWriteStatuses(
         if (endpoint === undefined || cluster === undefined || attribute === undefined) {
             continue;
         }
-        if (!paths.some(path => pathCovers(path, { endpoint, cluster, attribute }))) {
-            continue;
-        }
         // A list written as REPLACE plus ADDs is answered with one status per data item, all on the same path
         const listed = logged.filter(
             entry => entry.endpoint === endpoint && entry.cluster === cluster && entry.attribute === attribute,
@@ -1275,6 +1276,7 @@ class ChipToolCertGroupApi implements CertGroupApi {
             await this.#adapter.execute(
                 // Without the flag chip-tool sends to the per-group address; 0 is `MulticastAddrPolicyEnum.IanaAddr`
                 `groupsettings add-group group${group} ${group}${addressPolicy === "ianaAddr" ? " --addressPolicy 0" : ""}`,
+                NO_PATHS,
             ),
             "groupsettings add-group",
         );
@@ -1283,11 +1285,12 @@ class ChipToolCertGroupApi implements CertGroupApi {
                 // Validity 0: the key is current from now, which is what the plan's own epoch start means
                 `groupsettings add-keysets ${keySetId} ${keySet.groupKeySecurityPolicy} 0 ` +
                     `hex:${Bytes.toHex(keySet.epochKey0)}`,
+                NO_PATHS,
             ),
             "groupsettings add-keysets",
         );
         assertCommandSucceeded(
-            await this.#adapter.execute(`groupsettings bind-keyset ${group} ${keySetId}`),
+            await this.#adapter.execute(`groupsettings bind-keyset ${group} ${keySetId}`, NO_PATHS),
             "groupsettings bind-keyset",
         );
     }
@@ -1307,6 +1310,7 @@ class ChipToolCertGroupApi implements CertGroupApi {
                 // No large-payload flag: a groupcast is UDP multicast, so the TCP preference a
                 // transport option expresses cannot apply to it
                 `${groupDestination(this.#groupId)} 0`,
+            NO_PATHS,
         );
 
         assertNoFailure(reply, `group invoke ${clusterModel.name}.${commandModel.name}`);
@@ -1342,6 +1346,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
         const reply = await this.#adapter.execute(
             `any command-by-id ${hex(clusterId)} ${hex(commandModel.id)} ${quoteArg(fields)} ` +
                 `${this.#node} ${endpoint}${timedArg(options)}${largePayloadArg(this.#adapter.transport)}`,
+            NO_PATHS,
         );
 
         const operation = `invoke ${clusterModel.name}.${commandModel.name}`;
@@ -1399,12 +1404,12 @@ class ChipToolCertNodeApi implements CertNodeApi {
             `otasoftwareupdaterequestor announce-otaprovider ${NodeId(announcement.providerNodeId)} ` +
                 `${announcement.vendorId} ${announcement.announcementReason} ${announcement.endpoint} ` +
                 `${this.#node} ${requestorEndpoint}${largePayloadArg(this.#adapter.transport)}`,
+            NO_PATHS,
         );
 
         const operation = "invoke OtaSoftwareUpdateRequestor.AnnounceOtaProvider";
         assertNoFailure(reply, operation);
-        // A subscription report riding along in the reply carries attribute or event statuses, never a command's
-        const status = reply.statuses.find(({ command }) => command !== undefined);
+        const [status] = reply.statuses;
         if (status !== undefined) {
             throw deviceStatusError(status, operation);
         }
@@ -1443,16 +1448,11 @@ class ChipToolCertNodeApi implements CertNodeApi {
 
         const { endpoint, cluster, attribute } = path;
         if (endpoint !== undefined && cluster !== undefined && attribute !== undefined) {
-            // Matched against the requested path, not taken positionally: a live subscription's report
-            // lands in a concurrent command's own results (see ChipToolClient), so index 0 is not
-            // necessarily this read's answer.
-            const status = statusFor(reply.statuses, { endpoint, cluster, attribute });
+            const [status] = reply.statuses;
             if (status !== undefined) {
                 throw deviceStatusError(status, "readAttribute", `readAttribute ${JSON.stringify(path)} failed`);
             }
-            const value = reply.values.find(
-                entry => entry.endpoint === endpoint && entry.cluster === cluster && entry.attribute === attribute,
-            );
+            const [value] = reply.values;
             if (value === undefined) {
                 throw new InternalError(`readAttribute ${JSON.stringify(path)} returned no data`);
             }
@@ -1575,11 +1575,11 @@ class ChipToolCertNodeApi implements CertNodeApi {
             onUpdate: onUpdate && (entry => onUpdate(entry.value)),
         });
 
-        const seed = reply.values.filter(entry => pathCovers(path, entry));
         if (path.endpoint !== undefined && path.cluster !== undefined && path.attribute !== undefined) {
-            return seed.length === 0 ? undefined : decodeAttributeValue(seed[0]);
+            const [seed] = reply.values;
+            return seed === undefined ? undefined : decodeAttributeValue(seed);
         }
-        return toReadEntries(seed);
+        return toReadEntries(reply.values);
     }
 
     /** {@link subscribe} for several paths in one `any subscribe-by-id`, with the same bounds on the callbacks. */
@@ -1595,15 +1595,15 @@ class ChipToolCertNodeApi implements CertNodeApi {
         }
 
         const reply = await this.#adapter.subscribe("subscribeAttributes", this.#node, paths, opts);
-        return toReadEntries(reply.values.filter(entry => paths.some(path => pathCovers(path, entry))));
+        return toReadEntries(reply.values);
     }
 
     /**
      * Reads through `any read-event-by-id`.
      *
      * chip-tool's reports carry no subscription id and no node id, so an event a live subscription
-     * covers cannot be told from one this read asked for: a report chip-tool records into this
-     * command's result slot is returned here as well as delivered to that subscription's `onUpdate`.
+     * covers cannot be told from one this read asked for: a report on a requested path that chip-tool records into
+     * this command's result slot is returned here as well as delivered to that subscription's `onUpdate`.
      * Assert on the events, not on how many arrived.
      */
     async readEvents(paths: EventPathSpec[], options?: ReadEventOptions): Promise<EventReadEntry[]> {
@@ -1633,7 +1633,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
             throw deviceStatusError(refused.status, "readEvents", `readEvents ${JSON.stringify(refused.path)} failed`);
         }
 
-        return toEventEntries(reply.events.filter(entry => paths.some(path => eventPathCovers(path, entry))));
+        return toEventEntries(reply.events);
     }
 
     async observeEvents(_paths: EventPathSpec[], _opts: ObserveEventOptions): Promise<EventReadEntry[]> {
@@ -1658,7 +1658,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
         }
 
         const reply = await this.#adapter.subscribeEvents(this.#node, paths, opts);
-        return toEventEntries(reply.events.filter(entry => paths.some(path => eventPathCovers(path, entry))));
+        return toEventEntries(reply.events);
     }
 
     async clientEndpoints(): Promise<ClientEndpointEntry[]> {
@@ -1687,6 +1687,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
         const reply = await this.#adapter.executeWithLogs(
             `pairing open-commissioning-window ${this.#node} ${opts.enhanced ? 1 : 0} ${opts.timeout} ` +
                 `${PBKDF_ITERATIONS} ${discriminator}`,
+            NO_PATHS,
         );
         assertCommandSucceeded(reply.reply, "openCommissioningWindow");
 
@@ -1709,7 +1710,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
     }
 
     async decommission(): Promise<void> {
-        const reply = await this.#adapter.execute(`pairing unpair ${this.#node}`);
+        const reply = await this.#adapter.execute(`pairing unpair ${this.#node}`, NO_PATHS);
         assertCommandSucceeded(reply, `decommission of node ${this.#node}`);
     }
 
@@ -1746,6 +1747,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
 
             const issued = await this.#adapter.executeWithLogs(
                 `pairing issue-noc-chain hex:${Bytes.toHex(csr.nocsrElements)} ${this.#node}`,
+                NO_PATHS,
             );
             const chain = issuedNocChainOf(issued.results);
             if (chain === undefined) {
@@ -1766,7 +1768,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
             }
 
             assertCommandSucceeded(
-                await this.#adapter.execute(`sessionmanagement expire-case-sessions ${this.#node}`),
+                await this.#adapter.execute(`sessionmanagement expire-case-sessions ${this.#node}`, NO_PATHS),
                 "expire-case-sessions",
             );
             await this.#generalCommissioning("commissioningComplete", {});
@@ -1809,7 +1811,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
     async #expireCaseSessions() {
         try {
             assertCommandSucceeded(
-                await this.#adapter.execute(`sessionmanagement expire-case-sessions ${this.#node}`),
+                await this.#adapter.execute(`sessionmanagement expire-case-sessions ${this.#node}`, NO_PATHS),
                 "expire-case-sessions",
             );
         } catch (error) {
@@ -2111,7 +2113,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
                 commissionerName: this.#commissionerName,
                 port: portOverrideFor(this.id),
                 onLog: line => this.#logStream.push(line),
-                onAsyncResult: entry => this.#onAsyncResult(entry),
+                onAsyncResult: entry => this.#deliverReport(entry),
             });
             this.#client = client;
 
@@ -2141,7 +2143,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     }
 
     async parseQrPayload(code: string): Promise<OnboardingPayloadFields> {
-        const { reply, logs } = await this.executeWithLogs(`payload parse-setup-payload ${quoteArg(code)}`);
+        const { reply, logs } = await this.executeWithLogs(`payload parse-setup-payload ${quoteArg(code)}`, NO_PATHS);
         assertCommandSucceeded(reply, `parse of onboarding payload ${code}`);
 
         return {
@@ -2157,7 +2159,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     }
 
     async parseManualPairingCode(code: string): Promise<ManualPairingCodeFields> {
-        const { reply, logs } = await this.executeWithLogs(`payload parse-setup-payload ${quoteArg(code)}`);
+        const { reply, logs } = await this.executeWithLogs(`payload parse-setup-payload ${quoteArg(code)}`, NO_PATHS);
         assertCommandSucceeded(reply, `parse of manual pairing code ${code}`);
 
         const digits = code.replace(/\D/g, "");
@@ -2183,7 +2185,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             filter?.longDiscriminator === undefined
                 ? "discover commissionables"
                 : `discover find-commissionable-by-long-discriminator ${filter.longDiscriminator}`;
-        const { reply, results } = await this.executeWithLogs(command);
+        const { reply, results } = await this.executeWithLogs(command, NO_PATHS);
         const nodes = discoveredCommissionableNodesOf(results);
         if (nodes.length === 0) {
             assertCommandSucceeded(reply, `discovery of commissionable nodes (${command})`);
@@ -2221,7 +2223,7 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             );
         }
 
-        const { reply, logs } = await this.executeWithLogs(command);
+        const { reply, logs } = await this.executeWithLogs(command, NO_PATHS);
         if (reply.commandFailed && logs.some(line => PAYLOAD_FAILURE.test(line))) {
             const detail = logs.find(line => PAYLOAD_FAILURE.test(line))?.trim();
             throw new OnboardingPayloadRefusedError(
@@ -2270,9 +2272,9 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
             throw deviceStatusError(refused.status, operation, `${operation} ${JSON.stringify(refused.path)} failed`);
         }
 
-        // Registering only now is what draws the seeding boundary: the priming values chip-tool
-        // recorded into this reply were dispatched while no subscription claimed these paths, so they
-        // are the caller's return value and every report after them is an update.
+        // Registering only now is what draws the seeding boundary: the priming values in this reply reach
+        // only earlier subscriptions of the same paths, so they are the caller's return value and every
+        // report after them is an update.
         this.#subscriptions.push({ paths, onUpdate: opts.onUpdate });
         this.#requireClient().armReports();
 
@@ -2363,10 +2365,11 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     /**
      * Sends one chip-tool command line and interprets its `results`.
      *
-     * `requested` names the paths the command itself asked about, which is what tells an entry the
-     * command produced from a report that merely rode along in its reply.
+     * `requested` names the paths the command itself asked about, which is what separates the command's own entries
+     * from the subscription reports chip-tool recorded into its results (see {@link isOwnResult}). The reply holds only
+     * the own entries. Each report goes to the live subscriptions covering its path, or to the controller log.
      */
-    async execute(command: string, requested?: RequestedPaths): Promise<ChipReply> {
+    async execute(command: string, requested: RequestedPaths): Promise<ChipReply> {
         return (await this.executeWithLogs(command, requested)).reply;
     }
 
@@ -2376,39 +2379,20 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
      */
     async executeWithLogs(
         command: string,
-        requested?: RequestedPaths,
+        requested: RequestedPaths,
     ): Promise<{ reply: ChipReply; logs: string[]; results: unknown[] }> {
         const result = await this.#requireClient().execute(command);
-        const reply = interpretReply(result.results, path => this.#isOwnPath(path, requested));
-        this.#dispatchReports(reply.values);
-        this.#dispatchEventReports(reply.events);
-        return { reply, logs: result.logs, results: result.results };
-    }
-
-    /**
-     * Whether the command that just ran could itself have produced an entry for `path`: it asked about
-     * that path, or no live subscription covers it. A path the command asked about stays its own
-     * however many subscriptions happen to cover it too — otherwise a step that subscribes and then
-     * writes the same attribute could never see the status the device answered its write with.
-     */
-    #isOwnPath(path: ReportedPath, requested?: RequestedPaths) {
-        if (path.event !== undefined) {
-            const entry = { endpoint: path.endpoint, cluster: path.cluster, event: path.event };
-            if (requested?.events?.some(candidate => eventPathCovers(candidate, entry))) {
-                return true;
+        const own = new Array<unknown>();
+        for (const entry of result.results) {
+            if (isOwnResult(entry, requested)) {
+                own.push(entry);
+                // A value on a requested path may also be a report of a subscription covering that path
+                this.#deliver(entry);
+            } else {
+                this.#deliverReport(entry);
             }
-            return !this.#eventSubscriptions.some(subscription =>
-                subscription.paths.some(candidate => eventPathCovers(candidate, entry)),
-            );
         }
-
-        const entry = { endpoint: path.endpoint, cluster: path.cluster, attribute: path.attribute };
-        if (requested?.attributes?.some(candidate => pathCovers(candidate, entry))) {
-            return true;
-        }
-        return !this.#subscriptions.some(subscription =>
-            subscription.paths.some(candidate => pathCovers(candidate, entry)),
-        );
+        return { reply: interpretReply(own), logs: result.logs, results: result.results };
     }
 
     #requireClient() {
@@ -2500,20 +2484,27 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     }
 
     /**
-     * A result entry that arrived outside any command reply: a subscription report if a live
-     * subscription covers its path, and otherwise evidence that belongs in the controller log.
-     *
-     * chip-tool sends these on its own schedule, so this runs on the WebSocket's message handler where
-     * a throw would take the process down rather than fail a test.
+     * Hands `entry` to every live subscription covering its path, and says whether one took it. Throws where chip-tool
+     * reported an entry this adapter cannot decode.
      */
-    #onAsyncResult(entry: unknown) {
+    #deliver(entry: unknown) {
+        const { values, events } = interpretReply([entry]);
+        const claimed = this.#dispatchReports(values);
+        return this.#dispatchEventReports(events) || claimed;
+    }
+
+    /**
+     * A subscription report: an entry that arrived outside any command reply, or one no command asked about. A report
+     * no live subscription takes is evidence that belongs in the controller log.
+     *
+     * Nothing here throws: a report arrives in an unrelated command's reply or on the WebSocket's message handler,
+     * where a throw would fail that command or take the process down.
+     */
+    #deliverReport(entry: unknown) {
         try {
-            const reply = interpretReply([entry], path => this.#isOwnPath(path));
-            const claimed = this.#dispatchReports(reply.values);
-            if (this.#dispatchEventReports(reply.events) || claimed) {
-                return;
+            if (!this.#deliver(entry)) {
+                this.#logStream.push(`Unattributed chip-tool result: ${stringifyChipJson(entry)}`);
             }
-            this.#logStream.push(`Unattributed chip-tool result: ${stringifyChipJson(entry)}`);
         } catch (e) {
             this.#logStream.push(`Unusable chip-tool result: ${e}`);
         }
