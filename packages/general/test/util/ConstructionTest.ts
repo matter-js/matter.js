@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { LogDestination } from "#log/LogDestination.js";
+import { Logger } from "#log/Logger.js";
+import { LogLevel } from "#log/LogLevel.js";
+import { MatterError } from "#MatterError.js";
 import { asyncNew, Construction, type Constructable } from "#util/Construction.js";
 import { Lifecycle } from "#util/Lifecycle.js";
 import { MaybePromise } from "#util/Promises.js";
@@ -79,6 +83,62 @@ describe("Construction", () => {
             await expect(subject.construction.ready).rejectedWith(Error, "async boom");
             expect(subject.construction.status).equal(Lifecycle.Status.Crashed);
             expect(subject.construction.error?.message).equal("async boom");
+        });
+
+        it("runs onSuccess listeners once it completes, and at once when it completed before", async () => {
+            let finish!: () => void;
+            const subject = new Subject(
+                () =>
+                    new Promise<void>(resolve => {
+                        finish = resolve;
+                    }),
+            );
+            const calls = new Array<string>();
+            subject.construction.onSuccess(() => void calls.push("waiting"));
+
+            finish();
+            await subject.construction.ready;
+            subject.construction.onSuccess(() => void calls.push("late"));
+            await MockTime.yield();
+
+            expect(calls).deep.equal(["waiting", "late"]);
+        });
+
+        it("does not run onSuccess listeners and logs the cause once when it crashes", async () => {
+            const errors = new Array<string>();
+            const destination = LogDestination({
+                name: "construction-on-success-test",
+                level: LogLevel.ERROR,
+                write: (text, message) => {
+                    if (message.level >= LogLevel.ERROR) {
+                        errors.push(text);
+                    }
+                },
+            });
+            Logger.destinations[destination.name] = destination;
+            try {
+                let fail!: (error: Error) => void;
+                const subject = new Subject(
+                    () =>
+                        new Promise<void>((_resolve, reject) => {
+                            fail = reject;
+                        }),
+                );
+                let succeeded = false;
+                subject.construction.onSuccess(() => {
+                    succeeded = true;
+                });
+
+                fail(new MatterError("Initialization refused for test"));
+                await MockTime.yield();
+                await MockTime.yield();
+
+                expect(subject.construction.status).equal(Lifecycle.Status.Crashed);
+                expect(succeeded).equal(false);
+                expect(errors.filter(text => text.includes("Initialization refused for test")).length).equal(1);
+            } finally {
+                delete Logger.destinations[destination.name];
+            }
         });
 
         it("leaves a destroyed subject destroyed", async () => {

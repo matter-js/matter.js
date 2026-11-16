@@ -175,7 +175,9 @@ export interface Construction<T> extends Promise<T>, Lifetime.Owner {
     /**
      * Invoke a method after construction completes successfully.
      *
-     * Errors thrown by this callback are logged but otherwise ignored.
+     * Errors thrown by this callback are logged but otherwise ignored.  A construction that crashes, or that closes
+     * before it completes, never invokes it.  The listener does not count as handling a crash, so the construction
+     * still reports the cause of the crash unless another caller handles it.
      */
     onSuccess(actor: () => MaybePromise<void>): void;
 
@@ -358,16 +360,37 @@ const createConstruction = (() => {
                 try {
                     const result = actor();
                     if (MaybePromise.is(result)) {
-                        return Promise.resolve(result).catch(errorHandler);
+                        Promise.resolve(result).catch(errorHandler);
                     }
                 } catch (e) {
                     errorHandler(e);
                 }
             };
 
-            this.then(onSuccess).catch(e => {
-                CrashedDependencyError.accept(e);
-            });
+            switch (this.#status) {
+                case Lifecycle.Status.Active:
+                    queueMicrotask(onSuccess);
+                    return;
+
+                case Lifecycle.Status.Inactive:
+                case Lifecycle.Status.Initializing:
+                    break;
+
+                default:
+                    return;
+            }
+
+            const change = this.change;
+            const awaitCompletion = (status: Lifecycle.Status) => {
+                if (status === Lifecycle.Status.Inactive || status === Lifecycle.Status.Initializing) {
+                    return;
+                }
+                change.off(awaitCompletion);
+                if (status === Lifecycle.Status.Active) {
+                    queueMicrotask(onSuccess);
+                }
+            };
+            change.on(awaitCompletion);
         }
 
         onError(actor: (error: Error) => MaybePromise<void>) {

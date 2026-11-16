@@ -25,6 +25,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `MdnsSocket` logs some traffic statistics once per minute - set `mdns.statistics` (`MATTER_MDNS_STATISTICS`) to true for info loglevel, otherwise debug
     - Adjustment: Removed the unused WAL storage history API (`WalStorageDriver.snapshotAtTime()`/`snapshotAtCommit()`, the `headSnapshot` and `cleanInterval` options) and the `WalSnapshot` export
     - Adjustment: `Construction.crash()` of a subject that is being or has been destroyed keeps its status
+    - Fix: A construction that crashes no longer causes an unhandled rejection through an `onSuccess()` listener
     - Adjustment: Falling back to standard crypto, for example on Bun where Node.js crypto has no AES-CCM, logs one line at info level instead of two at notice level
     - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
     - Fix: WAL storage deletes old log segments after each periodic snapshot instead of only on close, and restores from the previous snapshot when the current one is unreadable
