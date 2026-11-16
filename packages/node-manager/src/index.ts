@@ -7,7 +7,7 @@
 export type { ManagedFabric } from "./ManagedFabric.js";
 export * from "./reconcile/kinds.js";
 export { ReconcilerBehavior } from "./ReconcilerBehavior.js";
-export type { ItemKind } from "./ReconcilerBehavior.js";
+export type { ItemKind, ItemWatch } from "./ReconcilerBehavior.js";
 
 export * from "./task/errors.js";
 

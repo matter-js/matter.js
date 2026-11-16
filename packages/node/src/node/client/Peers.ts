@@ -67,6 +67,7 @@ import { EndpointNumber, FabricIndex, NodeId, Status } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { ClientNode } from "../ClientNode.js";
+import type { Node } from "../Node.js";
 import type { ServerNode } from "../ServerNode.js";
 import { ClientNodeFactory } from "./ClientNodeFactory.js";
 import { ClientStructure } from "./ClientStructure.js";
@@ -411,6 +412,18 @@ export class Peers extends EndpointContainer<ClientNode> {
      */
     clusterInstalled<T extends ClusterBehavior.Type>(type: T) {
         return this.owner.env.get(ClientStructureEvents).clusterInstalled(type);
+    }
+
+    /**
+     * An {@link Observable} that emits after a peer's structure applied a batch of data — the data of a read or of a
+     * subscription report, wire changes, or the cache it starts from — once every endpoint and cluster event of that
+     * batch was emitted. Writes and invokes do not emit it, and the Matter event occurrences of a batch are emitted
+     * after it.
+     *
+     * Emits for every peer of this node; compare the argument to select one.
+     */
+    get structureApplied(): Observable<[node: Node]> {
+        return this.owner.env.get(ClientStructureEvents).structureApplied;
     }
 
     /** Commissioned operational peers. Excludes commissionable discoveries and group nodes. */

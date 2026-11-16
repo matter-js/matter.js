@@ -117,6 +117,8 @@ export function kindOf(name: string, extra: Partial<ItemKind> = {}): ItemKind {
         capacity: undefined,
         excludeFromAdmission: undefined,
         isReferenced: undefined,
+        watches: undefined,
+        satisfiedBy: undefined,
         ...extra,
     });
     return kind;

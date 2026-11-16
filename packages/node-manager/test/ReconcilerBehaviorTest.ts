@@ -555,7 +555,13 @@ describe("refreshCapacities", () => {
         registry.register(counted("two", reads));
         const written = new Array<string>();
 
-        await refreshCapacities(STUB_NODE, registry, kind => written.push(kind), new AbortController().signal, "two");
+        await refreshCapacities(
+            STUB_NODE,
+            registry,
+            kind => written.push(kind),
+            new AbortController().signal,
+            new Set(["two"]),
+        );
 
         expect(reads).deep.equals(["two"]);
         expect(written).deep.equals(["two"]);
@@ -618,6 +624,24 @@ describe("buildVerifyResult", () => {
         expect([...result.drifted]).deep.equals([itemMapKey("v", "moved")]);
         expect([...result.unread]).deep.equals([[itemMapKey("v", "boom"), readError]]);
         expect(reads).deep.equals(["v:ok", "v:moved", "v:boom", "v:after"]);
+    });
+
+    it("reads only the committed items named in `only`", async () => {
+        const reads = new Array<string>();
+        const registry = new ItemKindRegistry();
+        registry.register(verifying("v", { named: false }, reads));
+
+        const result = await buildVerifyResult(
+            STUB_NODE,
+            [committed("v", "other"), committed("v", "named"), pendingItem("v", "pending")],
+            registry,
+            new AbortController().signal,
+            new Set([itemMapKey("v", "named"), itemMapKey("v", "pending")]),
+        );
+
+        expect(reads).deep.equals(["v:named"]);
+        expect([...result.drifted]).deep.equals([itemMapKey("v", "named")]);
+        expect([...result.verified]).deep.equals([]);
     });
 
     it("reads no further item once the pass's signal is aborted", async () => {
