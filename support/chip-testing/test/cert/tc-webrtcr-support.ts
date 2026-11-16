@@ -517,13 +517,13 @@ function offerRequest(session: CameraSession) {
     };
 }
 
-/** Asks the provider for an offer, and resolves with the session it minted once the DUT holds it. */
+/** Asks the provider for an offer, and resolves with the session it allocated once the DUT holds it. */
 export async function solicitOffer(session: CameraSession): Promise<number> {
     return settled(session, "SolicitOffer", session.requestor.solicitOffer(offerRequest(session)));
 }
 
 /**
- * Offers the provider a session, and resolves with the session it minted once the DUT holds it. The
+ * Offers the provider a session, and resolves with the session it allocated once the DUT holds it. The
  * provider answers an offer it accepts, which is what the plan's `webrtc establish-session` does
  * without `--offer-type`.
  */

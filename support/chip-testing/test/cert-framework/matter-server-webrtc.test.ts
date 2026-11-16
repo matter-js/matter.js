@@ -119,7 +119,7 @@ describe("matterjs-server WebRTC requestor", () => {
         await server.close();
     });
 
-    it("solicitOffer sends SolicitOffer and resolves with the minted id", async () => {
+    it("solicitOffer sends SolicitOffer and resolves with the allocated id", async () => {
         const id = await requestor.solicitOffer({
             peer: PEER,
             endpoint: PEER_ENDPOINT,

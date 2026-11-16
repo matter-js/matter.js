@@ -51,6 +51,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `ScenesManagementServer` limits each fabric's remaining scene capacity by the Scene Table entries other fabrics use, refuses AddScene, StoreScene and CopyScene with RESOURCE_EXHAUSTED when the table is full, and updates the other fabrics' `FabricSceneInfo` when one fabric changes the table
     - Fix: `ScenesManagementServer` removes the scenes of a removed fabric, which stayed in the Scene Table and used up Scene Table entries for good; scenes left by earlier removals are removed at startup
     - Feature: `ClientNode.updateOperationalCertificate()` replaces a commissioned node's operational certificate with one for a new key pair (UpdateNOC)
+    - Feature: `WebRtcTransportRequestorServer.holdUnknownSignals()` lets a provider's signaling for a new session wait up to 5 seconds for its registration instead of being refused
+    - Adjustment: `WebRtcTransportRequestorServer.upsertSession()` and `removeSession()` now return a Promise and lock the requestor; callers must await them
+    - Adjustment: `WebRtcTransportRequestorServer` command handlers no longer lock the behavior on invoke, so an override that writes state must lock it itself
     - Enhancement: Added `SoftwareUpdateManager.dropUndeliverableUpdate()` for `checkUpdateAvailable()` overrides
     - Enhancement: Added `SoftwareUpdateManager.mayDelegateConsentTo()`, the rule for when a node may obtain the user consent itself
     - Enhancement: Added the `SoftwareUpdateManager` state `delegateConsentToRequestor`, which lets a requestor that can obtain user consent itself apply the newest stored image

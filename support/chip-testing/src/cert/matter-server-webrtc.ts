@@ -158,10 +158,10 @@ interface LogWait {
  * {@link WEBRTC_SESSION_REMOVED_LINE}. {@link solicitOffer}, {@link provideOffer} and {@link endSession} resolve only
  * once the log shows the registration or removal, and throw {@link MatterServerWebRtcError} where it does not.
  *
- * A session is held per peer node and session id, because each provider mints its own ids. The log is shared by every
- * peer and endpoint of the server, so its lines count only for peers this instance has sent a command to and for the
- * host's requestor endpoint. A `webrtc_callback` names the peer but not the requestor endpoint; the server routes it
- * to this connection, and it counts for every peer. Lines logged before construction are not read.
+ * A session is held per peer node and session id, because each provider allocates its own ids. The log is shared by
+ * every peer and endpoint of the server, so its lines count only for peers this instance has sent a command to and for
+ * the host's requestor endpoint. A `webrtc_callback` names the peer but not the requestor endpoint; the server routes
+ * it to this connection, and it counts for every peer. Lines logged before construction are not read.
  */
 export class MatterServerWebRtcRequestor implements WebRtcRequestorApi {
     readonly #host: MatterServerWebRtcHost;

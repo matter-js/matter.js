@@ -5,9 +5,10 @@
  */
 
 import { AccessControlServer } from "#behaviors/access-control";
+import type { Endpoint } from "#endpoint/Endpoint.js";
 import { Node } from "#node/Node.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { isDeepEqual, Logger, Observable } from "@matter/general";
+import { Abort, ImplementationError, isDeepEqual, Logger, Observable, Seconds } from "@matter/general";
 import { assertRemoteActor, FabricAuthority, NodeSession, PeerAddress } from "@matter/protocol";
 import { Status, StatusResponseError } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
@@ -19,6 +20,9 @@ type WebRtcSession = WebRtcTransportDefinitions.WebRtcSession;
 
 const logger = Logger.get("WebRtcTransportRequestorServer");
 
+/** How long a signal for an untracked session id waits, from its arrival, while a hold for its peer exists. */
+const EARLY_SIGNAL_HOLD_TIME = Seconds(5);
+
 /**
  * This is the default server implementation of {@link WebRtcTransportRequestorBehavior}.
  *
@@ -29,9 +33,11 @@ const logger = Logger.get("WebRtcTransportRequestorServer");
  * observables so you can drive your own WebRTC peer connection.
  *
  * To use it:
- * * Register a session with {@link upsertSession} when you initiate a stream, so the peer's subsequent commands for that
- *   session are accepted; commands naming a session id this cluster does not track for the peer's fabric and node are
- *   rejected with NotFound.
+ * * Register a session with {@link upsertSession} once you know its id, so the peer's commands for that session are
+ *   accepted. Commands naming a session id this cluster does not track for the peer's fabric and node are rejected
+ *   with NotFound.
+ * * While you ask a provider for a new session, keep a {@link WebRtcTransportRequestorServer.holdUnknownSignals} hold
+ *   for it, so its signaling that arrives before its response waits for your registration instead of being refused.
  * * Subscribe to the `offer` / `answer` / `iceCandidates` / `end` events to feed your WebRTC stack. A session is removed
  *   from tracking automatically when the peer sends End.
  * * Call {@link removeSession} when you tear a stream down locally.
@@ -41,17 +47,96 @@ const logger = Logger.get("WebRtcTransportRequestorServer");
  */
 export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBehavior {
     declare readonly events: WebRtcTransportRequestorServer.Events;
+    declare protected internal: WebRtcTransportRequestorServer.Internal;
+
+    /**
+     * A signal handler may wait for a registration while a {@link holdUnknownSignals} hold exists, so a handler holds
+     * no lock while it waits. Each handler takes the lock after the wait, then looks up the session. An override that
+     * writes state must lock this behavior itself, whether or not it calls the default handler.
+     */
+    static override lockOnInvoke = false;
+
+    /**
+     * Hold the signaling of a provider for session ids this cluster does not track yet, while you ask that provider for
+     * a new session.
+     *
+     * The provider allocates the session id and may invoke Offer, Answer, ICECandidates or End before its
+     * SolicitOfferResponse or ProvideOfferResponse reaches you (§ 11.5.6.2.2: with DeferredOffer FALSE it "will without
+     * delay invoke the Offer command"). While a hold for `peer` exists, every signal from `peer` that names a session id
+     * this cluster does not track waits instead of being refused. That includes a late signal for a session that already
+     * ended. A waiting signal is delivered once the registration of its session commits. If its session is still not
+     * tracked, it is refused with NotFound once no hold for `peer` exists, or 5 seconds after the signal arrived. The
+     * 5 seconds cover only this wait; the signal then still waits for this behavior's lock, without a time limit.
+     *
+     * The holds that exist when the node goes offline end then. A hold you take while the node is offline stays until you
+     * dispose it. When the behavior closes, a waiting signal is usually refused with NotFound. In a short window during close (the datasource closes before the behavior is disposed), the signal can fail with a generic failure instead.
+     *
+     * Take the hold before you send the request. Dispose it after you tried to register the session and before any
+     * cleanup that ends the session at the provider, so a held signal for a failed session is refused at once. Here
+     * `session` holds the fields you know before the response:
+     *
+     * ```ts
+     * try {
+     *     using hold = WebRtcTransportRequestorServer.holdUnknownSignals(endpoint, peer);
+     *     const { webRtcSessionId } = await provider.solicitOffer(request);
+     *     await endpoint.act(agent =>
+     *         agent.get(WebRtcTransportRequestorServer).upsertSession({ ...session, id: webRtcSessionId }),
+     *     );
+     * } catch (e) {
+     *     // The hold is disposed here already. End the provider's session if it allocated one.
+     *     throw e;
+     * }
+     * ```
+     *
+     * The call opens no transaction, so you may call it inside an agent transaction. It activates the behavior if it is
+     * not active yet. Disposing the hold more than once has no effect.
+     *
+     * @param endpoint the endpoint that hosts this behavior
+     * @param peer the provider's fabric and node. Signals are matched by these because they name no provider endpoint.
+     * @throws ImplementationError if `endpoint` does not support this behavior
+     * @throws the endpoint's lifecycle error if the endpoint is not initialized or is already closed, or the behavior's
+     *   initialization error if it fails to activate
+     * @see {@link MatterSpecification.v161.Cluster} § 11.5.6.1 – § 11.5.6.4, § 11.6.5
+     */
+    static holdUnknownSignals(endpoint: Endpoint, peer: PeerAddress): Disposable {
+        if (!endpoint.behaviors.has(WebRtcTransportRequestorServer)) {
+            throw new ImplementationError(`Endpoint ${endpoint} does not support WebRtcTransportRequestorServer`);
+        }
+        const { holds, recheck } = endpoint.behaviors.internalsOf(WebRtcTransportRequestorServer);
+        const hold: PeerAddress = { fabricIndex: peer.fabricIndex, nodeId: peer.nodeId };
+        holds.add(hold);
+        return {
+            [Symbol.dispose]() {
+                if (holds.delete(hold)) {
+                    recheck.emit();
+                }
+            },
+        };
+    }
 
     override async initialize() {
         const node = Node.forEndpoint(this.endpoint) as ServerNode;
         logger.info(
             `WebRtcTransportRequestor initialized on endpoint=${this.endpoint.number} (id="${this.endpoint.id}")`,
         );
-        this.reactTo(this.events.currentSessions$Changed, this.#logSessionChanges);
+        this.reactTo(this.events.currentSessions$Changed, this.#sessionsChanged);
+        this.reactTo(node.lifecycle.goingOffline, this.#endHolds);
         this.reactTo(node.lifecycle.online, this.#nodeOnline);
         if (node.lifecycle.isOnline) {
             await this.#nodeOnline();
         }
+    }
+
+    override async [Symbol.asyncDispose]() {
+        this.internal.closed = true;
+        this.#endHolds();
+        await super[Symbol.asyncDispose]?.();
+    }
+
+    /** Ends every hold, so held signals stop waiting. */
+    #endHolds() {
+        this.internal.holds.clear();
+        this.internal.recheck.emit();
     }
 
     async #nodeOnline() {
@@ -97,9 +182,15 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
     /**
      * Register or update a WebRTC session you have initiated with a peer. A session must be registered before the peer's
      * signaling commands for it are accepted, and registration populates the `currentSessions` attribute. Re-registering
-     * a session with the same {@link WebRtcTransportRequestorServer.SessionKey} replaces the entry.
+     * a session with the same {@link WebRtcTransportRequestorServer.SessionKey} replaces the entry. For a new session,
+     * see {@link holdUnknownSignals}.
+     *
+     * Takes this behavior's lock first, so it waits for a signal handler that holds the lock. Await the returned
+     * promise inside your transaction. If you do not await it, the write can run after your transaction committed. It then
+     * fails, the session is not registered, and the promise rejects unhandled.
      */
-    upsertSession(session: WebRtcSession): void {
+    async upsertSession(session: WebRtcSession): Promise<void> {
+        await this.context.transaction.lock(this);
         const enriched: WebRtcSession = {
             ...session,
             videoStreamId: session.videoStreams?.[0] ?? null,
@@ -114,8 +205,15 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
         }
     }
 
-    /** Stop tracking a session, e.g. after you tear down the stream locally. No-op if no session matches the key. */
-    removeSession(key: WebRtcTransportRequestorServer.SessionKey): void {
+    /**
+     * Stop tracking a session, e.g. after you tear down the stream locally. No-op if no session matches the key.
+     *
+     * Takes this behavior's lock first. Await the returned promise inside your transaction. If you do not await it,
+     * the write can run after your transaction committed. It then fails, the session stays tracked, and the promise
+     * rejects unhandled.
+     */
+    async removeSession(key: WebRtcTransportRequestorServer.SessionKey): Promise<void> {
+        await this.context.transaction.lock(this);
         const sessions = this.state.currentSessions;
         if (sessions.some(s => isSameSession(s, key))) {
             this.state.currentSessions = sessions.filter(s => !isSameSession(s, key));
@@ -126,8 +224,11 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
      * Logs each session added, changed or removed once the change to `currentSessions` commits, which is when the
      * cluster starts or stops accepting the peer's signaling for it. The lines show the net change of one transaction,
      * so a session added and removed in the same transaction logs nothing, as does a change that rolls back.
+     *
+     * A committed change also lets each held signal check again whether its session is tracked now.
      */
-    #logSessionChanges(sessions: readonly WebRtcSession[], previous: readonly WebRtcSession[]) {
+    #sessionsChanged(sessions: readonly WebRtcSession[], previous: readonly WebRtcSession[]) {
+        this.internal.recheck.emit();
         for (const session of sessions) {
             const before = previous.find(s => isSameSession(s, session));
             if (before === undefined || !isDeepEqual(before, session)) {
@@ -154,7 +255,7 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
      */
     override async offer(request: WebRtcTransportRequestor.OfferRequest): Promise<void> {
         logger.debug(`incoming Offer webRtcSessionId=${request.webRtcSessionId} sdpLen=${request.sdp.length}`);
-        const session = this.#findSessionStrict("offer", request.webRtcSessionId);
+        const session = await this.#lockSession("offer", request.webRtcSessionId);
         this.events.offer.emit(session, request);
     }
 
@@ -164,7 +265,7 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
      */
     override async answer(request: WebRtcTransportRequestor.AnswerRequest): Promise<void> {
         logger.debug(`incoming Answer webRtcSessionId=${request.webRtcSessionId} sdpLen=${request.sdp.length}`);
-        const session = this.#findSessionStrict("answer", request.webRtcSessionId);
+        const session = await this.#lockSession("answer", request.webRtcSessionId);
         this.events.answer.emit(session, request.sdp);
     }
 
@@ -180,7 +281,7 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
             // validation, before this behavior runs
             throw new StatusResponseError("ICE candidates list must not be empty", Status.ConstraintError);
         }
-        const session = this.#findSessionStrict("iceCandidates", request.webRtcSessionId);
+        const session = await this.#lockSession("iceCandidates", request.webRtcSessionId);
         this.events.iceCandidates.emit(session, request.iceCandidates);
     }
 
@@ -189,27 +290,96 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
      */
     override async end(request: WebRtcTransportRequestor.EndRequest): Promise<void> {
         logger.debug(`incoming End webRtcSessionId=${request.webRtcSessionId} reason=${request.reason}`);
-        const session = this.#findSessionStrict("end", request.webRtcSessionId);
-        this.removeSession(session);
+        const session = await this.#lockSession("end", request.webRtcSessionId);
+        await this.removeSession(session);
         this.events.end.emit(session, request.reason);
     }
 
-    #findSessionStrict(signal: WebRtcTransportRequestorServer.SignalKind, id: number): WebRtcSession {
-        assertRemoteActor(this.context);
-        NodeSession.assert(this.context.session);
-        const peer = this.context.session.peerAddress;
-        const session = this.state.currentSessions.find(s =>
-            isSameSession(s, { id, fabricIndex: peer.fabricIndex, peerNodeId: peer.nodeId }),
-        );
-        if (session === undefined) {
+    /**
+     * Takes the requestor's lock and returns the session the peer names, or refuses the signal with NotFound. A signal
+     * that waited while the behavior closed is refused without the lock.
+     *
+     * Before it takes the lock, the signal waits without a lock while its session is not tracked and a
+     * {@link holdUnknownSignals} hold for the peer exists, at most {@link EARLY_SIGNAL_HOLD_TIME} from its arrival.
+     */
+    async #lockSession(signal: WebRtcTransportRequestorServer.SignalKind, id: number) {
+        const peer = this.#peer();
+        const key = { id, fabricIndex: peer.fabricIndex, peerNodeId: peer.nodeId };
+        await this.#awaitRegistration(signal, key);
+        if (this.internal.closed) {
             logger.debug(
                 `session refused signal=${signal} webRtcSessionId=${id} fabricIndex=${peer.fabricIndex} ` +
-                    `peerNodeId=${peer.nodeId} requestorEndpointId=${this.endpoint.number}`,
+                    `peerNodeId=${peer.nodeId} requestorEndpointId=${this.endpoint.number} because the requestor closes`,
             );
-            this.events.refused.emit(signal, id, peer);
             throw new StatusResponseError(`WebRTC session ${id} not found`, Status.NotFound);
         }
+        await this.context.transaction.lock(this);
+        return this.#sessionOrRefuse(signal, key, peer);
+    }
+
+    #sessionOrRefuse(
+        signal: WebRtcTransportRequestorServer.SignalKind,
+        key: WebRtcTransportRequestorServer.SessionKey,
+        peer: PeerAddress,
+    ) {
+        const session = this.state.currentSessions.find(s => isSameSession(s, key));
+        if (session === undefined) {
+            logger.debug(
+                `session refused signal=${signal} webRtcSessionId=${key.id} fabricIndex=${peer.fabricIndex} ` +
+                    `peerNodeId=${peer.nodeId} requestorEndpointId=${this.endpoint.number}`,
+            );
+            this.events.refused.emit(signal, key.id, peer);
+            throw new StatusResponseError(`WebRTC session ${key.id} not found`, Status.NotFound);
+        }
         return session;
+    }
+
+    #peer() {
+        assertRemoteActor(this.context);
+        NodeSession.assert(this.context.session);
+        return this.context.session.peerAddress;
+    }
+
+    #isHeld(key: WebRtcTransportRequestorServer.SessionKey) {
+        return this.#isPeerHeld(key) && !this.#isTracked(key);
+    }
+
+    #isTracked(key: WebRtcTransportRequestorServer.SessionKey) {
+        return this.state.currentSessions.some(s => isSameSession(s, key));
+    }
+
+    #isPeerHeld(key: WebRtcTransportRequestorServer.SessionKey) {
+        for (const hold of this.internal.holds) {
+            if (hold.fabricIndex === key.fabricIndex && hold.nodeId === key.peerNodeId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    async #awaitRegistration(
+        signal: WebRtcTransportRequestorServer.SignalKind,
+        key: WebRtcTransportRequestorServer.SessionKey,
+    ) {
+        if (!this.#isHeld(key)) {
+            return;
+        }
+        logger.debug(
+            `holding signal=${signal} webRtcSessionId=${key.id} fabricIndex=${key.fabricIndex} ` +
+                `peerNodeId=${key.peerNodeId} while a hold for its peer exists`,
+        );
+        using timeout = new Abort({ timeout: EARLY_SIGNAL_HOLD_TIME });
+        while (this.#isHeld(key) && !timeout.aborted) {
+            let observer: Disposable | undefined;
+            const changed = new Promise<void>(resolve => {
+                observer = this.internal.recheck.useOnce(() => resolve());
+            });
+            try {
+                await Abort.race(timeout, changed);
+            } finally {
+                observer?.[Symbol.dispose]();
+            }
+        }
     }
 }
 
@@ -226,7 +396,27 @@ export namespace WebRtcTransportRequestorServer {
      */
     export type SessionKey = Pick<WebRtcSession, "id" | "fabricIndex" | "peerNodeId">;
 
-    /** Transport-signaling events the peer triggers; subscribe to these to drive your WebRTC peer connection. */
+    /** Internal state of the signal holds; one instance per behavior activation (a reset creates a new one). */
+    export class Internal {
+        /** One entry per {@link WebRtcTransportRequestorServer.holdUnknownSignals} hold that is not disposed. */
+        holds = new Set<PeerAddress>();
+
+        /** Set when the behavior closes. A signal that waited then refuses without taking the lock, which would fail. */
+        closed = false;
+
+        /**
+         * Emits when a held signal must check again whether it is still held: a hold ended, or a change to
+         * `currentSessions` committed.
+         */
+        recheck = Observable<[]>();
+    }
+
+    /**
+     * Transport-signaling events the peer triggers; subscribe to these to drive your WebRTC peer connection.
+     *
+     * The events of one session are not guaranteed to fire in the order the peer sent the signals, so buffer ICE
+     * candidates that arrive before the offer or answer they belong to.
+     */
     export class Events extends WebRtcTransportRequestorBehavior.Events {
         /** Peer sent an SDP offer for a tracked session; apply it to your peer connection. */
         offer = Observable<[session: WebRtcSession, args: WebRtcTransportRequestor.OfferRequest]>();
@@ -237,7 +427,10 @@ export namespace WebRtcTransportRequestorServer {
         /** Peer sent ICE candidates for a tracked session; add them to your peer connection. */
         iceCandidates = Observable<[session: WebRtcSession, candidates: WebRtcTransportDefinitions.IceCandidate[]]>();
 
-        /** Peer ended a session; the session is already removed from tracking when this fires. */
+        /**
+         * Peer ended a session. The removal from tracking is part of the End command's transaction and commits after
+         * this fires; a signal for the session that arrives meanwhile waits for that commit and gets NotFound.
+         */
         end = Observable<[session: WebRtcSession, reason: WebRtcTransportDefinitions.WebRtcEndReason]>();
 
         /**
@@ -245,7 +438,8 @@ export namespace WebRtcTransportRequestorServer {
          * id is the one the peer named, so a listener sees which id was refused rather than only that something was.
          *
          * Signaling this cluster never sees is not reported here: a command whose fields break their own constraints is
-         * refused by schema validation before any of this runs.
+         * refused by schema validation before any of this runs. A signal refused because the behavior closes is not
+         * reported here.
          */
         refused = Observable<[signal: SignalKind, webRtcSessionId: number, peer: PeerAddress]>();
     }
