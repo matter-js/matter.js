@@ -37,6 +37,7 @@ import {
     currentReapplies,
     ServerNode,
 } from "@matter/node";
+import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
 import { Fabric, FabricManager, SustainedSubscription } from "@matter/protocol";
 import { FabricIndex, GlobalFabricId, Status } from "@matter/types";
 
@@ -414,11 +415,31 @@ export class ReconcilerBehavior extends Behavior {
             }
         });
 
-        observers.on(peer.lifecycle.softwareVersionChanged, () => {
+        const verifyEveryItem = () => {
             if (this.#reachable(peer)) {
                 this.#schedule(peer, { verify: true, refreshCapacity: true });
             }
-        });
+        };
+
+        observers.on(peer.lifecycle.softwareVersionChanged, verifyEveryItem);
+
+        // A device may keep its subscription across a restart, so only StartUp shows that it restarted
+        const observeStartUp = () => {
+            if (!peer.behaviors.has(BasicInformationClient)) {
+                return;
+            }
+            const startUp = peer.eventsOf(BasicInformationClient).startUp;
+            if (observers.observes(startUp)) {
+                return;
+            }
+            observers.on(startUp, () => {
+                logger.debug(`StartUp of ${peer.id}`);
+                verifyEveryItem();
+            });
+        };
+        // Emits for the clusters of every peer; `observeStartUp` asks this peer
+        observers.on(this.#rootNode.peers.clusterInstalled(BasicInformationClient), observeStartUp);
+        observeStartUp();
 
         // Last, so an observer of the watcher that throws cannot keep the observers above from running
         driftWatcher.start();

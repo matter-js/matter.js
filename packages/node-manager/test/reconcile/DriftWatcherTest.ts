@@ -41,6 +41,7 @@ import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { Subscribe } from "@matter/protocol";
 import { AttributeId, EndpointNumber, GroupId, SubjectId } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { OnOff } from "@matter/types/clusters/on-off";
 
 const QUIET = Seconds(2);
@@ -811,7 +812,7 @@ describe("DriftWatcher", () => {
             const watcher = newWatcher(peer, registryWith(new LabelKind()), new FakeHost());
             await commitLabel(peer, "location", { attribute: "location", value: "XX" });
             watcher.close();
-            return warningsIn(log);
+            return warningsIn(log).filter(warning => !warning.includes("StartUp"));
         }
 
         it("not for the default of all attributes", async () => {
@@ -834,9 +835,12 @@ describe("DriftWatcher", () => {
         });
 
         it("for paths of another cluster", async () => {
-            const warnings = await warningsWith({ attributes: [{ clusterId: OnOff.Cluster.id }] });
+            const warnings = await warningsWith({ attributes: [{ clusterId: OnOff.id }] });
             expect(warnings.length).equals(1);
             expect(warnings[0]).contains("nodeLabel");
+            expect(warnings[0]).contains(
+                "(a subscription the client establishes, a restart of the device, a firmware change, a task gate or an explicit verify)",
+            );
         });
 
         it("for a wildcard path that skips the root endpoint", async () => {
@@ -858,7 +862,7 @@ describe("DriftWatcher", () => {
         });
 
         it("for a built request of another cluster", async () => {
-            const request = Subscribe({ fabricFilter: true, attributes: [{ clusterId: OnOff.Cluster.id }] });
+            const request = Subscribe({ fabricFilter: true, attributes: [{ clusterId: OnOff.id }] });
             const warnings = await warningsWith(request);
             expect(warnings.length).equals(1);
         });
@@ -866,7 +870,7 @@ describe("DriftWatcher", () => {
         it("again after a subscription that covered every watch", async () => {
             await using site = new MockSite();
             const { peer } = await pair(site);
-            const narrow = { attributes: [{ clusterId: OnOff.Cluster.id }] };
+            const narrow = { attributes: [{ clusterId: OnOff.id }] };
             const setSubscription = (defaultSubscription: NetworkClient.State["defaultSubscription"]) =>
                 MockTime.resolve(
                     peer.act(agent => {
@@ -888,6 +892,133 @@ describe("DriftWatcher", () => {
             await setSubscription(narrow);
             watcher.rebuild();
             expect(warningsIn(log).length).equals(2);
+        });
+    });
+
+    describe("warns once when the default subscription does not cover the StartUp event", () => {
+        const BASIC_INFORMATION = BasicInformation.id;
+        const START_UP = BasicInformation.events.startUp.id;
+
+        async function setSubscription(
+            peer: ClientNode,
+            defaultSubscription: NetworkClient.State["defaultSubscription"],
+        ) {
+            await MockTime.resolve(
+                peer.act(agent => {
+                    agent.get(NetworkClient).state.defaultSubscription = defaultSubscription;
+                }),
+                { macrotasks: true },
+            );
+        }
+
+        function startUpWarningsIn(lines: { level: LogLevel; text: string }[]) {
+            return warningsIn(lines).filter(warning => warning.includes("StartUp"));
+        }
+
+        async function warningsWith(defaultSubscription: NetworkClient.State["defaultSubscription"]) {
+            await using site = new MockSite();
+            const { peer } = await pair(site);
+            await setSubscription(peer, defaultSubscription);
+            const log = captureWatcherLog();
+            await commitLabel(peer, "name", { attribute: "nodeLabel", value: "ours" });
+            const watcher = newWatcher(peer, registryWith(new LabelKind()), new FakeHost());
+            watcher.rebuild();
+            watcher.close();
+            return startUpWarningsIn(log);
+        }
+
+        it("not for the default of all urgent events", async () => {
+            expect(await warningsWith(undefined)).deep.equals([]);
+        });
+
+        it("not for options that name no events", async () => {
+            expect(await warningsWith({ attributes: [{}] })).deep.equals([]);
+        });
+
+        it("not for an event path of Basic Information", async () => {
+            expect(await warningsWith({ events: [{ clusterId: BASIC_INFORMATION }] })).deep.equals([]);
+        });
+
+        it("not for the StartUp event on endpoint 0", async () => {
+            expect(
+                await warningsWith({
+                    events: [{ endpointId: EndpointNumber(0), clusterId: BASIC_INFORMATION, eventId: START_UP }],
+                }),
+            ).deep.equals([]);
+        });
+
+        it("not for a built request with a wildcard event path", async () => {
+            expect(await warningsWith(Subscribe({ fabricFilter: true, attributes: [{}], events: [{}] }))).deep.equals(
+                [],
+            );
+        });
+
+        it("for options with no event path", async () => {
+            expect(await warningsWith({ events: [] })).length(1);
+        });
+
+        it("for event paths of another endpoint", async () => {
+            expect(await warningsWith({ events: [{ endpointId: EndpointNumber(1) }] })).length(1);
+        });
+
+        it("for event paths of another cluster", async () => {
+            expect(await warningsWith({ events: [{ clusterId: OnOff.id }] })).length(1);
+        });
+
+        it("for another event of Basic Information", async () => {
+            const shutDown = BasicInformation.events.shutDown.id;
+            expect(await warningsWith({ events: [{ clusterId: BASIC_INFORMATION, eventId: shutDown }] })).length(1);
+        });
+
+        it("for a built request without events", async () => {
+            const warnings = await warningsWith(Subscribe({ fabricFilter: true, attributes: [{}] }));
+            expect(warnings).length(1);
+            expect(warnings[0]).contains("peer1");
+            expect(warnings[0]).contains("Drift that no report shows");
+            expect(warnings[0]).contains("a firmware change, a task gate or an explicit verify");
+            expect(warnings[0]).not.contains("a restart of the device");
+        });
+
+        it("not while the peer holds no committed item of a kind with verify", async () => {
+            await using site = new MockSite();
+            const { peer } = await pair(site);
+            await setSubscription(peer, { events: [] });
+            const log = captureWatcherLog();
+            const plain: ItemKind = { kind: "plain", priority: 0, async apply() {} };
+            const watcher = newWatcher(peer, registryWith(new LabelKind(), plain), new FakeHost());
+            await MockTime.resolve(
+                peer.act(agent => {
+                    const ds = agent.get(DesiredStateBehavior);
+                    ds.setIntent("plain", "k", {});
+                    ds.updateStatus("plain", "k", "committed");
+                    ds.setIntent("label", "name", { attribute: "nodeLabel", value: "ours" });
+                }),
+            );
+            watcher.rebuild();
+            expect(startUpWarningsIn(log)).deep.equals([]);
+
+            await commitLabel(peer, "name", { attribute: "nodeLabel", value: "ours" });
+            expect(startUpWarningsIn(log)).length(1);
+        });
+
+        it("again after a subscription that covered the event", async () => {
+            await using site = new MockSite();
+            const { peer } = await pair(site);
+            const narrow = { events: [{ clusterId: OnOff.id }] };
+            await setSubscription(peer, narrow);
+            const log = captureWatcherLog();
+            await commitLabel(peer, "name", { attribute: "nodeLabel", value: "ours" });
+            const watcher = newWatcher(peer, registryWith(new LabelKind()), new FakeHost());
+            watcher.rebuild();
+            expect(startUpWarningsIn(log)).length(1);
+
+            await setSubscription(peer, undefined);
+            watcher.rebuild();
+            expect(startUpWarningsIn(log)).length(1);
+
+            await setSubscription(peer, narrow);
+            watcher.rebuild();
+            expect(startUpWarningsIn(log)).length(2);
         });
     });
 

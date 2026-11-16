@@ -25,13 +25,14 @@ import {
     ItemKind,
     itemMapKey,
     ItemWatch,
+    NetworkClient,
     ServerNode,
 } from "@matter/node";
 import { AccessControlServer } from "@matter/node/behaviors/access-control";
 import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { FabricManager } from "@matter/protocol";
-import { NodeId, Status, StatusResponseError, SubjectId } from "@matter/types";
+import { FabricIndex, NodeId, Status, StatusResponseError, SubjectId } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 
 const { Operate, Administer } = AccessControl.AccessControlEntryPrivilege;
@@ -46,6 +47,7 @@ async function controllerWithReconciler(
         settleDelay?: Duration;
         sweepInterval?: Duration;
         driftBudget?: { count: number; window: Duration };
+        fabric?: FabricIndex;
     },
 ) {
     return site.addCommissionedPair({
@@ -1415,5 +1417,175 @@ describe("drift passes", () => {
         expect(location.reads).equals(reads);
         await passesAfter(controller, peer, QUIET);
         expect(location.reads).equals(reads + 1);
+    });
+});
+
+describe("a restart of the device", () => {
+    before(() => {
+        MockTime.init();
+    });
+
+    /** Restart the device and wait until the peer saw its StartUp event and the passes it queued are done. */
+    async function restart(controller: ServerNode, device: ServerNode, peer: ClientNode) {
+        const startedUp = new Promise<void>(resolve =>
+            peer.eventsOf(BasicInformationClient).startUp.once(() => resolve()),
+        );
+        await MockTime.resolve(device.stop());
+        await MockTime.resolve(device.start());
+        await MockTime.resolve(startedUp, { macrotasks: true });
+        await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
+    }
+
+    /** Emit a StartUp event on the peer as the subscription delivers one, without a device behind it. */
+    async function startUpOf(controller: ServerNode, peer: ClientNode) {
+        await MockTime.resolve(
+            controller.act(agent =>
+                peer.eventsOf(BasicInformationClient).startUp.emit({ softwareVersion: 1 }, agent.context),
+            ),
+            { macrotasks: true },
+        );
+        await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
+    }
+
+    function establishedSubscriptions(peer: ClientNode) {
+        const established = new Array<boolean>();
+        peer.eventsOf(NetworkClient).subscriptionStatusChanged.on(isActive => {
+            established.push(isActive);
+        });
+        return established;
+    }
+
+    it("verifies every item and refreshes capacity when the device keeps its subscription", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await controllerWithReconciler(site);
+        const peer = await subscribedPeer(controller, "peer1");
+        const script = await committedScripted(controller, peer, "scripted", "converge", { withCapacity: true });
+        const established = establishedSubscriptions(peer);
+        const { reads, capacityReads } = script;
+
+        await restart(controller, device, peer);
+
+        // The device resumed its subscription, so only the StartUp event announced the restart
+        expect(established).deep.equals([]);
+        expect(script.reads).equals(reads + 1);
+        expect(script.capacityReads).equals(capacityReads + 1);
+    });
+
+    it("verifies every item on a restart of a peer it found with Basic Information already installed", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await controllerWithReconciler(site);
+        await subscribedPeer(controller, "peer1");
+        await MockTime.resolve(controller.close(), { macrotasks: true });
+        const restored = await site.addNode(MockServerNode.RootEndpoint.with(ReconcilerBehavior), {
+            id: controller.id,
+            index: 1,
+        });
+        const peer = await subscribedPeer(restored, "peer1");
+        const script = await committedScripted(restored, peer, "scripted", "converge");
+        const { reads } = script;
+
+        await restart(restored, device, peer);
+
+        expect(script.reads).equals(reads + 1);
+    });
+
+    it("verifies every item at most twice when the device restarts without keeping its subscription", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            controller: { type: MockServerNode.RootEndpoint.with(ReconcilerBehavior) },
+            device: { type: MockServerNode.RootEndpoint, subscriptions: { persistenceEnabled: false } },
+        });
+        const peer = await subscribedPeer(controller, "peer1");
+        const script = await committedScripted(controller, peer, "scripted", "converge");
+        const established = establishedSubscriptions(peer);
+        const { reads } = script;
+
+        let startUps = 0;
+        peer.eventsOf(BasicInformationClient).startUp.on(() => {
+            startUps++;
+        });
+
+        await MockTime.resolve(device.stop());
+        await MockTime.resolve(device.start());
+        await pumpFor(Seconds(5), 60, () => established.includes(true));
+        await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
+
+        // Both triggers arrive; the reconciler accepts up to two full verifies for them, and here one runs
+        expect(established).deep.equals([false, true]);
+        expect(startUps).equals(1);
+        expect(script.reads).equals(reads + 1);
+    });
+
+    it("does not verify on a StartUp event while the peer is unreachable", async () => {
+        await using site = new MockSite();
+        const { controller } = await controllerWithReconciler(site);
+        const peer = await subscribedPeer(controller, "peer1");
+        const script = await committedScripted(controller, peer, "scripted", "converge");
+        await MockTime.resolve(peer.set({ network: { isDisabled: true } }));
+        const { reads } = script;
+
+        await startUpOf(controller, peer);
+
+        expect(script.reads).equals(reads);
+    });
+
+    it("verifies every item on a StartUp event delivered by the subscription", async () => {
+        await using site = new MockSite();
+        const { controller } = await controllerWithReconciler(site);
+        const peer = await subscribedPeer(controller, "peer1");
+        const script = await committedScripted(controller, peer, "scripted", "converge");
+        const { reads } = script;
+
+        await startUpOf(controller, peer);
+
+        expect(script.reads).equals(reads + 1);
+    });
+
+    it("observes the StartUp event once however often Basic Information is installed again", async () => {
+        await using site = new MockSite();
+        const { controller } = await controllerWithReconciler(site);
+        const peer = await subscribedPeer(controller, "peer1");
+        await committedScripted(controller, peer, "scripted", "converge");
+        controller.peers.clusterInstalled(BasicInformationClient).emit(peer, BasicInformationClient);
+        const log = captureReconcilerLog();
+
+        await startUpOf(controller, peer);
+        delete Logger.destinations.capture;
+
+        expect(log.filter(line => line.text.startsWith("StartUp of"))).length(1);
+    });
+
+    it("does not verify on a StartUp event of a peer it does not manage", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await controllerWithReconciler(site, { fabric: FabricIndex(9) });
+        const peer = await subscribedPeer(controller, "peer1");
+        const script = await committedScripted(controller, peer, "scripted", "converge");
+        const { reads } = script;
+
+        await restart(controller, device, peer);
+
+        expect(script.reads).equals(reads);
+    });
+
+    it("does not verify on a StartUp event once the managed fabric was removed", async () => {
+        await using site = new MockSite();
+        const { controller } = await controllerWithReconciler(site);
+        const peer = await subscribedPeer(controller, "peer1");
+        const script = await committedScripted(controller, peer, "scripted", "converge");
+        await MockTime.resolve(controller.env.get(FabricManager).fabrics[0].delete(), { macrotasks: true });
+        const { reads } = script;
+        const log = captureReconcilerLog();
+
+        await MockTime.resolve(
+            controller.act(agent =>
+                peer.eventsOf(BasicInformationClient).startUp.emit({ softwareVersion: 1 }, agent.context),
+            ),
+            { macrotasks: true },
+        );
+        await timePasses(Seconds(1));
+        delete Logger.destinations.capture;
+
+        expect(script.reads).equals(reads);
+        expect(log.filter(line => line.text.startsWith("StartUp of"))).deep.equals([]);
     });
 });

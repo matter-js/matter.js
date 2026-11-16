@@ -16,10 +16,26 @@ import {
     ManagedItem,
     NetworkClient,
 } from "@matter/node";
-import type { AttributePath } from "@matter/types";
+import type { AttributePath, ClusterId, EndpointNumber, EventPath } from "@matter/types";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import type { VerifyResult } from "./planActions.js";
 
 const logger = Logger.get("DriftWatcher");
+
+const RESTART = "a restart of the device";
+const VERIFY_POINTS = [
+    "a subscription the client establishes",
+    RESTART,
+    "a firmware change",
+    "a task gate",
+    "an explicit verify",
+];
+
+/** The verify points as one phrase for a log line, leaving out `except`. */
+function verifyPoints(except?: string) {
+    const points = VERIFY_POINTS.filter(point => point !== except);
+    return `${points.slice(0, -1).join(", ")} or ${points[points.length - 1]}`;
+}
 
 /**
  * Whether a report makes `item` a suspect of drift, judged by the subscription cache against the item's enforcement
@@ -97,7 +113,10 @@ class Live {
  *
  * A watch of an attribute with the changes-omitted (`C`) quality is skipped with a warning, because no report ever
  * shows its changes. A watch that the peer's default subscription does not cover is kept, with one warning per
- * narrowing of the subscription.
+ * narrowing of the subscription. A default subscription without the StartUp event of Basic Information on endpoint 0
+ * also warns once per narrowing while the peer holds a committed item of a kind with `verify`: the reconciler verifies
+ * every item on that event, and a device that keeps its subscription across a restart shows the restart by nothing
+ * else.
  *
  * Suspects move through three stages, and each hand-over gets exactly one outcome:
  *
@@ -117,6 +136,7 @@ export class DriftWatcher {
     #live?: Live;
     readonly #warnedChangesOmitted = new Set<string>();
     #warnedUncovered = false;
+    #warnedStartUpUncovered = false;
     readonly #failedKinds = new Set<string>();
 
     /** Registers nothing; {@link start} does. */
@@ -163,11 +183,13 @@ export class DriftWatcher {
         }
         const keysByReport = new Map<Observable, Set<string>>();
         const uncovered = new Set<string>();
+        let verifiable = false;
         for (const item of Object.values(this.#peer.stateOf(DesiredStateBehavior).items)) {
             if (item.status.state !== "committed") {
                 continue;
             }
             const kind = this.#registry.get(item.kind);
+            verifiable ||= kind?.verify !== undefined;
             if (kind?.watches === undefined) {
                 continue;
             }
@@ -204,10 +226,18 @@ export class DriftWatcher {
         // Once per narrowing: a default subscription that covers every watch again lets the next narrowing warn
         if (uncovered.size > 0 && !this.#warnedUncovered) {
             logger.warn(
-                `The default subscription of ${this.#peer.id} does not cover ${[...uncovered].join(", ")}; drift of these is found only at the next verify point (a subscription the client establishes, a firmware change, a task gate or an explicit verify)`,
+                `The default subscription of ${this.#peer.id} does not cover ${[...uncovered].join(", ")}; drift of these is found only at the next verify point (${verifyPoints()})`,
             );
         }
         this.#warnedUncovered = uncovered.size > 0;
+
+        const restartUnseen = verifiable && !this.#subscriptionCoversStartUp();
+        if (restartUnseen && !this.#warnedStartUpUncovered) {
+            logger.warn(
+                `The default subscription of ${this.#peer.id} does not cover the StartUp event of Basic Information on endpoint 0, so a restart that keeps the subscription is not noticed. Drift that no report shows (items of kinds without a watch, such as group key sets) is then found only at the next verify point (${verifyPoints(RESTART)})`,
+            );
+        }
+        this.#warnedStartUpUncovered = restartUnseen;
     }
 
     /**
@@ -291,7 +321,7 @@ export class DriftWatcher {
             if (!this.#warnedChangesOmitted.has(what)) {
                 this.#warnedChangesOmitted.add(what);
                 logger.warn(
-                    `Not watching ${what} of ${this.#peer.id} for drift: reports never show changes of this attribute; its items are checked only at the next verify point (a subscription the client establishes, a firmware change, a task gate or an explicit verify)`,
+                    `Not watching ${what} of ${this.#peer.id} for drift: reports never show changes of this attribute; its items are checked only at the next verify point (${verifyPoints()})`,
                 );
             }
             return undefined;
@@ -318,11 +348,29 @@ export class DriftWatcher {
                 : { attributes: [{}], ...definition }.attributes;
         return (paths ?? []).some(
             path =>
-                (path.endpointId === undefined
-                    ? !(endpointId === 0 && path.wildcardPathFlags?.skipRootNode)
-                    : path.endpointId === endpointId) &&
-                (path.clusterId === undefined || path.clusterId === clusterId) &&
+                namesClusterOf(path, endpointId, clusterId) &&
                 (path.attributeId === undefined || path.attributeId === attributeId),
+        );
+    }
+
+    /**
+     * Whether an event path of the peer's default subscription, as {@link NetworkClient} builds the request, includes
+     * the StartUp event of Basic Information on endpoint 0.
+     */
+    #subscriptionCoversStartUp(): boolean {
+        const definition = this.#peer.stateOf(NetworkClient).defaultSubscription;
+        if (definition === undefined) {
+            return true;
+        }
+        const paths: readonly EventPath[] | undefined =
+            "isFabricFiltered" in definition
+                ? definition.eventRequests
+                : { events: [{ isUrgent: true }], ...definition }.events;
+        const startUp = BasicInformation.events.startUp.id;
+        return (paths ?? []).some(
+            path =>
+                namesClusterOf(path, 0, BasicInformation.id) &&
+                (path.eventId === undefined || path.eventId === startUp),
         );
     }
 
@@ -429,6 +477,20 @@ export class DriftWatcher {
             member === "satisfiedBy" ? "its items are treated as drift suspects" : "its items are not watched";
         logger.warn(`Item kind "${kind.kind}" failed in ${member} for ${this.#peer.id}; ${consequence}:`, error);
     }
+}
+
+/** Whether a path of a request names the cluster on the endpoint, directly or by a wildcard. */
+function namesClusterOf(
+    path: { endpointId?: EndpointNumber; clusterId?: ClusterId; wildcardPathFlags?: { skipRootNode?: boolean } },
+    endpointId: number,
+    clusterId: number,
+) {
+    return (
+        (path.endpointId === undefined
+            ? !(endpointId === 0 && path.wildcardPathFlags?.skipRootNode)
+            : path.endpointId === endpointId) &&
+        (path.clusterId === undefined || path.clusterId === clusterId)
+    );
 }
 
 function sameWatches(a: Map<Observable, ReadonlySet<string>>, b: Map<Observable, ReadonlySet<string>>) {
