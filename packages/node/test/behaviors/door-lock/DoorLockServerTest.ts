@@ -33,7 +33,11 @@ import {
     FabricIndex,
     Status,
     StatusResponseError,
+    TlvField,
+    TlvObject,
     TlvOfModel,
+    TlvUInt16,
+    TlvUInt8,
 } from "@matter/types";
 import { DoorLock } from "@matter/types/clusters/door-lock";
 
@@ -306,6 +310,31 @@ function modifyUser({ cmds }: ScheduledLock, change: { userName?: string; userSt
 describe("DoorLockServer", () => {
     before(() => {
         MockTime.init();
+    });
+
+    it("answers ClearCredential with a CredentialType the enum does not define with INVALID_COMMAND", async () => {
+        await using lock = await createLock();
+        const command = DoorLock.schema.commands.require("ClearCredential");
+
+        let interactionStatus: number | undefined;
+        await interaction.invoke(
+            lock.node,
+            await lock.node.addFabric(),
+            {
+                commandPath: {
+                    endpointId: EndpointNumber(1),
+                    clusterId: ClusterId(DoorLock.Complete.id),
+                    commandId: CommandId(command.id ?? 0),
+                },
+                commandFields: TlvOfModel(command).encodeTlv({ credential: { credentialType: 9, credentialIndex: 1 } }),
+            },
+            response => {
+                interactionStatus = response.status?.status?.status;
+            },
+            { timed: true },
+        );
+
+        expect(interactionStatus).equals(Status.InvalidCommand);
     });
 
     it("refuses SetCredential naming an OperationType its constraint omits", async () => {
@@ -826,6 +855,68 @@ describe("DoorLockServer", () => {
                 await expectScheduledDenial(lock, OperationError.Restricted);
             });
         }
+
+        it("answers a GetWeekDaySchedule index outside the supported range in the response", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            await node.add(DoorLockDevice.with(TestScheduledDoorLockServer), {
+                doorLock: { ...lockState, numberOfWeekDaySchedulesSupportedPerUser: 10 },
+            });
+            const command = DoorLock.schema.commands.require("GetWeekDaySchedule");
+
+            let payloadStatus: number | undefined;
+            await interaction.invoke(
+                node,
+                await node.addFabric(),
+                {
+                    commandPath: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: ClusterId(DoorLock.Complete.id),
+                        commandId: CommandId(command.id ?? 0),
+                    },
+                    commandFields: TlvObject({
+                        weekDayIndex: TlvField(0, TlvUInt8),
+                        userIndex: TlvField(1, TlvUInt16),
+                    }).encodeTlv({ weekDayIndex: 0, userIndex: 1 }),
+                },
+                response => {
+                    const fields = response.command?.commandFields;
+                    if (fields !== undefined) {
+                        payloadStatus = statusOf(
+                            TlvOfModel(DoorLock.schema.commands.require("GetWeekDayScheduleResponse")).decodeTlv(
+                                fields,
+                            ),
+                        );
+                    }
+                },
+            );
+
+            expect(payloadStatus).equals(Status.InvalidCommand);
+        });
+
+        it("answers a GetWeekDaySchedule without command fields with INVALID_COMMAND", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            await node.add(DoorLockDevice.with(TestScheduledDoorLockServer), {
+                doorLock: { ...lockState, numberOfWeekDaySchedulesSupportedPerUser: 10 },
+            });
+
+            let interactionStatus: number | undefined;
+            await interaction.invoke(
+                node,
+                await node.addFabric(),
+                {
+                    commandPath: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: ClusterId(DoorLock.Complete.id),
+                        commandId: CommandId(DoorLock.schema.commands.require("GetWeekDaySchedule").id ?? 0),
+                    },
+                },
+                response => {
+                    interactionStatus = response.status?.status?.status;
+                },
+            );
+
+            expect(interactionStatus).equals(Status.InvalidCommand);
+        });
 
         it("grants a WeekDayScheduleUser inside a matching schedule and denies outside it", async () => {
             const { dayName, hour } = currentLocal();

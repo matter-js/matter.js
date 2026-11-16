@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Supervision } from "#behavior/supervision/Supervision.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { CommissioningServer } from "#behavior/system/commissioning/CommissioningServer.js";
 import { ProductDescriptionServer } from "#behavior/system/product-description/ProductDescriptionServer.js";
@@ -630,3 +631,8 @@ export namespace OperationalCredentialsServer {
         }
     }
 }
+
+// The cluster requires INVALID_COMMAND for a CertificateType that CertificateChainTypeEnum does not define
+Supervision(OperationalCredentialsServer, "certificateChainRequest").onValidationError = error => {
+    throw new StatusResponseError(`Invalid certificate chain request: ${error.message}`, Status.InvalidCommand);
+};

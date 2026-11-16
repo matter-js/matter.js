@@ -143,12 +143,13 @@ export interface ClusterProtocol {
     commands: Record<CommandId, CommandInvokeHandler>;
 
     /**
-     * When true, the protocol layer skips TLV-level request validation for commands.  The node layer performs
-     * model-based validation instead, allowing {@link Supervision.onValidationError} handlers to intercept errors.
+     * Commands whose requests the protocol layer does not validate against their TLV schema.  For these commands the
+     * data model validation of the node layer is the only check, and the command's
+     * {@link Supervision.onValidationError} decides the status that refuses invalid input.
      *
      * TODO - remove once all clusters use model-based validation
      */
-    skipCommandValidation?: boolean;
+    modelValidatedCommands?: ReadonlySet<CommandId>;
 }
 
 /**

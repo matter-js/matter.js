@@ -157,9 +157,12 @@ function createEnumValidator(schema: ValueModel, supervisor: RootSupervisor): Va
 
     const constraintValidator = createConstraintValidator(schema.effectiveConstraint, schema, supervisor);
 
+    // An enum without members, such as OnOff OffWithEffect.EffectVariant, has its values defined outside the enum
+    const definesValues = members.length > 0;
+
     return (value, session, location) => {
         assertNumber(value, location);
-        if (!valid.has(value) && !ranges.some(range => range.constraint.test(value))) {
+        if (definesValues && !valid.has(value) && !ranges.some(range => range.constraint.test(value))) {
             throw new DatatypeError(location, "defined in enum", value, Status.ConstraintError);
         }
 
