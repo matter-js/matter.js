@@ -84,6 +84,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `start()` recovers a crashed `ServerNode` that the runtime did not close and first finishes a factory reset it crashed in, and finishes the erase of a `ClientNode` that crashed in `erase()`
     - Enhancement: A lifecycle operation of a node or endpoint that waits 10 seconds for another one logs a warning naming both
     - Enhancement: `ClientNode.isDisabled` tells whether the node is disabled
+    - Enhancement: `ClientNode.start()` of a commissioned node starts its server node first if that is offline
     - Enhancement: `Peers.erase()` takes an optional storage erase, which runs before `forAddress()` can add a node again
     - Enhancement: Added `SoftwareUpdateManager.dropUndeliverableUpdate()` for `checkUpdateAvailable()` overrides
     - Enhancement: Added `SoftwareUpdateManager.mayDelegateConsentTo()`, the rule for when a node may obtain the user consent itself
@@ -163,7 +164,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `enable()` and `disable()` of a `ClientNode` take effect in call order, also mixed with `start()` and `stop()`
     - Fix: Erasing a peer waits for a running cache flush, so the flush no longer writes the erased values back
     - Fix: A cache write or a commit that runs while a peer is erased or deleted, or while an endpoint the peer dropped is deleted, no longer writes its values back, so a deleted peer no longer returns on the next start
-    - Fix: With a storage driver that writes at once, such as SQLite, the cache writes of several peers at the same time persist one after another and no longer fail with "Transaction is in progress"
     - Fix: A node that `Peers.forAddress()` adds during a factory reset keeps its store
     - Fix: A value that a server node commits while it is erased no longer returns after the erase
     - Fix: Removing a closing peer erases its storage also when the stores of its server node begin to close after the removal began
