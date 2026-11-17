@@ -444,14 +444,20 @@ export class CommissioningController {
             if (!peer.lifecycle.isCommissioned) {
                 continue;
             }
-            const networkState = peer.stateOf(NetworkClient);
-            const desiredDisabled = this.#options.autoConnect === false;
-            if (desiredDisabled !== networkState.isDisabled) {
-                await peer.set({ network: { isDisabled: desiredDisabled } });
-            }
-            const desiredAutoSubscribe = !!this.#options.autoSubscribe;
-            if (desiredAutoSubscribe !== networkState.autoSubscribe) {
-                await peer.set({ network: { autoSubscribe: desiredAutoSubscribe } });
+            const autoSubscribe = !!this.#options.autoSubscribe;
+            try {
+                await MatterAggregateError.settleSeries(
+                    [
+                        () => (this.#options.autoConnect === false ? peer.disable() : undefined),
+                        () =>
+                            autoSubscribe === peer.stateOf(NetworkClient).autoSubscribe
+                                ? undefined
+                                : peer.set({ network: { autoSubscribe } }),
+                    ],
+                    `Error applying the connection options to ${peer}`,
+                );
+            } catch (error) {
+                logger.warn(error);
             }
         }
 
@@ -676,11 +682,7 @@ export class CommissioningController {
             }
         }
 
-        if (peerNode.stateOf(NetworkClient).isDisabled) {
-            await peerNode.enable();
-        } else {
-            await peerNode.start();
-        }
+        await peerNode.enable();
 
         // Configure NetworkClient subscription parameters from connectOptions so that when
         // PairedNode later activates autoSubscribe, NetworkClient uses the right intervals
@@ -872,11 +874,32 @@ export class CommissioningController {
 
         await this.#controllerInstance.start();
 
+        if (this.#options.autoConnect !== false) {
+            await this.#enablePeers(this.#controllerInstance);
+        }
+
         const changeNotifications = this.#controllerInstance.node.env.get(ChangeNotificationService);
         this.#observers.on(changeNotifications.change, this.#handleNodeChange.bind(this));
 
         if (this.#options.autoConnect !== false && this.#controllerInstance.isCommissioned()) {
             await this.connect();
+        }
+    }
+
+    /**
+     * Enable every commissioned peer that is disabled, such as by an earlier start with `autoConnect: false`.  A peer
+     * that fails to enable is logged and stays as it is.
+     */
+    async #enablePeers(controller: MatterController) {
+        for (const peer of controller.node.peers) {
+            if (!peer.lifecycle.isCommissioned || !peer.isDisabled) {
+                continue;
+            }
+            try {
+                await peer.enable();
+            } catch (error) {
+                logger.warn(`Error enabling ${peer}:`, error);
+            }
         }
     }
 

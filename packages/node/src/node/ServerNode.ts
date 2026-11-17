@@ -17,16 +17,7 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import type { Environment } from "@matter/general";
-import {
-    asyncNew,
-    Construction,
-    Diagnostic,
-    DiagnosticSource,
-    errorOf,
-    Identity,
-    MatterAggregateError,
-    MatterError,
-} from "@matter/general";
+import { asyncNew, Construction, Diagnostic, DiagnosticSource, Identity, MatterAggregateError } from "@matter/general";
 import {
     FabricManager,
     Interactable,
@@ -40,20 +31,11 @@ import { GroupcastServer } from "../behaviors/groupcast/GroupcastServer.js";
 import { RootEndpoint as BaseRootEndpoint } from "../endpoints/root.js";
 import { Peers } from "./client/Peers.js";
 import { Node } from "./Node.js";
+import { NodeLifecycle } from "./NodeLifecycle.js";
 import { Plugins } from "./Plugins.js";
 import { DeviceTypeConformanceService } from "./server/DeviceTypeConformanceService.js";
 import { IdentityService } from "./server/IdentityService.js";
 import { ServerEnvironment } from "./server/ServerEnvironment.js";
-
-/**
- * Thrown when there is an error during factory reset.
- */
-class FactoryResetError extends MatterError {
-    constructor(message: string, cause: any) {
-        super(message);
-        this.cause = errorOf(cause);
-    }
-}
 
 /**
  * A server-side Matter {@link Node}.
@@ -131,6 +113,14 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
         return new ServerNetworkRuntime(this);
     }
 
+    protected override createLifecycle() {
+        return new NodeLifecycle(this, { target: "offline" });
+    }
+
+    protected override get appliedIntent(): NodeLifecycle.Intent {
+        return { target: this.appliedTarget };
+    }
+
     override async [Construction.destruct]() {
         await MatterAggregateError.settleSeries(
             [() => this.#peers?.close(), () => super[Construction.destruct](), () => ServerEnvironment.close(this)],
@@ -156,48 +146,33 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
 
     /**
      * Perform a factory reset of the node.
+     *
+     * Rejects with a {@link MatterAggregateError} if a step fails.  A failed reset still erases the storage and
+     * restarts the node.  The node crashes if it cannot go offline first, in which case nothing is erased, if the
+     * storage erase fails, or if it cannot go online again.  A crashed node that the runtime did not close finishes the
+     * factory reset on {@link start} before it goes online; if the reset fails again, the start rejects and the node
+     * stays crashed.  An {@link erase} meanwhile joins that reset.
      */
     override async erase() {
         using _erasing = this.construction.join("erasing");
-        await this.lifecycle.mutex.produce(this.eraseWithMutex.bind(this));
+        await super.erase();
     }
 
-    protected async eraseWithMutex() {
-        try {
-            await this.construction;
+    /**
+     * A factory reset erases the storage of the node and its endpoints at once, so the endpoint initializer does not
+     * take part.
+     */
+    protected override async prepareErase(): Promise<EndpointInitializer.Erasure> {
+        return {
+            wipe: async () => {
+                this.statusUpdate("resetting to factory defaults");
+                await this.#eraseStorage();
+            },
+        };
+    }
 
-            // Go offline before performing reset
-            const isOnline = this.lifecycle.isOnline;
-            if (isOnline) {
-                await this.cancelWithMutex();
-            }
-
-            // Inform user
-            this.statusUpdate("resetting to factory defaults");
-
-            // Reset in-memory state
-            await this.resetWithMutex();
-
-            // Reset persistent state
-            await this.resetStorage();
-
-            // The node's services outlive the reset, so what they hold for the state it discarded does not.  This is
-            // deliberately not part of resetStorage(), which an application may override
-            await this.resetServiceState();
-
-            // Reset reverts node to inactive state; now reinitialize
-            this.construction.start();
-
-            // Go back online if we were online at time of reset and should still be online, otherwise just await reinitialization
-            if (isOnline && this.lifecycle.shouldBeOnline) {
-                await this.startWithMutex();
-            } else {
-                await this.construction.ready;
-            }
-        } catch (e) {
-            this.construction.crash();
-            throw new FactoryResetError(`Error during factory reset of ${this}`, e);
-        }
+    protected override async prepareDelete(): Promise<EndpointInitializer.Erasure> {
+        return { wipe: () => this.#eraseStorage() };
     }
 
     /**
@@ -232,8 +207,18 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
         await super.initialize();
     }
 
+    async #eraseStorage() {
+        await this.resetStorage();
+
+        // The node's services outlive the reset, so what they hold for the state it discarded does not.  This is
+        // deliberately not part of resetStorage(), which an application may override
+        this.#resetServiceState();
+    }
+
     /**
-     * By default, on factory reset we erase all stored data.
+     * By default, on factory reset and on {@link delete} we erase all stored data.  Runs after the endpoints of the
+     * node reset, while the node holds its lifecycle mutexes, so it must not await {@link start}, {@link stop} or a
+     * lifecycle verb of the node or one of its endpoints.
      *
      * If this is inappropriate for your application, you may override to alter the behavior.  Matter requires that all
      * "security- and privacy-related data and key material" is removed on factory reset.
@@ -241,26 +226,28 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      * @see {@link MatterSpecification.v161.Core} § 13.4
      */
     protected async resetStorage() {
-        await MatterAggregateError.settleSeries(
-            [
-                // Peers first so their teardown still sees the fabrics and sessions it depends on
-                () => this.#peers?.erase(),
+        const eraseStorage = () =>
+            MatterAggregateError.settleSeries(
+                [
+                    () => this.env.get(SessionManager).clear(),
+                    () => this.env.get(FabricManager).clear(),
+                    () => this.env.get(OccurrenceManager).clear(),
+                    () => this.env.get(SubscriptionStore).clear(),
+                    () => ServerEnvironment.eraseCredentials(this),
+                    () => this.env.get(ServerNodeStore).erase(),
+                ],
+                `Error erasing storage of ${this}`,
+            );
 
-                () => this.env.get(SessionManager).clear(),
-                () => this.env.get(FabricManager).clear(),
-                () => this.env.get(OccurrenceManager).clear(),
-                () => this.env.get(SubscriptionStore).clear(),
-                () => ServerEnvironment.eraseCredentials(this),
-                () => this.env.get(ServerNodeStore).erase(),
-            ],
-            `Error erasing storage of ${this}`,
-        );
+        // Peers go first so their teardown still sees the fabrics and sessions it depends on
+        const peers = this.#peers;
+        await (peers === undefined ? eraseStorage() : peers.erase(eraseStorage));
     }
 
     /**
      * Discard the in-memory state the node's services hold for what a factory reset erases.
      */
-    private async resetServiceState() {
+    #resetServiceState() {
         this.env.get(IdentityService).releaseReservedPeerAddresses();
         this.env.get(DeviceTypeConformanceService).reset();
         this.env.get(EndpointInitializer).variableService?.invalidate();

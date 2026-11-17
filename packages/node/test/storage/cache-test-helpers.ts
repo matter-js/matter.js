@@ -8,24 +8,34 @@ import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import type { RemoteWriter } from "#storage/client/RemoteWriter.js";
-import { createPromise } from "@matter/general";
+import { createPromise, Instant, MemoryStorageDriver, StorageDriver } from "@matter/general";
 import { Val, WriteResult } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 
+/**
+ * A cache on endpoint 1.  {@link localWriter} stands in for the endpoint store the cache persists into.  A cache with a
+ * {@link localWriter} and no {@link buffer} persists through a buffer that flushes each settlement at once.
+ */
 export function createCache(options?: {
     buffer?: ClientCacheBuffer;
     localWriter?: {
-        persistInTransaction: (...args: any[]) => Promise<void>;
-        persist: (...args: any[]) => Promise<void>;
+        persistInTransaction: (tx: StorageDriver.Transaction, ...args: any[]) => Promise<void>;
+        erase?: () => Promise<void>;
     };
 }) {
+    const localWriter = options?.localWriter;
+    const buffer =
+        options?.buffer ?? (localWriter ? new ClientCacheBuffer(MemoryStorageDriver.create(), Instant) : undefined);
     return new DatasourceCache({
         writer: sendingWriter([]),
         nodeId: "test-peer",
         endpointNumber: EndpointNumber(1),
         behaviorId: "test",
-        localWriter: options?.localWriter as any,
-        buffer: options?.buffer,
+        persist: localWriter
+            ? (tx, values) => localWriter.persistInTransaction(tx, EndpointNumber(1), "test", values)
+            : undefined,
+        eraseStored: localWriter?.erase,
+        buffer,
     });
 }
 
@@ -60,10 +70,6 @@ export function trackingWriter() {
         persistInTransaction: async (_tx: any, _ep: any, _bid: any, vals: Val.Struct) => {
             persisted.push(vals);
         },
-        persist: async (_ep: any, _bid: any, vals: Val.Struct) => {
-            persisted.push(vals);
-        },
-        erase: async () => {},
     };
 }
 
@@ -106,8 +112,7 @@ export function gatedWriter() {
     return {
         stored,
         pending,
-        persistInTransaction: async () => {},
-        persist: async (_ep: unknown, _bid: unknown, values: Val.Struct) => {
+        persistInTransaction: async (_tx: unknown, _ep: unknown, _bid: unknown, values: Val.Struct) => {
             const { promise, resolver, rejecter } = createPromise<void>();
             pending.push({ values, finish: resolver, fail: rejecter });
             await promise;
@@ -115,19 +120,27 @@ export function gatedWriter() {
         },
 
         /**
-         * Finish {@link count} persists.  Each round waits for the next persist to start, then finishes the newest
-         * unfinished one, so an older persist finishes after a newer one whenever the cache lets both run at once.
+         * Let one persist after another finish until {@link done} settles.
          */
-        async finishNewestFirst(count: number) {
-            const finished = new Set<number>();
-            while (finished.size < count) {
-                for (let i = 0; i < 10 && pending.length === finished.size; i++) {
-                    await MockTime.yield();
+        async finishUntil(done: Promise<unknown>) {
+            let settled = false;
+            const settling = done.finally(() => (settled = true));
+            let finished = 0;
+            while (!settled) {
+                await MockTime.yield();
+                if (finished < pending.length) {
+                    pending[finished++].finish();
                 }
-                const newest = pending.length - 1;
-                const index = finished.has(newest) ? pending.findIndex((_, i) => !finished.has(i)) : newest;
-                pending[index].finish();
-                finished.add(index);
+            }
+            await settling;
+        },
+
+        /**
+         * Resolves once {@link count} persists have started.
+         */
+        async started(count: number) {
+            while (pending.length < count) {
+                await MockTime.yield();
             }
         },
     };

@@ -5,7 +5,7 @@
  */
 
 import type { ActionContext } from "#behavior/context/ActionContext.js";
-import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
+import type { ClientNodeStores } from "#storage/client/ClientNodeStores.js";
 import { Interactable } from "@matter/protocol";
 import { ClientGroupInteraction, InvalidGroupOperationError } from "./client/ClientGroupInteraction.js";
 import { ClientNode } from "./ClientNode.js";
@@ -37,8 +37,8 @@ export class ClientGroup extends ClientNode {
         return this.#interaction;
     }
 
-    protected override get store() {
-        return this.env.get(ServerNodeStore).clientStores.storeForGroup(this);
+    protected override openStore(stores: ClientNodeStores) {
+        return stores.storeForGroup(this);
     }
 }
 

@@ -17,14 +17,18 @@ import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import {
     asError,
     Construction,
+    DestroyedDependencyError,
     Diagnostic,
     DiagnosticPresentation,
     DiagnosticSource,
     Environment,
     Identity,
     ImplementationError,
+    Lifecycle,
     Logger,
     MatterAggregateError,
+    MatterError,
+    MaybePromise,
 } from "@matter/general";
 import { Matter, MatterModel } from "@matter/model";
 import { Interactable } from "@matter/protocol";
@@ -36,15 +40,38 @@ import { NodeLifecycle } from "./NodeLifecycle.js";
 const logger = Logger.get("Node");
 
 /**
+ * How each {@link Node.IntentCall} is admitted and named: `action` in errors, `operation` in the warning of a long
+ * wait.
+ */
+const INTENT_CALLS: Record<Node.IntentCall, { admission: Node.IntentAdmission; action: string; operation: string }> = {
+    start: { admission: "intent", action: "start", operation: "starting" },
+    stop: { admission: "stop", action: "stop", operation: "stopping" },
+    enable: { admission: "intent", action: "enable", operation: "enabling" },
+    disable: { admission: "intent", action: "disable", operation: "disabling" },
+    "clear-disabled": {
+        admission: "intent",
+        action: "clear the disabled flag",
+        operation: "clearing the disabled flag of",
+    },
+};
+
+/**
  * A Matter Node.
  *
  * In Matter, a "node" is an individually addressable top-level network resource.
  */
-export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEndpoint> extends Endpoint<T> {
+export abstract class Node<
+    T extends Node.CommonRootEndpoint = Node.CommonRootEndpoint,
+    I extends NodeLifecycle.Intent = NodeLifecycle.Intent,
+> extends Endpoint<T> {
     #environment: Environment;
     #runtime?: NetworkRuntime;
-    #startInProgress = false;
-    #closeInProgress = false;
+
+    /**
+     * The close of the runtime of a failed start, which runs in the background.  The next runtime is created once it
+     * ended, as both register their handlers with the same exchange manager.
+     */
+    #closingRuntime?: Promise<void>;
 
     constructor(config: Node.Configuration<T>) {
         const parentEnvironment = config.environment ?? config.owner?.env ?? Environment.default;
@@ -104,31 +131,207 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
         return this.env.get(ProtocolService).protocol;
     }
 
-    override get lifecycle(): NodeLifecycle {
-        return super.lifecycle as NodeLifecycle;
+    override get lifecycle(): NodeLifecycle<I> {
+        return super.lifecycle as NodeLifecycle<I>;
     }
 
     /**
      * Bring the node online.
+     *
+     * A call of {@link start} or {@link stop} records its intent at once and waits for its turn; calls take turns in
+     * call order.  At its turn a call applies the current intent if that intent still points in the direction of the
+     * call, and skips if a later call reversed the direction:
+     *
+     * 1. The call resolves only once the node applied the intent in its direction, or once it skipped.
+     * 2. The call rejects only if it is refused, or if a step it ran failed: its preparation or its apply.  The intent
+     *    is then what the node is, unless a later call recorded another intent.
+     * 3. A call followed by a later call of the same direction does not resolve before that direction is applied.
+     *
+     * A crashed node recovers first as {@link recoverWithMutex} describes; if that fails, the call rejects with the
+     * failure and the node stays crashed.
+     *
+     * Throws {@link DestroyedDependencyError} once a close or delete of the node was requested, and the error of the
+     * {@link onlineBlocker} if the node may not go online at its turn.
      */
     async start() {
-        if (this.lifecycle.isOnline || this.#startInProgress) {
-            return;
-        }
+        await this.requestIntent({ target: "online" }, "start");
+    }
 
-        this.#startInProgress = true;
-        try {
-            this.lifecycle.targetState = "online";
-
-            await this.lifecycle.mutex.produce(this.startWithMutex.bind(this));
-        } catch (error) {
-            this.lifecycle.targetState = "offline";
-            throw error;
-        } finally {
-            this.#startInProgress = false;
+    /**
+     * What keeps the node from going online now, or undefined if nothing does.  This is the only gate at the node's
+     * turn; a check a call makes before it records its intent is a precondition of that call.
+     *
+     * @internal
+     */
+    get onlineBlocker(): Node.OnlineBlocker | undefined {
+        const cause = this.lifecycle.terminalCause;
+        if (cause !== undefined) {
+            return { error: () => this.verbs.refusal(cause, "go online") };
         }
     }
 
+    /**
+     * Record {@link change} as the intent of {@link call} and apply it at its turn on the node mutex as {@link start}
+     * describes.  At its turn the call applies the current intent only if every value of {@link change} still holds in
+     * it, so no later call reversed it.
+     */
+    protected async requestIntent(change: Partial<I | NodeLifecycle.Intent>, call: Node.IntentCall) {
+        const { admission, action, operation } = INTENT_CALLS[call];
+        if (!this.#admitOrThrow(admission, action)) {
+            return;
+        }
+        if (
+            change.target === "online" &&
+            this.lifecycle.isOnline &&
+            this.lifecycle.shouldBeOnline &&
+            NodeLifecycle.holds(this.appliedIntent, change)
+        ) {
+            return;
+        }
+
+        const ticket = this.lifecycle.request(change);
+        try {
+            if (change.target === "online") {
+                const preparing = this.prepareStart();
+                if (MaybePromise.is(preparing)) {
+                    await preparing;
+                }
+            }
+            await this.lifecycle.mutex.hold(`${operation} ${this}`, async () => {
+                // A close or delete may have been requested while this call waited for the mutex
+                if (NodeLifecycle.holds(this.lifecycle.intent, change) && this.#admitOrThrow(admission, action)) {
+                    await this.#applyIntentWithMutex();
+                }
+            });
+        } catch (error) {
+            this.lifecycle.restore(ticket, this.appliedIntent);
+            throw error;
+        }
+    }
+
+    /**
+     * Bring the node online if its intent is online and no {@link onlineBlocker} keeps it offline, else take it
+     * offline.  Bringing a crashed node online recovers it first as {@link recoverWithMutex} describes, which for a
+     * node that crashed in an erase is a whole erase.  Records no intent.  The owner of a blocker calls this
+     * when the blocker appears or lifts, and only after its own `isOnline` reflects the change.  Does nothing once a
+     * close or delete of the node was requested, as that takes the node offline itself.  A failed apply is logged by
+     * the caller; the next apply or a {@link start} tries again.
+     *
+     * @internal
+     */
+    async applyIntent() {
+        if (!this.#admitOrThrow("stop", "apply its intent")) {
+            return;
+        }
+        await this.lifecycle.mutex.hold(`applying the intent of ${this}`, async () => {
+            if (this.lifecycle.shouldBeOnline && this.onlineBlocker === undefined) {
+                await this.#applyIntentWithMutex();
+            } else {
+                await this.cancelWithMutex();
+            }
+        });
+    }
+
+    /**
+     * Persist the parts of the intent that outlive a restart.  The caller holds the node mutex (level 1 or 4 of the
+     * lock order in `LifecycleMutex`).
+     */
+    protected async persistIntentWithMutex() {}
+
+    /**
+     * What the node is.  Its target is {@link appliedTarget}.
+     */
+    protected abstract get appliedIntent(): I;
+
+    /**
+     * The target the node is at: online while its network runtime runs.
+     */
+    protected get appliedTarget(): NodeLifecycle.TargetState {
+        return this.#runtime === undefined ? "offline" : "online";
+    }
+
+    /**
+     * Bring the node to its current intent, so a call never undoes a later one.  The node goes offline before the
+     * intent persists and online only after it persisted, so a failed persist never leaves it online against its
+     * intent.  The caller holds the node mutex.
+     */
+    async #applyIntentWithMutex() {
+        if (this.lifecycle.shouldBeOnline) {
+            if (this.construction.status === Lifecycle.Status.Crashed) {
+                await this.recoverWithMutex();
+            }
+            await this.persistIntentWithMutex();
+            await this.startWithMutex();
+            return;
+        }
+
+        const errors = new Array<unknown>();
+        for (const step of [() => this.cancelWithMutex(), () => this.persistIntentWithMutex()]) {
+            try {
+                await step();
+            } catch (error) {
+                errors.push(error);
+            }
+        }
+        if (errors.length > 1) {
+            throw new MatterAggregateError(errors, `Error taking ${this} offline`);
+        }
+        if (errors.length) {
+            throw errors[0];
+        }
+    }
+
+    /**
+     * Bring a crashed node back before it goes online, or reject with the reason it cannot come back.  An override
+     * either recovers the node or rejects.  The caller holds the node mutex (level 1 or 4 of the lock order in
+     * `LifecycleMutex`) and the node is offline.
+     *
+     * | crashed in                                  | recovery                                                     |
+     * |---------------------------------------------|--------------------------------------------------------------|
+     * | {@link erase}, no erase waits for its turn  | finishes the erase as the erase verb; an `erase()` joins it  |
+     * | {@link erase}, an erase waits for its turn  | none; rejects with the cause, the waiting erase finishes it  |
+     * | anything else                               | resets and initializes again                                 |
+     *
+     * The erase verb decides whether an erase waits for its turn; see `EndpointVerbs.run()` with origin `recovery`.
+     *
+     * Within this process, a node that crashed in an erase goes online only once that erase is finished, so a failed
+     * factory reset leaves no security data behind on a node that runs.  The flag is not persisted, and a started
+     * `ServerNode` that crashes is closed by its runtime.  If a step fails again, the node stays crashed and this
+     * rejects with that failure.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 13.4
+     */
+    protected async recoverWithMutex() {
+        if (this.verbs.isEraseUnfinished) {
+            await this.verbs.run("erase", "recovery");
+            return;
+        }
+        await this.lifecycle.treeMutex.hold(`recovering ${this}`, () => this.resetWithMutex());
+        this.construction.start();
+        await this.construction;
+    }
+
+    /**
+     * Admit a call of {@link requestIntent} or {@link applyIntent}.  Returns whether the call runs, or throws if it is refused.
+     */
+    #admitOrThrow(call: Node.IntentAdmission, action: string) {
+        const admission = this.verbs.admit(call);
+        if (admission.decision === "refuse") {
+            throw this.verbs.refusal(admission.cause, action);
+        }
+        return admission.decision !== "skip";
+    }
+
+    /**
+     * Prepare a {@link start} once it recorded its intent and before it waits for the node mutex.
+     */
+    protected prepareStart(): MaybePromise<void> {}
+
+    /**
+     * Bring the node online.  The caller holds the node mutex (level 1 or 4 of the lock order in `LifecycleMutex`).
+     * After a failed start, the next start and the close of the node first wait for the runtime of that start to
+     * close, which waits at most 5 s for the activity of the node to end.
+     */
     protected async startWithMutex() {
         if (this.isRuntimeWorker) {
             this.env.runtime.add(this);
@@ -140,6 +343,13 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
             if (this.#runtime) {
                 return;
             }
+
+            const blocker = this.onlineBlocker;
+            if (blocker !== undefined) {
+                throw blocker.error();
+            }
+
+            await this.#closingRuntime;
 
             this.statusUpdate("going online");
 
@@ -158,8 +368,13 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
                 this.#runtime = undefined;
                 this.behaviors.internalsOf(NetworkBehavior).runtime = undefined;
 
-                // We intentionally do not track this promise because it is likely to hang
-                runtime.close().catch(e => {
+                try {
+                    await this.act(agent => this.lifecycle.goingOffline.emit(agent.context));
+                } catch (error) {
+                    logger.warn(`Error reporting that ${this} goes offline after its start failed:`, error);
+                }
+
+                this.#closingRuntime = runtime.close().catch(e => {
                     logger.warn("Error closing network runtime", asError(e));
                 });
             }
@@ -188,11 +403,12 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
     /**
      * Take the node offline but leave state and structure intact.  Happens automatically on close.
      *
-     * Once the node is offline you may use {@link start} to bring the node online again.
+     * Once the node is offline you may use {@link start} to bring the node online again.  Calls take effect as
+     * {@link start} describes.  A failed stop still leaves the node offline, as it drops the network runtime first.
+     * Does nothing once a close or delete of the node was requested, as that takes the node offline itself.
      */
     async stop() {
-        this.lifecycle.targetState = "offline";
-        await this.lifecycle.mutex.produce(this.cancelWithMutex.bind(this));
+        await this.requestIntent({ target: "offline" }, "stop");
     }
 
     /**
@@ -212,6 +428,9 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
         return new Endpoints(this);
     }
 
+    /**
+     * Take the node offline.  The caller holds the node mutex (level 1 or 4 of the lock order in `LifecycleMutex`).
+     */
     protected async cancelWithMutex() {
         if (!this.#runtime) {
             return;
@@ -234,35 +453,69 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
         );
     }
 
-    override async close() {
-        if (this.#closeInProgress) {
-            return;
-        }
-        this.#closeInProgress = true;
+    /**
+     * Run the step of a lifecycle verb of the node while holding the node mutex and then the tree mutex.  The node goes
+     * offline first and online again afterwards if its network was running and it should stay online.
+     */
+    protected override async withLifecycleMutex(operation: string, step: () => Promise<void>) {
+        await this.lifecycle.mutex.hold(operation, () => this.#runOffline(operation, step));
+    }
+
+    /**
+     * Take the node offline, run {@link step} while holding the tree mutex, and bring the node online again if its
+     * network was running and it should stay online.  The runtime is not designed to operate with a node whose root
+     * resets or closes, so it goes first.  A node that fails to go offline before an erase or to go online again
+     * crashes, unless an {@link onlineBlocker} keeps it offline by then.  The node goes offline before the step takes
+     * the tree mutex, because a report of the runtime may run a verb of a part that waits for that mutex.
+     */
+    async #runOffline(operation: string, step: () => Promise<void>) {
+        // A peer without a session is offline while its runtime runs and reconnects
+        const wasRunning = this.#runtime !== undefined;
+        const errors = new Array<unknown>();
+
         try {
-            this.lifecycle.targetState = "offline";
-            await this.lifecycle.mutex.close();
-            await this.closeWithMutex();
-        } finally {
-            this.#closeInProgress = false;
+            await this.cancelWithMutex();
+        } catch (e) {
+            errors.push(e);
+            if (!this.lifecycle.isTerminal) {
+                this.construction.crash();
+                throw new MatterAggregateError(errors, `Error ${operation}`);
+            }
         }
-    }
 
-    protected async closeWithMutex() {
-        // The runtime is not designed to operate with a node that is shutting down so destroy it before performing
-        // actual close
-        await MatterAggregateError.settleSeries(
-            [() => (this.#runtime ? this.cancelWithMutex() : undefined), () => super.close()],
-            `Error closing node ${this}`,
-        );
-    }
+        try {
+            await this.lifecycle.treeMutex.hold(operation, step);
+        } catch (e) {
+            errors.push(e);
+        }
 
-    override async reset() {
-        await this.lifecycle.mutex.produce(this.resetWithMutex.bind(this));
-    }
+        if (wasRunning && this.lifecycle.shouldBeOnline && this.construction.status === Lifecycle.Status.Active) {
+            try {
+                await this.startWithMutex();
+            } catch (e) {
+                if (this.onlineBlocker !== undefined) {
+                    logger.debug(
+                        Diagnostic.strong(this.toString()),
+                        `stays offline after ${operation} as it cannot go online now:`,
+                        e,
+                    );
+                } else {
+                    errors.push(e);
 
-    protected async resetWithMutex() {
-        return super.reset();
+                    // A failed start of the construction crashed it with its cause already
+                    if (this.construction.status === Lifecycle.Status.Active) {
+                        this.construction.crash();
+                    }
+                }
+            }
+        }
+
+        if (errors.length === 1 && errors[0] instanceof MatterAggregateError) {
+            throw errors[0];
+        }
+        if (errors.length) {
+            throw new MatterAggregateError(errors, `Error ${operation}`);
+        }
     }
 
     /**
@@ -312,9 +565,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
         });
     }
 
-    protected override createLifecycle(): NodeLifecycle {
-        return new NodeLifecycle(this);
-    }
+    protected abstract override createLifecycle(): NodeLifecycle<I>;
 
     protected statusUpdate(message: string) {
         logger.notice(Diagnostic.strong(this.toString()), message);
@@ -324,6 +575,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
         await MatterAggregateError.settleSeries(
             [
                 () => this.cancelWithMutex(),
+                () => this.#closingRuntime,
                 () => super[Construction.destruct](),
                 () => DiagnosticSource.delete(this),
                 () => this.#environment[Symbol.dispose](),
@@ -334,6 +586,32 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
 }
 
 export namespace Node {
+    /**
+     * What keeps a node from going online now.
+     *
+     * @internal
+     */
+    export interface OnlineBlocker {
+        /**
+         * Build the error that refuses going online.
+         */
+        error(): MatterError;
+    }
+
+    /**
+     * A call that records an intent with `Node.requestIntent()`.
+     *
+     * @internal
+     */
+    export type IntentCall = "start" | "stop" | "enable" | "disable" | "clear-disabled";
+
+    /**
+     * How a requested close or delete affects a call; see `EndpointVerbs.admit()`.
+     *
+     * @internal
+     */
+    export type IntentAdmission = "intent" | "stop";
+
     export interface NodeOptions extends Endpoint.EndpointOptions {
         environment?: Environment;
     }

@@ -58,6 +58,10 @@ export abstract class StorageDriver extends BaseStorageDriver {
         return value !== undefined;
     }
 
+    /**
+     * Open a {@link StorageDriver.Transaction}.  This default transaction writes through to the driver, as the memory
+     * and JSON file drivers use it, so a rollback does not undo the values it staged.
+     */
     begin(): MaybePromise<StorageDriver.Transaction> {
         return new StorageDriver.Transaction(this);
     }

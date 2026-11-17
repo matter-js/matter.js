@@ -274,6 +274,15 @@ export function captureAllLog(actor: () => void) {
 }
 
 /**
+ * Every line logged until {@link actor} settles, at any level.
+ */
+export async function captureAllLogOf(actor: () => Promise<unknown>) {
+    using capture = capturing();
+    await actor();
+    return capture.all();
+}
+
+/**
  * The device type conformance warnings logged until {@link actor} settles.
  */
 export async function captureLogOf(actor: () => Promise<unknown>) {

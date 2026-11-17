@@ -438,6 +438,9 @@ export class GeneralDiagnosticsServer extends Base {
     }
 
     #goingOffline() {
+        if (this.internal.onlineAtUs === undefined) {
+            return;
+        }
         this.internal.lastTotalOperationalHoursTimer?.stop();
         this.#updateTotalOperationalHoursCounter();
         this.internal.onlineAtUs = undefined;

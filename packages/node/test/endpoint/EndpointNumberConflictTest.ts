@@ -164,6 +164,25 @@ describe("EndpointNumberConflict", () => {
         expect(partsListOf(node)).deep.equals([5, 6]);
     });
 
+    it("refuses a nested preset number that a later sibling of its parent installs first", async () => {
+        await using node = new MockServerNode();
+        const aggregator = new Endpoint(AggregatorEndpoint, {
+            id: "aggregator",
+            number: EndpointNumber(6),
+            parts: [{ type: OnOffLightDevice, id: "nested", number: EndpointNumber(5), isEssential: false }],
+        });
+        const holder = new Endpoint(OnOffLightDevice, { id: "holder", number: EndpointNumber(5) });
+        node.parts.add(aggregator);
+        node.parts.add(holder);
+
+        await node.start();
+        await MockTime.yield3();
+
+        const nested = aggregator.parts.require("nested");
+        expect(nested.construction.error).instanceOf(IdentityConflictError);
+        expect(holderOf(node, 5)).equals(holder);
+    });
+
     describe("a failed add of an essential endpoint", () => {
         it("closes the endpoint", async () => {
             await using node = await MockServerNode.createOnline(undefined, { device: undefined });
@@ -319,8 +338,6 @@ describe("EndpointNumberConflict", () => {
             await using node = await MockServerNode.createOnline(undefined, { device: undefined });
             const endpoint = await node.add(OnOffLightDevice, { id: "restarted", number: 5 });
             await endpoint.erase();
-            endpoint.construction.start();
-            await endpoint.construction;
             const deleted = new Array<number | undefined>();
             node.env.get(ChangeNotificationService).change.on(change => {
                 if (change.kind === "delete") {
@@ -332,6 +349,36 @@ describe("EndpointNumberConflict", () => {
 
             expect(deleted).deep.equals([5]);
         });
+    });
+
+    // Characterization
+    it("refuses a part with a held number added while a factory reset resets the node", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const held = await node.add(OnOffLightDevice, { id: "held", number: 5 });
+        const duplicate = new Endpoint(OnOffLightDevice, { id: "duplicate", number: 5 });
+        let duplicateFailure: unknown;
+        duplicate.construction.onError(error => {
+            duplicateFailure = error;
+        });
+        let refusal: unknown;
+        const reset = new Promise<void>(resolve =>
+            node.lifecycle.reset.once(() => {
+                try {
+                    node.parts.add(duplicate);
+                } catch (error) {
+                    refusal = error;
+                }
+                resolve();
+            }),
+        );
+
+        const erasing = node.erase();
+        await reset;
+        expect(refusal).instanceOf(IdentityConflictError);
+        await MockTime.resolve(erasing, { macrotasks: true });
+        expect(duplicateFailure).equals(undefined);
+
+        expect([...node.parts]).deep.equals([held]);
     });
 
     // Characterization

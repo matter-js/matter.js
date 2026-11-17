@@ -52,7 +52,7 @@ import { ClientNodeInteraction } from "../../../src/node/client/ClientNodeIntera
 import { ClientGroup } from "../../../src/node/ClientGroup.js";
 import { NodeConnectionState } from "../../../src/node/ClientNodeLifecycle.js";
 import type { ServerNode } from "../../../src/node/ServerNode.js";
-import { ClientNodeStore } from "../../../src/storage/client/ClientNodeStore.js";
+import { ServerNodeStore } from "../../../src/storage/server/ServerNodeStore.js";
 
 describe("Binding integration", () => {
     before(() => {
@@ -742,7 +742,9 @@ describe("Binding integration, group sends", () => {
             await MockTime.resolve(resolution.node.start(), { macrotasks: true });
 
             expect(resolution.node.construction.status).equals(Lifecycle.Status.Active);
-            expect(resolution.node.env.get(ClientNodeStore).cacheFabricFiltered).undefined;
+            expect(
+                resolution.node.env.get(ServerNodeStore).clientStores.storeForNode(resolution.node).cacheFabricFiltered,
+            ).undefined;
             expect(problems).deep.equals([]);
         } finally {
             delete Logger.destinations.capture;

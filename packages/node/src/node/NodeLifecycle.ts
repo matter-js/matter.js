@@ -7,12 +7,13 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
-import { AsyncObservable, Mutex, Observable } from "@matter/general";
+import { LifecycleMutex } from "#endpoint/properties/LifecycleMutex.js";
+import { AsyncObservable, isDeepEqual, Observable } from "@matter/general";
 
 /**
  * Extended lifecycle information that only applies to root endpoints.
  */
-export class NodeLifecycle extends EndpointLifecycle {
+export class NodeLifecycle<I extends NodeLifecycle.Intent = NodeLifecycle.Intent> extends EndpointLifecycle {
     #online = AsyncObservable<[context: ActionContext]>();
     #goingOffline = AsyncObservable<[context: ActionContext]>();
     #offline = AsyncObservable<[context: ActionContext]>();
@@ -21,13 +22,17 @@ export class NodeLifecycle extends EndpointLifecycle {
     #initialized = Observable<[isCommissioned: boolean]>();
     #onlineAt?: Date;
     #isCommissioned = false;
-    #mutex: Mutex;
-    #targetState: "online" | "offline" = "offline";
+    #intent: I;
+    #lastTicket = 0;
+    #isTargetRequested = false;
+    #intentChanged = Observable<[]>();
+    #mutex: LifecycleMutex;
 
-    constructor(endpoint: Endpoint) {
+    constructor(endpoint: Endpoint, intent: I) {
         super(endpoint);
 
-        this.#mutex = new Mutex(endpoint);
+        this.#intent = intent;
+        this.#mutex = new LifecycleMutex(endpoint);
 
         this.#online.on(() => {
             this.#onlineAt = new Date();
@@ -75,7 +80,8 @@ export class NodeLifecycle extends EndpointLifecycle {
     }
 
     /**
-     * Emits when the node is going offline.
+     * Emits when the network runtime of the node is about to stop, whether or not the node went online.  {@link
+     * offline} follows only if it did.
      */
     get goingOffline() {
         return this.#goingOffline;
@@ -110,27 +116,149 @@ export class NodeLifecycle extends EndpointLifecycle {
     }
 
     /**
-     * Mutex for protecting node lifecycle transitions.
+     * Mutex for protecting node lifecycle transitions, the node mutex.
      *
-     * Methods that implement complex async lifecycle transitions use this mutex to ensure conflicting operations cannot
-     * intermingle.
+     * {@link Node.start}, {@link Node.stop} and the lifecycle verbs of the node hold this mutex.  The verbs of the
+     * node's other endpoints do not; they hold {@link treeMutex}, which the verbs of the node take after this one.
+     * See {@link LifecycleMutex} for the lock order.
      *
-     * Generally methods that hold this mutex have a protected "*WithMutex" variant.  This allows for nesting of logic
-     * that requires the mutex without causing deadlock.
+     * @internal
      */
     get mutex() {
         return this.#mutex;
     }
 
-    set targetState(state: "online" | "offline") {
-        this.#targetState = state;
+    override get isNode() {
+        return true;
     }
 
+    /**
+     * What the last call of `start()`, `stop()`, `enable()` or `disable()` asked for, or what the node is if that call
+     * failed.  A call records its intent with {@link request} before it waits for its turn.  The auto-start of the
+     * server node gives the target online with {@link autoStart} unless a call asked for a target.
+     *
+     * | event                              | intent after                    | target asked for after |
+     * |------------------------------------|---------------------------------|------------------------|
+     * | {@link request}                    | the change applied              | true if it has target  |
+     * | {@link autoStart}, target not asked | target online                  | unchanged (false)      |
+     * | {@link autoStart}, target asked    | unchanged                       | unchanged (true)       |
+     * | {@link restore} of the last call   | what the node is                | false                  |
+     * | {@link restore} of an earlier call | unchanged                       | unchanged              |
+     *
+     * @internal
+     */
+    get intent(): Readonly<I> {
+        return this.#intent;
+    }
+
+    /**
+     * Emits when {@link intent} changes.
+     *
+     * @internal
+     */
+    get intentChanged() {
+        return this.#intentChanged;
+    }
+
+    /**
+     * Record the intent of a call.  The returned ticket names the call in {@link restore}.
+     *
+     * @internal
+     */
+    request(change: Partial<I | NodeLifecycle.Intent>): NodeLifecycle.IntentTicket {
+        if (change.target !== undefined) {
+            this.#isTargetRequested = true;
+        }
+        this.#setIntent(NodeLifecycle.changed(this.#intent, change));
+        return ++this.#lastTicket;
+    }
+
+    /**
+     * Give the node the target online for the auto-start of its server node, unless a call asked for a target.  Emits
+     * {@link intentChanged} only if the target changes.
+     *
+     * @internal
+     */
+    autoStart() {
+        if (!this.#isTargetRequested && this.#intent.target !== "online") {
+            this.#setIntent({ ...this.#intent, target: "online" });
+        }
+    }
+
+    /**
+     * Set the intent to what the node is, {@link applied}, after the call of {@link ticket} failed, unless a later call
+     * recorded an intent meanwhile.  The auto-start applies again afterwards.  Returns whether the intent was restored.
+     *
+     * @internal
+     */
+    restore(ticket: NodeLifecycle.IntentTicket, applied: I) {
+        if (ticket !== this.#lastTicket) {
+            return false;
+        }
+        this.#isTargetRequested = false;
+        this.#setIntent(applied);
+        return true;
+    }
+
+    /**
+     * Take over the values of {@link change} without a call asking for them.  Emits {@link intentChanged} only if a
+     * value changes.
+     */
+    protected adopt(change: Partial<I>) {
+        for (const key in change) {
+            if (change[key] !== this.#intent[key]) {
+                this.#setIntent({ ...this.#intent, ...change });
+                return;
+            }
+        }
+    }
+
+    #setIntent(intent: I) {
+        this.#intent = intent;
+        this.#intentChanged.emit();
+    }
+
+    /**
+     * Whether the node should be online: it was started, not stopped, and no close or delete was requested.
+     */
     get shouldBeOnline() {
-        return this.#targetState === "online";
+        return this.#intent.target === "online" && !this.isTerminal;
     }
 
     get shouldBeOffline() {
-        return this.#targetState === "offline";
+        return !this.shouldBeOnline;
     }
+}
+
+export namespace NodeLifecycle {
+    /**
+     * The state a node should be in.
+     */
+    export type TargetState = "online" | "offline";
+
+    /**
+     * What a node should be.
+     */
+    export interface Intent {
+        readonly target: TargetState;
+    }
+
+    /**
+     * {@link intent} with {@link change} applied.
+     */
+    export function changed<I extends Intent>(intent: I, change: Partial<I | Intent>): I {
+        return { ...intent, ...change };
+    }
+
+    /**
+     * Whether every value of {@link change} holds in {@link intent}.
+     */
+    export function holds<I extends Intent>(intent: I, change: Partial<I | Intent>) {
+        return isDeepEqual(changed(intent, change), intent);
+    }
+
+    /**
+     * Names the call of {@link NodeLifecycle.request} that recorded an intent.
+     */
+    export type IntentTicket = number;
 }

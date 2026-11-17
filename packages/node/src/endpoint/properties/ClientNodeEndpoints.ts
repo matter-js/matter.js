@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
-import type { ClientNode } from "#node/ClientNode.js";
 import { hex } from "@matter/general";
 import { Endpoints } from "./Endpoints.js";
 
@@ -21,8 +21,9 @@ export class ClientNodeEndpoints extends Endpoints {
      * The method adds the endpoint, if not existing.
      */
     require(endpointId: number, type: Partial<EndpointType> = {}) {
-        if (this.has(endpointId)) {
-            return this.for(endpointId);
+        const held = IndexBehavior.holderOf(this.node, endpointId);
+        if (held !== undefined) {
+            return held;
         }
         const endpoint = new Endpoint({
             id: `ep${endpointId}`,
@@ -34,7 +35,7 @@ export class ClientNodeEndpoints extends Endpoints {
                 ...type,
             }),
         });
-        (this.node as ClientNode).parts.add(endpoint);
+        this.node.parts.add(endpoint);
         return endpoint;
     }
 }

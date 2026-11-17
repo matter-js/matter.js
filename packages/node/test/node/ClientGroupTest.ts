@@ -10,13 +10,47 @@ import { BasicInformationClient } from "#behaviors/basic-information";
 import { BindingClient } from "#behaviors/binding";
 import { LevelControlClient } from "#behaviors/level-control";
 import { OnOffClient } from "#behaviors/on-off";
+import { OnOffLightSwitchDevice } from "#devices/on-off-light-switch";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { InvalidGroupOperationError } from "#node/client/ClientGroupInteraction.js";
+import { ClientStructure } from "#node/client/ClientStructure.js";
 import { ClientGroup } from "#node/ClientGroup.js";
-import { MaybePromise } from "@matter/general";
+import { ClientNode } from "#node/ClientNode.js";
+import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
+import { Lifecycle, MaybePromise } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 import { Write } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, NodeId } from "@matter/types";
+
+async function groupWithEndpoint() {
+    const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+    const fabric = await node.addFabric();
+    const group = await node.peers.forAddress({
+        fabricIndex: fabric.fabricIndex,
+        nodeId: NodeId.fromGroupId(GroupId(7)),
+    });
+    expect(group).instanceof(ClientGroup);
+    const endpoint = group.endpoints.require(1);
+    endpoint.behaviors.require(OnOffClient);
+    await endpoint.construction.ready;
+    return { node, group, endpoint };
+}
+
+async function applyOnOff(group: ClientNode, endpoint: Endpoint, onOff: boolean) {
+    const changed = new Promise<boolean>(resolve => endpoint.eventsOf(OnOffClient).onOff$Changed.once(resolve));
+    await group.env.get(ClientStructure).applyWireChanges([
+        {
+            kind: "update",
+            node: group.id,
+            endpoint: EndpointNumber(1),
+            version: 2,
+            behavior: "onOff",
+            changes: { onOff },
+        },
+    ]);
+    expect(await changed).equals(onOff);
+    expect(endpoint.stateOf(OnOffClient).onOff).equals(onOff);
+}
 
 describe("ClientGroup", () => {
     it("throws InvalidGroupOperationError on get()", async () => {
@@ -44,6 +78,69 @@ describe("ClientGroup", () => {
             expect((e as Error).message).to.equal("Groups do not support reading attributes");
         }
         expect(threw).to.be.true;
+    });
+
+    it("resolves the number of a deleted endpoint to a new endpoint that applies changes", async () => {
+        const { node, group, endpoint } = await groupWithEndpoint();
+        await using _node = node;
+
+        await endpoint.delete();
+
+        expect(endpoint.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(group.parts.size).equals(0);
+        const required = group.endpoints.require(1);
+        required.behaviors.require(OnOffClient);
+        await required.construction.ready;
+        expect(required).not.equals(endpoint);
+        expect(required.stateOf(OnOffClient)).not.undefined;
+        expect(group.env.get(ClientStructure).endpointFor(EndpointNumber(1))).equals(required);
+        await applyOnOff(group, required, true);
+    });
+
+    it("applies a change to an endpoint after its erase", async () => {
+        const { node, group, endpoint } = await groupWithEndpoint();
+        await using _node = node;
+
+        await endpoint.erase();
+
+        await applyOnOff(group, endpoint, true);
+    });
+
+    it("erases and closes an endpoint", async () => {
+        const { node, group, endpoint } = await groupWithEndpoint();
+        await using _node = node;
+
+        await endpoint.erase();
+
+        expect(endpoint.construction.status).equals(Lifecycle.Status.Active);
+        expect(endpoint.stateOf(OnOffClient)).not.undefined;
+
+        await endpoint.close();
+
+        expect(endpoint.construction.status).equals(Lifecycle.Status.Destroyed);
+        expect(group.parts.size).equals(0);
+    });
+
+    it("hands out the same store each time the group asks for it", async () => {
+        const { node, group } = await groupWithEndpoint();
+        await using _node = node;
+        if (!(group instanceof ClientGroup)) {
+            expect.fail(`Expected a ClientGroup, got ${group}`);
+        }
+        const stores = node.env.get(ServerNodeStore).clientStores;
+
+        expect(stores.storeForGroup(group)).equals(stores.storeForGroup(group));
+    });
+
+    it("keeps its endpoints on erase", async () => {
+        const { node, group, endpoint } = await groupWithEndpoint();
+        await using _node = node;
+
+        await group.erase();
+
+        expect(endpoint.construction.status).equals(Lifecycle.Status.Active);
+        expect(group.endpoints.require(1)).equals(endpoint);
+        expect(endpoint.stateOf(OnOffClient)).not.undefined;
     });
 
     describe("state write on a group endpoint", () => {

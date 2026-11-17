@@ -6,7 +6,9 @@
 
 import { OnOffServer } from "#behaviors/on-off";
 import { OnOffLightDevice } from "#devices/on-off-light";
+import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointBehaviorsError } from "#endpoint/errors.js";
+import type { EndpointType } from "#endpoint/type/EndpointType.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { StateStream } from "#node/integration/StateStream.js";
 import { Abort, ImplementationError, Lifecycle, Millis } from "@matter/general";
@@ -81,6 +83,15 @@ async function settle(changes: StateStream.Change[]) {
     }
 }
 
+/**
+ * Exposes the reset of an endpoint without the restart {@link Endpoint.erase} performs.
+ */
+class ResettableEndpoint<T extends EndpointType = EndpointType> extends Endpoint<T> {
+    async reset() {
+        await this.lifecycle.treeMutex.hold(`resetting ${this}`, () => this.resetWithMutex());
+    }
+}
+
 describe("StateStream", () => {
     before(() => {
         MockTime.init();
@@ -145,7 +156,8 @@ describe("StateStream", () => {
 
     it("sends all properties of a behavior once its endpoint is readable again after dropping its changes", async () => {
         await using node = await MockServerNode.createOnline(undefined, { device: undefined });
-        const light = await node.add(OnOffLightDevice, { id: "light" });
+        const light = new ResettableEndpoint(OnOffLightDevice, { id: "light" });
+        await node.add(light);
         const abort = new Abort();
         const stream = StateStream(node, { abort, clusters: ["onOff"] });
 
@@ -351,7 +363,8 @@ describe("StateStream", () => {
 
     it("drops the state of an endpoint that is being reset and sends it in full once it is readable", async () => {
         await using node = await MockServerNode.createOnline(undefined, { device: undefined });
-        const light = await node.add(OnOffLightDevice, { id: "light" });
+        const light = new ResettableEndpoint(OnOffLightDevice, { id: "light" });
+        await node.add(light);
         const abort = new Abort();
         const stream = StateStream(node, { abort, clusters: ["onOff"] });
 

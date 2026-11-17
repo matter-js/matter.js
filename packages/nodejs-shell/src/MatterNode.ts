@@ -160,10 +160,13 @@ export class MatterNode {
         // Factory reset and legacy migration are the only paths that need the node constructed before start(),
         // hence the eager #ensureNode() here rather than the usual lazy creation.
         if (resetStorage) {
-            await (await this.#ensureNode()).erase();
-            // erase() clears only the current-format fabric/peers. The legacy source must go too, or the next
-            // boot's migration would re-materialize the identity and key material the reset just destroyed.
-            await eraseLegacyStorage(nodeEnvironment, id);
+            try {
+                await (await this.#ensureNode()).erase();
+            } finally {
+                // erase() clears only the current-format fabric/peers. The legacy source must go too, or the next
+                // boot's migration would re-materialize the identity and key material the reset just destroyed.
+                await eraseLegacyStorage(nodeEnvironment, id);
+            }
             return;
         }
 
@@ -389,14 +392,9 @@ export class MatterNode {
                 if (connectOptions?.autoConnect === false) {
                     continue;
                 }
-                // A disabled peer (persisted from a prior run) rejects start(); enable() clears isDisabled and
-                // starts it. Safe because autoStartCommissionedPeers is off, so the now-enabled peer won't
-                // auto-connect on next boot.
-                if (node.stateOf(NetworkClient).isDisabled) {
-                    await node.enable();
-                } else {
-                    await node.start();
-                }
+                // autoStartCommissionedPeers is off, so a peer that enable() persists as enabled still does not
+                // connect on the next boot
+                await node.enable();
             } catch (e) {
                 if (singleNodeRequested) {
                     throw e;

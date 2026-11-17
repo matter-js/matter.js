@@ -32,6 +32,7 @@ import {
     Bytes,
     CancelablePromise,
     createPromise,
+    DestroyedDependencyError,
     Diagnostic,
     Duration,
     ImplementationError,
@@ -99,6 +100,7 @@ export class FabricOperationInProgressError extends CommissioningError {}
 export class Peers extends EndpointContainer<ClientNode> {
     #expirationInterval?: CancelablePromise;
     #installedSubscriptionHandler?: ClientSubscriptionHandler;
+    /** Level 3 of the lock order in `LifecycleMutex`. */
     #mutex = new Mutex(this);
     #closed = false;
     #fabricOperations = new Map<ClientNode, { operation: FabricOperation; settled: Promise<void> }>();
@@ -167,16 +169,23 @@ export class Peers extends EndpointContainer<ClientNode> {
         }
     }
 
+    /**
+     * Apply the intent of every peer once the server node is online, after the auto-start gave each peer that may go
+     * online the intent to be online, unless that peer holds an intent a call asked for.
+     */
     async #nodeOnline() {
-        if (this.owner.stateOf(NetworkServer).autoStartCommissionedPeers) {
-            for (const peer of this) {
-                if (!peer.lifecycle.isCommissioned || peer.maybeStateOf("network")?.isDisabled) {
-                    continue;
-                }
-                try {
-                    await peer.start();
-                } catch (e) {
-                    MatterError.accept(e);
+        const autoStart = this.owner.stateOf(NetworkServer).autoStartCommissionedPeers;
+        for (const peer of this) {
+            if (autoStart && peer.onlineBlocker === undefined) {
+                peer.lifecycle.autoStart();
+            }
+            try {
+                await peer.applyIntent();
+            } catch (e) {
+                MatterError.accept(e);
+                if (e instanceof DestroyedDependencyError) {
+                    logger.debug(`Peer ${peer} does not start as it or ${this.owner} closes:`, e);
+                } else {
                     logger.warn(`Error starting peer ${peer}:`, e);
                 }
             }
@@ -184,10 +193,19 @@ export class Peers extends EndpointContainer<ClientNode> {
         this.#manageExpiration();
     }
 
+    /**
+     * Take every peer offline once the server node is offline.  The intent of a peer stays, so the peer goes online
+     * again with the server node.
+     */
     async #nodeOffline() {
         this.#cancelExpiration();
         for (const peer of this) {
-            await peer.stop();
+            try {
+                await peer.applyIntent();
+            } catch (e) {
+                MatterError.accept(e);
+                logger.warn(`Error taking peer ${peer} offline:`, e);
+            }
         }
     }
 
@@ -267,7 +285,9 @@ export class Peers extends EndpointContainer<ClientNode> {
         // hand-off or a retry — would resolve to the live peer and could delete it. Must check before forAddress()
         // since that call sets peerAddress, which flips lifecycle.isCommissioned true immediately.
         const existing = this.get(address);
-        if (existing?.lifecycle.isCommissioned) {
+
+        // A peer whose close or delete was requested is refused by runCommissioning() as gone
+        if (existing?.lifecycle.isCommissioned && !existing.lifecycle.isTerminal) {
             throw new ImplementationError(`${existing} is already commissioned`);
         }
 
@@ -352,7 +372,7 @@ export class Peers extends EndpointContainer<ClientNode> {
                 // returns Ok below, the device has genuinely disarmed its failsafe and joined the fabric, so a
                 // failure persisting that fact locally must NOT delete the node.
                 try {
-                    await node.delete();
+                    await node.deleteDespiteServerTeardown();
                 } catch (deleteError) {
                     logger.warn(`Error deleting ${node} after failed commissioning completion:`, deleteError);
                 }
@@ -420,8 +440,11 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     /**
      * Look up a peer by numeric/string id or {@link PeerAddress}. A {@link PeerAddress} matches the peer whose
-     * {@link ClientNode.peerAddress} equals it, also a peer that failed to load; otherwise the container's id lookup is
-     * used.
+     * {@link ClientNode.peerAddress} equals it, until the peer is destroyed and leaves the peers.  The match holds
+     * whatever state its behaviors are in, also for a peer that failed to load, so {@link forAddress} never adds a
+     * second node for one address.  A peer whose close or delete was requested still matches; a call on it rejects
+     * with `DestroyedDependencyError`.
+     * Otherwise the container's id lookup is used.
      *
      * Look up by {@link PeerAddress} for anything held while a peer is commissioned: a local id may be reissued to a
      * different device once the peer it named is gone, so the same string can resolve to a peer that never saw the
@@ -504,30 +527,24 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     /**
-     * Delete every known node.
+     * Delete every known node, then run {@link eraseStorage}.  A node whose close or delete is in progress is deleted
+     * once that ends, also while the server node closes.  A node that {@link forAddress} adds
+     * meanwhile waits until {@link eraseStorage} ended, so the storage erase does not discard its store.
      *
-     * A node we cannot tear down cleanly is closed and dropped instead, so it cannot block the factory reset this
-     * serves; its persisted data outlives this call and is the caller's to discard.  Failures are logged rather than
-     * raised for the same reason.
+     * Failures to delete a node are logged rather than raised, so a node that cannot be torn down cleanly does not
+     * block the factory reset this serves.  Its teardown destroys it anyway; what a failed step left in storage
+     * outlives this call and is for {@link eraseStorage} to discard.  A failure of {@link eraseStorage} rejects.
      */
-    async erase() {
+    async erase(eraseStorage?: () => Promise<void>) {
         await this.#mutex.produce(async () => {
             for (const node of [...this]) {
                 try {
-                    await node.delete();
-                    continue;
+                    await node.deleteDespiteServerTeardown();
                 } catch (error) {
-                    logger.warn(`Error deleting ${node}:`, error);
+                    logger.warn(`Error removing ${node}:`, error);
                 }
-
-                try {
-                    await node.close();
-                } catch (error) {
-                    logger.warn(`Error closing ${node}:`, error);
-                }
-
-                this.delete(node);
             }
+            await eraseStorage?.();
         });
     }
 
@@ -730,7 +747,7 @@ export class Peers extends EndpointContainer<ClientNode> {
                 // Cull commissionable nodes that have expired
                 if (!isCommissioned) {
                     if (!newAddresses?.length || (expirationOf(state) ?? 0) <= now) {
-                        await node.delete();
+                        await node.deleteDespiteServerTeardown();
                         continue;
                     }
                 }
@@ -887,7 +904,7 @@ export class Peers extends EndpointContainer<ClientNode> {
             } catch (error) {
                 logger.warn(`Error force-closing sessions for ${node.id} on Leave:`, error);
             }
-            await node.delete();
+            await node.deleteDespiteServerTeardown();
         });
     }
 

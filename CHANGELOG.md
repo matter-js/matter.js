@@ -21,11 +21,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: The `mdns.statistics` variable (`MATTER_MDNS_STATISTICS`) logs the mDNS traffic counts at info level
     - Feature: `Timestamp.toSeconds()` converts a timestamp to whole seconds
     - Feature: `Bytes.utf8Length()` and `Bytes.truncateUtf8()` count and shorten strings by UTF-8 bytes
-    - Enhancement: `MdnsSocket` logs some traffic statistics once per minute - set `mdns.statistics` (`MATTER_MDNS_STATISTICS`) to true for info loglevel, otherwise debug
     - Enhancement: WAL storage logs at notice level when an open restores entries from its log and when it has saved the restored state, with the time each took
+    - Enhancement: `MdnsSocket` logs some traffic statistics once per minute - set `mdns.statistics` (`MATTER_MDNS_STATISTICS`) to true for info loglevel, otherwise debug
+    - Adjustment: Removed the unused WAL storage history API (`WalStorageDriver.snapshotAtTime()`/`snapshotAtCommit()`, the `headSnapshot` and `cleanInterval` options) and the `WalSnapshot` export
+    - Adjustment: `Construction.crash()` of a subject that is being or has been destroyed keeps its status
+    - Fix: A construction that crashes no longer causes an unhandled rejection through an `onSuccess()` listener
     - Adjustment: Falling back to standard crypto, for example on Bun where Node.js crypto has no AES-CCM, logs one line at info level instead of two at notice level
     - Adjustment: `UdpMulticastServer.send()` and `MdnsSocket.send()` with a named interface reject when every address family they tried failed or the interface has no address, and otherwise resolve to a `UdpMulticastServer.Reach` of kind `"all"`, `"some"` (with the first failure) or `"none"`
-    - Adjustment: Removed the unused WAL storage history API (`WalStorageDriver.snapshotAtTime()`/`snapshotAtCommit()`, the `headSnapshot` and `cleanInterval` options) and the `WalSnapshot` export
     - Fix: WAL storage deletes old log segments after each periodic snapshot instead of only on close, and restores from the previous snapshot when the current one is unreadable
     - Fix: WAL storage loads its data when it opens, so a write during the first reads after opening is no longer lost
     - Fix: WAL storage starts a new log segment on every open, so a write after a crash that cut off the last log line is no longer lost
@@ -42,22 +44,81 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: The `isSecret` element property and the `secret` decorator mark a value as secret, and `SecretRedaction` replaces secret values for logging; standard fields that carry network credentials, keys, passcodes and PINs are marked secret
 
 - @matter/node
+    - Breaking: `erase()` on an endpoint restarts it, if it was started, with its default values and options and keeps its endpoint number; on a server node the ConfigurationVersion increases
+    - Breaking: `erase()` of an endpoint or node rejects with a `MatterAggregateError` when a step fails, also for a storage failure
+    - Breaking: A failed storage erase leaves the endpoint or node crashed
+    - Breaking: A node that cannot go offline before or online after an erase crashes; a peer whose server node is offline stays offline instead
+    - Breaking: `ClientNode.erase()` keeps commissioning, network settings, ICD state and the disabled flag, reconnects when it was started, and rebuilds its endpoints from the peer as new instances
+    - Breaking: `erase()`, `delete()` and `close()` of an endpoint of a `ClientNode` that is not a `ClientGroup` reject with `ImplementationError`; erase, delete or close the node instead
+    - Breaking: `Endpoint.reset()`, `Node.reset()` and `EndpointContainer.reset()` are removed; `erase()` resets and also wipes the persisted data
+    - Breaking: Changing the `owner` of an endpoint that already has one, also by adding it to another endpoint, throws; an endpoint cannot move, so close or delete it and add a new one
+    - Breaking: `EndpointInitializer.eraseDescendant()` is replaced by `prepareEraseDescendant()` and `prepareDeleteDescendant()`
+    - Breaking: `erase()` and `delete()` throw `DestroyedDependencyError` once a close of the endpoint, or a close or delete of an ancestor of the same node, was requested
+    - Breaking: `erase()` also throws `DestroyedDependencyError` once a delete of the endpoint was requested
+    - Breaking: `erase()` and `delete()` of a `ClientNode` also throw `DestroyedDependencyError` once a close or delete of its server node was requested
+    - Breaking: `ClientNode.start()` rejects with the new `ServerNodeOfflineError` when its server node is offline at the turn of the start
+    - Breaking: `ClientNode.enable()` also brings a node that is not disabled online, like `start()`
+    - Breaking: The option `network: { isDisabled }` has no effect when a node is created; call `ClientNode.disable()` instead
+    - Breaking: The `NodeLifecycle.targetState` setter is removed
+    - Breaking: The `NodeLifecycle` constructor takes the initial intent of the node
+    - Breaking: `NodeLifecycle.mutex` is internal and no longer a `Mutex`
+    - Breaking: A write to an erased or closed `EndpointStore` or `ClientNodeStore` rejects with the new `StoreClosedError`
+    - Breaking: An erased or closed `EndpointStore` throws `StoreClosedError` instead of creating a store for a behavior or a part
+    - Breaking: `ClientNodeStores.storeForNode()` throws `StoreClosedError` while an erase of that node's store or of all client stores runs
+    - Breaking: The environment of a `ClientNode` no longer holds its `ClientNodeStore`; `ClientNodeStores.storeOf()` returns the current store of a node
+    - Breaking: `LocalWriter` is removed; `DatasourceCache` takes a `persist` function, and its `flush()` requires a transaction
+    - Breaking: `DatasourceCache.erased` is removed
+    - Breaking: `ClientCacheBuffer.configure()`, `markDirty()`, `removeDirty()` and `settled()` are removed, and the constructor starts the flush timer unless the flush interval is `Instant`
+    - Breaking: The `ClientEndpointInitializer` constructor takes the store of the node
+    - Breaking: The `ClientNodeStore` constructor no longer takes `onErase`
+    - Breaking: `ClientNodeStores.knownIds` leaves out the nodes whose store is being erased
+    - Deprecation: `NetworkClient` state `isDisabled` mirrors `ClientNode.isDisabled`; writing it is deprecated, use `ClientNode.disable()` / `enable()`
     - Feature: (@RaHehl) `ZoneManagementServer` implements the zone and trigger commands and refuses requests the specification does not allow
     - Feature: (@lboue) `ThermostatServer` implements the `MatterScheduleConfiguration` (MSCH) feature with the `Schedules` and `ActiveScheduleHandle` attributes, atomic writes and `SetActiveScheduleRequest`; enable the feature with the `thermostat-msch` forward feature for certification purposes only
     - Feature: `ThermostatServer` generates the Thermostat events when the provisional `Events` feature is selected and the events are switched on with `enable()`; enable the feature with the `thermostat-events` forward feature for certification purposes only
     - Feature: `ThermostatServer` implements the `ThermostatSuggestions` (TSUGGEST) feature
-    - Fix: `ThermostatServer` keeps the preset that the application activates with `setActivePresetRequest`
-    - Fix: `ThermostatServer` treats `ControlSequenceOfOperation` CoolingWithReheat as the sequence without heating, instead of CoolingAndHeatingWithReheat, and automatic mode management in Auto turns the running mode off instead of failing when the sequence does not allow heating or cooling
-    - Fix: `ThermostatServer` raises `NumberOfPresets` at startup to cover the stored presets, instead of failing to start after a configuration lowered it
-    - Fix: `ScenesManagementServer` limits each fabric's remaining scene capacity by the Scene Table entries other fabrics use, refuses AddScene, StoreScene and CopyScene with RESOURCE_EXHAUSTED when the table is full, and updates the other fabrics' `FabricSceneInfo` when one fabric changes the table
-    - Fix: `ScenesManagementServer` removes the scenes of a removed fabric, which stayed in the Scene Table and used up Scene Table entries for good; scenes left by earlier removals are removed at startup
     - Feature: `ClientNode.updateOperationalCertificate()` replaces a commissioned node's operational certificate with one for a new key pair (UpdateNOC)
+    - Enhancement: `EndpointInitializer.assertVerbAdmitted()` lets a node refuse an erase, delete or close of one of its endpoints
+    - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
+    - Enhancement: `delete()` also removes an endpoint or node that crashed
+    - Enhancement: `start()` recovers a crashed `ServerNode` that the runtime did not close and first finishes a factory reset it crashed in, and finishes the erase of a `ClientNode` that crashed in `erase()`
+    - Enhancement: A lifecycle operation of a node or endpoint that waits 10 seconds for another one logs a warning naming both
+    - Enhancement: `ClientNode.isDisabled` tells whether the node is disabled
+    - Enhancement: `ClientNode.start()` of a commissioned node starts its server node first if that is offline
+    - Enhancement: `Peers.erase()` takes an optional storage erase, which runs before `forAddress()` can add a node again
     - Enhancement: Added `SoftwareUpdateManager.dropUndeliverableUpdate()` for `checkUpdateAvailable()` overrides
     - Enhancement: Added `SoftwareUpdateManager.mayDelegateConsentTo()`, the rule for when a node may obtain the user consent itself
     - Enhancement: Added the `SoftwareUpdateManager` state `delegateConsentToRequestor`, which lets a requestor that can obtain user consent itself apply the newest stored image
-    - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
     - Enhancement: `ClientNode.fabricIndexOnPeer` returns our fabric index on the peer
     - Enhancement: `RemoteDescriptor.legacyRecordToLongForm()` converts a peer record of the legacy controller storage
+    - Adjustment: `EndpointInitializer.deactivateDescendant()` runs once the endpoint is destroyed, on close and on delete
+    - Adjustment: `ServerNode.delete()` erases the node's storage and closes the node; it no longer restarts the node first
+    - Adjustment: `delete()` removes the endpoint and releases its number also when the storage erase fails; the failure still rejects
+    - Adjustment: `start()` of a node whose close or delete was requested throws `DestroyedDependencyError` instead of `MutexClosedError`
+    - Adjustment: `stop()` of a node whose close or delete was requested does nothing instead of throwing `MutexClosedError`
+    - Adjustment: `ClientNode.start()` of a disabled or uncommissioned node rejects with the new `NodeDisabledError` or `NodeUncommissionedError`
+    - Adjustment: The protected `eraseWithMutex()` of `ServerNode` and `ClientNode` is removed; override `prepareErase()` instead
+    - Adjustment: The protected `Node.closeWithMutex()` is removed
+    - Adjustment: A subclass of `Node` implements the protected `createLifecycle()` and `appliedIntent`
+    - Adjustment: The protected `ClientNode.store` getter is removed; `ClientNodeStores.storeOf()` returns the current store of a node
+    - Adjustment: The `Destroying` lifecycle change is emitted when `close()` or `delete()` is called, so a node emits it before it goes offline
+    - Adjustment: `ClientNodeLifecycle.seeded` emits again after an erase, once the node read the structure of the peer
+    - Adjustment: A `ClientNode` that should be online but is not commissioned, or whose server node is offline or closing, reports `Disconnected` instead of `Reconnecting`
+    - Adjustment: A disabled flag stored in the `NetworkClient` state of a `ClientNode` migrates
+    - Adjustment: A `start()`, `stop()`, `enable()` or `disable()` of a node that a later call reversed resolves without taking effect
+    - Adjustment: A failed `start()`, `stop()`, `enable()` or `disable()` of a `ClientNode` sets its intent to what the node is after the failure, and leaves it disabled only if it persisted the flag
+    - Adjustment: A `ClientNode` whose last call was `start()` or `enable()` goes online again when its server node restarts, also with `autoStartCommissionedPeers: false`
+    - Adjustment: The auto-start of commissioned peers skips a peer whose last call was a `stop()` or `disable()` that did not fail
+    - Adjustment: A `ClientNode` whose start fails as its server node comes online reports `Disconnected` and tries again on its next `start()` or server node restart
+    - Adjustment: `NodeLifecycle.goingOffline` also emits after a start that fails once its network runtime was created; `offline` follows only if the node went online
+    - Adjustment: `ClientNode.act()` on an inactive node waits for a lifecycle verb in progress instead of restarting the node
+    - Adjustment: `ClientGroup.erase()` drops the cached data of its endpoints instead of erasing its whole store
+    - Adjustment: `Parts.add()` of a node throws `ImplementationError` instead of `IdentityConflictError`
+    - Adjustment: `Parts.add()` throws `DestroyedDependencyError` once a close or delete of the endpoint or of an ancestor in the same node was requested
+    - Adjustment: `Peers.get(address)` also returns a node whose close or delete was requested, or that crashed
+    - Adjustment: `DatasourceCache` persists only through a `ClientCacheBuffer` and applies values in memory before it persists them; `forgetVersion()` rejects when that persist fails
+    - Adjustment: `MockSite` enables `MockTime` when it is created
+    - Adjustment: Adding a part with a number that another endpoint of the node holds fails at once also while the parent resets, instead of when the parent restarts
     - Adjustment: Important: String limits count UTF-8 bytes, so ensure that configured values and values you set with `setStateOf` fit in bytes; use `Bytes.truncateUtf8()` instead of `String.slice()` to shorten them
     - Adjustment: `ThermostatServer.with(...)` types expose `handleSetActivePresetRequest`, `handleSetActiveScheduleRequest` and the thermostat suggestion hooks through `ExtensionInterface`; an override of them with `protected` no longer compiles
     - Adjustment: `SoftwareUpdateManager.Internal.consents` holds one consent per peer in a `PeerAddressMap` and is written only through the manager API, and the `Internal.updateQueue` entries have a new shape
@@ -91,6 +152,31 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: A ClientNode reads its root's PartsList as listing every endpoint, whatever device types the root reports
     - Adjustment: `ServerSubscriptionContext.initiateExchange()` takes only a `Session`, no longer a `PeerAddress`
     - Adjustment: `SessionsBehavior` events `opened` and `closed` no longer fire for a session whose handshake fails
+    - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
+    - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
+    - Fix: `delete()` emits the `Destroying` lifecycle change once
+    - Fix: Deleting an endpoint of a server node increases the ConfigurationVersion of the nearest bridged endpoint above it and of the node, or only of the node when there is none
+    - Fix: `erase()`, `delete()` and `close()` of the endpoints of one node run one after another; `close()` waits for an erase or delete in progress, and a repeated call joins the one in progress
+    - Fix: A factory reset completes and restarts the node when its in-memory reset fails
+    - Fix: A factory reset or `delete()` of a server node waits for a peer that is closing before it erases the storage
+    - Fix: A factory reset of a server node no longer hangs when one of its peers starts meanwhile
+    - Fix: `start()` and `stop()` of a node take effect in call order; `start()` no longer returns at once while another start is in progress
+    - Fix: `enable()` and `disable()` of a `ClientNode` take effect in call order, also mixed with `start()` and `stop()`
+    - Fix: Erasing a peer waits for a running cache flush, so the flush no longer writes the erased values back
+    - Fix: A cache write or a commit that runs while a peer is erased or deleted, or while an endpoint the peer dropped is deleted, no longer writes its values back, so a deleted peer no longer returns on the next start
+    - Fix: A node that `Peers.forAddress()` adds during a factory reset keeps its store
+    - Fix: A value that a server node commits while it is erased no longer returns after the erase
+    - Fix: Removing a closing peer erases its storage also when the stores of its server node begin to close after the removal began
+    - Fix: A second erase of a removed peer no longer clears the storage of a new peer with the same ID
+    - Fix: Logging a deleted peer that has no address no longer creates a store for it
+    - Fix: With a flush interval, a cache flush that keeps failing warns once per kind of failure until a flush succeeds, not on every resubscribe
+    - Fix: A `start()` right after a failed start waits for the old network runtime to close instead of failing with "Handler for protocol 1 already registered"
+    - Fix: A peer whose network start fails no longer logs an unhandled error when it closes its network runtime
+    - Fix: `ThermostatServer` keeps the preset that the application activates with `setActivePresetRequest`
+    - Fix: `ThermostatServer` treats `ControlSequenceOfOperation` CoolingWithReheat as the sequence without heating, instead of CoolingAndHeatingWithReheat, and automatic mode management in Auto turns the running mode off instead of failing when the sequence does not allow heating or cooling
+    - Fix: `ThermostatServer` raises `NumberOfPresets` at startup to cover the stored presets, instead of failing to start after a configuration lowered it
+    - Fix: `ScenesManagementServer` limits each fabric's remaining scene capacity by the Scene Table entries other fabrics use, refuses AddScene, StoreScene and CopyScene with RESOURCE_EXHAUSTED when the table is full, and updates the other fabrics' `FabricSceneInfo` when one fabric changes the table
+    - Fix: `ScenesManagementServer` removes the scenes of a removed fabric, which stayed in the Scene Table and used up Scene Table entries for good; scenes left by earlier removals are removed at startup
     - Fix: An Invoke Request with SuppressResponse set gets no Invoke Response, also when a command returns response data
     - Fix: The OTA provider offers the consented version instead of a lower stored one
     - Fix: The OTA provider no longer delegates the user consent to a node with `LocalConfigDisabled` set
@@ -110,8 +196,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: (@cmatte) A peer whose stored discovery TTL is invalid loads again
     - Fix: (@cmatte) A peer that fails to load no longer makes address lookups of the other peers fail
     - Fix: A discovered peer address expires after its TTL instead of after 1000 times its TTL
-    - Fix: Nested lists and structs in state show the current values after a containing value was null or removed and set again, instead of stale entries or `PhantomReferenceError`
-    - Fix: Access through a held state proxy whose container was removed throws `PhantomReferenceError` (`ExpiredReferenceError` once its context has exited) instead of a `TypeError`, a stale `ExpiredReferenceError` or, for list reads, an empty list
     - Fix: A local write that removes the last GroupKeyMap entry of a fabric also clears the fabric's operational group key map
     - Fix: Groupcast testing reports NoAvailableKey to the fabric under test when only an unmapped key set of another fabric authenticated a group message, instead of reporting nothing
     - Fix: Groupcast testing derives DestinationIpAddress from the fabric that owns the group id and the groups the node joins
@@ -160,17 +244,22 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/nodejs-shell
     - Enhancement: Event logs show the absolute time of events a device reported with a delta timestamp
+    - Adjustment: `nodes ota apply` applies only production images while `config ota-test-images` is off
+    - Adjustment: With `--local`, the OTA commands skip stored local images with `--mode prod`, and with `--mode auto` while `config ota-test-images` is off, and say so
+    - Adjustment: `nodes ota known --local` lists stored local images only while `config ota-test-images` is set
+    - Adjustment: `config ota-test-images` names local images in its output
+    - Fix: A factory reset removes the legacy storage also when the erase of the node fails
     - Fix: Migrating legacy storage no longer fails on a peer whose stored discovery TTL is invalid
     - Fix: `config fabricLabel set` checks the 32-byte limit in UTF-8 bytes instead of characters
     - Fix: A stored controller fabric label over 32 UTF-8 bytes is shortened on start with a warning
+    - Fix: `nodes ota apply --local --force` applies a stored image instead of downloading it again
     - Fix: Command and attribute write values may leave out optional struct or list fields and set nullable struct or list values to null, and `null` or a list given for a struct is refused with a clear error
 
 - @matter/protocol
-    - Fix: An ICD advertises SAI in its operational DNS-SD record, and SII while it operates as SIT, also when the value equals the MRP default, as the specification requires
     - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair
     - Feature: `NocsrValidator` validates a CSRResponse and throws `NocsrError` when a check fails
-    - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
+    - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
     - Enhancement: The commissioning attestation policy also receives the findings collected before a hard failure, and a policy rejection names the error findings
     - Enhancement: A connection to a peer logs at debug level which transports it tries and why
     - Enhancement: Device attestation reports a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as a finding instead of stopping validation
@@ -181,6 +270,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `ExchangeSendOptions.onTransmitted` runs once the first transmission of a message went out
     - Enhancement: `SecureChannelMessenger.sendSuccess()` takes an optional `onTransmitted` callback
     - Enhancement: Message logs show the I flag in `msgFlags` for messages from the exchange initiator
+    - Enhancement: Added `DclOtaUpdateService.findApplicable()` to list the stored update images a device can apply, in offer order
     - Adjustment: Exchange logs show `maxTrans` and `retransTimeLimit` on the first transmission of a message that has its own retransmission budget, instead of always `maxTrans: 5` when the exchange opens
     - Adjustment: `DeviceAttestationValidator.validate()` returns a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as an error-level finding instead of throwing
     - Adjustment: A CSRResponse that is empty, lacks a field, has NOCSRElements over 900 bytes, or cannot be decoded fails commissioning with `NocsrError`
@@ -189,7 +279,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `DclCertificateService.lookupCdSigner()` replaces `getOrFetchCdSigner()`, which is deprecated
     - Adjustment: Messages with unsupported message or secured extensions are logged at debug level instead of info
     - Adjustment: Several adjustments in internal APIs in `GroupSession`, `SessionManager`, `MessageCodec` and `ExchangeManager`
-    - Adjustment: `DeviceAttestationValidator.validate()` returns a CD mismatch with the BasicInformation VendorID or ProductID, also an unreported value, as an error-level finding instead of throwing
     - Adjustment: Peer loss and peer shutdown compare sessions by registration order instead of creation time; `PeerLossContext.asOf` is deprecated for `registeredBefore`
     - Adjustment: The first message that fails authentication on each unicast session is logged once at notice level
     - Adjustment: Device attestation refuses a Certification Declaration whose signer is not CSA-issued or the Matter test CD signer, also offline or without a DCL service
@@ -205,6 +294,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
     - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
+    - Adjustment: `DclOtaUpdateService.checkForUpdate()` with `isProduction: true` no longer returns stored local images
+    - Fix: An ICD advertises SAI in its operational DNS-SD record, and SII while it operates as SIT, also when the value equals the MRP default, as the specification requires
     - Fix: A node sends its DNS-SD goodbyes when the runtime shuts down
     - Fix: The client stops its subscription timeout timer when its last peer subscription closes, so the timer no longer keeps the process running until it expires
     - Fix: A client subscription is replaced early when the peer does not acknowledge our status response to a report chunk, or to a final report while the replacement would prime compactly
@@ -268,20 +359,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `TlvString` writes a matching length field for strings with multi-byte characters and counts UTF-8 bytes for its length limits
 
 - @project-chip/matter.js
+    - Adjustment: `PairedNode.connect()` also starts a stopped peer, not only a disabled one
+    - Adjustment: `CommissioningController` start logs a warning instead of failing when it cannot apply `autoConnect` or `autoSubscribe` to a peer, and with `autoConnect` it enables disabled peers after the start
     - Fix: Migrating a legacy controller's peers no longer fails on a stored discovery TTL that is invalid
     - Fix: (@cwedgwood) `PairedNode` waits for concurrent network state updates when it enables the subscription, so a lock conflict no longer leaves the node unsubscribed
     - Fix: Attribute write, attribute update and endpoint structure logs of the legacy controller show secret values as `(redacted)`
-
-- @matter/nodejs-shell
-    - Adjustment: `nodes ota apply` applies only production images while `config ota-test-images` is off
-    - Adjustment: With `--local`, the OTA commands skip stored local images with `--mode prod`, and with `--mode auto` while `config ota-test-images` is off, and say so
-    - Adjustment: `nodes ota known --local` lists stored local images only while `config ota-test-images` is set
-    - Adjustment: `config ota-test-images` names local images in its output
-    - Fix: `nodes ota apply --local --force` applies a stored image instead of downloading it again
-
-- @matter/protocol
-    - Enhancement: Added `DclOtaUpdateService.findApplicable()` to list the stored update images a device can apply, in offer order
-    - Adjustment: `DclOtaUpdateService.checkForUpdate()` with `isProduction: true` no longer returns stored local images
 
 ## 0.18.0 (2026-10-20)
 

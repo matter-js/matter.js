@@ -5,13 +5,10 @@
  */
 
 import type { ClientNode } from "#node/ClientNode.js";
-import { InternalError, MatterError, ObserverGroup } from "@matter/general";
+import { InternalError, ObserverGroup } from "@matter/general";
 import { ExchangeProvider, Peer, PeerAddress, PeerSet } from "@matter/protocol";
 import { CommissioningClient } from "../commissioning/CommissioningClient.js";
 import { NetworkRuntime } from "./NetworkRuntime.js";
-
-export class UncommissionedError extends MatterError {}
-export class OfflineError extends MatterError {}
 
 /**
  * Handles network functionality for {@link ClientNode}.
@@ -34,23 +31,9 @@ export class ClientNetworkRuntime extends NetworkRuntime {
     }
 
     protected async start() {
-        // Ensure the node is ready for peer interaction
-        if (!this.owner.lifecycle.isCommissioned) {
-            throw new UncommissionedError(`Cannot interact with ${this.owner} because it is uncommissioned`);
-        }
-        if (this.owner.state.network.isDisabled) {
-            throw new UncommissionedError(`Cannot interact with ${this.owner} because it is disabled`);
-        }
-
         const address = PeerAddress(this.owner.stateOf(CommissioningClient).peerAddress);
         if (address === undefined) {
             throw new InternalError(`Commissioned node ${this.owner} has no peer address`);
-        }
-
-        // Client interaction requires the server to be online.  If not, bring online now
-        const server = this.owner.owner;
-        if (!server.lifecycle.isOnline) {
-            await server.start();
         }
 
         // Install the exchange provider for the node
@@ -73,9 +56,6 @@ export class ClientNetworkRuntime extends NetworkRuntime {
 
     protected async stop() {
         this.isReady = false;
-
-        await this.construction;
-
         this.#observers.close();
     }
 

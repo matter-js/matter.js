@@ -513,7 +513,7 @@ const endpoint = new Endpoint(OccupancySensorDevice, {
 
 ### How do I remove an endpoint from an aggregator again?
 
-While you use the "add" method to add a new endpoint to an aggregator there is no remove method. To remove the endpoint you simply call `endpoint.close()` which automatically remove the endpoint from the aggregator. So be careful when to call "close" here and only do in these cases!
+While you use the "add" method to add a new endpoint to an aggregator there is no remove method. To remove the endpoint call `endpoint.delete()`. It removes the endpoint from the aggregator and erases its stored data, and a new endpoint gets a new endpoint number. `endpoint.close()` also removes the endpoint from the aggregator but keeps its stored data and endpoint number, so a new endpoint with the same ID that is added later gets them back.
 
 ### How do I use my own Storage implementation?
 

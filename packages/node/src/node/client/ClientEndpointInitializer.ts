@@ -13,7 +13,8 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { PeerBehavior } from "#node/client/PeerBehavior.js";
 import type { ClientNode } from "#node/ClientNode.js";
-import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
+import type { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
+import { ImplementationError, MatterAggregateError } from "@matter/general";
 import { ClientEventEmitter } from "./ClientEventEmitter.js";
 import { ClientStructure } from "./ClientStructure.js";
 
@@ -22,28 +23,64 @@ export class ClientEndpointInitializer extends EndpointInitializer {
     #store: ClientNodeStore;
     #structure?: ClientStructure;
 
-    constructor(node: ClientNode) {
+    /**
+     * @param store the store this initialization of {@link node} loaded; it serves the behaviors of that
+     * initialization only
+     */
+    constructor(node: ClientNode, store: ClientNodeStore) {
         super();
         this.#node = node;
-        this.#store = node.env.get(ClientNodeStore);
+        this.#store = store;
     }
 
-    async eraseDescendant(endpoint: Endpoint) {
-        if (endpoint === this.#node) {
-            await this.#store.erase();
-            return;
+    /**
+     * Throw {@link ImplementationError} for an erase, delete or close of an endpoint below a peer, as its endpoints
+     * mirror the peer.  The structure of the node removes an endpoint the peer drops, and a verb of the node covers its
+     * endpoints.  Every verb is admitted for the endpoints of a group.
+     */
+    override assertVerbAdmitted(endpoint: Endpoint, verb: EndpointInitializer.Verb) {
+        if (this.#node.endpointsMirrorPeer && endpoint !== this.#node) {
+            throw new ImplementationError(
+                `Cannot ${verb} ${endpoint} because the endpoint mirrors the peer; ${verb} the node ${this.#node} instead`,
+            );
         }
-
-        if (!endpoint.lifecycle.hasId) {
-            return;
-        }
-
-        const store = this.#store.storeForEndpoint(endpoint);
-        await store.erase();
     }
 
-    async deactivateDescendant(_endpoint: Endpoint) {
-        // nothing to do
+    async prepareEraseDescendant(endpoint: Endpoint): Promise<EndpointInitializer.Erasure> {
+        return this.#erasureOf(endpoint);
+    }
+
+    async prepareDeleteDescendant(endpoint: Endpoint): Promise<EndpointInitializer.Erasure> {
+        return this.#erasureOf(endpoint);
+    }
+
+    #erasureOf(endpoint: Endpoint): EndpointInitializer.Erasure {
+        const subtree = this.#subtreeOf(endpoint);
+        return {
+            wipe: () => this.#eraseStores(subtree),
+        };
+    }
+
+    // Stores are per endpoint number, so a wipe of an endpoint covers each of its parts; taken before the reset
+    #subtreeOf(endpoint: Endpoint) {
+        const subtree = new Array<Endpoint>();
+        endpoint.visit(endpoint => {
+            subtree.push(endpoint);
+        });
+        return subtree;
+    }
+
+    async #eraseStores(subtree: Endpoint[]) {
+        await MatterAggregateError.settleSeries(
+            subtree
+                .filter(endpoint => endpoint.lifecycle.hasId)
+                .map(endpoint => () => this.#store.eraseEndpointStore(endpoint.number)),
+            `Error erasing the stores of ${subtree[0]}`,
+        );
+    }
+
+    async deactivateDescendant(endpoint: Endpoint) {
+        this.#structure?.forget(endpoint);
     }
 
     override createBacking(endpoint: Endpoint, type: Behavior.Type): BehaviorBacking {

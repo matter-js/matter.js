@@ -40,9 +40,9 @@ boot<DeviceMessage>({
         await new Promise<void>(resolve => node!.lifecycle.online.once(() => resolve()));
         // The CommissioningServer.#enterOnlineMode reaction opens the commissioning window
         // asynchronously after lifecycle.online fires.  We must wait for it to complete
-        // before the controller can commission.  Use node.act() which waits for the node's
-        // lifecycle mutex, ensuring all pending operations are done.
-        await node.lifecycle.mutex.produce(async () => {});
+        // before the controller can commission.  Holding the node's lifecycle mutex waits for
+        // a start, stop or other lifecycle operation of the node in progress.
+        await node.lifecycle.mutex.hold("waiting for pending lifecycle operations", async () => {});
     },
 
     async stop() {

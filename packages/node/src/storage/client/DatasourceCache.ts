@@ -10,7 +10,6 @@ import type { DataModelPath } from "@matter/model";
 import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 import type { ClientCacheBuffer } from "./ClientCacheBuffer.js";
-import type { LocalWriter } from "./LocalWriter.js";
 import { RemoteWriteParticipant } from "./RemoteWriteParticipant.js";
 import type { RemoteWriter } from "./RemoteWriter.js";
 
@@ -36,17 +35,11 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
     #nodeId: string;
     #endpointNumber: EndpointNumber;
     #behaviorId: string;
-    #localWriter?: LocalWriter;
+    #persist?: DatasourceCache.Persist;
+    #eraseStored?: () => Promise<void>;
     #buffer?: ClientCacheBuffer;
     #version: number;
     #dirtyKeys = new Set<string>();
-
-    /**
-     * The tail of the unbuffered persists.  Storage takes patches, so they run one after another in arrival order:
-     * the last patch stored for a key must be its latest settlement.  It never rejects; each persist's own caller
-     * receives its failure.
-     */
-    #persisted: Promise<void> = Promise.resolve();
 
     /**
      * Counts settlements as they arrive: each report, and each answer that accepts a write.
@@ -54,22 +47,22 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
     #epoch = 0;
 
     /**
-     * The arrival {@link #epoch} of the peer's latest word on each attribute.  While the cache is neither erased nor
-     * reclaimed, a stamped settlement is in memory: its values apply when it arrives, before they persist, and stay even
-     * when persisting them fails.  Memory always
-     * follows the device; only the stored copy lags until the next settlement.
+     * The arrival {@link #epoch} of the peer's latest word on each attribute.  While the cache is neither discarded
+     * nor reclaimed, a stamped settlement is in memory: its values apply when it arrives, before they persist, and stay
+     * even when persisting them fails.  Memory always follows the device; only the stored copy lags until the next
+     * flush.
      */
     #settledAt = new Map<string, number>();
 
     /**
-     * Change announcements in the order the changes were settled.  An entry stays closed until its values are
-     * persisted or handed to the buffer and, for an accepted write, until the transaction that settled it ends; every
-     * entry behind it waits.
+     * Change announcements in the order the changes were settled.  An entry stays closed until the buffer persisted
+     * its values or queued them for its next flush and, for an accepted write, until the transaction that settled it
+     * ends; every entry behind it waits.
      */
     #announcements = new Array<Announcement>();
     #draining = false;
 
-    #erased = false;
+    #discarded = false;
     #reclaimed = false;
     #consumer?: Datasource.ExternallyMutableStore.Consumer;
 
@@ -80,7 +73,8 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
         this.#nodeId = options.nodeId;
         this.#endpointNumber = options.endpointNumber;
         this.#behaviorId = options.behaviorId;
-        this.#localWriter = options.localWriter;
+        this.#persist = options.persist;
+        this.#eraseStored = options.eraseStored;
         this.#buffer = options.buffer;
         this.initialValues = options.initialValues;
 
@@ -168,12 +162,12 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
 
     /**
      * Settle values the peer reported or accepted.  Before its first await this stamps them with their arrival epoch,
-     * applies them in memory and queues their announcement, closed; then it persists them in arrival order.  Memory
+     * applies them in memory and queues their announcement, closed; then it persists them through the buffer.  Memory
      * keeps the values when persisting fails.  A report that confirms a value we already hold is stamped too: it leaves
      * no other trace, and it still outranks a write in flight.
      *
-     * Resolves once the values are persisted, or handed to the buffer, with the closed announcement of the changes, if
-     * any, and the persist failure, if any.  The caller opens the announcement.
+     * Resolves once the buffer persisted the values or queued them for its next flush, with the closed announcement of
+     * the changes, if any, and the persist failure, if any.  The caller opens the announcement.
      */
     async #settle(values: Val.StructMap): Promise<{ announcement?: Announcement; persistFailure?: unknown }> {
         const epoch = ++this.#epoch;
@@ -184,7 +178,7 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
             }
         }
 
-        if (this.#erased || this.#reclaimed) {
+        if (this.#discarded || this.#reclaimed) {
             return {};
         }
 
@@ -195,23 +189,14 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
 
         const announcement = this.#apply(values);
 
-        if (this.#buffer) {
-            for (const key of values.keys()) {
-                this.#dirtyKeys.add(String(key));
-            }
-            this.#buffer.markDirty(this);
+        if (this.#buffer === undefined) {
             return { announcement };
         }
-
-        const valuesStruct = Object.fromEntries(values) as Val.Struct;
-        try {
-            await this.#persistInOrder(localWriter =>
-                localWriter.persist(this.#endpointNumber, this.#behaviorId, valuesStruct),
-            );
-        } catch (error) {
-            return { announcement, persistFailure: error };
+        for (const key of values.keys()) {
+            this.#dirtyKeys.add(String(key));
         }
-        return { announcement };
+        const persistFailure = await this.#buffer.persist(this);
+        return { announcement, persistFailure };
     }
 
     /**
@@ -241,10 +226,10 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
 
     /**
      * Emit the open announcements at the head of the queue, one drain at a time.  A caller that finds a drain running
-     * returns, and that drain announces what opens meanwhile.  A caller that finds a drain running does not wait for its
-     * own entry: the observer holding the queue may be the one awaiting this caller.  For the same reason, a post-commit observer of a writing
-     * transaction must not await a change of the same cluster that sits behind the transaction's own closed entry; it
-     * opens only when that transaction ends.
+     * returns, and that drain announces what opens meanwhile.  Such a caller does not wait for its own entry: the
+     * observer holding the queue may be the one awaiting this caller.  For the same reason, a post-commit observer of a
+     * writing transaction must not await a change of the same cluster that sits behind the transaction's own closed
+     * entry; it opens only when that transaction ends.
      *
      * An announcement logs its own failures; the catch here only keeps a failure from stranding the entries behind it.
      */
@@ -265,26 +250,6 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
         } finally {
             this.#draining = false;
         }
-    }
-
-    /**
-     * Run {@link write} after every persist requested before it, unless this cache is erased by then.
-     */
-    async #persistInOrder(write: (localWriter: LocalWriter) => Promise<void>) {
-        const localWriter = this.#localWriter;
-        if (!localWriter) {
-            return;
-        }
-
-        const persisting = this.#persisted.then(() => {
-            if (!this.#erased) {
-                return write(localWriter);
-            }
-        });
-
-        // Only orders later persists; the caller receives this one's failure
-        this.#persisted = persisting.then(undefined, () => {});
-        await persisting;
     }
 
     #seed(values: Val.StructMap) {
@@ -323,41 +288,61 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
     }
 
     async forgetVersion() {
-        if (this.#erased) {
+        if (this.#discarded) {
             return;
         }
         this.#version = Datasource.UNKNOWN_VERSION;
+        if (this.#buffer === undefined) {
+            return;
+        }
 
-        // A flush that is running may have taken the old version already; it must land before the unknown version does
-        await this.#buffer?.settled();
-
-        await this.#persistInOrder(localWriter =>
-            localWriter.persist(this.#endpointNumber, this.#behaviorId, {
-                [DatasourceCache.VERSION_KEY]: Datasource.UNKNOWN_VERSION,
-            }),
-        );
-    }
-
-    get erased() {
-        return this.#erased;
+        this.#dirtyKeys.add(DatasourceCache.VERSION_KEY);
+        const failure = await this.#buffer.persistNow(this);
+        if (failure !== undefined) {
+            throw failure;
+        }
     }
 
     /**
-     * Disable this cache in memory without touching persisted storage.
+     * End the cache in memory without touching persisted storage: it applies, announces and persists nothing from now
+     * on, and drops the values it did not persist yet.
      */
     discard() {
-        this.#erased = true;
+        this.#discarded = true;
         this.#announcements.length = 0;
         this.#dirtyKeys.clear();
-        this.#buffer?.removeDirty(this);
     }
 
     /**
-     * Erase values just for this datasource.  After this call, {@link externalSet} is permanently disabled.
+     * Whether {@link discard} or {@link erase} ended the cache.
+     *
+     * @internal
+     */
+    get isDiscarded() {
+        return this.#discarded;
+    }
+
+    /**
+     * {@link discard} the cache and erase its stored values in a job of the buffer, after the flushes queued before.
      */
     async erase() {
         this.discard();
-        await this.#localWriter?.erase(this.#endpointNumber, this.#behaviorId);
+        const eraseStored = this.#eraseStored;
+        if (eraseStored === undefined) {
+            return;
+        }
+        if (this.#buffer === undefined) {
+            await eraseStored();
+        } else {
+            await this.#buffer.clear(eraseStored);
+        }
+    }
+
+    /**
+     * Whether the cache holds values it did not persist yet.  A discarded cache never does.
+     */
+    get isDirty() {
+        return !this.#discarded && this.#dirtyKeys.size > 0;
     }
 
     /**
@@ -365,7 +350,7 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
      * commit.  Without this, a commit failure would silently lose buffered writes.
      */
     restoreDirtyKeys(keys: Set<string>) {
-        if (this.#erased) {
+        if (this.#discarded) {
             return;
         }
         for (const key of keys) {
@@ -374,13 +359,14 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
     }
 
     /**
-     * Flush dirty values to storage.  When {@link tx} is provided, writes go through the shared transaction.
+     * Flush dirty values to storage through the shared transaction {@link tx}.  Only {@link ClientCacheBuffer} calls
+     * this.
      *
      * Returns the set of keys that were flushed, so the caller can restore them via {@link restoreDirtyKeys} if
      * the enclosing transaction fails to commit.
      */
-    async flush(tx?: StorageDriver.Transaction): Promise<Set<string> | undefined> {
-        if (this.#erased || !this.#dirtyKeys.size) {
+    async flush(tx: StorageDriver.Transaction): Promise<Set<string> | undefined> {
+        if (this.#discarded || !this.#dirtyKeys.size) {
             return;
         }
 
@@ -415,12 +401,10 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
         }
 
         if (attributeKeys.size && (values === undefined || !Object.keys(values).length)) {
-            // Values vanished between marking dirty and flushing; restore keys and re-mark so the buffer
-            // retries on the next cycle
+            // Values vanished between marking dirty and flushing; they stay dirty for the next flush
             for (const key of flushing) {
                 this.#dirtyKeys.add(key);
             }
-            this.#buffer?.markDirty(this);
             return;
         }
 
@@ -428,11 +412,7 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore, Remot
         values[DatasourceCache.VERSION_KEY] = this.#version;
 
         try {
-            if (tx && this.#localWriter) {
-                await this.#localWriter.persistInTransaction(tx, this.#endpointNumber, this.#behaviorId, values);
-            } else {
-                await this.#localWriter?.persist(this.#endpointNumber, this.#behaviorId, values);
-            }
+            await this.#persist?.(tx, values);
         } catch (e) {
             // Restore keys so they are retried on the next flush
             for (const key of flushing) {
@@ -459,7 +439,19 @@ export namespace DatasourceCache {
         endpointNumber: EndpointNumber;
         behaviorId: string;
         initialValues?: Val.Struct;
-        localWriter?: LocalWriter;
+        persist?: Persist;
+
+        /**
+         * Erase the stored values of the cache.  Rejects with `StoreClosedError` once the storage of the cache ended.
+         */
+        eraseStored?: () => Promise<void>;
+
         buffer?: ClientCacheBuffer;
     }
+
+    /**
+     * Stage the values of the cache into the transaction the {@link ClientCacheBuffer} commits.  Rejects with
+     * `StoreClosedError` once the storage of the cache ended.
+     */
+    export type Persist = (transaction: StorageDriver.Transaction, values: Val.Struct) => Promise<void>;
 }

@@ -280,5 +280,38 @@ describe("Parts", () => {
 
             expect(node.parts.has(part)).true;
         });
+
+        it("refuses detaching a part through its owner", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const part = await node.add(OnOffLightDevice, { id: "part", number: 5 });
+
+            expect(() => (part.owner = undefined)).throws(ImplementationError, /an endpoint cannot move/);
+
+            expect(part.owner).equals(node);
+            expect(node.parts.has(part)).true;
+            expect(node.behaviors.internalsOf(IndexBehavior).partsByNumber[5]).equals(part);
+        });
+
+        it("refuses moving a part to another owner", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const part = await node.add(OnOffLightDevice, { id: "part", number: 5 });
+            const other = await node.add(AggregatorEndpoint, { id: "other" });
+
+            expect(() => (part.owner = other)).throws(ImplementationError, /an endpoint cannot move/);
+
+            expect(part.owner).equals(node);
+            expect(other.parts.has(part)).false;
+        });
+
+        it("refuses adding a part that another endpoint owns", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const part = await node.add(OnOffLightDevice, { id: "part", number: 5 });
+            const other = await node.add(AggregatorEndpoint, { id: "other" });
+
+            await expect(other.add(part)).rejectedWith(ImplementationError, /an endpoint cannot move/);
+
+            expect(part.owner).equals(node);
+            expect(other.parts.has(part)).false;
+        });
     });
 });

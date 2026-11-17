@@ -86,7 +86,7 @@ deprecated with the rest of `@project-chip/matter.js`.
 | `controller.isNodeCommissioned(id)` | `serverNode.peers.get(fabric.addressOf(id))?.lifecycle.isCommissioned` |
 | `controller.removeNode(id, tryDecommission)` | `clientNode.decommission()` (fallback `clientNode.delete()` for force) |
 | `controller.disconnectNode(id)` | `clientNode.disable()` |
-| `controller.connectNode(id)` | `clientNode.enable()` / `clientNode.start()` |
+| `controller.connectNode(id)` | `clientNode.enable()` |
 | `controller.discoverCommissionableDevices(opts)` | `serverNode.peers.discover(opts)` / `peers.locate(opts)` |
 | `controller.getActiveSessionInformation()` | `serverNode.stateOf(SessionsBehavior).sessions` |
 | `controller.updateFabricLabel(label)` | `controller.adminFabricLabel` state + `fabric.setLabel(label)`, plus pushing it to connected peers yourself (see "Fabric label" below) |
@@ -277,9 +277,11 @@ A wrong passcode fails with `PasscodeMismatchError` (`@matter/protocol`), possib
 `onAttestationFailure(findings)` replaces the legacy attestation callback — return `true` to accept, `false` to
 reject, or a string to reject with that message; each finding carries `level` (`"error"` / `"warn"` / `"info"`),
 `type` and `message`. To decommission, use `node.decommission()` (contacts the device, so call it only while
-`lifecycle.isConnected`) or `node.delete()` (force-drop locally when the peer is unreachable). To rotate a node's
-operational certificate and key pair, use `node.updateOperationalCertificate()`; node ID, fabric and ACLs stay the
-same.
+`lifecycle.isConnected`) or `node.delete()` (force-drop locally when the peer is unreachable). `node.delete()` rejects
+with `DestroyedDependencyError` once a close or delete of the server node was requested, for example when the server
+node shuts down at the same time. A close of the server node then closes the peer and keeps its storage; a delete of
+the server node removes it. To rotate a node's operational certificate and key pair, use
+`node.updateOperationalCertificate()`; node ID, fabric and ACLs stay the same.
 
 ### Delegated / split commissioning (legacy `PaseCommissioner`)
 
@@ -356,16 +358,16 @@ off via a callback to complete the flow elsewhere. On the new API:
 needed** — the `NetworkClient`'s `SustainedSubscription` establishes and re-establishes the subscription
 automatically once the node is enabled.
 
-There is no separate "auto-connect" toggle: a node is *connected* when it is enabled (`!isDisabled`) and
+There is no separate "auto-connect" toggle: a node is *connected* when it is enabled (`!clientNode.isDisabled`) and
 holds a sustained subscription (`autoSubscribe`). The legacy node options map directly onto `NetworkClient`
 state:
 
-| Legacy | New (`NetworkClient` state, via `clientNode.set({ network: … })`) |
+| Legacy | New (`NetworkClient` state, via `clientNode.set({ network: … })`, except `autoConnect`) |
 | --- | --- |
-| `autoConnect` | `isDisabled` (**inverse**): `autoConnect: false` → `isDisabled: true`. Or use `clientNode.enable()` / `disable()`. |
+| `autoConnect` | `clientNode.disable()` / `enable()`: `autoConnect: false` → `disable()`. They persist the flag; read it with `clientNode.isDisabled`. The `NetworkClient` state `isDisabled` is deprecated and mirrors that flag; a write still disables the node or clears the flag, but takes effect asynchronously. |
 | `autoSubscribe` | `autoSubscribe` (same meaning) |
 | `subscribeAllAttributesAndEvents(opts)` / interval tuning | `defaultSubscription`: `Subscribe.Options` (interval floor/ceiling, filters) merged into the default wildcard subscription, or a built `Subscribe`/`Read` sent as given, with its paths and fabric filter; the node sets the event filter from the higher of the stored and the emitted event number, injects known data versions and defaults `keepSubscriptions` to false. To keep Leave handling, a built request needs the Basic Information attributes and events and the Operational Credentials `fabrics` attribute; without them the node notices a device going offline only through the subscription timeout and does not see a fabric Leave. The subscription re-applies automatically when you change it |
-| `node.connect()` | `clientNode.enable()` (subscription follows automatically) |
+| `node.connect()` | `clientNode.enable()` (subscription follows automatically). `PairedNode.connect()` itself calls `enable()`, so it also starts a stopped peer that is not disabled |
 | `node.disconnect()` | `clientNode.disable()` |
 | `node.reconnect()` / `triggerReconnect()` | not needed — `SustainedSubscription` re-establishes; observe `lifecycle.connectionState`. To force a fresh subscription (e.g. after `IcdClient.forget()`), set `autoSubscribe` to `false`, then back to `true` |
 
@@ -390,12 +392,24 @@ At each start the legacy controller reset `autoSubscribe` to `false` on every pe
 stored `isDisabled: true` on that peer. After the switch these peers start without a subscription, or do not start
 at all.
 
-Repair them once, before `start()`, and record that you did, so the user's later choices stay. Also set
-`isDisabled: false` on the peers your application considers enabled:
+Repair them once and record that you did, so the user's later choices stay. Set `autoSubscribe` before
+`start()`. The stored disabled flag carries over and `clientNode.isDisabled` reports it; after `start()`, call
+`clientNode.enable()` on the peers your application considers enabled, which clears the flag and brings the peer
+online:
 
 ```ts
-for (const peer of serverNode.peers.commissioned) {
-    await peer.set({ network: { autoSubscribe: true } });
+// enabledInApp: the node IDs your application lists as enabled
+async function repairLegacyPeers(serverNode: ServerNode, enabledInApp: Set<NodeId>) {
+    for (const peer of serverNode.peers.commissioned) {
+        await peer.set({ network: { autoSubscribe: true } });
+    }
+    await serverNode.start();
+    for (const peer of serverNode.peers.commissioned) {
+        const nodeId = peer.peerAddress?.nodeId;
+        if (peer.isDisabled && nodeId !== undefined && enabledInApp.has(nodeId)) {
+            await peer.enable();
+        }
+    }
 }
 ```
 
@@ -411,10 +425,10 @@ Per-node enable/disable is on `ClientNode`:
 | Legacy | New |
 | --- | --- |
 | `controller.disconnectNode(id)` / "disable node" | `clientNode.disable()` — drops the subscription and prevents reconnection until re-enabled |
-| `controller.connectNode(id)` / "enable node" | `clientNode.enable()` — brings a disabled, reachable node back online |
-| — (read) | `clientNode.state.network.isDisabled` |
+| `controller.connectNode(id)` / "enable node" | `clientNode.enable()` — clears the disabled flag and brings the node online like `start()` |
+| — (read) | `clientNode.isDisabled` |
 
-`disable()` sets the persisted `network.isDisabled` flag, so a node stays disabled across controller
+`disable()` persists the disabled flag, so a node stays disabled across controller
 restarts. This is the "this node is intentionally off" state — a seasonal device (a christmas-light plug, a
 pool-pump socket) you want the controller to leave alone, and the bulk connect to skip, until you
 `enable()` it again. For a transient disconnect that keeps the node enabled for on-demand reconnect, use
@@ -425,8 +439,8 @@ off, persisted); `NetworkServer.autoStartCommissionedPeers` (below) is a control
 auto-connect at all) that leaves every node enabled.
 
 **Bulk "connect all nodes" is no longer a manual loop.** When the controller `ServerNode` comes online,
-its `Peers` container automatically starts every commissioned peer that is not disabled — disabled peers
-are skipped and stay offline until explicitly `enable()`d. So the legacy pattern
+its `Peers` container automatically starts every commissioned peer that is not disabled and that you did not
+stop in this process — disabled peers are skipped and stay offline until explicitly `enable()`d. So the legacy pattern
 
 ```ts
 // legacy: connect every commissioned node
@@ -447,14 +461,16 @@ for (const peer of serverNode.peers.commissioned) {
 **Opting out of the automatic bulk connect.** The online-time bulk connect is gated by
 `NetworkServer.autoStartCommissionedPeers` (default `true` = auto-connect commissioned peers on online).
 Set it to `false` at `ServerNode.create` (`network: { autoStartCommissionedPeers: false }`) for manual /
-on-demand control — the node then connects **no** peer on online. With it off, a commissioned peer is only
-usable **after you explicitly bring it online**: call `clientNode.enable()` for a peer that is `isDisabled`
-(this clears the flag and starts it — `start()` alone throws `UncommissionedError` on a disabled peer), or
-`clientNode.start()` for an already-enabled peer. This is the new-API replacement for the legacy
-`pairedNode.connect()` call: there is no implicit connect, you `enable()`/`start()` on demand. Enabling a
-peer while `autoStartCommissionedPeers` is `false` does **not** cause it to auto-connect on the next online
-— the sweep is off regardless of `isDisabled`. The nodejs-shell uses `false` so a debug session connects
-only the peers you ask for.
+on-demand control — the node then connects on online only the peers you started or enabled in this process. With it off, a commissioned peer is only
+usable **after you explicitly bring it online**: call `clientNode.enable()`, which clears the disabled
+flag and starts the peer (`start()` alone throws `NodeDisabledError` on a disabled peer). This is the
+new-API replacement for the legacy `pairedNode.connect()` call: there is no implicit connect, you
+`enable()`/`start()` on demand. A peer you started this way goes online again when the controller node
+restarts in the same process, as a server restart keeps the intent of each peer. Only the disabled flag
+persists, so with `autoStartCommissionedPeers: false` the peer does **not** connect after the process
+restarts. With `true`, the sweep starts each commissioned peer that is not disabled, unless the last `start()`, `stop()`,
+`enable()` or `disable()` of the peer was a `stop()` or `disable()` that did not fail. The nodejs-shell uses `false` so a debug session
+connects only the peers you ask for.
 
 ---
 
@@ -471,8 +487,9 @@ only the peers you ask for.
 `NodeConnectionState` uses the same numeric values as legacy `NodeStates`
 (`Connected=0, Disconnected=1, Reconnecting=2, WaitingForDeviceDiscovery=3`), so a consumer migrates by
 type-swap. Semantics: `Connected` = live subscription; `Disconnected` = node stopped / not started /
-disabled; `Reconnecting` = started and (re-)establishing; `WaitingForDeviceDiscovery` = peer appears
-offline (establishment past the MRP budget, or a missed ICD check-in for registered LIT ICDs). The
+disabled / not commissioned, its server node is offline, or its start failed; `Reconnecting` = started and (re-)establishing;
+`WaitingForDeviceDiscovery` = peer appears offline (establishment past the MRP budget, a missed ICD check-in for
+registered LIT ICDs, or no known address to try). The
 2-state `lifecycle.isOnline` still exists for simple online/offline needs.
 
 Neither `connectionStateChanged` nor `seeded` replays: read `lifecycle.connectionState` and `lifecycle.isSeeded`
@@ -717,7 +734,8 @@ Legacy `initialized` / `localInitializationDone` / `remoteInitializationDone` �
 (the peer's structure has been read: BasicInformation present and every endpoint the root's PartsList names
 installed, which includes a peer with only its root endpoint; a node built by hand without a root PartsList needs an
 endpoint beyond the root), with
-`lifecycle.seeded` emitting once on the false→true transition.
+`lifecycle.seeded` emitting on the false→true transition. An erase of the node sets `isSeeded` back to false, and
+`seeded` emits again once the node read the peer's structure (see "Erasing a client node" below).
 
 `await lifecycle.seeded` never resolves for a peer that is offline, so bound the wait — legacy
 `await node.events.initialized` had the same hang. Race it against a timeout and abort the command on
@@ -735,6 +753,36 @@ try {
     observers.close();
 }
 ```
+
+---
+
+## Erasing a client node
+
+`clientNode.erase()` drops what the controller learned from the device and reads it again, so the node looks like a
+newly commissioned one. It keeps the commissioning state (such as the peer address), the network settings (including
+the last event number seen, so old events are not delivered again), the ICD state and the disabled flag. It drops the
+endpoints below the root with their stored data, the cluster data of the root, and the fabric filter recorded for
+that data.
+
+The endpoint objects below the root are destroyed. The next read of the device's structure creates new objects, so
+look up endpoints by number after an erase instead of keeping references. `lifecycle.isSeeded` is false until that
+read is done, and `lifecycle.seeded` then emits again.
+
+| Situation when you call `erase()` | What happens |
+| --- | --- |
+| Node online, `autoSubscribe` on | It reconnects; the subscription reads the endpoints again |
+| Node online, `autoSubscribe` off | It reconnects; the endpoints come back with the next read your application does |
+| Node offline or disabled | It stays offline with only its root endpoint; the endpoints come back once it is online again and has read the device |
+| Server node offline | The node stays offline |
+| `close()` or `delete()` of an endpoint below the node | Refused, unless that endpoint is already being deleted; then the call waits for that delete |
+| `close()` or `delete()` of the node | Runs after the erase; the node does not restart |
+| The stored data of the root or of an endpoint fails to erase | The endpoints below the root are still removed; the node crashes and `erase()` rejects with the failures. The node stays offline until `start()`, `enable()` or a restart of the server node finishes the erase and reconnects; a disabled node needs `enable()`, as `start()` refuses it. If the storage still fails, the call rejects and the node stays crashed |
+
+Endpoints of a client node mirror the device, so their own `erase()`, `delete()` and `close()` reject with
+`ImplementationError`. Erase, delete or close the node instead.
+
+A `ClientGroup` is different: your application adds its endpoints, for example through bindings. `erase()` of a group
+keeps its endpoints and drops only their cached data, and the endpoints of a group accept `erase()`, `delete()` and `close()`.
 
 ---
 
@@ -810,8 +858,8 @@ react to `connectionStateChanged`; drop any reconnect timers / availability debo
 `getNode(nodeId, allowUnknown)` for a peer commissioned by another controller on the shared fabric.
 
 **How do I get the `ClientNode`s to work with?** `await serverNode.start()` then read `serverNode.peers.commissioned`
-(the commissioned `ClientNode`s). Enabling a peer is `clientNode.enable()` (disabled) / `clientNode.start()`
-(already enabled). There is no `connectAndGetNodes` bulk call — enumerate `peers.commissioned` and enable as
+(the commissioned `ClientNode`s). Enabling a peer is `clientNode.enable()`, whether or not it
+is disabled. There is no `connectAndGetNodes` bulk call — enumerate `peers.commissioned` and enable as
 needed (bulk connect happens automatically on controller start unless `autoStartCommissionedPeers` is `false`; see above).
 
 **How do I subscribe to a node's changes?** Register a listener on

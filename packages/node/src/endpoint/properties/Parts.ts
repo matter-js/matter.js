@@ -5,7 +5,14 @@
  */
 
 import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
-import { Construction, ImplementationError, Lifecycle, Logger, MutableSet } from "@matter/general";
+import {
+    Construction,
+    DestroyedDependencyError,
+    ImplementationError,
+    Lifecycle,
+    Logger,
+    MutableSet,
+} from "@matter/general";
 import { Agent } from "../Agent.js";
 import { Endpoint } from "../Endpoint.js";
 import { EndpointPartsError, IdentityConflictError, PartNotFoundError } from "../errors.js";
@@ -26,11 +33,13 @@ const logger = Logger.get("Parts");
  */
 export class Parts extends EndpointContainer implements MutableSet<Endpoint, Endpoint | Agent> {
     #bubbleChange: (type: EndpointLifecycle.Change, endpoint: Endpoint) => void;
+    #endpoint: Endpoint;
 
     constructor(endpoint: Endpoint) {
         super(endpoint);
+        this.#endpoint = endpoint;
 
-        const lifecycle = this.owner.lifecycle;
+        const lifecycle = this.#endpoint.lifecycle;
         this.#bubbleChange = (type, endpoint) => lifecycle.bubble(type, endpoint);
     }
 
@@ -42,17 +51,30 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
             return;
         }
 
-        assertNotAncestor(this.owner, endpoint);
-
-        if (endpoint.maybeNumber === 0) {
-            throw new IdentityConflictError(
-                `Cannot add ${endpoint} to ${this.owner} because endpoint number 0 belongs to the node root`,
+        if (endpoint.lifecycle.isNode) {
+            throw new ImplementationError(
+                `Cannot add ${endpoint} to ${this.#endpoint} because a node cannot be a part`,
+            );
+        }
+        const cause = this.#endpoint.lifecycle.terminalCause;
+        if (cause !== undefined) {
+            throw new DestroyedDependencyError(
+                `${cause}`,
+                `is closing, closed, being deleted or deleted, so ${endpoint} cannot be added to ${this.#endpoint}`,
             );
         }
 
-        // Insertion validation is only possible in a fully configured node. Otherwise each endpoint's number is
-        // checked when the endpoint is constructed
-        if (this.owner.lifecycle.isReady) {
+        assertNotAncestor(this.#endpoint, endpoint);
+
+        if (endpoint.maybeNumber === 0) {
+            throw new IdentityConflictError(
+                `Cannot add ${endpoint} to ${this.#endpoint} because endpoint number 0 belongs to the node root`,
+            );
+        }
+
+        // A resetting endpoint stays active and its tree keeps its numbers.  In a tree that has not started yet, each
+        // endpoint's number is checked when the endpoint is constructed
+        if (this.#endpoint.lifecycle.isReady || this.#endpoint.construction.status === Lifecycle.Status.Active) {
             this.#validateInsertion(endpoint, endpoint);
         }
 
@@ -61,7 +83,7 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
         endpoint.lifecycle.changed.on(this.#bubbleChange);
 
         // If the part is already fully initialized we initialize the child now
-        if (this.owner.lifecycle.isPartsReady) {
+        if (this.#endpoint.lifecycle.isPartsReady) {
             if (!endpoint.construction.isErrorHandled) {
                 endpoint.construction.onError(error => logger.error(`Error initializing ${endpoint}:`, error));
             }
@@ -77,7 +99,7 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
      */
     override delete(child: Endpoint | Agent): never {
         throw new ImplementationError(
-            `Cannot remove ${this.#endpointFor(child)} from ${this.owner} directly; use close() or delete() on the endpoint`,
+            `Cannot remove ${this.#endpointFor(child)} from ${this.#endpoint} directly; use close() or delete() on the endpoint`,
         );
     }
 
@@ -86,7 +108,7 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
      */
     override clear(): never {
         throw new ImplementationError(
-            `Cannot remove the parts of ${this.owner} directly; use close() or delete() on each endpoint`,
+            `Cannot remove the parts of ${this.#endpoint} directly; use close() or delete() on each endpoint`,
         );
     }
 
@@ -100,11 +122,27 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
         return true;
     }
 
+    /**
+     * Take {@link endpoint} out of the parts before it is destroyed, so no verb of the owner that iterates the parts
+     * reaches it.  Unlike {@link remove}, the endpoint keeps passing its lifecycle changes to the owner until it is
+     * destroyed, so its `Destroyed` change still reaches the index of the node, which releases its number.
+     *
+     * @internal
+     */
+    detachUntilDestroyed(endpoint: Endpoint) {
+        if (!super.remove(endpoint)) {
+            return;
+        }
+        endpoint.lifecycle.destroyed.once(() => {
+            endpoint.lifecycle.changed.off(this.#bubbleChange);
+        });
+    }
+
     require(id: string) {
         const part = this.get(id);
 
         if (part === undefined) {
-            throw new PartNotFoundError(`Endpoint ${this.owner} has no part ${id}`);
+            throw new PartNotFoundError(`Endpoint ${this.#endpoint} has no part ${id}`);
         }
 
         return part;
@@ -143,20 +181,30 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
      * Invoked automatically by the owner after behaviors initialize.
      */
     initialize() {
+        const { lifecycle } = this.#endpoint;
+
+        // A close or delete requested during the initialization destroys the parts anyway
+        if (lifecycle.isTerminal) {
+            return;
+        }
+
         // Sanity check
-        if (!this.owner.lifecycle.isReady) {
+        if (!lifecycle.isReady) {
             throw new ImplementationError(`Cannot initialize parts because endpoint is not ready`);
         }
 
         // Our only purpose is to initialize child parts
-        const onPartsReady = () => this.owner.lifecycle.change(EndpointLifecycle.Change.PartsReady);
+        const onPartsReady = () => lifecycle.change(EndpointLifecycle.Change.PartsReady);
         if (!this.size) {
             onPartsReady();
             return;
         }
 
-        // Initiate initialization of all parts
+        // Initiate initialization of all parts; a part whose close or delete is requested stays down
         for (const endpoint of this) {
+            if (endpoint.lifecycle.isTerminal) {
+                continue;
+            }
             const isInactive = endpoint.construction.status === Lifecycle.Status.Inactive;
             if (isInactive || endpoint.construction.status === Lifecycle.Status.Initializing) {
                 endpoint.construction.onError(error => {
@@ -194,7 +242,7 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
     // The incoming endpoints are not indexed yet, so duplicates within the inserted tree are tracked separately
     #validateInsertion(forefather: Endpoint, endpoint: Endpoint, usedNumbers = new Set<number>()) {
         if (endpoint.lifecycle.hasNumber) {
-            IndexBehavior.assertNumberAvailable(endpoint, endpoint.number, this.owner);
+            IndexBehavior.assertNumberAvailable(endpoint, endpoint.number, this.#endpoint);
             if (usedNumbers.has(endpoint.number)) {
                 throw new IdentityConflictError(
                     `Cannot add endpoint ${forefather} because descendants have conflicting definitions for endpoint number ${endpoint.number}`,
@@ -219,11 +267,11 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
 
         if (!(child instanceof Endpoint)) {
             if ((child as any).type) {
-                (child as any).owner = this.owner;
+                (child as any).owner = this.#endpoint;
             } else {
                 child = {
                     type: child as EndpointType,
-                    owner: this.owner,
+                    owner: this.#endpoint,
                 };
             }
         }

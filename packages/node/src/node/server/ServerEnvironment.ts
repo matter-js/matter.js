@@ -5,6 +5,7 @@
  */
 
 import { limitNodeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
+import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { DeviceTypeConformanceService } from "#node/server/DeviceTypeConformanceService.js";
@@ -15,11 +16,14 @@ import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     Crypto,
     DatafileRoot,
+    DestroyedDependencyError,
     Filesystem,
+    Instant,
     Logger,
     MatterAggregateError,
     type MaybePromise,
     Observable,
+    StorageManager,
     StorageService,
 } from "@matter/general";
 import {
@@ -36,6 +40,11 @@ import { BindingManager } from "../../behaviors/binding/BindingManager.js";
 import { IdentityService } from "./IdentityService.js";
 
 const logger = Logger.get("ServerEnvironment");
+
+/**
+ * Marks the environment of a server node whose services closed.
+ */
+class ServicesClosed {}
 
 /**
  * Manages components that are present for the lifetime of a server.
@@ -90,6 +99,33 @@ export namespace ServerEnvironment {
     }
 
     /**
+     * The buffer that the caches of the client nodes of {@link node} persist through.  The first call creates the
+     * buffer and starts its flush timer, with the flush interval of {@link NetworkServer} or else the
+     * {@link StorageDriver#writeCoalescingInterval} of the storage driver, so call it only once the behaviors of the
+     * node initialized.  {@link close} closes the buffer.
+     *
+     * Throws {@link DestroyedDependencyError} once {@link close} ran, as a buffer created then would never flush.
+     *
+     * @internal
+     */
+    export function clientCacheBufferOf(node: ServerNode): ClientCacheBuffer {
+        if (node.env.owns(ServicesClosed)) {
+            throw new DestroyedDependencyError(
+                node.toString(),
+                "closed its services, so it has no client cache buffer",
+            );
+        }
+        const { env } = node;
+        if (!env.has(ClientCacheBuffer)) {
+            const driver = env.get(StorageManager).driver;
+            const flushInterval =
+                node.stateOf(NetworkServer).clientCacheFlushInterval ?? driver.writeCoalescingInterval;
+            env.set(ClientCacheBuffer, new ClientCacheBuffer(driver, flushInterval ?? Instant));
+        }
+        return env.get(ClientCacheBuffer);
+    }
+
+    /**
      * Close the services a node's lifetime depends on.
      *
      * The order below is load-bearing and was arrived at through a series of shutdown defects.  Treat it as fixed:
@@ -99,6 +135,7 @@ export namespace ServerEnvironment {
      */
     export async function close(node: ServerNode) {
         const { env } = node;
+        env.set(ServicesClosed, new ServicesClosed());
 
         await MatterAggregateError.settleSeries(
             [

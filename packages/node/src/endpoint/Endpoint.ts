@@ -16,6 +16,7 @@ import { ProtocolService } from "#node/integration/ProtocolService.js";
 import type { Node } from "#node/Node.js";
 import {
     Construction,
+    DestroyedDependencyError,
     Diagnostic,
     Environment,
     Immutable,
@@ -47,6 +48,7 @@ import { Commands } from "./properties/Commands.js";
 import { EndpointContainer } from "./properties/EndpointContainer.js";
 import { EndpointInitializer } from "./properties/EndpointInitializer.js";
 import { EndpointLifecycle } from "./properties/EndpointLifecycle.js";
+import { EndpointVerbs } from "./properties/EndpointVerbs.js";
 import { Parts } from "./properties/Parts.js";
 import { SupportedBehaviors } from "./properties/SupportedBehaviors.js";
 import { EndpointType } from "./type/EndpointType.js";
@@ -56,11 +58,18 @@ const logger = Logger.get("Endpoint");
 /**
  * Endpoints consist of a hierarchy of parts.  This class manages the current state of a single endpoint.
  *
- * You can interact with endpoints using an {@link Agent} created with {@link Endpoint.agentFor}.  Agents are stateless and
- * designed for quick instantiation so you can create them as needed then discard.
+ * You can interact with endpoints using an {@link Agent} created with {@link Endpoint.agentFor}.  Agents are stateless
+ * and designed for quick instantiation so you can create them as needed then discard.
  *
  * Most often direct access to {@link Agent} is transparent as Matter.js acquires an agent as necessary for
  * {@link Behavior} interactions.
+ *
+ * The lifecycle verbs {@link erase}, {@link delete} and {@link close} of all endpoints of a node run one after another.
+ * A repeated call of the verb in progress joins it.  Once a delete or close is requested, the endpoint is gone for
+ * readers, and the endpoint and its parts refuse further erases and deletes; a close of the endpoint joins, and a close
+ * of a part waits for its turn.  Code that runs during a verb, such as a
+ * {@link EndpointLifecycle.reset} handler or the initialization or close of a behavior, must therefore not await a verb
+ * of the same node: both would wait for each other forever.  A warning names both once such a wait takes 10 seconds.
  */
 export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     #type: EndpointType;
@@ -70,6 +79,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     #agentType?: Agent.Type<T>;
     #behaviors: Behaviors;
     #lifecycle: EndpointLifecycle;
+    #verbs: EndpointVerbs;
     #parts?: Parts;
     #construction: Construction<Endpoint<T>>;
     #stateView = {} as Immutable<SupportedBehaviors.StateOf<T["behaviors"]>>;
@@ -101,8 +111,8 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     }
 
     /**
-     * The Matter {@link EndpointNumber} of the endpoint.  This uniquely identifies the {@link Endpoint} in the scope of the
-     * Matter node.
+     * The Matter {@link EndpointNumber} of the endpoint.  This uniquely identifies the {@link Endpoint} in the scope of
+     * the Matter node.
      */
     get number(): EndpointNumber {
         if (this.#number === undefined) {
@@ -124,7 +134,8 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     /**
      * The owner of the endpoint.
      *
-     * Every endpoint but the root endpoint (the "server node") is owned by another endpoint.
+     * Every endpoint but the root endpoint (the "server node") is owned by another endpoint.  The owner can be set only
+     * once; remove an endpoint from its owner with {@link close} or {@link delete}.
      */
     get owner(): Endpoint | undefined {
         return this.#owner;
@@ -200,7 +211,8 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      *
      * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
      * Behavior type including all enabled features. Because of this the returned state is typed as a plain string
-     * indexed record (Val.Struct). Please ensure to have proper checks in place when using this method with string type.
+     * indexed record (Val.Struct). Please ensure to have proper checks in place when using this method with string
+     * type.
      */
     stateOf(type: string): Immutable<Val.Struct>;
 
@@ -587,7 +599,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         return result;
     }
 
-    get construction() {
+    get construction(): Construction<Endpoint<T>> {
         return this.#construction;
     }
 
@@ -617,6 +629,13 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
 
         this.#lifecycle = this.createLifecycle(config.isEssential);
         this.#lifecycle.ready.on(() => this.#logReady());
+
+        this.#verbs = new EndpointVerbs(this, {
+            hold: (operation, step) => this.withLifecycleMutex(operation, step),
+            prepare: verb => (verb === "erase" ? this.prepareErase() : this.prepareDelete()),
+            reset: () => this.resetWithMutex(),
+            destroy: () => this.#destroy(),
+        });
 
         if (config.id !== undefined) {
             this.id = config.id;
@@ -712,7 +731,9 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             return;
         }
         if (this.#owner) {
-            this.#container.remove(this);
+            throw new ImplementationError(
+                `Cannot change the owner of ${this}; an endpoint cannot move, so close or delete it and add a new endpoint`,
+            );
         }
 
         this.#owner = owner;
@@ -778,7 +799,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         } catch (e) {
             // If endpoint is essential do not allow it to be added
             if (endpoint.lifecycle.isEssential) {
-                await endpoint.close();
+                await endpoint.#verbs.discardFailedConstruction();
             }
 
             // For non-essential endpoints just log the error
@@ -802,7 +823,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     /**
      * Access child parts.
      */
-    get parts() {
+    get parts(): Parts {
         if (!this.#parts) {
             this.#parts = new Parts(this);
         }
@@ -826,8 +847,17 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     /**
      * Endpoint information that varies as the endpoint initializes.
      */
-    get lifecycle() {
+    get lifecycle(): EndpointLifecycle {
         return this.#lifecycle;
+    }
+
+    /**
+     * The engine that runs the lifecycle verbs of the endpoint.
+     *
+     * @internal
+     */
+    get verbs(): EndpointVerbs {
+        return this.#verbs;
     }
 
     protected createLifecycle(isEssential?: boolean) {
@@ -913,56 +943,109 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     }
 
     /**
-     * Perform "soft" reset of the endpoint, reverting all in-memory structures to uninitialized.
+     * Perform a "soft" reset of the endpoint and its parts, reverting all in-memory structures to uninitialized.  Every
+     * step runs and the endpoint becomes inactive even when a step fails, so it can restart.  An inactive endpoint has
+     * nothing to reset.  The caller holds the tree mutex of this endpoint (level 2 or 6 of the lock order in
+     * `LifecycleMutex`).
      */
-    async reset() {
+    protected async resetWithMutex() {
+        if (this.construction.status === Lifecycle.Status.Inactive) {
+            return;
+        }
+
         using _resetting = this.construction.join("resetting");
 
+        // Revert lifecycle to uninitialized
+        this.lifecycle.resetting();
+
         try {
-            // Revert lifecycle to uninitialized
-            this.lifecycle.resetting();
-
-            // Reset child parts
-            {
-                using _parts = _resetting.join("parts");
-                await this.parts.reset();
-            }
-
-            // Reset behaviors
-            {
-                using _behaviors = _resetting.join("behaviors");
-                await this.behaviors.close();
-            }
-
-            // Notify
-            {
-                using _lifecycle = _resetting.join("lifecycle");
-                await this.lifecycle.reset.emit();
-            }
-
-            // Set construction to inactive so we can restart
+            await MatterAggregateError.settleSeries(
+                [
+                    async () => {
+                        using _parts = _resetting.join("parts");
+                        await MatterAggregateError.settleSeries(
+                            [...this.parts].map(part => () => part.resetWithMutex()),
+                            `Error resetting parts of ${this}`,
+                        );
+                    },
+                    async () => {
+                        using _behaviors = _resetting.join("behaviors");
+                        await this.behaviors.close();
+                    },
+                    async () => {
+                        using _lifecycle = _resetting.join("lifecycle");
+                        await this.lifecycle.reset.emit();
+                    },
+                ],
+                `Error resetting ${this}`,
+            );
+        } finally {
             this.construction.setStatus(Lifecycle.Status.Inactive);
-        } catch (e) {
-            logger.error(`Unhandled error during reset of ${this}`, e);
         }
     }
 
     /**
-     * Perform "hard" reset of the endpoint, reverting all in-memory and persistent state to uninitialized.
+     * Erase all persisted data of the endpoint and its parts and restart them with their default values and the
+     * options they were created with.
+     *
+     * The endpoint restarts with the structure its owner defines: the code for a server node, the peer for a client
+     * node (see `ClientNode.erase()`).  The endpoint keeps its ID and number and stays in the PartsList of its parent.
+     * An endpoint that was not started stays down.  On a server node the ConfigurationVersion increases when an
+     * endpoint below the node is erased; erasing a `ServerNode` is a factory reset.  A {@link close} or {@link delete}
+     * called meanwhile runs once the erase is done and the erase skips the restart; if the delete was requested while
+     * the erase waited for its turn, the erase does nothing and the delete wipes the data.
+     *
+     * Throws {@link DestroyedDependencyError} once a delete or close of the endpoint or of an ancestor of the same node
+     * was requested.  Throws {@link ImplementationError} for an endpoint that was never added to a node, and for an
+     * endpoint below a client node other than a group, as it mirrors the peer; erase the node instead.  Rejects with a
+     * {@link MatterAggregateError} that lists the failures at one level if a step fails.  A failed reset does not stop
+     * the erase; a failed wipe leaves the endpoint crashed.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 7.7.2
      */
     async erase() {
-        await this.reset();
-        await this.env.get(EndpointInitializer).eraseDescendant(this);
+        await this.#verbs.run("erase", "application");
     }
 
     /**
-     * Erase all persisted data and destroy the endpoint.
+     * Prepare the storage side of {@link erase}.  Defaults to the node's {@link EndpointInitializer}.
+     */
+    protected prepareErase(): Promise<EndpointInitializer.Erasure> {
+        return this.env.get(EndpointInitializer).prepareEraseDescendant(this);
+    }
+
+    /**
+     * Prepare the storage side of {@link delete}.  Defaults to the node's {@link EndpointInitializer}.
+     */
+    protected prepareDelete(): Promise<EndpointInitializer.Erasure> {
+        return this.env.get(EndpointInitializer).prepareDeleteDescendant(this);
+    }
+
+    /**
+     * Run the step of a lifecycle verb of this endpoint while holding the locks the verb takes: the tree mutex, which
+     * {@link prepareErase}, {@link prepareDelete} and {@link resetWithMutex} expect.
+     *
+     * @param operation names the verb and the endpoint in the warning of a long wait
+     * @internal
+     */
+    protected async withLifecycleMutex(operation: string, step: () => Promise<void>) {
+        await this.lifecycle.treeMutex.hold(operation, step);
+    }
+
+    /**
+     * Erase all persisted data of the endpoint and its parts, release their endpoint numbers and destroy the endpoint.
+     * Also removes an endpoint that crashed.  For an endpoint of a server node the ConfigurationVersion increases once
+     * the endpoint is removed.  A node is erased and destroyed without restarting.
+     *
+     * Every step runs even when an earlier one fails; failures reject with a {@link MatterAggregateError}.  Throws
+     * {@link DestroyedDependencyError} once a close of the endpoint or a delete or close of an ancestor of the same
+     * node was requested, and {@link ImplementationError} for an endpoint that was never added to a node and for an
+     * endpoint below a client node other than a group, as it mirrors the peer; delete the node instead.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 9.2.11
      */
     async delete() {
-        this.construction.assert(this.toString());
-        this.lifecycle.change(EndpointLifecycle.Change.Destroying);
-        await this.erase();
-        await this.close();
+        await this.#verbs.run("delete", "application");
     }
 
     /**
@@ -990,26 +1073,36 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     }
 
     /**
-     * Destroy the endpoint and its parts.
+     * Destroy the endpoint and its parts.  Their persisted data and endpoint numbers stay, so an endpoint with the same
+     * ID that is added later gets the same number and data, unless another endpoint requested that number meanwhile.
+     * Use {@link delete} to remove the endpoint for good.
      *
-     * Every teardown step runs even when an earlier one fails.  A failed deactivation rejects with a
-     * {@link MatterAggregateError}; failures while destroying the endpoint, its parts and its behaviors are logged.
+     * A call during a delete or close of the endpoint waits for it and does not report its failures.  A call while an
+     * ancestor of the same node is being deleted or closed runs in turn; the ancestor may already have destroyed this
+     * endpoint by then.
+     *
+     * Throws {@link ImplementationError} for an endpoint below a client node other than a group, as it mirrors the
+     * peer; close the node instead.  Every teardown step runs even when an earlier one fails.  A failed deactivation
+     * rejects with a {@link MatterAggregateError}; failures while destroying the endpoint, its parts and its behaviors
+     * are logged.
      */
     async close() {
-        this.lifecycle.change(EndpointLifecycle.Change.Destroying);
+        await this.#verbs.run("close", "application");
+    }
+
+    async #destroy() {
+        // Destruction detaches the endpoint from its owner, which provides the environment
+        const initializer = this.env.maybeGet(EndpointInitializer);
         await MatterAggregateError.settleSeries(
-            [
-                () => this.env.maybeGet(EndpointInitializer)?.deactivateDescendant(this),
-                () => this.#construction.close(),
-            ],
-            `Error closing endpoint ${this}`,
+            [() => this.#construction.close(), () => initializer?.deactivateDescendant(this)],
+            `Error closing ${this}`,
         );
     }
 
     async [Construction.destruct]() {
         await MatterAggregateError.settleSeries(
             [
-                () => this.#parts?.close(),
+                () => this.#verbs.closeParts(this.#parts),
                 () => this.#behaviors?.close(),
                 () => {
                     for (const id in this.#events) {

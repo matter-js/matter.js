@@ -25,6 +25,10 @@ export class Endpoints implements ImmutableSet<Endpoint> {
         return this.#node;
     }
 
+    /**
+     * Whether {@link endpoint} is installed on the node.  An endpoint of the node's tree that is not installed, such as
+     * while the node resets, is not listed.
+     */
     has(endpoint: Endpoint | number | string): boolean {
         if (endpoint === this.#node || endpoint === 0) {
             return true;
@@ -61,6 +65,11 @@ export class Endpoints implements ImmutableSet<Endpoint> {
         return this.#list[Symbol.iterator]();
     }
 
+    /**
+     * The installed endpoint with {@link id}, the endpoint number or ID.
+     *
+     * @throws {StatusResponse.NotFoundError} if no installed endpoint has {@link id}
+     */
     for(id: number | string): Endpoint {
         if (id === 0) {
             return this.#node;

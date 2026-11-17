@@ -8,10 +8,13 @@ import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { BasicInformationClient, BasicInformationServer } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
+import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { FabricOperationInProgressError } from "#node/client/Peers.js";
 import type { ClientNode } from "#node/ClientNode.js";
+import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
+    createPromise,
     CrashedDependencyError,
     Crypto,
     DestroyedDependencyError,
@@ -20,6 +23,7 @@ import {
     LogDestination,
     Logger,
     LogLevel,
+    MemoryStorageDriver,
     MockCrypto,
     Minutes,
     Seconds,
@@ -380,6 +384,106 @@ describe("Decommission", () => {
         expect(controller.peers.size).equals(0);
     });
 
+    it("removes a peer that left the fabric when its server node starts closing during the leave", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        const fabricIndex = peer1.stateOf(OperationalCredentialsClient).currentFabricIndex;
+        const closing = new Promise<void>(resolve =>
+            peer1.lifecycle.decommissioned.once(() => resolve(controller.close())),
+        );
+
+        peer1.eventsOf(BasicInformationClient).leave.emit({ fabricIndex }, LocalActorContext.ReadOnly);
+        await MockTime.resolve(closing, { macrotasks: true });
+
+        const rebooted = await site.addNode(undefined, {
+            id: controller.id,
+            device: undefined,
+            commissioning: { enabled: false },
+            online: false,
+        });
+        expect(rebooted.peers.size).equals(0);
+    });
+
+    async function decommissionWhileServerNodeCloses(site: MockSite) {
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+        const { promise: removing, resolver: removalReached } = createPromise<void>();
+        const { promise: peerClosing, resolver: peerCloses } = createPromise<void>();
+        peer1.lifecycle.changed.on((type, endpoint) => {
+            if (type === EndpointLifecycle.Change.Destroying && endpoint === peer1) {
+                peerCloses();
+            }
+        });
+        const removal = peer1.deleteDespiteServerTeardown.bind(peer1);
+        peer1.deleteDespiteServerTeardown = async () => {
+            removalReached();
+            await peerClosing;
+            await removal();
+        };
+
+        try {
+            const decommissioning = peer1.decommission();
+            await MockTime.resolve(removing, { macrotasks: true });
+            const closing = controller.close();
+            await MockTime.resolve(Promise.all([decommissioning, closing]), { macrotasks: true });
+        } finally {
+            Reflect.deleteProperty(peer1, "deleteDespiteServerTeardown");
+        }
+
+        const rebooted = await site.addNode(undefined, {
+            id: controller.id,
+            device: undefined,
+            commissioning: { enabled: false },
+            online: false,
+        });
+        expect(rebooted.peers.size).equals(0);
+    }
+
+    it("erases a peer that its server node closes before its decommission removes it", async () => {
+        await using site = new MockSite();
+        await decommissionWhileServerNodeCloses(site);
+    });
+
+    it("erases a peer that its server node closes while the erase clears the storage", async () => {
+        class SlowClearStorage extends MemoryStorageDriver {
+            override async clearAll(contexts: string[]) {
+                await MockTime.yield();
+                return super.clearAll(contexts);
+            }
+        }
+        await using site = new MockSite({ createStorageDriver: store => new SlowClearStorage(store) });
+        await decommissionWhileServerNodeCloses(site);
+    });
+
+    it("joins the running delete of a peer without opening another store for it", async () => {
+        const gate = { armed: false, clearing: createPromise<void>(), release: createPromise<void>() };
+        class GatedClearStorage extends MemoryStorageDriver {
+            override async clearAll(contexts: string[]) {
+                if (gate.armed) {
+                    gate.armed = false;
+                    gate.clearing.resolver();
+                    await gate.release.promise;
+                }
+                super.clearAll(contexts);
+            }
+        }
+        await using site = new MockSite({ createStorageDriver: store => new GatedClearStorage(store) });
+        const { controller } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+        const clientStores = controller.env.get(ServerNodeStore).clientStores;
+
+        gate.armed = true;
+        const deleting = peer1.delete();
+        await MockTime.resolve(gate.clearing.promise, { macrotasks: true });
+        const removing = peer1.deleteDespiteServerTeardown();
+
+        expect(clientStores.knownIds).not.contains(peer1.id);
+        gate.release.resolver();
+        await MockTime.resolve(Promise.all([deleting, removing]), { macrotasks: true });
+        expect(clientStores.knownIds).not.contains(peer1.id);
+    });
+
     it("rejects a decommission of a deleted node", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
@@ -570,8 +674,8 @@ describe("Decommission", () => {
         let deletes = 0;
         let release!: () => void;
         const released = new Promise<void>(resolve => (release = resolve));
-        const deleteNode = peer1.delete.bind(peer1);
-        peer1.delete = async () => {
+        const deleteNode = peer1.deleteDespiteServerTeardown.bind(peer1);
+        peer1.deleteDespiteServerTeardown = async () => {
             deletes++;
             await released;
             await deleteNode();
@@ -583,7 +687,7 @@ describe("Decommission", () => {
             release();
             await MockTime.resolve(decommissioning);
         } finally {
-            peer1.delete = deleteNode;
+            peer1.deleteDespiteServerTeardown = deleteNode;
             restore();
         }
 

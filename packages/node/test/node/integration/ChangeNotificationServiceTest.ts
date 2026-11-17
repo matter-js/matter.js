@@ -5,7 +5,6 @@
  */
 
 import { OnOffLightDevice } from "#devices/on-off-light";
-import type { Endpoint } from "#endpoint/Endpoint.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { Lifecycle, MatterError } from "@matter/general";
@@ -60,12 +59,6 @@ async function controllerWithRestoredPeer(site: MockSite) {
     return { rebooted, peer, recorded };
 }
 
-async function restart(endpoint: Endpoint) {
-    await MockTime.resolve(endpoint.reset());
-    endpoint.construction.start();
-    await MockTime.resolve(endpoint.construction);
-}
-
 describe("ChangeNotificationService", () => {
     before(() => {
         MockTime.init();
@@ -78,7 +71,7 @@ describe("ChangeNotificationService", () => {
         const light = await node.add(OnOffLightDevice, { id: "light" });
         expect(recorded.endpointsOf("readable")).deep.equals([light]);
 
-        await restart(light);
+        await MockTime.resolve(light.erase());
         expect(recorded.endpointsOf("readable")).deep.equals([light, light]);
     });
 
@@ -127,6 +120,17 @@ describe("ChangeNotificationService", () => {
         for (const part of parts) {
             expect(deleted).contains(part);
         }
+    });
+
+    it("reports the deletion of each endpoint of a peer that an erase deletes", async () => {
+        await using site = new MockSite();
+        const { peer, recorded } = await controllerWithRestoredPeer(site);
+        const parts = [...peer.parts];
+        expect(parts.length).greaterThan(0);
+
+        await MockTime.resolve(peer.erase());
+
+        expect(recorded.endpointsOf("delete")).deep.equals(parts);
     });
 
     it("reports no deletion while a controller with peers closes", async () => {
@@ -237,17 +241,13 @@ describe("ChangeNotificationService", () => {
         expect(recorded.endpointsOf("delete")).not.contains(rebooted);
     });
 
-    it("reports an endpoint of a peer restored from storage readable after it restarts", async () => {
+    it("reports a peer restored from storage readable after its erase restarts it", async () => {
         await using site = new MockSite();
         const { peer, recorded } = await controllerWithRestoredPeer(site);
-        const part = [...peer.endpoints].find(endpoint => endpoint !== peer);
-        if (part === undefined) {
-            expect.fail("The restored peer has no endpoint besides its root");
-        }
 
-        await restart(part);
+        await MockTime.resolve(peer.erase());
 
-        expect(recorded.endpointsOf("readable")).deep.equals([part]);
+        expect(recorded.endpointsOf("readable")).deep.equals([peer]);
     });
 
     it("reports a peer readable that is created after the service started", async () => {
