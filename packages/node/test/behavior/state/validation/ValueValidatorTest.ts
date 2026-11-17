@@ -48,6 +48,56 @@ describe("ValueValidator", () => {
     implementInt("int32", -2147483648, 2147483647);
     implementInt("int64", -9223372036854775808n, 9223372036854775807n);
 
+    describe("with an error collector", () => {
+        const cluster = new ClusterModel({
+            name: "Test",
+            children: [
+                FeatureMap.clone(),
+                new AttributeModel(
+                    { id: 1, name: "Request", type: "struct" },
+                    Field({ name: "Num", id: 0, type: "int8", constraint: "max 5" }),
+                    Field(
+                        { name: "Mode", id: 1, type: "enum8", conformance: "F" },
+                        Field({ name: "A", id: 0 }),
+                        Field({ name: "B", id: 1 }),
+                    ),
+                    Field(
+                        { name: "Modes", id: 2, type: "list", constraint: "max 1" },
+                        Field(
+                            { name: "entry", type: "enum8" },
+                            Field({ name: "A", id: 0 }),
+                            Field({ name: "B", id: 1 }),
+                        ),
+                    ),
+                ),
+            ],
+        });
+        const validate = RootSupervisor.for(cluster).get(cluster.attributes.require("Request")).validate!;
+        const record = { num: 9, mode: 3, modes: [3, 0] };
+
+        function location(errors?: Error[]): ValidationLocation {
+            return { path: new DataModelPath("Request"), errors };
+        }
+
+        it("records the errors of every member instead of stopping at the first", () => {
+            const errors = new Array<Error>();
+
+            validate(record, LocalActorContext.ReadOnly, location(errors));
+
+            expect(errors.map(error => error.constructor.name)).deep.equals([
+                "ConstraintError",
+                "ConformanceError",
+                "UnknownEnumValueError",
+                "ConstraintError",
+                "UnknownEnumValueError",
+            ]);
+        });
+
+        it("throws the first error without a collector", () => {
+            expect(() => validate(record, LocalActorContext.ReadOnly, location())).throws(ConstraintError);
+        });
+    });
+
     describe("bitmap reserved bits", () => {
         // multiA occupies bits 0–2, multiB bits 4–6; bit 3 and bit 7 are reserved.
         const schema = new AttributeModel(
@@ -538,16 +588,14 @@ describe("ValueValidator", () => {
             expect(() => bitmapValidator(reservedBitmap(), server, bitmapPath)).throws(DatatypeError);
         });
 
-        it("logs each check of an undefined enum value it leaves to the device at debug", () => {
+        it("logs the undefined enum value it leaves to the device once at debug", () => {
             using log = captureLog(LogLevel.DEBUG);
 
             enumValidator({ test: 99 }, LocalActorContext.ReadOnly, toPeer(enumPath));
 
             const lines = log.messages.filter(message => message.includes("the local model rejects"));
-            expect(lines).length(2);
-            for (const line of lines) {
-                expect(line).contains(" DEBUG ");
-            }
+            expect(lines).length(1);
+            expect(lines[0]).contains(" DEBUG ");
         });
 
         it("forwards reserved bitmap bits on a client peer write", () => {

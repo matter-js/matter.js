@@ -5,9 +5,11 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { ColorControlServer } from "#behaviors/color-control";
 import { IdentifyServer } from "#behaviors/identify";
 import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { OnOffServer } from "#behaviors/on-off";
+import { ExtendedColorLightDevice } from "#devices/extended-color-light";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { ImplementationError, LogLevel, MaybePromise } from "@matter/general";
@@ -46,12 +48,14 @@ import {
     TlvSchema,
     TlvString,
     TlvSubjectId,
+    TlvUInt16,
     TlvUInt8,
     TypeFromSchema,
     WildcardPathFlagsBitmap,
 } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { ColorControl } from "@matter/types/clusters/color-control";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { Identify } from "@matter/types/clusters/identify";
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
@@ -357,6 +361,56 @@ describe("ProtocolServiceTest", () => {
 
             expect(received).undefined;
             expect(status).equals(Status.ConstraintError);
+        });
+
+        it("refuses an undefined enum value also when an earlier field has an error that only gets a warning", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            await node.add(
+                ExtendedColorLightDevice.with(ColorControlServer.with("HueSaturation", "EnhancedHue", "ColorLoop")),
+                {
+                    colorControl: {
+                        colorMode: ColorControl.ColorMode.CurrentHueAndCurrentSaturation,
+                        enhancedColorMode: ColorControl.EnhancedColorMode.CurrentHueAndCurrentSaturation,
+                        numberOfPrimaries: 0,
+                    },
+                },
+            );
+
+            let sent: undefined | TypeFromSchema<typeof TlvInvokeResponseData>;
+            await interaction.invoke(
+                node,
+                await node.addFabric(),
+                {
+                    commandPath: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: ColorControl.id,
+                        commandId: CommandId(ColorControl.schema.commands.require("ColorLoopSet").id),
+                    },
+                    // UpdateFlags carries a reserved bit, and Action is undefined
+                    commandFields: TlvObject({
+                        updateFlags: TlvField(0, TlvUInt8),
+                        action: TlvField(1, TlvUInt8),
+                        direction: TlvField(2, TlvUInt8),
+                        time: TlvField(3, TlvUInt16),
+                        startHue: TlvField(4, TlvUInt16),
+                        optionsMask: TlvField(5, TlvUInt8),
+                        optionsOverride: TlvField(6, TlvUInt8),
+                    }).encodeTlv({
+                        updateFlags: 0x11,
+                        action: 3,
+                        direction: 0,
+                        time: 0,
+                        startHue: 0,
+                        optionsMask: 0,
+                        optionsOverride: 0,
+                    }),
+                },
+                response => {
+                    sent = response;
+                },
+            );
+
+            expect(sent?.status?.status.status).equals(Status.ConstraintError);
         });
 
         it("accepts any value for an enum that defines no values", async () => {

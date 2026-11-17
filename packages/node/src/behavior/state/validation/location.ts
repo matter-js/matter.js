@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { asError } from "@matter/general";
 import { DataModelPath } from "@matter/model";
 import { Val } from "@matter/protocol";
 import type { Supervision } from "../../supervision/Supervision.js";
@@ -59,9 +60,25 @@ export interface ValidationLocation {
      * children.
      */
     config?: Supervision.Config;
+
+    /**
+     * Collects validation errors instead of throwing them, so one invalid field does not hide the errors of the
+     * others.  When not set, validation stops at the first error.
+     */
+    errors?: Error[];
 }
 
 export namespace ValidationLocation {
+    /**
+     * Throw {@link error}, or record it in {@link ValidationLocation.errors} if {@link location} collects errors.
+     */
+    export function reject(location: ValidationLocation, error: unknown) {
+        if (location.errors === undefined) {
+            throw error;
+        }
+        location.errors.push(asError(error));
+    }
+
     /**
      * Details a conformance choice.  Used during conformance validation.
      */

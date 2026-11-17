@@ -614,6 +614,7 @@ function validateCommandPayload(
     session: InteractionSession,
     outerResolve?: (name: string) => Val,
     config?: Supervision.Config,
+    errors?: Error[],
 ) {
     const validate = supervisor.get(model).validate;
     if (!validate) {
@@ -625,6 +626,7 @@ function validateCommandPayload(
         path: new DataModelPath(model.path),
         outerResolve,
         config,
+        errors,
     });
 }
 
@@ -670,6 +672,8 @@ function invokeCommand(
     const onValidationError = commandInputConfig?.supervision?.onValidationError;
 
     if (commandModels) {
+        // All errors, so that an error that only gets a warning does not hide an undefined enum value
+        const errors = new Array<Error>();
         try {
             validateCommandPayload(
                 request,
@@ -678,14 +682,24 @@ function invokeCommand(
                 session,
                 undefined,
                 commandInputConfig,
+                errors,
             );
         } catch (e) {
+            errors.push(asError(e));
+        }
+
+        if (errors.length) {
+            const undefinedEnumValue = errors.find(e => e instanceof UnknownEnumValueError);
             if (onValidationError) {
-                onValidationError(asError(e));
-            } else if (e instanceof UnknownEnumValueError) {
-                throw e;
+                onValidationError(errors[0]);
+            } else if (undefinedEnumValue) {
+                throw undefinedEnumValue;
             } else {
-                logger.warn("Request validation error for", command.name, Diagnostic.errorMessage(asError(e)));
+                logger.warn(
+                    "Request validation error for",
+                    command.name,
+                    ...errors.map(e => Diagnostic.errorMessage(e)),
+                );
             }
         }
     }
