@@ -175,7 +175,8 @@ export class ClientSubscriptions implements Lifetime.Owner {
      */
     delete(subscription: ClientSubscription) {
         const forPeer = this.#peers.get(subscription.peer);
-        if (forPeer?.delete(subscription.subscriptionId)) {
+        if (forPeer?.get(subscription.subscriptionId) === subscription) {
+            forPeer.delete(subscription.subscriptionId);
             if (!forPeer.size) {
                 this.#peers.delete(subscription.peer);
             }
