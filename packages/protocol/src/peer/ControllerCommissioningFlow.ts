@@ -16,6 +16,7 @@ import { NocsrValidator } from "#certificate/NocsrValidator.js";
 import { PeerMessageMissingError, PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import { OperationalDataset } from "#thread/OperationalDataset.js";
 import {
+    Abort,
     asError,
     Bytes,
     CanceledError,
@@ -80,6 +81,15 @@ export interface OtaProviderLocation {
  * User specific options for the Commissioning process
  */
 export type ControllerCommissioningFlowOptions = {
+    /**
+     * Abandon commissioning before the CommissioningComplete step starts. Pending requests reject with
+     * {@link AbortedError}; cleanup may still send ArmFailSafe to end the failed attempt. Once CommissioningComplete
+     * starts, its response decides the outcome without caller cancellation.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 5.5
+     */
+    abort?: AbortSignal;
+
     /**
      * The regulatory location (indoor or outdoor) where the device is used.
      */
@@ -328,6 +338,8 @@ export class ControllerCommissioningFlow {
     #defaultFailSafeTime = DEFAULT_FAILSAFE_TIME;
     #armFailsafeInterval?: Timer;
     #periodicArm?: Promise<unknown>;
+    #abort: Abort;
+    #commissioningComplete = false;
 
     constructor(
         /** ClientInteraction for the initiated PASE session */
@@ -353,12 +365,24 @@ export class ControllerCommissioningFlow {
         this.fabric = fabric;
         this.transitionToCase = transitionToCase;
         this.commissioningOptions = commissioningOptions;
+        this.#abort = new Abort({ abort: commissioningOptions.abort });
         logger.debug("Commissioning options", Diagnostic.dict(loggedOptionsOf(commissioningOptions)));
         this.#initializeCommissioningSteps();
     }
 
     async [Symbol.asyncDispose]() {
+        this.#abort.close();
         await this.interaction.close();
+    }
+
+    /**
+     * Whether CommissioningComplete was acknowledged, or the external commissioning callback completed successfully.
+     * The standard flow ignores caller cancellation after this point.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.10.7.6
+     */
+    get commissioningComplete() {
+        return this.#commissioningComplete;
     }
 
     /**
@@ -382,6 +406,9 @@ export class ControllerCommissioningFlow {
         for (const step of this.commissioningSteps) {
             logger.info(`Executing commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name}`);
             try {
+                if (!this.#commissioningComplete) {
+                    this.#abort.throwIfAborted();
+                }
                 if (
                     step.reArmFailsafe &&
                     !failSafeTimerReArmedAfterPreviousStep &&
@@ -392,6 +419,9 @@ export class ControllerCommissioningFlow {
                 }
                 failSafeTimerReArmedAfterPreviousStep = false;
                 const result = await step.stepLogic();
+                if (!this.#commissioningComplete) {
+                    this.#abort.throwIfAborted();
+                }
                 this.#setCommissioningStepResult(step, result);
 
                 if (this.#currentFailSafeEndTime !== undefined) {
@@ -472,7 +502,7 @@ export class ControllerCommissioningFlow {
             }
             attributeMap.set(`${endpointId}-${clusterId}-${attributeId}`, undefined);
         }
-        for await (const data of this.interaction.read(request)) {
+        for await (const data of this.interaction.read({ ...request, abort: this.#abort.signal })) {
             for await (const entry of data) {
                 if (entry.kind === "attr-status") {
                     logger.debug("Commissioning read returned status", entry.status, "for", entry.path);
@@ -504,7 +534,10 @@ export class ControllerCommissioningFlow {
         options: Omit<Invoke.Definition, "commands"> = {},
         transmission?: ClientRequest,
     ) {
-        return AdministratorCommands.invoke(this.interaction, request, options, transmission);
+        return AdministratorCommands.invoke(this.interaction, request, options, {
+            abort: this.#abort.signal,
+            ...transmission,
+        });
     }
 
     /**
@@ -748,8 +781,8 @@ export class ControllerCommissioningFlow {
         this.collectedCommissioningData.productName = productName;
         this.collectedCommissioningData.supportsConcurrentConnection = supportsConcurrentConnection;
 
-        const networkData = this.interaction.read(
-            Read(
+        const networkData = this.interaction.read({
+            ...Read(
                 Read.Attribute({
                     cluster: NetworkCommissioning,
                     attributes: ["featureMap", "networks"],
@@ -759,7 +792,8 @@ export class ControllerCommissioningFlow {
                     attributes: ["defaultOtaProviders"],
                 }),
             ),
-        );
+            abort: this.#abort.signal,
+        });
 
         const networkFeatures = new Array<{
             endpointId: EndpointNumber;
@@ -1098,7 +1132,8 @@ export class ControllerCommissioningFlow {
         this.#armFailsafeInterval?.stop();
         this.#armFailsafeInterval = undefined;
 
-        if (this.#currentFailSafeEndTime === undefined) return;
+        if (this.#commissioningComplete) return;
+        if (this.#currentFailSafeEndTime === undefined && !this.#abort.aborted) return;
         if (this.#deviceStoppedResponding(failure)) {
             logger.debug("Device stopped responding, leaving the failsafe to expire");
             return;
@@ -1119,7 +1154,7 @@ export class ControllerCommissioningFlow {
                         },
                     },
                     {},
-                    { requireExistingSession: true },
+                    { requireExistingSession: true, abort: undefined },
                 ),
             );
             this.#currentFailSafeEndTime = undefined;
@@ -2063,6 +2098,7 @@ export class ControllerCommissioningFlow {
 
         let transitionResult: ClientInteraction | undefined;
         try {
+            this.#abort.throwIfAborted();
             transitionResult = await this.transitionToCase(
                 this.interaction.address,
                 // Assume concurrent connections are supported if not know (which should not be the case when we came here)
@@ -2075,6 +2111,8 @@ export class ControllerCommissioningFlow {
         }
 
         if (transitionResult === undefined) {
+            this.#commissioningComplete = true;
+            this.#abort.close();
             logger.debug("CASE commissioning handled externally, terminating commissioning flow");
             return {
                 code: CommissioningStepResultCode.Stop,
@@ -2082,6 +2120,10 @@ export class ControllerCommissioningFlow {
             };
         }
 
+        if (this.#abort.aborted) {
+            await transitionResult.close();
+            this.#abort.throwIfAborted();
+        }
         await this.interaction.close();
         this.interaction = transitionResult;
 
@@ -2101,6 +2143,8 @@ export class ControllerCommissioningFlow {
      * the commissioning process.
      */
     async #completeCommissioning() {
+        // Steps after this one must not observe a caller cancellation that arrives while the device commits
+        this.#abort.close();
         this.#ensureGeneralCommissioningSuccess(
             "commissioningComplete",
             await this.#invokeCommand(
@@ -2112,8 +2156,11 @@ export class ControllerCommissioningFlow {
                 {
                     useExtendedFailSafeMessageResponseTimeout: true,
                 },
+                // Cancellation must not discard the response after the device commits.
+                { abort: undefined },
             ),
         );
+        this.#commissioningComplete = true;
         this.#currentFailSafeEndTime = undefined; // gets deactivated when successful
 
         return {
@@ -2144,8 +2191,8 @@ export class ControllerCommissioningFlow {
         for (const requestorEndpoint of this.collectedCommissioningData.otaRequestorList) {
             try {
                 // Fabric scoped attribute, so we just overwrite our value
-                const writeResult = await this.interaction.write(
-                    Write(
+                const writeResult = await this.interaction.write({
+                    ...Write(
                         Write.Attribute({
                             endpoint: requestorEndpoint,
                             cluster: OtaSoftwareUpdateRequestor,
@@ -2159,7 +2206,8 @@ export class ControllerCommissioningFlow {
                             ],
                         }),
                     ),
-                );
+                    abort: this.#abort.signal,
+                });
 
                 WriteResult.assertSuccess(writeResult);
 
@@ -2178,6 +2226,7 @@ export class ControllerCommissioningFlow {
     }
 
     close() {
+        this.#abort.close();
         this.#armFailsafeInterval?.stop();
     }
 }

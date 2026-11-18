@@ -8,10 +8,13 @@ import { BleChannelClosedError, BleError } from "#ble/Ble.js";
 import { CommissionableDevice } from "#common/Scanner.js";
 import { CommissioningConnection } from "#peer/CommissioningConnection.js";
 import { PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
+import { NodeSession } from "#session/NodeSession.js";
 import { PasscodeMismatchError } from "#session/pase/PaseClient.js";
 import {
     AbortedError,
     AddressUnreachableError,
+    Bytes,
+    ImplementationError,
     Millis,
     NetworkUnreachableError,
     NoResponseTimeoutError,
@@ -19,9 +22,11 @@ import {
     ServerAddress,
     ServerAddressBle,
     ServerAddressUdp,
+    StandardCrypto,
     Time,
     UnexpectedDataError,
 } from "@matter/general";
+import { NodeId } from "@matter/types";
 
 function udp(ip: string, port = 5540): ServerAddressUdp {
     return { type: "udp", ip, port };
@@ -37,6 +42,67 @@ function device(deviceIdentifier: string, addresses: ServerAddressUdp[]): Commis
 }
 
 describe("CommissioningConnection", () => {
+    it("returns the winner before draining late sessions and waits for their close", async () => {
+        const session = () =>
+            new NodeSession({
+                crypto: new StandardCrypto(),
+                id: 1,
+                fabric: undefined,
+                peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
+                peerSessionId: 2,
+                decryptKey: new Uint8Array(16),
+                encryptKey: new Uint8Array(16),
+                attestationKey: Bytes.of(new Uint8Array()),
+                isInitiator: true,
+            });
+        const winner = session();
+        const loser = session();
+        let releaseLate!: () => void;
+        const lateGate = new Promise<void>(resolve => (releaseLate = resolve));
+        let releaseClose!: () => void;
+        const closeGate = new Promise<void>(resolve => (releaseClose = resolve));
+        let closing!: () => void;
+        const closeStarted = new Promise<void>(resolve => (closing = resolve));
+        Object.assign(loser, {
+            initiateForceClose: async () => {
+                closing();
+                await closeGate;
+            },
+        });
+
+        try {
+            const result = await CommissioningConnection({
+                devices: [device("one", [udp("fd00::1"), udp("fd00::2")])],
+                timeout: Seconds(2),
+                delayBeforeNextAddress: 0,
+                establishSession: async address => {
+                    if (ServerAddress.isIp(address) && address.ip === "fd00::2") {
+                        await lateGate;
+                        return loser;
+                    }
+                    return winner;
+                },
+            });
+            expect(result.session).equals(winner);
+            const settled = "settled" in result ? result.settled : undefined;
+            if (!(settled instanceof Promise)) {
+                throw new ImplementationError("PASE result has no cleanup promise");
+            }
+            let drained = false;
+            const drain = settled.then(() => (drained = true));
+            releaseLate();
+            await closeStarted;
+            await new Promise(resolve => setTimeout(resolve, 0));
+            expect(drained).false;
+            releaseClose();
+            await drain;
+            expect(drained).true;
+        } finally {
+            releaseLate();
+            releaseClose();
+        }
+    });
+
     it("drops device on PasscodeMismatchError and tries next device", async () => {
         const attempts = new Array<string>();
 

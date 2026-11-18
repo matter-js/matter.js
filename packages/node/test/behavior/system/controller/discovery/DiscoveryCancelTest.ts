@@ -272,7 +272,7 @@ describe("Discovery interruption", () => {
         });
     });
 
-    describe("after the result", () => {
+    describe("after the result in the base parallel PASE race", () => {
         it("resolves with the winner when the cancel comes right after the PASE win", async () => {
             const node = await MockServerNode.createOnline();
             try {
@@ -299,8 +299,7 @@ describe("Discovery interruption", () => {
             }
         });
 
-        // Characterization: the cancel lands after the discovery reached onComplete, which already resolved with the
-        // winner before the interruption hook existed.
+        // TestDiscovery has only the race signal, not CommissioningDiscovery's separate operation signal.
         it("resolves with the winner when the cancel comes while the winner commissions", async () => {
             const node = await MockServerNode.createOnline();
             try {

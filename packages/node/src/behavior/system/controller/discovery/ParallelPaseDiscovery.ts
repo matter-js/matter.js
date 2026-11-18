@@ -162,8 +162,9 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
     }
 
     /**
-     * Before a candidate has won, an interruption aborts every attempt so none can win afterwards.  After the win the
-     * winner's operation is not interrupted, and the discovery completes with the winner or the winner's error.
+     * Before a candidate has won, an interruption aborts every attempt so none can win afterwards. This race-level
+     * hook preserves the winner after a win, including when scanners fail. CommissioningDiscovery separately forwards
+     * caller cancellation to the winning operation through its operation signal.
      */
     protected override onInterrupt() {
         if (this.#paseWon) {

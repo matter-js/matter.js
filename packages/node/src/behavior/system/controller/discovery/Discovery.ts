@@ -31,8 +31,9 @@ const logger = Logger.get("Discovery");
  *
  * This is a cancelable promise; use cancel() or the `abort` option to terminate discovery.  A cancel, an abort, or
  * the failure of every scanner interrupts discovery: it stops scanning and rejects with that reason once it has wound
- * down.  The failure of only some scanners is logged and does not interrupt.  An interruption after the discovery has
- * its result, such as a candidate that won PASE, is ignored and the discovery completes with that result.
+ * down. The failure of only some scanners is logged and does not interrupt. Subclasses decide when the result becomes
+ * final. Commissioning discovery continues to honor caller cancellation after PASE wins, until its completion step
+ * starts; pure PASE discovery and instance discovery retain a result they have already found.
  */
 export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
     #abortReason?: Error;
@@ -48,8 +49,8 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
     #options: Discovery.Options;
     #resolve: (value: T) => void;
     #reject: (cause?: any) => void;
-    #settled?: Promise<void>;
     #resolveSettled?: () => void;
+    #settled = new Promise<void>(resolve => (this.#resolveSettled = resolve));
 
     constructor(owner: ServerNode, options: Discovery.Options | undefined) {
         let resolve: (value: T) => void, reject: (cause?: any) => void;
@@ -86,10 +87,13 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
         queueMicrotask(this.#initializeController.bind(this));
     }
 
+    /**
+     * Resolves after discovery and candidate cleanup finish, even if the discovery result rejected.
+     * May be read before or after the operation settles.
+     *
+     * @see {@link Discovery}
+     */
     get settled() {
-        if (this.#settled === undefined) {
-            this.#settled = new Promise(resolve => (this.#resolveSettled = resolve));
-        }
         return this.#settled;
     }
 
