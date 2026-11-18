@@ -10,7 +10,7 @@ import { CertificateAuthority, DiscoveryData, PeerAddress, SessionParameters } f
 import { FabricIndex, NodeId } from "@matter/types";
 import { LegacyControllerSite } from "./util/LegacyControllerSite.js";
 
-class Captured extends Error {}
+class Captured extends ImplementationError {}
 
 describe("MatterController commission", () => {
     before(() => {
@@ -27,7 +27,7 @@ describe("MatterController commission", () => {
      * Runs commission() on a PASE-only controller up to the point where the finalize hook is handed to the node and
      * returns the hook together with what the legacy callback receives.
      */
-    async function wrapper(site: LegacyControllerSite) {
+    async function wrapper(site: LegacyControllerSite, knownAddress = false, commissioningAbort?: AbortSignal) {
         const source = await site.addController();
         const environment = site.addEnvironment();
         // Commissioning is stubbed, so a transport that merely claims BLE satisfies the network check
@@ -48,17 +48,30 @@ describe("MatterController commission", () => {
         });
 
         let finalize: Finalize | undefined;
-        Object.assign(controller.node.peers, {
-            commission(options: { finalizeCommissioning?: Finalize }): never {
-                finalize = options.finalizeCommissioning;
-                throw new Captured();
-            },
-        });
+        let capturedAbort: AbortSignal | undefined;
+        const commission = (options: { finalizeCommissioning?: Finalize; commissioningAbort?: AbortSignal }): never => {
+            finalize = options.finalizeCommissioning;
+            capturedAbort = options.commissioningAbort;
+            throw new Captured();
+        };
+        const known = { type: "udp", ip: "::1", port: 5540 } as const;
+        if (knownAddress) {
+            const node = await controller.node.peers.forDescriptor({ addresses: [known] });
+            Object.assign(node, { commission });
+            Object.assign(controller.node.peers, { forDescriptor: async () => node });
+        } else {
+            Object.assign(controller.node.peers, { commission });
+        }
 
         const received = new Array<DiscoveryData | undefined>();
+        const commissioning = { commissioningAbort, regulatoryCountryCode: "XX" };
         await controller
             .commission(
-                { discovery: { identifierData: {} }, commissioning: {}, passcode: 20202021 },
+                {
+                    discovery: { identifierData: {}, knownAddress: knownAddress ? known : undefined },
+                    commissioning,
+                    passcode: 20202021,
+                },
                 {
                     completeCommissioningCallback: async (_nodeId, discoveryData) => {
                         received.push(discoveryData);
@@ -76,7 +89,17 @@ describe("MatterController commission", () => {
             );
 
         const address = PeerAddress({ fabricIndex: FabricIndex(1), nodeId: NodeId(5) });
-        return { finalize: finalize!, received, address, controller };
+        return { finalize: finalize!, received, address, controller, capturedAbort };
+    }
+
+    for (const knownAddress of [false, true]) {
+        it(`forwards full-flow cancellation with ${knownAddress ? "a known address" : "discovery"}`, async () => {
+            await using site = new LegacyControllerSite();
+            const abort = new AbortController();
+            const { controller, capturedAbort } = await wrapper(site, knownAddress, abort.signal);
+            expect(capturedAbort).equals(abort.signal);
+            await controller.close();
+        });
     }
 
     it("hands the PASE-reported intervals to the legacy callback", async () => {

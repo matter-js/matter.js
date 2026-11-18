@@ -47,9 +47,16 @@ import {
     ServerAddressSet,
     TransportSet,
 } from "@matter/general";
-import { FabricIndex, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
+import {
+    EndpointNumber,
+    FabricIndex,
+    NodeId,
+    SECURE_CHANNEL_PROTOCOL_ID,
+    SecureChannelStatusCode,
+} from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
+import { AdministratorCommands } from "./AdministratorCommands.js";
 import { OperationalCertificateUpdate } from "./OperationalCertificateUpdate.js";
 import { PeerAddress } from "./PeerAddress.js";
 import { CommissioningTransitionError, PeerCommunicationError } from "./PeerCommunicationError.js";
@@ -232,6 +239,7 @@ export interface ControllerCommissionerContext {
 export class ControllerCommissioner {
     #context: ControllerCommissionerContext;
     #paseClient: PaseClient;
+    #lateChannelCleanup = new Set<Promise<void>>();
 
     constructor(context: ControllerCommissionerContext) {
         this.#context = context;
@@ -282,17 +290,29 @@ export class ControllerCommissioner {
 
         const addressCandidates = this.#addressesToCandidates(addresses, discoveryData);
 
-        const { session } = await this.#establishPaseFromCandidates({
-            devices: addressCandidates,
-            timeout,
-            passcode,
-            retryFailureAsPeerCommunication: "Could not connect to device",
-            abort,
-            // This method ends the PASE session on every path
-            suppressPeerLoss: true,
-        });
-
+        using paseAbort = Abort.any(abort, options.commissioningAbort);
+        using callerAbort = Abort.subtask(options.commissioningAbort);
+        let pase: CommissioningConnection.Result;
         try {
+            pase = await this.#establishPaseFromCandidates({
+                devices: addressCandidates,
+                timeout,
+                passcode,
+                retryFailureAsPeerCommunication: "Could not connect to device",
+                abort: paseAbort.signal,
+                // This method ends the PASE session on every path
+                suppressPeerLoss: true,
+                closeLateChannel: options.commissioningAbort !== undefined,
+            });
+        } catch (error) {
+            callerAbort.throwIfAborted();
+            throw error;
+        }
+        const { session, settled } = pase;
+
+        let commissioningStarted = false;
+        try {
+            callerAbort.throwIfAborted();
             // Claim the operational identity only after PASE; undefined means another candidate already won the race
             let assignedNodeId = nodeId;
             if (claimNodeIdAfterPase !== undefined) {
@@ -304,6 +324,8 @@ export class ControllerCommissioner {
                 }
             }
 
+            callerAbort.throwIfAborted();
+            commissioningStarted = true;
             const result = await this.#commissionConnectedNode(
                 session,
                 { ...options, nodeId: assignedNodeId },
@@ -315,8 +337,15 @@ export class ControllerCommissioner {
             );
             return result;
         } catch (error) {
+            if (callerAbort.aborted && !commissioningStarted) {
+                await this.#expireCanceledPase(session);
+            }
             await this.#closePaseSession(session, asError(error));
             throw error;
+        } finally {
+            if (options.commissioningAbort !== undefined) {
+                await settled;
+            }
         }
     }
 
@@ -328,6 +357,31 @@ export class ControllerCommissioner {
             await session.initiateForceClose({ cause });
         } catch (error) {
             logger.warn("Error closing PASE session", error);
+        }
+    }
+
+    async #expireCanceledPase(session: NodeSession) {
+        try {
+            await using interaction = new ClientInteraction({
+                environment: this.#context.environment,
+                exchangeProvider: new DedicatedChannelExchangeProvider(this.#context.exchanges, session),
+            });
+            const result = await AdministratorCommands.invoke(
+                interaction,
+                {
+                    endpoint: EndpointNumber(0),
+                    cluster: GeneralCommissioning,
+                    command: "armFailSafe",
+                    fields: { breadcrumb: 0, expiryLengthSeconds: 0 },
+                },
+                {},
+                { requireExistingSession: true },
+            );
+            if (result.errorCode !== GeneralCommissioning.CommissioningError.Ok) {
+                logger.info("Device refused fail-safe expiry after PASE cancellation", result);
+            }
+        } catch (error) {
+            logger.info("Could not end the fail-safe after PASE cancellation", error);
         }
     }
 
@@ -395,6 +449,7 @@ export class ControllerCommissioner {
         retryFailureAsPeerCommunication?: string;
         abort?: AbortSignal;
         suppressPeerLoss?: boolean;
+        closeLateChannel?: boolean;
     }) {
         try {
             return await CommissioningConnection({
@@ -409,6 +464,7 @@ export class ControllerCommissioner {
                         signal,
                         options.suppressPeerLoss,
                         onPbkdfParamResponse,
+                        options.closeLateChannel,
                     ),
             });
         } catch (error) {
@@ -430,8 +486,9 @@ export class ControllerCommissioner {
         signal?: AbortSignal,
         suppressPeerLoss?: boolean,
         onPbkdfParamResponse?: () => void,
+        closeLateChannel = false,
     ): Promise<NodeSession> {
-        let paseChannel: Channel<Bytes>;
+        let opening: Promise<Channel<Bytes>>;
         if (device !== undefined) {
             logger.info(`Establish PASE to device`, DiscoveryDataDiagnostics(device));
         }
@@ -450,7 +507,7 @@ export class ControllerCommissioner {
                     `IPv${isIpv6Address ? "6" : "4"} interface not initialized. Cannot use ${ip} for commissioning.`,
                 );
             }
-            paseChannel = await Abort.attempt(signal, paseInterface.openChannel(address));
+            opening = paseInterface.openChannel(address);
         } else if (ServerAddress.isBle(address)) {
             const ble = this.#context.transports.interfaceFor(ChannelType.BLE);
             if (!ble) {
@@ -458,9 +515,19 @@ export class ControllerCommissioner {
                     `BLE interface not initialized. Cannot use ${address.peripheralAddress} for commissioning.`,
                 );
             }
-            paseChannel = await Abort.attempt(signal, ble.openChannel(address, { abort: signal }));
+            opening = ble.openChannel(address, { abort: signal });
         } else {
             throw new ImplementationError(`Unsupported address type for Matter PASE commissioning`);
+        }
+
+        let paseChannel: Channel<Bytes>;
+        try {
+            paseChannel = await Abort.attempt(signal, opening);
+        } catch (error) {
+            if (closeLateChannel && signal?.aborted) {
+                this.#closeLateChannel(opening);
+            }
+            throw error;
         }
 
         // Do PASE pairing
@@ -518,6 +585,26 @@ export class ControllerCommissioner {
             throw new BleChannelClosedError(`BLE transport closed while PASE completed on ${paseSession.via}`);
         }
         return paseSession;
+    }
+
+    /**
+     * Close an abandoned open in the background. Commissioning cannot wait for a transport that ignores cancellation.
+     * The cleanup is best effort and is not included in the commissioning or discovery settled promises.
+     */
+    #closeLateChannel(opening: Promise<Channel<Bytes>>) {
+        const cleanup = opening
+            .then(
+                async channel => {
+                    try {
+                        await channel.close();
+                    } catch (error) {
+                        logger.warn("Error closing channel opened after PASE cancellation", error);
+                    }
+                },
+                error => logger.debug("Channel open failed after PASE cancellation", error),
+            )
+            .finally(() => this.#lateChannelCleanup.delete(cleanup));
+        this.#lateChannelCleanup.add(cleanup);
     }
 
     /**
@@ -664,8 +751,10 @@ export class ControllerCommissioner {
             caseConnectionTimeout = DEFAULT_CASE_CONNECTION_TIMEOUT,
         } = options;
 
+        using abort = Abort.subtask(options.commissioningAbort);
         const commissioningOptions = {
             ...options,
+            commissioningAbort: abort.signal,
             regulatoryLocation: options.regulatoryLocation ?? GeneralCommissioning.RegulatoryLocationType.Outdoor,
             regulatoryCountryCode: options.regulatoryCountryCode ?? "XX",
         };
@@ -745,6 +834,7 @@ export class ControllerCommissioner {
                 // transport decision (e.g. the TCP spec-version gate) has the device's spec version available.
                 peer.descriptor.reportedSessionParameters = ephemeralSession.reportedParameters;
                 await peer.connect({
+                    abort: abort.signal,
                     connectionTimeout: caseConnectionTimeout,
                     timing: caseConnectionTiming,
 
@@ -769,6 +859,9 @@ export class ControllerCommissioner {
         let fabricIndexOnPeer: FabricIndex | undefined;
         try {
             await commissioner.executeCommissioning();
+            if (!commissioner.commissioningComplete) {
+                abort.throwIfAborted();
+            }
             // The device's commissioning window is closed now, whatever fails after this point
             this.#forgetCommissionedDevice(options.addresses, discoveryData);
             const captured = commissioner.fabricIndexOnPeer;

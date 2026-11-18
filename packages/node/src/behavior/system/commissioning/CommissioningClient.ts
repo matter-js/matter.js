@@ -306,6 +306,7 @@ export class CommissioningClient extends Behavior {
             commissioningFlowImpl: options.commissioningFlowImpl,
             onAttestationFailure: options.onAttestationFailure,
             abort: options.abort,
+            commissioningAbort: options.commissioningAbort,
             claimNodeIdAfterPase,
             wifiNetwork: options.wifiNetwork,
             threadNetwork: options.threadNetwork,
@@ -1280,6 +1281,18 @@ export namespace CommissioningClient {
          * `peers.commission()` it cancels the whole discovery as `Discovery.Options.abort` describes.
          */
         abort?: AbortSignal;
+
+        /**
+         * Cancel discovery, PASE and commissioning requests through the operational CASE reconnect. The returned
+         * promise settles after the attempt and its PASE cleanup finish. Once CommissioningComplete starts, its
+         * response decides the outcome without caller cancellation. Unlike {@link abort}, this signal continues
+         * to cancel the winning commissioning attempt after PASE. Custom callbacks must handle cancellation
+         * themselves and must settle before cleanup can finish.
+         * An abandoned transport open is closed best effort in the background if it later returns a channel.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 5.5
+         */
+        commissioningAbort?: AbortSignal;
 
         /**
          * Called immediately after PASE is established, before the main commissioning flow begins.

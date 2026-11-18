@@ -18,7 +18,11 @@ const logger = Logger.get("CommissioningDiscovery");
  * Discovers and commissions nodes.  All discovered candidates are commissioned in parallel; the first to establish
  * PASE wins.  Discovery is stopped at PASE time and the abort signal fires to cancel remaining in-flight PASE
  * attempts.  Any candidate that establishes PASE after the winner cleans up its session without proceeding to
- * commissioning.  {@link onComplete} awaits the winner's commissioning to finish before returning.
+ * commissioning. {@link onComplete} awaits the winner's commissioning and pending PASE cleanup before returning.
+ * The `abort` option and {@link cancel} do not interrupt a PASE winner. The `commissioningAbort` option continues
+ * to cancel the winner until CommissioningComplete starts. Its response then decides the outcome.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 5.5
  */
 export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
     #options: CommissioningDiscovery.Options;
@@ -56,6 +60,14 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
 
     protected override get failureMessage() {
         return "No device could be commissioned";
+    }
+
+    protected override get callerAbortSignals() {
+        const signals = super.callerAbortSignals;
+        if (this.#options.commissioningAbort !== undefined) {
+            signals.push(this.#options.commissioningAbort);
+        }
+        return signals;
     }
 
     protected override onDiscovered(node: ClientNode) {
