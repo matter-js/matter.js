@@ -90,6 +90,23 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
         const { session } = exchange.channel;
         SecureSession.assert(session);
         const subscription = this.#subscriptions.getPeer(session.peerAddress, subscriptionId);
+        const observations = this.#subscriptions.reportReceived;
+        const received = observations.isObserved
+            ? (report: DataReport, isInitial = false) => {
+                  if (report.subscriptionId === subscriptionId) {
+                      observations.emit({
+                          kind: "message",
+                          session,
+                          subscriptionId,
+                          subscription,
+                          isInitial,
+                          empty: !report.attributeReports?.length && !report.eventReports?.length,
+                          moreChunkedMessages: report.moreChunkedMessages ?? false,
+                      });
+                  }
+              }
+            : undefined;
+        received?.(initialReport, true);
         if (subscription === undefined) {
             logger.info(
                 exchange.via,
@@ -105,6 +122,11 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
         }
 
         const reportNumber = subscription.nextReportNumber();
+        const remainingReports = received ? observeMessages(reports, received) : reports;
+        const valueReceived = received
+            ? (report: ReadResult.AttributeValue | ReadResult.EventValue) =>
+                  observations.emit({ kind: "value", session, subscription, report })
+            : undefined;
 
         // Pass the data to the recipient
         try {
@@ -120,23 +142,25 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
                 subscription.request.keepaliveReceived?.();
 
                 // Read the next report to trigger success message sent out
-                const ending = await reports.next();
+                const ending = await remainingReports.next();
                 if (!ending.done) {
                     logger.warn(
                         exchange.via,
                         "Unexpected data reports after empty report",
                         Diagnostic.strong(Subscription.idStrOf(subscriptionId)),
                     );
-                    for await (const _chunk of reports); // Read over these extraneous reports
+                    for await (const _chunk of remainingReports); // Read over these extraneous reports
                 }
             } else {
                 if (subscription.request.updated) {
-                    await subscription.request.updated(processReports(initialReport, reports, messenger));
+                    await subscription.request.updated(
+                        processReports(initialReport, remainingReports, messenger, valueReceived),
+                    );
                 } else {
                     // It doesn't make sense to have the callback undefined, but we allow it in the type because they may
                     // be handled by intermediate interactables.  So we handle the case here too, but just iterate and throw
                     // away the reports
-                    for await (const _chunk of reports);
+                    for await (const _chunk of remainingReports);
                 }
             }
         } catch (error) {
@@ -171,10 +195,12 @@ async function* processReports(
     initialReport: DataReport,
     otherReports: AsyncIterable<DataReport>,
     messenger: IncomingInteractionClientMessenger,
+    valueReceived?: (report: ReadResult.AttributeValue | ReadResult.EventValue) => void,
 ): ReadResult {
     const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
 
-    yield InputChunk(initialReport, leftOverData);
+    const initialChunk = InputChunk(initialReport, leftOverData);
+    yield valueReceived ? observeValues(initialChunk, valueReceived) : initialChunk;
 
     const { subscriptionId } = initialReport;
 
@@ -198,6 +224,26 @@ async function* processReports(
             return;
         }
 
-        yield InputChunk(report, leftOverData);
+        const chunk = InputChunk(report, leftOverData);
+        yield valueReceived ? observeValues(chunk, valueReceived) : chunk;
+    }
+}
+
+async function* observeMessages(reports: AsyncIterable<DataReport>, received: (report: DataReport) => void) {
+    for await (const report of reports) {
+        received(report);
+        yield report;
+    }
+}
+
+async function* observeValues(
+    chunk: ReadResult.Chunk,
+    received: (report: ReadResult.AttributeValue | ReadResult.EventValue) => void,
+): AsyncIterable<ReadResult.Report> {
+    for await (const report of chunk) {
+        if (report.kind === "attr-value" || report.kind === "event-value") {
+            received(report);
+        }
+        yield report;
     }
 }
