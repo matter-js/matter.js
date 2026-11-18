@@ -37,13 +37,15 @@ export class PaseServer implements ProtocolHandler {
     readonly requiresSecureSession = false;
 
     /**
-     * Emits after a pairing request failed and its exchange is cleaned up.  A failed pairing is a failed commissioning
-     * attempt.
+     * Emits after a pairing request failed before it established a session, once its exchange is cleaned up.  Such a
+     * pairing is a failed commissioning attempt.  A pairing that fails after it established the session does not
+     * emit, as the fail-safe of that session decides the attempt.
      */
     readonly pairingFailed = Observable<[error: Error]>();
 
     #pairingTimer?: Timer;
     #pairingMessenger?: PaseServerMessenger;
+    #sessionEstablished = false;
     #closed = false;
 
     static async fromPin(sessions: SessionManager, setupPinCode: number, pbkdfParameters: PbkdfParameters) {
@@ -89,6 +91,7 @@ export class PaseServer implements ProtocolHandler {
         } else {
             const messenger = new PaseServerMessenger(exchange);
             let failure: Error | undefined;
+            this.#sessionEstablished = false;
             // All checks done, we handle the pairing request
             try {
                 this.#pairingMessenger = messenger;
@@ -110,7 +113,7 @@ export class PaseServer implements ProtocolHandler {
                 await exchange.session.initiateClose();
             }
 
-            if (failure !== undefined) {
+            if (failure !== undefined && !this.#sessionEstablished) {
                 this.pairingFailed.emit(failure);
             }
         }
@@ -190,6 +193,7 @@ export class PaseServer implements ProtocolHandler {
             isResumption: false,
             reportedSessionParameters: initiatorSessionParams,
         });
+        this.#sessionEstablished = true;
         logger.info(
             session.via,
             "New session with",

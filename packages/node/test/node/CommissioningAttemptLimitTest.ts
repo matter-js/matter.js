@@ -14,6 +14,7 @@ import {
     DeviceCommissioner,
     PaseClient,
     PaseServer,
+    PaseServerMessenger,
     SessionManager,
 } from "@matter/protocol";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
@@ -113,6 +114,29 @@ describe("Commissioning attempt limit", () => {
 
         expect(log.messages.some(message => message.includes("(1/20): PASE pairing failed"))).true;
         expect(windowStatusOf(context.device)).equals(BasicWindowOpen);
+    });
+
+    it("counts a pairing whose final status report fails only through its fail-safe", async () => {
+        const context = await setup();
+        await using _site = context.site;
+        using log = captureLog(LogLevel.INFO);
+
+        const { sendSuccess } = PaseServerMessenger.prototype;
+        PaseServerMessenger.prototype.sendSuccess = async function () {
+            PaseServerMessenger.prototype.sendSuccess = sendSuccess;
+            throw new InternalError("Final PASE status report not acknowledged");
+        };
+        try {
+            await commission(context, { commissioningFlowImpl: AbandoningFlow });
+        } finally {
+            PaseServerMessenger.prototype.sendSuccess = sendSuccess;
+        }
+        await MockTime.advance(Seconds(61));
+        await MockTime.macrotasks;
+
+        const failures = log.messages.filter(message => message.includes("Commissioning attempt failed"));
+        expect(failures.some(message => message.includes("fail-safe ended without commissioning"))).true;
+        expect(failures.filter(message => message.includes("PASE pairing failed"))).deep.equals([]);
     });
 
     it("does not count a successful commissioning as a failed attempt", async () => {
