@@ -60,6 +60,10 @@ export type KickOrigin = "discover" | "connect";
  *
  * Returns a session or undefined if aborted.
  *
+ * A BUSY response delays new CASE attempts for every address of the same {@link Peer}.
+ * CASE exchanges already in progress continue. The minimum wait survives cancellation of a connection process.
+ * The address that received BUSY also retains its retry jitter; other attempts may resume at the minimum wait.
+ *
  * Logic is as follows:
  *
  * - The last address we connected to is considered a "fallback" address
@@ -91,6 +95,8 @@ export type KickOrigin = "discover" | "connect";
  *
  * - We use various hardcoded timeouts (see above) in response to exceptions during connection attempts.  The idea is to
  *   recover from transient errors without being too aggressive
+ *
+ * @see {@link MatterSpecification.v161.Core} § 4.11.1.5
  */
 export async function PeerConnection(
     peer: Peer,
@@ -230,6 +236,14 @@ export async function PeerConnection(
             }
             if (overallAbort.aborted) {
                 return;
+            }
+
+            await waitWhileBusy(overallAbort, scheduling);
+            if (overallAbort.aborted) {
+                return;
+            }
+            if (peer.busyUntil > Time.nowUs) {
+                continue;
             }
 
             // Delay if within the delay window of last initiation attempt
@@ -508,6 +522,28 @@ export async function PeerConnection(
         return isFallback(address) && addrsAttempted > 1;
     }
 
+    async function waitWhileBusy(abort: Abort, owner: Lifetime) {
+        if (peer.busyUntil <= Time.nowUs) {
+            return;
+        }
+        using _waiting = owner.join("waiting for peer busy");
+        while (!abort.aborted) {
+            const remaining = peer.busyUntil - Time.nowUs;
+            if (remaining <= 0) {
+                break;
+            }
+            await Abort.sleep("peer busy", abort, Millis(remaining));
+        }
+    }
+
+    function holdBusy(error: unknown) {
+        const status = ChannelStatusResponseError.of(error);
+        if (status?.generalStatusCode !== GeneralStatusCode.Busy || status.busyDelay === undefined) {
+            return;
+        }
+        peer.busyUntil = Timestamp(Time.nowUs + status.busyDelay);
+    }
+
     /**
      * Make a single attempt to connect to a specific address.
      */
@@ -519,6 +555,10 @@ export async function PeerConnection(
         addrNo: number,
         attemptNo: number,
     ) {
+        await waitWhileBusy(addressAbort, attemptLifetime);
+        if (addressAbort.aborted || peer.busyUntil > Time.nowUs) {
+            return;
+        }
         using attempt = schedule.begin(isDelayedFallback(address));
 
         let socket;
@@ -604,6 +644,9 @@ export async function PeerConnection(
                     }
                 });
 
+                if (addressAbort.aborted || peer.busyUntil > Time.nowUs) {
+                    return;
+                }
                 const isTcp = "type" in address && address.type === "tcp";
                 const { session } = await caseClient.pair(exchange, fabric, peer.address.nodeId, {
                     ...options,
@@ -635,6 +678,8 @@ export async function PeerConnection(
                 if (AbortedError.is(e)) {
                     return;
                 }
+
+                holdBusy(e);
 
                 // An unacknowledged Sigma1 is the schedule moving on, not a failure: retry at once, without handleError
                 switch (attempt.fail(e)) {
