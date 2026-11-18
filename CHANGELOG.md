@@ -42,6 +42,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: The `isSecret` element property and the `secret` decorator mark a value as secret, and `SecretRedaction` replaces secret values for logging; standard fields that carry network credentials, keys, passcodes and PINs are marked secret
 
 - @matter/node
+    - Feature: (@cwedgwood) Allow peer-loss suppression for individual endpoint reads
     - Feature: (@RaHehl) `ZoneManagementServer` implements the zone and trigger commands and refuses requests the specification does not allow
     - Feature: (@lboue) `ThermostatServer` implements the `MatterScheduleConfiguration` (MSCH) feature with the `Schedules` and `ActiveScheduleHandle` attributes, atomic writes and `SetActiveScheduleRequest`; enable the feature with the `thermostat-msch` forward feature for certification purposes only
     - Feature: `ThermostatServer` generates the Thermostat events when the provisional `Events` feature is selected and the events are switched on with `enable()`; enable the feature with the `thermostat-events` forward feature for certification purposes only
@@ -166,6 +167,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Command and attribute write values may leave out optional struct or list fields and set nullable struct or list values to null, and `null` or a list given for a struct is refused with a clear error
 
 - @matter/protocol
+    - Feature: (@cwedgwood) Allow peer-loss suppression for individual client reads
     - Fix: A device closes its commissioning window after 20 failed commissioning attempts, counting abandoned commissionings whose fail-safe ends as well as failed PASE pairings
     - Fix: An ICD advertises SAI in its operational DNS-SD record, and SII while it operates as SIT, also when the value equals the MRP default, as the specification requires
     - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair

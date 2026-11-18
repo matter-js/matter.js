@@ -30,6 +30,7 @@ import {
     UninitializedDependencyError,
 } from "@matter/general";
 import { ClusterModel, DataModelPath } from "@matter/model";
+import type { ClientRead } from "@matter/protocol";
 import { InteractionSettings, Read, ReadResult, Val } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber, Status } from "@matter/types";
 import { RootEndpoint } from "../endpoints/root.js";
@@ -1219,6 +1220,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
                 ...Read({ attributes: [...attributePaths.paths], fabricFilter }),
                 includeKnownVersions: options?.includeKnownVersions,
                 abort: options?.abort,
+                suppressPeerLoss: options?.suppressPeerLoss,
             };
             const readValues = new Map<string, Map<string, unknown>>();
             for await (const chunk of node.interaction.read(request, undefined)) {
@@ -1480,6 +1482,14 @@ export namespace Endpoint {
          * regardless of whether they have changed since the last read or subscription. Defaults to `false`.
          */
         includeKnownVersions?: boolean;
+
+        /**
+         * Suppress peer-loss reporting for this read without changing other operations on the session.
+         * A failed read still rejects. Defaults to `false`.
+         *
+         * @see {@link ClientRead.suppressPeerLoss}
+         */
+        suppressPeerLoss?: boolean;
     }
 
     /**
