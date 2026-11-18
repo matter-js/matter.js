@@ -134,6 +134,12 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
     override async revokeCommissioning() {
         logger.debug("Revoking commissioning window");
 
+        // The answer depends on the window state at receipt; ending the fail-safe below can close the window as a
+        // failed commissioning attempt
+        const windowWasOpen =
+            this.env.get(DeviceCommissioner).windowStatus !==
+            AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen;
+
         // Step 1: Regardless of window state — terminate PASE sessions and expire PASE-held fail-safe
         const paseSession = this.env.get(SessionManager).getPaseSession();
         if (paseSession) {
@@ -148,10 +154,7 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         }
 
         // Step 2: If no window was open, return error.  A window the node opened itself counts as open.
-        if (
-            this.env.get(DeviceCommissioner).windowStatus ===
-            AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen
-        ) {
+        if (!windowWasOpen) {
             throw new AdministratorCommissioning.WindowNotOpenError(
                 "No commissioning window is opened that could be revoked.",
             );

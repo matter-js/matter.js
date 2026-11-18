@@ -103,6 +103,10 @@ export abstract class FailsafeContext {
         return this.#construction;
     }
 
+    /**
+     * Emits when commissioning completes, before this context closes, so its observers run while the fail-safe still
+     * exists.
+     */
     get commissioned() {
         return this.#commissioned;
     }

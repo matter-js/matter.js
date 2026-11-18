@@ -14,7 +14,7 @@ import {
     Crypto,
     Diagnostic,
     Logger,
-    MatterFlowError,
+    Observable,
     PbkdfParameters,
     Seconds,
     Spake2p,
@@ -31,17 +31,21 @@ import { DEFAULT_PASSCODE_ID, PaseServerMessenger, SPAKE_CONTEXT } from "./PaseM
 const logger = Logger.get("PaseServer");
 
 const PASE_PAIRING_TIMEOUT = Seconds(60);
-const PASE_COMMISSIONING_MAX_ERRORS = 20;
-
-export class MaximumPasePairingErrorsReachedError extends MatterFlowError {}
 
 export class PaseServer implements ProtocolHandler {
     readonly id = SECURE_CHANNEL_PROTOCOL_ID;
     readonly requiresSecureSession = false;
 
+    /**
+     * Emits after a pairing request failed before it established a session, once its exchange is cleaned up.  Such a
+     * pairing is a failed commissioning attempt.  A pairing that fails after it established the session does not
+     * emit, as the fail-safe of that session decides the attempt.
+     */
+    readonly pairingFailed = Observable<[error: Error]>();
+
     #pairingTimer?: Timer;
     #pairingMessenger?: PaseServerMessenger;
-    #pairingErrors = 0;
+    #sessionEstablished = false;
     #closed = false;
 
     static async fromPin(sessions: SessionManager, setupPinCode: number, pbkdfParameters: PbkdfParameters) {
@@ -86,28 +90,20 @@ export class PaseServer implements ProtocolHandler {
             logger.info("Already handling a pairing request, ignoring new exchange.");
         } else {
             const messenger = new PaseServerMessenger(exchange);
+            let failure: Error | undefined;
+            this.#sessionEstablished = false;
             // All checks done, we handle the pairing request
             try {
                 this.#pairingMessenger = messenger;
                 // Ok new pairing try, handle it
                 await this.handlePairingRequest(this.sessions.crypto, messenger.channel.transportChannel);
             } catch (error) {
-                this.#pairingErrors++;
-                logger.error(
-                    `An error occurred during PASE commissioning (${this.#pairingErrors}/${PASE_COMMISSIONING_MAX_ERRORS}):`,
-                    this.#pairingMessenger?.exchange.diagnostics,
-                    error,
-                );
+                failure = asError(error);
+                logger.info("PASE pairing failed:", this.#pairingMessenger?.exchange.diagnostics, failure);
 
                 // If we received a ChannelStatusResponseError we do not need to send one back, so just cancel pairing
                 const sendError = !causedBy(error, ChannelStatusResponseError);
                 await this.cancelPairing(messenger, sendError);
-
-                if (this.#pairingErrors >= PASE_COMMISSIONING_MAX_ERRORS) {
-                    throw new MaximumPasePairingErrorsReachedError(
-                        `Too many errors during PASE commissioning, aborting commissioning window`,
-                    );
-                }
             } finally {
                 this.#pairingTimer?.stop();
                 this.#pairingTimer = undefined;
@@ -115,6 +111,10 @@ export class PaseServer implements ProtocolHandler {
                 // Detach and Destroy the unsecure session used to establish the Pase session
                 await exchange.session.detachChannel()?.release();
                 await exchange.session.initiateClose();
+            }
+
+            if (failure !== undefined && !this.#sessionEstablished) {
+                this.pairingFailed.emit(failure);
             }
         }
     }
@@ -193,6 +193,7 @@ export class PaseServer implements ProtocolHandler {
             isResumption: false,
             reportedSessionParameters: initiatorSessionParams,
         });
+        this.#sessionEstablished = true;
         logger.info(
             session.via,
             "New session with",
