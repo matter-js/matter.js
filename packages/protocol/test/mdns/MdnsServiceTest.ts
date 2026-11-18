@@ -76,4 +76,20 @@ describe("MdnsService", () => {
         finishWork();
         await MockTime.resolve(environment.runtime.close(), { macrotasks: true });
     });
+
+    it("allows inspection before construction and does not create the names service", async () => {
+        using env = createEnvironment();
+        const service = new MdnsService(env);
+        try {
+            expect(service.existingNames).undefined;
+            await service.construction;
+            expect(service.existingNames).undefined;
+            const names = service.names;
+            expect(service.existingNames).equal(names);
+            expect(service.names).equal(names);
+        } finally {
+            await service.close();
+        }
+        expect(service.existingNames).undefined;
+    });
 });

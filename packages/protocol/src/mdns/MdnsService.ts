@@ -114,6 +114,17 @@ export class MdnsService {
         return this.#names;
     }
 
+    /**
+     * The DNS-SD names service, only if {@link names} has already created it.
+     * Reading this getter does not create a service, start discovery or require construction to have finished.
+     * The returned service is borrowed; callers must not close it. Returns undefined after {@link close}.
+     *
+     * @see {@link https://www.rfc-editor.org/rfc/rfc6763} RFC 6763
+     */
+    get existingNames() {
+        return this.#names;
+    }
+
     get [Diagnostic.value]() {
         return "MDNS";
     }
