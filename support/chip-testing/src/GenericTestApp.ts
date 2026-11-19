@@ -11,6 +11,7 @@ import { ValidationError } from "@matter/main/types";
 import { BackchannelCommand, CommandPipe, PicsFile } from "@matter/testing";
 import { openSync, writeSync } from "node:fs";
 import { rm } from "node:fs/promises";
+import { format } from "node:util";
 import { NamedPipeCommandHandler } from "./NamedPipeCommandHandler.js";
 import { StorageBackendAsyncJsonFile } from "./storage/StorageBackendAsyncJsonFile.js";
 
@@ -37,18 +38,23 @@ export function hasParameter(name: string) {
     return markerIncluded;
 }
 
+/** Writes a line to the file of `--logfile`, if set. */
+let writeToLogFile: ((text: string) => void) | undefined;
+
 /**
  * Writes the log also to the file the `--logfile` parameter names, at debug level and in plain format, appending to an
- * existing file.  The writes are synchronous, so the lines logged right before the process exits reach the file.
+ * existing file.  The writes are synchronous, so the lines logged right before the process exits reach the file.  Only
+ * the owner may read a new file, as it contains secret values.
  */
 function logToFileIfRequested() {
     const logFile = getParameter("logfile");
     if (logFile === undefined) {
         return;
     }
-    const file = openSync(logFile, "a");
+    const file = openSync(logFile, "a", 0o600);
+    writeToLogFile = text => writeSync(file, `${text}\n`);
     Logger.destinations.file = LogDestination({
-        write: text => writeSync(file, `${text}\n`),
+        write: writeToLogFile,
         level: LogLevel.DEBUG,
         format: LogFormat("plain"),
     });
@@ -168,13 +174,19 @@ export abstract class DeviceTestInstance extends TestInstance {
     }
 }
 
+/**
+ * Output that bypasses the {@link Logger}, because the test harness reads it from the console.  It is mirrored into the
+ * file of `--logfile`.
+ */
 export namespace log {
     export function directive(...args: unknown[]) {
         console.log(...args);
+        writeToLogFile?.(format(...args));
     }
 
     export function error(...args: unknown[]) {
         console.log(args);
+        writeToLogFile?.(format(...args));
     }
 }
 
