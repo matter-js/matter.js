@@ -17,6 +17,7 @@ import {
     DeviceCommissioner,
     Fabric,
     FabricManager,
+    FailsafeContext,
     Invoke,
     InvokeResult,
     MessageExchange,
@@ -517,6 +518,21 @@ describe("AdministratorCommissioningServer", () => {
             expect(await device.revoke()).deep.equals(failure(WindowNotOpenCode));
 
             expect(sessions.getPaseSession()).undefined;
+        });
+
+        it("answers success when ending the fail-safe makes the twentieth failed commissioning attempt", async () => {
+            await using device = await Device.create();
+            await device.openWindow();
+            for (let attempt = 1; attempt < 20; attempt++) {
+                await device.armFailSafe(await device.paseExchange());
+                await MockTime.resolve(device.node.env.get(FailsafeContext).close());
+            }
+            expect(device.attributes.windowStatus).equals(EnhancedWindowOpen);
+            await device.armFailSafe(await device.paseExchange());
+
+            expect(await device.revoke()).deep.equals(success);
+
+            expect(device.attributes).deep.equals(closedAttributes);
         });
 
         it("expires the fail-safe of the PASE session before it answers WindowNotOpen", async () => {

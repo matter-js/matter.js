@@ -98,9 +98,7 @@ describe("CommandInvokeResponse", () => {
         expect(response.counts).deep.equals({ status: 0, success: 2, existent: 2 });
     });
 
-    // process() is now suppress-agnostic: it always produces the results and SuppressResponse is applied by the
-    // messaging layer (so it can honor the §8.8.3.2.1 force-send-on-CommandDataIB clause). The produced data is
-    // therefore identical to the non-suppressed case.
+    // SuppressResponse is applied when the response is sent, so the commands still execute and produce results
     it("produces results regardless of suppressResponse", async () => {
         const device = new Endpoint(OnOffLightDevice);
         await using node = await MockServerNode.createOnline(undefined, { device });

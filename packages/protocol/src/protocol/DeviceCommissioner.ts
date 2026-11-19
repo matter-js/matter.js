@@ -21,7 +21,6 @@ import {
     MatterFlowError,
     MaybePromise,
     Mutex,
-    ObserverGroup,
     Time,
     Timer,
 } from "@matter/general";
@@ -36,6 +35,13 @@ import { AdministratorCommissioning } from "@matter/types/clusters/administrator
 import { DeviceAdvertiser } from "./DeviceAdvertiser.js";
 
 const logger = Logger.get("DeviceCommissioner");
+
+/**
+ * A Commissionee exits Commissioning Mode after this many failed commissioning attempts.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 5.5
+ */
+const MAX_FAILED_COMMISSIONING_ATTEMPTS = 20;
 
 /**
  * The component allows commissioning configuration to change after the {@link DeviceCommissioner} is initialized.
@@ -67,19 +73,12 @@ export class DeviceCommissioner {
     #window?: CommissioningWindow;
     #pendingAdministratorOpens = 0;
     #isClosed = false;
-    #observers = new ObserverGroup(this);
 
     /** Serializes every change of {@link #window}. */
     #windowMutex = new Mutex(this);
 
     constructor(context: DeviceCommissionerContext) {
         this.#context = context;
-
-        // Cancel commissioning when there are too many PASE errors
-        this.#observers.on(this.#context.secureChannelProtocol.tooManyPaseErrors, async () => {
-            logger.info("Maximum number of PASE pairing errors reached, canceling commissioning");
-            await this.endCommissioning();
-        });
     }
 
     static [Environmental.create](env: Environment) {
@@ -154,16 +153,49 @@ export class DeviceCommissioner {
         return this.#pendingAdministratorOpens > 0 || !!this.#window?.byAdministrator;
     }
 
+    /**
+     * Track an armed fail-safe.  A fail-safe armed during a commissioning window that ends without commissioning, by
+     * expiry or by ArmFailSafe with ExpiryLengthSeconds 0, is a failed commissioning attempt of that window.
+     */
     beginTimed(failsafeContext: FailsafeContext) {
         this.#failsafeContext = failsafeContext;
+        const window = this.#window;
 
         failsafeContext.commissioned.on(async () => await this.endCommissioning());
 
+        // Commissioning closes the window before the fail-safe ends, so only a failed attempt still finds it open
         failsafeContext.construction.change.on(status => {
             if (status === Lifecycle.Status.Destroyed) {
                 this.#failsafeContext = undefined;
+                if (window !== undefined) {
+                    this.#countFailedAttempt(window, "fail-safe ended without commissioning");
+                }
             }
         });
+    }
+
+    /**
+     * Count a failed commissioning attempt of {@link window} and close the window once the attempts reach
+     * {@link MAX_FAILED_COMMISSIONING_ATTEMPTS}.
+     */
+    #countFailedAttempt(window: CommissioningWindow, reason: string) {
+        if (this.#window !== window) {
+            return;
+        }
+
+        window.failedAttempts++;
+        logger.info(
+            `Commissioning attempt failed (${window.failedAttempts}/${MAX_FAILED_COMMISSIONING_ATTEMPTS}):`,
+            reason,
+        );
+        if (window.failedAttempts < MAX_FAILED_COMMISSIONING_ATTEMPTS) {
+            return;
+        }
+
+        logger.notice(
+            `Closing the commissioning window after ${MAX_FAILED_COMMISSIONING_ATTEMPTS} failed commissioning attempts`,
+        );
+        this.#close(() => window).catch(error => logger.error("Error closing the commissioning window", error));
     }
 
     get isFailsafeArmed() {
@@ -215,7 +247,8 @@ export class DeviceCommissioner {
                 this.#assertNotClosed(status);
 
                 this.#context.secureChannelProtocol.setPaseCommissioner(server);
-                this.#openWindow(status, options, discriminator);
+                const window = this.#openWindow(status, options, discriminator);
+                server.pairingFailed.on(() => this.#countFailedAttempt(window, "PASE pairing failed"));
             });
         } finally {
             if (byAdministrator) {
@@ -257,12 +290,14 @@ export class DeviceCommissioner {
             status,
             byAdministrator,
             onClose,
+            failedAttempts: 0,
             timer: Time.getTimer("Commissioning timeout", timeout ?? this.#ownWindowTimeout, () =>
                 this.#close(() => window).catch(error => logger.error("Error closing the commissioning window", error)),
             ),
         };
         this.#window = window;
         window.timer.start();
+        return window;
     }
 
     /**
@@ -328,7 +363,6 @@ export class DeviceCommissioner {
             return;
         }
         this.#isClosed = true;
-        this.#observers.close();
         try {
             await this.#close(() => this.#window);
         } finally {
@@ -348,6 +382,7 @@ interface CommissioningWindow {
     byAdministrator: boolean;
     onClose?: () => MaybePromise;
     timer: Timer;
+    failedAttempts: number;
 }
 
 export namespace DeviceCommissioner {
