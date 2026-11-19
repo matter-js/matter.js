@@ -38,7 +38,7 @@
         "@matter/protocol": "*"
     },
     "optionalDependencies": {
-        "bufferutil": "^4.1.0"
+        "bufferutil": "^4.2.0"
     },
     "engines": {
         "node": ">=20.19.0 <21.0.0 || >=22.13.0"
