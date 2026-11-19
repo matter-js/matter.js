@@ -44,7 +44,7 @@ let writeToLogFile: ((text: string) => void) | undefined;
 /**
  * Writes the log also to the file the `--logfile` parameter names, at debug level and in plain format, appending to an
  * existing file.  The writes are synchronous, so the lines logged right before the process exits reach the file.  Only
- * the owner may read a new file, as it contains secret values.
+ * the owner may read a new file, as it contains secret values.  After a failed write the file is no longer written.
  */
 function logToFileIfRequested() {
     const logFile = getParameter("logfile");
@@ -52,7 +52,19 @@ function logToFileIfRequested() {
         return;
     }
     const file = openSync(logFile, "a", 0o600);
-    writeToLogFile = text => writeSync(file, `${text}\n`);
+    let failed = false;
+    writeToLogFile = text => {
+        if (failed) {
+            return;
+        }
+        try {
+            writeSync(file, `${text}\n`);
+        } catch (error) {
+            // A full disk must not abort the test app, which also writes here outside the Logger
+            failed = true;
+            console.error(`Stopped writing to log file ${logFile}:`, error);
+        }
+    };
     Logger.destinations.file = LogDestination({
         write: writeToLogFile,
         level: LogLevel.DEBUG,
