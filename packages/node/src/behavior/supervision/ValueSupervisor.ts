@@ -6,7 +6,7 @@
 
 import type { AsyncObservable, Transaction } from "@matter/general";
 import { DataModelPath, Schema } from "@matter/model";
-import type { AccessControl, InteractionSettings, Val } from "@matter/protocol";
+import type { AccessControl, InteractionSettings, ReadResult, Val } from "@matter/protocol";
 import type { ValReference } from "../state/managed/ValReference.js";
 import type { ValidationLocation } from "../state/validation/location.js";
 import type { RootSupervisor } from "./RootSupervisor.js";
@@ -73,6 +73,13 @@ export namespace ValueSupervisor {
      * {@link Session} values that control supervision.
      */
     export interface SupervisionSettings extends InteractionSettings {
+        /**
+         * Weak provenance of a client event being delivered locally. This does not grant remote-actor authority.
+         *
+         * @see {@link ReadResult.EventValue.eventSourceSession}
+         */
+        eventSourceSession?: ReadResult.EventValue["eventSourceSession"];
+
         /**
          * The transaction used for isolating state changes associated with this session.
          */

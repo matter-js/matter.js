@@ -173,7 +173,10 @@ export namespace LocalActorContext {
     /**
      * {@link LocalActorContext} configuration options.
      */
-    export interface Options extends Omit<InteractionSettings, "transaction"> {
+    export interface Options
+        extends
+            Omit<InteractionSettings, "transaction">,
+            Pick<ValueSupervisor.SupervisionSettings, "eventSourceSession"> {
         lifetime?: Lifetime.Owner;
         command?: boolean;
         activity?: NodeActivity;

@@ -908,6 +908,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
                 activity: this.#activity,
                 lifetime: this.construction,
                 abort: options?.abort,
+                eventSourceSession: options?.eventSourceSession,
             },
         );
     }
@@ -1386,8 +1387,9 @@ export namespace Endpoint {
     /**
      * Settings of the context {@link Endpoint.act} opens.  `abort` ends the peer interactions of the commands the actor
      * invokes on a {@link ClientNode}, also while they wait for the peer.
+     * `eventSourceSession` carries weak, local-only event provenance; it does not grant remote actor authority.
      */
-    export type ActOptions = Pick<InteractionSettings, "abort">;
+    export type ActOptions = Pick<LocalActorContext.Options, "abort" | "eventSourceSession">;
 
     export type BehaviorOptions<
         T extends EndpointType = EndpointType.Empty,

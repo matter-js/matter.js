@@ -1228,6 +1228,22 @@ describe("SessionManager", () => {
             expect(sessionManager.sessionsRegisteredSince(older)).have.members([older, since, newer, establishing]);
         });
 
+        it("retains registration positions after close and orders a delayed registration after tied creation times", async () => {
+            const delayed = await aSession(0x0100, true);
+            const first = await aSession(0x0200);
+            expect(delayed.createdAt).equals(first.createdAt);
+            expect(sessionManager.registrationPositionOf(delayed)).undefined;
+            const position = sessionManager.registrationPositionOf(first);
+            expect(position).equals(0);
+            sessionManager.registeredSessions.add(delayed);
+
+            await first.initiateClose();
+
+            expect(sessionManager.registeredSessions.has(first)).false;
+            expect(sessionManager.registrationPositionOf(first)).equals(position);
+            expect(sessionManager.registrationPositionOf(delayed)).equals(1);
+        });
+
         it("treats a session that never registered as keeping nothing", async () => {
             const registered = await aSession(0x0100);
             const unregistered = await aSession(0x0200, true);

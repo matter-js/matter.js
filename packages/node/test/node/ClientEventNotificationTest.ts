@@ -5,6 +5,7 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OnOffClient } from "#behaviors/on-off";
@@ -33,10 +34,12 @@ import { clientStructureOf, MockSite, settled, subscribedPeer } from "@matter/no
 import {
     ClientRead,
     ClientSubscribe,
+    hasLocalActor,
     InputChunk,
     Read,
     ReadResult,
     SessionManager,
+    Session,
     Subscribe,
     SustainedSubscription,
 } from "@matter/protocol";
@@ -132,6 +135,90 @@ describe("Client Event Notification", () => {
     });
 
     describe("ChangeNotificationService", () => {
+        it("keeps delivering-session provenance local across read and subscription delivery", async () => {
+            await using site = new MockSite();
+            const MomentarySwitch = SwitchServer.with(
+                Switch.Feature.MomentarySwitch,
+                Switch.Feature.MomentarySwitchRelease,
+            );
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: ServerNode.RootEndpoint.with(MomentarySwitch) },
+            });
+            const peer = await subscribedPeer(controller, "peer1");
+            const source = controller.env.get(SessionManager).maybeSessionFor(peer.peerAddress!);
+            expect(source).not.undefined;
+            const contexts = new Array<ActionContext | undefined>();
+            const occurrences = new Array<ChangeNotificationService.EventOccurrence>();
+            peer.eventsOf(SwitchClient).initialPress.on((value, context) => {
+                expect(value).deep.equals({ newPosition: 1 });
+                contexts.push(context);
+            });
+            controller.env.get(ChangeNotificationService).change.on(change => {
+                if (change.kind === "event" && change.event.id === Switch.events.initialPress.id) {
+                    occurrences.push(change);
+                }
+            });
+            const press = () =>
+                device.act(agent =>
+                    agent.get(MomentarySwitch).events.initialPress.emit({ newPosition: 1 }, agent.context),
+                );
+            const sessions = new Array<Session | undefined>();
+            const serialize = (value: unknown) =>
+                JSON.stringify(value, (_key, item: unknown) => (typeof item === "bigint" ? item.toString() : item));
+            async function consume(data: ReadResult) {
+                for await (const chunk of data) {
+                    for await (const report of chunk) {
+                        if (report.kind !== "event-value") {
+                            expect(report).not.have.property("eventSourceSession");
+                            continue;
+                        }
+                        expect(report.eventSourceSession).instanceof(WeakRef);
+                        sessions.push(report.eventSourceSession?.deref());
+                        expect(Object.keys(report)).not.contains("eventSourceSession");
+                        expect(serialize(report)).not.contains("eventSourceSession");
+                    }
+                }
+            }
+            const events = [{ endpointId: EndpointNumber(0), clusterId: Switch.id }];
+            await MockTime.resolve(press());
+            await MockTime.resolve(settled(controller, device, peer));
+            const readRequest = { ...Read({ events }), emitEvents: true };
+            await MockTime.resolve(consume(peer.interaction.read(readRequest)));
+            const subscribeRequest = {
+                ...Subscribe({ events: events.map(path => ({ ...path, isUrgent: true })), keepSubscriptions: true }),
+                sustain: false,
+                emitEvents: true,
+                updated: consume,
+            };
+            const subscription = await MockTime.resolve(peer.interaction.subscribe(subscribeRequest));
+            try {
+                const delivered = new Promise<void>(resolve =>
+                    peer.eventsOf(SwitchClient).initialPress.once(() => resolve()),
+                );
+                await MockTime.resolve(press());
+                await MockTime.resolve(delivered);
+                await MockTime.resolve(settled(controller, device, peer));
+
+                expect(sessions.length).greaterThan(2);
+                expect(sessions.every(session => session === source)).true;
+                expect(contexts.length).greaterThan(2);
+                for (const context of contexts) {
+                    expect(hasLocalActor(context)).true;
+                    expect(context?.eventSourceSession?.deref()).equals(source);
+                    expect(context).not.have.property("session");
+                    expect(context?.fabric).undefined;
+                }
+                expect(occurrences.length).equals(contexts.length);
+                for (const occurrence of occurrences) {
+                    expect(occurrence).not.have.property("eventSourceSession");
+                    expect(occurrence.payload).deep.equals({ newPosition: 1 });
+                }
+                expect(serialize(site.storageFor(controller))).not.contains("eventSourceSession");
+            } finally {
+                await MockTime.resolve(subscription.close());
+            }
+        });
+
         it("emits EventOccurrence for MS initialPress", async () => {
             await using site = new MockSite();
             const { controller, device } = await site.addCommissionedPair({
