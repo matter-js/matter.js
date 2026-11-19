@@ -8,6 +8,7 @@ import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueModel } from "@matter/model";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { astToFunction } from "./conformance-compiler.js";
+import { ValidationLocation } from "./location.js";
 import { leaveToRemote, mayLeaveToRemote } from "./remote-validation.js";
 
 /**
@@ -45,7 +46,7 @@ export function createConformanceValidator(
                 conformance?.(value, session, location);
             } catch (e) {
                 if (!remoteDecides || !leaveToRemote(location, e)) {
-                    throw e;
+                    ValidationLocation.reject(location, e);
                 }
             }
         }

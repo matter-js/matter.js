@@ -40,8 +40,7 @@ const logger = Logger.get("ValueValidator");
  * | {@link ConformanceError} (and subclasses)    | element or enum value violates conformance         | not thrown   |
  * | {@link ConstraintError}                      | model constraint: range, length, `in`, list size, …| not thrown   |
  * | {@link UnknownEnumValueError}                | enum value Matter does not define for this enum    | not thrown   |
- * | {@link DatatypeError} with CONSTRAINT_ERROR  | enum value not among the enum's members, reserved  | not thrown   |
- * |                                              | bitmap bits set                                    |              |
+ * | {@link DatatypeError} with CONSTRAINT_ERROR  | reserved bitmap bits set                           | not thrown   |
  * | {@link DatatypeError} with INVALID_DATA_TYPE | wrong JS type, unknown bitmap flag, bit field too  | thrown       |
  * |                                              | wide for its bits                                  |              |
  * | `IntegerRangeError`                          | integer outside its wire type (uint8, int16, …)    | thrown       |

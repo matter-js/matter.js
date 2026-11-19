@@ -5,6 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import { Supervision } from "#behavior/supervision/Supervision.js";
 import { MaybePromise, Observable, Seconds, Time, Timer } from "@matter/general";
 import { hasRemoteActor } from "@matter/protocol";
 import { Identify } from "@matter/types/clusters/identify";
@@ -131,6 +132,9 @@ export class IdentifyServer extends IdentifyBehavior {
     }
 
     override triggerEffect(effect: Identify.TriggerEffectRequest): MaybePromise {
+        if (Identify.EffectVariant[effect.effectVariant] === undefined) {
+            effect = { ...effect, effectVariant: Identify.EffectVariant.Default };
+        }
         this.events.effectTriggered.emit(effect);
     }
 }
@@ -153,4 +157,10 @@ export namespace IdentifyServer {
     export declare const ExtensionInterface: {
         suppressTriggerEffect(): void;
     };
+}
+
+// TODO - Refuse an EffectIdentifier or EffectVariant that its enum does not define with CONSTRAINT_ERROR once the CHIP
+// SDK does; it accepts any value today, and the CHIP TriggerEffect tests expect that
+for (const field of ["effectIdentifier", "effectVariant"]) {
+    Supervision(IdentifyServer, "triggerEffect", field).validate = false;
 }

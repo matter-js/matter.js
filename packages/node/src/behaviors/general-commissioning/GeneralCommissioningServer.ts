@@ -5,6 +5,7 @@
  */
 
 import type { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
+import { Supervision } from "#behavior/supervision/Supervision.js";
 import { BasicInformationServer } from "#behaviors/basic-information";
 import type { ServerNode } from "#node/ServerNode.js";
 import { Diagnostic, hex, Logger, MatterFlowError, MaybePromise, Seconds } from "@matter/general";
@@ -283,3 +284,6 @@ export namespace GeneralCommissioningServer {
         countryCodeWhitelist?: string[] = undefined;
     }
 }
+
+// The cluster answers an unknown regulatory location with ValueOutsideRange in the response, which the handler sets
+Supervision(GeneralCommissioningServer, "setRegulatoryConfig", "newRegulatoryConfig").validate = false;

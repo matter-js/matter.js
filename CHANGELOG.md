@@ -154,6 +154,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `GroupsServer` checks the AddGroup group name length in UTF-8 bytes
     - Fix: `ScenesManagementServer` answers AddScene with CONSTRAINT_ERROR for a scene name over 16 UTF-8 bytes
     - Fix: `GeneralDiagnosticsServer` shortens network interface names to 32 UTF-8 bytes instead of 32 characters
+    - Fix: A device refuses a command request with an enum value the enum does not define with CONSTRAINT_ERROR instead of logging a warning and running the command
+    - Fix: Only a command with a `Supervision` `onValidationError` skips the TLV validation of its request, instead of every command of a cluster in which one command has `Supervision` configuration
+    - Fix: A request without command fields is validated against the data model as an empty struct
+    - Fix: `IdentifyServer` reports the default EffectVariant for a TriggerEffect variant the enum does not define
+    - Fix: `DoorLockServer` answers a GetWeekDaySchedule, GetYearDaySchedule, GetHolidaySchedule, ClearCredential or GetCredentialStatus request that fails validation with INVALID_COMMAND
+    - Fix: Validation accepts every value of an enum that defines no values, such as OnOff OffWithEffect.EffectVariant
 
 - @matter/nodejs
     - Fix: (@delu999) SQLite storage accepts overlapping transactions instead of failing with "Transaction is in progress", so concurrent node state writes are no longer lost
