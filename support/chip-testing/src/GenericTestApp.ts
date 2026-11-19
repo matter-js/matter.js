@@ -5,10 +5,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError, Logger, NotImplementedError } from "@matter/general";
+import { ImplementationError, LogDestination, LogFormat, Logger, LogLevel, NotImplementedError } from "@matter/general";
 import { Environment, MaybePromise, Storage } from "@matter/main";
 import { ValidationError } from "@matter/main/types";
 import { BackchannelCommand, CommandPipe, PicsFile } from "@matter/testing";
+import { openSync, writeSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { NamedPipeCommandHandler } from "./NamedPipeCommandHandler.js";
 import { StorageBackendAsyncJsonFile } from "./storage/StorageBackendAsyncJsonFile.js";
@@ -35,6 +36,25 @@ export function hasParameter(name: string) {
     if (!markerIncluded) markerIncluded = commandArguments.includes(`--${name}`);
     return markerIncluded;
 }
+
+/**
+ * Writes the log also to the file the `--logfile` parameter names, at debug level and in plain format, appending to an
+ * existing file.  The writes are synchronous, so the lines logged right before the process exits reach the file.
+ */
+function logToFileIfRequested() {
+    const logFile = getParameter("logfile");
+    if (logFile === undefined) {
+        return;
+    }
+    const file = openSync(logFile, "a");
+    Logger.destinations.file = LogDestination({
+        write: text => writeSync(file, `${text}\n`),
+        level: LogLevel.DEBUG,
+        format: LogFormat("plain"),
+    });
+}
+
+logToFileIfRequested();
 
 export function getIntParameter(name: string) {
     const value = getParameter(name);
