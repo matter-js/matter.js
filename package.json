@@ -88,7 +88,7 @@
         "c8": "^12.0.0",
         "oxfmt": "^0.76.0",
         "oxlint": "^1.93.0",
-        "oxlint-tsgolint": "^7.0.2006",
+        "oxlint-tsgolint": "^7.0.2007",
         "semver": "^7.8.6",
         "typescript": "~7.0.2"
     },
