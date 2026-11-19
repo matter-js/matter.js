@@ -45,6 +45,8 @@ The python tests are located inside the connectedhomeip repository as single pyt
 
 `scripts/run_in_python_env.sh out/venv './scripts/tests/run_python_test.py --app <path-to-matter.js>/support/chip-testing/dist/esm/TestDeviceNode.js --factoryreset --app-args "--discriminator 1234 --KVS /tmp/kvs" --script "src/python_testing/TC_CGEN_2_4.py" --script-args "--storage-path admin_storage.json --manual-code 10054912339 --PICS src/app/tests/suites/certification/ci-pics-values --commissioning-method on-network"'`
 
+The test apps built on `GenericTestApp` also accept `--logfile <path>` to write the log in addition to the console, at debug level and in plain format, appending to an existing file. Like the console log, the file contains message payloads and secret values, as the certification tests read them.
+
 The list of available test and their relevant parameters can be seen in the project-chip repository github test, e.g. https://github.com/project-chip/connectedhomeip/blob/160ed14cae009de51e5117dbf4abc2c6af6a6f53/.github/workflows/tests.yaml#L452 (this is a static link, make sure to check the latest master version!)
 
 ## Executing via CI

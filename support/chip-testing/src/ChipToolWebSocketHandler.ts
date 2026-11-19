@@ -492,7 +492,7 @@ function loggerSetup(): {
     startRecording: () => void;
     stopRecording: () => { module: string; category: string; message: string }[];
 } {
-    Logger.format = LogFormat.ANSI;
+    Logger.destinations.default.format = LogFormat(LogFormat.ANSI);
 
     let messageBuffer: { module: string; category: string; message: string }[] | undefined;
 

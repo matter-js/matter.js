@@ -8,7 +8,7 @@ import { FabricManager } from "#fabric/FabricManager.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { AsyncObservable, Environment, Environmental, Logger, MatterFlowError } from "@matter/general";
+import { Environment, Environmental, Logger, MatterFlowError } from "@matter/general";
 import {
     GeneralStatusCode,
     SECURE_CHANNEL_PROTOCOL_ID,
@@ -21,7 +21,7 @@ import { Message } from "../codec/MessageCodec.js";
 import { MessageExchange } from "../protocol/MessageExchange.js";
 import { ProtocolHandler } from "../protocol/ProtocolHandler.js";
 import { CaseServer } from "../session/case/CaseServer.js";
-import { MaximumPasePairingErrorsReachedError, PaseServer } from "../session/pase/PaseServer.js";
+import { PaseServer } from "../session/pase/PaseServer.js";
 import { SecureChannelMessenger } from "./SecureChannelMessenger.js";
 import { SecureChannelStatusMessage } from "./SecureChannelStatusMessageSchema.js";
 
@@ -91,7 +91,6 @@ export class SecureChannelProtocol extends StatusReportOnlySecureChannelProtocol
     #paseCommissioner: PaseServer | undefined;
     readonly #caseCommissioner: CaseServer;
     readonly #fabrics: FabricManager;
-    readonly #tooManyPaseErrors = AsyncObservable<[]>();
 
     constructor(sessions: SessionManager, fabrics: FabricManager) {
         super();
@@ -104,13 +103,6 @@ export class SecureChannelProtocol extends StatusReportOnlySecureChannelProtocol
         env.get(ExchangeManager).addProtocolHandler(instance);
         env.set(SecureChannelProtocol, instance);
         return instance;
-    }
-
-    /**
-     * Emitted when the active PASE session hits the maximum error threshold.
-     */
-    get tooManyPaseErrors() {
-        return this.#tooManyPaseErrors;
     }
 
     setPaseCommissioner(paseServer: PaseServer) {
@@ -135,13 +127,7 @@ export class SecureChannelProtocol extends StatusReportOnlySecureChannelProtocol
                     await messenger.close(); // also closes exchange
                     return;
                 }
-                try {
-                    await this.#paseCommissioner.onNewExchange(exchange);
-                } catch (error) {
-                    MaximumPasePairingErrorsReachedError.accept(error);
-
-                    await this.#tooManyPaseErrors.emit();
-                }
+                await this.#paseCommissioner.onNewExchange(exchange);
                 break;
             case SecureMessageType.Sigma1:
                 await this.#caseCommissioner.onNewExchange(exchange);
