@@ -24,7 +24,6 @@ import {
     ConformanceError,
     EnumValueConformanceError,
     SchemaImplementationError,
-    UnknownEnumValueError,
     Val,
 } from "@matter/protocol";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
@@ -853,16 +852,11 @@ export function astToFunction(
         return (value, session, location) => {
             mainValidator?.(value, session, location);
 
+            // A value the enum does not define is refused by the datatype validation
             if (typeof value === "number") {
                 const validate =
                     memberValidators?.[value] ?? rangeValidators.find(({ range }) => range.test(value))?.validate;
-                if (!validate) {
-                    throw new UnknownEnumValueError(
-                        location,
-                        `Matter does not define the enum value ${value} for ${schema.name}`,
-                    );
-                }
-                validate(location);
+                validate?.(location);
             }
         };
     }

@@ -8,7 +8,16 @@ import { ThermostatBehavior, ThermostatServer } from "#behaviors/thermostat";
 import { ThermostatDevice } from "#devices/thermostat";
 import { Endpoint } from "#endpoint/index.js";
 import { Bytes, ImplementationError, MatterAggregateError } from "@matter/general";
-import { MockServerNode } from "@matter/node/testing";
+import { interaction, MockServerNode } from "@matter/node/testing";
+import {
+    ClusterId,
+    CommandId,
+    EndpointNumber,
+    Status,
+    TlvInvokeResponseData,
+    TlvOfModel,
+    TypeFromSchema,
+} from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { newPreset, PresetsThermostat, thermostatConfig } from "./preset-helpers.js";
 
@@ -475,6 +484,48 @@ describe("ThermostatBehavior", () => {
             expect(occupiedCoolingSetpoint - occupiedHeatingSetpoint).greaterThanOrEqual(200);
 
             await node.close();
+        });
+    });
+
+    describe("SetpointRaiseLower through the interaction layer", () => {
+        async function raiseLowerOnCoolingThermostat(mode: number) {
+            const device = new Endpoint(ThermostatDevice.with(ThermostatServer.with("Cooling")), {
+                number: 1,
+                thermostat: {
+                    controlSequenceOfOperation: Thermostat.ControlSequenceOfOperation.CoolingOnly,
+                    systemMode: Thermostat.SystemMode.Cool,
+                },
+            });
+            await using node = await MockServerNode.createOnline(undefined, { device });
+            const command = Thermostat.schema.commands.require("SetpointRaiseLower");
+
+            let response: TypeFromSchema<typeof TlvInvokeResponseData> | undefined;
+            await interaction.invoke(
+                node,
+                await node.addFabric(),
+                {
+                    commandPath: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: ClusterId(Thermostat.id),
+                        commandId: CommandId(command.id),
+                    },
+                    commandFields: TlvOfModel(command).encodeTlv({ mode, amount: 5 }),
+                },
+                r => {
+                    response = r;
+                },
+            );
+            return response?.status?.status.status;
+        }
+
+        it("leaves refusing Heat without the Heating feature to the handler, with INVALID_COMMAND", async () => {
+            expect(await raiseLowerOnCoolingThermostat(Thermostat.SetpointRaiseLowerMode.Heat)).equals(
+                Status.InvalidCommand,
+            );
+        });
+
+        it("refuses a mode the enum does not define with CONSTRAINT_ERROR", async () => {
+            expect(await raiseLowerOnCoolingThermostat(3)).equals(Status.ConstraintError);
         });
     });
 });

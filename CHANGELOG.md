@@ -46,6 +46,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: (@lboue) `ThermostatServer` implements the `MatterScheduleConfiguration` (MSCH) feature with the `Schedules` and `ActiveScheduleHandle` attributes, atomic writes and `SetActiveScheduleRequest`; enable the feature with the `thermostat-msch` forward feature for certification purposes only
     - Feature: `ThermostatServer` generates the Thermostat events when the provisional `Events` feature is selected and the events are switched on with `enable()`; enable the feature with the `thermostat-events` forward feature for certification purposes only
     - Feature: `ThermostatServer` implements the `ThermostatSuggestions` (TSUGGEST) feature
+    - Fix: A client emits an event that arrives before the data of its cluster in the same read, instead of dropping it as an event of an unsupported cluster
     - Fix: `ThermostatServer` keeps the preset that the application activates with `setActivePresetRequest`
     - Fix: `ThermostatServer` treats `ControlSequenceOfOperation` CoolingWithReheat as the sequence without heating, instead of CoolingAndHeatingWithReheat, and automatic mode management in Auto turns the running mode off instead of failing when the sequence does not allow heating or cooling
     - Fix: `ThermostatServer` raises `NumberOfPresets` at startup to cover the stored presets, instead of failing to start after a configuration lowered it
@@ -154,6 +155,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `GroupsServer` checks the AddGroup group name length in UTF-8 bytes
     - Fix: `ScenesManagementServer` answers AddScene with CONSTRAINT_ERROR for a scene name over 16 UTF-8 bytes
     - Fix: `GeneralDiagnosticsServer` shortens network interface names to 32 UTF-8 bytes instead of 32 characters
+    - Fix: A device refuses a command request with an enum value the enum does not define with CONSTRAINT_ERROR instead of logging a warning and running the command
+    - Fix: Only a command with a `Supervision` `onValidationError` skips the TLV validation of its request, instead of every command of a cluster in which one command has `Supervision` configuration
+    - Fix: A request without command fields is validated against the data model as an empty struct
+    - Fix: `IdentifyServer` reports the default EffectVariant for a TriggerEffect variant the enum does not define
+    - Fix: `DoorLockServer` answers a GetWeekDaySchedule, GetYearDaySchedule, GetHolidaySchedule, ClearCredential or GetCredentialStatus request that fails validation with INVALID_COMMAND
+    - Fix: Validation accepts every value of an enum that defines no values, such as OnOff OffWithEffect.EffectVariant
 
 - @matter/nodejs
     - Fix: (@delu999) SQLite storage accepts overlapping transactions instead of failing with "Transaction is in progress", so concurrent node state writes are no longer lost

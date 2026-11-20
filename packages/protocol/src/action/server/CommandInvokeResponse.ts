@@ -314,7 +314,7 @@ export class CommandInvokeResponse<
                 commandRef,
                 commandFields,
                 cluster.commands[command.id],
-                cluster.skipCommandValidation,
+                cluster.modelValidatedCommands?.has(command.id),
             );
         });
     }
@@ -356,7 +356,7 @@ export class CommandInvokeResponse<
             commandRef,
             commandFields,
             cluster.commands[command.id],
-            cluster.skipCommandValidation,
+            cluster.modelValidatedCommands?.has(command.id),
         );
     }
 

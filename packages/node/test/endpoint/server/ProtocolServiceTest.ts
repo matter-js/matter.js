@@ -5,11 +5,14 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { ColorControlServer } from "#behaviors/color-control";
+import { IdentifyServer } from "#behaviors/identify";
 import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { OnOffServer } from "#behaviors/on-off";
+import { ExtendedColorLightDevice } from "#devices/extended-color-light";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
-import { ImplementationError, MaybePromise } from "@matter/general";
+import { ImplementationError, LogLevel, MaybePromise } from "@matter/general";
 import {
     AcceptedCommandList,
     AttributeElement,
@@ -21,7 +24,7 @@ import {
     GeneratedCommandList,
     Specification,
 } from "@matter/model";
-import { interaction, MockServerNode } from "@matter/node/testing";
+import { captureLog, interaction, MockServerNode } from "@matter/node/testing";
 import { AccessControl as ProtocolAccessControl, Fabric, Subject } from "@matter/protocol";
 import {
     AttributeId,
@@ -43,13 +46,18 @@ import {
     TlvObject,
     TlvOfModel,
     TlvSchema,
+    TlvString,
     TlvSubjectId,
+    TlvUInt16,
     TlvUInt8,
     TypeFromSchema,
     WildcardPathFlagsBitmap,
 } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { ColorControl } from "@matter/types/clusters/color-control";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
+import { Identify } from "@matter/types/clusters/identify";
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
@@ -306,44 +314,229 @@ describe("ProtocolServiceTest", () => {
         });
     });
 
-    it("invokes", async () => {
-        let received: undefined | OnOff.OffWithEffectRequest;
-        let sent: undefined | TypeFromSchema<typeof TlvInvokeResponseData>;
+    describe("invoke", () => {
+        async function invokeOffWithEffect(request: { effectIdentifier: number; effectVariant: number }) {
+            let received: undefined | OnOff.OffWithEffectRequest;
+            let sent: undefined | TypeFromSchema<typeof TlvInvokeResponseData>;
 
-        class MyServer extends OnOffServer.with("Lighting") {
-            override offWithEffect(request: OnOff.OffWithEffectRequest) {
-                received = request;
+            class MyServer extends OnOffServer.with("Lighting") {
+                override offWithEffect(request: OnOff.OffWithEffectRequest) {
+                    received = request;
+                }
             }
+
+            await using node = await MockServerNode.createOnline(undefined, {
+                device: OnOffLightDevice.with(MyServer),
+            });
+
+            await interaction.invoke(
+                node,
+                await node.addFabric(),
+                {
+                    commandPath: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: OnOff.id,
+                        commandId: CommandId(OnOff.commands.offWithEffect.id),
+                    },
+                    commandFields: TlvOfModel(OnOff.commands.offWithEffect).encodeTlv(request),
+                },
+                response => {
+                    sent = response;
+                },
+            );
+
+            // Nice, three nested fields called "status"
+            return { received, status: sent?.status?.status.status };
         }
 
-        const MyDevice = OnOffLightDevice.with(MyServer);
+        it("invokes", async () => {
+            const { received, status } = await invokeOffWithEffect({ effectIdentifier: 0, effectVariant: 1 });
 
-        await using node = await MockServerNode.createOnline(undefined, { device: MyDevice });
+            expect(received).deep.equals({ effectIdentifier: 0, effectVariant: 1 });
+            expect(status).equals(Status.Success);
+        });
 
-        await interaction.invoke(
-            node,
-            await node.addFabric(),
-            {
-                commandPath: {
-                    endpointId: EndpointNumber(1),
-                    clusterId: OnOff.id,
-                    commandId: CommandId(OnOff.commands.offWithEffect.id),
+        it("refuses a request with an enum value the enum does not define with CONSTRAINT_ERROR", async () => {
+            const { received, status } = await invokeOffWithEffect({ effectIdentifier: 2, effectVariant: 0 });
+
+            expect(received).undefined;
+            expect(status).equals(Status.ConstraintError);
+        });
+
+        it("refuses an undefined enum value also when an earlier field has an error that only gets a warning", async () => {
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
+            await node.add(
+                ExtendedColorLightDevice.with(ColorControlServer.with("HueSaturation", "EnhancedHue", "ColorLoop")),
+                {
+                    colorControl: {
+                        colorMode: ColorControl.ColorMode.CurrentHueAndCurrentSaturation,
+                        enhancedColorMode: ColorControl.EnhancedColorMode.CurrentHueAndCurrentSaturation,
+                        numberOfPrimaries: 0,
+                    },
                 },
+            );
 
-                commandFields: TlvOfModel(OnOff.commands.offWithEffect).encodeTlv({
-                    effectIdentifier: 0,
-                    effectVariant: 1,
-                }),
-            },
-            response => {
-                sent = response;
-            },
-        );
+            let sent: undefined | TypeFromSchema<typeof TlvInvokeResponseData>;
+            await interaction.invoke(
+                node,
+                await node.addFabric(),
+                {
+                    commandPath: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: ColorControl.id,
+                        commandId: CommandId(ColorControl.schema.commands.require("ColorLoopSet").id),
+                    },
+                    // UpdateFlags carries a reserved bit, and Action is undefined
+                    commandFields: TlvObject({
+                        updateFlags: TlvField(0, TlvUInt8),
+                        action: TlvField(1, TlvUInt8),
+                        direction: TlvField(2, TlvUInt8),
+                        time: TlvField(3, TlvUInt16),
+                        startHue: TlvField(4, TlvUInt16),
+                        optionsMask: TlvField(5, TlvUInt8),
+                        optionsOverride: TlvField(6, TlvUInt8),
+                    }).encodeTlv({
+                        updateFlags: 0x11,
+                        action: 3,
+                        direction: 0,
+                        time: 0,
+                        startHue: 0,
+                        optionsMask: 0,
+                        optionsOverride: 0,
+                    }),
+                },
+                response => {
+                    sent = response;
+                },
+            );
 
-        expect(received).deep.equals({ effectIdentifier: 0, effectVariant: 1 });
+            expect(sent?.status?.status.status).equals(Status.ConstraintError);
+        });
 
-        // Nice, three nested fields called "status"
-        expect(sent?.status?.status.status).deep.equals(Status.Success);
+        it("accepts any value for an enum that defines no values", async () => {
+            using log = captureLog(LogLevel.WARN);
+            const { received, status } = await invokeOffWithEffect({ effectIdentifier: 0, effectVariant: 7 });
+
+            expect(received).deep.equals({ effectIdentifier: 0, effectVariant: 7 });
+            expect(status).equals(Status.Success);
+            expect(log.messages.filter(message => message.includes("Request validation error"))).deep.equals([]);
+        });
+
+        describe("with cluster-specific handling of invalid requests", () => {
+            async function invokeOnNode(
+                node: MockServerNode,
+                endpointId: number,
+                cluster: { id: ClusterId; schema: ClusterModel },
+                commandName: string,
+                fields?: Record<string, unknown>,
+                fieldsTlv: TlvSchema<unknown> = TlvOfModel(cluster.schema.commands.require(commandName)),
+            ) {
+                let sent: undefined | TypeFromSchema<typeof TlvInvokeResponseData>;
+                await interaction.invoke(
+                    node,
+                    await node.addFabric(),
+                    {
+                        commandPath: {
+                            endpointId: EndpointNumber(endpointId),
+                            clusterId: cluster.id,
+                            commandId: CommandId(cluster.schema.commands.require(commandName).id),
+                        },
+                        commandFields: fields === undefined ? undefined : fieldsTlv.encodeTlv(fields),
+                    },
+                    response => {
+                        sent = response;
+                    },
+                );
+                return sent;
+            }
+
+            it("answers an undefined certificate type with INVALID_COMMAND", async () => {
+                await using node = await MockServerNode.createOnline();
+                const sent = await invokeOnNode(node, 0, OperationalCredentials, "CertificateChainRequest", {
+                    certificateType: 3,
+                });
+
+                expect(sent?.status?.status.status).equals(Status.InvalidCommand);
+            });
+
+            it("keeps the TLV check for a command without configuration in a cluster with configured commands", async () => {
+                await using node = await MockServerNode.createOnline();
+                const sent = await invokeOnNode(
+                    node,
+                    0,
+                    OperationalCredentials,
+                    "AttestationRequest",
+                    {},
+                    TlvObject({}),
+                );
+
+                expect(sent?.status?.status.status).equals(Status.InvalidCommand);
+            });
+
+            it("answers an undefined regulatory location with ValueOutsideRange in the response", async () => {
+                await using node = await MockServerNode.createOnline();
+                const sent = await invokeOnNode(node, 0, GeneralCommissioning, "SetRegulatoryConfig", {
+                    newRegulatoryConfig: 3,
+                    countryCode: "XX",
+                    breadcrumb: 1,
+                });
+
+                expect(sent?.command?.commandFields).not.undefined;
+                const { errorCode } = TlvObject({ errorCode: TlvField(0, TlvUInt8) }).decodeTlv(
+                    sent!.command!.commandFields!,
+                );
+                expect(errorCode).equals(GeneralCommissioning.CommissioningError.ValueOutsideRange);
+            });
+
+            it("answers a missing mandatory field with INVALID_COMMAND for a command with a field override", async () => {
+                await using node = await MockServerNode.createOnline();
+                const sent = await invokeOnNode(
+                    node,
+                    0,
+                    GeneralCommissioning,
+                    "SetRegulatoryConfig",
+                    { countryCode: "XX", breadcrumb: 1 },
+                    TlvObject({ countryCode: TlvField(1, TlvString), breadcrumb: TlvField(2, TlvUInt8) }),
+                );
+
+                expect(sent?.status?.status.status).equals(Status.InvalidCommand);
+            });
+
+            it("accepts an identify effect the enum does not define", async () => {
+                await using node = await MockServerNode.createOnline();
+
+                const sent = await invokeOnNode(node, 1, Identify, "TriggerEffect", {
+                    effectIdentifier: 3,
+                    effectVariant: Identify.EffectVariant.Default,
+                });
+
+                expect(sent?.status?.status.status).equals(Status.Success);
+            });
+
+            it("runs the default identify effect variant for a variant the enum does not define", async () => {
+                await using node = await MockServerNode.createOnline();
+                const triggered = new Array<Identify.TriggerEffectRequest>();
+                node.endpoints
+                    .for(1)
+                    .eventsOf(IdentifyServer)
+                    .effectTriggered.on(effect => {
+                        triggered.push(effect);
+                    });
+
+                const sent = await invokeOnNode(node, 1, Identify, "TriggerEffect", {
+                    effectIdentifier: Identify.EffectIdentifier.Blink,
+                    effectVariant: 0x42,
+                });
+
+                expect(sent?.status?.status.status).equals(Status.Success);
+                expect(triggered).deep.equals([
+                    {
+                        effectIdentifier: Identify.EffectIdentifier.Blink,
+                        effectVariant: Identify.EffectVariant.Default,
+                    },
+                ]);
+            });
+        });
     });
 
     it("excludes deprecated global attributes like EventList from protocol", async () => {
