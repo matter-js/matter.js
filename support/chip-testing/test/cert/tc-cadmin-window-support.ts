@@ -75,7 +75,7 @@ const REVOKE_COMMISSIONING_ID = requireId(
 );
 
 /** Step 4's delay: `PIXIT.CADMIN.CwDuration` + 10 seconds after the window opened. */
-export const LATE_START = Seconds(CW_DURATION_SECONDS + 10);
+const LATE_START = Seconds(CW_DURATION_SECONDS + 10);
 
 /** How long step 8 watches the TH for a window it opens or closes after the refused revoke. */
 const NO_ACTION_WINDOW = Seconds(5);

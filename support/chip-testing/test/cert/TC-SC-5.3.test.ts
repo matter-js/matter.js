@@ -308,12 +308,13 @@ const TOGGLE_INVOKE_LINE = matterjsGroupInvokeSent(GROUP.id, ON_OFF_ID, TOGGLE);
 /** Confirms the toggle went to the IANA address on the group message port, as each controller's log states it. */
 async function ianaSentCheck(cx: CertStepContext, from: number): Promise<CheckRecord> {
     const flavor = dutControllerLogFlavor(cx);
-    const line = flavor === "chip" ? CHIP_GROUP_TX : TOGGLE_INVOKE_LINE;
+    const sequence = { chip: [CHIP_GROUP_TX], matterjs: [TOGGLE_INVOKE_LINE] };
+    const [line] = sequence[flavor];
     const sent = await expectSequence(
         cx.controllers.dut.log,
         flavor,
         `a group send to ${IANA_GROUP_ADDRESS} on port ${GROUP_MESSAGE_PORT}`,
-        flavor === "chip" ? { chip: [line] } : { matterjs: [line] },
+        sequence,
         from,
         LOG_TIMEOUT,
     );

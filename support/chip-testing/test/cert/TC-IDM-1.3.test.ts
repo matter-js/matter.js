@@ -16,7 +16,7 @@ import type {
 } from "@matter/testing";
 import { certTest, controllerCapabilityGap } from "@matter/testing";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
-import { ChipFault, FAULT_TYPE_CHIP, FaultInjectionCluster } from "./fault-injection.js";
+import { ChipFault, FaultInjectionCluster, FaultType } from "./fault-injection.js";
 import { COMMISSIONING_LOG_TIMEOUT } from "./tc-dd-support.js";
 import type { BatchPath } from "./tc-idm-1.3-support.js";
 import {
@@ -193,7 +193,7 @@ certTest("TC-IDM-1.3", {
                 await node.invoke(
                     FAULT_INJECTION_ID,
                     "failAtFault",
-                    { type: FAULT_TYPE_CHIP, id, numCallsToSkip, numCallsToFail: 1, takeMutex: false },
+                    { type: FaultType.chipFault, id, numCallsToSkip, numCallsToFail: 1, takeMutex: false },
                     ROOT_ENDPOINT,
                 );
             }

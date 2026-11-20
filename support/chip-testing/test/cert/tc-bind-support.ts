@@ -44,7 +44,7 @@ export const OFF_COMMAND = requireId(ON_OFF.commands.require("off").id, "OnOff.o
 const BINDING = Matter.clusters.require("Binding");
 
 /** The DUT's endpoint with the OnOff client and the Binding cluster. */
-export const DUT_ENDPOINT = 1;
+const DUT_ENDPOINT = 1;
 
 const BINDING_PATH = {
     endpoint: DUT_ENDPOINT,

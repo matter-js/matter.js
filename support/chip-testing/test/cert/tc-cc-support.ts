@@ -33,7 +33,7 @@ const COLOR_CONTROL_ID = requireId(COLOR_CONTROL.id, "ColorControl cluster");
 const ON_OFF = Matter.clusters.require("OnOff");
 
 /** Both THs put ColorControl on the light at endpoint 1. */
-export const COLOR_CONTROL_ENDPOINT = 1;
+const COLOR_CONTROL_ENDPOINT = 1;
 
 /** A ColorControl feature as a decoded FeatureMap names it. */
 export type ColorControlFeature = "hueSaturation" | "enhancedHue" | "colorLoop" | "xy" | "colorTemperature";

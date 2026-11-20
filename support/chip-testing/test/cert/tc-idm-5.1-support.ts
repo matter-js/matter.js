@@ -19,7 +19,7 @@ import {
 // registers a device-driven mocha test at import time, so the cert-framework spec set cannot import
 // one to unit-test what it declares.
 
-export const TIMED_REQUEST_MESSAGE = /\[DMG\] TimedRequestMessage =\s*$/;
+const TIMED_REQUEST_MESSAGE = /\[DMG\] TimedRequestMessage =\s*$/;
 
 /** `TimedRequestMessage::Parser::PrettyPrint` — one field, printed as bare lowercase hex. */
 export function timedRequestSequence(timeout: Duration): RegExp[] {

@@ -360,11 +360,6 @@ export async function wildcardReadInOneReportCheck(
     };
 }
 
-/** {@link wildcardReadInOneReportCheck}, recorded as the step's evidence. */
-export async function recordWildcardReadInOneReport(cx: CertStepContext, session: string, from: number, what: string) {
-    record(cx, await wildcardReadInOneReportCheck(cx, session, from), what);
-}
-
 /**
  * What an MRP message may carry as payload, which is what a device's message line reports: the UDP
  * channel's own budget less the Matter header and MIC the exchange subtracts from it. Derived from
@@ -454,7 +449,7 @@ export async function noFurtherSessionCheck(cx: CertStepContext, from: number, u
  * which is what "a command response" means, and changes nothing on the DUT, so a rerun does not
  * depend on what the previous one left behind.
  */
-export function systemTimeMsOf(response: unknown): number | bigint | undefined {
+function systemTimeMsOf(response: unknown): number | bigint | undefined {
     if (typeof response !== "object" || response === null || !("systemTimeMs" in response)) {
         return undefined;
     }
@@ -539,7 +534,7 @@ export function tcpSessionStep(commissioned: CommissionedRefs<"th">, session: Tc
 }
 
 /** Every live session the TH holds with `ref`. */
-export function heldSessions(cx: CertStepContext, ref: TcpRef): Promise<CertSessionInfo[]> {
+function heldSessions(cx: CertStepContext, ref: TcpRef): Promise<CertSessionInfo[]> {
     return cx.controllers.th.node(ref).sessions();
 }
 
