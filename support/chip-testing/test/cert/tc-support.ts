@@ -424,13 +424,13 @@ async function orderedRun(log: LogFollower, sequence: RegExp[], from: number, ti
 // inbound StatusResponse every time it receives the DUT's per-chunk ack — verified against a real
 // chip-all-clusters-app's log for a >1-MTU wildcard read (repeated ReportDataMessage/StatusResponse
 // pairs).
-export const REPORT_DATA_MESSAGE = /\[DMG\] ReportDataMessage =\s*$/;
+const REPORT_DATA_MESSAGE = /\[DMG\] ReportDataMessage =\s*$/;
 
 // A subscription's own reports and its SubscribeResponse both carry the id the TH minted for it,
 // printed as the block's first field in chip's own unpadded lowercase hex — captured verbatim in
 // Test_TC_IDM_4_4.yaml. Correlating on it is what attributes a report to one subscription when
 // several are live at once.
-export const SUBSCRIBE_RESPONSE_MESSAGE = /\[DMG\] SubscribeResponseMessage =\s*$/;
+const SUBSCRIBE_RESPONSE_MESSAGE = /\[DMG\] SubscribeResponseMessage =\s*$/;
 
 /**
  * What a report carries, on the line chip prints right after the subscription id.
@@ -442,8 +442,8 @@ export const SUBSCRIBE_RESPONSE_MESSAGE = /\[DMG\] SubscribeResponseMessage =\s*
  * this line is the caller's choice (`expectReportAck`'s `carriesData`) rather than always on. A
  * chip-local TC-IDM-4.1 run's device log holds six of the first kind.
  */
-export const REPORT_DATA_IBS = /(?:Attribute|Event)ReportIBs =\s*$/;
-export const SUBSCRIPTION_ID_LINE = /SubscriptionId = 0x([0-9a-f]+),\s*$/;
+const REPORT_DATA_IBS = /(?:Attribute|Event)ReportIBs =\s*$/;
+const SUBSCRIPTION_ID_LINE = /SubscriptionId = 0x([0-9a-f]+),\s*$/;
 
 /**
  * matter.js names the subscription it just minted on the response that carries it (capture 1), and the
@@ -493,7 +493,7 @@ export function escapeRegExp(text: string): string {
     return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function subscriptionIdPattern(subscriptionId: number): RegExp {
+function subscriptionIdPattern(subscriptionId: number): RegExp {
     return new RegExp(`SubscriptionId = 0x${subscriptionId.toString(16)},\\s*$`);
 }
 
@@ -504,7 +504,7 @@ export function subscriptionIdPattern(subscriptionId: number): RegExp {
 export const READ_REQUEST_MESSAGE = /\[DMG\] ReadRequestMessage =\s*$/;
 export const WRITE_REQUEST_MESSAGE = /\[DMG\] WriteRequestMessage =\s*$/;
 export const INVOKE_REQUEST_MESSAGE = /\[DMG\] InvokeRequestMessage =\s*$/;
-export const SUBSCRIBE_REQUEST_MESSAGE = /\[DMG\] SubscribeRequestMessage =\s*$/;
+const SUBSCRIBE_REQUEST_MESSAGE = /\[DMG\] SubscribeRequestMessage =\s*$/;
 
 /**
  * chip's decode dump of a `keepSubscriptions` subscribe request up to its interval bounds, as
@@ -1364,7 +1364,7 @@ const MATTERJS_GROUP_EXCHANGE = "[0-9a-f]+⇵[0-9a-f]+";
  * matter.js's line for a group message it received carrying `command`, naming the group the message was sent to
  * (`group` absent: any group). Capture 1 is the message's exchange.
  */
-export function matterjsGroupCommandReceipt(cluster: number, command: number, group?: number): RegExp {
+function matterjsGroupCommandReceipt(cluster: number, command: number, group?: number): RegExp {
     return new RegExp(
         `InteractionServer Invoke « •group#(${MATTERJS_GROUP_EXCHANGE}) .*?group: ` +
             `${group === undefined ? "\\d+" : `${group}(?!\\d)`} invokes: .*?${matterjsGroupCommandPath(cluster, command)}`,

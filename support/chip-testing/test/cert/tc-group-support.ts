@@ -50,8 +50,8 @@ export const GROUP_KEY_SET_ID = 1;
 export const IPK_KEY_SET_ID = 0;
 
 /** The Groups feature that decides whether a `ViewGroupResponse` may answer with an empty name. */
-export const GROUP_NAMES_PROPERTY = "groupNames";
-export const GROUP_NAMES_FEATURE = 1 << 0;
+const GROUP_NAMES_PROPERTY = "groupNames";
+const GROUP_NAMES_FEATURE = 1 << 0;
 
 /** `AccessControlEntryPrivilegeEnum.Operate` and `AccessControlEntryAuthModeEnum.Group`. */
 export const PRIVILEGE_OPERATE = 3;
@@ -121,7 +121,7 @@ export async function readAcl(node: CertNodeApi): Promise<unknown[]> {
  * uint64, so it reaches here as a `bigint` on one controller and a `number` on another; the comparison
  * is on the value, not the type.
  */
-export function isGroupEntry(entry: unknown): boolean {
+function isGroupEntry(entry: unknown): boolean {
     if (typeof entry !== "object" || entry === null) {
         return false;
     }

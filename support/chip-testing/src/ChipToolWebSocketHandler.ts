@@ -561,8 +561,9 @@ export class ChipToolWebSocketHandler {
     #commandHandlers?: Map<string, CommandHandler>;
     #startRecording?: () => void;
     #stopRecording?: () => { module: string; category: string; message: string }[];
+    // One buffer for every controller and node: the YAML tests wait on one subscription at a time
     readonly #subscriptionData = new Array<AttributeResponseData | EventResponseData>();
-    #subscriptionUpdated?: Observable<[void]>; // Tests basically just have one subscription, so this is fine
+    #subscriptionUpdated?: Observable<[void]>;
 
     constructor(wsPort: number) {
         this.#wsPort = wsPort;

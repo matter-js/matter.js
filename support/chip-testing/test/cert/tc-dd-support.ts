@@ -90,7 +90,7 @@ export const MDNS_TIMEOUT = Seconds(30);
  * before it touches the network, so a refusal lands in milliseconds; the budget is what keeps a
  * controller that instead went looking for the commissionee from hanging the step.
  */
-export const REFUSAL_TIMEOUT = Seconds(15);
+const REFUSAL_TIMEOUT = Seconds(15);
 
 /**
  * Bounds the cleanup's wait for an attempt that outlived {@link REFUSAL_TIMEOUT}. A commissioning
@@ -98,7 +98,7 @@ export const REFUSAL_TIMEOUT = Seconds(15);
  * in its own 3-minute budget, and that is deliberate — `CertTest`'s whole finalizer gets 2 minutes,
  * and a controller stuck that long has left the TH in a state this run cannot report on anyway.
  */
-export const REFUSAL_SETTLE_TIMEOUT = Seconds(30);
+const REFUSAL_SETTLE_TIMEOUT = Seconds(30);
 
 /**
  * The trivial passcodes § 5.1.7.1 forbids, transcribed from the plans' own step 5.a rather than taken

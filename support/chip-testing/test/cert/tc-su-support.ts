@@ -18,7 +18,7 @@ import type {
 } from "@matter/testing";
 import { type CertRunSetup, flavorFamily } from "@matter/testing";
 import { otaFastRetryEnabled } from "../../src/OtaRequestorTestInstance.js";
-import { CertCheckFailedError, record, requireId } from "./tc-support.js";
+import { CertCheckFailedError, escapeRegExp, record, requireId } from "./tc-support.js";
 
 /** `QueryStatus` of a `QueryImageResponse`, which the SU plans name by word (Matter Core § 11.20.6.6). */
 export const OtaQueryStatus = {
@@ -170,14 +170,14 @@ export function queryImageResponseLines(response: OtaQueryImageResponseRecord) {
     const chip = [/\[SWU\] QueryImageResponse:\s*$/, new RegExp(`\\[SWU\\]\\s+status: ${response.status}\\s*$`)];
 
     if (response.imageUri !== undefined) {
-        chip.push(new RegExp(`\\[SWU\\]\\s+imageURI: ${escapeForPattern(response.imageUri)}\\s*$`));
+        chip.push(new RegExp(`\\[SWU\\]\\s+imageURI: ${escapeRegExp(response.imageUri)}\\s*$`));
     }
     if (response.softwareVersion !== undefined) {
         chip.push(new RegExp(`\\[SWU\\]\\s+softwareVersion: ${response.softwareVersion}\\s*$`));
     }
     if (response.softwareVersionString !== undefined) {
         chip.push(
-            new RegExp(`\\[SWU\\]\\s+softwareVersionString: ${escapeForPattern(response.softwareVersionString)}\\s*$`),
+            new RegExp(`\\[SWU\\]\\s+softwareVersionString: ${escapeRegExp(response.softwareVersionString)}\\s*$`),
         );
     }
     if (response.updateToken !== undefined) {
@@ -187,13 +187,13 @@ export function queryImageResponseLines(response: OtaQueryImageResponseRecord) {
     // One lookahead per field, over the one line matter.js prints the decoded response on
     const fields = [`\\.otaSoftwareUpdateProvider\\.queryImage status: ${response.status}(?: |$)`];
     if (response.imageUri !== undefined) {
-        fields.push(` imageUri: ${escapeForPattern(response.imageUri)}(?: |$)`);
+        fields.push(` imageUri: ${escapeRegExp(response.imageUri)}(?: |$)`);
     }
     if (response.softwareVersion !== undefined) {
         fields.push(` softwareVersion: ${response.softwareVersion}(?: |$)`);
     }
     if (response.softwareVersionString !== undefined) {
-        fields.push(` softwareVersionString: ${escapeForPattern(response.softwareVersionString)}(?: |$)`);
+        fields.push(` softwareVersionString: ${escapeRegExp(response.softwareVersionString)}(?: |$)`);
     }
     if (response.updateToken !== undefined) {
         fields.push(` updateToken: ${response.updateToken.toLowerCase()}(?: |$)`);
@@ -203,11 +203,6 @@ export function queryImageResponseLines(response: OtaQueryImageResponseRecord) {
         chip: { ordered: chip },
         matterjs: [new RegExp(`ClientInteraction Invoke « ${fields.map(field => `(?=.*${field})`).join("")}`)],
     };
-}
-
-/** A literal that goes into a `RegExp`, with the characters a pattern would otherwise read escaped. */
-export function escapeForPattern(literal: string) {
-    return literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**
@@ -341,10 +336,10 @@ export const MAX_NON_TCP_BLOCK_SIZE = 1024;
 export const MAX_TCP_BLOCK_SIZE = 8192;
 
 /** Above this, the plan requires the granted size to be a power of two (Matter Core § 11.20.3.5). */
-export const EXACT_BLOCK_SIZE_CEILING = 128;
+const EXACT_BLOCK_SIZE_CEILING = 128;
 
 /** The plan's smallest size a receiver may name and expect back unchanged. */
-export const EXACT_BLOCK_SIZE_FLOOR = 16;
+const EXACT_BLOCK_SIZE_FLOOR = 16;
 
 /** A BDX Max Block Size is a 16-bit field (§ 11.22.5.1), so nothing above this can go on the wire. */
 const MAX_BLOCK_SIZE_CEILING = 0xffff;
@@ -402,7 +397,7 @@ export function unsupportedByDut(capability: string) {
  * lower its two-minute floors, so where it is the TH and the run asked for it, such a step costs no
  * real time. chip's requestor floors the wait at compile time, so there it costs what the plan costs.
  */
-export function otaDelaysShortened(setup: Pick<CertRunSetup, "deviceFlavor">) {
+function otaDelaysShortened(setup: Pick<CertRunSetup, "deviceFlavor">) {
     return otaFastRetryEnabled() && flavorFamily(setup.deviceFlavor) === "matterjs";
 }
 
@@ -569,7 +564,7 @@ export async function latestRequestorStateChange(node: CertNodeApi): Promise<big
  * calling {@link recordRequestorIdle} after it: that call is never reached once an earlier check has
  * failed, which drops one of the artifacts the step claims exactly on the run that needed it.
  */
-export async function requestorIdleCheck(node: CertNodeApi): Promise<CheckRecord> {
+async function requestorIdleCheck(node: CertNodeApi): Promise<CheckRecord> {
     const entries = await node.readAttributes([{ cluster: OTA_REQUESTOR_ID, attribute: UPDATE_STATE_ID }]);
     const states = entries.map(({ endpoint, value }) => `${value} on endpoint ${endpoint}`);
 

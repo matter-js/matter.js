@@ -514,7 +514,7 @@ export interface ControllerFabric {
 }
 
 /** What `controller` knows of its own fabric on the TH: the fabric index it reads and the instance name it reports. */
-export async function controllerFabricOf(node: CertNodeApi): Promise<ControllerFabric> {
+async function controllerFabricOf(node: CertNodeApi): Promise<ControllerFabric> {
     return { fabricIndex: await readOwnFabricIndex(node), instanceName: await node.operationalMdnsInstanceName() };
 }
 

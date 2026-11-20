@@ -28,7 +28,7 @@ export interface BatchPath {
  * response with this line, so a step proves the fault it armed actually fired rather than inferring it
  * from the response shape alone.
  */
-export const FAULT_INJECTED_LINE = /\[DMG\] Response to InvokeRequestMessage overridden by fault injection\s*$/;
+const FAULT_INJECTED_LINE = /\[DMG\] Response to InvokeRequestMessage overridden by fault injection\s*$/;
 
 /**
  * The descriptions chip's own `GetFaultInjectionTypeStr` prints for the faults TC-IDM-1.3 arms, which
