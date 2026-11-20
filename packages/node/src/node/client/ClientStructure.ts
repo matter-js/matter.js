@@ -628,15 +628,19 @@ export class ClientStructure {
             return;
         }
 
-        const { endpointId } = occurrence.path;
+        const { endpointId, clusterId } = occurrence.path;
 
         const endpoint = this.#endpoints.get(endpointId);
         // Delay emission until end-of-interaction (after persist + structural changes) when this endpoint received
         // attribute data this interaction, has a pending structural change, or is not yet installed — events must not
         // arrive before the endpoint exists or before its own attribute state is applied.
         if (
+            // Keeps the order the device sent, so a failed interaction emits nothing after an event it dropped
+            q.delayedEvents.length > 0 ||
             endpoint === undefined ||
             !endpoint.endpoint.lifecycle.isInstalled ||
+            // A device may send an event in an earlier chunk than the data of its cluster
+            endpoint.clusters.get(clusterId)?.behavior === undefined ||
             q.endpointsWithData.has(endpointId) ||
             this.#pendingChanges?.has(endpoint)
         ) {
