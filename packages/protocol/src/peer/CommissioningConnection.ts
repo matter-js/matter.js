@@ -35,6 +35,8 @@ const logger = Logger.get("CommissioningConnection");
 // Paired with the shorter cross-device stagger in ParallelPaseDiscovery.
 const DELAY_BEFORE_NEXT_ADDRESS = Seconds(10);
 
+type Winner = Omit<CommissioningConnection.Result, "settled">;
+
 /**
  * Attempts PASE establishment with the provided device candidates, returning the first successful session.
  *
@@ -67,7 +69,7 @@ export async function CommissioningConnection(
     let lastNonRetryableError: Error | undefined;
 
     // All outstanding PASE attempt promises.  Each resolves to the winning session or null on failure.
-    const pending = new Set<Promise<CommissioningConnection.Result | null>>();
+    const pending = new Set<Promise<Winner | null>>();
 
     // Per-device AbortControllers: fired when a PASE win or credential failure on one address of a device
     // should cancel all remaining in-flight addresses for that same device immediately.
@@ -82,7 +84,7 @@ export async function CommissioningConnection(
         return ac;
     };
 
-    let winner: CommissioningConnection.Result | undefined;
+    let winner: Winner | undefined;
 
     const queue = options.devices.flatMap(device => device.addresses.map(address => ({ device, address })));
     let holdingAttempts = 0;
@@ -133,16 +135,16 @@ export async function CommissioningConnection(
             }
         };
 
-        const p: Promise<CommissioningConnection.Result | null> = options
+        const p: Promise<Winner | null> = options
             .establishSession(candidate.address, candidate.device, { signal, onPbkdfParamResponse })
-            .then(session => {
+            .then(async session => {
                 // deviceAc fired ⇒ this device was dropped for invalid credentials, so a late success on
                 // another of its addresses must not win.
                 if (winner !== undefined || abort.aborted || deviceAc.signal.aborted) {
                     // Close this session so we don't leak a PASE channel.  A credential drop fires only
                     // deviceAc (not the outer abort), so use the composed signal's reason — abort.reason
                     // would be empty and lose the real cause.
-                    session
+                    await session
                         .initiateForceClose({
                             cause: asError(
                                 signal.reason ??
@@ -215,10 +217,11 @@ export async function CommissioningConnection(
         if (winner !== undefined) {
             // Do NOT await loser cleanup: a loser stuck in an abort-unresponsive MRP wait would age the won
             // session past the device pairing failsafe, killing it before commissioning uses it.
-            MatterAggregateError.allSettled([...pending]).catch(error =>
-                logger.warn("Error during losing PASE attempt cleanup:", asError(error)),
+            const settled = MatterAggregateError.allSettled([...pending]).then(
+                () => {},
+                error => logger.warn("Error during losing PASE attempt cleanup:", asError(error)),
             );
-            return winner;
+            return { ...winner, settled };
         }
 
         // No winner — wait for every attempt to settle so we report the most specific failure below.
@@ -313,5 +316,12 @@ export namespace CommissioningConnection {
     export interface Result {
         session: NodeSession;
         discoveryData: CommissionableDevice;
+        /**
+         * Resolves after every losing address attempt and late-session close finishes. Await after using the winner
+         * so an unresponsive loser does not delay commissioning past the device's pairing fail-safe.
+         *
+         * @see {@link CommissioningConnection}
+         */
+        settled: Promise<void>;
     }
 }

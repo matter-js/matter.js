@@ -7,7 +7,7 @@
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { Logger, Minutes } from "@matter/general";
+import { Abort, Logger, Minutes } from "@matter/general";
 import { VendorId } from "@matter/types";
 import { Discovery } from "./Discovery.js";
 import { ParallelPaseDiscovery } from "./ParallelPaseDiscovery.js";
@@ -18,10 +18,17 @@ const logger = Logger.get("CommissioningDiscovery");
  * Discovers and commissions nodes.  All discovered candidates are commissioned in parallel; the first to establish
  * PASE wins.  Discovery is stopped at PASE time and the abort signal fires to cancel remaining in-flight PASE
  * attempts.  Any candidate that establishes PASE after the winner cleans up its session without proceeding to
- * commissioning.  {@link onComplete} awaits the winner's commissioning to finish before returning.
+ * commissioning. A caller abort or {@link cancel} also cancels the winning commissioning attempt until
+ * the CommissioningComplete step starts. Its response then decides the outcome without caller cancellation.
+ * The discovery settles after the attempts and their PASE cleanup finish. Abandoned transport opens are closed
+ * best effort in the background if they later return a channel. `paseAbort` cancels candidates, not scanning;
+ * scanning continues until discovery times out.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 5.5
  */
 export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
     #options: CommissioningDiscovery.Options;
+    #commissioningAbort = new AbortController();
 
     /**
      * Resolved once: {@link CommissioningClient.PasscodeOptions} decodes a pairing code and validates
@@ -58,6 +65,13 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
         return "No device could be commissioned";
     }
 
+    protected override onCancel(reason: Error) {
+        this.#commissioningAbort.abort(reason);
+        if (!this.paseWon) {
+            super.onCancel(reason);
+        }
+    }
+
     protected override onDiscovered(node: ClientNode) {
         if (this.paseWon) return;
 
@@ -66,12 +80,15 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
         }
 
         this.registerAttempt(
-            winOnPase =>
-                node.commission({
+            async winOnPase => {
+                using paseAbort = Abort.any(this.abortSignal, this.#options.paseAbort);
+                return await node.commission({
                     ...this.#options,
-                    abort: this.abortSignal,
+                    abort: this.#commissioningAbort.signal,
+                    paseAbort: paseAbort.signal,
                     continueCommissioningAfterPase: winOnPase,
-                }),
+                });
+            },
             () => node,
         );
     }
