@@ -349,7 +349,7 @@ export class ClientInteraction<
         for await (const report of messenger.readDataReports({ abort })) {
             attributeReportCount += report.attributeReports?.length ?? 0;
             eventReportCount += report.eventReports?.length ?? 0;
-            yield InputChunk(report, leftOverData);
+            yield InputChunk(report, leftOverData, messenger.exchange.session);
             abort.throwIfAborted();
         }
 
@@ -1411,7 +1411,7 @@ export interface ClientProbeOptions {
 async function* readChunks(messenger: InteractionClientMessenger, abort: Abort) {
     const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
     for await (const report of messenger.readDataReports({ abort })) {
-        yield InputChunk(report, leftOverData);
+        yield InputChunk(report, leftOverData, messenger.exchange.session);
         abort.throwIfAborted();
     }
 }

@@ -410,6 +410,18 @@ export class SessionManager {
     }
 
     /**
+     * The zero-based position of a secure session in this manager's registration order, including after it closes.
+     * Undefined if the session never registered here. Positions compare only within this manager's lifetime, not
+     * across restarts or with another manager.
+     *
+     * @see {@link registeredSessions}
+     * @see {@link sessionsRegisteredSince}
+     */
+    registrationPositionOf(session: Session) {
+        return session instanceof NodeSession ? this.#registeredSessions.positionOf(session) : undefined;
+    }
+
+    /**
      * The open sessions with the peer of {@link session} that registered at or after it.  {@link handlePeerShutdown}
      * keeps these sessions when it receives {@link session}.  For a session that never registered, the result is empty.
      */
