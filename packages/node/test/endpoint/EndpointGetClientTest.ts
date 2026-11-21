@@ -11,6 +11,7 @@ import { EndpointBehaviorNotPresentError } from "#endpoint/errors.js";
 import type { EndpointType } from "#endpoint/type/EndpointType.js";
 import { AbortedError } from "@matter/general";
 import { MockSite, subscribedPeer } from "@matter/node/testing";
+import { MessageExchange, MessageType } from "@matter/protocol";
 
 // The peer's static type (ClientNode.RootEndpoint) does not include device behaviors such as basicInformation,
 // which are added dynamically by ClientStructure after commissioning.
@@ -88,6 +89,41 @@ describe("Endpoint.get on a client endpoint", () => {
 describe("Endpoint.getStateOf on a client endpoint", () => {
     before(() => {
         MockTime.init();
+    });
+
+    it("forwards scoped peer-loss suppression to exchange send and receive", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const peer = await subscribedPeer(controller, "peer1");
+        const exchanges = new Set<MessageExchange>();
+        const sentScopes = new Array<boolean | undefined>();
+        const receivedScopes = new Array<boolean | undefined>();
+        const { send, nextMessage } = MessageExchange.prototype;
+        MessageExchange.prototype.send = async function (type, payload, options) {
+            if (type === MessageType.ReadRequest) {
+                exchanges.add(this);
+                sentScopes.push(options?.suppressPeerLoss);
+            }
+            return await send.call(this, type, payload, options);
+        };
+        MessageExchange.prototype.nextMessage = async function (options) {
+            if (exchanges.has(this)) {
+                receivedScopes.push(options?.suppressPeerLoss);
+            }
+            return await nextMessage.call(this, options);
+        };
+        const options = { fabricFilter: true, suppressPeerLoss: true };
+        try {
+            const result = await peer.getStateOf(BasicInformationClient, ["vendorName"], options);
+
+            expect(result.vendorName).a("string");
+            expect(sentScopes).deep.equal([true]);
+            expect(receivedScopes).not.empty;
+            expect(receivedScopes.every(scope => scope === true)).true;
+        } finally {
+            MessageExchange.prototype.send = send;
+            MessageExchange.prototype.nextMessage = nextMessage;
+        }
     });
 
     it("abandons the read when its abort signal aborts", async () => {
