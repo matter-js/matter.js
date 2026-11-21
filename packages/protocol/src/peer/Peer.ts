@@ -72,6 +72,23 @@ export class Peer {
     #protocol?: NodeProtocol;
     #physicalProperties?: PhysicalDeviceProperties;
     #abort = new Abort();
+    #busyUntil = Timestamp(0);
+
+    /**
+     * Earliest time a new CASE request may be sent to this peer, on the clock of `Time.nowUs`. Assignments only
+     * extend the minimum wait. The timestamp remains valid when a connection process is cancelled.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.11.1.5
+     */
+    get busyUntil() {
+        return this.#busyUntil;
+    }
+
+    set busyUntil(until: Timestamp) {
+        if (until > this.#busyUntil) {
+            this.#busyUntil = until;
+        }
+    }
 
     /**
      * Preferred transport for outgoing connections to this peer.
