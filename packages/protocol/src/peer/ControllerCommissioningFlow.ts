@@ -1834,7 +1834,20 @@ export class ControllerCommissioningFlow {
                     breadcrumb: this.lastBreadcrumb,
                 };
             }
-            if (rootNetworkStatus !== undefined && rootNetworkStatus.length > 0 && rootNetworkStatus[0].connected) {
+            let requestedNetworkId: Bytes | undefined;
+            try {
+                requestedNetworkId = OperationalDataset.decode(
+                    this.commissioningOptions.threadNetwork.operationalDataset,
+                ).extPanId;
+            } catch (error) {
+                logger.debug("Could not decode Thread dataset to compare network identity:", error);
+            }
+            if (
+                requestedNetworkId !== undefined &&
+                rootNetworkStatus?.some(
+                    ({ networkId, connected }) => connected && Bytes.areEqual(networkId, requestedNetworkId),
+                )
+            ) {
                 logger.debug("Commissionee is already connected to the Thread network");
                 return {
                     code: CommissioningStepResultCode.Skipped,

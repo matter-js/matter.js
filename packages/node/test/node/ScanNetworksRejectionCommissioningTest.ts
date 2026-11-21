@@ -142,6 +142,16 @@ class RejectingThreadServer extends NetworkCommissioningServer.with("ThreadNetwo
     }
 }
 
+let threadNetworks = new Array<NetworkCommissioning.NetworkInfo>();
+
+class ConnectedThreadServer extends RejectingThreadServer {
+    override initialize() {
+        super.initialize();
+        this.state.maxNetworks = 2;
+        this.state.networks = threadNetworks;
+    }
+}
+
 class NetworkStepPassed extends MatterError {}
 
 /**
@@ -282,6 +292,62 @@ describe("ScanNetworks rejection during commissioning", () => {
         expect(networkCalls).deep.equals(["thread", "add"]);
         expect(error).instanceOf(NetworkStepPassed);
     });
+
+    for (const { name, networks, dataset, expected } of [
+        {
+            name: "sends AddOrUpdateThreadNetwork when the connected Thread network has another identity",
+            networks: [{ networkId: Bytes.fromHex("1112131415161718"), connected: true }],
+            dataset: "02080102030405060708",
+            expected: ["add"],
+        },
+        {
+            name: "skips Thread setup when the connected network matches the dataset",
+            networks: [{ networkId: Bytes.fromHex("0102030405060708"), connected: true }],
+            dataset: "02080102030405060708",
+            expected: [],
+        },
+        {
+            name: "checks every connected Thread network",
+            networks: [
+                { networkId: Bytes.fromHex("1112131415161718"), connected: false },
+                { networkId: Bytes.fromHex("0102030405060708"), connected: true },
+            ],
+            dataset: "02080102030405060708",
+            expected: [],
+        },
+        {
+            name: "does not skip Thread setup without a dataset identity",
+            networks: [{ networkId: Bytes.fromHex("0102030405060708"), connected: true }],
+            dataset: "01021234",
+            expected: ["add"],
+        },
+        {
+            name: "continues Thread setup when the dataset has a malformed Extended PAN ID",
+            networks: [{ networkId: Bytes.fromHex("0102030405060708"), connected: true }],
+            dataset: "020101",
+            expected: ["add"],
+        },
+        {
+            name: "configures Thread when the matching network is disconnected",
+            networks: [{ networkId: Bytes.fromHex("0102030405060708"), connected: false }],
+            dataset: "02080102030405060708",
+            expected: ["add"],
+        },
+    ]) {
+        it(name, async () => {
+            threadNetworks = networks;
+            const error = await commissionAndCaptureError(
+                site =>
+                    site.addNode(MockServerNode.RootEndpoint.with(ConnectedThreadServer), {
+                        device: OnOffLightDevice,
+                    }),
+                { threadNetwork: { operationalDataset: dataset } },
+            );
+
+            expect(networkCalls).deep.equals(expected);
+            expect(error).instanceOf(NetworkStepPassed);
+        });
+    }
 
     it("names the rejected scan when adding the network fails afterwards", async () => {
         const error = await commissionAndCaptureError(
