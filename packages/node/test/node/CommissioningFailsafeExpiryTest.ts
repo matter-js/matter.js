@@ -6,7 +6,7 @@
 
 import { GeneralCommissioningServer } from "#behaviors/general-commissioning";
 import { OnOffLightDevice } from "#devices/on-off-light";
-import { Crypto, InternalError, MockCrypto, Seconds, Time } from "@matter/general";
+import { AbortedError, causedBy, Crypto, InternalError, MockCrypto, Seconds, Time } from "@matter/general";
 import { MockServerNode, MockSite } from "@matter/node/testing";
 import {
     CommissioningError,
@@ -48,6 +48,43 @@ describe("Commissioning failsafe expiry", () => {
 
     beforeEach(() => {
         expiryRequests = 0;
+    });
+
+    it("expires the fail-safe when cancellation discards the first arm response", async () => {
+        await using site = new MockSite();
+        const abort = new AbortController();
+        class CancelFirstArm extends RecordingGeneralCommissioningServer {
+            override armFailSafe(request: GeneralCommissioning.ArmFailSafeRequest) {
+                const result = super.armFailSafe(request);
+                if (request.expiryLengthSeconds !== 0) {
+                    abort.abort(new AbortedError("Canceled first ArmFailSafe response"));
+                }
+                return result;
+            }
+        }
+        const controller = await site.addController();
+        const device = await site.addNode(MockServerNode.RootEndpoint.with(CancelFirstArm), {
+            device: OnOffLightDevice,
+        });
+        Object.assign(controller.env.get(Crypto), { entropic: true });
+        Object.assign(device.env.get(Crypto), { entropic: true });
+        const outcome = await MockTime.resolve(
+            controller.peers
+                .commission({
+                    passcode: device.state.commissioning.passcode,
+                    discriminator: device.state.commissioning.discriminator,
+                    ...{ commissioningAbort: abort.signal },
+                })
+                .then(
+                    () => undefined,
+                    error => error,
+                ),
+            { macrotasks: true },
+        );
+        expect(causedBy(outcome, AbortedError)).true;
+        expect(expiryRequests).equals(1);
+        expect(device.env.get(DeviceCommissioner).isFailsafeArmed).false;
+        expect(controller.env.get(SessionManager).getPaseSession()).undefined;
     });
 
     async function commissionWithFailingStep({ error, step = "AccessControl", closeSession = false }: Failure) {

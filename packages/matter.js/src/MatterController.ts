@@ -560,6 +560,7 @@ export class MatterController {
                 regulatoryLocation: options.commissioning.regulatoryLocation,
                 regulatoryCountryCode: options.commissioning.regulatoryCountryCode,
                 nodeId: options.commissioning.nodeId,
+                commissioningAbort: options.commissioning.commissioningAbort,
                 finalizeCommissioning,
             });
         } else {

@@ -48,8 +48,8 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
     #options: Discovery.Options;
     #resolve: (value: T) => void;
     #reject: (cause?: any) => void;
-    #settled?: Promise<void>;
     #resolveSettled?: () => void;
+    #settled = new Promise<void>(resolve => (this.#resolveSettled = resolve));
 
     constructor(owner: ServerNode, options: Discovery.Options | undefined) {
         let resolve: (value: T) => void, reject: (cause?: any) => void;
@@ -86,11 +86,23 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
         queueMicrotask(this.#initializeController.bind(this));
     }
 
+    /**
+     * Resolves after discovery and candidate cleanup finish, even if discovery rejected.
+     * May be read before or after the operation settles.
+     *
+     * @see {@link Discovery}
+     */
     get settled() {
-        if (this.#settled === undefined) {
-            this.#settled = new Promise(resolve => (this.#resolveSettled = resolve));
-        }
         return this.#settled;
+    }
+
+    /**
+     * Caller signals that stop discovery. Subclasses may add signals with a longer operation lifetime.
+     *
+     * @see {@link Discovery.Options.abort}
+     */
+    protected get callerAbortSignals(): AbortSignal[] {
+        return this.#options.abort === undefined ? [] : [this.#options.abort];
     }
 
     protected get owner(): ServerNode {
@@ -218,10 +230,7 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
      */
     #initializeController() {
         // An already aborted signal cancels synchronously, which needs subclass state to exist
-        const { abort } = this.#options;
-        if (abort !== undefined) {
-            this.#callerAbort = new Abort({ abort, handler: reason => this.cancel(reason) });
-        }
+        this.#callerAbort = new Abort({ abort: this.callerAbortSignals, handler: reason => this.cancel(reason) });
 
         let controllerInitialized;
         try {

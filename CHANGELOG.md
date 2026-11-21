@@ -42,6 +42,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: The `isSecret` element property and the `secret` decorator mark a value as secret, and `SecretRedaction` replaces secret values for logging; standard fields that carry network credentials, keys, passcodes and PINs are marked secret
 
 - @matter/node
+    - Feature: (@cwedgwood) Added `commissioningAbort` for opt-in full-flow commissioning cancellation while keeping `abort` PASE-only
+    - Fix: (@cwedgwood) Discovery's `settled` promise resolves when first read after discovery finished
     - Feature: (@RaHehl) `ZoneManagementServer` implements the zone and trigger commands and refuses requests the specification does not allow
     - Feature: (@lboue) `ThermostatServer` implements the `MatterScheduleConfiguration` (MSCH) feature with the `Schedules` and `ActiveScheduleHandle` attributes, atomic writes and `SetActiveScheduleRequest`; enable the feature with the `thermostat-msch` forward feature for certification purposes only
     - Feature: `ThermostatServer` generates the Thermostat events when the provisional `Events` feature is selected and the events are switched on with `enable()`; enable the feature with the `thermostat-events` forward feature for certification purposes only
@@ -173,6 +175,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Command and attribute write values may leave out optional struct or list fields and set nullable struct or list values to null, and `null` or a list given for a struct is refused with a clear error
 
 - @matter/protocol
+    - Feature: (@cwedgwood) Added `commissioningAbort` for commissioning requests and operational CASE connection, excluding CommissioningComplete and fail-safe cleanup
     - Fix: A device closes its commissioning window after 20 failed commissioning attempts, counting abandoned commissionings whose fail-safe ends as well as failed PASE pairings
     - Fix: An ICD advertises SAI in its operational DNS-SD record, and SII while it operates as SIT, also when the value equals the MRP default, as the specification requires
     - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair
@@ -276,6 +279,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `TlvString` writes a matching length field for strings with multi-byte characters and counts UTF-8 bytes for its length limits
 
 - @project-chip/matter.js
+    - Feature: (@cwedgwood) Forwarded `commissioningAbort` through discovery and known-address commissioning
     - Fix: Migrating a legacy controller's peers no longer fails on a stored discovery TTL that is invalid
     - Fix: (@cwedgwood) `PairedNode` waits for concurrent network state updates when it enables the subscription, so a lock conflict no longer leaves the node unsubscribed
     - Fix: Attribute write, attribute update and endpoint structure logs of the legacy controller show secret values as `(redacted)`
