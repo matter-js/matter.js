@@ -80,6 +80,37 @@ describe("ClientSubscriptions", () => {
     });
 
     describe("delete", () => {
+        it("keeps a replacement when the old subscription closes", () => {
+            const subscriptions = new ClientSubscriptions(Lifetime("test client subscriptions"));
+            const old = fakePeerSub(Seconds(10), () => {});
+            const replacement = fakePeerSub(Seconds(20), () => {});
+            subscriptions.addPeer(old);
+            subscriptions.addPeer(replacement);
+
+            subscriptions.delete(old);
+
+            expect(subscriptions.getPeer(PEER, replacement.subscriptionId)).equal(replacement);
+            subscriptions.delete(replacement);
+            expect(subscriptions.getPeer(PEER, replacement.subscriptionId)).undefined;
+        });
+
+        it("keeps the replacement timeout after the old subscription closes", async () => {
+            const subscriptions = new ClientSubscriptions(Lifetime("test client subscriptions"));
+            let timedOut = 0;
+            const old = fakePeerSub(Seconds(10), () => {});
+            const replacement = fakePeerSub(Seconds(20), () => {
+                timedOut++;
+                subscriptions.delete(replacement);
+            });
+            subscriptions.addPeer(old);
+            subscriptions.addPeer(replacement);
+            subscriptions.delete(old);
+
+            await MockTime.advance(Seconds(20));
+
+            expect(timedOut).equal(1);
+        });
+
         it("stops the timeout timer when the last subscription leaves", () => {
             const timersBefore = MockTime.timerCountFor("Subscription timeout");
             const subscriptions = new ClientSubscriptions(Lifetime("test client subscriptions"));
