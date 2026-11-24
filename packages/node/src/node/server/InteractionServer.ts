@@ -408,7 +408,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         ]);
 
         if (sessionType === SessionType.Group && suppressResponse === undefined) {
-            // A group write is never answered, so the CHIP SDK leaves the flag out
+            // A group write is never answered, so a sender may leave the flag out
             suppressResponse = true;
         }
 

@@ -14,10 +14,10 @@ import { TlvAttributeData } from "../types/TlvAttributeData.js";
 /** @see {@link MatterSpecification.v161.Core}, section 10.7.6 */
 
 export const TlvWriteRequest = TlvObject({
-    /** Do not send a response to this action.  Absent counts as false; the CHIP SDK leaves out false values. */
+    /** Do not send a response to this action.  Absent counts as false. */
     suppressResponse: TlvOptionalField(0, TlvBoolean),
 
-    /** Flag action as part of a timed write transaction.  Absent counts as false; the CHIP SDK leaves out false values. */
+    /** Flag action as part of a timed write transaction.  Absent counts as false. */
     timedRequest: TlvOptionalField(1, TlvBoolean),
 
     /** A list of one or more path and data tuples. */
