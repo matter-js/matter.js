@@ -146,7 +146,7 @@ interface UpdateQueueEntry {
 /** The reactors the per-peer observers of {@link SoftwareUpdateManager.Internal.versionUpdateObservers} feed. */
 interface PeerEventReactors {
     softwareVersionChanged(peerAddress: PeerAddress, softwareVersion: number): void;
-    startUp(peerAddress: PeerAddress, softwareVersion: number, session?: Session): void;
+    startUp(peerAddress: PeerAddress, softwareVersion: number, session?: Session, sourceSession?: Session): void;
     subscribed(peerAddress: PeerAddress): void;
 }
 
@@ -326,6 +326,7 @@ export class SoftwareUpdateManager extends Behavior {
             logger.debug(`Node ${peerAddress.toString()} is gone, dropping its OTA update state`);
             consents.delete(peerAddress);
             this.internal.pendingStartUpSuppress.delete(peerAddress);
+            this.internal.querySessionPosition.delete(peerAddress);
             knownUpdates.delete(peerAddress);
             versionUpdateObservers.get(peerAddress)?.close();
             versionUpdateObservers.delete(peerAddress);
@@ -973,7 +974,12 @@ export class SoftwareUpdateManager extends Behavior {
         const startUpEvent = peer.eventsOf(BasicInformationClient).startUp;
         if (!observers.observes(startUpEvent)) {
             observers.on(startUpEvent, ({ softwareVersion }, context?: ActionContext) =>
-                reactors.startUp(peerAddress, softwareVersion, hasRemoteActor(context) ? context.session : undefined),
+                reactors.startUp(
+                    peerAddress,
+                    softwareVersion,
+                    hasRemoteActor(context) ? context.session : undefined,
+                    context?.eventSourceSession?.deref(),
+                ),
             );
         }
 
@@ -1010,8 +1016,11 @@ export class SoftwareUpdateManager extends Behavior {
                     peerAddress: PeerAddress,
                     softwareVersion: number,
                     session?: Session,
+                    sourceSession?: Session,
                 ) {
-                    this.#mutate(() => this.#onSoftwareVersionChanged(peerAddress, softwareVersion, true, session));
+                    this.#mutate(() =>
+                        this.#onSoftwareVersionChanged(peerAddress, softwareVersion, true, session, sourceSession),
+                    );
                 }),
                 subscribed: this.callback(function (this: SoftwareUpdateManager, peerAddress: PeerAddress) {
                     this.#mutate(() => this.#onSubscribedAfterApply(peerAddress));
@@ -1031,13 +1040,23 @@ export class SoftwareUpdateManager extends Behavior {
      * the update; one before, as in `WaitForApply`, resets it.  The update also fails when the node resubscribes
      * below the target after its apply, see {@link #onSubscribedAfterApply}, when it queries again below the version
      * it applied, see {@link admitQuery}, or when its query finds no image, see {@link dropUndeliverableUpdate}.
+     *
+     * StartUp delivered on a session registered no later than the newest accepted query's session cannot reset or
+     * finish the attempt, even after a replacement attempt. An event first delivered on a later-registered session
+     * still follows normal restart handling. Source provenance does not change remote authority.
+     * Missing or collected weak provenance retains the previous StartUp handling.
      */
     #onSoftwareVersionChanged(
         peerAddress: PeerAddress,
         newVersion: number,
         isStartUp = false,
         currentSession?: Session,
+        sourceSession?: Session,
     ) {
+        if (isStartUp && this.#isStaleStartUp(peerAddress, sourceSession ?? currentSession)) {
+            return;
+        }
+
         if (isStartUp) {
             const suppressedSessionId = this.internal.pendingStartUpSuppress.get(peerAddress);
             if (suppressedSessionId !== undefined) {
@@ -1765,11 +1784,23 @@ export class SoftwareUpdateManager extends Behavior {
      * offer, see {@link #endAttempt}, and links the attempt to the peer's queued update when it offers the update's
      * target, see {@link #linkAttempt}.
      *
+     * The provider supplies the query's session. Its {@link SessionManager.registrationPositionOf registration
+     * position} is retained until the peer is removed, including across replacement attempts and session close.
+     * A retry on an earlier-registered live session does not move the boundary backward. Registration order avoids
+     * creation-time ties and sessions created before their delayed handshake finishes.
+     *
      * @internal
      */
-    offerAnswered(attempt: OtaUpdateAttempt) {
+    offerAnswered(attempt: OtaUpdateAttempt, session?: Session) {
         if (attempt.ended) {
             return;
+        }
+        if (session !== undefined) {
+            const position = this.env.get(SessionManager).registrationPositionOf(session);
+            const latest = this.internal.querySessionPosition.get(attempt.peerAddress);
+            if (position !== undefined && (latest === undefined || position > latest)) {
+                this.internal.querySessionPosition.set(attempt.peerAddress, position);
+            }
         }
         this.#mutate(() => {
             this.#answerAttempt(attempt);
@@ -1877,6 +1908,25 @@ export class SoftwareUpdateManager extends Behavior {
                 this.#suppressNextStartUp(peerAddress, session.id);
             }
         });
+        return true;
+    }
+
+    #isStaleStartUp(peerAddress: PeerAddress, eventSession?: Session) {
+        const queryPosition = this.internal.querySessionPosition.get(peerAddress);
+        if (eventSession === undefined || queryPosition === undefined) {
+            return false;
+        }
+        const eventPosition = this.env.get(SessionManager).registrationPositionOf(eventSession);
+        if (eventPosition === undefined || eventPosition > queryPosition) {
+            return false;
+        }
+        if (this.internal.pendingStartUpSuppress.get(peerAddress) === eventSession.id) {
+            this.internal.pendingStartUpSuppress.delete(peerAddress);
+        }
+        logger.debug(
+            `Ignoring StartUp from ${peerAddress.toString()} on session ${eventSession.id}: ` +
+                "its session registered no later than the current OTA query session",
+        );
         return true;
     }
 
@@ -2264,6 +2314,9 @@ export namespace SoftwareUpdateManager {
          * or cleaned up when the update is removed from the queue.
          */
         pendingStartUpSuppress = new PeerAddressMap<number>();
+
+        /** Newest accepted-query session registration position per peer. */
+        querySessionPosition = new PeerAddressMap<number>();
 
         rebootResubscribeArmer?: RebootResubscribeArmer;
 

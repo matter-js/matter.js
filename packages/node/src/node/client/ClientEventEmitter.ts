@@ -53,11 +53,15 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
             return;
         }
 
-        await node.act(agent => {
-            // Current ActionContext is not writable, could skip act() but meh, see TODO above
-            //agent.context.priority = occurrence.priority;
-            return target.event.emit(occurrence.value, agent.context);
-        });
+        await node.act(
+            "client-event",
+            agent => {
+                // Current ActionContext is not writable, could skip act() but meh, see TODO above
+                //agent.context.priority = occurrence.priority;
+                return target.event.emit(occurrence.value, agent.context);
+            },
+            { eventSourceSession: occurrence.eventSourceSession },
+        );
 
         const behavior = target.endpoint.behaviors.supported[names.cluster];
         if (behavior) {

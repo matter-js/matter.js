@@ -5,6 +5,7 @@
  */
 
 import type { ResultStatus } from "#action/response/ResultStatus.js";
+import type { Session } from "#session/Session.js";
 import type {
     AttributeId,
     AttributePath,
@@ -70,6 +71,15 @@ export namespace ReadResult {
         kind: "event-value";
         path: ConcreteEventPath;
         number: EventNumber;
+
+        /**
+         * Transport session that delivered this occurrence, not an authorization context. The reference is weak
+         * because delivery may be deferred beyond the session's lifetime. Decoders attach this as a non-enumerable
+         * property; it is not part of the event payload or persistent data.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 10.6.9
+         */
+        eventSourceSession?: WeakRef<Session>;
 
         /**
          * Collapsed numeric form of whichever wire timestamp variant the publisher sent. For a delta variant this is

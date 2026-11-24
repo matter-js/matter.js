@@ -302,7 +302,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             imageUri = httpsImageUri;
         }
 
-        manager.offerAnswered(attempt);
+        manager.offerAnswered(attempt, session);
         return {
             status: OtaSoftwareUpdateProvider.Status.UpdateAvailable,
             imageUri,

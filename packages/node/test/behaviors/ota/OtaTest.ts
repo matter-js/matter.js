@@ -35,6 +35,7 @@ import {
     Hours,
     ImplementationError,
     InternalError,
+    LogLevel,
     MaybePromise,
     Millis,
     Minutes,
@@ -45,10 +46,12 @@ import {
     Time,
     Timestamp,
 } from "@matter/general";
-import { MockSite, subscribedPeer } from "@matter/node/testing";
+import { captureLog, MockSite, subscribedPeer } from "@matter/node/testing";
 import {
+    assertRemoteActor,
     BdxProtocol,
     BdxSession,
+    ClientInteraction,
     ClientSubscriptions,
     FabricAuthority,
     FileDesignator,
@@ -58,12 +61,17 @@ import {
     OtaUpdateSource,
     PeerAddress,
     PersistedFileDesignator,
+    ProtocolMocks,
+    Read,
+    ReadResult,
     RebootResubscribeArmer,
     SecureSession,
+    Session,
     SessionManager,
     SustainedSubscription,
 } from "@matter/protocol";
-import { FabricIndex, NodeId, VendorId } from "@matter/types";
+import { AttributeId, EndpointNumber, EventId, FabricIndex, NodeId, VendorId } from "@matter/types";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 import {
@@ -2223,6 +2231,502 @@ describe("Ota", () => {
         const requeued = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
         expect(requeued.map(({ targetSoftwareVersion }) => targetSoftwareVersion)).deep.equals([targetSoftwareVersion]);
     }).timeout(10_000);
+
+    describe("retained StartUp", () => {
+        it("keeps a transfer when a bootstrap Read delivers StartUp after QueryImage and BDX start", async () => {
+            const data = { expectedOtaImage: Bytes.fromHex("") };
+            const { TestOtaRequestorServer, applyUpdatePromise } = InstrumentedOtaRequestorServer(
+                { requestUserConsent: false },
+                data,
+            );
+            const { site, device, controller, otaProvider } = await initOtaSite(
+                OtaSoftwareUpdateProviderServer,
+                TestOtaRequestorServer,
+            );
+            await using _site = site;
+            const peer = await subscribedPeer(controller, "peer1");
+            const peerAddress = peer.peerAddress!;
+            const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+            data.expectedOtaImage = Bytes.of(otaImage.image);
+            const { promise: buffered, resolver: reportBuffered } = createPromise<void>();
+            const { promise: release, resolver: releaseRead } = createPromise<void>();
+            const { promise: started, resolver: transferStarted } = createPromise<BdxSession>();
+            controller.env.get(BdxProtocol).sessionStarted.once(transferStarted);
+            const source = controller.env.get(SessionManager).maybeSessionFor(peerAddress);
+            const readAbort = new AbortController();
+            const read = ClientInteraction.prototype.read;
+            ClientInteraction.prototype.read = async function* (request, session, abort): ReadResult {
+                for await (const chunk of read.call(this, request, session, abort)) {
+                    if (request.abort !== readAbort.signal) {
+                        yield chunk;
+                        continue;
+                    }
+                    const reports = new Array<ReadResult.Report>();
+                    for await (const report of chunk) {
+                        reports.push(report);
+                    }
+                    yield reports;
+                    if (reports.some(report => report.kind === "event-value")) {
+                        reportBuffered();
+                        await release;
+                    }
+                }
+            };
+            const path = { endpointId: EndpointNumber(0), clusterId: BasicInformation.id };
+            const drainRead = async () => {
+                const request = {
+                    ...Read({
+                        attributes: [
+                            { ...path, attributeId: AttributeId(BasicInformation.attributes.softwareVersion.id) },
+                        ],
+                        events: [{ ...path, eventId: EventId(BasicInformation.events.startUp.id) }],
+                    }),
+                    includeKnownVersions: true,
+                    emitEvents: true,
+                    abort: readAbort.signal,
+                };
+                for await (const _chunk of peer.interaction.read(request));
+            };
+            const reading = drainRead();
+            try {
+                await MockTime.resolve(buffered);
+                await otaProvider.act(agent =>
+                    agent
+                        .get(SoftwareUpdateManager)
+                        .addUpdateConsent(peerAddress, { vendorId, productId, targetSoftwareVersion }),
+                );
+                const transfer = await MockTime.resolve(started);
+                expect(transfer.session).equals(source);
+                const queued = () => otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+                expect((await queued())[0].lastProgressStatus).equals(OtaUpdateStatus.Downloading);
+                releaseRead();
+                await MockTime.resolve(reading);
+
+                expect((await queued())[0].lastProgressStatus).equals(OtaUpdateStatus.Downloading);
+                expect((await queued())[0].status).equals("in-progress");
+            } finally {
+                releaseRead();
+                ClientInteraction.prototype.read = read;
+                await MockTime.resolve(reading);
+                await MockTime.resolve(applyUpdatePromise);
+            }
+        });
+
+        async function queuedUpdate() {
+            const { site, device, controller, otaProvider } = await initOtaSite(
+                OtaSoftwareUpdateProviderServer,
+                OtaSoftwareUpdateRequestorServer,
+            );
+            const peer = await subscribedPeer(controller, "peer1");
+            const peerAddress = PeerAddress(peer.state.commissioning.peerAddress!);
+            const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+            const outcomes = new Array<"done" | "failed">();
+            await otaProvider.act(agent => {
+                const manager = agent.get(SoftwareUpdateManager);
+                manager.internal.announcements!.announceOtaProvider = async () => {};
+                manager.events.updateDone.on(() => {
+                    outcomes.push("done");
+                });
+                manager.events.updateFailed.on(() => {
+                    outcomes.push("failed");
+                });
+            });
+            await otaProvider.act(agent =>
+                agent
+                    .get(SoftwareUpdateManager)
+                    .addUpdateConsent(peerAddress, { vendorId, productId, targetSoftwareVersion }),
+            );
+            await MockTime.macrotasks;
+
+            let sessionId = 100;
+            const sessions = otaProvider.env.get(SessionManager);
+            const createSession = (id = sessionId++) =>
+                new ProtocolMocks.NodeSession({
+                    manager: sessions,
+                    delayManagerRegistration: true,
+                    index: id,
+                    peerNodeId: peerAddress.nodeId,
+                });
+            const registerSession = (source: NodeSession) => {
+                sessions.registeredSessions.add(source);
+                return source;
+            };
+            const session = async (id = sessionId++) => {
+                await MockTime.advance(Millis(1));
+                return registerSession(createSession(id));
+            };
+            let attempt: OtaUpdateAttempt | undefined;
+            const query = (source: Session) =>
+                otaProvider.act(agent => {
+                    const manager = agent.get(SoftwareUpdateManager);
+                    attempt = beginAttempt(manager, peerAddress);
+                    const token = Bytes.fromHex((++lastUpdateToken).toString(16).padStart(16, "0"));
+                    expect(manager.offerUpdate(attempt, token, targetSoftwareVersion)).true;
+                    manager.reportAttemptStatus(attempt, OtaUpdateStatus.Querying);
+                    manager.offerAnswered(attempt, source);
+                    manager.endQuery(attempt);
+                });
+            const status = (value: OtaUpdateStatus) =>
+                otaProvider.act(agent => {
+                    const manager = agent.get(SoftwareUpdateManager);
+                    if (attempt === undefined || attempt.ended) {
+                        attempt = deliverOffer(manager, peerAddress, targetSoftwareVersion);
+                    }
+                    manager.reportAttemptStatus(attempt, value);
+                });
+            const startUp = (source?: Session, softwareVersion = targetSoftwareVersion - 1) =>
+                peer.act(agent => {
+                    const context = {
+                        ...agent.context,
+                        eventSourceSession: source === undefined ? undefined : new WeakRef(source),
+                    };
+                    return peer.eventsOf(BasicInformationClient).startUp.emit({ softwareVersion }, context);
+                });
+            const queued = () => otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+            const suppress = (id: number) =>
+                otaProvider.act(agent =>
+                    agent.get(SoftwareUpdateManager).internal.pendingStartUpSuppress.set(peerAddress, id),
+                );
+            const suppression = () =>
+                otaProvider.act(agent =>
+                    agent.get(SoftwareUpdateManager).internal.pendingStartUpSuppress.get(peerAddress),
+                );
+
+            return {
+                site,
+                peer,
+                otaProvider,
+                peerAddress,
+                targetSoftwareVersion,
+                outcomes,
+                createSession,
+                registerSession,
+                sessions,
+                session,
+                query,
+                status,
+                startUp,
+                queued,
+                suppress,
+                suppression,
+            };
+        }
+
+        for (const protocol of [
+            OtaSoftwareUpdateProvider.DownloadProtocol.BdxSynchronous,
+            OtaSoftwareUpdateProvider.DownloadProtocol.Https,
+        ]) {
+            it(`records an accepted ${OtaSoftwareUpdateProvider.DownloadProtocol[protocol]} query before BDX starts`, async () => {
+                const { promise: accepted, resolver: accept } = createPromise<Session>();
+                class QueryingProvider extends OtaSoftwareUpdateProviderServer {
+                    protected override async checkUpdateAvailable(
+                        request: OtaSoftwareUpdateProvider.QueryImageRequest,
+                        peerAddress: PeerAddress,
+                    ) {
+                        const details = await super.checkUpdateAvailable(request, peerAddress);
+                        return details === undefined
+                            ? undefined
+                            : { ...details, httpsUri: "https://example.invalid/update" };
+                    }
+
+                    override async queryImage(request: OtaSoftwareUpdateProvider.QueryImageRequest) {
+                        const response = await super.queryImage({ ...request, protocolsSupported: [protocol] });
+                        if (response.status === OtaSoftwareUpdateProvider.Status.UpdateAvailable) {
+                            assertRemoteActor(this.context);
+                            accept(this.context.session);
+                        }
+                        return { status: OtaSoftwareUpdateProvider.Status.NotAvailable };
+                    }
+                }
+
+                const { site, device, controller, otaProvider, otaRequestor } = await initOtaSite(
+                    QueryingProvider,
+                    OtaSoftwareUpdateRequestorServer,
+                );
+                await using _site = site;
+                const peer = await subscribedPeer(controller, "peer1");
+                const peerAddress = PeerAddress(peer.state.commissioning.peerAddress!);
+                const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+                const { promise: idle, resolver: returnedIdle } = createPromise<void>();
+                otaRequestor.eventsOf(OtaSoftwareUpdateRequestorServer).stateTransition.on(({ newState }) => {
+                    if (newState === OtaSoftwareUpdateRequestor.UpdateState.Idle) {
+                        returnedIdle();
+                    }
+                });
+                await otaProvider.act(agent =>
+                    agent
+                        .get(SoftwareUpdateManager)
+                        .addUpdateConsent(peerAddress, { vendorId, productId, targetSoftwareVersion }),
+                );
+                const source = await MockTime.resolve(accepted);
+                await MockTime.resolve(idle);
+                const before = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+                expect(before[0].lastProgressStatus).equals(OtaUpdateStatus.Querying);
+
+                await peer.act(agent =>
+                    peer
+                        .eventsOf(BasicInformationClient)
+                        .startUp.emit(
+                            { softwareVersion: targetSoftwareVersion - 1 },
+                            { ...agent.context, eventSourceSession: new WeakRef(source) },
+                        ),
+                );
+
+                expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates)).deep.equals(
+                    before,
+                );
+            });
+        }
+
+        it("keeps Downloading progress when StartUp arrives on the accepted query's session", async () => {
+            const f = await queuedUpdate();
+            await using _site = f.site;
+            const source = await f.session();
+            await f.query(source);
+            await f.status(OtaUpdateStatus.Downloading);
+            const before = await f.queued();
+
+            using log = captureLog(LogLevel.DEBUG);
+            await f.startUp(source);
+
+            expect(await f.queued()).deep.equals(before);
+            expect(f.outcomes).deep.equals([]);
+            const ignored = log.messages.filter(message => message.includes("Ignoring StartUp from"));
+            expect(ignored).length(1);
+            expect(ignored[0]).contains(" DEBUG ");
+            expect(ignored[0]).contains(
+                `Ignoring StartUp from ${f.peerAddress.toString()} on session ${source.id}: ` +
+                    "its session registered no later than the current OTA query session",
+            );
+        });
+
+        for (const tied of [true, false]) {
+            it(`resets on a later registration with ${tied ? "tied" : "earlier"} creation time`, async () => {
+                const f = await queuedUpdate();
+                await using _site = f.site;
+                const delayed = f.createSession();
+                if (!tied) {
+                    await MockTime.advance(Millis(1));
+                }
+                const query = f.registerSession(f.createSession());
+                f.registerSession(delayed);
+                expect(delayed.createdAt <= query.createdAt).true;
+                if (tied) {
+                    expect(delayed.createdAt).equals(query.createdAt);
+                }
+                await f.query(query);
+                await f.status(OtaUpdateStatus.Downloading);
+
+                await f.startUp(delayed);
+                await MockTime.macrotasks;
+
+                expect((await f.queued())[0].lastProgressStatus).undefined;
+                expect(f.outcomes).deep.equals([]);
+            });
+        }
+
+        it("retains the boundary after both the event and query sessions close", async () => {
+            const f = await queuedUpdate();
+            await using _site = f.site;
+            const older = await f.session();
+            const query = await f.session();
+            await f.query(query);
+            await f.status(OtaUpdateStatus.Downloading);
+            const before = await f.queued();
+            await older.initiateClose();
+            await query.initiateClose();
+            expect(f.sessions.registeredSessions.has(older)).false;
+            expect(f.sessions.registeredSessions.has(query)).false;
+
+            await f.startUp(older);
+            await f.startUp(query);
+
+            expect(await f.queued()).deep.equals(before);
+            expect(f.outcomes).deep.equals([]);
+        });
+
+        it("retains previous handling when the delivering session never registered", async () => {
+            const f = await queuedUpdate();
+            await using _site = f.site;
+            const unregistered = f.createSession();
+            await f.query(await f.session());
+            await f.status(OtaUpdateStatus.Downloading);
+
+            await f.startUp(unregistered);
+            await MockTime.macrotasks;
+
+            expect((await f.queued())[0].lastProgressStatus).undefined;
+        });
+
+        for (const status of [OtaUpdateStatus.Downloading, OtaUpdateStatus.Applying]) {
+            it(`keeps ${OtaUpdateStatus[status]} after a replacement query when an earlier StartUp arrives`, async () => {
+                const f = await queuedUpdate();
+                await using _site = f.site;
+                const first = await f.session();
+                const second = await f.session();
+                await f.query(first);
+                await f.status(OtaUpdateStatus.Cancelled);
+                await f.query(second);
+                await f.status(status);
+                const before = await f.queued();
+
+                await f.startUp(first);
+
+                expect(await f.queued()).deep.equals(before);
+                expect(f.outcomes).deep.equals([]);
+            });
+
+            it(`does not move the query boundary backward on an older live retry while ${OtaUpdateStatus[status]}`, async () => {
+                const f = await queuedUpdate();
+                await using _site = f.site;
+                const older = await f.session();
+                const newer = await f.session();
+                await f.query(newer);
+                await f.status(OtaUpdateStatus.Cancelled);
+                await f.query(older);
+                await f.status(status);
+                const before = await f.queued();
+
+                await f.startUp(newer);
+
+                expect(await f.queued()).deep.equals(before);
+                expect(f.outcomes).deep.equals([]);
+            });
+        }
+
+        it("ignores an older never-queried session, but resets and retries on a newer session", async () => {
+            const f = await queuedUpdate();
+            await using _site = f.site;
+            const older = await f.session();
+            const query = await f.session();
+            const newer = await f.session(query.id);
+            await f.query(query);
+            await f.status(OtaUpdateStatus.Downloading);
+            const before = await f.queued();
+
+            await f.startUp(older);
+            expect(await f.queued()).deep.equals(before);
+
+            await f.startUp(newer);
+            await MockTime.macrotasks;
+            const reset = await f.queued();
+            expect(reset).length(1);
+            expect(reset[0].status).equals("in-progress");
+            expect(reset[0].lastProgressStatus).undefined;
+            expect(f.outcomes).deep.equals([]);
+
+            await f.query(newer);
+            await f.status(OtaUpdateStatus.Downloading);
+            const retry = await f.queued();
+            await f.startUp(query);
+            await f.startUp(newer);
+            expect(await f.queued()).deep.equals(retry);
+        });
+
+        for (const status of [OtaUpdateStatus.WaitForApply, OtaUpdateStatus.Applying]) {
+            it(`handles a later boot from ${OtaUpdateStatus[status]}`, async () => {
+                const f = await queuedUpdate();
+                await using _site = f.site;
+                const source = await f.session();
+                const reboot = await f.session();
+                await f.query(source);
+                await f.status(status);
+                const before = await f.queued();
+
+                await f.startUp(source);
+                expect(await f.queued()).deep.equals(before);
+                expect(f.outcomes).deep.equals([]);
+
+                await f.startUp(reboot);
+                if (status === OtaUpdateStatus.Applying) {
+                    expect(await f.queued()).length(0);
+                    expect(f.outcomes).deep.equals(["failed"]);
+                } else {
+                    await MockTime.macrotasks;
+                    expect((await f.queued())[0].lastProgressStatus).undefined;
+                    expect(f.outcomes).deep.equals([]);
+                }
+            });
+        }
+
+        it("does not complete from stale StartUp even when its version reaches the target", async () => {
+            const f = await queuedUpdate();
+            await using _site = f.site;
+            const source = await f.session();
+            await f.query(source);
+            await f.status(OtaUpdateStatus.Downloading);
+            const before = await f.queued();
+
+            await f.startUp(source, f.targetSoftwareVersion + 1);
+            expect(await f.queued()).deep.equals(before);
+            expect(f.outcomes).deep.equals([]);
+
+            await f.startUp(await f.session(), f.targetSoftwareVersion);
+            expect(await f.queued()).length(0);
+            expect(f.outcomes).deep.equals(["done"]);
+        });
+
+        it("consumes only the stale event's matching suppression record", async () => {
+            const f = await queuedUpdate();
+            await using _site = f.site;
+            const source = await f.session();
+            const newer = await f.session();
+            await f.query(source);
+            await f.status(OtaUpdateStatus.Downloading);
+            const before = await f.queued();
+
+            await f.suppress(source.id);
+            await f.startUp(source);
+            expect(await f.suppression()).undefined;
+            expect(await f.queued()).deep.equals(before);
+
+            await f.suppress(newer.id);
+            await f.startUp(source);
+            expect(await f.suppression()).equals(newer.id);
+            expect(await f.queued()).deep.equals(before);
+        });
+
+        it("retains the existing suppression fallback when StartUp has no provenance", async () => {
+            const f = await queuedUpdate();
+            await using _site = f.site;
+            const source = await f.session();
+            await f.query(source);
+            await f.status(OtaUpdateStatus.Downloading);
+            const before = await f.queued();
+            await f.otaProvider.act(agent => {
+                const sessions = agent.env.get(SessionManager);
+                const original = sessions.maybeSessionFor.bind(sessions);
+                sessions.maybeSessionFor = address =>
+                    PeerAddress.is(address, f.peerAddress) ? source : original(address);
+            });
+
+            await f.suppress(source.id);
+            await f.startUp();
+
+            expect(await f.queued()).deep.equals(before);
+            expect(await f.suppression()).undefined;
+        });
+
+        it("keeps software-version changes and missing-provenance StartUp handling unchanged", async () => {
+            const f = await queuedUpdate();
+            await using _site = f.site;
+            await f.query(await f.session());
+            await f.status(OtaUpdateStatus.Downloading);
+
+            await f.startUp();
+            await MockTime.macrotasks;
+            expect((await f.queued())[0].lastProgressStatus).undefined;
+
+            await f.status(OtaUpdateStatus.Downloading);
+            await f.peer.act(agent =>
+                f.peer
+                    .eventsOf(BasicInformationClient)
+                    .softwareVersion$Changed.emit(f.targetSoftwareVersion, f.targetSoftwareVersion - 1, agent.context),
+            );
+            expect(await f.queued()).length(0);
+            expect(f.outcomes).deep.equals(["done"]);
+        });
+    });
 
     /**
      * Queues an update the device has been allowed to apply but that it never acts on: it does not query again and

@@ -7,6 +7,7 @@
 import { ReadResult } from "#action/response/ReadResult.js";
 import { decodeAttributeValueWithSchema, decodeUnknownAttributeValue } from "#interaction/AttributeDataDecoder.js";
 import { decodeUnknownEventValue } from "#interaction/EventDataDecoder.js";
+import type { Session } from "#session/Session.js";
 import { Diagnostic, Logger, UnexpectedDataError } from "@matter/general";
 import {
     AcceptedCommandList,
@@ -162,13 +163,22 @@ interface AttributeDataGroup {
  * Tag compression resolves against the last fully-qualified path per §10.6.2.1. When the report ends mid-chunked-array
  * and `moreChunkedMessages` is set, the trailing entries are stashed in `leftoverAttributeReports` for the next
  * report. See #3785 for event-order semantics.
+ *
+ * When provided, {@link sourceSession} is attached weakly to event occurrences for deferred local delivery. It does
+ * not change their payload or authorization.
  */
 export async function* InputChunk(
     input: DataReport,
     leftoverAttributeReports?: TypeFromSchema<typeof TlvAttributeReport>[],
+    sourceSession?: Session,
 ): AsyncGenerator<ReadResult.Report> {
     yield* emitAttributes(input, leftoverAttributeReports);
-    yield* emitEvents(input);
+    for (const event of emitEvents(input)) {
+        if (sourceSession !== undefined && event.kind === "event-value") {
+            Object.defineProperty(event, "eventSourceSession", { value: new WeakRef(sourceSession) });
+        }
+        yield event;
+    }
 }
 
 function* emitAttributes(

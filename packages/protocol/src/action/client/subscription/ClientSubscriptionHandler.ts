@@ -174,7 +174,7 @@ async function* processReports(
 ): ReadResult {
     const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
 
-    yield InputChunk(initialReport, leftOverData);
+    yield InputChunk(initialReport, leftOverData, messenger.exchange.session);
 
     const { subscriptionId } = initialReport;
 
@@ -198,6 +198,6 @@ async function* processReports(
             return;
         }
 
-        yield InputChunk(report, leftOverData);
+        yield InputChunk(report, leftOverData, messenger.exchange.session);
     }
 }
