@@ -16,6 +16,7 @@ import {
     NetworkError,
     ServerAddress,
     ServerAddressBle,
+    Seconds,
     Time,
     Transport,
     createPromise,
@@ -31,6 +32,9 @@ import {
 import { BleScanner } from "./BleScanner.js";
 
 const logger = Logger.get("BleChannel");
+
+/** Longest time a peripheral stays reserved for a connection attempt that was given up but did not settle. */
+const ABANDONED_ATTEMPT_HOLD = Seconds(30);
 
 export class ReactNativeBleCentralInterface implements Transport {
     #ble: Ble;
@@ -84,30 +88,71 @@ export class ReactNativeBleCentralInterface implements Transport {
             onMatterMessageListener,
             attempt.signal,
         );
+        const releaseReservation = () => {
+            if (this.#attempts.get(peripheralAddress) === attempt) {
+                this.#attempts.delete(peripheralAddress);
+            }
+            attempt.close();
+        };
         try {
-            return await Abort.attempt(attempt, connecting);
+            const channel = await Abort.attempt(attempt, connecting);
+            releaseReservation();
+            return channel;
         } catch (error) {
             this.#disconnect(peripheral);
             if (!attempt.aborted) {
+                releaseReservation();
                 throw error;
             }
-            connecting.then(
-                channel =>
-                    channel
-                        .close()
-                        .catch(closeError =>
-                            logger.debug(
-                                `Error closing the channel to ${peripheralAddress} after the abort:`,
-                                closeError,
-                            ),
-                        ),
-                connectError => logger.debug(`Abandoned connection to ${peripheralAddress} failed:`, connectError),
-            );
+            this.#finishAbandonedAttempt(peripheralAddress, attempt, peripheral, connecting, releaseReservation);
             throw new AbortedError(`Connection to peripheral ${peripheralAddress} was aborted`, { cause: error });
-        } finally {
-            this.#attempts.delete(peripheralAddress);
-            attempt.close();
         }
+    }
+
+    /**
+     * Keeps the peripheral reserved for an attempt {@link openChannel} gave up on until its native setup settled, so a
+     * new attempt cannot overlap it, and releases any link the attempt still acquired.  The reservation ends after
+     * {@link ABANDONED_ATTEMPT_HOLD} at the latest, in case the platform never settles a canceled connection.  A link
+     * the attempt acquires after that is left alone, because its device ID may then belong to a newer attempt.
+     */
+    #finishAbandonedAttempt(
+        peripheralAddress: string,
+        attempt: Abort,
+        peripheral: Device,
+        connecting: Promise<Channel<Bytes>>,
+        releaseReservation: () => void,
+    ) {
+        const hold = Time.getTimer("Abandoned BLE connection attempt", ABANDONED_ATTEMPT_HOLD, () => {
+            logger.debug(
+                `Abandoned connection attempt to ${peripheralAddress} did not settle, releasing the peripheral`,
+            );
+            releaseReservation();
+        }).start();
+
+        // The cleanup acts on the device ID, so once the reservation is gone it could end a newer attempt's link
+        const stillReserved = () => this.#attempts.get(peripheralAddress) === attempt;
+
+        connecting
+            .then(
+                async channel => {
+                    if (stillReserved()) {
+                        await channel.close();
+                    }
+                },
+                connectError => {
+                    logger.debug(`Abandoned connection to ${peripheralAddress} failed:`, connectError);
+                    if (stillReserved()) {
+                        this.#disconnect(peripheral);
+                    }
+                },
+            )
+            .catch(closeError =>
+                logger.debug(`Error closing the channel to ${peripheralAddress} after the abort:`, closeError),
+            )
+            .finally(() => {
+                hold.stop();
+                releaseReservation();
+            });
     }
 
     /** Ends the link to the peripheral, whether it is connected or still connecting. */

@@ -275,6 +275,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/react-native
     - Fix: `openChannel()` of the BLE transport honors the abort signal and disconnects when the channel setup fails
+    - Fix: `ReactNativeBle.centralInterface` returns the same interface on every access, so the controller removes it again when it goes offline
 
 - @matter/testing
     - Feature: `ControllerAdapterOptions.sustainedSubscription` keeps the controller's own subscription to each commissioned node, set for a `certTest()` that declares `sustained-subscription`; `step()` refuses that capability
