@@ -1270,6 +1270,112 @@ describe("DriftWatcher", () => {
         });
     });
 
+    describe("judges a report that arrives while a pass is open", () => {
+        it("only once the pass is disposed", async () => {
+            await using site = new MockSite();
+            const { device, peer } = await pair(site);
+            const kind = new LabelKind();
+            const host = new FakeHost();
+            await commitLabel(peer, "name", { attribute: "nodeLabel", value: "ours" });
+            const watcher = newWatcher(peer, registryWith(kind), host);
+            const pass = watcher.startPass();
+
+            await report(device, peer, "nodeLabel", "theirs");
+            await MockTime.advance(Seconds(30));
+            expect(kind.evaluations).deep.equals([]);
+            expect(host.passes).deep.equals([]);
+
+            pass.result = { verified: new Set(), drifted: new Set(), unread: new Map() };
+            const endedAt = Time.nowUs;
+            pass[Symbol.dispose]();
+            expect(kind.evaluations.length).equals(1);
+            await MockTime.advance(Seconds(30));
+
+            expect(host.passes.map(handOver => [...handOver.suspects])).deep.equals([[LABEL_KEY]]);
+            expect(host.last.at - endedAt).equals(QUIET);
+        });
+
+        it("after the wait the pass sets: the quiet period after a pass that read everything", async () => {
+            await using site = new MockSite();
+            const { device, peer } = await pair(site);
+            const host = new FakeHost();
+            await commitLabel(peer, "name", { attribute: "nodeLabel", value: "ours" });
+            newWatcher(peer, registryWith(new LabelKind()), host);
+            await report(device, peer, "nodeLabel", "theirs-1");
+            await MockTime.advance(Seconds(30));
+            readNothing(host.last);
+            await MockTime.advance(Seconds(30));
+            expect(host.passes.length).equals(2);
+
+            await report(device, peer, "nodeLabel", "theirs-2");
+            const endedAt = Time.nowUs;
+            readAll(host.last);
+            await MockTime.advance(Seconds(30));
+
+            expect(host.passes.length).equals(3);
+            expect(host.last.at - endedAt).equals(QUIET);
+        });
+
+        it("and suspects a key the pass did not read again, even when the report found it satisfied", async () => {
+            await using site = new MockSite();
+            const { device, peer } = await pair(site);
+            const host = new FakeHost();
+            await commitLabel(peer, "name", { attribute: "nodeLabel", value: "ours" });
+            newWatcher(peer, registryWith(new LabelKind()), host);
+            await report(device, peer, "nodeLabel", "theirs");
+            await MockTime.advance(Seconds(30));
+            expect(host.passes.length).equals(1);
+
+            await report(device, peer, "nodeLabel", "ours");
+            readAll(host.last, new Set(), new Map([[LABEL_KEY, new InternalError("read failed")]]));
+            await MockTime.advance(Seconds(30));
+
+            // Handed over again; the pass then finds the cache satisfied and has nothing to read
+            expect(host.passes.map(handOver => [...handOver.suspects])).deep.equals([[LABEL_KEY], []]);
+        });
+
+        it("not when no report arrived, so the quiet period of an earlier report is not started over", async () => {
+            await using site = new MockSite();
+            const { device, peer } = await pair(site);
+            const kind = new LabelKind();
+            const host = new FakeHost();
+            await commitLabel(peer, "name", { attribute: "nodeLabel", value: "ours" });
+            const watcher = newWatcher(peer, registryWith(kind), host);
+            await report(device, peer, "nodeLabel", "theirs");
+            const reportedAt = Time.nowUs;
+
+            await MockTime.advance(Seconds(1));
+            const pass = watcher.startPass();
+            pass.result = {
+                verified: new Set(),
+                drifted: new Set(),
+                unread: new Map([["other", new InternalError()]]),
+            };
+            pass[Symbol.dispose]();
+            await MockTime.advance(Seconds(30));
+
+            expect(host.passes.length).equals(1);
+            expect(host.last.at - reportedAt).equals(QUIET);
+        });
+
+        it("not once the peer cannot be read", async () => {
+            await using site = new MockSite();
+            const { device, peer } = await pair(site);
+            const kind = new LabelKind();
+            const host = new FakeHost();
+            await commitLabel(peer, "name", { attribute: "nodeLabel", value: "ours" });
+            const watcher = newWatcher(peer, registryWith(kind), host);
+            const pass = watcher.startPass();
+            await report(device, peer, "nodeLabel", "theirs");
+
+            await MockTime.resolve(peer.delete(), { macrotasks: true });
+            expect(peer.lifecycle.isReadable).equals(false);
+            pass[Symbol.dispose]();
+
+            expect(kind.evaluations).deep.equals([]);
+        });
+    });
+
     it("waits at least the quiet period after a failed read, whatever the cap", async () => {
         await using site = new MockSite();
         const { device, peer } = await pair(site);

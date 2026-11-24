@@ -722,7 +722,8 @@ export class ReconcilerBehavior extends Behavior {
 
     /**
      * An explicit pass. A verify pass also takes the drift suspects handed over for the peer, because it reads every
-     * committed item anyway, and reports what it read to the watcher.
+     * committed item anyway, and reports what it read to the watcher. A pass without `verify` opens no
+     * {@link DriftWatcher.startPass} window: it writes only items that are not committed, and no report judges those.
      */
     async #explicitPass(
         peer: ClientNode,

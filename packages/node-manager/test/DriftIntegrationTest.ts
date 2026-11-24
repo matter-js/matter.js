@@ -7,6 +7,7 @@
 import { Acl, Binding, GroupMembership } from "#reconcile/kinds.js";
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import {
+    createPromise,
     Diagnostic,
     Duration,
     ImplementationError,
@@ -25,6 +26,7 @@ import {
     ItemKind,
     itemMapKey,
     ManagedItem,
+    NetworkClient,
     ServerNode,
 } from "@matter/node";
 import { AccessControlClient, AccessControlServer } from "@matter/node/behaviors/access-control";
@@ -203,6 +205,47 @@ async function onDevice(reported: Promise<void>, change: MaybePromise<void>) {
     await MockTime.resolve(reported, { macrotasks: true });
 }
 
+interface Gate {
+    /** Make the next live read of the item wait until {@link open}. */
+    close(): void;
+    /** Resolves once a live read of the item waits at the closed gate. */
+    readonly reached: Promise<void>;
+    open(): void;
+}
+
+/**
+ * Commit an item of a kind whose live read waits while its gate is closed, so a test can stop a verify pass between
+ * the reads of the items committed before it and the end of the pass.
+ */
+async function gatedItem(controller: ServerNode, peer: ClientNode, key: string): Promise<Gate> {
+    let closed = false;
+    const opened = createPromise<void>();
+    const reached = createPromise<void>();
+    const kind = `gated-${key}`;
+    await controller.act(agent =>
+        agent.get(ReconcilerBehavior).registerItemKind({
+            kind,
+            priority: 0,
+            async apply() {},
+            async verify() {
+                if (closed) {
+                    reached.resolver();
+                    await opened.promise;
+                }
+                return true;
+            },
+        }),
+    );
+    await MockTime.resolve(
+        peer.act(agent => {
+            const ds = agent.get(DesiredStateBehavior);
+            ds.setIntent(kind, key, {});
+            ds.updateStatus(kind, key, "committed");
+        }),
+    );
+    return { close: () => (closed = true), reached: reached.promise, open: () => opened.resolver() };
+}
+
 const aclReport = (peer: ClientNode) => nextReport(peer.eventsOf(AccessControlClient).acl$Changed);
 
 const hasAcl = (device: ServerNode, subject = SUBJECT) =>
@@ -311,16 +354,21 @@ describe("Drift integration", () => {
             expect(events).deep.equals([]);
         });
 
-        it("is written back by an explicit verify", async () => {
+        // Characterization test: passes without deferral too; MockSite reports the write after its status write
+        it("is written back by an explicit verify, and the report of that write leaves no suspect", async () => {
             await using site = new MockSite();
             const { controller, device, peer } = await recordedRemoval(site);
             const events = driftEvents(peer);
+            using counter = countVerifyReads(Acl);
 
             await explicitVerify(controller, peer);
+            await passesAfter(controller, peer, QUIET);
+            await passesAfter(controller, peer, QUIET);
 
             expect(hasAcl(device)).equals(true);
             expect(driftOf(peer, "acl", "k1")).equals(undefined);
             expect(events).deep.equals([undefined]);
+            expect(counter.reads).equals(1);
         });
     });
 
@@ -450,6 +498,72 @@ describe("Drift integration", () => {
                 { key: String(GROUP), intent: membership(GROUP) },
                 { key: String(OTHER_GROUP), intent: membership(OTHER_GROUP) },
             );
+        });
+    });
+
+    describe("a report that arrives while a verify pass runs", () => {
+        /**
+         * A committed ACL entry with a gated item read before it and one read after it. A pass for the peer reads the
+         * entry only while the first gate is open, and ends only once the second is.
+         */
+        async function entryBetweenGates(site: MockSite) {
+            const { controller, device, peer } = await managedPair(site);
+            const before = await gatedItem(controller, peer, "before");
+            await commit(controller, peer, [{ kind: "acl", key: "k1", intent: grant }]);
+            const after = await gatedItem(controller, peer, "after");
+            const fabricIndex = ourFabricOnDevice(device);
+            return { controller, device, peer, before, after, fabricIndex };
+        }
+
+        it("makes an item restored after the pass read its drift a suspect, and its drift ends after one more read", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer, before, after, fabricIndex } = await entryBetweenGates(site);
+            using counter = countVerifyReads(Acl);
+            before.close();
+            after.close();
+
+            peer.eventsOf(NetworkClient).subscriptionStatusChanged.emit(true);
+            await MockTime.resolve(before.reached);
+            await onDevice(aclReport(peer), dropAcl(device));
+            before.open();
+            await MockTime.resolve(after.reached);
+            expect(counter.reads).equals(1);
+            await onDevice(aclReport(peer), addAcl(device, grant, fabricIndex));
+            after.open();
+            await passesAfter(controller, peer, Seconds(0));
+            expect(driftOf(peer, "acl", "k1")).equals("recorded");
+
+            await passesAfter(controller, peer, QUIET);
+
+            expect(counter.reads).equals(2);
+            expect(driftOf(peer, "acl", "k1")).equals(undefined);
+        });
+
+        it("makes an item changed again after the pass read it restored a suspect, and its drift is recorded after one more read", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer, before, after, fabricIndex } = await entryBetweenGates(site);
+            await onDevice(aclReport(peer), dropAcl(device));
+            await passesAfter(controller, peer, QUIET);
+            expect(driftOf(peer, "acl", "k1")).equals("recorded");
+            using counter = countVerifyReads(Acl);
+            before.close();
+            after.close();
+
+            const verify = controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer, { verify: true }));
+            await MockTime.resolve(before.reached);
+            await onDevice(aclReport(peer), addAcl(device, grant, fabricIndex));
+            before.open();
+            await MockTime.resolve(after.reached);
+            expect(counter.reads).equals(1);
+            await onDevice(aclReport(peer), dropAcl(device));
+            after.open();
+            await MockTime.resolve(verify);
+            expect(driftOf(peer, "acl", "k1")).equals(undefined);
+
+            await passesAfter(controller, peer, QUIET);
+
+            expect(counter.reads).equals(2);
+            expect(driftOf(peer, "acl", "k1")).equals("recorded");
         });
     });
 

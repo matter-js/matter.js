@@ -86,6 +86,12 @@ class Live {
     /** Handed to the host, waiting for a pass to take them with {@link DriftWatcher.startPass}. */
     readonly handedOver = new Set<string>();
 
+    /**
+     * Set while a pass runs: the keys reported meanwhile, judged once the pass has recorded what it read. Until then
+     * their enforcement records may be about to change.
+     */
+    reportedDuringPass?: Set<string>;
+
     /** The wait before the next hand-over while reads fail; the quiet period otherwise. */
     backoff?: Duration;
 
@@ -121,10 +127,17 @@ class Live {
  * Suspects move through three stages, and each hand-over gets exactly one outcome:
  *
  * ```
- * report ──► suspects ──quiet period──► handed over ──startPass()──► read by the pass ──dispose──► outcome
- *                ▲                                                                                    │
- *                └──────────── not read: suspect again, next wait doubled ◄───────────────────────────┘
+ * report ──► judged ──► suspects ──quiet period──► handed over ──startPass()──► read by the pass ──dispose──► outcome
+ *               ▲             ▲                                                                                 │
+ *               │             └─────────── not read: suspect again, next wait doubled ◄─────────────────────────┤
+ *               └─────────── reported while a pass was open: judged now ◄───────────────────────────────────────┘
  * ```
+ *
+ * A report judges an item against its enforcement record, and an open pass may still change that record. So a
+ * report that arrives between {@link startPass} and the disposal of the pass is judged only at the disposal, after
+ * the pass recorded what it read and wrote. A report of the pass's own read or write that arrives while the pass is
+ * open is then judged against the record the pass left. Such a report can make the item a suspect once, so at most one
+ * extra read follows.
  *
  * The owner of the per-peer wiring creates the watcher, starts it once with {@link start} and releases it with
  * {@link close}; it has no lifetime of its own. After {@link close} every method does nothing.
@@ -246,12 +259,18 @@ export class DriftWatcher {
      * every way out; see {@link DriftWatcher.Pass} for the outcome.
      *
      * Each handed-over key is judged again now, as a report would judge it, because it was handed over earlier: an
-     * item removed, rewritten or read by another pass since then is left out, and nothing is owed for it. Passes of
-     * one peer run one after the other, so each key is taken by one pass.
+     * item removed, rewritten or read by another pass since then is left out, and nothing is owed for it.
+     *
+     * Every pass that records the enforcement of a committed item must run between this call and the disposal, also
+     * one that takes no suspects: reports that arrive meanwhile are judged only at the disposal. Passes of one peer
+     * run one after the other, so each key is taken by one pass and one pass at a time is open.
      */
     startPass(): DriftWatcher.Pass {
         const suspects = new Set<string>();
         const kinds = new Set<string>();
+        if (this.#live !== undefined) {
+            this.#live.reportedDuringPass = new Set();
+        }
         const live = this.#readableLive();
         if (live !== undefined && live.handedOver.size > 0) {
             const desiredState = this.#peer.stateOf(DesiredStateBehavior);
@@ -380,6 +399,18 @@ export class DriftWatcher {
         if (live === undefined) {
             return;
         }
+        if (live.reportedDuringPass !== undefined) {
+            for (const key of keys) {
+                live.reportedDuringPass.add(key);
+            }
+            return;
+        }
+        this.#judge(live, keys);
+        this.#suspectsChanged(live);
+    }
+
+    /** Make each of `keys` a suspect or no suspect any more, by its enforcement record as committed now. */
+    #judge(live: Live, keys: ReadonlySet<string>) {
         const desiredState = this.#peer.stateOf(DesiredStateBehavior);
         for (const key of keys) {
             const item = this.#suspectItem(key, desiredState);
@@ -390,7 +421,10 @@ export class DriftWatcher {
                 logger.debug(`Report of ${this.#peer.id} makes ${item.kind}:${item.key} a drift suspect`);
             }
         }
+    }
 
+    /** Start the quiet period again while there are suspects, and stop it once there are none. */
+    #suspectsChanged(live: Live) {
         if (live.suspects.size > 0) {
             this.#startTimer(live);
         } else {
@@ -438,9 +472,10 @@ export class DriftWatcher {
     }
 
     /**
-     * The outcome of a pass that took `taken`: the keys it did not read become suspects again and the next hand-over
-     * waits twice as long as the last one; a pass that read its suspects, or read every item without a failure, makes
-     * the next hand-over wait the quiet period again. `result` is `undefined` when the pass made no read or threw.
+     * The outcome of a pass that took `taken`: the keys reported while it ran are judged now; the keys it did not read
+     * become suspects again and the next hand-over waits twice as long as the last one; a pass that read its
+     * suspects, or read every item without a failure, makes the next hand-over wait the quiet period again. `result`
+     * is `undefined` when the pass made no read or threw.
      */
     #passEnded(taken: ReadonlySet<string>, result: VerifyResult | undefined) {
         const live = this.#live;
@@ -451,17 +486,28 @@ export class DriftWatcher {
             key => result === undefined || (!result.verified.has(key) && !result.drifted.has(key)),
         );
         if (unread.length > 0) {
-            for (const key of unread) {
-                live.suspects.add(key);
-            }
             const quietPeriod = this.#host.quietPeriod();
             live.backoff = Duration.min(
                 Millis(2 * (live.backoff ?? quietPeriod)),
                 Duration.max(this.#host.maxBackoff(), quietPeriod),
             );
-            this.#startTimer(live);
         } else if (result !== undefined && (taken.size > 0 || result.unread.size === 0)) {
             live.backoff = undefined;
+        }
+
+        const reported = live.reportedDuringPass;
+        live.reportedDuringPass = undefined;
+        let judged = false;
+        if (reported !== undefined && reported.size > 0 && this.#readableLive() !== undefined) {
+            this.#judge(live, reported);
+            judged = true;
+        }
+        // After the judgment, so an unread key stays a suspect whatever its report said
+        for (const key of unread) {
+            live.suspects.add(key);
+        }
+        if (judged || unread.length > 0) {
+            this.#suspectsChanged(live);
         }
     }
 
@@ -542,6 +588,11 @@ export namespace DriftWatcher {
      * | unset (no read, or the pass threw)           | every suspect is suspected again, the wait doubles      |
      * | no suspects, read every item without failure | next hand-over waits the quiet period                   |
      * | no suspects otherwise                        | nothing changes                                         |
+     *
+     * Whatever the row, a key reported while the pass was open is judged at disposal, before the row applies, against
+     * the enforcement record the pass left, and waits the wait the row sets; a key the pass did not read is suspected
+     * again whatever that judgment said. When the peer cannot be read at disposal, those reports are dropped, as
+     * every entry of the watcher does nothing while the peer cannot be read.
      *
      * Disposing after {@link DriftWatcher.close} does nothing.
      */
