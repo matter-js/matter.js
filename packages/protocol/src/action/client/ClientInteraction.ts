@@ -340,13 +340,13 @@ export class ClientInteraction<
         const { abort, messenger } = context;
 
         logger.info("Read", Mark.OUTBOUND, messenger.exchange.via, session?.logContext ?? "", request);
-        await messenger.sendReadRequest(request, { abort });
+        await messenger.sendReadRequest(request, { abort, suppressPeerLoss: request.suppressPeerLoss });
 
         let attributeReportCount = 0;
         let eventReportCount = 0;
 
         const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
-        for await (const report of messenger.readDataReports({ abort })) {
+        for await (const report of messenger.readDataReports({ abort, suppressPeerLoss: request.suppressPeerLoss })) {
             attributeReportCount += report.attributeReports?.length ?? 0;
             eventReportCount += report.eventReports?.length ?? 0;
             yield InputChunk(report, leftOverData);
