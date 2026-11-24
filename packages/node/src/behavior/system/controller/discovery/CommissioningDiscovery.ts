@@ -16,9 +16,10 @@ const logger = Logger.get("CommissioningDiscovery");
 
 /**
  * Discovers and commissions nodes.  All discovered candidates are commissioned in parallel; the first to establish
- * PASE wins.  Discovery is stopped at PASE time and the abort signal fires to cancel remaining in-flight PASE
- * attempts.  Any candidate that establishes PASE after the winner cleans up its session without proceeding to
- * commissioning.  {@link onComplete} awaits the winner's commissioning to finish before returning.
+ * PASE wins.  Discovery is stopped at PASE time and the remaining in-flight PASE attempts are aborted.  A cancel
+ * after the win aborts the winner's commissioning.  Any candidate that establishes PASE after the winner cleans up its
+ * session without proceeding to commissioning.  {@link onComplete} awaits the winner's commissioning to finish before
+ * returning.
  */
 export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
     #options: CommissioningDiscovery.Options;
@@ -66,10 +67,10 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
         }
 
         this.registerAttempt(
-            winOnPase =>
+            (winOnPase, abort) =>
                 node.commission({
                     ...this.#options,
-                    abort: this.abortSignal,
+                    abort,
                     continueCommissioningAfterPase: winOnPase,
                 }),
             () => node,

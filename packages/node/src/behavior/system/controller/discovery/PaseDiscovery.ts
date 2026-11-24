@@ -48,7 +48,7 @@ export class PaseDiscovery extends ParallelPaseDiscovery<NodeSession> {
         if (this.paseWon) return;
 
         this.registerAttempt<EstablishPaseResult | undefined>(
-            winOnPase =>
+            (winOnPase, abort) =>
                 node.act("establish-pase", agent => {
                     const addresses = agent.commissioning.state.addresses;
                     if (!addresses?.length) {
@@ -60,7 +60,7 @@ export class PaseDiscovery extends ParallelPaseDiscovery<NodeSession> {
                         discoveryData: agent.commissioning.descriptor,
                         passcode: this.#options.passcode,
                         timeout: (this.#options as Discovery.InstanceOptions).timeout,
-                        abort: this.abortSignal,
+                        abort,
                         continueAfterPase: winOnPase,
                     };
                     return commissioner.establishPase(establishOptions);

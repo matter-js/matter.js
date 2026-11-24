@@ -30,6 +30,7 @@ import {
     configureScanners,
     deferred,
     DEVICE,
+    DEVICE_B,
     FailingScanner,
     FixedScanner,
     settle,
@@ -273,7 +274,7 @@ describe("Discovery interruption", () => {
     });
 
     describe("after the result", () => {
-        it("resolves with the winner when the cancel comes right after the PASE win", async () => {
+        it("resolves with the winner when its operation completes despite a cancel after the PASE win", async () => {
             const node = await MockServerNode.createOnline();
             try {
                 await configure(node, [DEVICE]);
@@ -291,7 +292,9 @@ describe("Discovery interruption", () => {
                 expect(result.id).not.undefined;
                 expect(
                     log.messages.some(
-                        ({ level, text }) => level === LogLevel.INFO && text.includes("ignores the interruption"),
+                        ({ level, text }) =>
+                            level === LogLevel.INFO &&
+                            text.includes("passes the cancel to the candidate that won PASE"),
                     ),
                 ).equals(true);
             } finally {
@@ -299,9 +302,7 @@ describe("Discovery interruption", () => {
             }
         });
 
-        // Characterization: the cancel lands after the discovery reached onComplete, which already resolved with the
-        // winner before the interruption hook existed.
-        it("resolves with the winner when the cancel comes while the winner commissions", async () => {
+        it("resolves with the winner when its operation completes despite a cancel while it commissions", async () => {
             const node = await MockServerNode.createOnline();
             try {
                 await configure(node, [DEVICE]);
@@ -319,6 +320,55 @@ describe("Discovery interruption", () => {
 
                 const result = await MockTime.resolve(discovery, { macrotasks: true });
                 expect(result.id).not.undefined;
+            } finally {
+                await node.close();
+            }
+        });
+
+        it("rejects with the cancel reason when the winner's operation stops on the cancel", async () => {
+            const node = await MockServerNode.createOnline();
+            try {
+                await configure(node, [DEVICE]);
+
+                const commissioning = deferred<void>();
+                const discovery = new TestDiscovery(node, { timeout: Seconds(30) }, async (win, signal) => {
+                    await Abort.sleep("test PASE", undefined, Seconds(1));
+                    expect(win()).equals(true);
+                    commissioning.resolve();
+                    await untilAborted(signal);
+                });
+                const outcome = settle(discovery);
+                await MockTime.resolve(commissioning.promise, { macrotasks: true });
+
+                const reason = new ImplementationError("Caller gave up");
+                discovery.cancel(reason);
+
+                expect(await MockTime.resolve(outcome, { macrotasks: true })).equals(reason);
+            } finally {
+                await node.close();
+            }
+        });
+
+        it("aborts the losers but not the winner when the race is decided", async () => {
+            const node = await MockServerNode.createOnline();
+            try {
+                await configure(node, [DEVICE, DEVICE_B]);
+
+                const signals = new Array<AbortSignal>();
+                const discovery = new TestDiscovery(node, { timeout: Seconds(30) }, async (win, signal, index) => {
+                    signals[index] = signal;
+                    if (index === 0) {
+                        // Wins after the second attempt started
+                        await Abort.sleep("test PASE", undefined, Seconds(3));
+                        expect(win()).equals(true);
+                        await Abort.sleep("test commissioning", undefined, Seconds(10));
+                        return;
+                    }
+                    await untilAborted(signal);
+                });
+
+                await MockTime.resolve(discovery, { macrotasks: true });
+                expect(signals.map(signal => signal.aborted)).deep.equals([false, true]);
             } finally {
                 await node.close();
             }

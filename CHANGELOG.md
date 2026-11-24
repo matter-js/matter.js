@@ -89,6 +89,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: A ClientNode reads its root's PartsList as listing every endpoint, whatever device types the root reports
     - Adjustment: `ServerSubscriptionContext.initiateExchange()` takes only a `Session`, no longer a `PeerAddress`
     - Adjustment: `SessionsBehavior` events `opened` and `closed` no longer fire for a session whose handshake fails
+    - Adjustment: The `abort` option of `ClientNode.commission()` and `peers.commission()`, and `cancel()` on the commissioning, also stop the commissioning after PASE, until CommissioningComplete is sent
+    - Adjustment: `ParallelPaseDiscovery` passes each attempt its own abort signal to the `registerAttempt()` factory and no longer has the protected `abortSignal` getter
     - Fix: A device accepts Invoke and Write requests that leave out a false SuppressResponse or TimedRequest, and group Write requests that leave out SuppressResponse, as the CHIP SDK sends them
     - Fix: A client emits an event that arrives before the data of its cluster in the same read, instead of dropping it as an event of an unsupported cluster
     - Fix: `ThermostatServer` keeps the preset that the application activates with `setActivePresetRequest`
@@ -183,6 +185,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair
     - Feature: `NocsrValidator` validates a CSRResponse and throws `NocsrError` when a check fails
+    - Feature: `ControllerCommissioningFlowOptions.abort` cancels a commissioning flow until CommissioningComplete is sent
     - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
     - Enhancement: Event read results carry `resolvedTimestamp`, the absolute event time; client reads resolve delta timestamps against the prior event in the same report message
     - Enhancement: The commissioning attestation policy also receives the findings collected before a hard failure, and a policy rejection names the error findings
@@ -219,6 +222,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
     - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
+    - Adjustment: The `abort` option of `ControllerCommissioner.commission()` cancels the whole commissioning until CommissioningComplete is sent, including the operational CASE connection
     - Fix: A device closes its commissioning window after 20 failed commissioning attempts, counting abandoned commissionings whose fail-safe ends as well as failed PASE pairings
     - Fix: An ICD advertises SAI in its operational DNS-SD record, and SII while it operates as SIT, also when the value equals the MRP default, as the specification requires
     - Fix: A node sends its DNS-SD goodbyes when the runtime shuts down
@@ -276,6 +280,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `DatatypeError` messages show the first 60 characters of a long value instead of the characters after them
     - Fix: `Fabric.setLabel()` and `FabricBuilder.setLabel()` check the 32-byte limit in UTF-8 bytes instead of characters
     - Fix: `FabricManager` shortens a stored fabric label over 32 UTF-8 bytes on load with a warning
+    - Fix: A commissioning that fails before the commissioner armed the fail-safe ends the fail-safe the device armed when PASE was established
+    - Fix: After a `finalizeCommissioning` callback completed the commissioning, the flow no longer re-arms the fail-safe or checks the commissioning time limit
     - Fix: (@cwedgwood) After a BUSY response, no address of the peer sends a new Sigma1 before the minimum wait the peer requested has passed
     - Fix: A PASE connection attempt without a winner rejects only after it closed a PASE session that completed late, so no PASE channel stays open after the rejection
 

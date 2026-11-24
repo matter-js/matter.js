@@ -113,7 +113,7 @@ export const DEVICE_C: CommissionableDevice = { ...DEVICE, deviceIdentifier: "de
 
 /**
  * One attempt of a {@link TestDiscovery}.  `winOnPase` is the race gate a real attempt calls once PASE is up, `signal`
- * the discovery's abort signal and `index` the attempt's position in discovery order.
+ * the attempt's abort signal and `index` the attempt's position in discovery order.
  */
 export type TestAttempt = (winOnPase: () => boolean, signal: AbortSignal, index: number) => Promise<void>;
 
@@ -125,10 +125,10 @@ export class TestDiscovery extends ParallelPaseDiscovery<ClientNode> {
     /** The number of attempts that started. */
     started = 0;
 
-    /** Resolves once the discovery aborts its attempts. */
-    readonly aborting = new Promise<void>(resolve => {
-        this.abortSignal.addEventListener("abort", () => resolve(), { once: true });
-    });
+    #aborted = deferred();
+
+    /** Resolves once the discovery aborts one of its started attempts. */
+    readonly aborting = this.#aborted.promise;
 
     constructor(
         owner: ServerNode,
@@ -149,9 +149,10 @@ export class TestDiscovery extends ParallelPaseDiscovery<ClientNode> {
     protected override onDiscovered(node: ClientNode) {
         const index = this.discovered++;
         this.registerAttempt(
-            winOnPase => {
+            (winOnPase, abort) => {
                 this.started++;
-                return this.attempt(winOnPase, this.abortSignal, index);
+                abort.addEventListener("abort", () => this.#aborted.resolve(), { once: true });
+                return this.attempt(winOnPase, abort, index);
             },
             () => node,
         );
@@ -207,7 +208,7 @@ export function captureDiscoveryLog() {
     const messages = new Array<CapturedLog>();
     Logger.destinations.capture = LogDestination({
         add(message: Diagnostic.Message) {
-            if (message.facility === "Discovery") {
+            if (message.facility === "Discovery" || message.facility === "ParallelPaseDiscovery") {
                 messages.push({ level: message.level, text: message.values.map(value => String(value)).join(" ") });
             }
         },

@@ -32,7 +32,8 @@ const logger = Logger.get("Discovery");
  * This is a cancelable promise; use cancel() or the `abort` option to terminate discovery.  A cancel, an abort, or
  * the failure of every scanner interrupts discovery: it stops scanning and rejects with that reason once it has wound
  * down.  The failure of only some scanners is logged and does not interrupt.  An interruption after the discovery has
- * its result, such as a candidate that won PASE, is ignored and the discovery completes with that result.
+ * its result, such as a candidate that won PASE, is ignored and the discovery completes with that result; a subclass
+ * may still pass a cancel on to the operation that produces the result.
  */
 export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
     #abortReason?: Error;
