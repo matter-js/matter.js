@@ -274,6 +274,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `Fabric.setLabel()` and `FabricBuilder.setLabel()` check the 32-byte limit in UTF-8 bytes instead of characters
     - Fix: `FabricManager` shortens a stored fabric label over 32 UTF-8 bytes on load with a warning
     - Fix: (@cwedgwood) After a BUSY response, no address of the peer sends a new Sigma1 before the minimum wait the peer requested has passed
+    - Fix: A PASE connection attempt without a winner rejects only after it closed a PASE session that completed late, so no PASE channel stays open after the rejection
 
 - @matter/testing
     - Feature: `ControllerAdapterOptions.sustainedSubscription` keeps the controller's own subscription to each commissioned node, set for a `certTest()` that declares `sustained-subscription`; `step()` refuses that capability
