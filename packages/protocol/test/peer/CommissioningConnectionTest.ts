@@ -280,6 +280,28 @@ describe("CommissioningConnection", () => {
         expect(sessionClosed).equals(true);
     });
 
+    it("rejects only after a session that completed after the timeout has been closed", async () => {
+        let sessionClosed = false;
+
+        await expect(
+            CommissioningConnection({
+                devices: [device("a", [udp("fd00::1")])],
+                timeout: Millis(50),
+                delayBeforeNextAddress: 0,
+                establishSession: async () => {
+                    await new Promise<void>(resolve => setTimeout(resolve, 100));
+                    return {
+                        initiateForceClose: async () => {
+                            await new Promise<void>(resolve => setTimeout(resolve, 100));
+                            sessionClosed = true;
+                        },
+                    } as any;
+                },
+            }),
+        ).rejectedWith(PairRetransmissionLimitReachedError);
+        expect(sessionClosed).equals(true);
+    });
+
     it("propagates external abort reason instead of masking as timeout", async () => {
         const ac = new AbortController();
 

@@ -38,7 +38,7 @@ import {
     Time,
     Timestamp,
 } from "@matter/general";
-import { GeneralStatusCode, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
+import { SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { InitialContactSchedule } from "./InitialContactSchedule.js";
 import { NetworkProfile, NetworkProfiles } from "./NetworkProfile.js";
 import type { Peer } from "./Peer.js";
@@ -87,10 +87,15 @@ export type KickOrigin = "discover" | "connect";
  * - Starting a new attempt does not cancel previously running attempts; we thus rely on the MRP backoff of each
  *   schedule to ensure we are sending a reasonable number of packets
  *
+ * - A BUSY response on any address holds every new Sigma1 of this connection until the minimum wait the peer requested
+ *   has passed.  Exchanges already in progress continue, so the handshake the peer is busy with can complete
+ *
  * - Once a session is established, any outstanding attempts abort and the function returns
  *
  * - We use various hardcoded timeouts (see above) in response to exceptions during connection attempts.  The idea is to
  *   recover from transient errors without being too aggressive
+ *
+ * @see {@link MatterSpecification.v161.Core} § 4.11.1.5
  */
 export async function PeerConnection(
     peer: Peer,
@@ -166,6 +171,9 @@ export async function PeerConnection(
 
     // Count of addresses we've tried
     let addrsAttempted = 0;
+
+    // End of the minimum wait from the latest BUSY on any address, on the clock of Time.nowUs
+    let peerBusyUntil: Timestamp | undefined;
 
     // Exchange "kick" driver
     const kicker = options?.kicker;
@@ -509,6 +517,34 @@ export async function PeerConnection(
     }
 
     /**
+     * Wait until the minimum wait of the latest BUSY has passed, plus a random delay so that waiting attempts do not
+     * all send Sigma1 at the same moment.  Another BUSY during the wait extends it.
+     */
+    async function waitWhilePeerBusy(abort: Abort, attemptLifetime: Lifetime) {
+        let jitter: Duration | undefined;
+        while (!abort.aborted && peerBusyUntil !== undefined) {
+            const remaining = Timestamp.delta(Time.nowUs, peerBusyUntil);
+            if (remaining <= 0) {
+                return;
+            }
+            jitter ??= Millis(Math.round(Math.random() * timing.delayAfterNetworkError));
+            using _waiting = attemptLifetime.join("waiting for busy peer");
+            await Abort.sleep("peer busy", abort, Millis(remaining + jitter));
+        }
+    }
+
+    function holdNewSigma1WhilePeerBusy(error: unknown) {
+        const busyDelay = ChannelStatusResponseError.of(error)?.busyDelay;
+        if (busyDelay === undefined) {
+            return;
+        }
+        const until = Timestamp(Time.nowUs + busyDelay);
+        if (peerBusyUntil === undefined || until > peerBusyUntil) {
+            peerBusyUntil = until;
+        }
+    }
+
+    /**
      * Make a single attempt to connect to a specific address.
      */
     async function attemptOnce(
@@ -519,6 +555,11 @@ export async function PeerConnection(
         addrNo: number,
         attemptNo: number,
     ) {
+        await waitWhilePeerBusy(addressAbort, attemptLifetime);
+        if (addressAbort.aborted) {
+            return;
+        }
+
         using attempt = schedule.begin(isDelayedFallback(address));
 
         let socket;
@@ -535,6 +576,9 @@ export async function PeerConnection(
         let socketOwned = true;
 
         try {
+            // A BUSY on another address may arrive while the socket opens
+            await waitWhilePeerBusy(addressAbort, attemptLifetime);
+
             await using unsecuredSession = context.sessions.createUnsecuredSession({
                 channel: socket,
                 sessionParameters: peer.sessionParameters,
@@ -636,6 +680,8 @@ export async function PeerConnection(
                     return;
                 }
 
+                holdNewSigma1WhilePeerBusy(e);
+
                 // An unacknowledged Sigma1 is the schedule moving on, not a failure: retry at once, without handleError
                 switch (attempt.fail(e)) {
                     case "switched":
@@ -696,9 +742,10 @@ export async function PeerConnection(
         let delay: undefined | Duration;
         let category: "busy" | "resumption" | "peer" | "network" | "general" | undefined;
         const csre = ChannelStatusResponseError.of(e);
+        const busyDelay = csre?.busyDelay;
         if (csre) {
-            if (csre.generalStatusCode === GeneralStatusCode.Busy && csre.busyDelay !== undefined) {
-                delay = Millis(csre.busyDelay + Math.round(Math.random() * timing.delayAfterNetworkError));
+            if (busyDelay !== undefined) {
+                delay = Millis(busyDelay + Math.round(Math.random() * timing.delayAfterNetworkError));
                 category = "busy";
             } else if (
                 csre.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots &&
@@ -744,7 +791,7 @@ export async function PeerConnection(
                 info(
                     via,
                     address,
-                    `Peer requested to delay and retry no earlier than ${Duration.format(csre!.busyDelay!)} from now (retry in ${Duration.format(delay!)})`,
+                    `Peer requested to delay and retry no earlier than ${Duration.format(busyDelay!)} from now (retry in ${Duration.format(delay!)})`,
                 );
                 break;
             case "resumption":
@@ -790,10 +837,13 @@ export namespace PeerConnection {
         /**
          * Optional hook to customize error handling during connection attempts.
          *
-         * Invoked for errors that would result in a delay-and-retry (not for Busy, resumption-clearing, or a Sigma1 that
-         * is never acknowledged and is replaced by a fresh one). If the hook returns a {@link Duration}, that overrides
-         * the default delay. If it returns undefined, the default delay is used. If it throws, the connection is aborted
-         * with the thrown error as a fatal error.
+         * Invoked for errors that would result in a delay-and-retry, including Busy (not for resumption-clearing, or a
+         * Sigma1 that is never acknowledged and is replaced by a fresh one). If the hook returns a {@link Duration}, that
+         * overrides the default delay. If it returns undefined, the default delay is used. If it throws, the connection
+         * is aborted with the thrown error as a fatal error.
+         *
+         * The delay applies to the failed address only.  After Busy, no address sends a new Sigma1 before the minimum
+         * wait the peer requested has passed, whatever delay the hook returns.
          */
         handleError?: (error: Error) => Duration | void;
     }

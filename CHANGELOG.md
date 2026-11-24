@@ -165,6 +165,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `IdentifyServer` reports the default EffectVariant for a TriggerEffect variant the enum does not define
     - Fix: `DoorLockServer` answers a GetWeekDaySchedule, GetYearDaySchedule, GetHolidaySchedule, ClearCredential or GetCredentialStatus request that fails validation with INVALID_COMMAND
     - Fix: Validation accepts every value of an enum that defines no values, such as OnOff OffWithEffect.EffectVariant
+    - Fix: `Discovery.settled` resolves when read after the discovery finished
 
 - @matter/nodejs
     - Fix: (@delu999) SQLite storage accepts overlapping transactions instead of failing with "Transaction is in progress", so concurrent node state writes are no longer lost
@@ -275,6 +276,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `DatatypeError` messages show the first 60 characters of a long value instead of the characters after them
     - Fix: `Fabric.setLabel()` and `FabricBuilder.setLabel()` check the 32-byte limit in UTF-8 bytes instead of characters
     - Fix: `FabricManager` shortens a stored fabric label over 32 UTF-8 bytes on load with a warning
+    - Fix: (@cwedgwood) After a BUSY response, no address of the peer sends a new Sigma1 before the minimum wait the peer requested has passed
+    - Fix: A PASE connection attempt without a winner rejects only after it closed a PASE session that completed late, so no PASE channel stays open after the rejection
 
 - @matter/react-native
     - Fix: `openChannel()` of the BLE transport honors the abort signal and disconnects when the channel setup fails
