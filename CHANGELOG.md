@@ -165,6 +165,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `IdentifyServer` reports the default EffectVariant for a TriggerEffect variant the enum does not define
     - Fix: `DoorLockServer` answers a GetWeekDaySchedule, GetYearDaySchedule, GetHolidaySchedule, ClearCredential or GetCredentialStatus request that fails validation with INVALID_COMMAND
     - Fix: Validation accepts every value of an enum that defines no values, such as OnOff OffWithEffect.EffectVariant
+    - Fix: `Discovery.settled` resolves when read after the discovery finished
 
 - @matter/nodejs
     - Fix: (@delu999) SQLite storage accepts overlapping transactions instead of failing with "Transaction is in progress", so concurrent node state writes are no longer lost

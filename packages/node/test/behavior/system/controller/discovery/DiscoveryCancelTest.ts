@@ -496,6 +496,27 @@ describe("Discovery interruption", () => {
                 await node.close();
             }
         });
+
+        for (const outcome of ["resolves", "rejects"] as const) {
+            it(`reports settled when first read after the discovery ${outcome}`, async () => {
+                const node = await MockServerNode.createOnline();
+                try {
+                    await configure(node, outcome === "resolves" ? [DEVICE] : []);
+
+                    const discovery = new InstanceDiscovery(node, { timeout: Seconds(5) });
+                    const error = await MockTime.resolve(settle(discovery), { macrotasks: true });
+                    expect(error === undefined).equals(outcome === "resolves");
+
+                    const settledInTime = Promise.race([
+                        discovery.settled.then(() => true),
+                        Time.sleep("settled wait", Seconds(1)).then(() => false),
+                    ]);
+                    expect(await MockTime.resolve(settledInTime, { macrotasks: true })).equals(true);
+                } finally {
+                    await node.close();
+                }
+            });
+        }
     });
 
     describe("scanner failure", () => {
