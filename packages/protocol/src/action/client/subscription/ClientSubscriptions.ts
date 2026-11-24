@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Subscribe } from "#action/request/Subscribe.js";
 import { ReadResult } from "#action/response/ReadResult.js";
 import type { ActiveSubscription } from "#action/response/SubscribeResult.js";
 import { SubscriptionId } from "#interaction/Subscription.js";
@@ -152,9 +153,41 @@ export class ClientSubscriptions implements Lifetime.Owner {
     /**
      * Emits when a report the peer pushes starts arriving on one of its subscriptions, with the session it arrived
      * over.  A priming report returned inline in the subscribe exchange does not emit.
+     * Observers must be synchronous; returned promises are not awaited.
      */
     readonly reportStarted = Observable<[session: SecureSession]>(error =>
         logger.warn("Unhandled error in reportStarted observer:", error),
+    );
+
+    /**
+     * Observes pushed subscription reports without changing their handling. Priming reports do not emit.
+     *
+     * Kind      | When
+     * ----------|---------------------------------------------------------------------
+     * message   | Each received ReportData with the initial subscription ID
+     * value     | Each decoded attribute or event value consumed by the update callback
+     *
+     * An unknown initial ID emits a message with no subscription before InvalidSubscription is sent.
+     * Missing IDs and later chunks with another ID do not emit.
+     *
+     * Message observations have `isInitial` set only for the first message of each
+     * exchange. Count exchanges from that flag, without waiting for a final chunk that may never arrive.
+     * The message's `empty` flag means that message has no attribute or event report
+     * entries, including status entries. An empty later chunk does not make the whole exchange empty.
+     * An empty initial message also invokes {@link Subscribe.keepaliveReceived} for a known subscription.
+     *
+     * Observers must be synchronous; returned promises are not awaited. Observers run on the receive path,
+     * must not modify the subscription or value, and must return promptly.
+     * Observer errors are logged and do not interrupt report handling. Values are borrowed
+     * from the update stream; observing does not cause data to be decoded or consumed.
+     * Observers are released when this registry closes.
+     * Exchanges with no observers at their initial message use the unwrapped receive stream. Adding an
+     * observer during such an exchange starts observation with the next exchange.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 8.5.1, Subscribe Interaction
+     */
+    readonly reportReceived = Observable<[report: ClientSubscriptions.Report]>(error =>
+        logger.debug("Unhandled error in reportReceived observer:", error),
     );
 
     /**
@@ -218,6 +251,7 @@ export class ClientSubscriptions implements Lifetime.Owner {
             await this.#active.empty;
         } finally {
             this.reportStarted[Symbol.dispose]();
+            this.reportReceived[Symbol.dispose]();
         }
     }
 
@@ -281,6 +315,31 @@ export class ClientSubscriptions implements Lifetime.Owner {
 }
 
 export namespace ClientSubscriptions {
+    /**
+     * A received message or a consumed value from a pushed subscription report.
+     *
+     * The session is the authenticated transport session, not a claim that the subscription remains active.
+     *
+     * @see {@link ClientSubscriptions.reportReceived}
+     * @see {@link MatterSpecification.v161.Core} § 8.5.1
+     */
+    export type Report =
+        | {
+              readonly kind: "message";
+              readonly session: SecureSession;
+              readonly subscriptionId: SubscriptionId;
+              readonly subscription: PeerSubscription | undefined;
+              readonly isInitial: boolean;
+              readonly empty: boolean;
+              readonly moreChunkedMessages: boolean;
+          }
+        | {
+              readonly kind: "value";
+              readonly session: SecureSession;
+              readonly subscription: PeerSubscription;
+              readonly report: Readonly<ReadResult.AttributeValue | ReadResult.EventValue>;
+          };
+
     export interface Listener {
         (reports: AsyncIterable<ReadResult.Chunk>): Promise<void>;
     }
