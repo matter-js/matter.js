@@ -15,10 +15,18 @@ import { TlvDelayReportData } from "../types/TlvDelayReportData.js";
 /** @see {@link MatterSpecification.v161.Core}, section 10.7.9 */
 
 export const TlvInvokeRequest = TlvObject({
-    /** Do not send a response to this action.  Absent counts as false. */
+    /**
+     * Do not send a response to this action.  A receiver treats a missing field as false.
+     * A sender sets the field: the field is only left out on the wire by
+     * `InteractionClientMessenger.requestFlagsForSending`, and a receiver that requires it refuses the request.
+     */
     suppressResponse: TlvOptionalField(0, TlvBoolean),
 
-    /** Flag action as part of a timed invoke transaction.  Absent counts as false. */
+    /**
+     * Flag action as part of a timed invoke transaction.  A receiver treats a missing field as false.
+     * A sender sets the field: the field is only left out on the wire by
+     * `InteractionClientMessenger.requestFlagsForSending`, and a receiver that requires it refuses the request.
+     */
     timedRequest: TlvOptionalField(1, TlvBoolean),
 
     /** Cluster command(s) to invoke. */

@@ -1553,7 +1553,8 @@ export namespace InteractionClientMessenger {
      *
      * Once {@link ownRevision} reaches {@link FALSE_REQUEST_FLAGS_OMITTED_FROM_REVISION}, a false flag is left out of a
      * group request and of a request to a peer that reported that revision or later; a receiver treats a missing flag
-     * as false.  Below that revision both flags are sent as given.  The request itself is not changed.
+     * as false.  Otherwise both flags are sent as given, and a missing flag stays missing.  Callers therefore set both
+     * flags; the `Write` and `Invoke` request builders do.  The request itself is not changed.
      *
      * @param request the Invoke or Write request to send
      * @param session the session the request is sent on
