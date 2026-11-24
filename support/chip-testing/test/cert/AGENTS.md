@@ -3347,18 +3347,18 @@ none of them is visible from the plan document:
   adds a camera-controller endpoint to the in-process controller; chip-tool's adapter refuses the
   option, since a commissioner process is not a node. A case wanting this must therefore skip on any
   other controller implementation, which is what makes it matter.js-only rather than a flavor gap.
-- **The provider's Offer can beat a registration made after the solicitation's response.** chip's
-  camera app schedules its `Offer` to run right after it handles `SolicitOffer`, so the Offer can
-  arrive before the response is processed, and a session registered on the response is refused — a failure
-  that looks exactly like the defect the case hunts. The in-process adapter's
-  `WebRtcRequestorApi.solicitOffer`/`provideOffer` register the id the provider is about to mint
-  *before* sending (chip mints ids in sequence from one counter per process,
-  `WebRTCTransportProviderCluster::GenerateSessionId`, so the prediction is kept per peer node) and
-  confirm it against the answer; a mismatch throws `WebRtcSessionPredictionError`, a harness error.
-  A local run over a Docker bridge is slow enough to hide this race; CI is not.
+- **The provider's Offer can arrive before a registration made after the solicitation's response.**
+  chip's camera app sends its `Offer` from its local-SDP callback, which it schedules apart from its
+  response, so the Offer can arrive before the response is processed, and a session registered on the
+  response is refused — a failure that looks exactly like the defect the case hunts. The in-process
+  adapter's `WebRtcRequestorApi.solicitOffer`/`provideOffer` keep a
+  `WebRtcTransportRequestorServer.holdUnknownSignals` hold for the provider while they send the
+  request and register the session. The provider's signaling for an id the requestor does not track
+  waits until that session is registered, the hold is disposed, or 5 seconds have passed. A controller
+  that registers only after the response, without a hold, can fail this case.
 - **A refusal is only evidence once something comparable was accepted.** The requestor refuses
   signaling for every id it does not track, so "it answered `NOT_FOUND`" is satisfied by an
-  implementation that looked at nothing. Holding the session the provider minted is necessary but
+  implementation that looked at nothing. Tracking the session the provider allocated is necessary but
   not sufficient: the case also
   solicits a second session once the injected fault is spent — it is armed for one call — and
   requires *that* Offer to be accepted. Only the pair separates "refuses by session id" from

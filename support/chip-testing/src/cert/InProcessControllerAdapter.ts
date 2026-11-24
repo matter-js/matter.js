@@ -27,7 +27,6 @@ import {
     Millis,
     MockFilesystem,
     MockStorageService,
-    Mutex,
     Observable,
     ObserverGroup,
     Seconds,
@@ -45,7 +44,12 @@ import {
 } from "@matter/main/behaviors/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestorClient } from "@matter/main/behaviors/ota-software-update-requestor";
 import { WebRtcTransportRequestorServer } from "@matter/main/behaviors/web-rtc-transport-requestor";
-import { GeneralCommissioning, OtaSoftwareUpdateProvider, OtaSoftwareUpdateRequestor } from "@matter/main/clusters";
+import {
+    GeneralCommissioning,
+    OtaSoftwareUpdateProvider,
+    OtaSoftwareUpdateRequestor,
+    WebRtcTransportDefinitions,
+} from "@matter/main/clusters";
 import { CameraControllerDevice } from "@matter/main/devices";
 import { OtaProviderEndpoint } from "@matter/main/endpoints/ota-provider";
 import type { BdxInit, StorageScope } from "@matter/main/protocol";
@@ -1276,13 +1280,6 @@ export class NoCommissionedPeerError extends MatterError {}
  * end it as a framework error instead.
  */
 export class SessionStateError extends MatterError {}
-
-/**
- * The provider minted a session id other than the one the requestor registered ahead of the request.
- * A harness error, not a verdict: the provider's early signaling for the minted id met no
- * registration, so nothing it did says anything about the controller.
- */
-export class WebRtcSessionPredictionError extends MatterError {}
 
 /**
  * A session's {@link MessageChannel}, or undefined for one that can no longer describe itself.
@@ -2574,8 +2571,8 @@ async function settlePeer(peer: ClientNode) {
 }
 
 /**
- * A session as the requestor cluster tracks it. The provider mints a session's id, so the session is
- * registered under the id it is about to mint before the provider signals against it.
+ * A session as the requestor cluster tracks it. The provider allocates the session's id, so the session is
+ * registered once the provider's response names it.
  *
  * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.5
  */
@@ -2630,9 +2627,6 @@ export class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
     readonly #dispatch = new Array<WebRtcSignalRecord>();
     readonly #nodeOf: (peer: CertNodeRef) => CertNodeApi;
 
-    /** Per peer node, the session id its provider minted last. */
-    readonly #lastMinted = new Map<string, number>();
-    readonly #establishing = new Mutex(this);
     #dispatching?: Timer;
     #closed = false;
 
@@ -2711,37 +2705,35 @@ export class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
     }
 
     async upsertSession(session: WebRtcSessionSpec): Promise<void> {
-        const peerNodeId = this.#peerNodeIdOf(session.peer);
-        const videoStreams =
-            session.videoStreamId === undefined || session.videoStreamId === null ? undefined : [session.videoStreamId];
-        const audioStreams =
-            session.audioStreamId === undefined || session.audioStreamId === null ? undefined : [session.audioStreamId];
+        const tracked = this.#sessionOf(this.#peerNodeIdOf(session.peer), session);
+        await runTagged(this.#adapterId, async () => {
+            await this.#node.act(agent => agent.get(WebRtcTransportRequestorServer).upsertSession(tracked));
+        });
+    }
 
-        await runTagged(this.#adapterId, async () =>
-            this.#node.act(agent =>
-                agent.get(WebRtcTransportRequestorServer).upsertSession({
-                    id: session.id,
-                    peerNodeId,
-                    peerEndpointId: EndpointNumber(session.peerEndpointId),
-                    streamUsage: session.streamUsage,
-                    metadataEnabled: session.metadataEnabled ?? false,
-                    videoStreams,
-                    audioStreams,
-                    fabricIndex: this.#fabric.fabricIndex,
-                }),
-            ),
-        );
+    #sessionOf(peerNodeId: NodeId, session: WebRtcSessionSpec): WebRtcTransportDefinitions.WebRtcSession {
+        const { videoStreamId, audioStreamId } = session;
+        return {
+            id: session.id,
+            peerNodeId,
+            peerEndpointId: EndpointNumber(session.peerEndpointId),
+            streamUsage: session.streamUsage,
+            metadataEnabled: session.metadataEnabled ?? false,
+            videoStreams: videoStreamId === undefined || videoStreamId === null ? undefined : [videoStreamId],
+            audioStreams: audioStreamId === undefined || audioStreamId === null ? undefined : [audioStreamId],
+            fabricIndex: this.#fabric.fabricIndex,
+        };
     }
 
     async removeSession(peer: CertNodeRef, id: number): Promise<void> {
         const peerNodeId = this.#nodeIdOf(peer);
-        await runTagged(this.#adapterId, async () =>
-            this.#node.act(agent =>
+        await runTagged(this.#adapterId, async () => {
+            await this.#node.act(agent =>
                 agent
                     .get(WebRtcTransportRequestorServer)
                     .removeSession({ id, fabricIndex: this.#fabric.fabricIndex, peerNodeId }),
-            ),
-        );
+            );
+        });
     }
 
     async sessions(): Promise<readonly WebRtcSessionRecord[]> {
@@ -2795,77 +2787,69 @@ export class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
     }
 
     /**
-     * Registers the id the provider is about to mint, then asks for the session and confirms the id
-     * against the response. The provider's signaling for the new session can arrive before its
-     * response is processed (chip's camera app schedules its `Offer` to run right after it handles `SolicitOffer`),
-     * so a registration made after the response is too late.
-     *
-     * chip mints ids from one counter per process, the function-local `static uint16_t nextSessionId`
-     * in `WebRTCTransportProviderCluster::GenerateSessionId`, starting at 0. The prediction is therefore
-     * kept per peer node and covers all of its provider endpoints. Establishes run one at a time, so
-     * two of them never predict the same id.
-     *
-     * A request the provider refuses after it minted an id (chip can fail `SolicitOffer` after
-     * `GenerateSessionId`) uses up that id without this side seeing it. The next prediction is then
-     * one behind and fails with {@link WebRtcSessionPredictionError}, which names the id the provider
-     * minted; the prediction after that is right again.
+     * Asks for a new session and registers the id the provider names. The provider's signaling for it can
+     * arrive before its response (chip's camera app sends its `Offer` and `Answer` from its local-SDP callback,
+     * which it schedules apart from the response); a {@link WebRtcTransportRequestorServer.holdUnknownSignals}
+     * hold keeps that signaling waiting until the session is registered.
      */
     async #establish(
         request: WebRtcOfferRequest,
         command: "solicitOffer" | "provideOffer",
         fields: object,
     ): Promise<number> {
-        return this.#establishing.produce(() => this.#establishOne(request, command, fields));
+        const { peer, endpoint, streamUsage, videoStreamId, audioStreamId } = request;
+        const peerNodeId = this.#peerNodeIdOf(peer);
+        return runTagged(this.#adapterId, async () => {
+            let unregistered: number | undefined;
+            try {
+                using _hold = WebRtcTransportRequestorServer.holdUnknownSignals(
+                    this.#node,
+                    PeerAddress({ fabricIndex: this.#fabric.fabricIndex, nodeId: peerNodeId }),
+                );
+                const response = await this.#nodeOf(peer).invoke(
+                    "WebRtcTransportProvider",
+                    command,
+                    {
+                        ...fields,
+                        streamUsage,
+                        originatingEndpointId: this.endpoint,
+                        ...(videoStreamId === undefined ? {} : { videoStreamId }),
+                        ...(audioStreamId === undefined ? {} : { audioStreamId }),
+                    },
+                    endpoint,
+                );
+                const session = this.#sessionOf(peerNodeId, {
+                    id: sessionIdOf(response, command),
+                    peer,
+                    peerEndpointId: endpoint,
+                    streamUsage,
+                    videoStreamId,
+                    audioStreamId,
+                });
+                unregistered = session.id;
+                await this.#node.act(agent => agent.get(WebRtcTransportRequestorServer).upsertSession(session));
+                return session.id;
+            } catch (e) {
+                if (unregistered !== undefined) {
+                    await this.#endUntracked(peer, endpoint, unregistered);
+                }
+                throw e;
+            }
+        });
     }
 
-    async #establishOne(
-        request: WebRtcOfferRequest,
-        command: "solicitOffer" | "provideOffer",
-        fields: object,
-    ): Promise<number> {
-        const { peer, endpoint, streamUsage, videoStreamId, audioStreamId } = request;
-        const provider = String(this.#nodeIdOf(peer));
-        const lastMinted = this.#lastMinted.get(provider);
-        const predicted = lastMinted === undefined ? 0 : lastMinted + 1;
-        await this.upsertSession({
-            id: predicted,
-            peer,
-            peerEndpointId: endpoint,
-            streamUsage,
-            videoStreamId,
-            audioStreamId,
-        });
-
-        let minted: number;
+    /** Ends a session the provider holds but this requestor could not register, so it does not stay allocated. */
+    async #endUntracked(peer: CertNodeRef, endpoint: number, id: number) {
         try {
-            const response = await this.#nodeOf(peer).invoke(
+            await this.#nodeOf(peer).invoke(
                 "WebRtcTransportProvider",
-                command,
-                {
-                    ...fields,
-                    streamUsage,
-                    originatingEndpointId: this.endpoint,
-                    ...(videoStreamId === undefined ? {} : { videoStreamId }),
-                    ...(audioStreamId === undefined ? {} : { audioStreamId }),
-                },
+                "endSession",
+                { webRtcSessionId: id, reason: WebRtcTransportDefinitions.WebRtcEndReason.OutOfResources },
                 endpoint,
             );
-            minted = sessionIdOf(response, command);
         } catch (e) {
-            await this.removeSession(peer, predicted);
-            throw e;
+            logger.warn(`Could not end WebRTC session ${id} that the requestor did not register:`, e);
         }
-
-        this.#lastMinted.set(provider, minted);
-        if (minted !== predicted) {
-            await this.removeSession(peer, predicted);
-            throw new WebRtcSessionPredictionError(
-                `The provider minted session ${minted} where ${predicted} was registered ahead of it, so its ` +
-                    "signaling for that session could not be accepted and this run cannot establish one",
-            );
-        }
-
-        return minted;
     }
 
     /** Settles every wait: a controller that has closed will never see the signal one is waiting for. */
@@ -2915,8 +2899,8 @@ export class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
         const signal: WebRtcSignalRecord = { kind, sessionId, outcome, ...payload, at: Time.nowUs };
         this.#signals.push(signal);
 
-        // These events fire inside the transaction handling the peer's command, which holds the
-        // cluster's state lock; a waiter resumed here writes to that state and fails to lock it
+        // These events fire inside the transaction of the peer's command, which holds the cluster's lock until it
+        // commits; waiters run from a timer, outside this call; their own writes wait for the lock
         this.#dispatch.push(signal);
         if (this.#dispatching === undefined) {
             this.#dispatching = Time.getTimer("webrtc signal dispatch", Millis(0), () => {

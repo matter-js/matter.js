@@ -46,19 +46,16 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: (@lboue) `ThermostatServer` implements the `MatterScheduleConfiguration` (MSCH) feature with the `Schedules` and `ActiveScheduleHandle` attributes, atomic writes and `SetActiveScheduleRequest`
     - Feature: `ThermostatServer` generates the Thermostat events when the provisional `Events` feature is selected and the events are switched on with `enable()`; enable the feature with the `thermostat-events` forward feature for certification purposes only
     - Feature: `ThermostatServer` implements the `ThermostatSuggestions` (TSUGGEST) feature
-    - Fix: A client emits an event that arrives before the data of its cluster in the same read, instead of dropping it as an event of an unsupported cluster
-    - Fix: `ThermostatServer` keeps the preset that the application activates with `setActivePresetRequest`
-    - Fix: `ThermostatServer` treats `ControlSequenceOfOperation` CoolingWithReheat as the sequence without heating, instead of CoolingAndHeatingWithReheat, and automatic mode management in Auto turns the running mode off instead of failing when the sequence does not allow heating or cooling
-    - Fix: `ThermostatServer` raises `NumberOfPresets` at startup to cover the stored presets, instead of failing to start after a configuration lowered it
-    - Fix: `ScenesManagementServer` limits each fabric's remaining scene capacity by the Scene Table entries other fabrics use, refuses AddScene, StoreScene and CopyScene with RESOURCE_EXHAUSTED when the table is full, and updates the other fabrics' `FabricSceneInfo` when one fabric changes the table
-    - Fix: `ScenesManagementServer` removes the scenes of a removed fabric, which stayed in the Scene Table and used up Scene Table entries for good; scenes left by earlier removals are removed at startup
     - Feature: `ClientNode.updateOperationalCertificate()` replaces a commissioned node's operational certificate with one for a new key pair (UpdateNOC)
+    - Feature: `WebRtcTransportRequestorServer.holdUnknownSignals()` lets a provider's signaling for a new session wait up to 5 seconds for its registration instead of being refused
     - Enhancement: Added `SoftwareUpdateManager.dropUndeliverableUpdate()` for `checkUpdateAvailable()` overrides
     - Enhancement: Added `SoftwareUpdateManager.mayDelegateConsentTo()`, the rule for when a node may obtain the user consent itself
     - Enhancement: Added the `SoftwareUpdateManager` state `delegateConsentToRequestor`, which lets a requestor that can obtain user consent itself apply the newest stored image
     - Enhancement: Event change notifications carry `resolvedTimestamp`, the absolute event time on the reported clock, which for a delta timestamp is resolved against the prior event in the same report message
     - Enhancement: `ClientNode.fabricIndexOnPeer` returns our fabric index on the peer
     - Enhancement: `RemoteDescriptor.legacyRecordToLongForm()` converts a peer record of the legacy controller storage
+    - Adjustment: `WebRtcTransportRequestorServer.upsertSession()` and `removeSession()` now return a Promise and lock the requestor; callers must await them
+    - Adjustment: `WebRtcTransportRequestorServer` command handlers no longer lock the behavior on invoke, so an override that writes state must lock it itself
     - Adjustment: Important: String limits count UTF-8 bytes, so ensure that configured values and values you set with `setStateOf` fit in bytes; use `Bytes.truncateUtf8()` instead of `String.slice()` to shorten them
     - Adjustment: `ThermostatServer.with(...)` types expose `handleSetActivePresetRequest`, `handleSetActiveScheduleRequest` and the thermostat suggestion hooks through `ExtensionInterface`; an override of them with `protected` no longer compiles
     - Adjustment: `SoftwareUpdateManager.Internal.consents` holds one consent per peer in a `PeerAddressMap` and is written only through the manager API, and the `Internal.updateQueue` entries have a new shape
@@ -92,6 +89,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: A ClientNode reads its root's PartsList as listing every endpoint, whatever device types the root reports
     - Adjustment: `ServerSubscriptionContext.initiateExchange()` takes only a `Session`, no longer a `PeerAddress`
     - Adjustment: `SessionsBehavior` events `opened` and `closed` no longer fire for a session whose handshake fails
+    - Fix: A client emits an event that arrives before the data of its cluster in the same read, instead of dropping it as an event of an unsupported cluster
+    - Fix: `ThermostatServer` keeps the preset that the application activates with `setActivePresetRequest`
+    - Fix: `ThermostatServer` treats `ControlSequenceOfOperation` CoolingWithReheat as the sequence without heating, instead of CoolingAndHeatingWithReheat, and automatic mode management in Auto turns the running mode off instead of failing when the sequence does not allow heating or cooling
+    - Fix: `ThermostatServer` raises `NumberOfPresets` at startup to cover the stored presets, instead of failing to start after a configuration lowered it
+    - Fix: `ScenesManagementServer` limits each fabric's remaining scene capacity by the Scene Table entries other fabrics use, refuses AddScene, StoreScene and CopyScene with RESOURCE_EXHAUSTED when the table is full, and updates the other fabrics' `FabricSceneInfo` when one fabric changes the table
+    - Fix: `ScenesManagementServer` removes the scenes of a removed fabric, which stayed in the Scene Table and used up Scene Table entries for good; scenes left by earlier removals are removed at startup
     - Fix: An Invoke Request with SuppressResponse set gets no Invoke Response, also when a command returns response data
     - Fix: The OTA provider offers the consented version instead of a lower stored one
     - Fix: The OTA provider no longer delegates the user consent to a node with `LocalConfigDisabled` set
@@ -173,8 +176,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Command and attribute write values may leave out optional struct or list fields and set nullable struct or list values to null, and `null` or a list given for a struct is refused with a clear error
 
 - @matter/protocol
-    - Fix: A device closes its commissioning window after 20 failed commissioning attempts, counting abandoned commissionings whose fail-safe ends as well as failed PASE pairings
-    - Fix: An ICD advertises SAI in its operational DNS-SD record, and SII while it operates as SIT, also when the value equals the MRP default, as the specification requires
     - Feature: `ControllerCommissioner.updateOperationalCertificate()` and `OperationalCertificateUpdate.update()` replace a peer's operational certificate with one for a new key pair
     - Feature: `NocsrValidator` validates a CSRResponse and throws `NocsrError` when a check fails
     - Enhancement: `ClientRequest.requireExistingSession` makes an interaction with a peer fail with `SessionClosedError` when the peer has no active session, instead of establishing one
@@ -213,6 +214,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: The mDNS responder logs failed sends and sends that reach only some address families once per outage of an interface as a notice, then at debug level
     - Adjustment: A decoded certificate subject or issuer is frozen; build a changed copy instead of changing it in place
     - Adjustment: Encoding a subject or issuer built in code throws `ImplementationError` for a property that is not a DN attribute
+    - Fix: A device closes its commissioning window after 20 failed commissioning attempts, counting abandoned commissionings whose fail-safe ends as well as failed PASE pairings
+    - Fix: An ICD advertises SAI in its operational DNS-SD record, and SII while it operates as SIT, also when the value equals the MRP default, as the specification requires
     - Fix: A node sends its DNS-SD goodbyes when the runtime shuts down
     - Fix: The client stops its subscription timeout timer when its last peer subscription closes, so the timer no longer keeps the process running until it expires
     - Fix: A client subscription is replaced early when the peer does not acknowledge our status response to a report chunk, or to a final report while the replacement would prime compactly

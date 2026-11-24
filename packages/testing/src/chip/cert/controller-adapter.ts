@@ -1546,13 +1546,14 @@ export interface WebRtcRequestorApi {
     readonly endpoint: number;
 
     /**
-     * Sends `SolicitOffer` and resolves with the session id the provider minted, once the requestor
+     * Sends `SolicitOffer` and resolves with the session id the provider allocated, once the requestor
      * holds that session.
      *
      * The provider's signaling for the new session can arrive before its response is processed: chip's
-     * camera app schedules its `Offer` to run right after it handles `SolicitOffer`. An implementation
-     * must accept that signaling. Where it cannot establish which id the provider minted, it throws a harness error,
-     * not a verdict about the controller, and holds no session for that solicitation.
+     * camera app sends its `Offer` from its local-SDP callback, which it schedules apart from the response.
+     * An implementation should accept that signaling; the matterjs-server adapter does not yet, so a case that
+     * depends on it can fail there. Where the response names no session id, it throws an error and holds no session
+     * for that solicitation.
      *
      * @see {@link MatterSpecification.v161.Cluster} § 11.5.6.1
      */
@@ -1602,7 +1603,10 @@ export interface WebRtcRequestorApi {
     /** The sessions the cluster tracks, which is what a refusal was judged against. */
     sessions(): Promise<readonly WebRtcSessionRecord[]>;
 
-    /** Every signaling command the provider addressed here since {@link ControllerAdapter.start}, in arrival order. */
+    /**
+     * Every signaling command the provider addressed here since {@link ControllerAdapter.start}, in the order the
+     * requestor delivered or refused them.
+     */
     signals(): readonly WebRtcSignalRecord[];
 
     /**
