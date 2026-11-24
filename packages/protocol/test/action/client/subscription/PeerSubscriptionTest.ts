@@ -38,14 +38,14 @@ describe("PeerSubscription", () => {
         delete Logger.destinations.capture;
     });
 
-    const lossLogs = () => logged.filter(line => line.includes("did not acknowledge"));
+    const lossLogs = () => logged.filter(line => line.includes("lost:"));
 
-    describe("reportStatusUnacknowledged", () => {
+    describe("reportInterrupted", () => {
         it("closes the subscription and logs the loss", () => {
             let closed = 0;
             const subscription = aSubscription({ onClosed: () => closed++ });
 
-            subscription.reportStatusUnacknowledged(subscription.nextReportNumber(), "final");
+            subscription.reportInterrupted(subscription.nextReportNumber(), "final-unacknowledged");
 
             expect(closed).equal(1);
             expect(subscription.isClosed).true;
@@ -55,7 +55,7 @@ describe("PeerSubscription", () => {
         it("keeps a subscription without compact priming after an unacknowledged final status", () => {
             const subscription = aSubscription({ compactPriming: false });
 
-            subscription.reportStatusUnacknowledged(subscription.nextReportNumber(), "final");
+            subscription.reportInterrupted(subscription.nextReportNumber(), "final-unacknowledged");
 
             expect(subscription.isClosed).false;
         });
@@ -70,7 +70,7 @@ describe("PeerSubscription", () => {
                 maxPeerResponseTime: Seconds(10),
             });
 
-            subscription.reportStatusUnacknowledged(subscription.nextReportNumber(), "final");
+            subscription.reportInterrupted(subscription.nextReportNumber(), "final-unacknowledged");
 
             expect(subscription.isClosed).false;
         });
@@ -78,9 +78,18 @@ describe("PeerSubscription", () => {
         it("closes a subscription without compact priming after an unacknowledged chunk status", () => {
             const subscription = aSubscription({ compactPriming: false });
 
-            subscription.reportStatusUnacknowledged(subscription.nextReportNumber(), "chunk");
+            subscription.reportInterrupted(subscription.nextReportNumber(), "chunk-unacknowledged");
 
             expect(subscription.isClosed).true;
+        });
+
+        it("closes a subscription without compact priming after a missing chunk and logs the loss", () => {
+            const subscription = aSubscription({ compactPriming: false });
+
+            subscription.reportInterrupted(subscription.nextReportNumber(), "chunk-missing");
+
+            expect(subscription.isClosed).true;
+            expect(lossLogs().filter(line => line.includes("did not send the next chunk")).length).equal(1);
         });
 
         it("keeps a subscription on which a newer report started", () => {
@@ -88,7 +97,7 @@ describe("PeerSubscription", () => {
             const unacknowledged = subscription.nextReportNumber();
             subscription.nextReportNumber();
 
-            subscription.reportStatusUnacknowledged(unacknowledged, "chunk");
+            subscription.reportInterrupted(unacknowledged, "chunk-unacknowledged");
 
             expect(subscription.isClosed).false;
         });
@@ -97,7 +106,7 @@ describe("PeerSubscription", () => {
             const subscription = aSubscription();
             subscription.close();
 
-            subscription.reportStatusUnacknowledged(subscription.nextReportNumber(), "final");
+            subscription.reportInterrupted(subscription.nextReportNumber(), "final-unacknowledged");
 
             expect(lossLogs()).deep.equal([]);
         });

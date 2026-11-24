@@ -7,7 +7,7 @@
 import { isAclOrExtensionPath } from "#action/request/Write.js";
 import { ReadResult } from "#action/response/ReadResult.js";
 import { Mark } from "#common/Mark.js";
-import { PeerAckMissingError, PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
+import { PeerAckMissingError, PeerMessageMissingError, PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import { UnexpectedMessageError } from "#protocol/errors.js";
 import {
     asError,
@@ -979,14 +979,19 @@ function subscriptionIdOf(message: Message) {
 }
 
 /**
- * Which of our Success statuses to a data report the peer did not acknowledge: one to a chunk that more chunks follow,
- * or the one to the final chunk.
+ * Why a data report the peer sent did not complete:
+ *
+ * | Interruption             | Cause                                                                |
+ * |--------------------------|----------------------------------------------------------------------|
+ * | `"chunk-unacknowledged"` | the peer did not acknowledge our status to a chunk that more follow  |
+ * | `"final-unacknowledged"` | the peer did not acknowledge our status to the final chunk           |
+ * | `"chunk-missing"`        | the peer sent no next chunk after our status to a chunk              |
  */
-export type UnacknowledgedReportStatus = "chunk" | "final";
+export type ReportInterruption = "chunk-unacknowledged" | "final-unacknowledged" | "chunk-missing";
 
 export class IncomingInteractionClientMessenger extends InteractionMessenger {
     #reportAwaitsStatus = false;
-    #unacknowledgedReportStatus?: UnacknowledgedReportStatus;
+    #reportInterruption?: ReportInterruption;
     #subscriptionId?: SubscriptionId;
 
     async waitFor(expectedMessageInfo: string, messageType: number, options?: ExchangeReceiveOptions) {
@@ -1017,8 +1022,10 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
      * Data reports payloads are decoded but list attributes may be split across messages; these will require reassembly.
      */
     async *readDataReports(options?: ExchangeReceiveOptions) {
+        let isContinuation = false;
         while (true) {
-            const dataReportMessage = await this.waitFor("DataReport", MessageType.ReportData, options);
+            const dataReportMessage = await this.#nextDataReport(isContinuation, options);
+            isContinuation = true;
             this.#reportAwaitsStatus = true;
             this.#subscriptionId = undefined;
             const report = TlvDataReport.decode(dataReportMessage.payload);
@@ -1053,6 +1060,17 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
         }
     }
 
+    async #nextDataReport(isContinuation: boolean, options?: ExchangeReceiveOptions) {
+        try {
+            return await this.waitFor("DataReport", MessageType.ReportData, options);
+        } catch (error) {
+            if (isContinuation && causedBy(error, PeerMessageMissingError)) {
+                this.#reportInterruption = "chunk-missing";
+            }
+            throw error;
+        }
+    }
+
     async #sendReportStatus(report: DataReport) {
         try {
             await this.sendStatus(Status.Success, {
@@ -1061,19 +1079,18 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
             });
         } catch (error) {
             if (causedBy(error, PeerAckMissingError)) {
-                this.#unacknowledgedReportStatus = report.moreChunkedMessages ? "chunk" : "final";
+                this.#reportInterruption = report.moreChunkedMessages ? "chunk-unacknowledged" : "final-unacknowledged";
             }
             throw error;
         }
     }
 
     /**
-     * Our Success status to a data report that the peer never acknowledged, so it may never have received it; undefined
-     * when the peer acknowledged all of them.  Final only after {@link close} resolves, because {@link close} waits for
-     * the status of the final report.
+     * Why the data report did not complete; undefined when it completed or failed for another reason.  Final only after
+     * {@link close} resolves, because {@link close} waits for the status of the final report.
      */
-    get unacknowledgedReportStatus() {
-        return this.#unacknowledgedReportStatus;
+    get reportInterruption() {
+        return this.#reportInterruption;
     }
 
     /** Whether the peer waits for our status on the last data report it sent. */
