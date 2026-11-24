@@ -273,6 +273,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `Fabric.setLabel()` and `FabricBuilder.setLabel()` check the 32-byte limit in UTF-8 bytes instead of characters
     - Fix: `FabricManager` shortens a stored fabric label over 32 UTF-8 bytes on load with a warning
 
+- @matter/react-native
+    - Fix: `openChannel()` of the BLE transport honors the abort signal and disconnects when the channel setup fails
+
 - @matter/testing
     - Feature: `ControllerAdapterOptions.sustainedSubscription` keeps the controller's own subscription to each commissioned node, set for a `certTest()` that declares `sustained-subscription`; `step()` refuses that capability
 

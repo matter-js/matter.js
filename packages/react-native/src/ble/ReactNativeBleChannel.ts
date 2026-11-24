@@ -5,13 +5,17 @@
  */
 
 import {
+    Abort,
+    AbortedError,
     Bytes,
     Channel,
     ChannelType,
     Diagnostic,
     InternalError,
     Logger,
+    NetworkError,
     ServerAddress,
+    ServerAddressBle,
     Time,
     Transport,
     createPromise,
@@ -31,17 +35,24 @@ const logger = Logger.get("BleChannel");
 export class ReactNativeBleCentralInterface implements Transport {
     #ble: Ble;
     #openChannels: Map<string, Device> = new Map();
+    /** The connection attempt in progress per peripheral address; aborting one ends every step of that attempt. */
+    #attempts = new Map<string, Abort>();
+    #closed = false;
     #onMatterMessageListener: ((socket: Channel<Bytes>, data: Bytes) => void) | undefined;
 
     constructor(ble: Ble) {
         this.#ble = ble;
     }
 
-    async openChannel(address: ServerAddress, _options?: Transport.OpenChannelOptions): Promise<Channel<Bytes>> {
+    async openChannel(address: ServerAddress, options?: Transport.OpenChannelOptions): Promise<Channel<Bytes>> {
+        if (this.#closed) {
+            throw new NetworkError("BLE interface is closed");
+        }
         if (!ServerAddress.isBle(address)) {
             throw new InternalError(`Unsupported address type for BLE channel.`);
         }
-        if (this.#onMatterMessageListener === undefined) {
+        const onMatterMessageListener = this.#onMatterMessageListener;
+        if (onMatterMessageListener === undefined) {
             throw new InternalError(`Network Interface was not added to the system yet.`);
         }
 
@@ -50,11 +61,70 @@ export class ReactNativeBleCentralInterface implements Transport {
             this.#ble.scanner as BleScanner
         ).getDiscoveredDevice(address.peripheralAddress);
         const peripheral = blePeripheral.device;
-        if (this.#openChannels.has(address.peripheralAddress)) {
+        const { peripheralAddress } = address;
+        if (this.#openChannels.has(peripheralAddress)) {
             throw new BleError(
-                `Peripheral ${address.peripheralAddress} is already connected. Only one connection supported right now.`,
+                `Peripheral ${peripheralAddress} is already connected. Only one connection supported right now.`,
             );
         }
+        if (this.#attempts.has(peripheralAddress)) {
+            throw new BleError(`Connection to peripheral ${peripheralAddress} is already in progress.`);
+        }
+        const abort = options?.abort;
+        if (abort?.aborted) {
+            throw new AbortedError(`Connection to peripheral ${peripheralAddress} was aborted`);
+        }
+
+        const attempt = new Abort({ abort });
+        this.#attempts.set(peripheralAddress, attempt);
+        const connecting = this.#connect(
+            address,
+            peripheral,
+            hasAdditionalAdvertisementData,
+            onMatterMessageListener,
+            attempt.signal,
+        );
+        try {
+            return await Abort.attempt(attempt, connecting);
+        } catch (error) {
+            this.#disconnect(peripheral);
+            if (!attempt.aborted) {
+                throw error;
+            }
+            connecting.then(
+                channel =>
+                    channel
+                        .close()
+                        .catch(closeError =>
+                            logger.debug(
+                                `Error closing the channel to ${peripheralAddress} after the abort:`,
+                                closeError,
+                            ),
+                        ),
+                connectError => logger.debug(`Abandoned connection to ${peripheralAddress} failed:`, connectError),
+            );
+            throw new AbortedError(`Connection to peripheral ${peripheralAddress} was aborted`, { cause: error });
+        } finally {
+            this.#attempts.delete(peripheralAddress);
+            attempt.close();
+        }
+    }
+
+    /** Ends the link to the peripheral, whether it is connected or still connecting. */
+    #disconnect(peripheral: Device) {
+        peripheral
+            .cancelConnection()
+            .catch(error => logger.debug(`Error cancelling the connection to ${peripheral.id}:`, error));
+    }
+
+    /** Connects to the peripheral and opens the BTP channel on its Matter service. */
+    async #connect(
+        address: ServerAddressBle,
+        peripheral: Device,
+        hasAdditionalAdvertisementData: boolean,
+        onMatterMessageListener: (socket: Channel<Bytes>, data: Bytes) => void,
+        abort: AbortSignal,
+    ): Promise<Channel<Bytes>> {
         logger.debug(`Connect to Peripheral now`);
         let device: Device;
         try {
@@ -67,10 +137,12 @@ export class ReactNativeBleCentralInterface implements Transport {
                 throw new BleError(`Error connecting to peripheral: ${(error as any).message}`);
             }
         }
+        abort.throwIfAborted();
         logger.debug(`Peripheral connected successfully, MTU = ${device.mtu}`);
 
         // Once the peripheral has been connected, then discover the services and characteristics of interest.
         device = await device.discoverAllServicesAndCharacteristics();
+        abort.throwIfAborted();
 
         const services = await device.services();
 
@@ -80,6 +152,7 @@ export class ReactNativeBleCentralInterface implements Transport {
 
             // So, discover its characteristics.
             const characteristics = await device.characteristicsForService(service.uuid);
+            abort.throwIfAborted();
 
             let characteristicC1ForWrite: Characteristic | undefined;
             let characteristicC2ForSubscribe: Characteristic | undefined;
@@ -119,9 +192,16 @@ export class ReactNativeBleCentralInterface implements Transport {
                 continue;
             }
 
-            this.#openChannels.set(address.peripheralAddress, device);
+            abort.throwIfAborted();
+            const connectedDevice = device;
+            this.#openChannels.set(address.peripheralAddress, connectedDevice);
+            const forgetDevice = () => {
+                if (this.#openChannels.get(address.peripheralAddress) === connectedDevice) {
+                    this.#openChannels.delete(address.peripheralAddress);
+                }
+            };
             const disconnectSub = device.onDisconnected(() => {
-                this.#openChannels.delete(address.peripheralAddress);
+                forgetDevice();
                 disconnectSub.remove();
             });
             try {
@@ -129,11 +209,12 @@ export class ReactNativeBleCentralInterface implements Transport {
                     device,
                     characteristicC1ForWrite,
                     characteristicC2ForSubscribe,
-                    this.#onMatterMessageListener,
+                    onMatterMessageListener,
+                    abort,
                     additionalCommissioningRelatedData,
                 );
             } catch (error) {
-                this.#openChannels.delete(address.peripheralAddress);
+                forgetDevice();
                 disconnectSub.remove();
                 throw error;
             }
@@ -150,6 +231,10 @@ export class ReactNativeBleCentralInterface implements Transport {
     }
 
     async close() {
+        this.#closed = true;
+        for (const attempt of this.#attempts.values()) {
+            attempt.abort("BLE interface closed");
+        }
         const peripherals = [...this.#openChannels.values()];
         this.#openChannels.clear();
         for (const peripheral of peripherals) {
@@ -168,6 +253,7 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
         characteristicC1ForWrite: Characteristic,
         characteristicC2ForSubscribe: Characteristic,
         onMatterMessageListener: (socket: Channel<Bytes>, data: Bytes) => void,
+        abort: AbortSignal,
         _additionalCommissioningRelatedData?: Bytes,
     ): Promise<ReactNativeBleChannel> {
         const segmentSize = MatterBle.btpSegmentSizeFromAttMtu(peripheral.mtu ?? 0);
@@ -181,6 +267,7 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
         characteristicC1ForWrite = await characteristicC1ForWrite.writeWithResponse(
             Bytes.toBase64(btpHandshakeRequest),
         );
+        abort.throwIfAborted();
 
         const btpHandshakeTimeout = Time.getTimer("BLE handshake timeout", MatterBle.BTP_CONN_RSP_TIMEOUT, () => {
             characteristicSubscribe.remove();
@@ -239,7 +326,14 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
             }
         });
 
-        const handshakeResponse = await handshakeResponseReceivedPromise;
+        let handshakeResponse: Bytes;
+        try {
+            handshakeResponse = await Abort.attempt(abort, handshakeResponseReceivedPromise);
+        } catch (error) {
+            btpHandshakeTimeout.stop();
+            characteristicSubscribe.remove();
+            throw error;
+        }
 
         try {
             btpSession = await BtpSessionHandler.createAsCentral(
