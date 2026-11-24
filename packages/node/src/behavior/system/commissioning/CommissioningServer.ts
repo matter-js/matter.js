@@ -19,7 +19,7 @@ import {
     ImplementationError,
     Lifecycle,
     Logger,
-    MatterFlowError,
+    type MatterFlowError,
     Mutex,
     MutexClosedError,
     Observable,
